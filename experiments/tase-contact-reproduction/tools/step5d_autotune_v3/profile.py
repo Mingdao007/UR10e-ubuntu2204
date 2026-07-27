@@ -61,6 +61,24 @@ DEFAULT_CANDIDATE = {
     "force_i_gain": 0.00001,
     "force_damping": 7.0,
 }
+_EXECUTION_PROFILE_SEMANTICS = {
+    "nf100-slew050-a050": {
+        "bridge_angular_limit_rad_s": 0.05,
+        "bridge_normal_max_rate_rad_s": 0.1,
+        "step5d_qdot_limit_rad_s": 0.5,
+        "step5d_autotune_normal_rate_rad_s": 0.1,
+        "step5d_autotune_host_slew_rad_s2": 0.5,
+        "step5d_autotune_speedj_acceleration_rad_s2": 0.5,
+    },
+    "nf500-slew250-a250": {
+        "bridge_angular_limit_rad_s": 0.25,
+        "bridge_normal_max_rate_rad_s": 0.5,
+        "step5d_qdot_limit_rad_s": 2.5,
+        "step5d_autotune_normal_rate_rad_s": 0.5,
+        "step5d_autotune_host_slew_rad_s2": 2.5,
+        "step5d_autotune_speedj_acceleration_rad_s2": 2.5,
+    },
+}
 
 
 class ContractViolation(RuntimeError):
@@ -140,8 +158,9 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
     _git_sha1(baseline["commit"], name="frozen_baseline.commit")
     if baseline["stage_id"] != "step5d_strict_rnn_autotune_v1":
         raise ContractViolation("frozen v1 stage differs")
-    if payload["execution_profile_id"] != "nf100-slew050-a050":
-        raise ContractViolation("execution profile identity differs")
+    execution_profile_id = payload["execution_profile_id"]
+    if execution_profile_id not in _EXECUTION_PROFILE_SEMANTICS:
+        raise ContractViolation("execution profile identity is unsupported")
 
     candidate_schema = payload["candidate_schema"]
     candidate_fields = set(DEFAULT_CANDIDATE)
@@ -303,6 +322,46 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
                 f"effective fields have duplicate classifications: {sorted(overlap)}"
             )
         seen_fields.update(rows)
+    expected_profile = _EXECUTION_PROFILE_SEMANTICS[execution_profile_id]
+    cli_values = {
+        row[0]: float(row[1])
+        for row in arguments
+        if len(row) == 2
+        and row[0]
+        in {
+            "--bridge-angular-limit-rad-s",
+            "--bridge-normal-max-rate-rad-s",
+            "--step5d-qdot-limit-rad-s",
+            "--step5d-autotune-normal-rate-rad-s",
+            "--step5d-autotune-host-slew-rad-s2",
+            "--step5d-autotune-speedj-acceleration-rad-s2",
+        }
+    }
+    expected_cli = {
+        "--bridge-angular-limit-rad-s": expected_profile["bridge_angular_limit_rad_s"],
+        "--bridge-normal-max-rate-rad-s": expected_profile["bridge_normal_max_rate_rad_s"],
+        "--step5d-qdot-limit-rad-s": expected_profile["step5d_qdot_limit_rad_s"],
+        "--step5d-autotune-normal-rate-rad-s": expected_profile[
+            "step5d_autotune_normal_rate_rad_s"
+        ],
+        "--step5d-autotune-host-slew-rad-s2": expected_profile[
+            "step5d_autotune_host_slew_rad_s2"
+        ],
+        "--step5d-autotune-speedj-acceleration-rad-s2": expected_profile[
+            "step5d_autotune_speedj_acceleration_rad_s2"
+        ],
+    }
+    if set(cli_values) != set(expected_cli) or any(
+        not math.isclose(cli_values[name], value, rel_tol=0.0, abs_tol=1e-12)
+        for name, value in expected_cli.items()
+    ):
+        raise ContractViolation("execution profile CLI values do not cross-check together")
+    for name, expected_value in expected_profile.items():
+        observed_value = fields["safety_invariant"].get(name)
+        if observed_value is None or not math.isclose(
+            float(observed_value), expected_value, rel_tol=0.0, abs_tol=1e-12
+        ):
+            raise ContractViolation(f"effective field {name} mismatches execution profile")
     if set(fields["campaign_tunable"]) != {
         "step5d_autotune_force_p",
         "step5d_autotune_force_i",

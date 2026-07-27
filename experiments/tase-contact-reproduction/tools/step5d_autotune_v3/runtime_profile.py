@@ -68,7 +68,7 @@ _DEFAULT_OVERLAY_INPUT: dict[str, Any] = {
     "force_i_gain": 0.00001,
     "force_damping": 7.0,
     "orientation_ko": 0.4,
-    "execution_profile_id": "nf100-slew050-a050",
+    "execution_profile_id": "nf500-slew250-a250",
     "step5d_preload_filtered_min_n": 7.5,
     "step5d_preload_filtered_max_n": 14.0,
     "step5d_preload_raw_min_n": 7.0,
@@ -130,7 +130,7 @@ RAW_UPPER_LIMITS = {
     "--bridge-motion-limit-m-s": 0.004,
     "--bridge-total-linear-limit-m-s": 0.006,
     "--bridge-normal-velocity-limit-m-s": 0.003,
-    "--bridge-angular-limit-rad-s": 0.05,
+    "--bridge-angular-limit-rad-s": 0.25,
     "--step5c-qdot-limit-rad-s": 0.15,
 }
 

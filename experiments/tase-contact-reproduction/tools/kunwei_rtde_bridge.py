@@ -131,6 +131,7 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_ABLATION_V34_STAGE_ID,
     STEP5D_ABLATION_V35_STAGE_ID,
     STEP5D_AUTOTUNE_LIVE_NORMAL_RATE_RAD_S,
+    STEP5D_AUTOTUNE_BRIDGE_ANGULAR_LIMIT_RAD_S,
     STEP5D_AUTOTUNE_NORMAL_FILTER_DT_S,
     STEP5D_AUTOTUNE_NORMAL_FILTER_TAU_S,
     STEP5D_AUTOTUNE_OFFLINE_ONLY_NORMAL_RATE_RAD_S,
@@ -8115,7 +8116,7 @@ def configure_step5d_autotune_args(
         rel_tol=0.0,
         abs_tol=1e-12,
     ):
-        raise SystemExit("Step5d autotune qdot cap is fixed at 0.5 rad/s")
+        raise SystemExit("Step5d autotune qdot cap is fixed at 2.5 rad/s")
     if not math.isclose(
         float(args.bridge_normal_filter_tau_s),
         STEP5D_AUTOTUNE_NORMAL_FILTER_TAU_S,
@@ -8231,7 +8232,9 @@ def configure_step5d_autotune_args(
     args.bridge_normal_filter_alpha = 0.0
     args.step4e_normal_filter_alpha = 0.0
     args.bridge_normal_max_rate_rad_s = normal_rate
-    args.step4e_normal_max_rate_rad_s = normal_rate
+    args.step4e_normal_max_rate_rad_s = 0.100
+    args.bridge_angular_limit_rad_s = STEP5D_AUTOTUNE_BRIDGE_ANGULAR_LIMIT_RAD_S
+    args.step4e_angular_limit_rad_s = 0.050
 
 
 def flatten_output(output: dict[str, Any] | None) -> dict[str, Any]:
@@ -9549,7 +9552,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         if args.bridge_profile in STEP5D_PERMISSIVE_CONTACT_PROFILE_IDS:
             if args.step5d_stage25_control_mode != "speedj_rnn_live":
                 raise SystemExit("strict Step5d v31+ profiles permit only speedj_rnn_live; Cartesian and DLS are shadow-only")
-            args.step5d_qdot_limit_rad_s = STEP5D_V31_QDOT_CAP_RAD_S
+            if args.bridge_profile != STEP5D_AUTOTUNE_STAGE_ID:
+                args.step5d_qdot_limit_rad_s = STEP5D_V31_QDOT_CAP_RAD_S
             args.sensor_stale_s = STEP5D_V31_SENSOR_STALE_S
             args.baseline_s = 1.0
             args.rezero_s = 1.0

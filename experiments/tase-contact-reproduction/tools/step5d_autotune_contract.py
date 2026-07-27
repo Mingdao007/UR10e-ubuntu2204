@@ -34,6 +34,7 @@ SEED_FORCE_DAMPING = 7.0
 LOG2_LATTICE_OCTAVE = 0.25
 CODEX_I_SCALE_MULTIPLIERS = (10.0, 50.0, 100.0, 500.0, 1000.0)
 QDOT_CAP_RAD_S = 0.5
+ROTATIONAL_DYNAMICS_X5_PROFILE_ID = "nf500-slew250-a250"
 NORMAL_FILTER_TAU_S = 0.35
 NORMAL_FILTER_DT_MODE = "fixed_0.002s"
 EXACT_REPLAY_ENGINE_ID = "step5d_v35_candidate_bound_exact_replay_v1"
@@ -351,6 +352,7 @@ class ExecutionProfile:
     normal_filter_tau_s: float = NORMAL_FILTER_TAU_S
     normal_filter_dt_mode: str = NORMAL_FILTER_DT_MODE
     live_eligible: bool = True
+    bridge_angular_limit_rad_s: float = 0.05
 
     def __post_init__(self) -> None:
         if not isinstance(self.profile_id, str) or not self.profile_id.strip():
@@ -360,17 +362,22 @@ class ExecutionProfile:
         tp_accel = _finite("tp_speedj_accel_rad_s2", self.tp_speedj_accel_rad_s2)
         qdot_cap = _finite("qdot_cap_rad_s", self.qdot_cap_rad_s)
         filter_tau = _finite("normal_filter_tau_s", self.normal_filter_tau_s)
+        bridge_angular_limit = _finite(
+            "bridge_angular_limit_rad_s", self.bridge_angular_limit_rad_s
+        )
         _strict_bool("live_eligible", self.live_eligible)
-        if normal_rate not in {0.010, 0.015, 0.020, 0.030, 0.050, 0.100}:
+        if normal_rate not in {0.010, 0.015, 0.020, 0.030, 0.050, 0.100, 0.500}:
             raise ValueError(
-                "normal max-rate must be one of .010/.015/.020/.030/.050/.100 rad/s"
+                "normal max-rate must be one of .010/.015/.020/.030/.050/.100/.500 rad/s"
             )
-        if host_slew not in {0.1, 0.2, 0.5}:
-            raise ValueError("host qdot slew must be one of .1/.2/.5 rad/s^2")
-        if tp_accel not in {0.1, 0.2, 0.5}:
-            raise ValueError("TP speedj acceleration must be one of .1/.2/.5 rad/s^2")
-        if not math.isclose(qdot_cap, QDOT_CAP_RAD_S, abs_tol=1e-12):
-            raise ValueError("qdot cap is fixed at .5 rad/s")
+        if host_slew not in {0.1, 0.2, 0.5, 2.5}:
+            raise ValueError("host qdot slew must be one of .1/.2/.5/2.5 rad/s^2")
+        if tp_accel not in {0.1, 0.2, 0.5, 2.5}:
+            raise ValueError("TP speedj acceleration must be one of .1/.2/.5/2.5 rad/s^2")
+        if qdot_cap not in {0.5, 2.5}:
+            raise ValueError("qdot cap must be one of .5/2.5 rad/s")
+        if bridge_angular_limit not in {0.05, 0.25}:
+            raise ValueError("bridge angular limit must be one of .05/.25 rad/s")
         if not math.isclose(filter_tau, NORMAL_FILTER_TAU_S, abs_tol=1e-12):
             raise ValueError("normal filter tau is fixed at .35 s")
         if self.normal_filter_dt_mode != NORMAL_FILTER_DT_MODE:
@@ -396,11 +403,28 @@ class ExecutionProfile:
             or not math.isclose(tp_accel, 0.1, abs_tol=1e-12)
         ):
             raise ValueError("offline .030 profile is fixed to host-slew=.1 and TP-accel=.1")
+        if math.isclose(normal_rate, 0.500, abs_tol=1e-12):
+            if not (
+                math.isclose(host_slew, 2.5, abs_tol=1e-12)
+                and math.isclose(tp_accel, 2.5, abs_tol=1e-12)
+                and math.isclose(qdot_cap, 2.5, abs_tol=1e-12)
+                and math.isclose(bridge_angular_limit, 0.25, abs_tol=1e-12)
+            ):
+                raise ValueError(
+                    "nf500-slew250-a250 must bind normal=.5, bridge-angular=.25, "
+                    "qdot=2.5, host-slew=2.5, and TP-accel=2.5"
+                )
+        elif not (
+            math.isclose(qdot_cap, 0.5, abs_tol=1e-12)
+            and math.isclose(bridge_angular_limit, 0.05, abs_tol=1e-12)
+        ):
+            raise ValueError("historical profiles must retain qdot=.5 and bridge-angular=.05")
         object.__setattr__(self, "normal_max_rate_rad_s", normal_rate)
         object.__setattr__(self, "host_qdot_slew_rad_s2", host_slew)
         object.__setattr__(self, "tp_speedj_accel_rad_s2", tp_accel)
         object.__setattr__(self, "qdot_cap_rad_s", qdot_cap)
         object.__setattr__(self, "normal_filter_tau_s", filter_tau)
+        object.__setattr__(self, "bridge_angular_limit_rad_s", bridge_angular_limit)
 
     def payload(self) -> dict[str, Any]:
         return asdict(self)
@@ -413,6 +437,14 @@ NORMAL_FILTER_PROFILES: tuple[ExecutionProfile, ...] = (
     ExecutionProfile("nf030-offline", 0.030, live_eligible=False),
     ExecutionProfile("nf050-slew050-a050", 0.050, 0.5, 0.5),
     ExecutionProfile("nf100-slew050-a050", 0.100, 0.5, 0.5),
+    ExecutionProfile(
+        ROTATIONAL_DYNAMICS_X5_PROFILE_ID,
+        0.500,
+        2.5,
+        2.5,
+        qdot_cap_rad_s=2.5,
+        bridge_angular_limit_rad_s=0.25,
+    ),
 )
 
 

@@ -20,6 +20,27 @@ TEST_PROGRAM = "step5d_strict_rnn_autotune_v3_r999"
 TEST_STAMP = "2026-07-20T1325HKT_" + TEST_PROGRAM.upper()
 
 
+def test_rotational_x5_generator_profile_is_explicit_and_offline_renderable() -> None:
+    rendered = v3.build_package_script(
+        TEST_STAMP,
+        program_id=TEST_PROGRAM,
+        execution_profile_id="nf500-slew250-a250",
+    )
+    assert "local qdot_cap_rad_s = 2.500" in rendered
+    assert "elif accel_level == 4:" in rendered
+    assert "return 2.500" in rendered
+    assert "normal_level == 7" in rendered
+    sanity = v3.numeric_sanity(
+        rendered,
+        program_id=TEST_PROGRAM,
+        execution_profile_id="nf500-slew250-a250",
+    )
+    assert sanity["execution_profile_id"] == "nf500-slew250-a250"
+    assert sanity["execution_profile_integer_id"] == 744
+    assert sanity["qdot_cap_rad_s"] == 2.5
+    assert sanity["speedj_acceleration_profiles_rad_s2"][-1] == 2.5
+
+
 def test_urscript_block_balance_rejects_missing_inner_end() -> None:
     rendered = v3.render_script(TEST_PROGRAM)
     needle = """    if codex_autotune_typed_target_verified(campaign_home_pose, campaign_home_q, True):

@@ -26,6 +26,7 @@ if str(RUNTIME_SRC) not in sys.path:
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 from step5d_autotune_v3.release_identity import ROLLING_PROTOCOL
+from step5d_autotune_contract import NORMAL_FILTER_PROFILES
 from step5d_autotune_v3.runtime_identity import (
     RuntimeIdentityError,
     TpRuntimeIdentity,
@@ -49,6 +50,88 @@ PRECONTACT_TRANSFER_CLEARANCE_M = 0.01
 STAGE25_STALE_COMMAND_HOLD_S = 1.000
 CONTROLLER_DIR = v1.CONTROLLER_DIR
 LOCAL_PROGRAM_DIR = v1.LOCAL_PROGRAM_DIR
+DEFAULT_EXECUTION_PROFILE_ID = "nf100-slew050-a050"
+
+
+def _execution_profile(profile_id: str):
+    for profile in NORMAL_FILTER_PROFILES:
+        if profile.profile_id == profile_id:
+            return profile
+    raise ValueError(f"unsupported execution profile: {profile_id!r}")
+
+
+_EXECUTION_PROFILE_OVERLAY = (
+    (
+        "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050 rad/s;",
+        "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100 rad/s;",
+        "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100, 7=.500 rad/s;",
+    ),
+    (
+        "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
+        "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
+        "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6 or normal_level == 7) and host_slew_level >= 1 and host_slew_level <= 4 and tp_accel_level >= 1 and tp_accel_level <= 4",
+    ),
+    (
+        "  elif accel_level == 3:\n    return 0.500",
+        None,
+        "  elif accel_level == 3:\n    return 0.500\n  elif accel_level == 4:\n    return 2.500",
+    ),
+    ("local qdot_cap_rad_s = 0.500", None, "local qdot_cap_rad_s = 2.500"),
+)
+
+
+def _rewrite_execution_profile(
+    script: str,
+    profile_id: str,
+    *,
+    reverse: bool = False,
+    normalize_batch: bool = False,
+) -> str:
+    if profile_id == DEFAULT_EXECUTION_PROFILE_ID:
+        return script
+    if profile_id != "nf500-slew250-a250":
+        raise ValueError(f"execution profile has no TP generator overlay: {profile_id!r}")
+    rendered = script
+    for legacy, batch, profile in _EXECUTION_PROFILE_OVERLAY:
+        if normalize_batch:
+            if batch is not None:
+                rendered = rendered.replace(profile, batch, 1)
+            continue
+        if reverse:
+            sources = (profile, batch)
+            target = legacy
+        else:
+            sources = (batch, legacy)
+            target = profile
+        for source in sources:
+            if source is not None and source in rendered:
+                rendered = rendered.replace(source, target, 1)
+                break
+    return rendered
+
+
+def _apply_execution_profile(script: str, profile_id: str) -> str:
+    profile = _execution_profile(profile_id)
+    if profile_id == DEFAULT_EXECUTION_PROFILE_ID:
+        return script
+    rendered = _rewrite_execution_profile(script, profile_id)
+    if "local qdot_cap_rad_s = 2.500" not in rendered:
+        raise ValueError(f"execution profile overlay failed for {profile.profile_id}")
+    if "elif accel_level == 4:" not in rendered:
+        raise ValueError(f"execution profile TP acceleration overlay failed for {profile.profile_id}")
+    if "normal_level == 7" not in rendered:
+        raise ValueError(f"execution profile normal-rate overlay failed for {profile.profile_id}")
+    return rendered
+
+
+def _remove_execution_profile(script: str, profile_id: str) -> str:
+    return _rewrite_execution_profile(script, profile_id, reverse=True)
+
+
+def _prepare_profile_for_batch_normalization(script: str, profile_id: str) -> str:
+    if profile_id != "nf500-slew250-a250":
+        return script
+    return _rewrite_execution_profile(script, profile_id, normalize_batch=True)
 
 
 def _replace_once(source: str, old: str, new: str, *, role: str) -> str:
@@ -660,25 +743,38 @@ def _validate_urscript_block_balance(script: str) -> None:
         )
 
 
-def render_script(program_id: str) -> str:
+def render_script(
+    program_id: str,
+    *,
+    execution_profile_id: str = DEFAULT_EXECUTION_PROFILE_ID,
+) -> str:
     parent = v1.render_script()
     identity_basis = _render_script_body(
         parent, None, program_id=program_id
+    )
+    identity_basis = _apply_execution_profile(
+        identity_basis, execution_profile_id
     ).encode("utf-8")
     runtime_identity = derive_runtime_identity(
         program_id=program_id,
         protocol_id=PROTOCOL_ID,
         script_identity_basis=identity_basis,
     )
-    rendered = _render_script_body(
-        parent, runtime_identity, program_id=program_id
+    rendered = _apply_execution_profile(
+        _render_script_body(parent, runtime_identity, program_id=program_id),
+        execution_profile_id,
     )
     bind_final_script(
         rendered,
         program_id=program_id,
         protocol_id=PROTOCOL_ID,
     )
-    validate_rendered_script(rendered, program_id=program_id, parent=parent)
+    validate_rendered_script(
+        rendered,
+        program_id=program_id,
+        parent=parent,
+        execution_profile_id=execution_profile_id,
+    )
     return rendered
 
 
@@ -687,9 +783,12 @@ def validate_rendered_script(
     *,
     program_id: str,
     parent: str | None = None,
+    execution_profile_id: str = DEFAULT_EXECUTION_PROFILE_ID,
 ) -> None:
     _validate_urscript_block_balance(script)
     original = v1.render_script() if parent is None else parent
+    original = _apply_execution_profile(original, execution_profile_id)
+    original = _remove_execution_profile(original, execution_profile_id)
     try:
         runtime_identity, _ = bind_final_script(
             script,
@@ -720,7 +819,7 @@ def validate_rendered_script(
         "local entry_safe_rise_pose = p[p_current[0], p_current[1], entry_safe_transfer_z, p_current[3], p_current[4], p_current[5]]",
         "movel(entry_safe_rise_pose, a=0.060, v=0.040, r=0.0)",
         "movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)",
-        "local qdot_cap_rad_s = 0.500",
+        f"local qdot_cap_rad_s = {_execution_profile(execution_profile_id).qdot_cap_rad_s:.3f}",
         f"if stale_s2 > {STAGE25_STALE_COMMAND_HOLD_S:.3f}:",
         "read_input_integer_register(26)",
         "read_input_integer_register(30)",
@@ -798,7 +897,11 @@ def validate_rendered_script(
         role="normalized main call",
     )
     normalized = _remove_direct_arm_protocol(normalized)
+    normalized = _prepare_profile_for_batch_normalization(
+        normalized, execution_profile_id
+    )
     normalized = _remove_batch_lifecycle(normalized)
+    normalized = _remove_execution_profile(normalized, execution_profile_id)
     normalized = _replace_once(
         normalized,
         f"      if stale_s2 > {STAGE25_STALE_COMMAND_HOLD_S:.3f}:",
@@ -869,29 +972,45 @@ def source_stamp(program_id: str, now: datetime | None = None) -> str:
     return value.strftime("%Y-%m-%dT%H%MHKT_") + program_id.upper()
 
 
-def build_package_script(stamp: str, *, program_id: str) -> str:
+def build_package_script(
+    stamp: str,
+    *,
+    program_id: str,
+    execution_profile_id: str = DEFAULT_EXECUTION_PROFILE_ID,
+) -> str:
     if not stamp or "\n" in stamp:
         raise ValueError("source stamp must be one non-empty line")
     version = f"# VERSION: {stamp}\n"
     parent = v1.render_script()
-    identity_basis = (
-        version + _render_script_body(parent, None, program_id=program_id)
+    identity_basis = _apply_execution_profile(
+        version + _render_script_body(parent, None, program_id=program_id),
+        execution_profile_id,
     ).encode("utf-8")
     runtime_identity = derive_runtime_identity(
         program_id=program_id,
         protocol_id=PROTOCOL_ID,
         script_identity_basis=identity_basis,
     )
-    rendered = version + _render_script_body(
-        parent, runtime_identity, program_id=program_id
+    rendered = version + _apply_execution_profile(
+        _render_script_body(parent, runtime_identity, program_id=program_id),
+        execution_profile_id,
     )
     validate_rendered_script(
-        rendered, program_id=program_id, parent=parent
+        rendered,
+        program_id=program_id,
+        parent=parent,
+        execution_profile_id=execution_profile_id,
     )
     return rendered
 
 
-def build_txt(stamp: str, *, program_id: str) -> str:
+def build_txt(
+    stamp: str,
+    *,
+    program_id: str,
+    execution_profile_id: str = DEFAULT_EXECUTION_PROFILE_ID,
+) -> str:
+    profile = _execution_profile(execution_profile_id)
     return f"""Step5d Autotune V3 TP package
 
 Controller target:
@@ -914,7 +1033,7 @@ Motion class:
   force thresholds remain frozen.
 
 Frozen control contract:
-  qdot cap 0.500 rad/s; target 12 N; input integer registers 24..31;
+  qdot cap {profile.qdot_cap_rad_s:.3f} rad/s; target 12 N; input integer registers 24..31;
   transactional output integer registers 24..34; immutable runtime identity
   protocol/digest output integer registers 35..37; heartbeat watchdog fail-closed.
   Every trial returns to the campaign home captured once when Play begins.
@@ -969,8 +1088,18 @@ def simulate_return_telemetry(
     }
 
 
-def numeric_sanity(script: str, *, program_id: str) -> dict[str, Any]:
-    validate_rendered_script(script, program_id=program_id)
+def numeric_sanity(
+    script: str,
+    *,
+    program_id: str,
+    execution_profile_id: str = DEFAULT_EXECUTION_PROFILE_ID,
+) -> dict[str, Any]:
+    profile = _execution_profile(execution_profile_id)
+    validate_rendered_script(
+        script,
+        program_id=program_id,
+        execution_profile_id=execution_profile_id,
+    )
     _, runtime_identity = bind_final_script(
         script,
         program_id=program_id,
@@ -990,18 +1119,24 @@ def numeric_sanity(script: str, *, program_id: str) -> dict[str, Any]:
         "precontact_clearance_m": PRECONTACT_CLEARANCE_M,
         "precontact_transfer_clearance_m": PRECONTACT_TRANSFER_CLEARANCE_M,
         "precontact_z_policy": "corrective_safe_rise_xy_orientation_then_precontact",
-        "qdot_cap_rad_s": 0.5,
+        "qdot_cap_rad_s": profile.qdot_cap_rad_s,
         "stage25_stale_command_hold_s": STAGE25_STALE_COMMAND_HOLD_S,
         "ready_arm_timeout_s": None,
         "precontact_entry_accel_m_s2": 0.135,
         "precontact_entry_speed_m_s": 0.09,
         "far_search_speed_m_s": 0.03375,
-        "speedj_acceleration_profiles_rad_s2": [0.1, 0.2, 0.5],
+        "speedj_acceleration_profiles_rad_s2": (
+            [0.1, 0.2, 0.5, 2.5]
+            if execution_profile_id == "nf500-slew250-a250"
+            else [0.1, 0.2, 0.5]
+        ),
         "input_integer_registers": [24, 25, 26, 27, 28, 29, 30, 31],
         "output_integer_registers": list(range(24, 38)),
         "tp_runtime_identity": runtime_identity,
-        "execution_profile_id": "nf100-slew050-a050",
-        "execution_profile_integer_id": 633,
+        "execution_profile_id": execution_profile_id,
+        "execution_profile_integer_id": (
+            744 if execution_profile_id == "nf500-slew250-a250" else 633
+        ),
         "safe_transfer_z_m": 0.033,
         "return_segment_count": 3,
         "batch_row_policy": "five_row_logical_batches_every_row_campaign_home",
@@ -1016,6 +1151,7 @@ def validate_triplet(
     stamp: str,
     *,
     program_id: str,
+    execution_profile_id: str = DEFAULT_EXECUTION_PROFILE_ID,
 ) -> dict[str, Any]:
     root = ET.fromstring(gzip.decompress(urp).decode("utf-8"))
     cached = ""
@@ -1043,7 +1179,11 @@ def validate_triplet(
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
         raise ValueError(f"V3 TP triplet validation failed: {failed}")
-    validate_rendered_script(script, program_id=program_id)
+    validate_rendered_script(
+        script,
+        program_id=program_id,
+        execution_profile_id=execution_profile_id,
+    )
     return checks
 
 
@@ -1081,12 +1221,22 @@ def write_triplet(
     stamp: str,
     *,
     program_id: str,
+    execution_profile_id: str = DEFAULT_EXECUTION_PROFILE_ID,
 ) -> dict[str, Any]:
-    script = build_package_script(stamp, program_id=program_id)
-    txt = build_txt(stamp, program_id=program_id)
+    script = build_package_script(
+        stamp, program_id=program_id, execution_profile_id=execution_profile_id
+    )
+    txt = build_txt(
+        stamp, program_id=program_id, execution_profile_id=execution_profile_id
+    )
     urp = v1.build_urp(script, program_id, CONTROLLER_DIR)
     checks = validate_triplet(
-        script, txt, urp, stamp, program_id=program_id
+        script,
+        txt,
+        urp,
+        stamp,
+        program_id=program_id,
+        execution_profile_id=execution_profile_id,
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     paths = {
@@ -1116,7 +1266,11 @@ def write_triplet(
     manifest = _deploy_manifest(script, digests, program_id=program_id)
     with manifest_path.open("x", encoding="utf-8") as handle:
         handle.write(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    sanity = numeric_sanity(script, program_id=program_id)
+    sanity = numeric_sanity(
+        script,
+        program_id=program_id,
+        execution_profile_id=execution_profile_id,
+    )
     with sanity_path.open("x", encoding="utf-8") as handle:
         handle.write(json.dumps(sanity, indent=2, sort_keys=True) + "\n")
     return {
@@ -1137,14 +1291,24 @@ def check_triplet(
     stamp: str,
     *,
     program_id: str,
+    execution_profile_id: str = DEFAULT_EXECUTION_PROFILE_ID,
 ) -> dict[str, Any]:
     """Re-render canonical bytes and fail if an immutable output differs."""
 
-    script = build_package_script(stamp, program_id=program_id)
-    txt = build_txt(stamp, program_id=program_id)
+    script = build_package_script(
+        stamp, program_id=program_id, execution_profile_id=execution_profile_id
+    )
+    txt = build_txt(
+        stamp, program_id=program_id, execution_profile_id=execution_profile_id
+    )
     urp = v1.build_urp(script, program_id, CONTROLLER_DIR)
     checks = validate_triplet(
-        script, txt, urp, stamp, program_id=program_id
+        script,
+        txt,
+        urp,
+        stamp,
+        program_id=program_id,
+        execution_profile_id=execution_profile_id,
     )
     triplet = {
         ".script": script.encode("utf-8"),
@@ -1166,7 +1330,11 @@ def check_triplet(
         ).encode("utf-8"),
         f"{program_id}.numeric-sanity.json": (
             json.dumps(
-                numeric_sanity(script, program_id=program_id),
+                numeric_sanity(
+                    script,
+                    program_id=program_id,
+                    execution_profile_id=execution_profile_id,
+                ),
                 indent=2,
                 sort_keys=True,
             )
@@ -1199,6 +1367,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--program-id", required=True)
     parser.add_argument("--stamp", required=True)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument(
+        "--execution-profile-id",
+        default=DEFAULT_EXECUTION_PROFILE_ID,
+    )
     args = parser.parse_args(argv)
     operation = check_triplet if args.check else write_triplet
     print(
@@ -1207,6 +1379,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.output_dir,
                 args.stamp,
                 program_id=args.program_id,
+                execution_profile_id=args.execution_profile_id,
             ),
             indent=2,
             sort_keys=True,

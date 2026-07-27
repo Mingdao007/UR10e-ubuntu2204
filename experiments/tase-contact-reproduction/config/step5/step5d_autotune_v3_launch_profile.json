@@ -1,5 +1,5 @@
 {
-  "control_contract_sha256": "554e9a8a8a08c2a718b56de4975b3810aece6dfdfc1696ecbd36fb89576abfd2",
+  "control_contract_sha256": "f9c1bd3e2c61ca6b41df35ec1c5d1ea728653d360db8917f55e6908b3d6a69d5",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "launch_overrides": {},
   "moving_sphere_reference_sha256": "dd5f065a5cecc04098865dda08891e11bfa8c6c11f40bbd964d1b1dcb2b60b86",
@@ -12,6 +12,7 @@
     },
     "execution_profile_id": {
       "allowed": [
+        "nf500-slew250-a250",
         "nf100-slew050-a050"
       ]
     },

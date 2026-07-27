@@ -40,8 +40,9 @@ def execution_profile_integer_id(profile: ExecutionProfile) -> int:
         0.030: 4,
         0.050: 5,
         0.100: 6,
+        0.500: 7,
     }
-    actuator_levels = {0.1: 1, 0.2: 2, 0.5: 3}
+    actuator_levels = {0.1: 1, 0.2: 2, 0.5: 3, 2.5: 4}
     try:
         normal = normal_levels[profile.normal_max_rate_rad_s]
         host_slew = actuator_levels[profile.host_qdot_slew_rad_s2]

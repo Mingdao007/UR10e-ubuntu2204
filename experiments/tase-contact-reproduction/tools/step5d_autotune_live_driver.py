@@ -60,8 +60,9 @@ NORMAL_LEVELS = {
     4: 0.030,
     5: 0.050,
     6: 0.100,
+    7: 0.500,
 }
-ACTUATOR_LEVELS = {1: 0.1, 2: 0.2, 3: 0.5}
+ACTUATOR_LEVELS = {1: 0.1, 2: 0.2, 3: 0.5, 4: 2.5}
 HOST_TO_TP_NAMES = (
     "campaign_epoch",
     "trial_id",
@@ -204,12 +205,25 @@ def validate_execution_profile_binding(
     execution_profile_id: int,
     *,
     network_mode: bool,
+    bridge_angular_limit_rad_s: float | None = None,
+    qdot_cap_rad_s: float | None = None,
 ) -> None:
     encoded = execution_profile_id_for(profile, network_mode=network_mode)
     if execution_profile_id != encoded:
         raise MailboxError(
             "execution_profile_id does not exactly cross-check normal/host/TP levels"
         )
+    if bridge_angular_limit_rad_s is not None and not math.isclose(
+        float(bridge_angular_limit_rad_s),
+        profile.bridge_angular_limit_rad_s,
+        rel_tol=0.0,
+        abs_tol=1e-12,
+    ):
+        raise MailboxError("bridge angular limit does not match execution profile")
+    if qdot_cap_rad_s is not None and not math.isclose(
+        float(qdot_cap_rad_s), profile.qdot_cap_rad_s, rel_tol=0.0, abs_tol=1e-12
+    ):
+        raise MailboxError("qdot cap does not match execution profile")
 
 
 def integer_stop_transport(state: TpLoopState) -> str:

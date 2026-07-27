@@ -160,7 +160,7 @@
     ],
     [
       "--bridge-angular-limit-rad-s",
-      "0.050"
+      "0.250"
     ],
     [
       "--bridge-contact-offset-min-fz-n",
@@ -176,7 +176,7 @@
     ],
     [
       "--bridge-normal-max-rate-rad-s",
-      "0.100"
+      "0.500"
     ],
     [
       "--bridge-normal-min-force-n",
@@ -208,7 +208,7 @@
     ],
     [
       "--step5d-qdot-limit-rad-s",
-      "0.500"
+      "2.500"
     ],
     [
       "--step5d-epsilon",
@@ -272,15 +272,15 @@
     ],
     [
       "--step5d-autotune-normal-rate-rad-s",
-      "0.100"
+      "0.500"
     ],
     [
       "--step5d-autotune-host-slew-rad-s2",
-      "0.500"
+      "2.500"
     ],
     [
       "--step5d-autotune-speedj-acceleration-rad-s2",
-      "0.500"
+      "2.500"
     ],
     [
       "--step5d-autotune-campaign-epoch",
@@ -410,7 +410,7 @@
       "allow_kunwei_stream_command": true,
       "bias_contact_force_norm_threshold_n": 2.0,
       "bias_contact_normal_threshold_n": 0.75,
-      "bridge_angular_limit_rad_s": 0.05,
+      "bridge_angular_limit_rad_s": 0.25,
       "bridge_contact_offset_min_fz_n": 1.0,
       "bridge_integral_limit_n_s": 10.0,
       "bridge_motion_limit_m_s": 0.004,
@@ -420,7 +420,7 @@
       "bridge_normal_follow_mode": "filtered_live",
       "bridge_normal_friction_projection": "on",
       "bridge_normal_max_angle_from_latch_deg": 20.0,
-      "bridge_normal_max_rate_rad_s": 0.1,
+      "bridge_normal_max_rate_rad_s": 0.5,
       "bridge_normal_min_force_n": 2.0,
       "bridge_normal_velocity_limit_m_s": 1.0,
       "bridge_total_linear_limit_m_s": 1.0,
@@ -451,11 +451,11 @@
       "step4e_normal_min_force_n": 2.0,
       "step4e_normal_velocity_limit_m_s": 1.0,
       "step4e_total_linear_limit_m_s": 1.0,
-      "step5d_autotune_host_slew_rad_s2": 0.5,
-      "step5d_autotune_normal_rate_rad_s": 0.1,
+      "step5d_autotune_host_slew_rad_s2": 2.5,
+      "step5d_autotune_normal_rate_rad_s": 0.5,
       "step5d_autotune_offline_only_profile": false,
       "step5d_autotune_profile_eligibility": "live_eligible",
-      "step5d_autotune_speedj_acceleration_rad_s2": 0.5,
+      "step5d_autotune_speedj_acceleration_rad_s2": 2.5,
       "step5d_preload_filtered_max_n": 14.0,
       "step5d_preload_filtered_min_n": 7.5,
       "step5d_preload_force_norm_max_n": 25.0,
@@ -463,12 +463,12 @@
       "step5d_preload_raw_max_n": 15.0,
       "step5d_preload_raw_min_n": 7.0,
       "step5d_preload_timeout_s": 10.0,
-      "step5d_qdot_limit_rad_s": 0.5,
+      "step5d_qdot_limit_rad_s": 2.5,
       "step5d_stop_register_canary_s": 0.0,
       "write_rtde_inputs": true
     }
   },
-  "execution_profile_id": "nf100-slew050-a050",
+  "execution_profile_id": "nf500-slew250-a250",
   "forbidden_cli_flags": [
     "--step4e-normal-filter-alpha",
     "--bridge-normal-filter-alpha",
@@ -558,16 +558,16 @@
     "config/step5d_autotune_i_scale_sanity_v1.json": "19b2a07cc43722cf486863150b65b9984160ccec1b326e762022135d20f6a225",
     "scripts/bridge-line-operator.sh": "38d9a5f7b17a40459a8e45e3a651a126e5a1831a9c96395f3d15daffa9691a0f",
     "scripts/step5d-autotune-live.sh": "d3f5b47b2ceb7f2f888c6f16f3c25d63f95afe867c5ce160b5871adb14d2380e",
-    "tools/build_step5d_autotune_tp_v3.py": "396f6d1f758e7109ac7def310b8b36490ce6d78ad2613d3575efd95eb53e9f6c",
+    "tools/build_step5d_autotune_tp_v3.py": "a7f5a284bd0fdb88cb07d2395590b2f76fd4c87576e1391c5d427178b5ed2bba",
     "tools/contact_semantics.py": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
-    "tools/kunwei_rtde_bridge.py": "0a71e7d533b6a285df50ad8566787dde74920295a04c87e04942f5cbc2c05d6e",
+    "tools/kunwei_rtde_bridge.py": "083f6cf35372a58e5ad51b6ec9bca95ae9015eb36a7a39aeb4647e86a87f5c87",
     "tools/run_step5d_autotune_campaign.py": "05a5142867c3732e19670f278728829cb2c2895985b8ba4507a0033c0fbfe78b",
     "tools/step5d_autotune_backend.py": "1f847000801198ae38ab48569c5ba6ba1c273b31d773c331ace762e447bfb35f",
     "tools/step5d_autotune_batch_plan.py": "4a35af49af05134e3967b3b523e084f8a488fcac40abb64c29cff5647d761565",
-    "tools/step5d_autotune_contract.py": "ac595537770401e0a064a0a720277d05dc182ea098bf425c1b2f04dbd319c648",
+    "tools/step5d_autotune_contract.py": "3103b7a48e54d391e2fe63752b5e4e60d1542b05eb62fd4971dd2c64fd6e8834",
     "tools/step5d_autotune_coordinator.py": "9d02995c68f1ecbdae2b1a4522b7c9a00140b541045087f46548c5fd5a1aceb3",
     "tools/step5d_autotune_journal.py": "bd3f7accf87ba02932d9e30772fcf261635b572f6f1be5ccaa6010bdaa2978d5",
-    "tools/step5d_autotune_live_driver.py": "df3d3509f7414e20e3018008627eb0fbe65cafbdd8509c008e6cdc7f6c476a79",
+    "tools/step5d_autotune_live_driver.py": "fa5f665f924d86eca7a8d68ba7c5d84cca93da0d1629c86421841551429e4fe5",
     "tools/step5d_autotune_optimizer.py": "dd8ddfcabdb409c12e33fb82817e22e51a4d9e4539c855812f2f5bbe2572dc7f",
     "tools/step5d_autotune_r008_policy.py": "4239a1d21abf31ea07a52a26f12c740d35a64afd84771a36eea62470236598be",
     "tools/step5d_autotune_runtime_lifecycle.py": "979190734701ec89a814907d3ab682253a61a7d6b3c8b424e393df6067732a61",
@@ -576,7 +576,7 @@
     "tools/step5d_control_contract.py": "eed2782da7d44d617758f4ca5f848fd082e40c7b85a9a5e3ffdfa7f5f7ffecb2",
     "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
     "tools/step5d_r008_completion.py": "8abad28f2da85b34ec793f7c6c42f203f5d7136217711a8cc01f83f02ce09321",
-    "tools/step5d_runtime_interface.py": "36994147328f8e2a55998148880dd7d33cac4cd43c0a332f477cc966de9493d4"
+    "tools/step5d_runtime_interface.py": "371d87fa364989709a531678e05be095a07d61f1fb72c5a110eee51d86e144bd"
   },
   "tp_artifact_sha256": {
     ".script": "11f35eb03997946b418ef9f3933266f2c9a9375daa78a07f75caabd75a8971dd",

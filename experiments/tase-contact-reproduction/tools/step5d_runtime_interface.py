@@ -83,10 +83,12 @@ STEP5D_ABLATION_STAGE_IDS = (
 )
 STEP5D_AUTOTUNE_NORMAL_FILTER_TAU_S = 0.35
 STEP5D_AUTOTUNE_NORMAL_FILTER_DT_S = 0.002
-STEP5D_AUTOTUNE_LIVE_NORMAL_RATE_RAD_S = (0.010, 0.015, 0.020, 0.050, 0.100)
+STEP5D_AUTOTUNE_LIVE_NORMAL_RATE_RAD_S = (0.010, 0.015, 0.020, 0.050, 0.100, 0.500)
 STEP5D_AUTOTUNE_OFFLINE_ONLY_NORMAL_RATE_RAD_S = (0.030,)
-STEP5D_AUTOTUNE_QDOT_CAP_RAD_S = 0.5
-STEP5D_AUTOTUNE_SLEW_LEVELS_RAD_S2 = (0.1, 0.2, 0.5)
+STEP5D_AUTOTUNE_QDOT_CAP_RAD_S = 2.5
+STEP5D_AUTOTUNE_BRIDGE_ANGULAR_LIMIT_RAD_S = 0.25
+STEP5D_AUTOTUNE_SLEW_LEVELS_RAD_S2 = (0.1, 0.2, 0.5, 2.5)
+STEP5D_AUTOTUNE_EXECUTION_PROFILE_ID = "nf500-slew250-a250"
 STEP5D_AUTOTUNE_HANDSHAKE_HOST_TO_TP = {
     "input_int_register_24": "campaign_epoch",
     "input_int_register_25": "trial_id",
@@ -846,7 +848,16 @@ def resolve_runtime_interface(
             ),
             normal_min_force_n=env_float(env_map, "STEP5D_NORMAL_MIN_FORCE_N", float(protocol_params["normal_filter_min_force_n"]), legacy="BRIDGE_NORMAL_MIN_FORCE_N"),
             total_linear_limit_m_s=env_float(env_map, "STEP5D_TOTAL_LINEAR_LIMIT_M_S", float(protocol_limits["total_linear_limit_m_s"]), legacy="BRIDGE_TOTAL_LINEAR_LIMIT_M_S"),
-            angular_limit_rad_s=env_float(env_map, "STEP5D_ANGULAR_LIMIT_RAD_S", 0.150 if selected == STEP5D_ABLATION_V25_STAGE_ID else float(protocol_limits["angular_limit_rad_s"]), legacy="BRIDGE_ANGULAR_LIMIT_RAD_S"),
+            angular_limit_rad_s=env_float(
+                env_map,
+                "STEP5D_ANGULAR_LIMIT_RAD_S",
+                STEP5D_AUTOTUNE_BRIDGE_ANGULAR_LIMIT_RAD_S
+                if selected == STEP5D_AUTOTUNE_STAGE_ID
+                else 0.150
+                if selected == STEP5D_ABLATION_V25_STAGE_ID
+                else float(protocol_limits["angular_limit_rad_s"]),
+                legacy="BRIDGE_ANGULAR_LIMIT_RAD_S",
+            ),
             max_normal_force_n=env_float(env_map, "STEP5D_MAX_NORMAL_FORCE_N", trusted_normal_default_n, legacy="MAX_NORMAL_FORCE_N"),
             max_force_norm_n=env_float(env_map, "STEP5D_MAX_FORCE_NORM_N", trusted_force_default_n, legacy="MAX_FORCE_NORM_N"),
             max_torque_norm_nm=env_float(env_map, "STEP5D_MAX_TORQUE_NORM_NM", trusted_torque_default_nm, legacy="MAX_TORQUE_NORM_NM"),
@@ -916,7 +927,9 @@ def resolve_runtime_interface(
                     "epsilon": 0.010,
                     "sigr_exponent_r": 0.8,
                     "qdot_cap_rad_s": (
-                        STEP5D_V31_QDOT_CAP_RAD_S
+                        STEP5D_AUTOTUNE_QDOT_CAP_RAD_S
+                        if selected == STEP5D_AUTOTUNE_STAGE_ID
+                        else STEP5D_V31_QDOT_CAP_RAD_S
                         if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}
                         else STEP5D_NO_CONTACT_P0_V9_QDOT_CAP_RAD_S
                         if selected == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
@@ -961,6 +974,7 @@ def resolve_runtime_interface(
             "autotune_profile": (
                 {
                     "source_stage_id": STEP5D_ABLATION_V35_STAGE_ID,
+                    "execution_profile_id": STEP5D_AUTOTUNE_EXECUTION_PROFILE_ID,
                     "normal_filter_alpha": "rejected",
                     "normal_filter_tau_s": STEP5D_AUTOTUNE_NORMAL_FILTER_TAU_S,
                     "normal_filter_dt_mode": "fixed",
@@ -968,6 +982,7 @@ def resolve_runtime_interface(
                     "live_normal_rate_rad_s": STEP5D_AUTOTUNE_LIVE_NORMAL_RATE_RAD_S,
                     "offline_only_normal_rate_rad_s": STEP5D_AUTOTUNE_OFFLINE_ONLY_NORMAL_RATE_RAD_S,
                     "qdot_cap_rad_s": STEP5D_AUTOTUNE_QDOT_CAP_RAD_S,
+                    "bridge_angular_limit_rad_s": STEP5D_AUTOTUNE_BRIDGE_ANGULAR_LIMIT_RAD_S,
                     "host_slew_and_speedj_levels_rad_s2": STEP5D_AUTOTUNE_SLEW_LEVELS_RAD_S2,
                     "handshake": {
                         "host_to_tp": STEP5D_AUTOTUNE_HANDSHAKE_HOST_TO_TP,
