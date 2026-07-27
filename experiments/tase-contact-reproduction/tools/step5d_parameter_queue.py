@@ -22,6 +22,9 @@ from ur10e_experiment_runtime.candidate_identity import (
     TransportCandidateUid,
 )
 from step5d_autotune_v3.profile import canonical_json_bytes
+from step5d_autotune_v3.release_identity import (
+    ROLLING_EXECUTION_PROFILE_BINDINGS,
+)
 from step5d_autotune_v3.runtime_profile import (
     DEFAULT_OVERLAY,
     load_launch_profile,
@@ -41,7 +44,6 @@ MIGRATION_SCHEMA = "step5d.parameter-receiver/migration-v1"
 NEXT_ARM_SCHEMA = "step5d.parameter-receiver/governance-next-arm-v1"
 TERMINAL_RECEIPT_SCHEMA = "step5d.parameter-receiver/governance-terminal-receipt-v1"
 PROTOCOL = "v3_full_home_parameter_receiver_v1"
-PROFILE_INTEGER_ID = 633
 MAX_JSON_BYTES = 16 * 1024
 POSITIONS = frozenset({"tail", "next"})
 RECEIPT_STATUSES = frozenset({"SUCCEEDED", "FAILED"})
@@ -68,6 +70,21 @@ def _load_profile(path: Path):
     if not isinstance(program, str) or not program:
         raise ParameterQueueError("V3 launch profile lacks tp_program_id")
     return load_launch_profile(path, expected_tp_program_id=program)
+
+
+def _profile_integer_id(overlay: Mapping[str, Any]) -> int:
+    """Encode the integer register value for the overlay's own execution profile.
+
+    The launch profile admits more than one execution profile, and a release
+    rotation changes which one the plan selects, so the dispatched packet reads
+    the integer straight off the overlay it was built from.
+    """
+
+    profile_id = overlay["execution_profile_id"]
+    binding = ROLLING_EXECUTION_PROFILE_BINDINGS.get(profile_id)
+    if binding is None:
+        raise ParameterQueueError(f"unknown execution_profile_id {profile_id!r}")
+    return binding[1]
 
 
 def _canonical(payload: Mapping[str, Any]) -> bytes:
@@ -1015,7 +1032,7 @@ def prepare_next_dispatch(root: Path) -> dict[str, Any] | None:
                 "trial_id": home["last_trial_id"] + 1,
                 "command": 1,
                 "candidate_token": candidate_token,
-                "execution_profile_id": PROFILE_INTEGER_ID,
+                "execution_profile_id": _profile_integer_id(request["overlay"]),
                 "command_seq": home["last_command_seq"] + 1,
                 "logical_batch_sequence": dispatch_sequence,
                 "batch_row_index": 1,

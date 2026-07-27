@@ -20,8 +20,14 @@ from step5d_parameter_manifest import (  # noqa: E402
     validate_manifest,
 )
 import prepare_step5d_autotune_launch as launch  # noqa: E402
+from step5d_autotune_contract import NORMAL_FILTER_PROFILES  # noqa: E402
+from step5d_autotune_live_driver import (  # noqa: E402
+    execution_profile_id_for,
+    validate_execution_profile_binding,
+)
 from step5d_parameter_queue import (  # noqa: E402
     ParameterQueueError,
+    _profile_integer_id,
     bind_home,
     adopt_selected_legacy_binding,
     finish_dispatch,
@@ -129,7 +135,7 @@ def test_dispatch_identity_is_separate_and_failed_outcome_never_retries(
         "trial_id": 8,
         "state": 78,
         "candidate_token": dispatch["packet"]["candidate_token"],
-        "execution_profile_id": 633,
+        "execution_profile_id": dispatch["packet"]["execution_profile_id"],
         "consumed_command_seq": 10,
         "logical_batch_sequence": 1,
         "batch_row_index": 1,
@@ -201,7 +207,7 @@ def test_receipt_omits_classifier_and_identity_marker_is_internal_only(
         "trial_id": 1,
         "state": 78,
         "candidate_token": dispatch["packet"]["candidate_token"],
-        "execution_profile_id": 633,
+        "execution_profile_id": dispatch["packet"]["execution_profile_id"],
         "consumed_command_seq": 1,
         "logical_batch_sequence": 1,
         "batch_row_index": 1,
@@ -308,6 +314,54 @@ def test_identity_failure_rejects_nonterminal_or_unconfirmed_safety(
             failure_class="IDENTITY",
         )
     assert status(root)["inflight"] is not None
+
+
+def test_dispatch_packet_profile_survives_the_live_mailbox_cross_check(
+    tmp_path: Path,
+) -> None:
+    """A dispatched packet must encode the overlay's own execution profile.
+
+    ``validate_execution_profile_binding`` is the check the ARM mailbox runs
+    before it writes anything, so a packet that disagrees with the overlay is
+    never delivered to the TP.
+    """
+
+    root = _queue(tmp_path)
+    submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.001189207115002721,
+        force_i=0.00001,
+        force_damping=5.886274906776001,
+    )
+    bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(root)
+    assert dispatch is not None
+    overlay_profile_id = dispatch["request"]["overlay"]["execution_profile_id"]
+    profile = next(
+        row for row in NORMAL_FILTER_PROFILES if row.profile_id == overlay_profile_id
+    )
+    validate_execution_profile_binding(
+        profile,
+        dispatch["packet"]["execution_profile_id"],
+        network_mode=True,
+    )
+
+
+def test_every_launch_profile_execution_profile_encodes_its_own_integer() -> None:
+    """A release that rotates the execution profile cannot strand the packet."""
+
+    allowed = json.loads(PROFILE.read_text())["trial_overlay_policy"][
+        "execution_profile_id"
+    ]["allowed"]
+    assert len(allowed) > 1
+    for profile_id in allowed:
+        profile = next(
+            row for row in NORMAL_FILTER_PROFILES if row.profile_id == profile_id
+        )
+        assert _profile_integer_id({"execution_profile_id": profile_id}) == (
+            execution_profile_id_for(profile, network_mode=True)
+        )
 
 
 def test_not_consumed_is_immutable_non_attempt_and_request_remains_pending(
