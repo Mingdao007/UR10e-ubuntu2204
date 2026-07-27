@@ -26,10 +26,11 @@ CUDA_FIT_MODES = {"serial", "verified_parallel"}
 R008_NOISE_VARIANCE_FLOOR_N2 = 1e-4
 
 
-def candidate_vector(candidate: ForceCandidate) -> tuple[float, float, float, float]:
+def candidate_vector(candidate: ForceCandidate) -> tuple[float, float, float, float, float]:
     return (
         candidate.log2_p,
         candidate.log2_damping,
+        candidate.log2_filter_tau,
         0.0 if candidate.force_i_gain == 0.0 else candidate.log2_i,
         1.0 if candidate.force_i_gain == 0.0 else 0.0,
     )
@@ -41,6 +42,8 @@ def _changed_coordinates(a: ForceCandidate, b: ForceCandidate) -> tuple[str, ...
         changed.append("p")
     if not math.isclose(a.log2_damping, b.log2_damping, abs_tol=1e-9):
         changed.append("damping")
+    if not math.isclose(a.log2_filter_tau, b.log2_filter_tau, abs_tol=1e-9):
+        changed.append("filter_tau")
     if a.i_mode != b.i_mode:
         changed.append("i_mode")
     elif a.i_mode == "positive" and not math.isclose(a.log2_i, b.log2_i, abs_tol=1e-9):
@@ -53,6 +56,8 @@ def _coordinate(candidate: ForceCandidate, axis: str) -> float:
         return candidate.log2_p
     if axis == "damping":
         return candidate.log2_damping
+    if axis == "filter_tau":
+        return candidate.log2_filter_tau
     if axis == "i" and candidate.i_mode == "positive":
         return candidate.log2_i
     raise ValueError(f"candidate has no continuous {axis} coordinate")
@@ -68,24 +73,21 @@ def live_trust_region_step(incumbent: ForceCandidate, candidate: ForceCandidate)
             math.isclose(incumbent.log2_p, candidate.log2_p, abs_tol=1e-9)
             and math.isclose(incumbent.log2_damping, candidate.log2_damping, abs_tol=1e-9)
         )
-    if field == "p":
-        delta = abs(candidate.log2_p - incumbent.log2_p)
-    elif field == "damping":
-        delta = abs(candidate.log2_damping - incumbent.log2_damping)
-    else:
-        delta = abs(candidate.log2_i - incumbent.log2_i)
+    delta = abs(_coordinate(candidate, field) - _coordinate(incumbent, field))
     return math.isclose(delta, LOG2_LATTICE_OCTAVE, abs_tol=1e-9)
 
 
 def one_step_neighbors(incumbent: ForceCandidate, tier: SearchTier) -> tuple[ForceCandidate, ...]:
     candidates: set[ForceCandidate] = set()
     p, damping = incumbent.log2_p, incumbent.log2_damping
+    filter_tau = incumbent.log2_filter_tau
     i = 0.0 if incumbent.force_i_gain == 0.0 else incumbent.log2_i
     for delta in (-LOG2_LATTICE_OCTAVE, LOG2_LATTICE_OCTAVE):
-        candidates.add(ForceCandidate.from_log2(p=p + delta, damping=damping, i=i, i_off=incumbent.i_mode == "off"))
-        candidates.add(ForceCandidate.from_log2(p=p, damping=damping + delta, i=i, i_off=incumbent.i_mode == "off"))
+        candidates.add(ForceCandidate.from_log2(p=p + delta, damping=damping, i=i, i_off=incumbent.i_mode == "off", filter_tau=filter_tau))
+        candidates.add(ForceCandidate.from_log2(p=p, damping=damping + delta, i=i, i_off=incumbent.i_mode == "off", filter_tau=filter_tau))
         if tier is not SearchTier.T1 and incumbent.i_mode == "positive":
-            candidates.add(ForceCandidate.from_log2(p=p, damping=damping, i=i + delta))
+            candidates.add(ForceCandidate.from_log2(p=p, damping=damping, i=i + delta, filter_tau=filter_tau))
+        candidates.add(ForceCandidate.from_log2(p=p, damping=damping, i=i, i_off=incumbent.i_mode == "off", filter_tau=filter_tau + delta))
     if tier is not SearchTier.T1:
         candidates.add(
             ForceCandidate.from_log2(
@@ -93,6 +95,7 @@ def one_step_neighbors(incumbent: ForceCandidate, tier: SearchTier) -> tuple[For
                 damping=damping,
                 i=0.0 if incumbent.i_mode == "off" else incumbent.log2_i,
                 i_off=incumbent.i_mode != "off",
+                filter_tau=filter_tau,
             )
         )
     return tuple(
@@ -111,7 +114,7 @@ def _one_step_toward(
 
     if actual == target:
         return actual
-    for axis in ("p", "damping", "i"):
+    for axis in ("p", "damping", "i", "filter_tau"):
         if axis == "i" and (
             actual.i_mode != "positive" or target.i_mode != "positive"
         ):
@@ -128,6 +131,7 @@ def _one_step_toward(
             "damping": actual.log2_damping,
             "i": 0.0 if actual.i_mode == "off" else actual.log2_i,
             "i_off": actual.i_mode == "off",
+            "filter_tau": actual.log2_filter_tau,
         }
         kwargs[axis] = coordinate
         candidate = ForceCandidate.from_log2(**kwargs)
@@ -140,6 +144,7 @@ def _one_step_toward(
             damping=actual.log2_damping,
             i=0.0 if actual.i_mode == "off" else actual.log2_i,
             i_off=actual.i_mode != "off",
+            filter_tau=actual.log2_filter_tau,
         )
         if not live_trust_region_step(actual, candidate):
             raise RuntimeError("I-mode transition construction violated live trust region")
@@ -191,7 +196,12 @@ def _transition_axis_direction(
     after: ForceCandidate,
 ) -> tuple[str, int] | None:
     changed = _changed_coordinates(before, after)
-    if len(changed) != 1 or changed[0] not in {"p", "damping", "i"}:
+    if len(changed) != 1 or changed[0] not in {
+        "p",
+        "damping",
+        "i",
+        "filter_tau",
+    }:
         return None
     if not live_trust_region_step(before, after):
         return None
@@ -205,6 +215,8 @@ def _is_t2_boundary(candidate: ForceCandidate, axis: str, direction: int) -> boo
         radius = SearchTier.T2.p_d_radius_octaves
     elif axis == "i" and candidate.i_mode == "positive":
         radius = SearchTier.T2.positive_i_radius_octaves
+    elif axis == "filter_tau":
+        radius = 1.0
     else:
         return False
     return math.isclose(_coordinate(candidate, axis), direction * radius, abs_tol=1e-9)
@@ -267,7 +279,7 @@ def _same_ray(
 ) -> bool:
     if candidate.i_mode != boundary.i_mode:
         return False
-    for other_axis in ("p", "damping", "i"):
+    for other_axis in ("p", "damping", "i", "filter_tau"):
         if other_axis == axis:
             continue
         if other_axis == "i" and candidate.i_mode != "positive":
@@ -454,7 +466,7 @@ def _cuda_botorch_candidate(
         train_x,
         train_y,
         train_Yvar=train_yvar,
-        input_transform=Normalize(d=4),
+        input_transform=Normalize(d=5),
         outcome_transform=Standardize(m=1),
     )
     fit_gpytorch_mll(ExactMarginalLogLikelihood(model.likelihood, model))
@@ -540,18 +552,16 @@ def cuda_botorch_joint_candidates(
     seed: int = 8008,
     anchor: ForceCandidate | None = None,
 ) -> tuple[tuple[ForceCandidate, ...], dict[str, Any]]:
-    """Fit once and optimize one unique discrete qLogNEI joint batch on CUDA."""
+    """Fit once and optimize one unique discrete qLogNEI proposal on CUDA."""
 
-    if q not in {4, 5}:
-        raise ValueError("r008 joint batch q must be 4 or 5")
+    if isinstance(q, bool) or not isinstance(q, int) or q < 1:
+        raise ValueError("q must be a positive integer")
     if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
         raise ValueError("seed must be a non-negative integer")
     anchor = anchor or ForceCandidate()
     trainable = [item for item in observations if item.eligible]
     if len(trainable) < 6:
         raise ValueError("r008 BoTorch gate requires at least 6 eligible observations")
-    if sum(item.candidate == anchor for item in trainable) < 3:
-        raise ValueError("r008 BoTorch gate requires at least 3 eligible anchor repeats")
     choices = tuple(
         item
         for item in candidates
@@ -598,7 +608,7 @@ def cuda_botorch_joint_candidates(
         train_x,
         train_y,
         train_Yvar=train_yvar,
-        input_transform=Normalize(d=4),
+        input_transform=Normalize(d=5),
         outcome_transform=Standardize(m=1),
     )
     fit_gpytorch_mll(ExactMarginalLogLikelihood(model.likelihood, model))

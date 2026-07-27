@@ -214,17 +214,26 @@ def production_candidate_catalog() -> tuple[ForceCandidate, ...]:
         for damping_quarter in quarters:
             p = p_quarter * 0.25
             damping = damping_quarter * 0.25
-            candidates.add(
-                ForceCandidate.from_log2(p=p, damping=damping, i=0.0, i_off=True)
-            )
-            for i_quarter in range(-4, 5):
+            for tau_quarter in range(-4, 5):
+                filter_tau = tau_quarter * 0.25
                 candidates.add(
                     ForceCandidate.from_log2(
                         p=p,
                         damping=damping,
-                        i=i_quarter * 0.25,
+                        i=0.0,
+                        i_off=True,
+                        filter_tau=filter_tau,
                     )
                 )
+                for i_quarter in range(-4, 5):
+                    candidates.add(
+                        ForceCandidate.from_log2(
+                            p=p,
+                            damping=damping,
+                            i=i_quarter * 0.25,
+                            filter_tau=filter_tau,
+                        )
+                    )
     bounded = tuple(
         sorted(
             (candidate for candidate in candidates if candidate.within_tier(SearchTier.T2)),
@@ -421,6 +430,9 @@ def _observations_from_history(
                 force_p_gain=candidate_payload["force_p_gain"],
                 force_i_gain=candidate_payload["force_i_gain"],
                 force_damping=candidate_payload["force_damping"],
+                normal_filter_tau_s=candidate_payload.get(
+                    "normal_filter_tau_s", 0.35
+                ),
             )
             evaluation = _evaluation_from_history(row.get("evaluation"))
             profile_id = profile_payload["profile_id"]
@@ -568,11 +580,15 @@ class ProductionProposalProvider:
                             runtime_row.control_candidate["force_p_gain"],
                             runtime_row.control_candidate["force_i_gain"],
                             runtime_row.control_candidate["force_damping"],
+                            runtime_row.control_candidate.get(
+                                "normal_filter_tau_s", 0.35
+                            ),
                         )
                         != (
                             candidate.force_p_gain,
                             candidate.force_i_gain,
                             candidate.force_damping,
+                            candidate.normal_filter_tau_s,
                         )
                     ):
                         raise BatchProducerError(
@@ -1073,11 +1089,13 @@ class RollingBatchProducer:
                     candidate.force_p_gain,
                     candidate.force_i_gain,
                     candidate.force_damping,
+                    candidate.normal_filter_tau_s,
                 )
                 overlay_coordinates = (
                     normalized["force_p_gain"],
                     normalized["force_i_gain"],
                     normalized["force_damping"],
+                    normalized.get("normal_filter_tau_s", 0.35),
                 )
                 if (
                     trial["overlay"] != normalized
@@ -1228,6 +1246,9 @@ class RollingBatchProducer:
                 "force_p_gain": raw_occurrence.candidate.force_p_gain,
                 "force_i_gain": raw_occurrence.candidate.force_i_gain,
                 "force_damping": raw_occurrence.candidate.force_damping,
+                "normal_filter_tau_s": (
+                    raw_occurrence.candidate.normal_filter_tau_s
+                ),
             }
             overlay_input.pop("control_candidate_uid", None)
             try:
@@ -1436,11 +1457,13 @@ class RollingBatchProducer:
                     normalized["force_p_gain"],
                     normalized["force_i_gain"],
                     normalized["force_damping"],
+                    normalized.get("normal_filter_tau_s", 0.35),
                 )
                 != (
                     candidate.force_p_gain,
                     candidate.force_i_gain,
                     candidate.force_damping,
+                    candidate.normal_filter_tau_s,
                 )
             ):
                 raise BatchProducerError("INTENT_INVALID", f"intent row {index} is incoherent")

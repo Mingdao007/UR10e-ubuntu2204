@@ -188,18 +188,29 @@ def axial_frontier(
     direction: int,
     tier: SearchTier,
 ) -> tuple[ForceCandidate, ...]:
-    if axis not in {"p", "damping", "i"} or direction not in {-1, 1}:
-        raise ValueError("frontier requires p/damping/i and direction +/-1")
+    if axis not in {"p", "damping", "i", "filter_tau"} or direction not in {-1, 1}:
+        raise ValueError("frontier requires p/damping/i/filter_tau and direction +/-1")
     if axis == "i" and tier is SearchTier.T1:
         raise ValueError("T1 integral is frozen at seed")
     radius = (
-        tier.positive_i_radius_octaves if axis == "i" else tier.p_d_radius_octaves
+        (
+            tier.positive_i_radius_octaves
+            if axis == "i"
+            else 1.0
+            if axis == "filter_tau"
+            else tier.p_d_radius_octaves
+        )
     )
     steps = int(round(radius / 0.25))
     rows = [ForceCandidate()]
     for index in range(1, steps + 1):
         coordinate = direction * index * 0.25
-        kwargs = {"p": 0.0, "damping": 0.0, "i": 0.0}
+        kwargs = {
+            "p": 0.0,
+            "damping": 0.0,
+            "i": 0.0,
+            "filter_tau": 0.0,
+        }
         kwargs[axis] = coordinate
         rows.append(ForceCandidate.from_log2(**kwargs))
     if any(

@@ -170,18 +170,26 @@ class ForceCandidate:
     force_p_gain: float = SEED_FORCE_P_GAIN
     force_i_gain: float = SEED_FORCE_I_GAIN
     force_damping: float = SEED_FORCE_DAMPING
+    normal_filter_tau_s: float = NORMAL_FILTER_TAU_S
     target_force_n: float = TARGET_FORCE_N
 
     def __post_init__(self) -> None:
         p = _finite("force_p_gain", self.force_p_gain)
         i = _finite("force_i_gain", self.force_i_gain)
         damping = _finite("force_damping", self.force_damping)
+        filter_tau = _finite("normal_filter_tau_s", self.normal_filter_tau_s)
         target = _finite("target_force_n", self.target_force_n)
-        if p <= 0.0 or damping <= 0.0 or i < 0.0:
-            raise ValueError("force P/damping must be positive and I must be non-negative")
+        if p <= 0.0 or damping <= 0.0 or filter_tau <= 0.0 or i < 0.0:
+            raise ValueError(
+                "force P/damping/filter tau must be positive and I must be non-negative"
+            )
         if not math.isclose(target, TARGET_FORCE_N, abs_tol=1e-12):
             raise ValueError("Step5d autotune target_force_n is fixed at 12 N")
-        for name, coordinate in (("log2_p", self.log2_p), ("log2_damping", self.log2_damping)):
+        for name, coordinate in (
+            ("log2_p", self.log2_p),
+            ("log2_damping", self.log2_damping),
+            ("log2_filter_tau", self.log2_filter_tau),
+        ):
             if not _on_lattice(coordinate):
                 raise ValueError(f"{name} must be on the 0.25-octave lattice")
         if (
@@ -201,6 +209,7 @@ class ForceCandidate:
         object.__setattr__(self, "force_p_gain", p)
         object.__setattr__(self, "force_i_gain", i)
         object.__setattr__(self, "force_damping", damping)
+        object.__setattr__(self, "normal_filter_tau_s", filter_tau)
         object.__setattr__(self, "target_force_n", target)
 
     @property
@@ -216,6 +225,10 @@ class ForceCandidate:
         if self.force_i_gain == 0.0:
             raise ValueError("I=0 is categorical and has no log2 coordinate")
         return math.log2(self.force_i_gain / SEED_FORCE_I_GAIN)
+
+    @property
+    def log2_filter_tau(self) -> float:
+        return math.log2(self.normal_filter_tau_s / NORMAL_FILTER_TAU_S)
 
     @property
     def i_mode(self) -> str:
@@ -248,7 +261,7 @@ class ForceCandidate:
         return sha256_json(self.payload())
 
     def payload(self) -> dict[str, Any]:
-        return {
+        payload = {
             "target_force_n": self.target_force_n,
             "force_p_gain": self.force_p_gain,
             "force_i_gain": self.force_i_gain,
@@ -261,11 +274,21 @@ class ForceCandidate:
             },
             "native_mapping": self.native_mapping,
         }
+        # Preserve the exact historical payload/UID shape for trials 1-50.
+        # New non-default filter candidates carry their tau explicitly.
+        if not math.isclose(
+            self.normal_filter_tau_s, NORMAL_FILTER_TAU_S, abs_tol=1e-12
+        ):
+            payload["normal_filter_tau_s"] = self.normal_filter_tau_s
+            payload["log2_coordinates"]["filter_tau"] = self.log2_filter_tau
+        return payload
 
     def within_tier(self, tier: SearchTier) -> bool:
         if abs(self.log2_p) > tier.p_d_radius_octaves + 1e-9:
             return False
         if abs(self.log2_damping) > tier.p_d_radius_octaves + 1e-9:
+            return False
+        if abs(self.log2_filter_tau) > 1.0 + 1e-9:
             return False
         if tier is SearchTier.T1:
             return math.isclose(self.force_i_gain, SEED_FORCE_I_GAIN, abs_tol=1e-15)
@@ -277,6 +300,7 @@ class ForceCandidate:
         if (
             abs(self.log2_p) > SearchTier.T1.p_d_radius_octaves + 1e-9
             or abs(self.log2_damping) > SearchTier.T1.p_d_radius_octaves + 1e-9
+            or abs(self.log2_filter_tau) > 1.0 + 1e-9
             or self.force_i_gain <= 0.0
         ):
             return False
@@ -291,10 +315,15 @@ class ForceCandidate:
         *,
         p: float,
         damping: float,
+        filter_tau: float = 0.0,
         i: float | None = 0.0,
         i_off: bool = False,
     ) -> "ForceCandidate":
-        for name, coordinate in (("p", p), ("damping", damping)):
+        for name, coordinate in (
+            ("p", p),
+            ("damping", damping),
+            ("filter_tau", filter_tau),
+        ):
             coordinate = _finite(name, coordinate)
             if not _on_lattice(coordinate):
                 raise ValueError(f"{name} must be on the 0.25-octave lattice")
@@ -309,6 +338,7 @@ class ForceCandidate:
             force_p_gain=SEED_FORCE_P_GAIN * (2.0**float(p)),
             force_i_gain=force_i_gain,
             force_damping=SEED_FORCE_DAMPING * (2.0**float(damping)),
+            normal_filter_tau_s=NORMAL_FILTER_TAU_S * (2.0**float(filter_tau)),
         )
 
     @classmethod
@@ -318,6 +348,7 @@ class ForceCandidate:
         p: float,
         damping: float,
         i_multiplier: float,
+        filter_tau: float = 0.0,
     ) -> "ForceCandidate":
         multiplier = _finite("i_multiplier", i_multiplier)
         if not any(
@@ -329,13 +360,21 @@ class ForceCandidate:
             force_p_gain=SEED_FORCE_P_GAIN * (2.0**_finite("p", p)),
             force_i_gain=SEED_FORCE_I_GAIN * multiplier,
             force_damping=SEED_FORCE_DAMPING * (2.0**_finite("damping", damping)),
+            normal_filter_tau_s=NORMAL_FILTER_TAU_S
+            * (2.0**_finite("filter_tau", filter_tau)),
         )
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "ForceCandidate":
         if "normal_filter_alpha" in payload:
             raise ValueError("normal_filter_alpha is not an active Step5d autotune parameter")
-        allowed = {"target_force_n", "force_p_gain", "force_i_gain", "force_damping"}
+        allowed = {
+            "target_force_n",
+            "force_p_gain",
+            "force_i_gain",
+            "force_damping",
+            "normal_filter_tau_s",
+        }
         unknown = set(payload) - allowed
         if unknown:
             raise ValueError(f"unknown force candidate fields: {sorted(unknown)}")
@@ -378,8 +417,8 @@ class ExecutionProfile:
             raise ValueError("qdot cap must be one of .5/2.5 rad/s")
         if bridge_angular_limit not in {0.05, 0.25}:
             raise ValueError("bridge angular limit must be one of .05/.25 rad/s")
-        if not math.isclose(filter_tau, NORMAL_FILTER_TAU_S, abs_tol=1e-12):
-            raise ValueError("normal filter tau is fixed at .35 s")
+        if filter_tau <= 0.0:
+            raise ValueError("normal filter tau must be positive")
         if self.normal_filter_dt_mode != NORMAL_FILTER_DT_MODE:
             raise ValueError("normal filter dt_mode is fixed_0.002s")
         if math.isclose(normal_rate, 0.030, abs_tol=1e-12) and self.live_eligible:
@@ -677,8 +716,8 @@ class SearchAttestation:
             raise ValueError("from_candidate and to_candidate must be ForceCandidate values")
         if self.next_candidate_uid != self.to_candidate.candidate_uid:
             raise ValueError("next_candidate_uid must identify to_candidate exactly")
-        if self.outward_axis not in {"p", "damping", "i"}:
-            raise ValueError("outward_axis must be p, damping, or i")
+        if self.outward_axis not in {"p", "damping", "i", "filter_tau"}:
+            raise ValueError("outward_axis must be p, damping, i, or filter_tau")
         if self.outward_direction not in {-1, 1}:
             raise ValueError("outward_direction must be -1 or 1")
         if not isinstance(self.replay_evidence, CandidateReplayEvidence):
@@ -689,6 +728,10 @@ class SearchAttestation:
             "p": self.to_candidate.log2_p - self.from_candidate.log2_p,
             "damping": (
                 self.to_candidate.log2_damping - self.from_candidate.log2_damping
+            ),
+            "filter_tau": (
+                self.to_candidate.log2_filter_tau
+                - self.from_candidate.log2_filter_tau
             ),
         }
         if (
@@ -760,6 +803,9 @@ class SearchAttestation:
                 force_p_gain=value.get("force_p_gain"),
                 force_i_gain=value.get("force_i_gain"),
                 force_damping=value.get("force_damping"),
+                normal_filter_tau_s=value.get(
+                    "normal_filter_tau_s", NORMAL_FILTER_TAU_S
+                ),
             )
             if canonical_json_bytes(candidate.payload()) != canonical_json_bytes(dict(value)):
                 raise ValueError("search attestation candidate payload is not canonical")
@@ -919,6 +965,9 @@ class TrialSource:
             force_p_gain=candidate_payload.get("force_p_gain"),
             force_i_gain=candidate_payload.get("force_i_gain"),
             force_damping=candidate_payload.get("force_damping"),
+            normal_filter_tau_s=candidate_payload.get(
+                "normal_filter_tau_s", NORMAL_FILTER_TAU_S
+            ),
         )
         if canonical_json_bytes(candidate.payload()) != canonical_json_bytes(
             dict(candidate_payload)
@@ -1021,6 +1070,7 @@ def _trial_candidate_step(
     for axis, before, after in (
         ("p", source.log2_p, target.log2_p),
         ("damping", source.log2_damping, target.log2_damping),
+        ("filter_tau", source.log2_filter_tau, target.log2_filter_tau),
     ):
         if not math.isclose(before, after, abs_tol=1e-9):
             deltas.append((axis, after - before))
@@ -1051,6 +1101,9 @@ def codex_i_scale_probe_transition(
     return (
         math.isclose(source.log2_p, target.log2_p, abs_tol=1e-9)
         and math.isclose(source.log2_damping, target.log2_damping, abs_tol=1e-9)
+        and math.isclose(
+            source.log2_filter_tau, target.log2_filter_tau, abs_tol=1e-9
+        )
         and not math.isclose(source.log2_i, target.log2_i, abs_tol=1e-9)
         and target.approved_i_scale_multiplier is not None
     )
@@ -1170,6 +1223,9 @@ class TrialSpec:
                     elif axis == "damping":
                         before = source.candidate.log2_damping
                         after = self.candidate.log2_damping
+                    elif axis == "filter_tau":
+                        before = source.candidate.log2_filter_tau
+                        after = self.candidate.log2_filter_tau
                     else:
                         before = source.candidate.log2_i
                         after = self.candidate.log2_i

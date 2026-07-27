@@ -326,6 +326,9 @@ def _prepared(
             force_p_gain=float(overlay["force_p_gain"]),
             force_i_gain=float(overlay["force_i_gain"]),
             force_damping=float(overlay["force_damping"]),
+            normal_filter_tau_s=float(
+                overlay.get("normal_filter_tau_s", 0.35)
+            ),
         ),
         execution_profile=execution_profile,
         source_fingerprint=args.release_manifest_sha256,
@@ -344,6 +347,9 @@ def _prepared(
             "STEP5D_AUTOTUNE_FORCE_I": repr(trial.candidate.force_i_gain),
             "STEP5D_AUTOTUNE_FORCE_DAMPING": repr(
                 trial.candidate.force_damping
+            ),
+            "BRIDGE_NORMAL_FILTER_TAU_S": repr(
+                trial.candidate.normal_filter_tau_s
             ),
             "STEP5D_AUTOTUNE_NORMAL_RATE_RAD_S": repr(
                 execution_profile.normal_max_rate_rad_s

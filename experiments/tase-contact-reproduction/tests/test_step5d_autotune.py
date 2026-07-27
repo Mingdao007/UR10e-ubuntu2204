@@ -135,6 +135,7 @@ def trial(
                     damping=selected.log2_damping,
                     i=selected.log2_i if selected.i_mode == "positive" else 0.0,
                     i_off=selected.i_mode == "off",
+                    filter_tau=selected.log2_filter_tau,
                 )
             elif not math.isclose(selected.log2_damping, 0.0, abs_tol=1e-9):
                 source_candidate = ForceCandidate.from_log2(
@@ -143,12 +144,25 @@ def trial(
                     - math.copysign(0.25, selected.log2_damping),
                     i=selected.log2_i if selected.i_mode == "positive" else 0.0,
                     i_off=selected.i_mode == "off",
+                    filter_tau=selected.log2_filter_tau,
+                )
+            elif not math.isclose(
+                selected.log2_filter_tau, 0.0, abs_tol=1e-9
+            ):
+                source_candidate = ForceCandidate.from_log2(
+                    p=selected.log2_p,
+                    damping=selected.log2_damping,
+                    i=selected.log2_i if selected.i_mode == "positive" else 0.0,
+                    i_off=selected.i_mode == "off",
+                    filter_tau=selected.log2_filter_tau
+                    - math.copysign(0.25, selected.log2_filter_tau),
                 )
             elif selected.i_mode == "off":
                 source_candidate = ForceCandidate.from_log2(
                     p=selected.log2_p,
                     damping=selected.log2_damping,
                     i=0.0,
+                    filter_tau=selected.log2_filter_tau,
                 )
             else:
                 source_candidate = ForceCandidate.from_log2(
@@ -156,6 +170,7 @@ def trial(
                     damping=selected.log2_damping,
                     i=selected.log2_i
                     - math.copysign(0.25, selected.log2_i),
+                    filter_tau=selected.log2_filter_tau,
                 )
         transition = TrialTransition(
             TrialTransitionKind.FORCE_SEARCH,
@@ -369,6 +384,26 @@ class ContractTest(unittest.TestCase):
             _ = candidate.log2_i
         with self.assertRaisesRegex(ValueError, "normal_filter_alpha"):
             ForceCandidate.from_payload({"normal_filter_alpha": 0.55})
+
+    def test_filter_tau_is_a_log2_candidate_dimension_with_legacy_default(self) -> None:
+        legacy = ForceCandidate.from_payload(
+            {
+                "force_p_gain": 0.001,
+                "force_i_gain": 0.00001,
+                "force_damping": 7.0,
+            }
+        )
+        self.assertEqual(legacy.normal_filter_tau_s, 0.35)
+        self.assertNotIn("normal_filter_tau_s", legacy.payload())
+        faster = ForceCandidate.from_log2(
+            p=0.0,
+            damping=0.0,
+            i=0.0,
+            filter_tau=-1.0,
+        )
+        self.assertAlmostEqual(faster.normal_filter_tau_s, 0.175)
+        self.assertEqual(faster.log2_filter_tau, -1.0)
+        self.assertEqual(faster.payload()["normal_filter_tau_s"], 0.175)
 
     def test_profiles_bind_live_and_offline_ladders(self) -> None:
         self.assertTrue(ExecutionProfile("nf020-slew010-a010", 0.020).live_eligible)
@@ -626,8 +661,16 @@ class OptimizerTest(unittest.TestCase):
     def test_trust_region_changes_one_coordinate_by_quarter_octave(self) -> None:
         seed = ForceCandidate()
         neighbors = one_step_neighbors(seed, SearchTier.T1)
-        self.assertEqual(len(neighbors), 4)
+        self.assertEqual(len(neighbors), 6)
         self.assertTrue(all(live_trust_region_step(seed, candidate) for candidate in neighbors))
+        tau_neighbors = sorted(
+            candidate.log2_filter_tau
+            for candidate in neighbors
+            if candidate.normal_filter_tau_s != seed.normal_filter_tau_s
+        )
+        self.assertEqual(len(tau_neighbors), 2)
+        self.assertAlmostEqual(tau_neighbors[0], seed.log2_filter_tau - 0.25)
+        self.assertAlmostEqual(tau_neighbors[1], seed.log2_filter_tau + 0.25)
         diagonal = ForceCandidate.from_log2(p=0.25, damping=0.25, i=0.0)
         self.assertFalse(live_trust_region_step(seed, diagonal))
 

@@ -13,12 +13,13 @@ import math
 from typing import Any, Mapping
 
 
-CONTROL_FIELDS = (
+LEGACY_CONTROL_FIELDS = (
     "force_p_gain",
     "force_i_gain",
     "force_damping",
     "orientation_ko",
 )
+CONTROL_FIELDS = (*LEGACY_CONTROL_FIELDS, "normal_filter_tau_s")
 
 
 def _canonical_digest(material: Mapping[str, Any]) -> str:
@@ -104,21 +105,80 @@ class ParameterUid(_DomainUid):
 
 
 class ControlCandidateUid(_DomainUid):
-    prefix = "control:v2:"
+    prefix = "control:v3:"
+    legacy_prefix = "control:v2:"
 
     @classmethod
     def from_overlay(cls, overlay: Mapping[str, Any]) -> "ControlCandidateUid":
-        values = {
-            field: _finite(overlay[field], name=field) for field in CONTROL_FIELDS
-        }
-        return cls._from_digest(  # type: ignore[return-value]
-            _canonical_digest(
-                {
-                    "schema": "step5d.autotune-v3/control-candidate/v2",
-                    **values,
-                }
+        has_nondefault_tau = (
+            "normal_filter_tau_s" in overlay
+            and not math.isclose(
+                _finite(
+                    overlay["normal_filter_tau_s"],
+                    name="normal_filter_tau_s",
+                ),
+                0.35,
+                rel_tol=0.0,
+                abs_tol=1e-12,
             )
         )
+        fields = CONTROL_FIELDS if has_nondefault_tau else LEGACY_CONTROL_FIELDS
+        values = {
+            field: _finite(overlay[field], name=field) for field in fields
+        }
+        digest = _canonical_digest(
+            {
+                "schema": (
+                    "step5d.autotune-v3/control-candidate/v3"
+                    if has_nondefault_tau
+                    else "step5d.autotune-v3/control-candidate/v2"
+                ),
+                **values,
+            }
+        )
+        if has_nondefault_tau:
+            return cls._from_digest(digest)  # type: ignore[return-value]
+        return cls(  # type: ignore[return-value]
+            cls.legacy_prefix + digest,
+            _factory=cls._factory_token,
+        )
+
+    @classmethod
+    def parse(
+        cls,
+        value: Any,
+        *,
+        allow_legacy: bool = False,
+    ) -> "ControlCandidateUid":
+        if not isinstance(value, str):
+            raise ValueError("ControlCandidateUid must be a string")
+        for prefix in (cls.prefix, cls.legacy_prefix):
+            if value.startswith(prefix):
+                _lower_sha256(
+                    value[len(prefix) :],
+                    name="ControlCandidateUid",
+                )
+                return cls(value, _factory=cls._factory_token)
+        if allow_legacy:
+            return cls.from_legacy(value)  # type: ignore[return-value]
+        raise ValueError(
+            "ControlCandidateUid must use the 'control:v2:' or 'control:v3:' domain prefix"
+        )
+
+    @property
+    def is_legacy(self) -> bool:
+        return not (
+            self.startswith(self.prefix)
+            or self.startswith(self.legacy_prefix)
+        )
+
+    @property
+    def digest(self) -> str:
+        if self.startswith(self.prefix):
+            return self[len(self.prefix) :]
+        if self.startswith(self.legacy_prefix):
+            return self[len(self.legacy_prefix) :]
+        return str(self)
 
 
 class OccurrenceUid(_DomainUid):

@@ -339,14 +339,18 @@ def _apply_v3_arm_runtime(
         force_p_gain=normalized["force_p_gain"],
         force_i_gain=normalized["force_i_gain"],
         force_damping=normalized["force_damping"],
+        normal_filter_tau_s=normalized.get("normal_filter_tau_s", 0.35),
     )
     args.step5d_autotune_force_p = candidate.force_p_gain
     args.step5d_autotune_force_i = candidate.force_i_gain
     args.step5d_autotune_force_damping = candidate.force_damping
+    args.bridge_normal_filter_tau_s = candidate.normal_filter_tau_s
+    args.step4e_normal_filter_tau_s = candidate.normal_filter_tau_s
     args.step5d_autotune_force_terms = {
         "P": candidate.force_p_gain,
         "I": candidate.force_i_gain,
         "damping": candidate.force_damping,
+        "normal_filter_tau_s": candidate.normal_filter_tau_s,
         **candidate.native_mapping,
     }
     args.step5d_autotune_control_candidate_uid = normalized[

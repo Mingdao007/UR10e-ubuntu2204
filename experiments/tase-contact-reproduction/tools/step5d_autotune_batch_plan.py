@@ -170,13 +170,23 @@ def candidate_from_log2_payload(payload: Any) -> ForceCandidate:
         raise ValueError("planned candidate must be an object")
     fine_fields = {"log2_p", "log2_i", "log2_damping"}
     scale_fields = {"log2_p", "i_multiplier", "log2_damping"}
-    if set(payload) == fine_fields:
+    tau_field = {"log2_filter_tau"}
+    if frozenset(payload) in {
+        frozenset(fine_fields),
+        frozenset(fine_fields | tau_field),
+    }:
         return ForceCandidate.from_log2(
             p=_coordinate("log2_p", payload["log2_p"]),
             i=_coordinate("log2_i", payload["log2_i"]),
             damping=_coordinate("log2_damping", payload["log2_damping"]),
+            filter_tau=_coordinate(
+                "log2_filter_tau", payload.get("log2_filter_tau", 0.0)
+            ),
         )
-    if set(payload) == scale_fields:
+    if frozenset(payload) in {
+        frozenset(scale_fields),
+        frozenset(scale_fields | tau_field),
+    }:
         multiplier = payload["i_multiplier"]
         if isinstance(multiplier, bool) or not isinstance(multiplier, (int, float)):
             raise ValueError("i_multiplier must be numeric")
@@ -184,6 +194,9 @@ def candidate_from_log2_payload(payload: Any) -> ForceCandidate:
             p=_coordinate("log2_p", payload["log2_p"]),
             i_multiplier=float(multiplier),
             damping=_coordinate("log2_damping", payload["log2_damping"]),
+            filter_tau=_coordinate(
+                "log2_filter_tau", payload.get("log2_filter_tau", 0.0)
+            ),
         )
     raise ValueError(
         "planned candidate must contain log2 P/damping and log2_i or i_multiplier"
@@ -199,6 +212,7 @@ def candidate_log2_payload(candidate: ForceCandidate) -> dict[str, float]:
     payload = {
         "log2_p": lattice(candidate.log2_p),
         "log2_damping": lattice(candidate.log2_damping),
+        "log2_filter_tau": lattice(candidate.log2_filter_tau),
     }
     multiplier = candidate.approved_i_scale_multiplier
     if multiplier is None:

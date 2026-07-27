@@ -1015,6 +1015,9 @@ class CampaignStore:
                 force_p_gain=candidate_payload["force_p_gain"],
                 force_i_gain=candidate_payload["force_i_gain"],
                 force_damping=candidate_payload["force_damping"],
+                normal_filter_tau_s=candidate_payload.get(
+                    "normal_filter_tau_s", 0.35
+                ),
             )
             reconstructed_profile = ExecutionProfile(**trial_payload["execution_profile"])
             attestation_payload = trial_payload.get("search_attestation")
@@ -1299,6 +1302,9 @@ class CampaignStore:
                         force_p_gain=candidate_payload["force_p_gain"],
                         force_i_gain=candidate_payload["force_i_gain"],
                         force_damping=candidate_payload["force_damping"],
+                        normal_filter_tau_s=candidate_payload.get(
+                            "normal_filter_tau_s", 0.35
+                        ),
                     ),
                     profile_id=payload["execution_profile"]["profile_id"],
                     plant_epoch=payload["plant_epoch"],

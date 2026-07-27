@@ -34,6 +34,7 @@ CONTROL_CANDIDATE_FIELDS = (
     "force_i_gain",
     "force_damping",
     "orientation_ko",
+    "normal_filter_tau_s",
 )
 ORIENTATION_KO_LATTICE = (
     0.4,
@@ -63,11 +64,15 @@ OVERLAY_FIELDS = (
     "step5d_preload_hold_s",
     "step5d_preload_timeout_s",
 )
+LEGACY_OVERLAY_FIELDS = tuple(
+    field for field in OVERLAY_FIELDS if field != "normal_filter_tau_s"
+)
 _DEFAULT_OVERLAY_INPUT: dict[str, Any] = {
     "force_p_gain": 0.001,
     "force_i_gain": 0.00001,
     "force_damping": 7.0,
     "orientation_ko": 0.4,
+    "normal_filter_tau_s": 0.35,
     "execution_profile_id": "nf500-slew250-a250",
     "step5d_preload_filtered_min_n": 7.5,
     "step5d_preload_filtered_max_n": 14.0,
@@ -85,6 +90,7 @@ OVERLAY_FLAGS = {
     "force_p_gain": "--step5d-autotune-force-p",
     "force_i_gain": "--step5d-autotune-force-i",
     "force_damping": "--step5d-autotune-force-damping",
+    "normal_filter_tau_s": "--bridge-normal-filter-tau-s",
     "step5d_preload_filtered_min_n": "--step5d-preload-filtered-min-n",
     "step5d_preload_filtered_max_n": "--step5d-preload-filtered-max-n",
     "step5d_preload_raw_min_n": "--step5d-preload-raw-min-n",
@@ -118,7 +124,6 @@ CONTRACT_BOUND_FLAGS = {
     "--bridge-normal-command-sign",
     "--bridge-orientation-wx-sign",
     "--bridge-orientation-wy-sign",
-    "--bridge-normal-filter-tau-s",
     "--step5d-stage25-control-mode",
     "--step5d-qdot-limit-rad-s",
 }
@@ -264,9 +269,15 @@ def load_launch_profile(
         flag: _validate_launch_override(flag, value)
         for flag, value in raw_overrides.items()
     }
-    policy = payload["trial_overlay_policy"]
-    if not isinstance(policy, dict) or set(policy) != set(OVERLAY_FIELDS):
+    raw_policy = payload["trial_overlay_policy"]
+    if not isinstance(raw_policy, dict) or frozenset(raw_policy) not in {
+        frozenset(OVERLAY_FIELDS),
+        frozenset(LEGACY_OVERLAY_FIELDS),
+    }:
         raise ContractViolation("trial overlay policy fields or order differ")
+    policy = dict(raw_policy)
+    if "normal_filter_tau_s" not in policy:
+        policy["normal_filter_tau_s"] = {"min": 0.35, "max": 0.35}
     for field in OVERLAY_FIELDS:
         rule = policy[field]
         if field == "execution_profile_id":
@@ -320,11 +331,15 @@ def normalize_trial_overlay(
     allowed_shapes = (
         set(OVERLAY_FIELDS),
         set(OVERLAY_FIELDS) - {"control_candidate_uid"},
+        set(LEGACY_OVERLAY_FIELDS),
+        set(LEGACY_OVERLAY_FIELDS) - {"control_candidate_uid"},
     )
     if not isinstance(raw, Mapping) or set(raw) not in allowed_shapes:
         raise ContractViolation("trial overlay fields or order differ")
     result: dict[str, Any] = {}
     for field in OVERLAY_FIELDS:
+        if field == "normal_filter_tau_s" and field not in raw:
+            continue
         rule = profile.trial_overlay_policy[field]
         if field == "control_candidate_uid":
             expected_control_uid = control_candidate_uid(result)
@@ -366,6 +381,7 @@ def normalize_trial_overlay(
             force_p_gain=result["force_p_gain"],
             force_i_gain=result["force_i_gain"],
             force_damping=result["force_damping"],
+            normal_filter_tau_s=result.get("normal_filter_tau_s", 0.35),
         )
     except ValueError as exc:
         raise ContractViolation(f"trial force candidate is invalid: {exc}") from exc
@@ -390,12 +406,14 @@ def control_candidate_coordinates(overlay: Mapping[str, Any]) -> tuple[float, ..
         force_p_gain=float(overlay["force_p_gain"]),
         force_i_gain=float(overlay["force_i_gain"]),
         force_damping=float(overlay["force_damping"]),
+        normal_filter_tau_s=float(overlay.get("normal_filter_tau_s", 0.35)),
     )
     return (
         candidate.log2_p,
         candidate.log2_i,
         candidate.log2_damping,
         math.log2(float(overlay["orientation_ko"]) / ORIENTATION_KO_LATTICE[0]),
+        candidate.log2_filter_tau,
     )
 
 
@@ -473,7 +491,11 @@ def apply_profile_to_argv(
         _replace_flag(result, flag, value)
     normalized = normalize_trial_overlay(overlay, profile=profile)
     for field, flag in OVERLAY_FLAGS.items():
-        _replace_flag(result, flag, str(normalized[field]))
+        _replace_flag(
+            result,
+            flag,
+            str(normalized.get(field, DEFAULT_OVERLAY[field])),
+        )
     execution = _execution_profile(normalized["execution_profile_id"])
     for flag, value in (
         ("--step5d-autotune-normal-rate-rad-s", execution.normal_max_rate_rad_s),

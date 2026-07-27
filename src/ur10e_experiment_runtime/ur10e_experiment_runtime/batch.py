@@ -18,7 +18,11 @@ from .candidate_identity import (
 )
 from .contracts import OutputPathError, SpecValidationError
 from .identity import canonical_json_bytes, canonical_sha256, strict_json_loads
-from .stage_adapters import CONTROL_CANDIDATE_FIELDS, normalize_trial_overlay
+from .stage_adapters import (
+    CONTROL_CANDIDATE_FIELDS,
+    LEGACY_CONTROL_CANDIDATE_FIELDS,
+    normalize_trial_overlay,
+)
 
 
 _ZERO_SHA256 = "0" * 64
@@ -298,15 +302,20 @@ class BatchRow:
         if self.row_index < 1 or self.row_index > 10:
             raise SpecValidationError("batch row index must be in [1,10]")
         overlay = normalize_trial_overlay(self.trial_overlay)
+        candidate_fields = (
+            CONTROL_CANDIDATE_FIELDS
+            if "normal_filter_tau_s" in overlay
+            else LEGACY_CONTROL_CANDIDATE_FIELDS
+        )
         if not isinstance(self.control_candidate, Mapping) or set(
             self.control_candidate
-        ) != set(CONTROL_CANDIDATE_FIELDS):
+        ) != set(candidate_fields):
             raise SpecValidationError("control candidate fields differ")
         candidate = {
             name: float(self.control_candidate[name])
-            for name in CONTROL_CANDIDATE_FIELDS
+            for name in candidate_fields
         }
-        if any(candidate[name] != overlay[name] for name in CONTROL_CANDIDATE_FIELDS):
+        if any(candidate[name] != overlay[name] for name in candidate_fields):
             raise SpecValidationError("control candidate differs from actual trial overlay")
         object.__setattr__(
             self,

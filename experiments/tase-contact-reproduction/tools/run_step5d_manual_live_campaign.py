@@ -238,6 +238,7 @@ def _prepared(intent: Mapping[str, Any], *, plant_epoch: int = 1) -> tuple[HostP
         force_p_gain=overlay["force_p_gain"],
         force_i_gain=overlay["force_i_gain"],
         force_damping=overlay["force_damping"],
+        normal_filter_tau_s=overlay.get("normal_filter_tau_s", 0.35),
     )
     campaign_fingerprint = _sha({
         "schema": "step5d.manual-hold/live-campaign/v1",

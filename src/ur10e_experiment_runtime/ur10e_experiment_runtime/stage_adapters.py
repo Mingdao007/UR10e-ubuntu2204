@@ -398,6 +398,7 @@ OVERLAY_FIELDS = (
     "force_i_gain",
     "force_damping",
     "orientation_ko",
+    "normal_filter_tau_s",
     "control_candidate_uid",
     "execution_profile_id",
     "step5d_preload_filtered_min_n",
@@ -408,11 +409,18 @@ OVERLAY_FIELDS = (
     "step5d_preload_hold_s",
     "step5d_preload_timeout_s",
 )
+LEGACY_OVERLAY_FIELDS = tuple(
+    field for field in OVERLAY_FIELDS if field != "normal_filter_tau_s"
+)
 CONTROL_CANDIDATE_FIELDS = (
     "force_p_gain",
     "force_i_gain",
     "force_damping",
     "orientation_ko",
+    "normal_filter_tau_s",
+)
+LEGACY_CONTROL_CANDIDATE_FIELDS = tuple(
+    field for field in CONTROL_CANDIDATE_FIELDS if field != "normal_filter_tau_s"
 )
 
 
@@ -432,21 +440,29 @@ def _finite(value: Any, name: str) -> float:
 
 
 def control_candidate_uid(candidate: Mapping[str, Any]) -> str:
-    values = {
-        name: _finite(candidate.get(name), name) for name in CONTROL_CANDIDATE_FIELDS
-    }
-    return _legacy_canonical_sha256(
-        {"schema": "step5d.autotune-v3/control-candidate/v2", **values}
+    fields = (
+        CONTROL_CANDIDATE_FIELDS
+        if "normal_filter_tau_s" in candidate
+        else LEGACY_CONTROL_CANDIDATE_FIELDS
     )
+    values = {
+        name: _finite(candidate.get(name), name) for name in fields
+    }
+    return ControlCandidateUid.from_overlay(values).digest
 
 
 def normalize_trial_overlay(overlay: Mapping[str, Any]) -> dict[str, Any]:
     """Normalize the actual legacy V3 mailbox overlay without reading config."""
 
-    if not isinstance(overlay, Mapping) or set(overlay) != set(OVERLAY_FIELDS):
+    if not isinstance(overlay, Mapping) or frozenset(overlay) not in {
+        frozenset(OVERLAY_FIELDS),
+        frozenset(LEGACY_OVERLAY_FIELDS),
+    }:
         raise ValueError("Step5d V3 trial overlay fields differ from the frozen wire schema")
     normalized: dict[str, Any] = {}
     for name in OVERLAY_FIELDS:
+        if name == "normal_filter_tau_s" and name not in overlay:
+            continue
         value = overlay[name]
         normalized[name] = (
             str(value) if name in {"control_candidate_uid", "execution_profile_id"}
@@ -456,6 +472,8 @@ def normalize_trial_overlay(overlay: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("force P and damping must be positive")
     if normalized["force_i_gain"] < 0.0:
         raise ValueError("force I must be non-negative")
+    if normalized.get("normal_filter_tau_s", 0.35) <= 0.0:
+        raise ValueError("normal filter tau must be positive")
     supplied_control_uid = ControlCandidateUid.parse(
         normalized["control_candidate_uid"], allow_legacy=True
     )

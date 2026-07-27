@@ -17,6 +17,7 @@ from step5d_autotune_v3.release_identity import (
     release_payload_path,
 )
 from step5d_campaign_identity import campaign_spec, discover_campaign_epochs
+from step5d_parameter_queue import initialize as initialize_parameter_receiver
 
 
 INITIAL_MANIFEST_PATH = "config/step5d/parameter_receiver_initial.json"
@@ -182,6 +183,12 @@ def prepare(args: LaunchPreparationRequest) -> dict[str, object]:
                 raise RuntimeError(f"existing receiver binding differs: {path.name}")
         else:
             atomic_json(path, payload)
+    initialize_parameter_receiver(
+        receiver_root,
+        campaign_id=campaign.campaign_id,
+        release_manifest_sha256=release.manifest_sha256,
+        launch_profile_path=launch_profile_path,
+    )
     return {
         "ok": True,
         "campaign_id": campaign.campaign_id,

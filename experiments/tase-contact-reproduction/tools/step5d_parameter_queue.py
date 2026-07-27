@@ -708,6 +708,7 @@ def _request_document(
     force_p: float,
     force_i: float,
     force_damping: float,
+    normal_filter_tau_s: float,
     orientation_ko: float,
     source: str,
     position: str,
@@ -728,6 +729,7 @@ def _request_document(
         "force_p_gain": force_p,
         "force_i_gain": force_i,
         "force_damping": force_damping,
+        "normal_filter_tau_s": normal_filter_tau_s,
         "orientation_ko": orientation_ko,
     }
     overlay_input.pop("control_candidate_uid", None)
@@ -792,6 +794,9 @@ def submit_manifest(
                 force_p=float(row["force_p_gain"]),
                 force_i=float(row["force_i_gain"]),
                 force_damping=float(row["force_damping"]),
+                normal_filter_tau_s=float(
+                    row.get("normal_filter_tau_s", 0.35)
+                ),
                 orientation_ko=float(row.get("orientation_ko", 0.4)),
                 source=str(row.get("source", "manual_cli")),
                 position=str(row.get("position", "tail")),
@@ -825,6 +830,7 @@ def submit(
     force_p: float,
     force_i: float,
     force_damping: float,
+    normal_filter_tau_s: float = 0.35,
     orientation_ko: float = 0.4,
     source: str = "manual_cli",
     position: str = "tail",
@@ -839,6 +845,7 @@ def submit(
                 "force_p_gain": force_p,
                 "force_i_gain": force_i,
                 "force_damping": force_damping,
+                "normal_filter_tau_s": normal_filter_tau_s,
                 "orientation_ko": orientation_ko,
                 "source": source,
                 "position": position,
@@ -1241,6 +1248,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     submit_parser.add_argument("--force-p", type=float, required=True)
     submit_parser.add_argument("--force-i", type=float, required=True)
     submit_parser.add_argument("--force-damping", type=float, required=True)
+    submit_parser.add_argument("--normal-filter-tau-s", type=float, default=0.35)
     submit_parser.add_argument("--orientation-ko", type=float, default=0.4)
     submit_parser.add_argument("--source", default="manual_cli")
     submit_parser.add_argument("--position", choices=sorted(POSITIONS), default="tail")
@@ -1275,6 +1283,7 @@ def main(argv: list[str] | None = None) -> int:
             force_p=args.force_p,
             force_i=args.force_i,
             force_damping=args.force_damping,
+            normal_filter_tau_s=args.normal_filter_tau_s,
             orientation_ko=args.orientation_ko,
             source=args.source,
             position=args.position,

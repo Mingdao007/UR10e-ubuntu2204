@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from step5d_autotune_live_driver import AtomicCommandMailbox  # noqa: E402
 from step5d_autotune_v3.launcher import build_bridge_argv  # noqa: E402
 from step5d_autotune_v3.profile import ContractViolation  # noqa: E402
+from ur10e_experiment_runtime import ControlCandidateUid  # noqa: E402
 from step5d_autotune_v3.runtime_profile import (  # noqa: E402
     DEFAULT_OVERLAY,
     OVERLAY_FIELDS,
@@ -43,9 +44,32 @@ def test_default_profile_exposes_broad_launch_surface_and_exact_trial_overlay() 
     assert len(launch_mutable_flags(contract)) == 39
     overlay = normalize_trial_overlay(DEFAULT_OVERLAY, profile=profile)
     assert tuple(overlay) == OVERLAY_FIELDS
-    assert len(overlay) == 13
+    assert len(overlay) == 14
+    assert overlay["normal_filter_tau_s"] == 0.35
     assert profile.document["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
     assert profile.document["tp_program_id"] == PROGRAM
+
+
+def test_default_tau_preserves_v2_identity_and_nondefault_tau_uses_v3() -> None:
+    legacy_material = {
+        "force_p_gain": 0.001,
+        "force_i_gain": 0.00001,
+        "force_damping": 7.0,
+        "orientation_ko": 0.4,
+    }
+    legacy = ControlCandidateUid.from_overlay(legacy_material)
+    default_tau = ControlCandidateUid.from_overlay(
+        {**legacy_material, "normal_filter_tau_s": 0.35}
+    )
+    tuned_tau = ControlCandidateUid.from_overlay(
+        {**legacy_material, "normal_filter_tau_s": 0.7}
+    )
+    assert default_tau == legacy
+    assert default_tau.startswith("control:v2:")
+    assert tuned_tau.startswith("control:v3:")
+    assert tuned_tau != default_tau
+    assert ControlCandidateUid.parse(default_tau) == default_tau
+    assert ControlCandidateUid.parse(tuned_tau) == tuned_tau
 
 
 def test_overlay_applies_atomically_to_one_argv_snapshot() -> None:
@@ -55,6 +79,7 @@ def test_overlay_applies_atomically_to_one_argv_snapshot() -> None:
     overlay.pop("control_candidate_uid")
     overlay["execution_profile_id"] = "nf100-slew050-a050"
     overlay["step5d_preload_hold_s"] = 0.2
+    overlay["normal_filter_tau_s"] = 0.7
     argv = apply_profile_to_argv(
         build_bridge_argv(Path("/tmp/step5d-v3-overlay")),
         profile=profile,
@@ -65,6 +90,7 @@ def test_overlay_applies_atomically_to_one_argv_snapshot() -> None:
     assert values["--step5d-autotune-normal-rate-rad-s"] == "0.1"
     assert values["--step5d-autotune-host-slew-rad-s2"] == "0.5"
     assert values["--step5d-preload-hold-s"] == "0.2"
+    assert values["--bridge-normal-filter-tau-s"] == "0.7"
     assert overlay_fingerprint(profile, overlay) != overlay_fingerprint(profile, DEFAULT_OVERLAY)
     assert comparison_profile_fingerprint(profile, overlay) != comparison_profile_fingerprint(profile, DEFAULT_OVERLAY)
 

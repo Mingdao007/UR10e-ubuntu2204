@@ -614,7 +614,7 @@ class Step5dV35Backend:
             "STEP5D_AUTOTUNE_FORCE_P": repr(candidate.force_p_gain),
             "STEP5D_AUTOTUNE_FORCE_I": repr(candidate.force_i_gain),
             "STEP5D_AUTOTUNE_FORCE_DAMPING": repr(candidate.force_damping),
-            "BRIDGE_NORMAL_FILTER_TAU_S": repr(profile.normal_filter_tau_s),
+            "BRIDGE_NORMAL_FILTER_TAU_S": repr(candidate.normal_filter_tau_s),
             "STEP5D_AUTOTUNE_NORMAL_RATE_RAD_S": repr(profile.normal_max_rate_rad_s),
             "STEP5D_QDOT_LIMIT_RAD_S": "0.5",
             "STEP5D_AUTOTUNE_HOST_SLEW_RAD_S2": repr(profile.host_qdot_slew_rad_s2),

@@ -80,6 +80,7 @@ def test_receiver_is_unbounded_file_per_request_and_next_is_fifo(tmp_path: Path)
         force_p=0.001 * (2 ** (4 / 4)),
         force_i=0.00001,
         force_damping=7.0 * (2 ** (3 / 4)),
+        normal_filter_tau_s=0.7,
         source="priority-one",
         position="next",
     )
@@ -98,6 +99,7 @@ def test_receiver_is_unbounded_file_per_request_and_next_is_fifo(tmp_path: Path)
         "priority-one",
         "priority-two",
     ]
+    assert pending[0]["overlay"]["normal_filter_tau_s"] == 0.7
     assert status(root)["capacity"] is None
     state = json.loads((root / "state.json").read_text(encoding="utf-8"))
     assert "requests" not in state
@@ -657,7 +659,9 @@ def test_prepare_keeps_receiver_root_stable_across_release_rollover(
     assert Path(first["receiver_root"]) == expected.resolve()
     assert Path(second["receiver_root"]) == expected.resolve()
     assert first["candidate_plan"] != second["candidate_plan"]
-    assert not (expected / "state.json").exists()
+    state = json.loads((expected / "state.json").read_text(encoding="utf-8"))
+    assert state["campaign_id"] == first["campaign_id"]
+    assert state["revision"] == 0
     assert not (expected / "migration.json").exists()
 
 

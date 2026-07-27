@@ -243,6 +243,7 @@ def test_batch_identity_binds_the_exact_current_five_rolling_rows() -> None:
                         "force_i_gain",
                         "force_damping",
                         "orientation_ko",
+                        "normal_filter_tau_s",
                     )
                 },
                 trial_overlay=overlay,

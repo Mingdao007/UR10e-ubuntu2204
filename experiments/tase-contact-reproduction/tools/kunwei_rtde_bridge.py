@@ -8108,7 +8108,7 @@ def configure_step5d_autotune_args(
         os.environ.get(name, "") != "" for name in alpha_env
     ):
         raise SystemExit(
-            "Step5d autotune rejects normal_filter_alpha; use the fixed tau/rate profile"
+            "Step5d autotune rejects normal_filter_alpha; use normal_filter_tau_s"
         )
     if args.step5d_qdot_limit_rad_s is not None and not math.isclose(
         float(args.step5d_qdot_limit_rad_s),
@@ -8117,14 +8117,6 @@ def configure_step5d_autotune_args(
         abs_tol=1e-12,
     ):
         raise SystemExit("Step5d autotune qdot cap is fixed at 2.5 rad/s")
-    if not math.isclose(
-        float(args.bridge_normal_filter_tau_s),
-        STEP5D_AUTOTUNE_NORMAL_FILTER_TAU_S,
-        rel_tol=0.0,
-        abs_tol=1e-12,
-    ):
-        raise SystemExit("Step5d autotune normal filter tau is fixed at 0.35 s")
-
     try:
         terms = step5d_autotune_outer_force_terms(
             args.step5d_autotune_force_p,
@@ -8227,8 +8219,7 @@ def configure_step5d_autotune_args(
     args.step5d_qdot_limit_rad_s = STEP5D_AUTOTUNE_QDOT_CAP_RAD_S
     args.bridge_normal_follow_mode = "filtered_live"
     args.step4e_normal_follow_mode = "filtered_live"
-    args.bridge_normal_filter_tau_s = STEP5D_AUTOTUNE_NORMAL_FILTER_TAU_S
-    args.step4e_normal_filter_tau_s = STEP5D_AUTOTUNE_NORMAL_FILTER_TAU_S
+    args.step4e_normal_filter_tau_s = args.bridge_normal_filter_tau_s
     args.bridge_normal_filter_alpha = 0.0
     args.step4e_normal_filter_alpha = 0.0
     args.bridge_normal_max_rate_rad_s = normal_rate
@@ -10721,7 +10712,7 @@ def main(argv: list[str] | None = None) -> int:
                 "schema": "step5d_native_autotune_runtime_v1",
                 "source_stage_id": STEP5D_ABLATION_V35_STAGE_ID,
                 "normal_filter_alpha": "rejected",
-                "normal_filter_tau_s": STEP5D_AUTOTUNE_NORMAL_FILTER_TAU_S,
+                "normal_filter_tau_s": args.bridge_normal_filter_tau_s,
                 "normal_filter_dt_mode": "fixed",
                 "normal_filter_dt_s": STEP5D_AUTOTUNE_NORMAL_FILTER_DT_S,
                 "normal_rate_rad_s": args.step5d_autotune_normal_rate_rad_s,

@@ -37,6 +37,10 @@
         0.8
       ]
     },
+    "normal_filter_tau_s": {
+      "max": 0.7,
+      "min": 0.175
+    },
     "step5d_preload_filtered_max_n": {
       "max": 22.0,
       "min": 7.5

@@ -311,12 +311,13 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         self.assertEqual(args.step5d_controller_progress_adapter.reset.call_count, 2)
         self.assertEqual(args.step5d_moving_sphere_kernel.reset.call_count, 2)
 
-    def test_qdot_tau_and_low_frequency_levels_are_fail_closed(self) -> None:
+    def test_qdot_and_low_frequency_levels_are_fail_closed_while_tau_is_tunable(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaisesRegex(SystemExit, "qdot cap is fixed"):
                 parse_autotune("--step5d-qdot-limit-rad-s", "0.4")
-            with self.assertRaisesRegex(SystemExit, "tau is fixed"):
-                parse_autotune("--bridge-normal-filter-tau-s", "0.2")
+            tuned = parse_autotune("--bridge-normal-filter-tau-s", "0.2")
+            self.assertEqual(tuned.bridge_normal_filter_tau_s, 0.2)
+            self.assertEqual(tuned.step4e_normal_filter_tau_s, 0.2)
             with self.assertRaisesRegex(SystemExit, "must be one of"):
                 parse_autotune("--step5d-autotune-host-slew-rad-s2", "0.3")
             with self.assertRaisesRegex(SystemExit, "must be one of"):

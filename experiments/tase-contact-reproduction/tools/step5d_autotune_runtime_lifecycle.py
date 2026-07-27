@@ -2171,7 +2171,9 @@ def prepare_batch_attempt_context(
                 "force_i_gain",
                 "force_damping",
                 "orientation_ko",
+                "normal_filter_tau_s",
             )
+            if name in overlay
         }
         rows.append(
             BatchRow(
@@ -2307,7 +2309,12 @@ def next_runtime_batch_candidate(
         ):
             raise ValueError("runtime rolling BatchIdentity generation differs")
         planned_values = tuple(
-            (item.force_p_gain, item.force_i_gain, item.force_damping)
+            (
+                item.force_p_gain,
+                item.force_i_gain,
+                item.force_damping,
+                item.normal_filter_tau_s,
+            )
             for item in candidates
         )
         identity_values = tuple(
@@ -2315,6 +2322,7 @@ def next_runtime_batch_candidate(
                 row.control_candidate["force_p_gain"],
                 row.control_candidate["force_i_gain"],
                 row.control_candidate["force_damping"],
+                row.control_candidate.get("normal_filter_tau_s", 0.35),
             )
             for row in identity.rows
         )

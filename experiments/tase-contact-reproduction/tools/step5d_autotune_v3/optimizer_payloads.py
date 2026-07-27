@@ -22,6 +22,7 @@ PARAMETER_UNITS = {
     "force_p_gain": "m/(s*N)",
     "force_i_gain": "m/(s^2*N)",
     "force_damping": "1",
+    "normal_filter_tau_s": "s",
 }
 OPTIMIZER_IDENTITY_FIELDS = {
     "optimizer_digest",
@@ -43,6 +44,7 @@ def candidate_payload(candidate: ForceCandidate) -> dict[str, float]:
         "force_p_gain": candidate.force_p_gain,
         "force_i_gain": candidate.force_i_gain,
         "force_damping": candidate.force_damping,
+        "normal_filter_tau_s": candidate.normal_filter_tau_s,
     }
 
 
