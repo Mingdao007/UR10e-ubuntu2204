@@ -30,9 +30,16 @@ from .source_fingerprint_contract import (
 CURRENT_POINTER_SCHEMA = "step5d.autotune-v3/current-release-pointer-v1"
 RELEASE_MANIFEST_SCHEMA = "step5d.autotune-v3/release-manifest-v3"
 ROLLING_PROTOCOL = "v3_full_home_rolling_arm_v1"
-ROLLING_NORMAL_MAX_RATE_RAD_S = 0.1
-ROLLING_EXECUTION_PROFILE_ID = "nf100-slew050-a050"
-ROLLING_EXECUTION_PROFILE_INTEGER_ID = 633
+ROLLING_NORMAL_MAX_RATE_RAD_S = 0.5
+ROLLING_EXECUTION_PROFILE_ID = "nf500-slew250-a250"
+ROLLING_EXECUTION_PROFILE_INTEGER_ID = 744
+ROLLING_EXECUTION_PROFILE_BINDINGS = {
+    "nf100-slew050-a050": (0.1, 633),
+    ROLLING_EXECUTION_PROFILE_ID: (
+        ROLLING_NORMAL_MAX_RATE_RAD_S,
+        ROLLING_EXECUTION_PROFILE_INTEGER_ID,
+    ),
+}
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 SAFETY_ENVELOPE_PATH = "config/step5/step5d_autotune_v3_control_contract.json"
@@ -320,21 +327,29 @@ class ReleaseIdentity:
             raise ReleaseIdentityError("release control profile differs")
         if self.protocol_id != ROLLING_PROTOCOL:
             raise ReleaseIdentityError("active release protocol is not rolling-v1")
+        profile_binding = ROLLING_EXECUTION_PROFILE_BINDINGS.get(
+            self.execution_profile_id
+        )
+        if profile_binding is None:
+            raise ReleaseIdentityError("rolling-v1 execution profile differs")
+        expected_normal_rate, expected_integer_id = profile_binding
         if (
             isinstance(self.normal_max_rate_rad_s, bool)
             or not isinstance(self.normal_max_rate_rad_s, (int, float))
             or not math.isclose(
                 float(self.normal_max_rate_rad_s),
-                ROLLING_NORMAL_MAX_RATE_RAD_S,
+                expected_normal_rate,
                 rel_tol=0.0,
                 abs_tol=1e-12,
             )
         ):
-            raise ReleaseIdentityError("rolling-v1 normal max-rate is not frozen at 0.1 rad/s")
-        if self.execution_profile_id != ROLLING_EXECUTION_PROFILE_ID:
-            raise ReleaseIdentityError("rolling-v1 execution profile differs")
-        if self.execution_profile_integer_id != ROLLING_EXECUTION_PROFILE_INTEGER_ID:
-            raise ReleaseIdentityError("rolling-v1 execution profile integer ID differs from 633")
+            raise ReleaseIdentityError(
+                "rolling-v1 normal max-rate differs from its execution profile"
+            )
+        if self.execution_profile_integer_id != expected_integer_id:
+            raise ReleaseIdentityError(
+                "rolling-v1 execution profile integer ID differs"
+            )
         _relative_path(self.manifest_path, "release manifest path")
         _sha256_text(self.manifest_sha256, "release manifest SHA-256")
         if not isinstance(self.artifacts, Mapping) or set(self.artifacts) != {
@@ -829,6 +844,7 @@ __all__ = [
     "REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS",
     "REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS",
     "ROLLING_EXECUTION_PROFILE_ID",
+    "ROLLING_EXECUTION_PROFILE_BINDINGS",
     "ROLLING_EXECUTION_PROFILE_INTEGER_ID",
     "ROLLING_NORMAL_MAX_RATE_RAD_S",
     "ROLLING_PROTOCOL",

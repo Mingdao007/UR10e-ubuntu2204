@@ -11,8 +11,7 @@ from typing import Any, Mapping
 import xml.etree.ElementTree as ET
 
 from .release_identity import (
-    ROLLING_EXECUTION_PROFILE_INTEGER_ID,
-    ROLLING_NORMAL_MAX_RATE_RAD_S,
+    ROLLING_EXECUTION_PROFILE_BINDINGS,
     REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS,
     REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
     ReleaseIdentity,
@@ -297,15 +296,23 @@ def verify_release_manifest(
     from step5d_autotune_contract import ExecutionProfile
     from step5d_runtime_codec import execution_profile_integer_id
 
+    normal_rate, expected_profile_integer_id = (
+        ROLLING_EXECUTION_PROFILE_BINDINGS[release.execution_profile_id]
+    )
+    rotational_x5 = release.execution_profile_id == "nf500-slew250-a250"
     profile = ExecutionProfile(
         release.execution_profile_id,
-        ROLLING_NORMAL_MAX_RATE_RAD_S,
-        0.5,
-        0.5,
+        normal_rate,
+        2.5 if rotational_x5 else 0.5,
+        2.5 if rotational_x5 else 0.5,
+        qdot_cap_rad_s=2.5 if rotational_x5 else 0.5,
+        bridge_angular_limit_rad_s=0.25 if rotational_x5 else 0.05,
     )
     encoded_profile = execution_profile_integer_id(profile)
-    if encoded_profile != ROLLING_EXECUTION_PROFILE_INTEGER_ID:
-        raise ReleaseVerificationError("host execution-profile codec does not round-trip 633")
+    if encoded_profile != expected_profile_integer_id:
+        raise ReleaseVerificationError(
+            "host execution-profile codec does not round-trip the release profile"
+        )
     return {
         "ok": True,
         "manifest_sha256": manifest_sha256,

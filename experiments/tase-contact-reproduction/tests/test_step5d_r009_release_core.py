@@ -71,9 +71,14 @@ def _release_fixture(
     *,
     bad_registers: bool = False,
     bad_write_order: bool = False,
+    execution_profile_id: str = "nf100-slew050-a050",
 ) -> Path:
     stamp = "2026-07-23T0000HKT_" + PROGRAM.upper()
-    script = builder.build_package_script(stamp, program_id=PROGRAM)
+    script = builder.build_package_script(
+        stamp,
+        program_id=PROGRAM,
+        execution_profile_id=execution_profile_id,
+    )
     numeric = {
         "input_integer_registers": list(range(24, 32)),
         "output_integer_registers": list(range(24, 38)),
@@ -230,6 +235,7 @@ def _release_fixture(
     mirror_path = root / "config/mirror.json"
     mirror_path.write_text('{"program":"r010"}\n', encoding="utf-8")
 
+    rotational_x5 = execution_profile_id == "nf500-slew250-a250"
     manifest = {
         "schema": RELEASE_MANIFEST_SCHEMA,
         "identity": {
@@ -237,9 +243,9 @@ def _release_fixture(
             "release_stage_id": "step5d_strict_rnn_autotune_v3",
             "control_profile_id": "step5d_strict_rnn_autotune_v1",
             "protocol_id": "v3_full_home_rolling_arm_v1",
-            "normal_max_rate_rad_s": 0.1,
-            "execution_profile_id": "nf100-slew050-a050",
-            "execution_profile_integer_id": 633,
+            "normal_max_rate_rad_s": 0.5 if rotational_x5 else 0.1,
+            "execution_profile_id": execution_profile_id,
+            "execution_profile_integer_id": 744 if rotational_x5 else 633,
         },
         "artifacts": artifacts,
         "controller_target": controller_target,
@@ -409,7 +415,10 @@ def test_dynamic_readiness_content_does_not_participate_in_release_verification(
 def test_exact_first_row_admission_closes_plan_overlay_wrapper_and_tp_commit(
     tmp_path: Path,
 ) -> None:
-    _release_fixture(tmp_path)
+    _release_fixture(
+        tmp_path,
+        execution_profile_id="nf500-slew250-a250",
+    )
     release = load_current_release(tmp_path)
     campaign_root = tmp_path / "campaign"
     launch_profile_path = tmp_path / "launch-profile.json"
@@ -693,6 +702,7 @@ def test_candidate_prefers_canonical_repository_artifacts(tmp_path: Path) -> Non
         canonical,
         "2026-07-23T0000HKT_" + PROGRAM.upper(),
         program_id=PROGRAM,
+        execution_profile_id="nf500-slew250-a250",
     )
 
     assert promoter.default_release_artifact_dir(tmp_path) == canonical

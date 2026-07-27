@@ -19,6 +19,7 @@ from .release_certificate import (
     sha256_file as certificate_sha256_file,
     write_release_certificate,
 )
+from .release_identity import ROLLING_EXECUTION_PROFILE_INTEGER_ID
 from .runtime_installation import load_runtime_pointer_identity, runtime_epoch
 
 
@@ -241,7 +242,7 @@ def _transition_witness() -> dict[str, Any]:
         trial_id=1,
         command=HostCommand.ARM,
         candidate_token=101,
-        execution_profile_id=633,
+        execution_profile_id=ROLLING_EXECUTION_PROFILE_INTEGER_ID,
         command_seq=1,
         logical_batch_sequence=1,
     )
@@ -271,7 +272,7 @@ def _transition_witness() -> dict[str, Any]:
         trial_id=2,
         command=HostCommand.ARM,
         candidate_token=102,
-        execution_profile_id=633,
+        execution_profile_id=ROLLING_EXECUTION_PROFILE_INTEGER_ID,
         command_seq=3,
         logical_batch_sequence=1,
     )

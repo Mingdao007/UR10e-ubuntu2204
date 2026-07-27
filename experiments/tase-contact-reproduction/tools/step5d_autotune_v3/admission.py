@@ -17,8 +17,7 @@ from step5d_autotune_runtime_lifecycle import next_runtime_plan_row
 from step5d_autotune_state_machine import HostCommand, HostPacket, TpLoopState
 
 from .release_identity import (
-    ROLLING_EXECUTION_PROFILE_INTEGER_ID,
-    ROLLING_NORMAL_MAX_RATE_RAD_S,
+    ROLLING_EXECUTION_PROFILE_BINDINGS,
     ReleaseIdentity,
 )
 from .release_verifier import _state_write_order
@@ -199,11 +198,17 @@ def verify_first_row_admission(
     )
     if runtime.completion_protocol != release.protocol_id:
         raise FirstRowAdmissionError("production wrapper constructed a different protocol")
+    normal_rate, profile_integer_id = ROLLING_EXECUTION_PROFILE_BINDINGS[
+        release.execution_profile_id
+    ]
+    rotational_x5 = release.execution_profile_id == "nf500-slew250-a250"
     profile = ExecutionProfile(
         release.execution_profile_id,
-        ROLLING_NORMAL_MAX_RATE_RAD_S,
-        0.5,
-        0.5,
+        normal_rate,
+        2.5 if rotational_x5 else 0.5,
+        2.5 if rotational_x5 else 0.5,
+        qdot_cap_rad_s=2.5 if rotational_x5 else 0.5,
+        bridge_angular_limit_rad_s=0.25 if rotational_x5 else 0.05,
     )
     if overlay["execution_profile_id"] != profile.profile_id:
         raise FirstRowAdmissionError("first overlay uses a different execution profile")
@@ -212,7 +217,7 @@ def verify_first_row_admission(
         trial_id=1,
         command=HostCommand.ARM,
         candidate_token=1,
-        execution_profile_id=ROLLING_EXECUTION_PROFILE_INTEGER_ID,
+        execution_profile_id=profile_integer_id,
         command_seq=ready_consumed_command_seq + 1,
         logical_batch_sequence=1,
     )
