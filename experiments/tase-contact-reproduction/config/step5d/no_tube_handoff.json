@@ -45,8 +45,23 @@
     "enabled": false,
     "policies": []
   },
+  "remote_startup": {
+    "route": "remote_control",
+    "robot_host_env": "STEP5D_ROBOT_HOST",
+    "robot_host_default": "192.168.1.18",
+    "dashboard_port": 29999,
+    "rtde_port": 30004,
+    "home_frequency_hz": 10.0,
+    "home_timeout_s": 30.0,
+    "dashboard_timeout_s": 3.0,
+    "load_timeout_s": 10.0,
+    "play_timeout_s": 5.0,
+    "bridge_ready_timeout_s": 30.0,
+    "poll_interval_s": 0.05
+  },
   "stationary": {
     "dwell_s": 0.5,
+    "max_sample_gap_s": 0.2,
     "limits": {
       "position_error_m": 0.003,
       "orientation_error_rad": 0.05,

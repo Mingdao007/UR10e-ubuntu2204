@@ -68,6 +68,9 @@ def _home_sample(monotonic_ns: int, controller_ns: int) -> dict:
         "program_running": False,
         "program_state": "STOPPED",
         "safety_mode": "NORMAL",
+        "remote_control": True,
+        "robot_mode": "RUNNING",
+        "fresh": True,
         "observed_monotonic_ns": monotonic_ns,
         "controller_timestamp_ns": controller_ns,
         "tcp_pose": [0.487834547, 0.129337053, 0.033, 3.120752062, 0.0, 0.068626833],
@@ -79,14 +82,24 @@ def _home_sample(monotonic_ns: int, controller_ns: int) -> dict:
 
 def test_home_verified_requires_pose_speed_qdot_and_dwell() -> None:
     manifest = load_manifest(MANIFEST)
+    samples = [
+        _home_sample(
+            1_000_000_000 + index * 100_000_000,
+            10_000_000_000 + index * 100_000_000,
+        )
+        for index in range(6)
+    ]
     receipt = build_home_verified_receipt(
         manifest,
-        [_home_sample(1_000_000_000, 10), _home_sample(1_500_000_000, 20)],
+        samples,
     )
 
     assert receipt["schema"] == HOME_VERIFIED_SCHEMA
     assert receipt["status"] == "HOME_VERIFIED"
     assert receipt["stationary_dwell_s"] == pytest.approx(0.5)
+    assert receipt["max_sample_gap_s"] == pytest.approx(0.2)
+    assert receipt["max_observed_monotonic_gap_s"] == pytest.approx(0.1)
+    assert receipt["max_controller_timestamp_gap_s"] == pytest.approx(0.1)
     assert receipt["observed_actual_q"] == [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
     assert receipt["target_joint_q"] is None
 
@@ -99,6 +112,51 @@ def test_home_verified_rejects_running_or_short_dwell() -> None:
         build_home_verified_receipt(manifest, [running, _home_sample(1_500_000_000, 20)])
     with pytest.raises(HandoffError, match="dwell"):
         build_home_verified_receipt(manifest, [_home_sample(1_000_000_000, 10), _home_sample(1_100_000_000, 20)])
+
+
+def test_home_verified_rejects_a_gap_inside_an_apparently_long_dwell() -> None:
+    manifest = load_manifest(MANIFEST)
+    samples = [
+        _home_sample(1_000_000_000, 10_000_000_000),
+        _home_sample(1_100_000_000, 10_100_000_000),
+        _home_sample(1_200_000_000, 10_200_000_000),
+        _home_sample(1_500_000_000, 10_500_000_000),
+        _home_sample(1_600_000_000, 10_600_000_000),
+        _home_sample(1_700_000_000, 10_700_000_000),
+        _home_sample(1_800_000_000, 10_800_000_000),
+    ]
+    with pytest.raises(HandoffError, match="sample gap"):
+        build_home_verified_receipt(manifest, samples)
+
+
+def test_home_verified_rejects_pose_tcp_speed_and_joint_speed_violations() -> None:
+    manifest = load_manifest(MANIFEST)
+    cases = [
+        ("tcp_pose", [0.5, 0.2, 0.033, 3.120752062, 0.0, 0.068626833], "pose"),
+        ("tcp_speed", [0.002, 0.0, 0.0, 0.0, 0.0, 0.0], "TCP speed"),
+        ("qdot", [0.02, 0.0, 0.0, 0.0, 0.0, 0.0], "joint speed"),
+    ]
+    for field, value, message in cases:
+        sample = _home_sample(1_000_000_000, 10_000_000_000)
+        sample[field] = value
+        with pytest.raises(HandoffError, match=message):
+            build_home_verified_receipt(
+                manifest,
+                [sample, _home_sample(1_100_000_000, 10_100_000_000)],
+            )
+
+
+def test_home_verified_rejects_nonfinite_or_stale_observations() -> None:
+    manifest = load_manifest(MANIFEST)
+    nonfinite = _home_sample(1_000_000_000, 10_000_000_000)
+    nonfinite["tcp_speed"][0] = float("nan")
+    with pytest.raises(HandoffError, match="non-finite"):
+        build_home_verified_receipt(manifest, [nonfinite])
+
+    stale = _home_sample(1_000_000_000, 10_000_000_000)
+    stale["fresh"] = False
+    with pytest.raises(HandoffError, match="fresh"):
+        build_home_verified_receipt(manifest, [stale])
 
 
 def test_state_store_requires_every_transition_in_order(tmp_path: Path) -> None:

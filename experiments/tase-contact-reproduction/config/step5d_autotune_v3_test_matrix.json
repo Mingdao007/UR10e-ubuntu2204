@@ -62,6 +62,7 @@
       "tests/test_step5d_parameter_campaign_receiver.py",
       "tests/test_step5d_autotune_start_hover_r001.py",
       "tests/test_step5d_campaign_start.py",
+      "tests/test_step5d_remote_startup.py",
       "tests/test_step5d_guard_policy.py",
       "tests/test_step5d_no_tube_handoff.py",
       "tests/test_step5d_parameter_feeder.py"
@@ -237,6 +238,7 @@
           "pytest",
           "-q",
           "tests/test_step5d_campaign_start.py",
+          "tests/test_step5d_remote_startup.py",
           "tests/test_step5d_guard_policy.py",
           "tests/test_step5d_no_tube_handoff.py",
           "tests/test_step5d_parameter_feeder.py"
@@ -308,7 +310,7 @@
     {
       "id": "initial_parameters_seed_once_without_physical_replay",
       "incident_fixture": "tests/test_step5d_parameter_queue.py",
-      "test_node": "tests/test_step5d_parameter_queue.py::test_seed_skips_prior_physical_attempt_and_is_idempotent"
+      "test_node": "tests/test_step5d_parameter_queue.py::test_selected_legacy_migration_preserves_p04_and_next_p05"
     },
     {
       "id": "p0_v7_outer_output_requires_cmd_valid",

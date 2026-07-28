@@ -4,15 +4,17 @@
 The coordinator owns ordering and receipt production only.  Controller,
 Dashboard, RTDE, bridge, lease, and campaign workers are injected through
 small protocols, which keeps the offline state-machine proof independent from
-live transport code.  The CLI intentionally exposes only an offline
-preflight until a route-specific live adapter is bound and qualified.
+live transport code.  The concrete public entrypoint binds the Remote
+Control adapters; ``--offline`` remains a no-network preflight.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
+import time
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from step5d_no_tube_handoff import (
@@ -266,37 +268,216 @@ class CampaignStartCoordinator:
         self.r026_identity = r026_identity
         self.bridge = bridge
         self.campaign = campaign
+        self._play_issued_this_attempt = False
+        self._bridge_started_this_attempt = False
 
     def run(self) -> dict[str, Any]:
-        binding = validate_release_binding(self.manifest)
-        _transition(self.store, HandoffState.RELEASE_READY, {"binding": binding})
+        try:
+            binding = validate_release_binding(self.manifest)
+            _transition(self.store, HandoffState.RELEASE_READY, {"binding": binding})
 
-        queue_receipt = build_queue_ready_receipt(
-            self.manifest, self.queue_viewer(self.queue_root)
-        )
-        _transition(self.store, HandoffState.QUEUE_READY, queue_receipt)
+            queue_receipt = build_queue_ready_receipt(
+                self.manifest, self.queue_viewer(self.queue_root)
+            )
+            _transition(self.store, HandoffState.QUEUE_READY, queue_receipt)
 
-        loaded_receipt = build_script1_loaded_receipt(self.manifest, self.script1.load(self.manifest))
-        _transition(self.store, HandoffState.SCRIPT1_LOADED, loaded_receipt)
-        played_receipt = build_script1_played_receipt(self.manifest, self.script1.play(self.manifest))
-        _transition(self.store, HandoffState.SCRIPT1_PLAYED, played_receipt)
-        home_receipt = build_home_verified_receipt(self.manifest, self.home.observe(self.manifest))
-        _transition(self.store, HandoffState.HOME_VERIFIED, home_receipt)
+            loaded_receipt = build_script1_loaded_receipt(
+                self.manifest, self.script1.load(self.manifest)
+            )
+            _transition(self.store, HandoffState.SCRIPT1_LOADED, loaded_receipt)
+            try:
+                played_response = self.script1.play(self.manifest)
+            except Exception:
+                self._play_issued_this_attempt = bool(
+                    getattr(self.script1, "play_issued", False)
+                )
+                raise
+            self._play_issued_this_attempt = bool(
+                getattr(self.script1, "play_issued", True)
+            )
+            played_receipt = build_script1_played_receipt(
+                self.manifest, played_response
+            )
+            _transition(self.store, HandoffState.SCRIPT1_PLAYED, played_receipt)
+            home_receipt = build_home_verified_receipt(
+                self.manifest, self.home.observe(self.manifest)
+            )
+            _transition(self.store, HandoffState.HOME_VERIFIED, home_receipt)
 
-        r026_loaded = build_r026_loaded_receipt(self.manifest, self.r026_loader.load(self.manifest))
-        _transition(self.store, HandoffState.R026_LOADED, r026_loaded)
-        r026_identity = build_r026_identity_receipt(
-            self.manifest, self.r026_identity.observe(self.manifest)
-        )
-        _transition(self.store, HandoffState.R026_IDENTITY_VERIFIED, r026_identity)
+            r026_loaded = build_r026_loaded_receipt(
+                self.manifest, self.r026_loader.load(self.manifest)
+            )
+            _transition(self.store, HandoffState.R026_LOADED, r026_loaded)
+            r026_identity = build_r026_identity_receipt(
+                self.manifest, self.r026_identity.observe(self.manifest)
+            )
+            _transition(self.store, HandoffState.R026_IDENTITY_VERIFIED, r026_identity)
 
-        bridge_receipt = build_bridge_ready_receipt(self.manifest, self.bridge.start(self.manifest))
-        _transition(self.store, HandoffState.BRIDGE_READY, bridge_receipt)
-        campaign_receipt = build_campaign_running_receipt(
-            self.manifest, self.campaign.play(self.manifest), bridge_receipt
-        )
-        _transition(self.store, HandoffState.CAMPAIGN_RUNNING, campaign_receipt)
-        return campaign_receipt
+            try:
+                bridge_response = self.bridge.start(self.manifest)
+            except Exception:
+                self._bridge_started_this_attempt = bool(
+                    getattr(self.bridge, "started_this_attempt", False)
+                )
+                raise
+            self._bridge_started_this_attempt = bool(
+                getattr(self.bridge, "started_this_attempt", True)
+            )
+            bridge_receipt = build_bridge_ready_receipt(
+                self.manifest, bridge_response
+            )
+            _transition(self.store, HandoffState.BRIDGE_READY, bridge_receipt)
+            campaign_receipt = build_campaign_running_receipt(
+                self.manifest, self.campaign.play(self.manifest), bridge_receipt
+            )
+            _transition(self.store, HandoffState.CAMPAIGN_RUNNING, campaign_receipt)
+            return campaign_receipt
+        except Exception as exc:
+            self._cleanup_after_failure()
+            self._record_failure(exc)
+            raise
+
+    def _cleanup_after_failure(self) -> None:
+        state = self.store.status().get("state")
+        play_issued = self._play_issued_this_attempt or state in {
+            HandoffState.SCRIPT1_PLAYED.value,
+            HandoffState.HOME_VERIFIED.value,
+            HandoffState.R026_LOADED.value,
+            HandoffState.R026_IDENTITY_VERIFIED.value,
+            HandoffState.BRIDGE_READY.value,
+            HandoffState.CAMPAIGN_RUNNING.value,
+        }
+        if play_issued:
+            stop = getattr(self.script1, "stop", None)
+            if callable(stop):
+                try:
+                    stop()
+                except Exception:
+                    pass
+        bridge_started = self._bridge_started_this_attempt or state in {
+            HandoffState.BRIDGE_READY.value,
+            HandoffState.CAMPAIGN_RUNNING.value,
+        }
+        if bridge_started:
+            abort = getattr(self.bridge, "abort", None)
+            if callable(abort):
+                try:
+                    abort()
+                except Exception:
+                    pass
+
+    def _record_failure(self, exc: Exception) -> None:
+        status = self.store.status()
+        if status.get("state") == HandoffState.FAILED_CLOSED.value:
+            return
+        try:
+            self.store.transition(
+                HandoffState.FAILED_CLOSED,
+                {
+                    "failed_after": status.get("state"),
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                },
+            )
+        except Exception:
+            # Preserve the primitive's original failure.  A failed receipt
+            # write remains visible through the unchanged canonical state.
+            pass
+
+
+def build_remote_campaign_start_coordinator(
+    manifest: HandoffManifest,
+    store: HandoffStateStore,
+    *,
+    campaign_root: Path,
+    output_root: Path,
+    robot_host: str | None = None,
+) -> CampaignStartCoordinator:
+    """Bind the concrete Remote Control primitives to the coordinator."""
+
+    from step5d_parameter_queue import authoritative_view
+    from step5d_remote_startup import (
+        RemoteBridgeStarter,
+        RemoteCampaignPlayer,
+        RemoteDashboardWriter,
+        RemoteHomeObserver,
+        RemoteR026IdentityObserver,
+        RemoteR026Loader,
+        RemoteScript1Trigger,
+    )
+
+    startup = manifest.remote_startup
+    bound_host = robot_host or os.environ.get(
+        startup["robot_host_env"], startup["robot_host_default"]
+    )
+    if not isinstance(bound_host, str) or not bound_host:
+        raise CampaignStartError("Remote Control robot host is missing")
+    script1_writer = RemoteDashboardWriter(
+        bound_host,
+        load_target=manifest.payload["script1"]["controller_target"],
+        port=startup["dashboard_port"],
+        timeout_s=startup["dashboard_timeout_s"],
+    )
+    r026_writer = RemoteDashboardWriter(
+        bound_host,
+        load_target=manifest.payload["script2"]["controller_target"],
+        port=startup["dashboard_port"],
+        timeout_s=startup["dashboard_timeout_s"],
+    )
+    script1 = RemoteScript1Trigger(
+        robot_host=bound_host,
+        writer=script1_writer,
+        dashboard_port=startup["dashboard_port"],
+        dashboard_timeout_s=startup["dashboard_timeout_s"],
+        observe_timeout_s=startup["load_timeout_s"],
+        poll_interval_s=startup["poll_interval_s"],
+    )
+    home = RemoteHomeObserver(
+        robot_host=bound_host,
+        rtde_port=startup["rtde_port"],
+        dashboard_port=startup["dashboard_port"],
+        dashboard_timeout_s=startup["dashboard_timeout_s"],
+        frequency_hz=startup["home_frequency_hz"],
+        timeout_s=startup["home_timeout_s"],
+        poll_interval_s=startup["poll_interval_s"],
+    )
+    r026_loader = RemoteR026Loader(
+        robot_host=bound_host,
+        writer=r026_writer,
+        dashboard_port=startup["dashboard_port"],
+        dashboard_timeout_s=startup["dashboard_timeout_s"],
+        observe_timeout_s=startup["load_timeout_s"],
+        poll_interval_s=startup["poll_interval_s"],
+    )
+    r026_identity = RemoteR026IdentityObserver(
+        robot_host=bound_host,
+        dashboard_port=startup["dashboard_port"],
+        dashboard_timeout_s=startup["dashboard_timeout_s"],
+    )
+    bridge = RemoteBridgeStarter(
+        experiment_root=manifest.experiment_root,
+        robot_host=bound_host,
+        output_root=output_root,
+        campaign_root=campaign_root,
+    )
+    campaign = RemoteCampaignPlayer(
+        experiment_root=manifest.experiment_root,
+        robot_host=bound_host,
+        output_root=output_root,
+        bridge=bridge,
+    )
+    return CampaignStartCoordinator(
+        manifest,
+        store,
+        queue_root=campaign_root / "control" / "parameter_receiver",
+        queue_viewer=lambda root: authoritative_view(root),
+        script1=script1,
+        home=home,
+        r026_loader=r026_loader,
+        r026_identity=r026_identity,
+        bridge=bridge,
+        campaign=campaign,
+    )
 
 
 def _offline_preflight(manifest_path: Path) -> dict[str, Any]:
@@ -312,16 +493,22 @@ def _offline_preflight(manifest_path: Path) -> dict[str, Any]:
             "low": manifest.low_watermark,
         },
         "tube": {"enabled": False, "policies": []},
-        "live_actions": "not_bound",
+        "live_actions": "remote_control_adapter_bound_but_not_invoked",
     }
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    campaign = subparsers.add_parser("campaign-start", help="offline preflight for governed campaign start")
+    campaign = subparsers.add_parser(
+        "campaign-start",
+        help="Remote Control governed campaign start; --offline is no-network preflight",
+    )
     campaign.add_argument("--manifest", type=Path, required=True)
     campaign.add_argument("--offline", action="store_true", help="validate only; never contact live systems")
+    campaign.add_argument("--campaign-root", type=Path)
+    campaign.add_argument("--output-root", type=Path)
+    campaign.add_argument("--robot-host")
     return parser.parse_args(argv)
 
 
@@ -329,12 +516,40 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if args.command != "campaign-start":
         raise CampaignStartError("unsupported campaign-start command")
-    if not args.offline:
-        raise SystemExit(
-            "campaign-start is fail-closed: no route-specific live adapter is bound; "
-            "use --offline for the no-motion preflight"
+    if args.offline:
+        print(json.dumps(_offline_preflight(args.manifest), indent=2, sort_keys=True))
+        return 0
+    try:
+        manifest = load_manifest(args.manifest)
+        campaign_root = (
+            args.campaign_root
+            or manifest.experiment_root / "runs/step5d_autotune_v3/parameter-campaign"
+        ).expanduser().absolute()
+        output_root = (
+            args.output_root
+            or manifest.experiment_root
+            / "runs/step5d_autotune_v3"
+            / f"campaign-start-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{os.getpid()}"
+        ).expanduser().absolute()
+        store = HandoffStateStore(
+            campaign_root / "control" / "campaign-start",
+            handoff_id=manifest.campaign_id,
         )
-    print(json.dumps(_offline_preflight(args.manifest), indent=2, sort_keys=True))
+        coordinator = build_remote_campaign_start_coordinator(
+            manifest,
+            store,
+            campaign_root=campaign_root,
+            output_root=output_root,
+            robot_host=args.robot_host,
+        )
+        result = coordinator.run()
+    except (OSError, HandoffError, ValueError) as exc:
+        print(
+            f"Remote Control campaign-start blocked: {type(exc).__name__}:{exc}",
+            file=__import__("sys").stderr,
+        )
+        return 3
+    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     return 0
 
 
@@ -347,6 +562,7 @@ __all__ = [
     "CAMPAIGN_RUNNING_SCHEMA",
     "CampaignStartCoordinator",
     "CampaignStartError",
+    "build_remote_campaign_start_coordinator",
     "R026_IDENTITY_SCHEMA",
     "R026_LOADED_SCHEMA",
     "SCRIPT1_LOADED_SCHEMA",

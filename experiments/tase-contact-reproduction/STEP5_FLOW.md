@@ -35,14 +35,19 @@ actual pending candidate IDs, queue revision, campaign ID, execution profile,
 and configured high/low watermarks. `HOME_VERIFIED` is a read-only observer
 receipt: Script 1 must be stopped, Safety must be NORMAL, the exact TCP Home
 pose must be within tolerance, TCP/joint speeds must be stationary for 0.5 s,
-and no target joint vector is introduced. Script 1 is the existing
+host-monotonic and controller-timestamp gaps must each stay within the
+manifest-bound `max_sample_gap_s=0.2`, and no target joint vector is introduced.
+Script 1 is the existing
 `step5d_autotune_start_hover_r001`; Script 2 is the current immutable r026
 release. Script 1 has no bridge, lease, ARM, contact, zero, or tare lifecycle.
 
-The current implementation exposes this entrypoint as fail-closed offline
-preflight until a route-specific live adapter is independently qualified. The
-current running lineage remains r026 runtime-continuity evidence only; the next
-new campaign is the acceptance point for the complete Script 1 → 2 startup.
+The concrete implementation binds this entrypoint to the route-bound Remote
+Control startup adapter. `--offline` remains a no-network preflight; a live
+campaign-start performs Dashboard Load/Play for Script 1, read-only RTDE Home
+verification, exact r026 Load/identity rebind, canonical bridge readiness, and
+the existing governed Remote Play primitive. The current running lineage
+remains r026 runtime-continuity evidence only; the next new campaign is the
+acceptance point for the complete Script 1 → 2 startup.
 The candidate feeder runs on the candidate plane and consumes sealed terminal
 results only. The optional guard is composed through
 `evaluate(observation, proposed_command) -> GuardDecision`; the empty policy
@@ -56,12 +61,13 @@ that runtime identity oracle. All earlier revisions are historical-only and
 cannot be treated as the active release. Until the r026 atomic promotion and current observed predicates
 both verify, the route remains fail-closed and no `BENCH_READY` claim is valid.
 
-The public live commands are `step5d-autotune-v3.sh bridge-live` and the
-route-bound `step5d-autotune-v3.sh remote-play`; the only resume anchor is
-`step5d-autotune-v3.sh status --json`. `remote-play` is valid only in Remote
-Control after a fresh `WAITING_FOR_PLAY` status proves exact release/controller
-identity, Safety NORMAL, bridge heartbeat, campaign lease, and a single live
-writer. Local Control keeps physical TP Play. The Python
+The operator campaign-start entrypoint is
+`step5d-autotune-v3.sh campaign-start`; it composes the canonical bridge and
+the existing route-bound Remote Play primitive. `bridge-live` and
+`remote-play` remain internal/test seams, and the only resume anchor is
+`step5d-autotune-v3.sh status --json`. Remote Play is valid only after a fresh
+`WAITING_FOR_PLAY` status proves exact release/controller identity, Safety
+NORMAL, bridge heartbeat, campaign lease, and a single live writer. The Python
 live/bridge/campaign runners are internal workers, not operator entrypoints. The old
 `step5d-autotune-live.sh bridge` name is a passthrough adapter only through TP
 revision r010 and performs no write before `exec`; it fails with exit 64 after
@@ -1191,12 +1197,12 @@ On a valid trigger:
    exact-program-loaded/stopped observation before creating an attempt. If the
    TP has not loaded and stopped the exact program, it exits 75 with
    `EXTERNAL_ACTION_REQUIRED`; after the operator completes Load/Stop, rerun the
-   same `bridge-live` command. In Local Control the operator owns physical Play;
-   in Remote Control invoke the canonical `remote-play` subcommand, which
-   reanchors all live predicates and writes a receipt after observing the exact
+   same `bridge-live` command. For the active Autotune route, invoke the single
+   `campaign-start` entrypoint; it reanchors all live predicates through the
+   governed Remote Play primitive and writes a receipt after observing the exact
    program in `PLAYING`.
-3. `WAITING_FOR_PLAY` is the only state that permits either a Local TP Play
-   prompt or the governed Remote Play primitive. Every ARM
+3. `WAITING_FOR_PLAY` is the only state that permits the governed Remote Play
+   primitive. Every ARM
    still requires a fresh exact-command grant; readiness observations cannot
    authorize ARM and a prior grant cannot be reused by the next command.
 4. After compaction or resume, run `scripts/step5d-autotune-v3.sh status --json`

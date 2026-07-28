@@ -10,6 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
+import step5d_campaign_start as campaign_start_module  # noqa: E402
 from step5d_campaign_start import (  # noqa: E402
     CampaignStartCoordinator,
     build_script1_loaded_receipt,
@@ -32,6 +33,9 @@ def _home_sample(monotonic_ns: int, controller_ns: int) -> dict:
         "program_running": False,
         "program_state": "STOPPED",
         "safety_mode": "NORMAL",
+        "remote_control": True,
+        "robot_mode": "RUNNING",
+        "fresh": True,
         "observed_monotonic_ns": monotonic_ns,
         "controller_timestamp_ns": controller_ns,
         "tcp_pose": [0.487834547, 0.129337053, 0.033, 3.120752062, 0.0, 0.068626833],
@@ -64,6 +68,11 @@ def test_script1_trigger_rejects_wrong_identity_or_safety() -> None:
     with pytest.raises(HandoffError, match="safety_mode"):
         build_script1_played_receipt(manifest, wrong_safety)
 
+    lifecycle = _script1_response("PLAY", True)
+    lifecycle["bridge_started"] = True
+    with pytest.raises(HandoffError, match="bridge_started"):
+        build_script1_played_receipt(manifest, lifecycle)
+
 
 class _Script1:
     def __init__(self, events: list[str]) -> None:
@@ -84,7 +93,19 @@ class _Home:
 
     def observe(self, _manifest):
         self.events.append("home.observe")
-        return [_home_sample(1_000_000_000, 10), _home_sample(1_500_000_000, 20)]
+        return [
+            _home_sample(
+                1_000_000_000 + index * 100_000_000,
+                10_000_000_000 + index * 100_000_000,
+            )
+            for index in range(6)
+        ]
+
+
+class _FailingHome(_Home):
+    def observe(self, _manifest):
+        self.events.append("home.observe")
+        raise HandoffError("HOME_VERIFIED missing")
 
 
 class _R026Loader:
@@ -151,6 +172,126 @@ class _Campaign:
         }
 
 
+class _ActionScript1(_Script1):
+    def __init__(self, events: list[str]) -> None:
+        super().__init__(events)
+        self.stop_calls = 0
+
+    def stop(self):
+        self.stop_calls += 1
+        self.events.append("script1.stop")
+
+
+class _ActionBridge(_Bridge):
+    def __init__(self, events: list[str]) -> None:
+        super().__init__(events)
+        self.abort_calls = 0
+        self.started_this_attempt = False
+
+    def abort(self):
+        self.abort_calls += 1
+        self.events.append("bridge.abort")
+
+
+def test_release_failure_has_no_dashboard_or_bridge_compensation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = load_manifest(MANIFEST_PATH)
+    events: list[str] = []
+    script1 = _ActionScript1(events)
+    bridge = _ActionBridge(events)
+    store = HandoffStateStore(tmp_path / "handoff", handoff_id=manifest.campaign_id)
+
+    def fail_release(_manifest):
+        raise HandoffError("release blocker")
+
+    monkeypatch.setattr(campaign_start_module, "validate_release_binding", fail_release)
+    coordinator = CampaignStartCoordinator(
+        manifest,
+        store,
+        queue_root=tmp_path / "queue",
+        queue_viewer=lambda _root: pytest.fail("queue must not be read"),
+        script1=script1,
+        home=_Home(events),
+        r026_loader=_R026Loader(events),
+        r026_identity=_R026Identity(events),
+        bridge=bridge,
+        campaign=_Campaign(events),
+    )
+
+    with pytest.raises(HandoffError, match="release blocker"):
+        coordinator.run()
+    assert events == []
+    assert script1.stop_calls == 0
+    assert bridge.abort_calls == 0
+    assert store.status()["state"] == "FAILED_CLOSED"
+
+
+def test_queue_failure_has_no_dashboard_or_bridge_compensation(tmp_path: Path) -> None:
+    manifest = load_manifest(MANIFEST_PATH)
+    events: list[str] = []
+    script1 = _ActionScript1(events)
+    bridge = _ActionBridge(events)
+    store = HandoffStateStore(tmp_path / "handoff", handoff_id=manifest.campaign_id)
+
+    def fail_queue(_root):
+        raise HandoffError("queue blocker")
+
+    coordinator = CampaignStartCoordinator(
+        manifest,
+        store,
+        queue_root=tmp_path / "queue",
+        queue_viewer=fail_queue,
+        script1=script1,
+        home=_Home(events),
+        r026_loader=_R026Loader(events),
+        r026_identity=_R026Identity(events),
+        bridge=bridge,
+        campaign=_Campaign(events),
+    )
+
+    with pytest.raises(HandoffError, match="queue blocker"):
+        coordinator.run()
+    assert events == []
+    assert script1.stop_calls == 0
+    assert bridge.abort_calls == 0
+    assert store.status()["state"] == "FAILED_CLOSED"
+
+
+def test_missing_home_verified_blocks_r026_load(tmp_path: Path) -> None:
+    manifest = load_manifest(MANIFEST_PATH)
+    events: list[str] = []
+    store = HandoffStateStore(tmp_path / "handoff", handoff_id=manifest.campaign_id)
+
+    def queue_viewer(_root: Path):
+        return {
+            "state": {"revision": 8, "inflight": None},
+            "pending_requests": [
+                {
+                    "control_candidate_uid": f"candidate-{index}",
+                    "request_uid": f"request-{index}",
+                }
+                for index in range(8)
+            ],
+        }
+
+    with pytest.raises(HandoffError, match="HOME_VERIFIED missing"):
+        CampaignStartCoordinator(
+            manifest,
+            store,
+            queue_root=tmp_path / "queue",
+            queue_viewer=queue_viewer,
+            script1=_Script1(events),
+            home=_FailingHome(events),
+            r026_loader=_R026Loader(events),
+            r026_identity=_R026Identity(events),
+            bridge=_Bridge(events),
+            campaign=_Campaign(events),
+        ).run()
+    assert "r026.load" not in events
+    assert store.status()["state"] == "FAILED_CLOSED"
+
+
 def test_campaign_start_coordinator_enforces_order_and_receipts(tmp_path: Path) -> None:
     manifest = load_manifest(MANIFEST_PATH)
     events: list[str] = []
@@ -196,8 +337,9 @@ def test_campaign_start_coordinator_enforces_order_and_receipts(tmp_path: Path) 
     assert len(list((tmp_path / "handoff" / "receipts").glob("*.json"))) == 9
 
 
-def test_campaign_start_cli_requires_explicit_offline_mode() -> None:
+def test_campaign_start_cli_offline_is_explicit_no_network_preflight() -> None:
     from step5d_campaign_start import main
 
-    with pytest.raises(SystemExit, match="fail-closed"):
-        main(["campaign-start", "--manifest", str(MANIFEST_PATH)])
+    assert main(
+        ["campaign-start", "--manifest", str(MANIFEST_PATH), "--offline"]
+    ) == 0

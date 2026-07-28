@@ -106,14 +106,17 @@ campaign_start_usage() {
   cat <<'EOF'
 Usage: step5d-autotune-v3.sh campaign-start [OPTIONS]
 
-Single governed campaign-start entrypoint. The currently bound implementation
-is an offline preflight until a route-specific live adapter is qualified. The
-canonical handoff manifest is fixed by the active surface and cannot be
-overridden through this public entrypoint.
+Single governed Remote Control campaign-start entrypoint. It owns the
+Script 1 Load/Play, read-only Home verification, exact r026 rebind, canonical
+bridge readiness, and existing governed Remote Play order. The canonical
+handoff manifest is fixed by the active surface and cannot be overridden.
 
 Options:
-  --offline         Validate release/state-machine contracts without live I/O
-  -h, --help        Show this help without starting any work
+  --offline                 Validate release/state-machine contracts without live I/O
+  --campaign-root PATH      Canonical campaign state directory override
+  --output-root PATH        Campaign-start evidence directory override
+  --robot-host HOST         Remote Control robot host override
+  -h, --help                Show this help without starting any work
 EOF
 }
 
@@ -130,7 +133,7 @@ Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
        step5d-autotune-v3.sh [OPERATOR-CLI-ARGS]
 
 Use "step5d-autotune-v3.sh bridge-live --help" for bridge options.
-Use "step5d-autotune-v3.sh campaign-start --help" for governed startup preflight.
+Use "step5d-autotune-v3.sh campaign-start --help" for governed Remote startup.
 Use "step5d-autotune-v3.sh release-contract-check --help" for contract options.
 Use "step5d-autotune-v3.sh tp-deliver --help" for delivery options.
 Use "step5d-autotune-v3.sh revalidate-current --help" for runtime revalidation.

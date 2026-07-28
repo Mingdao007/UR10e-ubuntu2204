@@ -237,11 +237,24 @@ def load_commands(
     for lane_name in requested:
         lane = payload["lanes"][lane_name]
         commands = lane.get("commands")
-        if not isinstance(commands, list) or len(commands) != 1:
-            raise TestMatrixError(f"{lane_name} must have exactly one governed command")
-        command = list(commands[0])
-        if command[:4] != [HERMETIC_PYTHON_TOKEN, "-m", "pytest", "-q"]:
-            raise TestMatrixError(f"{lane_name} command is not governed pytest")
+        if not isinstance(commands, list) or not commands:
+            raise TestMatrixError(f"{lane_name} must have governed commands")
+
+        # Keep the matrix's incremental qualification groups as a canonical
+        # projection, while executing them in one hermetic lane invocation.
+        # This preserves the historical command grouping/duplicate positions
+        # without creating a second lane or a non-hermetic subprocess.
+        command: list[str] = []
+        for command_group in commands:
+            if not isinstance(command_group, list):
+                raise TestMatrixError(f"{lane_name} command group is invalid")
+            group = list(command_group)
+            if group[:4] != [HERMETIC_PYTHON_TOKEN, "-m", "pytest", "-q"]:
+                raise TestMatrixError(f"{lane_name} command is not governed pytest")
+            if not command:
+                command = group
+            else:
+                command.extend(group[4:])
         command[0] = str(_resolve_hermetic_python(hermetic_python))
         if lane_name == "small" and workers > 1:
             command[4:4] = ["-p", "xdist.plugin", "-n", str(workers), "--dist", "loadgroup"]

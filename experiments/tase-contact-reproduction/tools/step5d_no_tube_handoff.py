@@ -36,6 +36,7 @@ ORIENTATION_ERROR_RAD = 0.05
 TCP_LINEAR_SPEED_M_S = 0.001
 TCP_ANGULAR_SPEED_RAD_S = 0.01
 JOINT_SPEED_RAD_S = 0.01
+MAX_HOME_SAMPLE_GAP_S = 0.2
 
 
 class HandoffError(RuntimeError):
@@ -57,7 +58,7 @@ class HandoffState(str, Enum):
 
 
 _ALLOWED_TRANSITIONS: dict[HandoffState | None, frozenset[HandoffState]] = {
-    None: frozenset({HandoffState.RELEASE_READY}),
+    None: frozenset({HandoffState.RELEASE_READY, HandoffState.FAILED_CLOSED}),
     HandoffState.RELEASE_READY: frozenset({HandoffState.QUEUE_READY, HandoffState.FAILED_CLOSED}),
     HandoffState.QUEUE_READY: frozenset({HandoffState.SCRIPT1_LOADED, HandoffState.FAILED_CLOSED}),
     HandoffState.SCRIPT1_LOADED: frozenset({HandoffState.SCRIPT1_PLAYED, HandoffState.FAILED_CLOSED}),
@@ -163,6 +164,10 @@ class HandoffManifest:
     def stationary(self) -> Mapping[str, Any]:
         return self.payload["stationary"]
 
+    @property
+    def remote_startup(self) -> Mapping[str, Any]:
+        return self.payload["remote_startup"]
+
     def path_for(self, value: Any, role: str) -> Path:
         return _root_path(self.experiment_root, value, role)
 
@@ -170,7 +175,16 @@ class HandoffManifest:
 def load_manifest(path: Path, *, experiment_root: Path | None = None) -> HandoffManifest:
     path = path.expanduser().resolve(strict=True)
     payload = _strict_json(path, "handoff manifest")
-    required = {"schema", "campaign_id", "script1", "script2", "queue", "tube", "stationary"}
+    required = {
+        "schema",
+        "campaign_id",
+        "script1",
+        "script2",
+        "queue",
+        "tube",
+        "stationary",
+        "remote_startup",
+    }
     if set(payload) != required or payload["schema"] != HANDOFF_MANIFEST_SCHEMA:
         raise HandoffError("handoff manifest schema or fields differ")
     root = (experiment_root or path.parents[2]).expanduser().resolve(strict=True)
@@ -185,7 +199,11 @@ def load_manifest(path: Path, *, experiment_root: Path | None = None) -> Handoff
     queue = payload["queue"]
     tube = payload["tube"]
     stationary = payload["stationary"]
-    if not all(isinstance(value, Mapping) for value in (script1, script2, queue, tube, stationary)):
+    remote_startup = payload["remote_startup"]
+    if not all(
+        isinstance(value, Mapping)
+        for value in (script1, script2, queue, tube, stationary, remote_startup)
+    ):
         raise HandoffError("handoff manifest sections must be objects")
     if script1.get("program_id") != SCRIPT1_PROGRAM:
         raise HandoffError("Script 1 program identity differs")
@@ -211,8 +229,56 @@ def load_manifest(path: Path, *, experiment_root: Path | None = None) -> Handoff
         raise HandoffError("queue watermarks must satisfy 1 <= low < high")
     if tube.get("enabled") is not False or tube.get("policies") != []:
         raise HandoffError("current no-tube manifest must use an explicit empty policy set")
+    remote_fields = {
+        "route",
+        "robot_host_env",
+        "robot_host_default",
+        "dashboard_port",
+        "rtde_port",
+        "home_frequency_hz",
+        "home_timeout_s",
+        "dashboard_timeout_s",
+        "load_timeout_s",
+        "play_timeout_s",
+        "bridge_ready_timeout_s",
+        "poll_interval_s",
+    }
+    if set(remote_startup) != remote_fields or remote_startup.get("route") != "remote_control":
+        raise HandoffError("Remote startup contract must be explicit and Remote-only")
+    if (
+        not isinstance(remote_startup.get("robot_host_env"), str)
+        or not remote_startup["robot_host_env"]
+        or not remote_startup["robot_host_env"].isidentifier()
+        or not isinstance(remote_startup.get("robot_host_default"), str)
+        or not remote_startup["robot_host_default"]
+    ):
+        raise HandoffError("Remote startup host binding is invalid")
+    for field in ("dashboard_port", "rtde_port"):
+        value = remote_startup.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 65535:
+            raise HandoffError(f"Remote startup {field} is invalid")
+    for field in (
+        "home_frequency_hz",
+        "home_timeout_s",
+        "dashboard_timeout_s",
+        "load_timeout_s",
+        "play_timeout_s",
+        "bridge_ready_timeout_s",
+        "poll_interval_s",
+    ):
+        value = remote_startup.get(field)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) or float(value) <= 0.0:
+            raise HandoffError(f"Remote startup {field} is invalid")
     if stationary.get("dwell_s") != STATIONARY_DWELL_S:
         raise HandoffError("stationary dwell must be exactly 0.5 seconds")
+    max_sample_gap_s = stationary.get("max_sample_gap_s")
+    if (
+        isinstance(max_sample_gap_s, bool)
+        or not isinstance(max_sample_gap_s, (int, float))
+        or not math.isfinite(float(max_sample_gap_s))
+        or float(max_sample_gap_s) != MAX_HOME_SAMPLE_GAP_S
+    ):
+        raise HandoffError("stationary max_sample_gap_s must be exactly 0.2 seconds")
     expected_limits = {
         "position_error_m": POSITION_ERROR_M,
         "orientation_error_rad": ORIENTATION_ERROR_RAD,
@@ -351,6 +417,11 @@ def build_home_verified_receipt(
     first_monotonic: int | None = None
     previous_monotonic: int | None = None
     previous_controller: int | None = None
+    max_sample_gap_ns = int(
+        round(float(manifest.stationary["max_sample_gap_s"]) * 1_000_000_000.0)
+    )
+    max_observed_gap_ns = 0
+    max_controller_gap_ns = 0
     normalized: list[dict[str, Any]] = []
     for sample in samples:
         if not isinstance(sample, Mapping):
@@ -365,11 +436,29 @@ def build_home_verified_receipt(
             raise HandoffError("Home observer monotonic samples are not sequential")
         if previous_controller is not None and controller_timestamp <= previous_controller:
             raise HandoffError("Home observer controller timestamps are not sequential")
+        if previous_monotonic is not None and previous_controller is not None:
+            observed_gap_ns = observed_monotonic - previous_monotonic
+            controller_gap_ns = controller_timestamp - previous_controller
+            max_observed_gap_ns = max(max_observed_gap_ns, observed_gap_ns)
+            max_controller_gap_ns = max(max_controller_gap_ns, controller_gap_ns)
+            if (
+                observed_gap_ns > max_sample_gap_ns
+                or controller_gap_ns > max_sample_gap_ns
+            ):
+                raise HandoffError(
+                    "Home observer sample gap exceeds the continuous-dwell bound"
+                )
         previous_monotonic = observed_monotonic
         previous_controller = controller_timestamp
         first_monotonic = observed_monotonic if first_monotonic is None else first_monotonic
         if sample.get("program_id") != SCRIPT1_PROGRAM:
             raise HandoffError("Home observer program identity differs")
+        if sample.get("remote_control") is not True:
+            raise HandoffError("HOME_VERIFIED requires Remote Control")
+        if sample.get("robot_mode") != "RUNNING":
+            raise HandoffError("HOME_VERIFIED requires robot mode RUNNING")
+        if sample.get("fresh") is not True:
+            raise HandoffError("HOME_VERIFIED requires fresh ordered observations")
         if sample.get("program_running") is not False or not str(sample.get("program_state", "")).startswith("STOPPED"):
             raise HandoffError("HOME_VERIFIED requires a stopped Script 1")
         if sample.get("safety_mode") != "NORMAL":
@@ -394,6 +483,9 @@ def build_home_verified_receipt(
                 "tcp_speed": list(tcp_speed),
                 "actual_q": list(actual_q),
                 "qdot": list(qdot),
+                "remote_control": True,
+                "robot_mode": "RUNNING",
+                "fresh": True,
             }
         )
     assert first_monotonic is not None and previous_monotonic is not None
@@ -412,10 +504,16 @@ def build_home_verified_receipt(
         "observed_qdot": final["qdot"],
         "sample_count": len(normalized),
         "stationary_dwell_s": dwell_s,
+        "max_sample_gap_s": float(manifest.stationary["max_sample_gap_s"]),
+        "max_observed_monotonic_gap_s": max_observed_gap_ns / 1_000_000_000.0,
+        "max_controller_timestamp_gap_s": max_controller_gap_ns / 1_000_000_000.0,
         "first_observed_monotonic_ns": first_monotonic,
         "last_observed_monotonic_ns": previous_monotonic,
         "limits": dict(manifest.stationary["limits"]),
         "target_joint_q": None,
+        "remote_control": True,
+        "robot_mode": "RUNNING",
+        "fresh": True,
     }
 
 

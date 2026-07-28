@@ -12,8 +12,8 @@ projection。
 | --- | --- | --- | --- |
 | r026 controller core | accepted r026 trial | terminal trial receipt | reuse existing successful r026 evidence |
 | Script 1 positioner | immutable `step5d_autotune_start_hover_r001` | exact TCP pose + stationary evidence | package/read-back + Home observer tests |
-| Startup trigger | governed Load/Play response | program identity and Dashboard response receipts | wrong identity/Safety rejection test |
-| RTDE Home observer seam | ordered read-only samples | `HOME_VERIFIED` receipt | pose, speed, qdot, freshness/order, 0.5 s dwell |
+| Startup trigger | exact Remote Control Dashboard Load/Play response | program identity and Dashboard response receipts | wrong identity/Safety/allow-list rejection test |
+| RTDE Home observer seam | ordered read-only RTDE output samples | `HOME_VERIFIED` receipt | pose, speed, qdot, freshness/order, bounded host/controller sample gaps, Remote/Safety/robot mode, 0.5 s dwell |
 | Queue | atomic candidate records | revision, candidate/request IDs, inflight identity | submit/dispatch/finish/recovery tests |
 | Candidate feeder | sealed results + authoritative queue view | atomic refill receipt | no controller/bridge/RTDE/network imports; pending-only depth |
 | Guard policy | observation + proposed command | `GuardDecision` | each policy independent; empty chain is identity |
@@ -44,10 +44,11 @@ RELEASE_READY
 No transition is inferred from process liveness or log text. Each state has a
 receipt; invalid order, wrong identity, missing queue watermark, stale Home
 sample, unsafe status, or missing contract fails closed. The injected
-`CampaignStartCoordinator` is independently testable and currently has no
-live adapter bound. Therefore the public command currently performs explicit
-offline preflight only and cannot perform Load/Play, bridge startup, ARM, or
-motion.
+`CampaignStartCoordinator` is independently testable and is now bound to the
+route-bound Remote Control adapter in
+`tools/step5d_remote_startup.py`. `--offline` remains an explicit no-network
+preflight; the live entrypoint owns the complete Remote Load/Play → Home → r026
+identity → canonical bridge → governed Remote Play composition.
 
 Script 1 is the existing `step5d_autotune_start_hover_r001` identity. Its target
 TCP pose is:
@@ -102,15 +103,22 @@ identity.
 Offline focused validation passed:
 
 ```text
-58 passed
+44 changed-primitive/seam tests passed
+30 retained queue tests passed
+11 retained feeder tests passed
+32 canonical architecture/matrix tests passed
+52 combined refactor-gate/matrix-runner/active-surface tests passed
 ```
 
-The set covers the no-tube handoff, startup coordinator, guard identity,
-existing Script 1 package, queue contracts, and candidate feeder. Package
+The set covers the no-tube handoff, startup coordinator, Remote startup/bridge
+fresh-attempt and Play-receipt contracts, bounded Home continuity, guard
+identity, existing Script 1 package, queue contracts, and candidate feeder. Package
 validation/read-back is bound to the existing two triplets; no new controller
 program ID was created. This is offline proof and package/read-back proof only.
 It is not live startup, bridge readiness, ARM, motion, capture completion,
-postprocess completion, or campaign completion.
+postprocess completion, or campaign completion. No live action was run in this
+implementation turn because the fresh owner resolver remains
+`awaiting_live_authorization` with `live_motion_authorized=false`.
 
 Current run boundary: existing r026 runtime continuity may be used as retained
 evidence. The next new campaign must independently qualify the full
@@ -118,15 +126,15 @@ Script 1 → HOME_VERIFIED → Script 2/r026 → bridge → Play path.
 
 ## Next action — user
 
-After review, approve a separate live-qualification turn for the next new
-campaign. That turn must bind route-specific Dashboard/RTDE/bridge adapters,
-perform fresh identity and Safety gates, and collect receipts for every state.
+Inspect the Remote Control adapter diff and receipts, then run the next new
+campaign through `campaign-start` once the existing live-authorization gate is
+explicitly active. That qualification must collect fresh receipts for every
+state and report offline proof, package/read-back, live startup, and campaign
+completion separately.
 
 ## Open decisions for user
 
-1. Select the route-specific live adapter implementation for `campaign-start`
-   (Local TP physical Play or Remote Control governed Dashboard route).
-2. Confirm the authoritative queue root and candidate-plane process supervisor
-   for the next campaign; the high/low policy remains manifest-owned at 8/4.
-3. Decide the independent acceptance threshold for sealed capture → metric →
-   optimizer → feeder before claiming campaign completion.
+None — Remote Control is fixed by the active manifest and state table. The
+remaining gate is the existing live authorization; queue watermarks remain
+manifest-owned at 8/4, and campaign completion still requires separate sealed
+capture → metric → optimizer → feeder evidence.

@@ -11078,9 +11078,10 @@
           "time_source": "rtde_controller_timestamp"
         },
         "play_trigger_policy": {
-          "local_control": "physical_tp_play",
+          "route": "remote_control_only",
+          "campaign_start": "scripts/step5d-autotune-v3.sh campaign-start",
           "receipt_schema": "step5d.autotune-v3/remote-play-receipt-v1",
-          "remote_control": "scripts/step5d-autotune-v3.sh remote-play",
+          "remote_control": "tools/step5d_remote_startup.py:RemoteCampaignPlayer -> governed_remote_play",
           "remote_required_predicates": [
             "WAITING_FOR_PLAY",
             "release_current",
@@ -11098,6 +11099,12 @@
           "manifest": "config/step5d/no_tube_handoff.json",
           "state_owner": "tools/step5d_no_tube_handoff.py:HandoffStateStore",
           "coordinator": "tools/step5d_campaign_start.py:CampaignStartCoordinator",
+          "route": "remote_control_only",
+          "startup_adapter": "tools/step5d_remote_startup.py:RemoteScript1Trigger",
+          "home_observer": "tools/step5d_remote_startup.py:RemoteHomeObserver",
+          "home_max_sample_gap_s": 0.2,
+          "queue_view": "tools/step5d_parameter_queue.py:authoritative_view",
+          "failure_state": "FAILED_CLOSED",
           "state_sequence": [
             "RELEASE_READY",
             "QUEUE_READY",
@@ -11110,7 +11117,7 @@
             "CAMPAIGN_RUNNING"
           ],
           "current_run_boundary": "r026_runtime_continuity_only",
-          "next_campaign_acceptance": "full_script1_to_script2_startup"
+          "next_campaign_acceptance": "full_script1_to_script2_startup_remote_control"
         },
         "optional_guard_seam": {
           "interface": "evaluate(observation, proposed_command) -> GuardDecision",
