@@ -9233,6 +9233,39 @@
           "robot_controller_kunwei_accessed": false,
           "contact": false,
           "training_dataset": false
+        },
+        "entry_excursion_and_motor_diagnostics_20260728": {
+          "status": "fresh_no_contact_chain_passed_tracking_unsupported",
+          "claim_class": "live_no_contact_diagnostic_only",
+          "runtime_source_sha256": "91318bee57c10f2760cfdfde8743b899021034e9471b899a60d4654ba73b10e4",
+          "receiver_source_sha256": "c84c3339ce0b4700e8fc51a335864db84af233c25ac2c048f4e58261a7d523d7",
+          "bundle_manifest_sha256": "8d3e70ff556690be0c27207ff0a655d87e7d4e2f11e7b21f34d8e2a4bf57a88c",
+          "entry_transition_schema": "ur10e_direct_torque_entry_transition/v3",
+          "entry_joint_excursion_limit_rad": 0.0005,
+          "entry_tcp_translation_excursion_limit_m": 0.0003,
+          "entry_excursion_fault_code": 14,
+          "compile_probe": "runs/tacdiffusion/direct_torque_v4_motor_diag_compile_probe_20260728/evidence.json",
+          "compile_probe_evidence_sha256": "168012cc4f49cab443f3495264c779eb8569cf671b64c798cac055c98b8956aa",
+          "normal_motor_baseline": "runs/tacdiffusion/direct_torque_v4_motor_diag_normal_baseline_20260728/evidence.json",
+          "normal_motor_baseline_evidence_sha256": "e1e8453ac72622ce87576cda82eee46f6590c3ff153cb08a02e53ca1df2f0cd1",
+          "hold": "runs/tacdiffusion/direct_torque_v4_motor_diag_hold_100ms_20260728/evidence.json",
+          "hold_evidence_sha256": "eb2f572ad9f4e612a0f4ee3c94e8c41ac9e54bc2b434f6531e6a674f7f3d892d",
+          "ramp": "runs/tacdiffusion/direct_torque_v4_motor_diag_ramp_0_2mm_500ms_20260728/evidence.json",
+          "ramp_evidence_sha256": "4ab20c9a5c9676ed1dd4b32411e488cb4e527c20d8cf10b9952ef0de8c721e56",
+          "reference": "runs/tacdiffusion/direct_torque_v4_motor_diag_reference_2s_20260728/evidence.json",
+          "reference_evidence_sha256": "3fa6c136663fc6e5f32073a85050499f012d0754cbe897ad43581719938927d0",
+          "tracking_and_actuator_audit": "runs/tacdiffusion/direct_torque_v4_motor_diag_reference_2s_20260728/tracking_and_actuator_audit_v1.json",
+          "tracking_and_actuator_audit_sha256": "af45d06fd716617cd61ab4e9f1461d908840fbbc473f59c98556a0ae17c38a1c",
+          "coherent_active_rows": 759,
+          "directional_tracking_correlation": 0.1502308366866892,
+          "directional_tracking_supported": false,
+          "maximum_commanded_torque_norm_nm": 0.22879401054465828,
+          "joint_control_output_equals_target_current": true,
+          "actuator_fields_authoritative_direct_torque_echo": false,
+          "ur_internal_ft_used": false,
+          "kunwei_force_source_unchanged": true,
+          "contact": false,
+          "training_dataset": false
         }
       },
       "offline_validation": {
@@ -9281,6 +9314,9 @@
         "acceleration_fault_code": 12,
         "torque_thread_watchdog_stale_ticks": 25,
         "torque_thread_watchdog_fault_code": 13,
+        "entry_transition_joint_excursion_limit_rad": 0.0005,
+        "entry_transition_tcp_translation_excursion_limit_m": 0.0003,
+        "entry_transition_position_excursion_fault_code": 14,
         "direct_torque_consumes_timestep": true,
         "empty_sync_after_direct_torque_allowed": false,
         "program_shape": "secondary_client_outer_def_with_nested_minimal_500hz_torque_thread",
@@ -9326,7 +9362,7 @@
           "retain_incoherent_rows": true,
           "action_derived_metrics_reject_incoherent_rows": true,
           "historical_runs_verified": false,
-          "new_source_live_validated": false
+          "new_source_live_validated": true
         },
         "historical_timing_corrected_hold": {
           "run": "runs/tacdiffusion/direct_torque_v4_pow_decay_hold_live_20260727T1019HKT",
@@ -9340,15 +9376,16 @@
           "runner_fix_commit": "a2a3a7ec"
         },
         "latest_canonical_chain": {
-          "runtime_source_sha256": "baa666d2510d775c1af2ba96e9021ac64ff3eaf75931b1bcaea00ae2bbdd03d0",
-          "receiver_source_sha256": "86545a209b348b9f19469239686f778a7b9ff19c065f771d73f2c3310a85e67f",
-          "hold": "runs/tacdiffusion/direct_torque_v4_reference10s_chain_hold_20260728T1311HKT/evidence.json",
-          "hold_evidence_sha256": "faece133ab0a441b3177eae3f62b5a8e0d903ed8e9ae4dcb2688a9d6eb84d5d7",
-          "ramp": "runs/tacdiffusion/direct_torque_v4_reference10s_chain_ramp_20260728T1312HKT/evidence.json",
-          "ramp_evidence_sha256": "86e69caba7cd4c2b0569d7f387e674ac377853bd17a3bf1f140147658235915e",
-          "reference": "runs/tacdiffusion/direct_torque_v4_reference10s_chain_reference2s_20260728T1313HKT/evidence.json",
-          "reference_evidence_sha256": "ed0e6a5bf39ce4705f28c617fa43971af2248341dceaf208de4be95138089997",
-          "chain_audit": "runs/tacdiffusion/direct_torque_v4_reference_10s_diagnostic_20260728T1314HKT/reference_10s_tracking_audit_v1.json",
+          "runtime_source_sha256": "91318bee57c10f2760cfdfde8743b899021034e9471b899a60d4654ba73b10e4",
+          "receiver_source_sha256": "c84c3339ce0b4700e8fc51a335864db84af233c25ac2c048f4e58261a7d523d7",
+          "hold": "runs/tacdiffusion/direct_torque_v4_motor_diag_hold_100ms_20260728/evidence.json",
+          "hold_evidence_sha256": "eb2f572ad9f4e612a0f4ee3c94e8c41ac9e54bc2b434f6531e6a674f7f3d892d",
+          "ramp": "runs/tacdiffusion/direct_torque_v4_motor_diag_ramp_0_2mm_500ms_20260728/evidence.json",
+          "ramp_evidence_sha256": "4ab20c9a5c9676ed1dd4b32411e488cb4e527c20d8cf10b9952ef0de8c721e56",
+          "reference": "runs/tacdiffusion/direct_torque_v4_motor_diag_reference_2s_20260728/evidence.json",
+          "reference_evidence_sha256": "3fa6c136663fc6e5f32073a85050499f012d0754cbe897ad43581719938927d0",
+          "chain_audit": "runs/tacdiffusion/direct_torque_v4_motor_diag_reference_2s_20260728/tracking_and_actuator_audit_v1.json",
+          "chain_audit_sha256": "af45d06fd716617cd61ab4e9f1461d908840fbbc473f59c98556a0ae17c38a1c",
           "ordered_chain_ok": true,
           "tracking_fidelity_is_strict_gate": false,
           "training_dataset": false
@@ -9362,7 +9399,7 @@
         "live_authorized": false,
         "no_contact_canary_chain_accepted": true
       },
-      "success_condition": "Direct Torque RTDE v4 remains an inactive no-contact candidate. Each new source fingerprint must pass compile probe, 50 ms consecutive stationary entry, zero-friction-scale 100 ms hold, 0.2 mm/500 ms ramp, and bounded 2 s reference in order, with Direct Torque and COMPLETE observed, actual joint acceleration at or below 5 rad/s^2, at least 90% of expected 500 Hz RTDE rows, torque-thread calls at 450-550 Hz, controller-law refresh at or above 150 Hz, STARTUP/TORQUE control-update gap at or below 10 ms, zero lineage/parse/drop errors, Kunwei raw rate 900-1100 Hz, and TCP delivery gaps within 80 ms. This does not imply contact success or training-data eligibility."
+      "success_condition": "Direct Torque RTDE v4 remains an inactive no-contact candidate. Each new source fingerprint must pass compile probe, 50 ms consecutive stationary entry, 0.5 mrad joint and 0.3 mm TCP entry-excursion guards, 100 ms hold, 0.2 mm/500 ms ramp, and bounded 2 s reference in order, with Direct Torque and COMPLETE observed, at least one coherent action-publication row, at least 90% of expected 500 Hz RTDE rows, torque-thread calls at 450-550 Hz, controller-law refresh at or above 150 Hz, STARTUP/TORQUE control-update gap at or below 10 ms, zero lineage/parse/drop errors, Kunwei raw rate 900-1100 Hz, and TCP delivery gaps within 80 ms. This does not imply tracking fidelity, contact success, or training-data eligibility."
     },
     {
       "id": "step5d_strict_rnn_ablation_v30",

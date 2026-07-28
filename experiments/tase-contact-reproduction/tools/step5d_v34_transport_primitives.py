@@ -107,6 +107,8 @@ def rtde_struct_format(type_name: str) -> str:
         "DOUBLE": "d",
         "VECTOR3D": "3d",
         "VECTOR6D": "6d",
+        "VECTOR6INT32": "6i",
+        "VECTOR6UINT32": "6I",
         "UINT32": "I",
         "UINT64": "Q",
         "INT32": "i",
@@ -119,7 +121,7 @@ def rtde_struct_format(type_name: str) -> str:
 
 def pack_rtde_value(type_name: str, value: Any) -> bytes:
     fmt = rtde_struct_format(type_name)
-    if fmt in {"3d", "6d"}:
+    if fmt in {"3d", "6d", "6i", "6I"}:
         return struct.pack("!" + fmt, *value)
     return struct.pack("!" + fmt, value)
 

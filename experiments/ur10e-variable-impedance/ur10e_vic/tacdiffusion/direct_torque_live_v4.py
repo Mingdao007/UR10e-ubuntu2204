@@ -414,6 +414,8 @@ def build_live_receiver_source(
   local entry_tcp_translation_speed_limit_m_s = 0.001
   local entry_tcp_rotation_speed_limit_rad_s = 0.002
   local entry_joint_speed_limit_rad_s = 0.001
+  local entry_transition_tcp_translation_limit_m = 0.0003
+  local entry_transition_joint_excursion_limit_rad = 0.0005
   local active_joint_speed_limit_rad_s = 0.02
   local active_joint_acceleration_limit_rad_s2 = 5.0
   local active_tcp_translation_speed_limit_m_s = 0.01
@@ -448,6 +450,7 @@ def build_live_receiver_source(
   local filtered_force = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local filter_velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local entry_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local entry_joint_positions = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local filtered_entry_tcp_speed = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local filtered_entry_joint_speed = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local torque_thread_handle = 0
@@ -709,6 +712,7 @@ def build_live_receiver_source(
         local control_ok = True
         local active_speed_violation = False
         local active_acceleration_violation = False
+        local entry_excursion_violation = False
         if actual_u > tube_u_half_width_m or actual_u < -tube_u_half_width_m:
           control_ok = False
         end
@@ -722,11 +726,24 @@ def build_live_receiver_source(
           control_ok = False
         end
         if torque_entered:
+          if entry_elapsed_s < entry_blend_duration_s:
+            local entry_transition_error = pose_sub(p[entry_pose[0], entry_pose[1], entry_pose[2], entry_pose[3], entry_pose[4], entry_pose[5]], actual_pose)
+            local entry_transition_translation = sqrt(entry_transition_error[0]*entry_transition_error[0] + entry_transition_error[1]*entry_transition_error[1] + entry_transition_error[2]*entry_transition_error[2])
+            if entry_transition_translation > entry_transition_tcp_translation_limit_m:
+              entry_excursion_violation = True
+            end
+          end
           if actual_translation_speed > active_tcp_translation_speed_limit_m_s or actual_rotation_speed > active_tcp_rotation_speed_limit_rad_s:
             active_speed_violation = True
           end
           axis = 0
           while axis < 6:
+            if entry_elapsed_s < entry_blend_duration_s:
+              local entry_joint_delta = q[axis] - entry_joint_positions[axis]
+              if entry_joint_delta > entry_transition_joint_excursion_limit_rad or entry_joint_delta < -entry_transition_joint_excursion_limit_rad:
+                entry_excursion_violation = True
+              end
+            end
             if qd[axis] > active_joint_speed_limit_rad_s or qd[axis] < -active_joint_speed_limit_rad_s:
               active_speed_violation = True
             end
@@ -766,6 +783,7 @@ def build_live_receiver_source(
               entry_ready = False
             end
             entry_pose[axis] = actual_pose[axis]
+            entry_joint_positions[axis] = q[axis]
             axis = axis + 1
           end
           if entry_velocity_filter_elapsed_s < entry_velocity_filter_warmup_s:
@@ -783,6 +801,10 @@ def build_live_receiver_source(
         if torque_thread_watchdog_fault:
           exit_fault = 13
           exit_reason = 13
+          running = False
+        elif entry_excursion_violation:
+          exit_fault = 14
+          exit_reason = 14
           running = False
         elif not control_ok:
           if active_acceleration_violation:
@@ -996,6 +1018,11 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "write_output_integer_register(29, action_publish_generation)",
         "write_output_integer_register(33, action_publish_generation)",
         "entry_joint_speed_limit_rad_s = 0.001",
+        "entry_transition_tcp_translation_limit_m = 0.0003",
+        "entry_transition_joint_excursion_limit_rad = 0.0005",
+        "entry_joint_positions[axis] = q[axis]",
+        "entry_excursion_violation = True",
+        "exit_fault = 14",
         "entry_stable_elapsed_s < entry_stable_duration_s",
         "guard_wrench = [read_input_float_register(36)",
         "guard_force_norm > 6.0 or guard_torque_norm > 0.5",

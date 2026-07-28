@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import hashlib
+import inspect
 import json
 import math
 from pathlib import Path
@@ -89,6 +90,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     validate_live_preflight,
     validate_prior_stage_evidence,
     runtime_source_binding,
+    run_receiver_handshake_probe,
     run_live,
     summarize_receiver_handshake_samples,
 )
@@ -151,8 +153,12 @@ def test_cadence_max_gap_ignores_stale_waiting_register_value() -> None:
     assert _maximum_active_control_update_gap_s(rows) == pytest.approx(0.006)
 
 
-def test_entry_replay_fails_large_transition_acceleration() -> None:
-    def row(timestamp_s: float, qd_1: float) -> dict[str, float]:
+def test_entry_replay_uses_excursion_as_gate_and_acceleration_as_diagnostic() -> None:
+    def row(
+        timestamp_s: float,
+        qd_1: float,
+        joint_position_1: float,
+    ) -> dict[str, float]:
         result = {
             "receiver_state": 1.0,
             "ack_sequence": 1.0,
@@ -164,18 +170,24 @@ def test_entry_replay_fails_large_transition_acceleration() -> None:
             result[f"command_desired_pose_{axis}"] = 0.0
             result[f"actual_TCP_pose_{axis}"] = 0.0
             result[f"actual_TCP_speed_{axis}"] = 0.0
-            result[f"actual_q_{axis}"] = 0.0
+            result[f"actual_q_{axis}"] = (
+                joint_position_1 if axis == 1 else 0.0
+            )
             result[f"actual_qd_{axis}"] = qd_1 if axis == 1 else 0.0
         return result
 
     analysis = analyze_entry_bumplessness(
-        [row(10.000, 0.0), row(10.002, 0.020)]
+        [
+            row(10.000, 0.0, 0.0),
+            row(10.002, 0.020, 0.0002),
+        ]
     )
     assert analysis["maximum_derived_abs_joint_acceleration_rad_s2"] == (
         pytest.approx(10.0)
     )
-    assert analysis["outcome"] == "FAIL"
-    assert analysis["transition_failures"] == [
+    assert analysis["outcome"] == "PASS"
+    assert analysis["transition_failures"] == []
+    assert analysis["diagnostic_events"] == [
         "joint_acceleration_gt_1rad_s2"
     ]
     assert analysis["motion_performed"] is False
@@ -331,6 +343,25 @@ def test_receive_available_preserves_every_decoded_controller_packet(
     )
 
 
+def test_v34_transport_supports_rtde_joint_mode_vector_types() -> None:
+    assert transport_primitives.rtde_struct_format("VECTOR6INT32") == "6i"
+    assert transport_primitives.rtde_struct_format("VECTOR6UINT32") == "6I"
+    assert transport_primitives.pack_rtde_value(
+        "VECTOR6INT32",
+        [253, 253, 253, 253, 253, 253],
+    ) == struct.pack("!6i", 253, 253, 253, 253, 253, 253)
+
+
+def test_direct_torque_output_recipe_retains_motor_diagnostics() -> None:
+    assert {
+        "target_current",
+        "actual_current",
+        "actual_current_as_torque",
+        "joint_control_output",
+        "joint_mode",
+    }.issubset(OUTPUT_FIELDS)
+
+
 def _fake_output_sample(
     *,
     pose: list[float],
@@ -367,6 +398,11 @@ def _fake_output_sample(
         "actual_q": [0.0] * 6,
         "actual_qd": [0.0] * 6,
         "target_moment": [0.0] * 6,
+        "target_current": [0.0] * 6,
+        "actual_current": [0.0] * 6,
+        "actual_current_as_torque": [0.0] * 6,
+        "joint_control_output": [0.0] * 6,
+        "joint_mode": [253] * 6,
     }
     for index in range(18):
         sample[f"output_double_register_{26 + index}"] = float(index)
@@ -1238,6 +1274,12 @@ def test_receiver_handshake_probe_is_one_reversible_pre_main_injection(
     assert "direct_torque(torque, viscous_scale=" in probe_source
 
 
+def test_receiver_handshake_uses_the_same_primary_start_barrier_as_live() -> None:
+    source = inspect.getsource(run_receiver_handshake_probe)
+    assert "_send_urscript_with_primary_start_barrier(" in source
+    assert "_send_urscript(" not in source
+
+
 def test_receiver_handshake_markers_reject_wrong_protocol_and_torque_state() -> None:
     waiting = {
         "output_int_register_24": STATE_WAITING,
@@ -1954,10 +1996,15 @@ def test_run_live_emits_failure_evidence_after_live_write_and_advances_run_dir(t
         "actual_TCP_pose": list(bundle.timeline.rows[0]["desired_pose_base"]),
         "actual_TCP_speed": [0.0] * 6,
         "actual_TCP_force": [0.0] * 6,
-        "actual_q": [0.0] * 6,
-        "actual_qd": [0.0] * 6,
-        "target_moment": [0.0] * 6,
-    }
+            "actual_q": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "target_moment": [0.0] * 6,
+            "target_current": [0.0] * 6,
+            "actual_current": [0.0] * 6,
+            "actual_current_as_torque": [0.0] * 6,
+            "joint_control_output": [0.0] * 6,
+            "joint_mode": [253] * 6,
+        }
 
     events: list[str] = []
 

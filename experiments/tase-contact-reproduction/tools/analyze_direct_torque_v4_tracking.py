@@ -60,6 +60,99 @@ def _matrix(
     )
 
 
+def _centered_column_correlations(
+    left: np.ndarray,
+    right: np.ndarray,
+) -> list[float]:
+    correlations: list[float] = []
+    for axis in range(left.shape[1]):
+        left_column = left[:, axis]
+        right_column = right[:, axis]
+        if (
+            float(np.std(left_column)) <= 1e-15
+            or float(np.std(right_column)) <= 1e-15
+        ):
+            correlations.append(0.0)
+        else:
+            correlations.append(
+                float(np.corrcoef(left_column, right_column)[0, 1])
+            )
+    return correlations
+
+
+def _actuator_response_audit(
+    active: list[Mapping[str, str]],
+) -> dict[str, Any] | None:
+    required = (
+        "target_current",
+        "actual_current",
+        "actual_current_as_torque",
+        "joint_control_output",
+    )
+    if not all(f"{name}_0" in active[0] for name in required):
+        return None
+    commanded = _matrix(active, "commanded_joint_torque_nm_", 6)
+    signals = {name: _matrix(active, f"{name}_", 6) for name in required}
+    joint_modes = (
+        [
+            sorted(
+                {
+                    int(float(row[f"joint_mode_{axis}"]))
+                    for row in active
+                }
+            )
+            for axis in range(6)
+        ]
+        if "joint_mode_0" in active[0]
+        else None
+    )
+    return {
+        "method": "rtde_motor_diagnostic_crosscheck",
+        "sample_count": len(active),
+        "per_joint_centered_command_vs_target_current_correlation": (
+            _centered_column_correlations(
+                commanded,
+                signals["target_current"],
+            )
+        ),
+        "per_joint_centered_command_vs_actual_current_correlation": (
+            _centered_column_correlations(
+                commanded,
+                signals["actual_current"],
+            )
+        ),
+        "per_joint_centered_command_vs_actual_current_as_torque_correlation": (
+            _centered_column_correlations(
+                commanded,
+                signals["actual_current_as_torque"],
+            )
+        ),
+        "per_joint_centered_command_vs_joint_control_output_correlation": (
+            _centered_column_correlations(
+                commanded,
+                signals["joint_control_output"],
+            )
+        ),
+        "joint_control_output_minus_target_current_max_abs": float(
+            np.max(
+                np.abs(
+                    signals["joint_control_output"]
+                    - signals["target_current"]
+                )
+            )
+        ),
+        "actual_current_as_torque_peak_to_peak_nm": [
+            float(value)
+            for value in np.ptp(signals["actual_current_as_torque"], axis=0)
+        ],
+        "joint_mode_values_by_joint": joint_modes,
+        "interpretation_boundary": (
+            "motor-current/torque diagnostics only; no UR internal F/T signal "
+            "is used as wrench input or safety guard"
+        ),
+    }
+
+
 def analyze_rows(rows: list[Mapping[str, str]]) -> dict[str, Any]:
     active, action_coherence_verified, rejected_incoherent_rows = (
         _active_rows_with_coherence(rows)
@@ -302,12 +395,15 @@ def analyze_rows(rows: list[Mapping[str, str]]) -> dict[str, Any]:
                 "-2*sqrt(virtual_mass_2kg*applied_k)*actual_tcp_speed_xyz"
             ),
         },
+        "actuator_response": _actuator_response_audit(active),
         "claim_boundary": {
             "offline_only": True,
             "contact_control_qualified": False,
             "training_dataset": False,
             "causal_kunwei_rtde_alignment_used": False,
             "action_echo_coherence_verified": action_coherence_verified,
+            "ur_internal_ft_used": False,
+            "kunwei_force_source_unchanged": True,
         },
     }
 

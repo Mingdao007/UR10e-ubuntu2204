@@ -22,19 +22,26 @@ probe 或真机数据支持的可复用经验。
 - 当前 leading physical hypothesis 是 `<=0.42 N` TCP command 落在
   near-zero breakaway friction/deadband/noise 区域；这仍需后续
   no-contact single-variable amplitude A/B 才能证明。
-- 当前 source 已离线加入 action publication seqlock、50 ms
-  torque-thread main-loop watchdog 和 150 ms entry-filter warm-up；Autotune
-  独占真机期间没有做 live validation。
+- 当前 source 已加入 action publication seqlock、50 ms torque-thread
+  main-loop watchdog、150 ms entry-filter warm-up，以及 entry 前 100 ms 的
+  `0.5 mrad` joint / `0.3 mm` TCP position-excursion fail-closed guard
+  （fault `14`）。Autotune 受控停机并释放 writer 后，这个 source 已完成
+  fresh compile/handshake/hold/ramp/reference no-contact live validation。
+- 新增 RTDE motor diagnostics（`target_current`、`actual_current`、
+  `actual_current_as_torque`、`joint_control_output`、`joint_mode`）没有把
+  当前约 `0.2 Nm` command 从 motor noise 中辨识出来；这不等价于证明
+  `direct_torque()` 没有执行。
 - trajectory fidelity、contact control 和 expert-data eligibility 仍未
   通过；所有现有 capture 均为 `training_dataset=false`。
 
 最新主要证据：
 
-- `runs/tacdiffusion/direct_torque_v4_reference10s_chain_hold_20260728T1311HKT/evidence.json`
-- `runs/tacdiffusion/direct_torque_v4_reference10s_chain_ramp_20260728T1312HKT/evidence.json`
-- `runs/tacdiffusion/direct_torque_v4_reference10s_chain_reference2s_20260728T1313HKT/evidence.json`
-- `runs/tacdiffusion/direct_torque_v4_reference_10s_diagnostic_20260728T1314HKT/evidence.json`
-- `runs/tacdiffusion/direct_torque_v4_reference_10s_diagnostic_20260728T1314HKT/reference_10s_tracking_audit_v1.json`
+- `runs/tacdiffusion/direct_torque_v4_motor_diag_compile_probe_20260728/evidence.json`
+- `runs/tacdiffusion/direct_torque_v4_motor_diag_normal_baseline_20260728/evidence.json`
+- `runs/tacdiffusion/direct_torque_v4_motor_diag_hold_100ms_20260728/evidence.json`
+- `runs/tacdiffusion/direct_torque_v4_motor_diag_ramp_0_2mm_500ms_20260728/evidence.json`
+- `runs/tacdiffusion/direct_torque_v4_motor_diag_reference_2s_20260728/evidence.json`
+- `runs/tacdiffusion/direct_torque_v4_motor_diag_reference_2s_20260728/tracking_and_actuator_audit_v1.json`
 
 ## 1. 先区分四种频率
 
@@ -308,8 +315,12 @@ Opus 5 high audit 发现并由 retained CSV 直接复现：
 - active row 只有 `begin == end > 0` 才是 coherent；
 - host 保存所有 RTDE rows，但 action-derived metrics 只消费 coherent rows，
   并单独报告 rejected count/fraction；
-- `entry_transition/v2` 只在 entry window 全部 coherent 时给 PASS/FAIL，
+- `entry_transition/v3` 只在 entry window 全部 coherent 时给 action
+  PASS/FAIL，
   否则给 `INDETERMINATE`。
+- joint/TCP position excursion 使用相同 20 ms window 的全部 physical
+  RTDE rows 独立计算，不因 action publication incoherent 而丢失物理
+  fail-closed 能力。
 
 这修复的是数据一致性，不改变 torque law。
 
@@ -324,8 +335,64 @@ Opus 5 high audit 发现并由 retained CSV 直接复现：
 - thread 落入既有 `stopj(10.0)` position handoff；
 - main loop 以 fault code `13` 记录 watchdog 原因。
 
-这项 repair 尚未在真机验证；Autotune 独占 bench 期间只完成 offline source
-contract 和 tests。它是任何 contact 或 expert-data stage 的前置条件。
+Autotune 受控停止并释放 live writer 后，这项 repair 已随 runtime
+fingerprint
+`91318bee57c10f2760cfdfde8743b899021034e9471b899a60d4654ba73b10e4`
+完成 fresh no-contact ordered chain。100 ms hold、0.2 mm ramp 和 2 s
+reference 均观察到 Direct Torque、COMPLETE、Safety NORMAL，torque-call
+分别为 `490.20 / 498.01 / 499.50 Hz`，maximum control-update gap 均为
+`6 ms`。entry maximum joint excursion 分别为 `0.112 / 0.151 /
+0.121 mrad`，TCP excursion 分别为 `0.076 / 0.087 / 0.055 mm`，均低于
+controller fault-14 limits。
+
+这证明 watchdog、seqlock publication 与 position-excursion guard 能在
+fresh source 上共同运行；不证明 tracking、contact 或 expert-data
+eligibility。
+
+## 15. Motor telemetry 能回答什么，不能回答什么
+
+为检查约 `0.2 Nm` command 是否在 actuator surface 上可见，runner 和
+tracking analyzer 新增五类 read-only RTDE outputs：
+
+- `target_current`；
+- `actual_current`；
+- `actual_current_as_torque`；
+- `joint_control_output`；
+- `joint_mode`。
+
+在 fresh 2 s reference 的 `759` 个 coherent active rows 中：
+
+- 六轴 `joint_mode` 均为 `253`；
+- `joint_control_output - target_current` 的 maximum absolute difference
+  为 `0`；
+- commanded torque 与 `target_current` 的 centered per-joint correlation
+  为 `[0.026, -0.241, -0.006, -0.004, -0.072, 0.056]`；
+- `actual_current_as_torque` 的 per-joint peak-to-peak 是
+  `[6.88, 10.22, 4.68, 1.88, 2.29, 1.81] Nm`，显著大于约
+  `0.23 Nm` 的 command；
+- calibrated `J^T w` reconstruction 与 commanded torque 在主要关节上
+  仍有 `0.88--0.99` correlation，maximum commanded torque norm
+  `0.229 Nm`；
+- desired translation `0.629 mm`，actual max envelope `0.106 mm`，
+  directional correlation `0.150`、fit gain `1.20%`，未通过 tracking
+  support rule。
+
+因此 motor telemetry 没有支持“command 已形成可辨识运动响应”，但也不能
+证明 Direct Torque command 未被内部应用：这些 RTDE fields 是 motor
+diagnostics，不是 Direct Torque applied-torque echo，而且
+`actual_current_as_torque` 的波动会淹没当前小信号。UR internal F/T 仍未
+被用作 wrench 或 guard；实验 F/T source 仍只有 Kunwei。
+
+官方示例对 wrist 关节使用 `2.5 Nm` sinusoid，而当前 calibrated maximum
+command 只有约 `0.23 Nm`。下一步合理的 single-variable isolation 是先
+离线生成并验证 `K=800 N/m` 的同路径 no-contact profile，再从 fresh
+compile/hold/ramp/reference ordered chain 开始；不得跳过 numeric sanity，
+也不得把这轮结果直接升级为 contact 或 data collection。
+
+这次 2 s tracking 结论与此前 2/7/10 s audit 的“response 与 noise/null
+不可区分”一致，并非新发现。新增证据价值是：同一 fresh source 上确认了
+seqlock coherence、watchdog、position-excursion fail-closed guard 与
+motor telemetry capture，而不是重复宣称发现 weak tracking。
 
 ## 禁止回归项
 
@@ -338,6 +405,8 @@ contract 和 tests。它是任何 contact 或 expert-data stage 的前置条件�
 - 不把 80 ms Kunwei delivery watchdog 解释为 80 ms sample period；
 - 不把 no-contact canary 数据标记为 expert/training data；
 - 不把 incoherent RTDE action registers 当作 applied/expert action；
+- 不把 RTDE motor-current fields 当作 UR internal F/T 或
+  `direct_torque()` 的 authoritative applied-torque echo；
 - 不再把 max displacement norm ratio 叫 tracking response；
 - 不因 tracking 不足直接提高 torque、速度或接触力，先做单变量时间尺度
   isolation。

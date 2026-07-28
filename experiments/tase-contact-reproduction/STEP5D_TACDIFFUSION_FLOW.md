@@ -308,7 +308,7 @@ action tail. In the 10 s entry-lowpass CSV, the first STARTUP row has fresh
 preceding 2 s run's `0.1902146167 Nm` joint-0 action. Historical
 `first custom torque` and entry classifications are therefore retired.
 
-The offline source now:
+The source now:
 
 1. brackets every active action/cadence publication with generation stamps in
    output integer registers 29 and 33;
@@ -319,13 +319,44 @@ The offline source now:
 4. requires 150 ms (three filter time constants) of entry-velocity-filter
    warm-up before the 50 ms stable dwell may advance.
 
-These repairs have offline source/test evidence only. Autotune owns the bench,
-so no robot, controller, Kunwei, or live writer was accessed for this audit.
-The durable numeric summary is
-`config/direct_torque_v4_offline_root_cause_20260728.json`. A new immutable
-receiver bundle and fresh no-contact hold/ramp/reference chain are still
-required after the bench is released. All historical and future pre-fix
-captures remain `training_dataset=false`.
+The next source revision also records the fresh entry joint positions and
+fails with fault 14 if the first 100 ms exceeds `0.5 mrad` joint excursion or
+`0.3 mm` TCP translation excursion. The host computes those physical
+excursions from every RTDE row even when an action-publication row is rejected
+as incoherent.
+
+Autotune was then stopped through its controlled shutdown path and released
+the exclusive live writer. Runtime fingerprint
+`91318bee57c10f2760cfdfde8743b899021034e9471b899a60d4654ba73b10e4`
+passed a fresh compile probe, exact receiver handshake, 100 ms hold, 0.2 mm
+ramp, and 2 s reference. The three motion stages observed Direct Torque and
+COMPLETE with Safety NORMAL. Their torque-call rates were `490.20`,
+`498.01`, and `499.50 Hz`; maximum controller-update gaps were all `6 ms`.
+Maximum entry joint/TCP excursions were respectively
+`0.112 mrad / 0.076 mm`, `0.151 mrad / 0.087 mm`, and
+`0.121 mrad / 0.055 mm`, below the fault-14 limits. This is live evidence for
+the seqlock/watchdog/position-excursion source, not contact acceptance.
+
+The same fresh reference capture adds read-only RTDE motor diagnostics:
+`target_current`, `actual_current`, `actual_current_as_torque`,
+`joint_control_output`, and `joint_mode`. Across 759 coherent active rows,
+`joint_control_output` exactly equalled `target_current`, while per-joint
+correlation between the approximately `0.23 Nm` commanded torque and
+`target_current` remained between `-0.241` and `0.056`.
+`actual_current_as_torque` peak-to-peak noise was `1.81--10.22 Nm`.
+These outputs therefore do not resolve the small command and are not an
+authoritative applied Direct Torque echo. They also are not F/T data: Kunwei
+remains the sole experimental wrench source, and UR internal F/T is not used.
+
+Directional tracking remains unsupported: the 2 s desired translation reached
+`0.629 mm`, actual max-norm displacement was `0.106 mm`, directional
+correlation was `0.150`, and fitted gain was `1.20%`. This repeats the prior
+weak-tracking conclusion; the new evidence is live publication coherence,
+entry fail-closed behavior, and actuator telemetry. The durable run audit is
+`runs/tacdiffusion/direct_torque_v4_motor_diag_reference_2s_20260728/tracking_and_actuator_audit_v1.json`.
+All captures remain `training_dataset=false`; the coherent action fraction in
+the three motion stages was only `66.0--79.3%`, and Kunwei TCP batching still
+does not establish causal 1 ms robot/wrench alignment.
 
 A 2026-07-26 read-only 2 s position-control shadow at the fresh bench pose
 captured 954 RTDE rows without sending a program or writing RTDE inputs. Mean

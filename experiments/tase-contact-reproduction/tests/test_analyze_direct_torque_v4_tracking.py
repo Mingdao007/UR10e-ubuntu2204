@@ -34,8 +34,14 @@ def _row(
         row[f"actual_TCP_speed_{axis}"] = "0.0"
         row[f"applied_k_{axis}"] = "600.0"
     for axis in range(6):
-        row[f"commanded_joint_torque_nm_{axis}"] = "0.01"
+        commanded = index * 0.01 * (axis + 1)
+        row[f"commanded_joint_torque_nm_{axis}"] = str(commanded)
         row[f"actual_qd_{axis}"] = "0.0"
+        row[f"target_current_{axis}"] = str(2.0 * commanded)
+        row[f"actual_current_{axis}"] = str(3.0 * commanded)
+        row[f"actual_current_as_torque_{axis}"] = str(4.0 * commanded)
+        row[f"joint_control_output_{axis}"] = str(2.0 * commanded)
+        row[f"joint_mode_{axis}"] = "253"
     return row
 
 
@@ -55,6 +61,16 @@ def test_directional_gain_recovers_commanded_response() -> None:
     assert result["directional"]["command_actual_correlation"] == pytest.approx(1.0)
     assert result["directional"]["directional_tracking_supported"] is True
     assert result["coherent_response_fit"]["alpha"] == pytest.approx(0.5)
+    actuator = result["actuator_response"]
+    assert actuator is not None
+    assert actuator[
+        "per_joint_centered_command_vs_actual_current_as_torque_correlation"
+    ] == pytest.approx([1.0] * 6)
+    assert actuator[
+        "joint_control_output_minus_target_current_max_abs"
+    ] == pytest.approx(0.0)
+    assert actuator["joint_mode_values_by_joint"] == [[253]] * 6
+    assert result["claim_boundary"]["ur_internal_ft_used"] is False
 
 
 def test_norm_ratio_does_not_misclassify_orthogonal_drift_as_tracking() -> None:

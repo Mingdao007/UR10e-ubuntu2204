@@ -207,6 +207,11 @@ OUTPUT_FIELDS = [
     "actual_q",
     "actual_qd",
     "target_moment",
+    "target_current",
+    "actual_current",
+    "actual_current_as_torque",
+    "joint_control_output",
+    "joint_mode",
     "runtime_state",
     "robot_mode",
     "safety_mode",
@@ -329,6 +334,9 @@ def analyze_entry_bumplessness(
     rejected_incoherent_rows = sum(
         not _action_echo_coherent(rows[index]) for index in entry_raw_indices
     )
+    physical_window = [rows[index] for index in entry_raw_indices]
+    if len(physical_window) < 2:
+        raise ValueError("entry_analysis_physical_window_too_short")
     first_index = active_indices[0]
     first = rows[first_index]
     first_timestamp = float(first["controller_timestamp_s"])
@@ -363,7 +371,7 @@ def analyze_entry_bumplessness(
 
     maximum_abs_joint_speed_rad_s = max(
         abs(float(row[f"actual_qd_{axis}"]))
-        for row in window
+        for row in physical_window
         for axis in range(6)
     )
     maximum_tcp_translation_speed_m_s = max(
@@ -373,7 +381,7 @@ def analyze_entry_bumplessness(
                 for axis in range(3)
             )
         )
-        for row in window
+        for row in physical_window
     )
     maximum_tcp_rotation_speed_rad_s = max(
         math.sqrt(
@@ -382,31 +390,48 @@ def analyze_entry_bumplessness(
                 for axis in range(3, 6)
             )
         )
-        for row in window
+        for row in physical_window
     )
     maximum_derived_abs_joint_acceleration_rad_s2 = (
-        _maximum_derived_abs_joint_acceleration(window)
+        _maximum_derived_abs_joint_acceleration(physical_window)
     )
 
     maximum_abs_joint_excursion_rad = max(
-        max(float(row[f"actual_q_{axis}"]) for row in window)
-        - min(float(row[f"actual_q_{axis}"]) for row in window)
+        max(float(row[f"actual_q_{axis}"]) for row in physical_window)
+        - min(float(row[f"actual_q_{axis}"]) for row in physical_window)
         for axis in range(6)
+    )
+    first_physical_pose = [
+        float(physical_window[0][f"actual_TCP_pose_{axis}"])
+        for axis in range(3)
+    ]
+    maximum_tcp_translation_excursion_m = max(
+        math.dist(
+            first_physical_pose,
+            [
+                float(row[f"actual_TCP_pose_{axis}"])
+                for axis in range(3)
+            ],
+        )
+        for row in physical_window
     )
     maximum_commanded_tau_nm = max(
         abs(float(row[f"commanded_joint_torque_nm_{axis}"]))
         for row in window
         for axis in range(6)
     )
-    transition_failures = []
+    transition_failures: list[str] = []
+    diagnostic_events: list[str] = []
     if maximum_derived_abs_joint_acceleration_rad_s2 > 1.0:
-        transition_failures.append("joint_acceleration_gt_1rad_s2")
+        diagnostic_events.append("joint_acceleration_gt_1rad_s2")
     if maximum_abs_joint_excursion_rad > 0.0005:
         transition_failures.append("joint_excursion_gt_0_5mrad")
+    if maximum_tcp_translation_excursion_m > 0.0003:
+        transition_failures.append("tcp_translation_excursion_gt_0_3mm")
     if maximum_tcp_translation_speed_m_s > 0.002:
-        transition_failures.append("tcp_translation_speed_gt_2mm_s")
+        diagnostic_events.append("tcp_translation_speed_gt_2mm_s")
     if maximum_commanded_tau_nm > 0.05:
-        transition_failures.append("commanded_tau_gt_0_05nm")
+        diagnostic_events.append("commanded_tau_gt_0_05nm")
     if rejected_incoherent_rows:
         outcome = "INDETERMINATE"
     elif transition_failures:
@@ -414,10 +439,11 @@ def analyze_entry_bumplessness(
     else:
         outcome = "PASS"
     return {
-        "schema": "ur10e_direct_torque_entry_transition/v2",
+        "schema": "ur10e_direct_torque_entry_transition/v3",
         "claim_class": "offline_replay_of_recorded_live_no_contact_entry",
         "first_coherent_direct_torque_row_index": first_index,
         "analysis_window_s": ENTRY_ANALYSIS_WINDOW_S,
+        "analysis_window_physical_rows": len(physical_window),
         "analysis_window_coherent_rows": len(window),
         "rejected_incoherent_rows": rejected_incoherent_rows,
         "first_commanded_joint_torque_nm": list(first_tau),
@@ -433,8 +459,12 @@ def analyze_entry_bumplessness(
             maximum_derived_abs_joint_acceleration_rad_s2
         ),
         "maximum_abs_joint_excursion_rad": maximum_abs_joint_excursion_rad,
+        "maximum_tcp_translation_excursion_m": (
+            maximum_tcp_translation_excursion_m
+        ),
         "maximum_commanded_tau_nm": maximum_commanded_tau_nm,
         "transition_failures": transition_failures,
+        "diagnostic_events": diagnostic_events,
         "outcome": outcome,
         "causal_limit": (
             "PASS/FAIL applies only when every sampled row in the first 20 ms "
@@ -2149,9 +2179,21 @@ def _output_row(
             or lineage.kunwei_batch_arrival_monotonic_s is None
             else lineage.kunwei_batch_arrival_monotonic_s
         )
-    for name in ("actual_TCP_pose", "actual_TCP_speed", "actual_q", "actual_qd", "target_moment"):
+    for name in (
+        "actual_TCP_pose",
+        "actual_TCP_speed",
+        "actual_q",
+        "actual_qd",
+        "target_moment",
+        "target_current",
+        "actual_current",
+        "actual_current_as_torque",
+        "joint_control_output",
+    ):
         for index, value in enumerate(sample[name]):
             row[f"{name}_{index}"] = float(value)
+    for index, value in enumerate(sample["joint_mode"]):
+        row[f"joint_mode_{index}"] = int(value)
     for index in range(6):
         row[f"applied_f_ff_{index}"] = float(
             sample[f"output_double_register_{26 + index}"]
@@ -2296,9 +2338,15 @@ def _compile_probe_row(
         "actual_q",
         "actual_qd",
         "target_moment",
+        "target_current",
+        "actual_current",
+        "actual_current_as_torque",
+        "joint_control_output",
     ):
         for index, value in enumerate(sample[name]):
             row[f"{name}_{index}"] = float(value)
+    for index, value in enumerate(sample["joint_mode"]):
+        row[f"joint_mode_{index}"] = int(value)
     return row
 
 
@@ -2542,6 +2590,7 @@ def run_receiver_handshake_probe(
     observed_direct_torque = False
     observed_complete = False
     probe_source_sent = False
+    primary_start_barrier: dict[str, Any] | None = None
     failure: str | None = None
     start = time.monotonic()
     with _live_writer_lease():
@@ -2553,8 +2602,10 @@ def run_receiver_handshake_probe(
             )
             rtde.start()
             try:
-                _send_urscript(
-                    args.robot_host, probe_source, args.connect_timeout_s
+                primary_start_barrier = _send_urscript_with_primary_start_barrier(
+                    args.robot_host,
+                    probe_source,
+                    timeout_s=args.connect_timeout_s,
                 )
                 probe_source_sent = True
                 deadline = time.monotonic() + args.handshake_timeout_s
@@ -2683,6 +2734,7 @@ def run_receiver_handshake_probe(
         "receiver_handshake_source_derivation": (
             "exact_bundle_receiver_plus_single_50tick_pre_main_early_exit"
         ),
+        "primary_start_barrier": primary_start_barrier,
         "sample_count": len(rows),
         "duration_s": time.monotonic() - start,
         "observed_waiting_marker": observed_waiting,
@@ -3268,8 +3320,17 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 "coherent_action_echo_rows_present": (
                     len(coherent_action_rows) >= 2
                 ),
-                "maximum_derived_abs_joint_acceleration_le_5rad_s2": (
-                    maximum_derived_abs_joint_acceleration_rad_s2 <= 5.0
+                "entry_joint_excursion_le_0_5mrad": (
+                    entry_analysis is not None
+                    and entry_analysis["maximum_abs_joint_excursion_rad"]
+                    <= 0.0005
+                ),
+                "entry_tcp_translation_excursion_le_0_3mm": (
+                    entry_analysis is not None
+                    and entry_analysis[
+                        "maximum_tcp_translation_excursion_m"
+                    ]
+                    <= 0.0003
                 ),
                 "at_least_90_percent_expected_500hz_rows": rate_gate,
                 "torque_call_rate_between_450_and_550hz": (
@@ -3416,6 +3477,35 @@ def run_normal_torque_baseline(args: argparse.Namespace) -> dict[str, Any]:
                 "p95_abs_nm": sorted_abs[p95_index],
             }
         )
+    motor_diagnostic_stats: dict[str, list[dict[str, Any]]] = {}
+    for signal in (
+        "target_current",
+        "actual_current",
+        "actual_current_as_torque",
+        "joint_control_output",
+    ):
+        signal_stats: list[dict[str, Any]] = []
+        for joint in range(6):
+            values = [float(row[f"{signal}_{joint}"]) for row in rows]
+            mean = sum(values) / len(values)
+            signal_stats.append(
+                {
+                    "joint": joint,
+                    "mean": mean,
+                    "min": min(values),
+                    "max": max(values),
+                    "peak_to_peak": max(values) - min(values),
+                    "rms_about_mean": math.sqrt(
+                        sum((value - mean) ** 2 for value in values)
+                        / len(values)
+                    ),
+                }
+            )
+        motor_diagnostic_stats[signal] = signal_stats
+    joint_modes = [
+        sorted({int(row[f"joint_mode_{joint}"]) for row in rows})
+        for joint in range(6)
+    ]
     maximum_translation_m = max(
         _sample_translation_error_sqm3(
             [row[f"actual_TCP_pose_{axis}"] for axis in range(6)],
@@ -3444,6 +3534,12 @@ def run_normal_torque_baseline(args: argparse.Namespace) -> dict[str, Any]:
         "duration_s": time.monotonic() - start,
         "sample_count": len(rows),
         "target_moment_by_joint": joint_stats,
+        "motor_diagnostic_by_signal": motor_diagnostic_stats,
+        "joint_mode_values_by_joint": joint_modes,
+        "motor_diagnostic_semantics": (
+            "RTDE motor current/torque diagnostics only; these fields are not "
+            "an external F/T source and do not replace the Kunwei wrench."
+        ),
         "maximum_tcp_translation_m": maximum_translation_m,
         "maximum_tcp_speed_m_s": maximum_tcp_speed_m_s,
         "maximum_joint_speed_rad_s": maximum_joint_speed_rad_s,

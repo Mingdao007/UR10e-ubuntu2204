@@ -285,6 +285,11 @@ def build(args: argparse.Namespace) -> dict[str, object]:
             ),
             "continuous_500hz_torque_site": contract.dedicated_torque_thread,
             "zero_torque_startup_or_exit": False,
+            "entry_transition_position_excursion": {
+                "tcp_translation_limit_m": 0.0003,
+                "joint_excursion_limit_rad": 0.0005,
+                "fault_code": 14,
+            },
             "friction_compensation": contract.friction_profile,
             "source_builder_physical_io": contract.source_builder_physical_io_enabled,
             "controller_runtime_physical_io": contract.controller_runtime_physical_io_enabled,
