@@ -11217,6 +11217,14 @@ def main(argv: list[str] | None = None) -> int:
         "reference_sha256": getattr(hard_tube_guard, "reference_sha256", None),
         "radius_m": getattr(hard_tube_guard, "radius_m", None),
         "evaluation_hz": getattr(hard_tube_guard, "evaluation_hz", None),
+        "progress_max_age_ms": (
+            getattr(hard_tube_guard, "progress_max_age_ns", 0) / 1_000_000.0
+            if hard_tube_guard is not None
+            else None
+        ),
+        "progress_freshness_floor_hz": getattr(
+            hard_tube_guard, "progress_freshness_floor_hz", None
+        ),
     }
     metadata["dashboard_program_watch"].update(dashboard_watch)
     write_json(metadata_path, metadata)

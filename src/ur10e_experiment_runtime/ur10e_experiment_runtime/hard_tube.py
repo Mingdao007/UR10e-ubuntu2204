@@ -11,7 +11,10 @@ from .stage_adapters import ControllerProgress, ControllerProgressPhase
 
 
 HARD_TUBE_RADIUS_M = 0.030
-HARD_TUBE_PROGRESS_MAX_AGE_NS = 2_000_000
+HARD_TUBE_PROGRESS_MAX_AGE_NS = 20_000_000
+HARD_TUBE_PROGRESS_FRESHNESS_FLOOR_HZ = (
+    1_000_000_000.0 / HARD_TUBE_PROGRESS_MAX_AGE_NS
+)
 HARD_TUBE_BASE_RATE_HZ = 500
 HARD_TUBE_EVALUATION_DIVISOR = 5
 HARD_TUBE_EVALUATION_HZ = (
@@ -48,6 +51,8 @@ class HardTubeGuard:
         "radius_m",
         "evaluation_divisor",
         "evaluation_hz",
+        "progress_max_age_ns",
+        "progress_freshness_floor_hz",
         "result",
         "last_controller_tick_seq",
         "last_controller_timestamp_ns",
@@ -60,6 +65,7 @@ class HardTubeGuard:
         reference_sha256: str,
         radius_m: float = HARD_TUBE_RADIUS_M,
         evaluation_divisor: int = HARD_TUBE_EVALUATION_DIVISOR,
+        progress_max_age_ns: int = HARD_TUBE_PROGRESS_MAX_AGE_NS,
         result: HardTubeResult | None = None,
     ) -> None:
         if len(reference_sha256) != 64 or any(
@@ -75,10 +81,18 @@ class HardTubeGuard:
             or evaluation_divisor < 1
         ):
             raise ValueError("evaluation_divisor must be a positive integer")
+        if (
+            isinstance(progress_max_age_ns, bool)
+            or not isinstance(progress_max_age_ns, int)
+            or progress_max_age_ns < 1
+        ):
+            raise ValueError("progress_max_age_ns must be a positive integer")
         self.reference_sha256 = reference_sha256
         self.radius_m = float(radius_m)
         self.evaluation_divisor = evaluation_divisor
         self.evaluation_hz = HARD_TUBE_BASE_RATE_HZ / evaluation_divisor
+        self.progress_max_age_ns = progress_max_age_ns
+        self.progress_freshness_floor_hz = 1_000_000_000.0 / progress_max_age_ns
         self.result = result if result is not None else HardTubeResult()
         self.last_controller_tick_seq = 0
         self.last_controller_timestamp_ns = 0
@@ -134,7 +148,7 @@ class HardTubeGuard:
             return out
         if (
             progress.age_ns < 0
-            or progress.age_ns > HARD_TUBE_PROGRESS_MAX_AGE_NS
+            or progress.age_ns > self.progress_max_age_ns
         ):
             out.actual_distance_m = math.nan
             out.remaining_margin_m = math.nan
@@ -198,6 +212,7 @@ __all__ = [
     "HARD_TUBE_BASE_RATE_HZ",
     "HARD_TUBE_EVALUATION_DIVISOR",
     "HARD_TUBE_EVALUATION_HZ",
+    "HARD_TUBE_PROGRESS_FRESHNESS_FLOOR_HZ",
     "HARD_TUBE_PROGRESS_MAX_AGE_NS",
     "HARD_TUBE_RADIUS_M",
     "HardTubeGuard",

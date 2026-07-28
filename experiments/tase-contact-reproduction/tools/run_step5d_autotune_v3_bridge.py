@@ -128,6 +128,7 @@ def _install_v3_hard_tube(args: Any, launch_profile: Any | None) -> None:
 
     from ur10e_experiment_runtime.hard_tube import (
         HARD_TUBE_EVALUATION_DIVISOR,
+        HARD_TUBE_PROGRESS_MAX_AGE_NS,
         HARD_TUBE_RADIUS_M,
         HardTubeGuard,
     )
@@ -159,6 +160,10 @@ def _install_v3_hard_tube(args: Any, launch_profile: Any | None) -> None:
         raise BridgeTicketError("V3 hard-tube radius differs from 30 mm")
     if guard.evaluation_divisor != HARD_TUBE_EVALUATION_DIVISOR:
         raise BridgeTicketError("V3 hard-tube evaluation rate differs from 100 Hz")
+    if guard.progress_max_age_ns != HARD_TUBE_PROGRESS_MAX_AGE_NS:
+        raise BridgeTicketError(
+            "V3 hard-tube progress freshness floor differs from 50 Hz"
+        )
     if launch_profile is not None:
         expected_reference = launch_profile.document.get(
             "moving_sphere_reference_sha256"
@@ -921,6 +926,13 @@ def check_v3_runtime_prewarm(bridge_argv: Sequence[str]) -> dict[str, Any]:
             "radius_m": float(args.step5d_hard_tube_guard.radius_m),
             "evaluation_hz": float(
                 args.step5d_hard_tube_guard.evaluation_hz
+            ),
+            "progress_max_age_ms": (
+                float(args.step5d_hard_tube_guard.progress_max_age_ns)
+                / 1_000_000.0
+            ),
+            "progress_freshness_floor_hz": float(
+                args.step5d_hard_tube_guard.progress_freshness_floor_hz
             ),
             "reference_sha256": (
                 args.step5d_hard_tube_guard.reference_sha256

@@ -4,6 +4,8 @@ import math
 
 from ur10e_experiment_runtime.hard_tube import (
     HARD_TUBE_EVALUATION_HZ,
+    HARD_TUBE_PROGRESS_FRESHNESS_FLOOR_HZ,
+    HARD_TUBE_PROGRESS_MAX_AGE_NS,
     HARD_TUBE_RADIUS_M,
     HardTubeGuard,
     HardTubeReason,
@@ -43,6 +45,12 @@ def test_hard_tube_is_30_mm_and_evaluates_at_100_hz() -> None:
     guard = HardTubeGuard(reference_sha256=REFERENCE)
     assert guard.radius_m == HARD_TUBE_RADIUS_M == 0.030
     assert guard.evaluation_hz == HARD_TUBE_EVALUATION_HZ == 100.0
+    assert guard.progress_max_age_ns == HARD_TUBE_PROGRESS_MAX_AGE_NS == 20_000_000
+    assert (
+        guard.progress_freshness_floor_hz
+        == HARD_TUBE_PROGRESS_FRESHNESS_FLOOR_HZ
+        == 50.0
+    )
 
     first = guard.tick(progress=progress(100), tcp_base=(0.029, 0.0, 0.0))
     assert first.stop is False
@@ -88,7 +96,7 @@ def test_hard_tube_fail_closed_input_contracts() -> None:
             HardTubeReason.TUBE_REFERENCE_MISMATCH,
         ),
         (
-            progress(1, age_ns=2_000_001),
+            progress(1, age_ns=20_000_001),
             (0.0, 0.0, 0.0),
             HardTubeReason.TUBE_PROGRESS_STALE,
         ),
@@ -110,6 +118,16 @@ def test_hard_tube_fail_closed_input_contracts() -> None:
         )
         assert result.stop is True
         assert result.reason is expected
+
+
+def test_hard_tube_tolerates_observed_sub_50_hz_budget_rtde_jitter() -> None:
+    guard = HardTubeGuard(reference_sha256=REFERENCE)
+    result = guard.tick(
+        progress=progress(1, age_ns=2_175_578),
+        tcp_base=(0.01, 0.0, 0.0),
+    )
+    assert result.stop is False
+    assert result.reason is HardTubeReason.TUBE_OK
 
 
 def test_hard_tube_accepts_tick_gap_but_rejects_repeat_and_reset_restarts() -> None:
