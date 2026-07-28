@@ -10,11 +10,11 @@
   ],
   "schema": "step5d.autotune.controller-readback/v3",
   "status": "controller read-back verified",
-  "tp_fingerprint": "1396a9b9faf437efa79ec3372bb7f29b963ad73764c494e8c3dba6e4ca691fe2",
+  "tp_fingerprint": "7850e044b04fb7f06e072261159c058af4155b2d1b1a7e2f6336e5c93d0800fa",
   "triplet_sha256": {
-    ".script": "bd0058b9977279db60c706e2092629c88ef811ad9fbaf7d4672967c05c118874",
-    ".txt": "f511dd7b371d9894dca3fb814befab5e4bde7e085deca6a6239911dd57cfb1d3",
-    ".urp": "1e30209b0f5c8f15629e5a937680c5f5ca54e50735fcc55db3dd3a95bf220c8b"
+    ".script": "711deaa786d4523791f1bbef49411b6efb86ba1fd53a2739071467c080e7decd",
+    ".txt": "d3d5b642891478fabfa382642b05c353b4b55ad0855ac8890a5d64f2ea5b4a80",
+    ".urp": "e90530c11da3d829cf9db73328abbde4e39b7d1cb1352bb428f28e107ca40e15"
   },
   "verified": true
 }
