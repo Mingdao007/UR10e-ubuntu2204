@@ -1,0 +1,90 @@
+{
+  "approach_axis_b": [
+    0.043955267,
+    -0.020079909,
+    -0.998831683
+  ],
+  "batch_row_policy": "five_row_logical_batches_every_row_campaign_home",
+  "control_profile_id": "step5d_strict_rnn_autotune_v1",
+  "delta_class": "identity_precontact_prior_corrective_entry_batch_lifecycle_single_owner_return_read_only_telemetry_v6",
+  "execution_profile_id": "nf2000-slew250-a250",
+  "execution_profile_integer_id": 944,
+  "far_search_speed_m_s": 0.03375,
+  "host_protocol": "v3_full_home_rolling_arm_v1",
+  "input_integer_registers": [
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31
+  ],
+  "output_integer_registers": [
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37
+  ],
+  "physical_prior_sha256": "c8019aee2c293746e1edb23097aeab1d7dfb1b8dee09df10ce568fb634f47c9f",
+  "precontact_clearance_m": 0.005,
+  "precontact_entry_accel_m_s2": 0.135,
+  "precontact_entry_speed_m_s": 0.09,
+  "precontact_pose_prior_id": "step5d_v3_physical_prior_contact_0p1_20260719",
+  "precontact_rotvec_rad": [
+    3.120752062,
+    0.0,
+    0.068626833
+  ],
+  "precontact_transfer_clearance_m": 0.01,
+  "precontact_xyz_m": [
+    0.487834547,
+    0.129337053,
+    0.022863519
+  ],
+  "precontact_z_policy": "corrective_safe_rise_xy_orientation_then_precontact",
+  "program": "step5d_strict_rnn_autotune_v3_r026",
+  "qdot_cap_rad_s": 2.5,
+  "reaction_normal_b": [
+    -0.043955267,
+    0.020079909,
+    0.998831683
+  ],
+  "ready_arm_timeout_s": null,
+  "return_segment_count": 3,
+  "safe_transfer_z_m": 0.033,
+  "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",
+  "speedj_acceleration_profiles_rad_s2": [
+    0.1,
+    0.2,
+    0.5,
+    2.5
+  ],
+  "stage25_stale_command_hold_s": 1.0,
+  "tp_runtime_identity": {
+    "digest_hi": 906966410,
+    "digest_lo": 1346380768,
+    "program_id": "step5d_strict_rnn_autotune_v3_r026",
+    "protocol_id": "v3_full_home_rolling_arm_v1",
+    "protocol_version": 1,
+    "registers": {
+      "digest_hi": 36,
+      "digest_lo": 37,
+      "protocol_version": 35
+    },
+    "schema": "step5d.autotune-v3/tp-runtime-identity-v1",
+    "script_artifact_sha256": "ea4759867995cbc950b769586826452bbbb3e7ff7fe24397f22a4a58f23f38ac",
+    "script_basis_sha256": "a0b8833c6e139a4ccd7457f26e73fb7f96251e785d800fb1fafd66b9acce4cd8"
+  }
+}
