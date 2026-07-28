@@ -10873,6 +10873,10 @@
           "dual_clock_causal_join",
           "observation_v3_84d",
           "episode_frame_v2",
+          "episode_semantic_context_binding",
+          "deterministic_expert_provider_seam",
+          "active_training_candidate_window",
+          "canonical_episode_composition",
           "bounded_spool_8192",
           "batch_fsync_10_sealer",
           "eligibility_validator",
@@ -10893,7 +10897,11 @@
           "internal_wrench_source_target": "previous_applied_no_gravity_torque_Jacobian_dynamics_reconstruction",
           "internal_wrench_live_implemented": false,
           "ur_ft_used": false,
-          "future_interpolation": false
+          "future_interpolation": false,
+          "semantic_owner": "ExpertEpisodeBindings_and_DeterministicExpert",
+          "causal_join_owner": "signals.causal_sync_wrench_1khz_to_control_500hz",
+          "causal_join_adapter_state": "O(1)_previous_and_current_sample_tick_only",
+          "offline_geometry_role": "compatibility_only_unknown_surface_and_trajectory_are_authoritative"
         },
         "episode_frame": {
           "schema": "ur10e_tacdiffusion_episode_frame/v2",
@@ -10904,7 +10912,20 @@
           "output_float_register_bank": "24-47_only",
           "generation_incoherent_echo": "retained_invalid_row",
           "invalid_or_torn_rows_retained": true,
-          "control_time_strict": true
+          "control_time_strict": true,
+          "diagnostic_action_semantics": "applied_command_and_controller_echo_not_expert_shadow_only",
+          "expert_label_provider": "DeterministicExpert_offline_only",
+          "reference_derivative_contract": "named_reference_sample_or_invalid",
+          "active_window_field": "candidate_window"
+        },
+        "semantic_composition": {
+          "module": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/episode_composition.py",
+          "context": "EpisodeSemanticContext",
+          "binding_owner": "ExpertEpisodeBindings",
+          "expert_policy_id": "deterministic_expert_v1",
+          "diagnostic_policy_status": "unavailable_shadow_only",
+          "deterministic_expert_live_enabled": false,
+          "legacy_writer": "DurableExpertEpisodeWriter_compatibility_only_not_live"
         },
         "recorder": {
           "module": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/episode_recorder.py",
@@ -10914,13 +10935,18 @@
           "max_unsealed_tail": 9,
           "overwrite_or_drop_on_full": false,
           "atomic_manifest": true,
-          "health_receipt": "recorder_health.json"
+          "health_receipt": "recorder_health.json",
+          "canonical_new_write_path": "EpisodeRecorder(batch_fsync_10)->EligibilityValidator",
+          "offline_tooling_only": true
         },
         "eligibility": {
           "module": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/eligibility.py",
           "sole_final_verdict_writer": true,
           "first_live_shadow_training_eligible": false,
-          "live_ready_without_live_evidence": false
+          "live_ready_without_live_evidence": false,
+          "active_window_only": true,
+          "capture_integrity_separate_from_training_eligible": true,
+          "first_live_shadow_transition": "explicit_receipt_driven"
         },
         "geometry": {
           "module": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/offline_geometry.py",
@@ -10931,9 +10957,12 @@
           ],
           "rate_hz": 500,
           "one_um_outside_tube_rejected": true,
-          "motion_enabled": false
+          "motion_enabled": false,
+          "owner": "unknown_surface_episode_and_trajectory",
+          "offline_geometry_compatibility_only": true
         },
         "focused_tests": [
+          "experiments/ur10e-variable-impedance/tests/test_tacdiffusion_episode_composition.py",
           "experiments/ur10e-variable-impedance/tests/test_tacdiffusion_offline_recorder.py",
           "experiments/ur10e-variable-impedance/tests/test_tacdiffusion_core.py",
           "experiments/tase-contact-reproduction/tests/test_run_tacdiffusion_remote_direct_torque_v4.py"
@@ -10943,6 +10972,8 @@
           "Safety_NORMAL_and_single_live_writer",
           "fresh_route_bound_bridge_readiness",
           "causal_Kunwei_batch_lineage_and_valid_internal_wrench",
+          "complete_expert_episode_bindings_and_reference_derivatives",
+          "controller_equivalent_internal_wrench_reconstruction_inputs",
           "complete_tamper_free_episode_seal",
           "certified_stopping_return_and_contact_authorization"
         ]

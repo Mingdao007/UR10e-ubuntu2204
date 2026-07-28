@@ -11,37 +11,68 @@ package requires zero feed-forward wrench, and the bridge does not persist the
 TacDiffusion dataset. Starting this bridge alone therefore does not mean data
 collection has started.
 
-## Frozen offline TacDiffusion recorder plan
+## Canonical offline TacDiffusion recording composition (no live acceptance)
 
-The offline implementation adds independently testable primitives without
-changing the Direct Torque law or its controller thread. `signals.py` retains
-the exact 84D layout and adapts the causal 1 kHz-to-500 Hz join: device time is
-an ordering clock, host-visible time is the causal-availability clock, one TCP
-batch has one arrival time, and a selected sample is explicitly held when no
-new batch has arrived. The default host-batch watchdog is 80 ms. The internal
-wrench field is reserved for the existing previous-applied no-gravity
-torque/Jacobian/dynamics reconstruction; it is never UR F/T.
+This tranche repairs the semantic composition without changing the Direct
+Torque law, `direct_torque_live_v4.py`, its controller thread, or any TP
+package. `EpisodeSemanticContext` reuses `ExpertEpisodeBindings` and records
+the canonical expert policy id, action-label semantics, dataset split,
+capture kind, receiver/bundle-reference/Kunwei/runtime SHA identities, and
+the explicit binding status. A training candidate fails closed when those
+bindings are absent or incomplete.
 
-New writes use `episode_recorder.py` frame v2 and
-`durability_mode=batch_fsync_10`: a bounded 8192-row non-overwriting spool,
-producer-side enqueue only, background JSONL batches of ten, one flush/fsync
-per batch, atomic manifest creation, and a maximum unsealed tail of nine.
-Overflow, stall, writer error, and invalid/torn rows are latched and retained;
-the sealer emits an atomic `recorder_health.json` receipt alongside the
-manifest.
-`TaskExecutor` polls that latch at task cadence and routes a fault through the
-existing ordered safe exit; recorder health is not read by the 500 Hz Direct
-Torque controller loop.
+`DeterministicExpert` remains the sole authoritative expert-action producer.
+`DeterministicExpertActionProvider` is an offline/testable seam only; it is not
+enabled or applied by the current no-contact canary. The v4 diagnostic path
+uses `DiagnosticShadowActionProvider`: ZERO6+FIXED_STIFFNESS is retained as
+the applied diagnostic command and controller echo, while its expert label is
+explicitly unavailable and shadow-only. It cannot become expert training data
+through numeric equality or a compatibility default.
 
-`eligibility.py` is the sole final training-eligibility verdict and receipt
-writer. The first live shadow is forced `training_eligible=false`; future
-eligibility additionally requires strict control time, exact expert/applied
-actions, coherent complete echoes, causal and valid sensor lineage, valid
-internal-wrench reconstruction, no spool overflow/stall/drop, and complete
-tamper-free sealing. The optional sidecar in
-`run_tacdiffusion_remote_direct_torque_v4.py` is therefore diagnostic-only and
-reports `recorder_live_ready=false` and `training_eligible=false` until those
-independent gates have evidence.
+`EpisodeRecorder` is only the bounded storage engine on the one canonical new
+write path: `EpisodeRecorder(batch_fsync_10) -> EligibilityValidator`.
+`DurableExpertEpisodeWriter` remains a labelled legacy compatibility
+reader/writer and is not used by the live runner. The recorder retains every
+startup, warmup, end, torn, and invalid row. `resolve_active_training_window`
+declares the contiguous `STATE_TORQUE` candidate window; eligibility evaluates
+that window only, while `capture_integrity` and diagnostic evidence still
+cover the retained artifact. The previous 42D history is primed before the
+window, otherwise the candidate is ineligible.
+
+Reference pose/twist/acceleration values come from the named
+`ReferenceTimeline`/`CanaryTimeline` sample and derivative contract. Missing
+derivatives are marked invalid; no zero placeholder is promoted. The existing
+trajectory and `unknown_surface_episode` owners remain authoritative, and
+`offline_geometry` is compatibility-only. The causal Kunwei adapter composes
+the accepted dual-clock join: repeated TCP batches preserve one real
+host-visible arrival time and report `external_hold`, held ticks, device age,
+host age, and sample/batch lineage. Its incremental state is bounded to the
+previous sample/tick plus the current sample/tick, so a long episode cannot
+turn the recorder join into an O(N²) replay. It never invents 1 ms arrival
+times.
+
+Internal wrench remains the previous applied no-gravity torque/Jacobian/
+dynamics reconstruction. Because the current runner does not expose the exact
+controller-equivalent inputs, its bounded reconstruction seam keeps live
+rows invalid rather than copying Kunwei or UR internal F/T. The eligibility
+receipt separates `capture_integrity`, `data_quality`, and
+`training_eligible`; the first live shadow stays forced ineligible until an
+explicit receipt-driven transition, and downstream mainline dataset/promotion
+owners remain authoritative. All of this is offline/tooling evidence only:
+the sidecar does not authorize load, play, ARM, motion, contact, or training
+promotion.
+
+The bounded storage contract remains `durability_mode=batch_fsync_10`: a
+non-overwriting 8192-row spool, producer-side enqueue only, background JSONL
+batches of ten, one flush/fsync per batch, atomic manifest creation, and a
+maximum unsealed tail of nine. Overflow, stall, writer error, and invalid/torn
+rows are latched and retained; `TaskExecutor` polls the latch at task cadence
+and routes a fault through the existing ordered safe exit. Recorder health is
+not read by the 500 Hz Direct Torque controller loop. Here “batching” means
+that every 2 ms producer tick still enqueues its own row, while the background
+writer amortizes one durable flush across ten rows; it does not downsample,
+merge, or discard control observations. The controller therefore remains
+500 Hz instead of inheriting the latency of per-row disk `fsync`.
 
 The existing output float-register bank 24--47 remains the only bank: host
 command labels after any host guard are the `applied_action`; the latest atomic

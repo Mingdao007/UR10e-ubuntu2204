@@ -133,7 +133,13 @@ def _line(payload: Mapping[str, object]) -> bytes:
 
 
 class DurableExpertEpisodeWriter:
-    """Append one fsync-complete row at a time; never drops or overwrites rows."""
+    """Legacy compatibility writer; the v4 live path uses ``EpisodeRecorder``.
+
+    This per-row fsync implementation remains available for established
+    readers and offline callers.  It is deliberately not the canonical live
+    writer because its single-clock/strict-new-sample contract is incompatible
+    with bounded batch durability and repeated TCP-batch lineage.
+    """
 
     def __init__(
         self,

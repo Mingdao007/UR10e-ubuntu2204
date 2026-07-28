@@ -43,6 +43,14 @@ def _finite_vector(values: Sequence[float], length: int, name: str) -> tuple[flo
     return result
 
 
+def _optional_vector(
+    values: Sequence[float] | None,
+    length: int,
+    name: str,
+) -> tuple[float, ...] | None:
+    return None if values is None else _finite_vector(values, length, name)
+
+
 def _line(payload: Mapping[str, Any]) -> bytes:
     return (
         json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
@@ -82,6 +90,22 @@ class EpisodeFrameV2:
     recorder_valid: bool = True
     controller_time_s: float | None = None
     control_clock: str = "host_monotonic_elapsed"
+    # Semantic fields are explicit so a diagnostic command cannot be inferred
+    # as an expert label from the numeric action vector alone.  Defaults keep
+    # the v2 reader/writer compatible with existing offline fixtures.
+    expert_label_available: bool = True
+    expert_action_source: str = "deterministic_expert"
+    action_label_semantics: str = "deterministic_expert_guarded_action_12d_v1"
+    diagnostic_command_12d: Sequence[float] | None = None
+    controller_echo_12d: Sequence[float] | None = None
+    observation_history_valid: bool = True
+    reference_derivatives_valid: bool = True
+    desired_pose_6d: Sequence[float] | None = None
+    desired_twist_6d: Sequence[float] | None = None
+    desired_acceleration_6d: Sequence[float] | None = None
+    reference_sample_id: str | None = None
+    candidate_window: bool = False
+    capture_phase: str = "unknown"
 
     def __post_init__(self) -> None:
         if not self.episode_id.strip() or self.sample_index < 0 or self.control_sequence < 0:
@@ -131,6 +155,32 @@ class EpisodeFrameV2:
             raise ValueError("external host age is invalid")
         if not self.control_clock.strip():
             raise ValueError("control clock identity is required")
+        if not isinstance(self.expert_label_available, bool):
+            raise ValueError("expert_label_available must be boolean")
+        if not self.expert_action_source.strip() or not self.action_label_semantics.strip():
+            raise ValueError("expert action source and label semantics are required")
+        object.__setattr__(
+            self,
+            "diagnostic_command_12d",
+            _optional_vector(self.diagnostic_command_12d, ACTION_DIMENSION, "diagnostic_command_12d"),
+        )
+        object.__setattr__(
+            self,
+            "controller_echo_12d",
+            _optional_vector(self.controller_echo_12d, ACTION_DIMENSION, "controller_echo_12d"),
+        )
+        for name in ("desired_pose_6d", "desired_twist_6d", "desired_acceleration_6d"):
+            object.__setattr__(
+                self,
+                name,
+                _optional_vector(getattr(self, name), 6, name),
+            )
+        if self.reference_sample_id is not None and not str(self.reference_sample_id).strip():
+            raise ValueError("reference_sample_id must be non-empty when present")
+        if not isinstance(self.observation_history_valid, bool) or not isinstance(self.reference_derivatives_valid, bool):
+            raise ValueError("observation/reference validity flags must be boolean")
+        if not isinstance(self.candidate_window, bool) or not self.capture_phase.strip():
+            raise ValueError("capture window/phase metadata is invalid")
 
     @property
     def row_valid(self) -> bool:
@@ -163,6 +213,15 @@ class EpisodeFrameV2:
         payload = asdict(self)
         payload["schema"] = EPISODE_FRAME_SCHEMA
         payload["recorder_validity_flags"] = self.recorder_validity_flags
+        payload["semantic_flags"] = {
+            "expert_label_available": self.expert_label_available,
+            "expert_action_source": self.expert_action_source,
+            "action_label_semantics": self.action_label_semantics,
+            "observation_history_valid": self.observation_history_valid,
+            "reference_derivatives_valid": self.reference_derivatives_valid,
+            "candidate_window": self.candidate_window,
+            "capture_phase": self.capture_phase,
+        }
         return payload
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 import hashlib
 import json
 import math
@@ -10,6 +10,8 @@ import os
 from pathlib import Path
 import threading
 from typing import Any, Iterable, Mapping, Sequence
+
+from .episode_composition import ActiveTrainingWindow, EpisodeSemanticContext
 
 
 ELIGIBILITY_SCHEMA = "ur10e_tacdiffusion_training_eligibility/v2"
@@ -53,6 +55,10 @@ class EligibilityDecision:
     predicates: Mapping[str, bool]
     reasons: tuple[str, ...]
     live_ready: bool = False
+    capture_integrity: bool = False
+    data_quality: bool = False
+    active_window: Mapping[str, Any] = field(default_factory=dict)
+    semantic_context: Mapping[str, Any] = field(default_factory=dict)
 
     def as_json(self) -> dict[str, Any]:
         return {
@@ -63,6 +69,10 @@ class EligibilityDecision:
             "predicates": dict(self.predicates),
             "reasons": list(self.reasons),
             "live_ready": self.live_ready,
+            "capture_integrity": self.capture_integrity,
+            "data_quality": self.data_quality,
+            "active_window": dict(self.active_window),
+            "semantic_context": dict(self.semantic_context),
         }
 
 
@@ -101,17 +111,33 @@ class EligibilityValidator:
         first_live_shadow: bool = True,
         episode_id: str | None = None,
         live_acceptance_evidence: bool = False,
+        active_window: ActiveTrainingWindow | None = None,
+        semantic_context: EpisodeSemanticContext | None = None,
     ) -> EligibilityDecision:
         rows = tuple(frames)
         resolved_episode_id = episode_id or str(
             _value(rows[0], "episode_id", "unknown") if rows else "unknown"
         )
+        explicit_window = active_window is not None
+        if active_window is None:
+            # Preserve the accepted compatibility reader contract for callers
+            # that predate the explicit active-window declaration.  New live
+            # composition always passes a window, including an unresolved
+            # empty declaration that fails closed.
+            candidate_rows = rows
+            active_window_payload: dict[str, Any] = {
+                "declared": False,
+                "compatibility_implicit": True,
+            }
+        else:
+            candidate_rows = tuple(active_window.select(rows))
+            active_window_payload = active_window.as_json()
         reasons: list[str] = []
-        control_time_strict = bool(rows)
+        control_time_strict = bool(candidate_rows)
         previous_control = -math.inf
         previous_sample_index = -1
         previous_control_sequence = -1
-        for row in rows:
+        for row in candidate_rows:
             value = _value(row, "control_time_s")
             try:
                 control = float(value)
@@ -131,13 +157,13 @@ class EligibilityValidator:
             previous_control = control
             previous_sample_index = sample_index
             previous_control_sequence = control_sequence
-        exact_expert_applied = bool(rows) and all(
+        exact_expert_applied = bool(candidate_rows) and all(
             (_vector(row, "expert_action_12d") is not None)
             and (_vector(row, "expert_action_12d") == _vector(row, "applied_action_12d"))
-            for row in rows
+            for row in candidate_rows
         )
-        coherent_echoes = bool(rows)
-        for row in rows:
+        coherent_echoes = bool(candidate_rows)
+        for row in candidate_rows:
             echoed = _vector(row, "echoed_action_12d")
             if not (
                 _validity_flag(row, "action_echo_coherent", False)
@@ -146,13 +172,13 @@ class EligibilityValidator:
                 and len(echoed) == ACTION_DIMENSION
             ):
                 coherent_echoes = False
-        causal_sensor_lineage = bool(rows)
+        causal_sensor_lineage = bool(candidate_rows)
         previous_device = -math.inf
         previous_host = -math.inf
         previous_sample = -1
         previous_batch: int | None = None
         previous_batch_host: float | None = None
-        for row in rows:
+        for row in candidate_rows:
             control_time = _value(row, "control_time_s")
             device_time = _value(row, "external_device_time_s")
             host_time = _value(row, "external_host_visible_time_s")
@@ -200,11 +226,14 @@ class EligibilityValidator:
             previous_device, previous_host, previous_sample = device, host, sample
             previous_batch = _int_value(_value(row, "external_batch_id", -1), -1)
             previous_batch_host = host
-        internal_wrench_valid = bool(rows) and all(
-            _validity_flag(row, "internal_wrench_valid", False) for row in rows
+        internal_wrench_valid = bool(candidate_rows) and all(
+            _validity_flag(row, "internal_wrench_valid", False) for row in candidate_rows
         )
         retained_rows_valid = bool(rows) and all(
             _validity_flag(row, "row_valid", False) for row in rows
+        )
+        candidate_window_rows_valid = bool(candidate_rows) and all(
+            _validity_flag(row, "row_valid", False) for row in candidate_rows
         )
         no_overflow = (
             _health_value(recorder_health, "overflowed", _MISSING) is False
@@ -280,14 +309,67 @@ class EligibilityValidator:
             fault_value is None
             and writer_error is None
         )
+        if semantic_context is None:
+            semantic_bindings_complete = True
+            expert_policy_authoritative = True
+            expert_label_available = bool(candidate_rows) and all(
+                bool(_value(row, "expert_label_available", True))
+                for row in candidate_rows
+            )
+            reference_derivatives_valid = bool(candidate_rows) and all(
+                bool(_value(row, "reference_derivatives_valid", True))
+                for row in candidate_rows
+            )
+            semantic_payload: dict[str, Any] = {
+                "compatibility_implicit": True,
+            }
+        else:
+            semantic_bindings_complete = bool(semantic_context.bindings_complete)
+            expert_policy_authoritative = bool(
+                semantic_context.expert_policy_id == "deterministic_expert_v1"
+                and semantic_context.action_label_semantics
+                == "deterministic_expert_guarded_action_12d_v1"
+            )
+            expert_label_available = bool(
+                semantic_context.expert_label_available
+                and candidate_rows
+                and all(bool(_value(row, "expert_label_available", False)) for row in candidate_rows)
+                and all(
+                    str(_value(row, "expert_action_source", "")) == "deterministic_expert"
+                    for row in candidate_rows
+                )
+            )
+            reference_derivatives_valid = bool(candidate_rows) and all(
+                bool(_value(row, "reference_derivatives_valid", False))
+                for row in candidate_rows
+            )
+            semantic_payload = semantic_context.as_metadata()
+        active_window_declared = (
+            True
+            if not explicit_window
+            else bool(active_window and active_window.declared and active_window.contiguous)
+        )
+        active_window_non_empty = bool(candidate_rows)
+        candidate_history_primed = bool(candidate_rows) and all(
+            bool(_value(row, "observation_history_valid", True))
+            for row in candidate_rows
+        )
         predicates = {
-            "non_empty": bool(rows),
+            "non_empty": bool(candidate_rows),
             "strict_control_time": control_time_strict,
             "exact_expert_equals_applied": exact_expert_applied,
             "coherent_controller_echoes": coherent_echoes,
             "causal_valid_sensor_lineage": causal_sensor_lineage,
             "internal_wrench_valid": internal_wrench_valid,
             "retained_rows_valid": retained_rows_valid,
+            "candidate_window_rows_valid": candidate_window_rows_valid,
+            "active_window_declared": active_window_declared,
+            "active_window_non_empty": active_window_non_empty,
+            "candidate_history_primed": candidate_history_primed,
+            "semantic_bindings_complete": semantic_bindings_complete,
+            "expert_label_available": expert_label_available,
+            "expert_policy_authoritative": expert_policy_authoritative,
+            "reference_derivatives_valid": reference_derivatives_valid,
             "no_spool_overflow": no_overflow,
             "no_recorder_stall": no_stall,
             "no_drop_or_rejection": no_drop,
@@ -301,7 +383,32 @@ class EligibilityValidator:
                 reasons.append(name)
         if first_live_shadow:
             reasons.append("first_live_shadow_forced_ineligible")
-        eligible = all(predicates.values())
+        required_predicates = dict(predicates)
+        if explicit_window:
+            # Retained startup, warmup, terminal, and torn rows are capture
+            # evidence.  Only the declared candidate window is part of the
+            # training verdict.
+            required_predicates.pop("retained_rows_valid", None)
+        eligible = all(required_predicates.values())
+        capture_integrity = bool(
+            bool(rows)
+            and no_overflow
+            and no_stall
+            and no_drop
+            and complete_seal
+            and tamper_free
+            and no_writer_fault
+        )
+        data_quality = bool(
+            candidate_window_rows_valid
+            and control_time_strict
+            and causal_sensor_lineage
+            and internal_wrench_valid
+            and coherent_echoes
+            and candidate_history_primed
+            and expert_label_available
+            and reference_derivatives_valid
+        )
         return EligibilityDecision(
             episode_id=resolved_episode_id,
             training_eligible=eligible,
@@ -311,6 +418,10 @@ class EligibilityValidator:
             # Live readiness has independent route/controller/safety evidence;
             # this offline validator never creates that evidence.
             live_ready=bool(eligible and live_acceptance_evidence),
+            capture_integrity=capture_integrity,
+            data_quality=data_quality,
+            active_window=active_window_payload,
+            semantic_context=semantic_payload,
         )
 
     def write_receipt(
@@ -364,12 +475,16 @@ class EligibilityValidator:
         recorder_health: object,
         first_live_shadow: bool = True,
         episode_id: str | None = None,
+        active_window: ActiveTrainingWindow | None = None,
+        semantic_context: EpisodeSemanticContext | None = None,
     ) -> tuple[EligibilityDecision, dict[str, Any]]:
         decision = self.evaluate(
             frames,
             recorder_health=recorder_health,
             first_live_shadow=first_live_shadow,
             episode_id=episode_id,
+            active_window=active_window,
+            semantic_context=semantic_context,
         )
         return decision, self.write_receipt(path, decision, recorder_health=recorder_health)
 
