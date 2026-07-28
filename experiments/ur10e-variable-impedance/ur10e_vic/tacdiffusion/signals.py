@@ -11,6 +11,9 @@ import numpy as np
 from .contracts import CONTROL_RATE_HZ, RAW_WRENCH_RATE_HZ
 
 
+HOST_BATCH_WATCHDOG_S = 0.080
+
+
 def _array(values: Iterable[float], shape: tuple[int, ...], name: str) -> np.ndarray:
     result = np.asarray(tuple(values), dtype=float)
     if result.shape != shape:
@@ -80,6 +83,10 @@ class CanonicalWrenchSample:
     wrench_tcp_si: tuple[float, ...] | Sequence[float]
     frame_id: str
     calibration_sha256: str
+    device_time_s: float | None = None
+    host_visible_time_s: float | None = None
+    batch_id: int = 0
+    sample_index: int | None = None
 
     def __post_init__(self) -> None:
         if self.sequence < 0:
@@ -93,7 +100,30 @@ class CanonicalWrenchSample:
             character not in "0123456789abcdef" for character in self.calibration_sha256
         ):
             raise ValueError("calibration_sha256 must be a lowercase SHA-256")
+        device_time = self.timestamp_s if self.device_time_s is None else float(self.device_time_s)
+        if not math.isfinite(device_time) or device_time < 0.0:
+            raise ValueError("wrench device time must be finite and non-negative")
+        if self.host_visible_time_s is not None:
+            host_visible = float(self.host_visible_time_s)
+            if not math.isfinite(host_visible) or host_visible < 0.0:
+                raise ValueError(
+                    "wrench host-visible time must be finite and non-negative"
+                )
+            object.__setattr__(self, "host_visible_time_s", host_visible)
+        if self.batch_id < 0:
+            raise ValueError("wrench batch id must be non-negative")
+        sample_index = self.sequence if self.sample_index is None else int(self.sample_index)
+        if sample_index < 0:
+            raise ValueError("wrench sample index must be non-negative")
+        object.__setattr__(self, "device_time_s", device_time)
+        object.__setattr__(self, "sample_index", sample_index)
         object.__setattr__(self, "wrench_tcp_si", tuple(float(value) for value in wrench))
+
+    @property
+    def has_dual_clock(self) -> bool:
+        """Whether this row carries an explicit host-visible arrival clock."""
+
+        return self.host_visible_time_s is not None
 
 
 @dataclass(frozen=True)
@@ -103,6 +133,30 @@ class CausalWrenchAlignment:
     source_sequence: int
     wrench_tcp_si: tuple[float, ...]
     age_s: float
+    source_device_time_s: float | None = None
+    source_host_visible_time_s: float | None = None
+    source_batch_id: int | None = None
+    source_sample_index: int | None = None
+    external_hold: bool = False
+    external_held_ticks: int = 0
+    device_age_samples: int = 0
+    host_age_s: float | None = None
+
+    @property
+    def external_device_time_s(self) -> float | None:
+        return self.source_device_time_s
+
+    @property
+    def external_host_visible_time_s(self) -> float | None:
+        return self.source_host_visible_time_s
+
+    @property
+    def external_batch_id(self) -> int | None:
+        return self.source_batch_id
+
+    @property
+    def external_sample_index(self) -> int | None:
+        return self.source_sample_index
 
 
 def causal_sync_wrench_1khz_to_control_500hz(
@@ -111,21 +165,36 @@ def causal_sync_wrench_1khz_to_control_500hz(
     *,
     expected_frame_id: str,
     expected_calibration_sha256: str,
-    max_sample_age_s: float = 2.0 / RAW_WRENCH_RATE_HZ,
+    max_sample_age_s: float | None = None,
+    max_host_age_s: float | None = None,
 ) -> tuple[CausalWrenchAlignment, ...]:
     """Causally select the newest already-arrived 1 kHz sample per 500 Hz tick.
 
-    The function never interpolates with a future sample.  The caller retains
-    the unmodified 1 kHz sequence for independent raw-signal safety guards.
+    New v3 rows use ``host_visible_time_s`` for causality and retain
+    ``device_time_s`` only for ordering/lineage.  A TCP receive batch therefore
+    gives every contained sample the same host-visible timestamp, and a 500 Hz
+    tick may explicitly hold the newest selected sample.  Legacy rows without
+    an arrival clock retain the v2 timestamp semantics for backward reads; no
+    arrival clock is fabricated for a dual-clock stream.
     """
 
     if not raw_samples or not control_timestamps_s:
         raise ValueError("raw_samples and control_timestamps_s must be non-empty")
     if not expected_frame_id.strip():
         raise ValueError("expected_frame_id must be non-empty")
-    if not math.isfinite(max_sample_age_s) or max_sample_age_s <= 0.0:
-        raise ValueError("max_sample_age_s must be finite and positive")
     samples = tuple(raw_samples)
+    dual_clock = any(sample.host_visible_time_s is not None for sample in samples)
+    if dual_clock and any(sample.host_visible_time_s is None for sample in samples):
+        raise ValueError("dual-clock wrench stream requires host-visible time on every sample")
+    legacy_max_age = 2.0 / RAW_WRENCH_RATE_HZ if max_sample_age_s is None else float(max_sample_age_s)
+    if not math.isfinite(legacy_max_age) or legacy_max_age <= 0.0:
+        raise ValueError("max_sample_age_s must be finite and positive")
+    if max_host_age_s is None:
+        host_max_age = HOST_BATCH_WATCHDOG_S if dual_clock else legacy_max_age
+    else:
+        host_max_age = float(max_host_age_s)
+    if not math.isfinite(host_max_age) or host_max_age <= 0.0:
+        raise ValueError("max_host_age_s must be finite and positive")
     for index, sample in enumerate(samples):
         if not isinstance(sample, CanonicalWrenchSample):
             raise ValueError("raw_samples must contain CanonicalWrenchSample values")
@@ -133,12 +202,27 @@ def causal_sync_wrench_1khz_to_control_500hz(
             raise ValueError("raw wrench frame mismatch")
         if sample.calibration_sha256 != expected_calibration_sha256:
             raise ValueError("raw wrench calibration mismatch")
-        if index and (
-            sample.timestamp_s <= samples[index - 1].timestamp_s
-            or sample.sequence <= samples[index - 1].sequence
-        ):
-            raise ValueError("raw wrench timestamps and sequences must be strictly monotonic")
-        if index and sample.timestamp_s - samples[index - 1].timestamp_s > 2.0 / RAW_WRENCH_RATE_HZ + 1e-12:
+        if index and sample.sequence <= samples[index - 1].sequence:
+            raise ValueError("raw wrench sequences must be strictly monotonic")
+        if index and sample.sample_index <= samples[index - 1].sample_index:
+            raise ValueError("raw wrench sample indices must be strictly monotonic")
+        if index and sample.device_time_s < samples[index - 1].device_time_s - 1e-12:
+            raise ValueError("raw wrench device time must be non-decreasing")
+        if index and dual_clock:
+            previous = samples[index - 1]
+            if sample.host_visible_time_s < previous.host_visible_time_s - 1e-12:
+                raise ValueError("raw wrench host-visible time must be non-decreasing")
+            if (
+                sample.batch_id == previous.batch_id
+                and not math.isclose(
+                    sample.host_visible_time_s,
+                    previous.host_visible_time_s,
+                    rel_tol=0.0,
+                    abs_tol=1e-12,
+                )
+            ):
+                raise ValueError("samples in one TCP batch must share arrival time")
+        if index and not dual_clock and sample.timestamp_s - samples[index - 1].timestamp_s > 2.0 / RAW_WRENCH_RATE_HZ + 1e-12:
             raise ValueError("raw wrench stream contains a gap larger than two 1 kHz periods")
     ticks = tuple(float(value) for value in control_timestamps_s)
     if not all(math.isfinite(value) and value >= 0.0 for value in ticks):
@@ -157,27 +241,49 @@ def causal_sync_wrench_1khz_to_control_500hz(
 
     result: list[CausalWrenchAlignment] = []
     sample_index = -1
+    previous_selected_sample_index: int | None = None
+    held_ticks = 0
     for tick in ticks:
+        def host_time(sample: CanonicalWrenchSample) -> float:
+            # This fallback is intentionally restricted to the legacy all-v2
+            # path.  New rows must carry an explicit host-visible clock.
+            return sample.timestamp_s if sample.host_visible_time_s is None else sample.host_visible_time_s
+
         while (
             sample_index + 1 < len(samples)
-            and samples[sample_index + 1].timestamp_s <= tick
+            and host_time(samples[sample_index + 1]) <= tick
         ):
             sample_index += 1
         if sample_index < 0:
             raise ValueError("no causally available wrench sample for control tick")
         sample = samples[sample_index]
-        age = tick - sample.timestamp_s
-        if age > max_sample_age_s + 1e-12:
+        host_age = tick - host_time(sample)
+        if host_age > host_max_age + 1e-12:
             raise ValueError("causally available wrench sample is stale")
+        selected_index = sample.sample_index
+        external_hold = selected_index == previous_selected_sample_index
+        held_ticks = held_ticks + 1 if external_hold else 0
+        # A hold is a control-side diagnostic.  It does not infer a future
+        # device sample or interpolate between device timestamps.
+        device_age_samples = held_ticks * (RAW_WRENCH_RATE_HZ // CONTROL_RATE_HZ)
         result.append(
             CausalWrenchAlignment(
                 control_timestamp_s=tick,
                 source_timestamp_s=sample.timestamp_s,
                 source_sequence=sample.sequence,
                 wrench_tcp_si=sample.wrench_tcp_si,
-                age_s=age,
+                age_s=host_age,
+                source_device_time_s=sample.device_time_s,
+                source_host_visible_time_s=sample.host_visible_time_s,
+                source_batch_id=sample.batch_id,
+                source_sample_index=selected_index,
+                external_hold=external_hold,
+                external_held_ticks=held_ticks,
+                device_age_samples=device_age_samples,
+                host_age_s=host_age,
             )
         )
+        previous_selected_sample_index = selected_index
     return tuple(result)
 
 

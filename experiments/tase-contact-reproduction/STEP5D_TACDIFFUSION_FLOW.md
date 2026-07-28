@@ -11,6 +11,58 @@ package requires zero feed-forward wrench, and the bridge does not persist the
 TacDiffusion dataset. Starting this bridge alone therefore does not mean data
 collection has started.
 
+## Frozen offline TacDiffusion recorder plan
+
+The offline implementation adds independently testable primitives without
+changing the Direct Torque law or its controller thread. `signals.py` retains
+the exact 84D layout and adapts the causal 1 kHz-to-500 Hz join: device time is
+an ordering clock, host-visible time is the causal-availability clock, one TCP
+batch has one arrival time, and a selected sample is explicitly held when no
+new batch has arrived. The default host-batch watchdog is 80 ms. The internal
+wrench field is reserved for the existing previous-applied no-gravity
+torque/Jacobian/dynamics reconstruction; it is never UR F/T.
+
+New writes use `episode_recorder.py` frame v2 and
+`durability_mode=batch_fsync_10`: a bounded 8192-row non-overwriting spool,
+producer-side enqueue only, background JSONL batches of ten, one flush/fsync
+per batch, atomic manifest creation, and a maximum unsealed tail of nine.
+Overflow, stall, writer error, and invalid/torn rows are latched and retained;
+the sealer emits an atomic `recorder_health.json` receipt alongside the
+manifest.
+`TaskExecutor` polls that latch at task cadence and routes a fault through the
+existing ordered safe exit; recorder health is not read by the 500 Hz Direct
+Torque controller loop.
+
+`eligibility.py` is the sole final training-eligibility verdict and receipt
+writer. The first live shadow is forced `training_eligible=false`; future
+eligibility additionally requires strict control time, exact expert/applied
+actions, coherent complete echoes, causal and valid sensor lineage, valid
+internal-wrench reconstruction, no spool overflow/stall/drop, and complete
+tamper-free sealing. The optional sidecar in
+`run_tacdiffusion_remote_direct_torque_v4.py` is therefore diagnostic-only and
+reports `recorder_live_ready=false` and `training_eligible=false` until those
+independent gates have evidence.
+
+The existing output float-register bank 24--47 remains the only bank: host
+command labels after any host guard are the `applied_action`; the latest atomic
+12D controller-filtered value is retained separately as `echoed_action` and may
+differ during a filter transient. Generation-incoherent echoes are retained
+with an invalid-row flag. No second float bank is introduced.
+
+Hash-bound no-motion references retain the 2 s `anchor_circle` plumbing
+diagnostic and add `line_out_and_back_4s` (0 -> +0.5 mm -> -0.5 mm -> 0) and
+`full_circle_radius_0_5mm_8s`, both smoothstep and fixed orientation. The hard
+tube rejects a point 1 um outside its safe boundary. Empty and disabled guard
+policies are algebraic identity. These references are offline artifacts only;
+they do not enable motion.
+
+Outstanding live gates remain separate: current controller/route identity,
+Safety NORMAL, one live writer, route-bound bridge readiness, fresh authorized
+live canary evidence, a valid Kunwei causal batch lineage, a valid reconstructed
+internal wrench, complete sealed artifacts, and the applicable stopping/return
+and contact authorization gates. No current pointer, live readiness state, or
+training-eligible view is promoted by this offline tranche.
+
 ## Current state
 
 - Local `.script/.txt/.urp` package generated and exact cachedContents checked.

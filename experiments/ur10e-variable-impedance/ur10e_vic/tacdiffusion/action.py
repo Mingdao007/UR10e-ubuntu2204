@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
 
 def _six(values: Iterable[float], name: str) -> tuple[float, ...]:
@@ -67,6 +67,32 @@ class TacDiffusionAction:
 def derive_damping(stiffness: Sequence[float], profile: ActionProfile = ActionProfile()) -> tuple[float, ...]:
     k = _six(stiffness, "stiffness")
     return tuple(2.0 * profile.damping_ratio * math.sqrt(mass * value) for mass, value in zip(profile.virtual_mass, k))
+
+
+ActionGuard = Callable[[TacDiffusionAction], TacDiffusionAction]
+
+
+def apply_guard_policy(
+    action: TacDiffusionAction,
+    guards: Iterable[ActionGuard] | None = (),
+    *,
+    enabled: bool = True,
+) -> TacDiffusionAction:
+    """Apply an optional ordered guard policy without changing disabled/empty paths.
+
+    The identity behavior is intentional: an empty policy and a disabled policy
+    return the exact input action and do not invoke any guard.  This keeps the
+    policy seam algebraically neutral for offline shadow paths.
+    """
+
+    if not enabled:
+        return action
+    if guards is None:
+        return action
+    result = action
+    for guard in tuple(guards):
+        result = guard(result)
+    return result
 
 
 def guard_action(action: TacDiffusionAction, *, previous: TacDiffusionAction | None = None, dt_s: float = 0.002, profile: ActionProfile = ActionProfile()) -> TacDiffusionAction:

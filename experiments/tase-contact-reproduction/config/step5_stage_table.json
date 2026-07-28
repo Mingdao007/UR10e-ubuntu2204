@@ -10862,6 +10862,90 @@
           "tp_action": "controller_readback_verified_no_load_or_play",
           "play_effect": "forbidden_in_offline_tranche"
         }
+      },
+      "tacdiffusion_offline_data_collection": {
+        "schema": "ur10e_tacdiffusion_offline_plan/v1",
+        "status": "offline_primitives_implemented_pre_live_blocked",
+        "live_ready": false,
+        "training_eligible": false,
+        "controller_motion_enabled": false,
+        "capability_dag": [
+          "dual_clock_causal_join",
+          "observation_v3_84d",
+          "episode_frame_v2",
+          "bounded_spool_8192",
+          "batch_fsync_10_sealer",
+          "eligibility_validator",
+          "hash_bound_geometry_references"
+        ],
+        "runtime_feedback_loop": {
+          "producer": "enqueue_only",
+          "fault_owner": "TaskExecutor",
+          "fault_poll_cadence": "task_20ms_or_slower",
+          "safe_exit": "existing_ordered_abort_path",
+          "controller_loop_reads_recorder_health": false
+        },
+        "observation": {
+          "schema": "ur10e_tacdiffusion_observation/v3",
+          "dimension": 84,
+          "host_batch_watchdog_s": 0.08,
+          "external_wrench_source": "Kunwei_software_baselined_sensor_to_TCP_SI",
+          "internal_wrench_source_target": "previous_applied_no_gravity_torque_Jacobian_dynamics_reconstruction",
+          "internal_wrench_live_implemented": false,
+          "ur_ft_used": false,
+          "future_interpolation": false
+        },
+        "episode_frame": {
+          "schema": "ur10e_tacdiffusion_episode_frame/v2",
+          "observation_dimension": 84,
+          "expert_action_dimension": 12,
+          "applied_action_is": "acknowledged_host_command_after_host_guard_before_controller_filter",
+          "echoed_action_is": "latest_atomic_controller_filtered_echo_may_differ_during_transient",
+          "output_float_register_bank": "24-47_only",
+          "generation_incoherent_echo": "retained_invalid_row",
+          "invalid_or_torn_rows_retained": true,
+          "control_time_strict": true
+        },
+        "recorder": {
+          "module": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/episode_recorder.py",
+          "durability_mode": "batch_fsync_10",
+          "spool_capacity": 8192,
+          "batch_size": 10,
+          "max_unsealed_tail": 9,
+          "overwrite_or_drop_on_full": false,
+          "atomic_manifest": true,
+          "health_receipt": "recorder_health.json"
+        },
+        "eligibility": {
+          "module": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/eligibility.py",
+          "sole_final_verdict_writer": true,
+          "first_live_shadow_training_eligible": false,
+          "live_ready_without_live_evidence": false
+        },
+        "geometry": {
+          "module": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/offline_geometry.py",
+          "families": [
+            "anchor_circle_2s",
+            "line_out_and_back_4s",
+            "full_circle_radius_0_5mm_8s"
+          ],
+          "rate_hz": 500,
+          "one_um_outside_tube_rejected": true,
+          "motion_enabled": false
+        },
+        "focused_tests": [
+          "experiments/ur10e-variable-impedance/tests/test_tacdiffusion_offline_recorder.py",
+          "experiments/ur10e-variable-impedance/tests/test_tacdiffusion_core.py",
+          "experiments/tase-contact-reproduction/tests/test_run_tacdiffusion_remote_direct_torque_v4.py"
+        ],
+        "outstanding_live_gates": [
+          "current_controller_and_route_identity",
+          "Safety_NORMAL_and_single_live_writer",
+          "fresh_route_bound_bridge_readiness",
+          "causal_Kunwei_batch_lineage_and_valid_internal_wrench",
+          "complete_tamper_free_episode_seal",
+          "certified_stopping_return_and_contact_authorization"
+        ]
       }
     }
   ]

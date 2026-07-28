@@ -75,6 +75,17 @@ from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
 from ur10e_vic.tacdiffusion.unknown_surface_episode import (  # noqa: E402
     rotation_vector_distance_rad,
 )
+from ur10e_vic.tacdiffusion.eligibility import (  # noqa: E402
+    EligibilityDecision,
+    EligibilityValidator,
+)
+from ur10e_vic.tacdiffusion.episode_recorder import (  # noqa: E402
+    EpisodeFrameV2,
+    EpisodeRecorder,
+    RecorderError,
+    read_episode_artifact,
+    validate_sealed_episode_manifest,
+)
 
 
 COMPILE_PROBE_EVIDENCE_SCHEMA = (
@@ -174,6 +185,49 @@ MIN_CONTROL_UPDATE_RATE_HZ = 150.0
 MIN_TORQUE_CALL_RATE_HZ = 450.0
 MAX_TORQUE_CALL_RATE_HZ = 550.0
 MAX_CONTROL_UPDATE_GAP_S = 0.010
+
+
+@dataclass
+class TaskExecutor:
+    """Task-cadence owner for recorder faults and the existing safe-exit path."""
+
+    recorder: EpisodeRecorder | None = None
+    poll_interval_s: float = 0.020
+    _next_poll_s: float = -math.inf
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.poll_interval_s) or self.poll_interval_s <= 0.0:
+            raise ValueError("task poll interval must be finite and positive")
+
+    def poll(self) -> None:
+        if self.recorder is None:
+            return
+        now = time.monotonic()
+        if now < self._next_poll_s:
+            return
+        self._next_poll_s = now + self.poll_interval_s
+        fault = self.recorder.poll_fault()
+        if fault is not None:
+            raise RecorderError(fault)
+
+
+@dataclass
+class RecorderObservationHistory:
+    """Causally compose the canonical current+previous 84D observation."""
+
+    previous_slice_42d: tuple[float, ...] | None = None
+
+    def compose(
+        self,
+        current_slice_42d: Sequence[float],
+    ) -> tuple[tuple[float, ...], bool]:
+        current = tuple(float(value) for value in current_slice_42d)
+        if len(current) != 42 or not all(math.isfinite(value) for value in current):
+            raise ValueError("recorder observation slice must contain 42 finite values")
+        history_valid = self.previous_slice_42d is not None
+        previous = self.previous_slice_42d if history_valid else (0.0,) * 42
+        self.previous_slice_42d = current
+        return current + previous, history_valid
 
 _LIVE_WRITER_PATTERNS = (
     "run_tacdiffusion_remote_direct_torque_v4.py",
@@ -2207,6 +2261,138 @@ def _output_row(
     return row
 
 
+def _row_float(row: Mapping[str, Any], key: str, default: float = 0.0) -> float:
+    value = row.get(key, default)
+    if value in (None, ""):
+        return float(default)
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    return value if math.isfinite(value) else float(default)
+
+
+def _recorder_frame(
+    row: Mapping[str, Any],
+    *,
+    sample_index: int,
+    control_sequence: int,
+    acked: CommandLineage | None,
+    outgoing: CommandLineage,
+    recorder_start_s: float,
+    observation_history: RecorderObservationHistory,
+) -> EpisodeFrameV2:
+    """Translate one retained RTDE row into the offline recorder contract.
+
+    This seam deliberately records the host command and controller echo from
+    the existing register block.  The current runner does not expose the
+    previous no-gravity command/Jacobian/dynamics needed for a valid internal
+    wrench, so that flag remains false and the EligibilityValidator downgrades
+    every current live shadow row.
+    """
+
+    external = tuple(
+        _row_float(row, f"kunwei_guard_wrench_tcp_si_{index}") for index in range(6)
+    )
+    actual_pose = tuple(_row_float(row, f"actual_TCP_pose_{index}") for index in range(6))
+    desired_pose = tuple(
+        _row_float(row, f"command_desired_pose_{index}") for index in range(6)
+    )
+    tracking_error = tuple(desired_pose[index] - actual_pose[index] for index in range(6))
+    # Exact v3 slice order: external, internal, EE twist, desired pose, desired
+    # twist, desired acceleration, tracking error.  The 84D contract is
+    # canonical current+previous; the first retained row has no causal history
+    # and is therefore explicitly invalid rather than silently training on it.
+    current_observation_slice = (
+        external
+        + (0.0,) * 6
+        + tuple(_row_float(row, f"actual_TCP_speed_{index}") for index in range(6))
+        + desired_pose
+        + (0.0,) * 6
+        + (0.0,) * 6
+        + tracking_error
+    )
+    observation, history_valid = observation_history.compose(
+        current_observation_slice
+    )
+    host_command = (
+        (0.0,) * 12
+        if acked is None
+        else acked.commanded_raw_f_ff + acked.commanded_k
+    )
+    controller_echo = tuple(
+        _row_float(row, f"applied_f_ff_{index}") for index in range(6)
+    ) + tuple(_row_float(row, f"applied_k_{index}") for index in range(6))
+    coherent = bool(row.get("action_echo_coherent", False))
+    external_device_time = (
+        None
+        if acked is None or acked.kunwei_nominal_sensor_time_s is None
+        else float(acked.kunwei_nominal_sensor_time_s)
+    )
+    control_time = recorder_start_s + _row_float(row, "host_elapsed_s")
+    external_host_visible_time = (
+        None
+        if acked is None or acked.kunwei_batch_arrival_monotonic_s is None
+        else float(acked.kunwei_batch_arrival_monotonic_s)
+    )
+    external_batch_id = None if acked is None else acked.kunwei_receive_batch_id
+    external_sample_index = None if acked is None else acked.kunwei_sample_index
+    lineage_present = (
+        acked is not None
+        and external_device_time is not None
+        and external_host_visible_time is not None
+        and external_batch_id is not None
+        and external_sample_index is not None
+        and external_host_visible_time <= control_time + 1e-12
+    )
+    ack_sequence = int(row.get("ack_sequence", 0))
+    action_age_ticks = max(0, outgoing.command_sequence - ack_sequence)
+    receiver_state = int(row.get("receiver_state", STATE_WAITING))
+    echo_expected = receiver_state in {STATE_STARTUP, STATE_TORQUE}
+    return EpisodeFrameV2(
+        episode_id=str(outgoing.episode),
+        sample_index=sample_index,
+        control_sequence=control_sequence,
+        control_time_s=control_time,
+        controller_time_s=max(0.0, _row_float(row, "controller_timestamp_s")),
+        control_clock="host_monotonic",
+        observation_84d=observation,
+        expert_action_12d=host_command,
+        applied_action_12d=host_command,
+        echoed_action_12d=controller_echo,
+        action_generation=max(
+            0,
+            int(row.get("action_publish_generation_end", 0) or 0),
+        ),
+        action_age_ticks=action_age_ticks,
+        action_echo_coherent=coherent,
+        echoed_action_valid=coherent,
+        external_device_time_s=external_device_time,
+        external_host_visible_time_s=external_host_visible_time,
+        external_batch_id=external_batch_id,
+        external_sample_index=external_sample_index,
+        external_hold=False,
+        external_held_ticks=0,
+        device_age_samples=0,
+        host_age_s=(
+            None
+            if external_host_visible_time is None
+            or external_host_visible_time > control_time
+            else control_time - external_host_visible_time
+        ),
+        internal_wrench_valid=False,
+        external_lineage_valid=lineage_present,
+        source_row_torn=echo_expected and not coherent,
+        source_row_invalid=(
+            acked is None
+            or not echo_expected
+            or not lineage_present
+            or not history_valid
+        ),
+        recorder_valid=True,
+    )
+
+
 def _sample_safety_errors(
     sample: Mapping[str, Any],
     *,
@@ -2262,6 +2448,9 @@ def _append_output_batch(
     bundle: ValidatedBundle,
     samples: list[dict[str, Any]],
     timeline: ReferenceTimeline | CanaryTimeline | None = None,
+    recorder: EpisodeRecorder | None = None,
+    recorder_start_s: float | None = None,
+    recorder_observation_history: RecorderObservationHistory | None = None,
 ) -> tuple[Mapping[str, Any], bool, list[str]]:
     if not batch:
         raise RuntimeError("empty_output_batch")
@@ -2284,13 +2473,24 @@ def _append_output_batch(
             )
         )
         samples.append(
-            _output_row(
-                sample,
-                elapsed,
-                outgoing=outgoing.lineage,
-                acked=acked,
-            )
+            _output_row(sample, elapsed, outgoing=outgoing.lineage, acked=acked)
         )
+        if recorder is not None:
+            if recorder_start_s is None:
+                raise RuntimeError("recorder_start_clock_missing")
+            if recorder_observation_history is None:
+                raise RuntimeError("recorder_observation_history_missing")
+            recorder_frame = _recorder_frame(
+                samples[-1],
+                sample_index=len(samples) - 1,
+                control_sequence=len(samples),
+                acked=acked,
+                outgoing=outgoing.lineage,
+                recorder_start_s=recorder_start_s,
+                observation_history=recorder_observation_history,
+            )
+            if not recorder.enqueue(recorder_frame):
+                errors.append("recorder_enqueue_failed")
         if acked is None:
             errors.append(f"ack_command_lineage_missing:{ack_sequence}")
         observed_torque = observed_torque or int(
@@ -2855,6 +3055,28 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
     outgoing = initial_command
     failure: str | None = None
     output_dir = _next_available_run_dir(args.output_dir.resolve())
+    recorder: EpisodeRecorder | None = None
+    task_executor = TaskExecutor()
+    recorder_observation_history: RecorderObservationHistory | None = None
+    recorder_manifest: dict[str, Any] | None = None
+    recorder_eligibility: EligibilityDecision | None = None
+    recorder_receipt_path: Path | None = None
+    recorder_finalize_error: str | None = None
+    recorder_output = getattr(args, "recorder_output", None)
+    if recorder_output is not None:
+        recorder_root = Path(recorder_output).resolve()
+        recorder = EpisodeRecorder(
+            recorder_root,
+            episode_id=str(episode_identity),
+            metadata={
+                "claim_class": "offline_recorder_sidecar_live_shadow_only",
+                "first_live_shadow_training_eligible": False,
+                "motion_enabled_by_recorder": False,
+                "durability_mode": "batch_fsync_10",
+            },
+        )
+        task_executor = TaskExecutor(recorder)
+        recorder_observation_history = RecorderObservationHistory()
     with (
         KunweiGuardCapture(
             sensor_ip=args.sensor_ip,
@@ -2866,6 +3088,8 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
         ) as kunwei,
         LiveRTDE(args.robot_host, timeout=args.connect_timeout_s) as rtde,
     ):
+        if recorder is not None:
+            recorder.start()
         kunwei.wait_preflight()
         rtde.negotiate()
         output_recipe, output_types = rtde.setup_outputs(500.0, OUTPUT_FIELDS)
@@ -2927,6 +3151,11 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
             scheduler.arm(start)
             pending = handshake_samples or [dict(sample)]
             while True:
+                # Recorder health is polled here at host task cadence.  A
+                # latched fault enters the existing exception -> MODE_ABORT ->
+                # receiver safe-exit ordering; it is never read by the
+                # controller's 500 Hz torque thread.
+                task_executor.poll()
                 guard_snapshot = kunwei.snapshot(
                     max_age_s=sensor_delivery_watchdog_s
                 )
@@ -2951,7 +3180,11 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                     bundle=bundle,
                     samples=samples,
                     timeline=timeline,
+                    recorder=recorder,
+                    recorder_start_s=start,
+                    recorder_observation_history=recorder_observation_history,
                 )
+                task_executor.poll()
                 observed_torque = observed_torque or batch_torque
                 if errors:
                     raise RuntimeError("output_batch_safety_failed:" + ";".join(errors))
@@ -2989,6 +3222,7 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                     outgoing = end_command
                     end_deadline = time.monotonic() + 1.0
                     while time.monotonic() < end_deadline:
+                        task_executor.poll()
                         kunwei.snapshot(
                             max_age_s=sensor_delivery_watchdog_s
                         )
@@ -3011,7 +3245,11 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                             bundle=bundle,
                             samples=samples,
                             timeline=timeline,
+                            recorder=recorder,
+                            recorder_start_s=start,
+                            recorder_observation_history=recorder_observation_history,
                         )
+                        task_executor.poll()
                         observed_torque = observed_torque or batch_torque
                         if errors:
                             raise RuntimeError(
@@ -3098,6 +3336,9 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                         bundle=bundle,
                         samples=samples,
                         timeline=timeline,
+                        recorder=recorder,
+                        recorder_start_s=start,
+                        recorder_observation_history=recorder_observation_history,
                     )
             except Exception:
                 pass
@@ -3105,6 +3346,37 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
         finally:
             kunwei.stop()
             kunwei_summary = kunwei.summary()
+            if recorder is not None:
+                try:
+                    recorder_manifest = recorder.close(seal=True)
+                except Exception as exc:
+                    recorder_finalize_error = (
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                try:
+                    validate_sealed_episode_manifest(
+                        recorder.artifact_path,
+                        recorder.manifest_path,
+                    )
+                    recorder_health = recorder.health()
+                    recorder_receipt_path = (
+                        recorder.output_dir / "training_eligibility.json"
+                    )
+                    _, recorder_frames = read_episode_artifact(
+                        recorder.artifact_path
+                    )
+                    recorder_eligibility, _ = EligibilityValidator().evaluate_and_write(
+                        recorder_receipt_path,
+                        recorder_frames,
+                        recorder_health=recorder_health,
+                        first_live_shadow=True,
+                        episode_id=str(episode_identity),
+                    )
+                except Exception as exc:
+                    recorder_finalize_error = (
+                        recorder_finalize_error
+                        or f"{type(exc).__name__}: {exc}"
+                    )
             csv_path = output_dir / "direct_torque_rtde.csv"
             evidence_path = output_dir / "evidence.json"
             handshake_diagnostics_path = (
@@ -3246,6 +3518,33 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                     "Ethernet TCP batches native 1 kHz frames; exact 1 ms "
                     "causal robot/force alignment is not validated."
                 ),
+                "recorder_enabled": recorder is not None,
+                "recorder_durability_mode": (
+                    "batch_fsync_10" if recorder is not None else None
+                ),
+                "recorder_manifest": (
+                    None
+                    if recorder_manifest is None
+                    else str(recorder.manifest_path)
+                ),
+                "recorder_health_receipt": (
+                    None if recorder is None else str(recorder.health_path)
+                ),
+                "recorder_health": (
+                    None if recorder is None else recorder.health().as_json()
+                ),
+                "eligibility_receipt": (
+                    None
+                    if recorder_receipt_path is None
+                    else str(recorder_receipt_path)
+                ),
+                "training_eligible": (
+                    False
+                    if recorder_eligibility is None
+                    else recorder_eligibility.training_eligible
+                ),
+                "recorder_live_ready": False,
+                "recorder_finalize_error": recorder_finalize_error,
                 "data_csv": str(csv_path) if samples else None,
             }
             timestamps = [
@@ -3639,6 +3938,14 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--allow-motion", action="store_true")
     run.add_argument("--no-contact", action="store_true")
     run.add_argument("--allow-kunwei-stream-command", action="store_true")
+    run.add_argument(
+        "--recorder-output",
+        type=Path,
+        help=(
+            "optional offline episode-recorder sidecar directory; rows are "
+            "always shadow/ineligible until independent acceptance evidence"
+        ),
+    )
     return parser
 
 

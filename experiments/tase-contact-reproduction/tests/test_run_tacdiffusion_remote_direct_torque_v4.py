@@ -51,6 +51,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     RUNTIME_PLAYING,
     RUNTIME_STOPPED,
     ReferenceTimeline,
+    RecorderObservationHistory,
     NO_CONTACT_RELEASE_TOLERANCE_M,
     STATE_STARTUP,
     STATE_WAITING,
@@ -80,6 +81,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     _update_compile_probe_markers,
     _update_receiver_handshake_markers,
     _run_live_locked,
+    _recorder_frame,
     _write_json_new,
     analyze_entry_bumplessness,
     build_receiver_handshake_probe_source,
@@ -107,6 +109,82 @@ KUNWEI_CALIBRATION = ROOT / "config/step5d_tacdiffusion_sensor_frame_v1.json"
 REFERENCE_10S_SANITY = (
     ROOT / "config/direct_torque_v4_reference_10s_diagnostic_sanity.json"
 )
+
+
+def test_recorder_frame_separates_host_applied_action_echo_and_causal_history() -> None:
+    history = RecorderObservationHistory()
+    acked = SimpleNamespace(
+        commanded_raw_f_ff=(1.0,) * 6,
+        commanded_k=(2.0,) * 6,
+        kunwei_nominal_sensor_time_s=10.0,
+        kunwei_batch_arrival_monotonic_s=100.010,
+        kunwei_receive_batch_id=4,
+        kunwei_sample_index=7,
+    )
+    outgoing = SimpleNamespace(command_sequence=10, episode=77)
+    row = {
+        "host_elapsed_s": 0.020,
+        "controller_timestamp_s": 5.0,
+        "ack_sequence": 10,
+        "action_publish_generation_end": 3,
+        "action_echo_coherent": False,
+        "receiver_state": STATE_TORQUE,
+    }
+    for index in range(6):
+        row[f"kunwei_guard_wrench_tcp_si_{index}"] = float(index)
+        row[f"actual_TCP_pose_{index}"] = 0.1 + index
+        row[f"actual_TCP_speed_{index}"] = 0.01 + index
+        row[f"command_desired_pose_{index}"] = 0.2 + index
+        row[f"applied_f_ff_{index}"] = 3.0
+        row[f"applied_k_{index}"] = 4.0
+
+    first = _recorder_frame(
+        row,
+        sample_index=0,
+        control_sequence=1,
+        acked=acked,
+        outgoing=outgoing,
+        recorder_start_s=100.0,
+        observation_history=history,
+    )
+    second = _recorder_frame(
+        row | {"host_elapsed_s": 0.022},
+        sample_index=1,
+        control_sequence=2,
+        acked=acked,
+        outgoing=outgoing,
+        recorder_start_s=100.0,
+        observation_history=history,
+    )
+
+    assert first.expert_action_12d == first.applied_action_12d == (1.0,) * 6 + (2.0,) * 6
+    assert first.echoed_action_12d == (3.0,) * 6 + (4.0,) * 6
+    assert first.control_time_s == pytest.approx(100.020)
+    assert first.external_host_visible_time_s == pytest.approx(100.010)
+    assert first.host_age_s == pytest.approx(0.010)
+    assert first.source_row_invalid is True
+    assert first.observation_84d[42:] == (0.0,) * 42
+    assert second.source_row_invalid is False
+    assert second.observation_84d[42:] == first.observation_84d[:42]
+
+    noncausal = _recorder_frame(
+        row,
+        sample_index=2,
+        control_sequence=3,
+        acked=SimpleNamespace(
+            **{
+                **acked.__dict__,
+                "kunwei_batch_arrival_monotonic_s": 100.030,
+            }
+        ),
+        outgoing=outgoing,
+        recorder_start_s=100.0,
+        observation_history=history,
+    )
+    assert noncausal.external_host_visible_time_s == pytest.approx(100.030)
+    assert noncausal.host_age_s is None
+    assert noncausal.external_lineage_valid is False
+    assert noncausal.source_row_invalid is True
 
 
 def test_cadence_counter_rate_uses_controller_time_and_counter_delta() -> None:
