@@ -95,8 +95,11 @@ def _eligible(result: Mapping[str, Any]) -> tuple[bool, tuple[str, ...]]:
         return False, ("objective_or_profile_missing",)
     if objective.get("complete_bins") != 550 or objective.get("required_bins") != 550:
         reasons.append("objective_bins_incomplete")
-    if profile.get("orientation_qualified") is not True:
-        reasons.append("orientation_profile_ineligible")
+    # Profile qualification is diagnostic evidence, not an observation
+    # deletion gate.  In particular, normal-rate limiter saturation duty must
+    # not erase an otherwise complete, safely closed force-MAE observation.
+    # Live safety and safe closure are owned upstream; BO trains on the sealed
+    # objective and may use profile fields only as diagnostics.
     for key in ("mae_n", "bias_n", "std_n", "coverage_12_plus_minus_1_ratio"):
         try:
             _finite(objective, key, "objective")

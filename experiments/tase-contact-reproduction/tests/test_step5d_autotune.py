@@ -568,12 +568,16 @@ class EvaluatorTest(unittest.TestCase):
         self.assertFalse(short.eligible)
         self.assertIn("stage25_shorter_than_60s", short.structural_failures)
 
-        unqualified_rows = force_rows()
+        unqualified_rows = force_rows(load_n=12.2)
         for row in unqualified_rows:
             row["_step5d_contact_orientation_error_rad"] = 0.04
         unqualified = evaluate_rows(spec, capture(spec), unqualified_rows)
-        self.assertFalse(unqualified.eligible)
-        self.assertIn("orientation_profile_unqualified", unqualified.structural_failures)
+        self.assertTrue(unqualified.eligible)
+        self.assertNotIn(
+            "orientation_profile_unqualified", unqualified.structural_failures
+        )
+        self.assertFalse(unqualified.metrics["profile"]["orientation_qualified"])
+        self.assertAlmostEqual(unqualified.objective_mae_n or 0.0, 0.2)
 
         transport_diagnostic = evaluate_rows(
             spec,
@@ -594,7 +598,6 @@ class EvaluatorTest(unittest.TestCase):
             (
                 "cadence_failed",
                 "feedback_failed",
-                "orientation_profile_unqualified",
             ),
         )
 

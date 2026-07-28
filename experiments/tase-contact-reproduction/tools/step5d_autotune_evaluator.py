@@ -568,8 +568,10 @@ def evaluate_rows(
         )
         if not orientation_evidence_complete:
             failures.append("orientation_evidence_incomplete")
-        elif not profiles["orientation_qualified"]:
-            failures.append("orientation_profile_unqualified")
+        # Orientation/profile qualification is a diagnostic, not a
+        # structural objective gate.  A high normal-rate-limiter saturation
+        # duty must not delete a complete, safely closed force-MAE trial.
+        # Gross live safety and final safe closure remain independently gated.
         tracking = qd_tracking_metrics(materialized)
         if not tracking["evidence_complete"]:
             failures.append("qd_tracking_evidence_incomplete")

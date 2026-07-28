@@ -164,6 +164,34 @@ def test_initial_prefill_reaches_target_depth(tmp_path: Path) -> None:
     assert len(authoritative_view(queue)["pending_requests"]) == 8
 
 
+def test_limiter_saturation_diagnostic_does_not_delete_mae_observation(
+    tmp_path: Path,
+) -> None:
+    queue = _queue(tmp_path)
+    feeder = _feeder(tmp_path, queue)
+    candidate = _catalog()[0]
+    result_path = _write_result(feeder.config.outbox_root, 0, candidate)
+    payload = json.loads(result_path.read_text(encoding="utf-8"))
+    payload["profile"] = {
+        "orientation_qualified": False,
+        "orientation_error_p95_rad": 0.02,
+        "orientation_error_max_rad": 0.03,
+        "angular_saturation_duty": 0.25,
+    }
+    result_path.write_text(
+        json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+    observations, candidate_uids, material = load_observations(
+        feeder.config.outbox_root
+    )
+
+    assert len(observations) == 1
+    assert candidate.candidate_uid in candidate_uids
+    assert material[0]["eligible"] is True
+    assert material[0]["exclusion_reasons"] == []
+
+
 def test_low_watermark_refill_and_pending_only_depth(tmp_path: Path) -> None:
     queue = _queue(tmp_path)
     feeder = _feeder(tmp_path, queue)
