@@ -67,6 +67,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     _counter_rate_hz,
     _maximum_active_control_update_gap_s,
     _is_stationary,
+    _stationarity_window_evidence,
     _next_available_run_dir,
     _new_live_identity_pair,
     _prime_idle_inputs,
@@ -112,11 +113,13 @@ def test_cadence_counter_rate_uses_controller_time_and_counter_delta() -> None:
             "receiver_state": STATE_TORQUE,
             "controller_timestamp_s": 10.000,
             "counter": 5,
+            "action_echo_coherent": True,
         },
         {
             "receiver_state": STATE_TORQUE,
             "controller_timestamp_s": 10.100,
             "counter": 55,
+            "action_echo_coherent": True,
         },
     ]
     assert _counter_rate_hz(rows, "counter") == pytest.approx(500.0)
@@ -133,10 +136,12 @@ def test_cadence_max_gap_ignores_stale_waiting_register_value() -> None:
         {
             "receiver_state": STATE_STARTUP,
             "maximum_control_update_gap_s": 0.002,
+            "action_echo_coherent": True,
         },
         {
             "receiver_state": STATE_TORQUE,
             "maximum_control_update_gap_s": 0.006,
+            "action_echo_coherent": True,
         },
         {
             "receiver_state": STATE_COMPLETE,
@@ -146,32 +151,33 @@ def test_cadence_max_gap_ignores_stale_waiting_register_value() -> None:
     assert _maximum_active_control_update_gap_s(rows) == pytest.approx(0.006)
 
 
-def test_entry_replay_classifies_zero_custom_tau_before_acceleration() -> None:
+def test_entry_replay_fails_large_transition_acceleration() -> None:
     def row(timestamp_s: float, qd_1: float) -> dict[str, float]:
         result = {
             "receiver_state": 1.0,
             "ack_sequence": 1.0,
             "controller_timestamp_s": timestamp_s,
+            "action_echo_coherent": True,
         }
         for axis in range(6):
             result[f"commanded_joint_torque_nm_{axis}"] = 0.0
             result[f"command_desired_pose_{axis}"] = 0.0
             result[f"actual_TCP_pose_{axis}"] = 0.0
             result[f"actual_TCP_speed_{axis}"] = 0.0
+            result[f"actual_q_{axis}"] = 0.0
             result[f"actual_qd_{axis}"] = qd_1 if axis == 1 else 0.0
         return result
 
     analysis = analyze_entry_bumplessness(
         [row(10.000, 0.0), row(10.002, 0.020)]
     )
-    assert analysis["zero_custom_torque_at_entry"] is True
-    assert analysis["acceleration_after_zero_custom_torque"] is True
     assert analysis["maximum_derived_abs_joint_acceleration_rad_s2"] == (
         pytest.approx(10.0)
     )
-    assert analysis["classification"] == (
-        "mode_or_internal_friction_transition_precedes_custom_impedance_response"
-    )
+    assert analysis["outcome"] == "FAIL"
+    assert analysis["transition_failures"] == [
+        "joint_acceleration_gt_1rad_s2"
+    ]
     assert analysis["motion_performed"] is False
     assert analysis["controller_io_performed"] is False
 
@@ -342,10 +348,11 @@ def _fake_output_sample(
         "output_int_register_26": 0,
         "output_int_register_27": 111,
         "output_int_register_28": 0,
+        "output_int_register_29": 1 if state in {STATE_STARTUP, STATE_TORQUE} else 0,
         "output_int_register_30": WRENCH_FRAME_TOKEN,
         "output_int_register_31": 222,
         "output_int_register_32": LIVE_PROTOCOL_TOKEN,
-        "output_int_register_33": 0,
+        "output_int_register_33": 1 if state in {STATE_STARTUP, STATE_TORQUE} else 0,
         "output_int_register_34": MODE_RUN,
         "output_int_register_35": 1,
         "output_double_register_24": 0.0,
@@ -1131,6 +1138,67 @@ def test_stationary_preflight_uses_the_probe_no_motion_limits() -> None:
     assert not _is_stationary(rtde)
 
 
+def test_stationarity_window_accepts_bounded_high_frequency_velocity() -> None:
+    samples = []
+    for index in range(50):
+        phase = 2.0 * math.pi * 57.0 * index / 500.0
+        q2 = 0.0001 * math.sin(phase)
+        qd2 = 0.0036 * math.cos(phase)
+        samples.append(
+            {
+                "actual_TCP_pose": [
+                    0.48,
+                    0.12,
+                    0.08 + 0.00008 * math.sin(phase),
+                    3.12,
+                    -0.34 + q2,
+                    0.0,
+                ],
+                "actual_TCP_speed": [
+                    0.0,
+                    0.0,
+                    0.0018 * math.cos(phase),
+                    0.0,
+                    qd2,
+                    0.0,
+                ],
+                "actual_q": [0.0, q2, 0.0, 0.0, 0.0, 0.0],
+                "actual_qd": [0.0, qd2, 0.0, 0.0, 0.0, 0.0],
+            }
+        )
+
+    evidence = _stationarity_window_evidence(samples)
+    assert evidence["ok"]
+    assert evidence["maximum_joint_position_excursion_rad"] < 0.0003
+    assert max(abs(sample["actual_qd"][1]) for sample in samples) > 0.003
+
+
+def test_stationarity_window_rejects_sustained_drift() -> None:
+    samples = []
+    for index in range(50):
+        elapsed = index / 500.0
+        samples.append(
+            {
+                "actual_TCP_pose": [
+                    0.48 + 0.002 * elapsed,
+                    0.12,
+                    0.08,
+                    3.12,
+                    -0.34,
+                    0.0,
+                ],
+                "actual_TCP_speed": [0.002, 0.0, 0.0, 0.0, 0.0, 0.0],
+                "actual_q": [0.002 * elapsed, 0.0, 0.0, 0.0, 0.0, 0.0],
+                "actual_qd": [0.002, 0.0, 0.0, 0.0, 0.0, 0.0],
+            }
+        )
+
+    evidence = _stationarity_window_evidence(samples)
+    assert not evidence["ok"]
+    assert not evidence["checks"]["mean_tcp_translation_speed_le_1mm_s"]
+    assert not evidence["checks"]["maximum_abs_mean_joint_speed_le_1mrad_s"]
+
+
 def test_compile_probe_ignores_stale_complete_until_current_active() -> None:
     stale_complete = {
         "output_int_register_32": COMPILE_PROBE_PROTOCOL_TOKEN,
@@ -1852,6 +1920,7 @@ def test_run_live_emits_failure_evidence_after_live_write_and_advances_run_dir(t
         "output_int_register_26": 0,
         "output_int_register_27": 111,
         "output_int_register_28": 0,
+        "output_int_register_29": 0,
         "output_int_register_30": LIVE_PROTOCOL_TOKEN,
         "output_int_register_31": 222,
         "output_int_register_32": LIVE_PROTOCOL_TOKEN,

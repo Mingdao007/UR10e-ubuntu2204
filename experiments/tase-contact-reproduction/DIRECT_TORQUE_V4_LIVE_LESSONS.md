@@ -7,16 +7,26 @@ probe 或真机数据支持的可复用经验。
 
 ## 当前结论
 
-- 2026-07-28 的最新 ordered no-contact chain 已通过：
-  `hold_100ms -> ramp_0_2mm_500ms -> reference_2s`。
-- 同一 runtime fingerprint 随后通过了 diagnostic-only
-  `reference_10s_diagnostic`；该 stage 不改变 canonical acceptance。
-- 该 chain 证明 receiver transport、identity handshake、Direct Torque
-  有界执行、controller/host cadence、Kunwei capture 和安全退出。
-- 它不证明 trajectory fidelity、contact control 或 expert-data
-  eligibility；所有现有 capture 均为 `training_dataset=false`。
-- 当前冻结 receiver source SHA：
-  `86545a209b348b9f19469239686f778a7b9ff19c065f771d73f2c3310a85e67f`。
+- 2026-07-28 的 latest live no-contact chain 在当时的 runtime/safety gates
+  下完成，但后续 offline audit 发现 applied-action RTDE registers 存在
+  torn snapshot；因此该 chain 只保留为 historical transport/motion
+  evidence，不能证明 coherent 12D action labels。
+- 原先 `actual max norm / desired max norm = 17--21%` 只能作为 noise
+  envelope，不能再叫 tracking response。排除 entry 20 ms 后的 joint
+  fit 得到 `alpha = -0.79%`（2 s）、`0.63%`（7 s）和 `0.41%`
+  （10 s），`R² <= 0.0021`，与 time-reversed null 同量级。
+- 独立 calibrated Pinocchio cross-check 复算 10 s translation-only
+  `J^T w`，maximum torque norm `0.239 Nm`，与记录 command
+  `0.238 Nm` 接近；gross K sign、base-frame direction 或 Jacobian
+  transpose error 不再是 leading hypothesis。
+- 当前 leading physical hypothesis 是 `<=0.42 N` TCP command 落在
+  near-zero breakaway friction/deadband/noise 区域；这仍需后续
+  no-contact single-variable amplitude A/B 才能证明。
+- 当前 source 已离线加入 action publication seqlock、50 ms
+  torque-thread main-loop watchdog 和 150 ms entry-filter warm-up；Autotune
+  独占真机期间没有做 live validation。
+- trajectory fidelity、contact control 和 expert-data eligibility 仍未
+  通过；所有现有 capture 均为 `training_dataset=false`。
 
 最新主要证据：
 
@@ -231,10 +241,91 @@ chain，但不能据此认为零 friction compensation 是最终控制配置。
   `0.619 N`，没有 guard 或 cadence failure。
 
 因此恢复官方 friction compensation 对短 2 s response 有帮助，但没有
-解决更长时间 tracking。操作者报告 recent official-friction canary 均有
-可听声音；3 s 被认为不足，7 s 已采集，声音究竟持续全程还是集中在
-entry/exit 仍需操作者按时间分类。没有 audio capture 时，不得仅凭
-RTDE 数值把声音归因给 acceleration、tracking 或 friction model。
+解决更长时间 tracking。此前多个 recent official-friction canary 有可听
+声音，3 s 又被认为不足；但操作者明确报告 7 s diagnostic 没有听到异常
+声音。因此“official-friction run 必然有声音”已被这次实测否定。7 s 相比
+此前运行同时包含更长 time stretch 和 fresh ordered chain，不能仅凭一次
+无声结果把改善归因给 acceleration、duration、entry/exit 或 friction
+model；后续若继续定位，应保持单变量 A/B。
+
+> 2026-07-28 offline correction：以上 `15.7%`、`20.8%`、`26.7%`、
+> `20.3%` 均为 historical max-norm envelope，不再作为 tracking
+> response 或 friction-effect evidence。相同配置的 directional/joint
+> regression 结果见下节。
+
+## 12. Max-norm envelope 不能代替 tracking coefficient
+
+旧指标：
+
+`max(||actual_xyz - actual_xyz_entry||) /
+ max(||desired_xyz - desired_xyz_entry||)`
+
+会把任意方向的 RTDE pose jitter 都计入 numerator，而且 sample 越多，
+maximum 越大。当前每个 run 自己的 pre-torque WAITING noise RMS 约
+`30.5--32.2 um`；active maximum displacement `92--136 um` 与 standstill
+noise envelope 同量级。
+
+新的 offline analyzer
+`tools/analyze_direct_torque_v4_tracking.py` 同时报告：
+
+- 旧 max-norm envelope，仅作 historical comparison；
+- 固定 command direction 的 signed projection、orthogonal RMS 和
+  correlation；
+- 排除前 20 ms 后的 joint fit
+  `actual_xyz = alpha * desired_xyz + intercept_xyz`；
+- `R²`、optimistic IID standard error 和 time-reversed desired null；
+- 每个 run 自身 WAITING noise floor；
+- 可选 calibrated Pinocchio `J^T w` cross-check。
+
+当前结果：
+
+| Run | Legacy envelope | alpha | R² | reversed-null alpha |
+|---|---:|---:|---:|---:|
+| official-friction 2 s / entry-lowpass | 16.84% | -0.792% | 0.00201 | 0.343% |
+| official-friction 7 s / no abnormal sound | 20.29% | 0.629% | 0.00144 | -0.502% |
+| official-friction 10 s / entry-lowpass | 21.41% | 0.414% | 0.00059 | -0.437% |
+
+因此当前数据不支持一个可重复的 Cartesian tracking response。它也不证明
+绝对零响应；结论是 measured response 与 null/noise 尚不可区分。
+
+## 13. Applied-action echo 必须使用 publication seqlock
+
+Opus 5 high audit 发现并由 retained CSV 直接复现：
+
+- active block 先写 state/counters，再写 float registers `26--43`；
+- RTDE 500 Hz 可以在 block 中间取样；
+- 10 s entry-lowpass 的第一 active row 已经是
+  `state=STARTUP, control_update_count=1, torque_thread_tick_count=0`，
+  但 `commanded_joint_torque_nm_0=0.1902146167` 仍来自前一 2 s run；
+- 因此历史 `first custom torque` 与 `zero_custom_torque_at_entry`
+  classification 无效，未来 expert action label 也必须先解决 coherence。
+
+当前 offline repair：
+
+- output integer register `29` 在 active publication 开始前写 generation；
+- output integer register `33` 在 action/cadence registers 全部写完后写同一
+  generation；
+- active row 只有 `begin == end > 0` 才是 coherent；
+- host 保存所有 RTDE rows，但 action-derived metrics 只消费 coherent rows，
+  并单独报告 rejected count/fraction；
+- `entry_transition/v2` 只在 entry window 全部 coherent 时给 PASS/FAIL，
+  否则给 `INDETERMINATE`。
+
+这修复的是数据一致性，不改变 torque law。
+
+## 14. Torque thread 需要 main-loop staleness watchdog
+
+独立 `torqueThread()` 解决了 torque-call 空窗，但旧实现若 main thread
+卡住，会无限重复最后一帧 torque。当前 offline source 让 torque thread
+监视 `control_update_count`：
+
+- 连续 25 个 torque ticks 没有 controller-law update（nominal 50 ms）
+  就停止 torque thread；
+- thread 落入既有 `stopj(10.0)` position handoff；
+- main loop 以 fault code `13` 记录 watchdog 原因。
+
+这项 repair 尚未在真机验证；Autotune 独占 bench 期间只完成 offline source
+contract 和 tests。它是任何 contact 或 expert-data stage 的前置条件。
 
 ## 禁止回归项
 
@@ -246,6 +337,8 @@ RTDE 数值把声音归因给 acceleration、tracking 或 friction model。
 - 不用 stale terminal registers 代替 fresh identity handshake；
 - 不把 80 ms Kunwei delivery watchdog 解释为 80 ms sample period；
 - 不把 no-contact canary 数据标记为 expert/training data；
+- 不把 incoherent RTDE action registers 当作 applied/expert action；
+- 不再把 max displacement norm ratio 叫 tracking response；
 - 不因 tracking 不足直接提高 torque、速度或接触力，先做单变量时间尺度
   isolation。
 - 不把为根因隔离设置的全零 friction scales 当作最终 tracking 默认值；

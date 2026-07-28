@@ -1,0 +1,140 @@
+{
+  "schema": "direct_torque_v4_offline_root_cause/v1",
+  "generated_at": "2026-07-28T16:30:00+08:00",
+  "scope": {
+    "offline_only": true,
+    "robot_or_controller_access": false,
+    "kunwei_access": false,
+    "live_writer_access": false,
+    "autotune_owns_bench": true
+  },
+  "review": {
+    "requested_model_alias": "opus",
+    "provider_reported_model": "claude-opus-5",
+    "effort": "high",
+    "cli_session_id": "d681aa7d-aca1-44e0-804a-b6a3124e9c38",
+    "terminal_reason": "completed",
+    "elapsed_timeout_used": false,
+    "verdict": "expert_data_collection_blocked"
+  },
+  "p0_action_publication": {
+    "finding": "RTDE can sample a mixed publication in which receiver state and cadence registers are current while the 12D applied-action registers still contain the preceding publication or preceding run.",
+    "direct_example": {
+      "run": "runs/tacdiffusion/direct_torque_v4_entry_lowpass_reference10_20260728T1529HKT/direct_torque_rtde.csv",
+      "csv_data_row": 82,
+      "receiver_state": 1,
+      "control_update_count": 1,
+      "torque_thread_tick_count": 0,
+      "fresh_max_abs_tau_nm": 0.0,
+      "stale_commanded_joint_torque_nm_0": 0.19021461673434178,
+      "stale_value_source": "preceding entry-lowpass reference_2s run"
+    },
+    "historical_entry_torque_claim_valid": false,
+    "historical_action_echo_coherence_verified": false,
+    "repair": {
+      "publication_generation_begin_output_integer_register": 29,
+      "publication_generation_end_output_integer_register": 33,
+      "coherent_rule": "active state and begin == end > 0",
+      "host_behavior": "retain every RTDE row, mark coherence, and exclude incoherent rows from action-derived metrics",
+      "live_validation": "not_run_bench_owned_by_autotune"
+    }
+  },
+  "tracking_reanalysis": {
+    "legacy_max_norm_ratio_status": "retired_as_tracking_metric",
+    "reason": "max displacement norm counts orthogonal standstill jitter and grows with sample count",
+    "fit": "actual_xyz = alpha * desired_xyz + intercept_xyz after excluding the first 20 ms",
+    "runs": [
+      {
+        "label": "official friction 2 s, entry-lowpass",
+        "run": "runs/tacdiffusion/direct_torque_v4_entry_lowpass_reference2_20260728T1528HKT/direct_torque_rtde.csv",
+        "legacy_max_norm_ratio": 0.16843191124266224,
+        "alpha": -0.007919585620015566,
+        "iid_standard_error": 0.003324354779719326,
+        "r_squared": 0.0020134698560082542,
+        "time_reversed_null_alpha": 0.00343474088233609,
+        "pre_torque_waiting_translation_rms_m": 0.000031133316738791474
+      },
+      {
+        "label": "official friction 7 s, operator heard no abnormal sound",
+        "run": "runs/tacdiffusion/direct_torque_v4_reference_7s_sound_diagnostic_20260728T1442HKT/direct_torque_rtde.csv",
+        "legacy_max_norm_ratio": 0.20288978422379178,
+        "alpha": 0.006288540202577837,
+        "iid_standard_error": 0.0016295987057194767,
+        "r_squared": 0.0014406164967706303,
+        "time_reversed_null_alpha": -0.005023939999926254,
+        "pre_torque_waiting_translation_rms_m": 0.0000305228031473298
+      },
+      {
+        "label": "official friction 10 s, entry-lowpass",
+        "run": "runs/tacdiffusion/direct_torque_v4_entry_lowpass_reference10_20260728T1529HKT/direct_torque_rtde.csv",
+        "legacy_max_norm_ratio": 0.21414358485968374,
+        "alpha": 0.004142339412587475,
+        "iid_standard_error": 0.0013986693554801524,
+        "r_squared": 0.0005917811621358737,
+        "time_reversed_null_alpha": -0.004365522315830475,
+        "pre_torque_waiting_translation_rms_m": 0.000032179215157016706
+      }
+    ],
+    "conclusion": "The retained runs do not show a repeatable Cartesian response above the time-reversed null. The previous 17-21 percent statement was a noise-envelope statistic, not tracking fidelity.",
+    "iid_caveat": "The reported standard errors assume independent residuals and are optimistic under autocorrelated RTDE pose noise."
+  },
+  "controller_mapping_crosscheck": {
+    "run": "runs/tacdiffusion/direct_torque_v4_entry_lowpass_reference10_20260728T1529HKT/direct_torque_rtde.csv",
+    "method": "calibrated Pinocchio TCP Jacobian cross-check using calibration hash calib_7367377276742883610",
+    "controller_internal_jacobian_readback": false,
+    "inferred_tcp_offset_tool0_m": [
+      0.000001588987617162838,
+      -0.0000008013322943262569,
+      0.12209908347934807
+    ],
+    "maximum_reconstructed_translation_wrench_n": 0.3850385379760721,
+    "maximum_reconstructed_translation_torque_norm_nm": 0.23891179871507862,
+    "maximum_recorded_commanded_torque_norm_nm": 0.23807995799192505,
+    "rms_translation_only_residual_torque_norm_nm": 0.02413156755589761,
+    "per_joint_reconstructed_vs_recorded_correlation": [
+      0.9933723810415286,
+      0.3737587301439533,
+      0.8216184750070337,
+      0.8369865132521724,
+      0.9927449318551711,
+      0.05469395499060243
+    ],
+    "interpretation": "The independent translation-only J^T*w reconstruction closely matches the recorded steady command on the dominant joints. A gross K sign, base-frame direction, or Jacobian-transpose error is therefore not the leading explanation. The command is only about 0.39 N at the TCP, so unresolved near-zero breakaway friction or deadband is the leading physical hypothesis."
+  },
+  "entry_and_thread_repairs": {
+    "entry_velocity_filter_warmup_s": 0.15,
+    "entry_filter_time_constant_s": 0.05,
+    "stationary_dwell_s_after_warmup": 0.05,
+    "torque_thread_main_loop_watchdog_ticks": 25,
+    "nominal_watchdog_s_at_500hz": 0.05,
+    "watchdog_fault_code": 13,
+    "entry_position_excursion_window": "not_implemented_yet",
+    "window_mean_tube_origin": "not_implemented_yet",
+    "live_validation": "not_run_bench_owned_by_autotune"
+  },
+  "source_binding": {
+    "receiver_builder_sha256": "7f6018315e07a235d807e638d3bd631ebc6ef3427d1ab337ec11323600d71e49",
+    "runner_sha256": "c14a58681348a92ac00ecb49d0e9a15addecc4cd2e8e3e584f668ac333056c1f",
+    "offline_tracking_analyzer_sha256": "530e82fa2656a3447ab5ab19ed556039f1cdb1c0964eb018aed2cd7921b8c22f"
+  },
+  "expert_data_readiness": {
+    "ready": false,
+    "training_dataset": false,
+    "blockers": [
+      "coherent 12D action publication has no live validation",
+      "tracking response is indistinguishable from the null",
+      "Kunwei-to-RTDE causal alignment remains invalid",
+      "installation TCP, payload, CoG, safety configuration, and physical tool identity are not fully bound into episode lineage",
+      "84D observation and 12D expert-action semantics are not frozen",
+      "tube center is still rebased from one noisy sample",
+      "nonzero feedforward wrench frame and sign path remains unexercised"
+    ]
+  },
+  "next_live_plan_after_autotune_releases_bench": [
+    "offline or URSim parse and source-contract validation for the seqlock, watchdog, and warmup source",
+    "fresh no-contact hold-ramp-reference chain using the new source; measure coherent-row fraction and entry_transition/v2",
+    "three identical 2 s repeats to measure alpha repeatability",
+    "only if repeatability is stable, a single-variable in-plane amplitude sweep at fixed K and duration",
+    "no contact and no training-data promotion until all expert-data blockers are closed"
+  ]
+}

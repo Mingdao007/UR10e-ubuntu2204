@@ -122,6 +122,8 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
         "torque_thread_tick_count = torque_thread_tick_count + 1"
         in torque_thread_source
     )
+    assert "torque_thread_stale_ticks >= 25" in torque_thread_source
+    assert "torque_thread_watchdog_fault = True" in torque_thread_source
     assert "sync()" not in torque_thread_source
     assert not re.search(r"(?m)^\s*direct_torque\(", program_source)
     assert source.count("torque_thread_handle = run torqueThread()") == 1
@@ -151,6 +153,20 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
         in source
     )
     assert "entry_stable_duration_s = 0.05" in source
+    assert "entry_velocity_filter_tau_s = 0.05" in source
+    assert "entry_velocity_filter_warmup_s = 0.15" in source
+    assert (
+        "entry_velocity_alpha = control_dt_s/(entry_velocity_filter_tau_s + control_dt_s)"
+        in source
+    )
+    assert (
+        "filtered_entry_joint_speed[axis] > entry_joint_speed_limit_rad_s"
+        in source
+    )
+    assert (
+        "entry_velocity_filter_elapsed_s < entry_velocity_filter_warmup_s"
+        in source
+    )
     assert "entry_tcp_translation_speed_limit_m_s = 0.001" in source
     assert "entry_tcp_rotation_speed_limit_rad_s = 0.002" in source
     assert "entry_joint_speed_limit_rad_s = 0.001" in source
@@ -195,6 +211,19 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "active_acceleration_violation = True" in source
     assert "exit_fault = 11" in source
     assert "exit_fault = 12" in source
+    assert "exit_fault = 13" in source
+    assert (
+        source.index(
+            "write_output_integer_register(29, action_publish_generation)"
+        )
+        < source.index("write_output_integer_register(24, 2)")
+    )
+    assert (
+        source.index("write_output_float_register(38 + axis, tau[axis])")
+        < source.index(
+            "write_output_integer_register(33, action_publish_generation)"
+        )
+    )
     assert "virtual_mass[axis]*control_k[axis]" in source
     assert "control_k[axis]*pose_error[axis]" in source
     assert "episode_latched == 0" in source
@@ -207,6 +236,43 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "write_output_integer_register(35, episode_latched)" in source
     assert not re.search(r"(?m)^\s*return\b", source)
     assert source.count("sync()") == 4
+
+
+def test_entry_velocity_filter_rejects_drift_but_accepts_bounded_57hz_noise() -> None:
+    dt_s = 0.005
+    filter_tau_s = 0.05
+    stable_duration_s = 0.05
+    speed_limit = 0.001
+    alpha = dt_s / (filter_tau_s + dt_s)
+
+    def maximum_stable_dwell(signal: list[float]) -> tuple[float, float]:
+        filtered = 0.0
+        dwell = 0.0
+        maximum_dwell = 0.0
+        maximum_filtered = 0.0
+        for sample in signal:
+            filtered += alpha * (sample - filtered)
+            maximum_filtered = max(maximum_filtered, abs(filtered))
+            if abs(filtered) <= speed_limit:
+                dwell += dt_s
+                maximum_dwell = max(maximum_dwell, dwell)
+            else:
+                dwell = 0.0
+        return maximum_dwell, maximum_filtered
+
+    bounded_57hz = [
+        0.0036 * math.cos(2.0 * math.pi * 57.0 * index * dt_s)
+        for index in range(round(0.25 / dt_s))
+    ]
+    sustained_drift = [0.002] * round(0.25 / dt_s)
+
+    noise_dwell, noise_peak = maximum_stable_dwell(bounded_57hz)
+    drift_dwell, drift_peak = maximum_stable_dwell(sustained_drift)
+
+    assert noise_peak < speed_limit
+    assert noise_dwell >= stable_duration_s
+    assert drift_peak > speed_limit
+    assert drift_dwell < stable_duration_s
 
 
 def test_geodesic_orientation_policy_uses_ur_pose_interpolation() -> None:
@@ -484,6 +550,13 @@ def test_bundle_builder_binds_reference_source_and_refuses_overwrite(tmp_path) -
     assert manifest["register_contract"]["applied_action"][
         "commanded_joint_torque_nm"
     ] == list(range(38, 44))
+    assert manifest["register_contract"]["applied_action"][
+        "publication_seqlock"
+    ] == {
+        "generation_begin_output_integer_register": 29,
+        "generation_end_output_integer_register": 33,
+        "coherent_when": "active_and_begin_eq_end_gt_zero",
+    }
     assert manifest["register_contract"]["output_double_registers"] == list(
         range(24, 48)
     )

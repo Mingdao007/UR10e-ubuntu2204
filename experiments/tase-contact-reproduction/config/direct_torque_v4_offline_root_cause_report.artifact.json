@@ -1,0 +1,562 @@
+{
+  "surface": "report",
+  "manifest": {
+    "title": "TacDiffusion Direct Torque v4 Offline Root-Cause Audit",
+    "description": "Technical report on action-publication coherence, tracking reanalysis, calibrated torque mapping, and expert-data readiness.",
+    "surface": "report",
+    "version": 1,
+    "generatedAt": "2026-07-28T16:30:00+08:00",
+    "sources": [
+      {
+        "id": "offline_summary",
+        "label": "Reviewed Direct Torque v4 offline root-cause summary",
+        "path": "experiments/tase-contact-reproduction/config/direct_torque_v4_offline_root_cause_20260728.json",
+        "query": {
+          "engine": "duckdb",
+          "language": "sql",
+          "executed_at": "2026-07-28T16:30:00+08:00",
+          "description": "Load the reviewed nested JSON summary that materially supplies all snapshot rows in this report.",
+          "sql": "SELECT * FROM read_json_auto('experiments/tase-contact-reproduction/config/direct_torque_v4_offline_root_cause_20260728.json');",
+          "tables_used": [
+            "experiments/tase-contact-reproduction/config/direct_torque_v4_offline_root_cause_20260728.json"
+          ],
+          "filters": [
+            "offline retained Direct Torque v4 runs only",
+            "no contact and no training-data rows"
+          ],
+          "metric_definitions": [
+            "alpha is the joint XYZ least-squares coefficient after excluding the first 20 ms",
+            "legacy envelope is max actual displacement norm divided by max desired displacement norm",
+            "all reported captures have training_dataset=false"
+          ]
+        }
+      },
+      {
+        "id": "tracking_analyzer",
+        "label": "Reproducible directional tracking and calibrated mapping analyzer",
+        "path": "experiments/tase-contact-reproduction/tools/analyze_direct_torque_v4_tracking.py"
+      },
+      {
+        "id": "receiver_repair",
+        "label": "Direct Torque v4 receiver source builder with offline repairs",
+        "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/direct_torque_live_v4.py"
+      }
+    ],
+    "cards": [
+      {
+        "id": "response_alpha",
+        "description": "Joint three-axis fit after excluding the first 20 ms; time-reversed null is -0.44%.",
+        "dataset": "tracking_runs",
+        "sourceId": "offline_summary",
+        "filter": {
+          "run": "10 s"
+        },
+        "metrics": [
+          {
+            "label": "10 s fitted alpha",
+            "field": "alpha",
+            "format": "percent"
+          },
+          {
+            "label": "legacy envelope",
+            "field": "legacy_envelope",
+            "format": "percent"
+          }
+        ]
+      },
+      {
+        "id": "command_wrench",
+        "description": "Reconstructed translation impedance wrench on the 10 s retained run.",
+        "dataset": "mapping_summary",
+        "sourceId": "offline_summary",
+        "metrics": [
+          {
+            "label": "Max TCP wrench",
+            "field": "max_wrench_n",
+            "format": "number",
+            "unit": "N"
+          },
+          {
+            "label": "max J^T w",
+            "field": "max_reconstructed_torque_nm",
+            "format": "number",
+            "unit": "Nm"
+          }
+        ]
+      },
+      {
+        "id": "expert_data_status",
+        "description": "Current captures remain diagnostic only; coherent action labels have not been live-validated.",
+        "dataset": "readiness",
+        "sourceId": "offline_summary",
+        "metrics": [
+          {
+            "label": "Expert-data readiness",
+            "field": "status",
+            "format": "text"
+          }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "tracking_metric_comparison",
+        "title": "Legacy displacement envelope and fitted response coefficient",
+        "subtitle": "The max-norm envelope grows with duration while the fitted coefficient remains close to the time-reversed null.",
+        "type": "bar",
+        "intent": "comparison",
+        "dataset": "tracking_metric_long",
+        "sourceId": "offline_summary",
+        "encodings": {
+          "x": {
+            "field": "run",
+            "type": "nominal",
+            "label": "Run duration"
+          },
+          "y": {
+            "field": "value_percentage_points",
+            "type": "quantitative",
+            "label": "Value",
+            "unit": "percentage points",
+            "format": "number"
+          },
+          "color": {
+            "field": "metric",
+            "type": "nominal",
+            "label": "Metric"
+          },
+          "tooltip": [
+            {
+              "field": "r_squared",
+              "type": "quantitative",
+              "label": "Fitted R squared"
+            },
+            {
+              "field": "time_reversed_null_percentage_points",
+              "type": "quantitative",
+              "label": "Time-reversed null"
+            }
+          ]
+        },
+        "xAxisTitle": "Run duration",
+        "yAxisTitle": "Value (percentage points)",
+        "valueFormat": "number",
+        "unit": "percentage points",
+        "legend": {
+          "position": "bottom",
+          "title": "Metric"
+        }
+      }
+    ],
+    "tables": [
+      {
+        "id": "tracking_table",
+        "title": "Tracking reanalysis by retained run",
+        "subtitle": "Alpha uses a joint XYZ fit after a 20 ms entry exclusion; IID standard errors are optimistic under autocorrelation.",
+        "dataset": "tracking_runs",
+        "sourceId": "offline_summary",
+        "defaultSort": {
+          "field": "duration_s",
+          "direction": "asc"
+        },
+        "columns": [
+          {
+            "field": "run",
+            "label": "Run",
+            "type": "text"
+          },
+          {
+            "field": "duration_s",
+            "label": "Duration",
+            "format": "number",
+            "unit": "s"
+          },
+          {
+            "field": "legacy_envelope",
+            "label": "Legacy envelope",
+            "format": "percent"
+          },
+          {
+            "field": "alpha",
+            "label": "Fitted alpha",
+            "format": "percent"
+          },
+          {
+            "field": "iid_standard_error",
+            "label": "IID SE",
+            "format": "percent"
+          },
+          {
+            "field": "r_squared",
+            "label": "R squared",
+            "format": "number"
+          },
+          {
+            "field": "time_reversed_null_alpha",
+            "label": "Reversed null",
+            "format": "percent"
+          },
+          {
+            "field": "waiting_noise_rms_um",
+            "label": "WAITING noise RMS",
+            "format": "number",
+            "unit": "um"
+          }
+        ]
+      },
+      {
+        "id": "finding_table",
+        "title": "Root-cause findings and repair status",
+        "subtitle": "Priorities separate data-label validity, thread safety, physical interpretation, and future contact prerequisites.",
+        "dataset": "findings",
+        "sourceId": "offline_summary",
+        "defaultSort": {
+          "field": "order",
+          "direction": "asc"
+        },
+        "columns": [
+          {
+            "field": "order",
+            "label": "#",
+            "format": "number"
+          },
+          {
+            "field": "priority",
+            "label": "Priority",
+            "type": "text"
+          },
+          {
+            "field": "finding",
+            "label": "Finding",
+            "type": "text"
+          },
+          {
+            "field": "evidence",
+            "label": "Evidence",
+            "type": "text"
+          },
+          {
+            "field": "repair_status",
+            "label": "Repair status",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "mapping_table",
+        "title": "Calibrated translation-only torque mapping cross-check",
+        "subtitle": "Independent Pinocchio reconstruction is not a read-back of the controller-internal Jacobian.",
+        "dataset": "mapping_summary",
+        "sourceId": "offline_summary",
+        "defaultSort": {
+          "field": "calibration_hash",
+          "direction": "asc"
+        },
+        "columns": [
+          {
+            "field": "calibration_hash",
+            "label": "Calibration",
+            "type": "text"
+          },
+          {
+            "field": "max_wrench_n",
+            "label": "Max wrench",
+            "format": "number",
+            "unit": "N"
+          },
+          {
+            "field": "max_reconstructed_torque_nm",
+            "label": "Max J^T w",
+            "format": "number",
+            "unit": "Nm"
+          },
+          {
+            "field": "max_recorded_torque_nm",
+            "label": "Max recorded tau",
+            "format": "number",
+            "unit": "Nm"
+          },
+          {
+            "field": "rms_residual_torque_nm",
+            "label": "RMS residual",
+            "format": "number",
+            "unit": "Nm"
+          },
+          {
+            "field": "interpretation",
+            "label": "Interpretation",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# TacDiffusion Direct Torque v4 Offline Root-Cause Audit"
+      },
+      {
+        "id": "executive_summary",
+        "type": "markdown",
+        "body": "## Executive Summary\n\nThe offline audit found a P0 data-label defect: RTDE could combine a fresh state/cadence prefix with stale applied-action registers from the preceding publication or run. The previous 17--21% tracking statement is also retired because it measured a max-norm noise envelope. A joint XYZ fit gives alpha between -0.79% and 0.63%, with R squared below 0.0021 and time-reversed nulls of similar magnitude. The current evidence therefore does not establish repeatable Cartesian following or expert-data readiness. Offline source repairs add a publication seqlock, a torque-thread main-loop watchdog, and entry-filter warm-up; no live validation was performed because Autotune owns the bench.",
+        "sourceId": "offline_summary"
+      },
+      {
+        "id": "headline_metrics",
+        "type": "metric-strip",
+        "cardIds": [
+          "response_alpha",
+          "command_wrench",
+          "expert_data_status"
+        ]
+      },
+      {
+        "id": "key_findings",
+        "type": "markdown",
+        "body": "## Key Findings\n\nThe retained run with the clearest torn row reports STARTUP, control-update count 1, and torque-thread count 0 while still carrying joint-0 torque 0.1902146 Nm from the preceding 2 s run. That invalidates historical first-torque classification and blocks future action labels until coherence is live-validated. Separately, the fitted response alpha stays near zero and near the reversed-signal null even though the legacy envelope rises with sample count.",
+        "sourceId": "offline_summary"
+      },
+      {
+        "id": "tracking_chart_block",
+        "type": "chart",
+        "chartId": "tracking_metric_comparison",
+        "layout": "full"
+      },
+      {
+        "id": "tracking_table_block",
+        "type": "table",
+        "tableId": "tracking_table",
+        "layout": "full"
+      },
+      {
+        "id": "root_cause_section",
+        "type": "markdown",
+        "body": "## Root-Cause Ranking\n\nA gross stiffness sign, base-frame direction, or Jacobian-transpose error is not the leading explanation: the calibrated translation-only J^T w reconstruction closely matches the dominant recorded torque components. The physical command remains only about 0.39--0.42 N at the TCP, so near-zero breakaway friction, stiction, or deadband is the leading hypothesis. It remains a hypothesis until a fresh coherent no-contact amplitude A/B is run.",
+        "sourceId": "offline_summary"
+      },
+      {
+        "id": "finding_table_block",
+        "type": "table",
+        "tableId": "finding_table",
+        "layout": "full"
+      },
+      {
+        "id": "scope_data_metrics",
+        "type": "markdown",
+        "body": "## Scope, Data, and Metric Definitions\n\nThis report uses retained 2 s, 7 s, and 10 s no-contact RTDE CSVs only. No robot, controller, Dashboard, Kunwei stream, network, or live writer was accessed. Alpha is fitted from actual XYZ equals alpha times desired XYZ plus a three-axis intercept after excluding the first 20 ms. The legacy envelope is max actual displacement norm divided by max desired displacement norm and is retained only to show why the earlier conclusion was misleading. All captures remain training_dataset=false.",
+        "sourceId": "offline_summary"
+      },
+      {
+        "id": "methodology",
+        "type": "markdown",
+        "body": "## Methodology\n\nThe analyzer reports signed command-direction projection, orthogonal RMS, joint XYZ regression, R squared, an optimistic IID standard error, a time-reversed desired null, and each run's own pre-torque WAITING noise. The optional calibrated mapping infers the installed TCP offset from q and TCP pose, reconstructs the translational impedance wrench, applies the calibrated Pinocchio TCP Jacobian transpose, and compares it with recorded commanded torque.",
+        "sourceId": "tracking_analyzer"
+      },
+      {
+        "id": "mapping_table_block",
+        "type": "table",
+        "tableId": "mapping_table",
+        "layout": "full"
+      },
+      {
+        "id": "limitations",
+        "type": "markdown",
+        "body": "## Limitations and Robustness\n\nHistorical action registers do not contain a publication generation stamp, so their coherence cannot be certified; the mapping comparison uses long-run steady rows and is not an entry-causality proof. IID standard errors are optimistic because RTDE pose noise is autocorrelated. The calibrated model cross-check is independent evidence, not controller-internal get_jacobian read-back. Nonzero feedforward-wrench frame/sign semantics remain unexercised. Installation TCP, payload, CoG, safety configuration, and physical tool identity are not yet fully bound into durable episode lineage.",
+        "sourceId": "offline_summary"
+      },
+      {
+        "id": "next_steps",
+        "type": "markdown",
+        "body": "## Next Steps\n\nWhile Autotune owns the bench, finish offline/URSim parser and contract checks only. After the bench is released, run a fresh no-contact hold, ramp, and reference chain with the seqlock/watchdog source and report coherent-row fraction plus entry_transition/v2. Then run three identical 2 s repeats. Only if alpha is repeatable should a single-variable in-plane amplitude sweep be considered. Do not run contact and do not promote any capture to training data.",
+        "sourceId": "offline_summary"
+      },
+      {
+        "id": "further_questions",
+        "type": "markdown",
+        "body": "## Further Questions\n\nThe remaining scientific discriminator is whether a larger but still bounded in-plane reference produces a rising alpha at fixed stiffness and duration. A rising alpha would support breakaway/deadband; a constant near-zero alpha would reopen frame/point or controller-semantics hypotheses. Before any contact work, freeze the 84D observation and 12D action definitions, validate the nonzero feedforward-wrench path, and establish bounded Kunwei-to-RTDE causal attribution age."
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "status": "ready",
+    "generatedAt": "2026-07-28T16:30:00+08:00",
+    "datasets": {
+      "tracking_runs": [
+        {
+          "run": "2 s",
+          "duration_s": 2,
+          "legacy_envelope": 0.16843191124266224,
+          "alpha": -0.007919585620015566,
+          "iid_standard_error": 0.003324354779719326,
+          "r_squared": 0.0020134698560082542,
+          "time_reversed_null_alpha": 0.00343474088233609,
+          "waiting_noise_rms_um": 31.133316738791474,
+          "friction_profile": "UR default v2",
+          "training_dataset": false
+        },
+        {
+          "run": "7 s",
+          "duration_s": 7,
+          "legacy_envelope": 0.20288978422379178,
+          "alpha": 0.006288540202577837,
+          "iid_standard_error": 0.0016295987057194767,
+          "r_squared": 0.0014406164967706303,
+          "time_reversed_null_alpha": -0.005023939999926254,
+          "waiting_noise_rms_um": 30.5228031473298,
+          "friction_profile": "UR default v2",
+          "training_dataset": false
+        },
+        {
+          "run": "10 s",
+          "duration_s": 10,
+          "legacy_envelope": 0.21414358485968374,
+          "alpha": 0.004142339412587475,
+          "iid_standard_error": 0.0013986693554801524,
+          "r_squared": 0.0005917811621358737,
+          "time_reversed_null_alpha": -0.004365522315830475,
+          "waiting_noise_rms_um": 32.179215157016706,
+          "friction_profile": "UR default v2",
+          "training_dataset": false
+        }
+      ],
+      "tracking_metric_long": [
+        {
+          "run": "2 s",
+          "metric": "Legacy max-norm envelope",
+          "value_percentage_points": 16.843191124266224,
+          "r_squared": 0.0020134698560082542,
+          "time_reversed_null_percentage_points": 0.343474088233609
+        },
+        {
+          "run": "2 s",
+          "metric": "Fitted alpha",
+          "value_percentage_points": -0.7919585620015566,
+          "r_squared": 0.0020134698560082542,
+          "time_reversed_null_percentage_points": 0.343474088233609
+        },
+        {
+          "run": "7 s",
+          "metric": "Legacy max-norm envelope",
+          "value_percentage_points": 20.28897842237918,
+          "r_squared": 0.0014406164967706303,
+          "time_reversed_null_percentage_points": -0.5023939999926254
+        },
+        {
+          "run": "7 s",
+          "metric": "Fitted alpha",
+          "value_percentage_points": 0.6288540202577837,
+          "r_squared": 0.0014406164967706303,
+          "time_reversed_null_percentage_points": -0.5023939999926254
+        },
+        {
+          "run": "10 s",
+          "metric": "Legacy max-norm envelope",
+          "value_percentage_points": 21.414358485968375,
+          "r_squared": 0.0005917811621358737,
+          "time_reversed_null_percentage_points": -0.4365522315830475
+        },
+        {
+          "run": "10 s",
+          "metric": "Fitted alpha",
+          "value_percentage_points": 0.4142339412587475,
+          "r_squared": 0.0005917811621358737,
+          "time_reversed_null_percentage_points": -0.4365522315830475
+        }
+      ],
+      "mapping_summary": [
+        {
+          "calibration_hash": "calib_7367377276742883610",
+          "max_wrench_n": 0.3850385379760721,
+          "max_reconstructed_torque_nm": 0.23891179871507862,
+          "max_recorded_torque_nm": 0.23807995799192505,
+          "rms_residual_torque_nm": 0.02413156755589761,
+          "interpretation": "Dominant recorded torque is consistent with translation-only J^T w; gross sign/frame/transpose error is not leading."
+        }
+      ],
+      "readiness": [
+        {
+          "status": "BLOCKED",
+          "training_dataset": false,
+          "action_coherence_live_validated": false,
+          "tracking_above_null": false,
+          "causal_kunwei_rtde_alignment": false
+        }
+      ],
+      "findings": [
+        {
+          "order": 1,
+          "priority": "P0",
+          "finding": "Applied-action RTDE publication can be torn.",
+          "evidence": "First 10 s STARTUP row has fresh counters and preceding-run tau=0.1902146 Nm.",
+          "repair_status": "Seqlock implemented offline; live validation pending."
+        },
+        {
+          "order": 2,
+          "priority": "P1",
+          "finding": "Legacy 17--21% metric is noise-dominated.",
+          "evidence": "Fitted alpha -0.79% to 0.63%, R squared <=0.0021, reversed null same order.",
+          "repair_status": "Directional analyzer and report implemented."
+        },
+        {
+          "order": 3,
+          "priority": "P1",
+          "finding": "Torque thread lacked a main-loop staleness watchdog.",
+          "evidence": "Old thread could repeat the last command indefinitely if the main loop stalled.",
+          "repair_status": "25-tick watchdog and fault 13 implemented offline."
+        },
+        {
+          "order": 4,
+          "priority": "P1",
+          "finding": "Entry velocity filter began dwell before warm-up.",
+          "evidence": "At 50 ms the zero-initialized 50 ms filter reaches only about 61% of a constant input.",
+          "repair_status": "150 ms warm-up implemented; position-excursion controller gate remains open."
+        },
+        {
+          "order": 5,
+          "priority": "P1",
+          "finding": "Expert-data lineage and semantics remain incomplete.",
+          "evidence": "84D observation/12D action, installation state, causal Kunwei alignment, and tube origin are not frozen.",
+          "repair_status": "Blocked; no training-data promotion."
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "offline_summary",
+      "label": "Reviewed Direct Torque v4 offline root-cause summary",
+      "path": "experiments/tase-contact-reproduction/config/direct_torque_v4_offline_root_cause_20260728.json",
+      "query": {
+        "engine": "duckdb",
+        "language": "sql",
+        "executed_at": "2026-07-28T16:30:00+08:00",
+        "description": "Load the reviewed nested JSON summary that materially supplies all snapshot rows in this report.",
+        "sql": "SELECT * FROM read_json_auto('experiments/tase-contact-reproduction/config/direct_torque_v4_offline_root_cause_20260728.json');",
+        "tables_used": [
+          "experiments/tase-contact-reproduction/config/direct_torque_v4_offline_root_cause_20260728.json"
+        ],
+        "filters": [
+          "offline retained Direct Torque v4 runs only",
+          "no contact and no training-data rows"
+        ],
+        "metric_definitions": [
+          "alpha is the joint XYZ least-squares coefficient after excluding the first 20 ms",
+          "legacy envelope is max actual displacement norm divided by max desired displacement norm",
+          "all reported captures have training_dataset=false"
+        ]
+      }
+    },
+    {
+      "id": "tracking_analyzer",
+      "label": "Reproducible directional tracking and calibrated mapping analyzer",
+      "path": "experiments/tase-contact-reproduction/tools/analyze_direct_torque_v4_tracking.py"
+    },
+    {
+      "id": "receiver_repair",
+      "label": "Direct Torque v4 receiver source builder with offline repairs",
+      "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/direct_torque_live_v4.py"
+    }
+  ]
+}

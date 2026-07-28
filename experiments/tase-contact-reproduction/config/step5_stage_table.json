@@ -9114,7 +9114,7 @@
           "training_dataset": false
         },
         "reference_7s_sound_diagnostic": {
-          "status": "accepted_pending_operator_sound_timing_classification",
+          "status": "accepted_no_audible_abnormal_sound_tracking_insufficient",
           "claim_class": "live_no_contact_operator_sound_diagnostic_only",
           "required_prior_stage": "ramp_0_2mm_500ms",
           "duration_s": 7.0,
@@ -9129,10 +9129,10 @@
           "run": "runs/tacdiffusion/direct_torque_v4_reference_7s_sound_diagnostic_20260728T1442HKT",
           "evidence_sha256": "d05711b637dcb7187c64451e13e80e04f6909e4327d121df8a83eec2a79727cc",
           "friction_and_sound_audit": "runs/tacdiffusion/direct_torque_v4_reference_7s_sound_diagnostic_20260728T1442HKT/friction_and_sound_audit_v1.json",
-          "friction_and_sound_audit_sha256": "5d5224387df0e2fdefa747390df9a9849068fa376e4567186b80e1d362732c9a",
+          "friction_and_sound_audit_sha256": "6bac33ca209477a97f5c54c0a9eed3ddeca3141c68dafb2d8f13821d46c486a8",
           "actual_over_desired_ratio": 0.20288978422379178,
           "maximum_derived_abs_joint_acceleration_rad_s2": 1.6860808903769415,
-          "operator_sound_timing_classification": "pending_operator_report",
+          "operator_sound_timing_classification": "no_audible_abnormal_sound",
           "contact": false,
           "training_dataset": false
         },
@@ -9163,7 +9163,7 @@
           "training_dataset": false
         },
         "ur_default_v2_friction_diagnostic": {
-          "status": "live_diagnostic_tracking_insufficient_sound_classification_pending",
+          "status": "live_diagnostic_tracking_insufficient_7s_no_audible_abnormal_sound",
           "claim_class": "live_no_contact_diagnostic_only",
           "baseline_profile": "zero_isolation",
           "changed_factor": "direct_torque_v2_friction_scales_only",
@@ -9187,6 +9187,51 @@
           "reference_2s_actual_over_desired_ratio": 0.2674438969898109,
           "reference_7s_actual_over_desired_ratio": 0.20288978422379178,
           "conclusion": "official_v2_friction_improves_short_2s_response_but_does_not_resolve_longer_tracking",
+          "training_dataset": false
+        },
+        "offline_root_cause_20260728": {
+          "status": "offline_repair_implemented_live_validation_deferred_for_autotune",
+          "claim_class": "offline_reanalysis_and_source_repair_only",
+          "summary": "config/direct_torque_v4_offline_root_cause_20260728.json",
+          "opus_review": {
+            "requested_alias": "opus",
+            "provider_reported_model": "claude-opus-5",
+            "effort": "high",
+            "session_id": "d681aa7d-aca1-44e0-804a-b6a3124e9c38",
+            "terminal_reason": "completed",
+            "elapsed_timeout_used": false
+          },
+          "p0": "applied_action_rtde_publication_was_torn_across_register_block",
+          "historical_first_custom_torque_valid": false,
+          "historical_max_norm_ratio_is_tracking_metric": false,
+          "tracking_fit": {
+            "model": "actual_xyz_equals_alpha_times_desired_xyz_plus_intercept_after_20ms",
+            "reference_2s_alpha": -0.007919585620015566,
+            "reference_7s_alpha": 0.006288540202577837,
+            "reference_10s_alpha": 0.004142339412587475,
+            "maximum_r_squared": 0.0020134698560082542,
+            "time_reversed_null_same_order": true,
+            "repeatable_tracking_above_null": false
+          },
+          "calibrated_mapping_crosscheck": {
+            "calibration_hash": "calib_7367377276742883610",
+            "maximum_translation_wrench_n": 0.3850385379760721,
+            "maximum_reconstructed_translation_torque_norm_nm": 0.23891179871507862,
+            "maximum_recorded_commanded_torque_norm_nm": 0.23807995799192505,
+            "rms_translation_only_residual_torque_norm_nm": 0.02413156755589761,
+            "gross_jacobian_transpose_or_base_frame_error_leading": false
+          },
+          "offline_repairs": {
+            "applied_action_publication_seqlock": "output_int_29_begin_output_int_33_end",
+            "coherent_row_rule": "active_and_begin_eq_end_gt_zero",
+            "torque_thread_main_loop_watchdog_ticks": 25,
+            "torque_thread_watchdog_fault_code": 13,
+            "entry_velocity_filter_warmup_s": 0.15,
+            "live_validation": false
+          },
+          "bench_owner": "autotune",
+          "robot_controller_kunwei_accessed": false,
+          "contact": false,
           "training_dataset": false
         }
       },
@@ -9221,6 +9266,8 @@
         "entry_pose": "fresh_actual_pose",
         "stationary_dwell_ticks": null,
         "stationary_dwell_s": 0.05,
+        "entry_velocity_filter_time_constant_s": 0.05,
+        "entry_velocity_filter_warmup_s": 0.15,
         "stationary_dwell_clock": "monotonic_controller_time",
         "maximum_abs_joint_speed_rad_s": 0.001,
         "maximum_tcp_translation_speed_m_s": 0.001,
@@ -9232,6 +9279,8 @@
         "derived_joint_acceleration_guard_rad_s2": 5.0,
         "joint_acceleration_definition": "controller_get_actual_joint_accelerations_encoder_derived",
         "acceleration_fault_code": 12,
+        "torque_thread_watchdog_stale_ticks": 25,
+        "torque_thread_watchdog_fault_code": 13,
         "direct_torque_consumes_timestep": true,
         "empty_sync_after_direct_torque_allowed": false,
         "program_shape": "secondary_client_outer_def_with_nested_minimal_500hz_torque_thread",
@@ -9270,6 +9319,15 @@
         "rtde_minimum_row_fraction": 0.9,
         "command_lineage_required": true,
         "kunwei_parse_and_drop_errors_required_zero": true,
+        "applied_action_publication_coherence": {
+          "generation_begin_output_integer_register": 29,
+          "generation_end_output_integer_register": 33,
+          "coherent_when": "active_and_begin_eq_end_gt_zero",
+          "retain_incoherent_rows": true,
+          "action_derived_metrics_reject_incoherent_rows": true,
+          "historical_runs_verified": false,
+          "new_source_live_validated": false
+        },
         "historical_timing_corrected_hold": {
           "run": "runs/tacdiffusion/direct_torque_v4_pow_decay_hold_live_20260727T1019HKT",
           "original_evidence_ok": false,

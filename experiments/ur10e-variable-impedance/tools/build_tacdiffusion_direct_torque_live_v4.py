@@ -255,6 +255,11 @@ def build(args: argparse.Namespace) -> dict[str, object]:
                 "filtered_f_ff": list(range(26, 32)),
                 "stiffness_k": list(range(32, 38)),
                 "commanded_joint_torque_nm": list(range(38, 44)),
+                "publication_seqlock": {
+                    "generation_begin_output_integer_register": 29,
+                    "generation_end_output_integer_register": 33,
+                    "coherent_when": "active_and_begin_eq_end_gt_zero",
+                },
                 "cadence": {
                     "control_update_dt_s": 44,
                     "control_update_count": 45,

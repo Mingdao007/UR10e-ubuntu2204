@@ -40,7 +40,7 @@ for import_root in (VIC_ROOT, UR_HELPERS, KUNWEI_TOOLS, ROOT / "tools"):
     if str(import_root) not in sys.path:
         sys.path.insert(0, str(import_root))
 
-from _ur_common import dashboard_exchange, read_rtde_once  # noqa: E402
+from _ur_common import dashboard_exchange  # noqa: E402
 from capture_kunwei_kwr75_1khz import (  # noqa: E402
     CaptureState,
     FORCE_KG_TO_N,
@@ -71,6 +71,9 @@ from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
     build_compile_probe_source,
     parse_compile_probe_source,
     parse_live_receiver_source,
+)
+from ur10e_vic.tacdiffusion.unknown_surface_episode import (  # noqa: E402
+    rotation_vector_distance_rad,
 )
 
 
@@ -116,6 +119,11 @@ COMPILE_PROBE_TRANSLATION_TOLERANCE_M = 0.0002
 COMPILE_PROBE_TCP_SPEED_TOLERANCE_M_S = 0.001
 COMPILE_PROBE_TCP_ANGULAR_SPEED_TOLERANCE_RAD_S = 0.001
 COMPILE_PROBE_JOINT_SPEED_TOLERANCE_RAD_S = 0.001
+STATIONARITY_WINDOW_S = 0.1
+STATIONARITY_WINDOW_MIN_SAMPLES = 40
+STATIONARITY_TCP_TRANSLATION_RADIUS_TOLERANCE_M = 0.0003
+STATIONARITY_TCP_ROTATION_RADIUS_TOLERANCE_RAD = 0.0006
+STATIONARITY_JOINT_POSITION_EXCURSION_TOLERANCE_RAD = 0.0003
 KUNWEI_RAW_FIELDS = (
     "fx_kg_manual",
     "fy_kg_manual",
@@ -231,6 +239,21 @@ def _maximum_derived_abs_joint_acceleration(
     return maximum
 
 
+def _action_echo_coherent(row: Mapping[str, Any]) -> bool:
+    if "action_echo_coherent" in row:
+        value = row["action_echo_coherent"]
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes"}
+        return bool(value)
+    begin = row.get("action_publish_generation_begin")
+    end = row.get("action_publish_generation_end")
+    if begin in (None, "") or end in (None, ""):
+        return False
+    begin_value = int(float(begin))
+    end_value = int(float(end))
+    return begin_value > 0 and begin_value == end_value
+
+
 def _counter_rate_hz(
     rows: Sequence[Mapping[str, Any]],
     field: str,
@@ -239,6 +262,7 @@ def _counter_rate_hz(
         row
         for row in rows
         if int(float(row["receiver_state"])) in (STATE_STARTUP, STATE_TORQUE)
+        and _action_echo_coherent(row)
         and row.get(field) not in (None, "")
     ]
     if len(active) < 2:
@@ -264,6 +288,7 @@ def _maximum_active_control_update_gap_s(
             float(row["maximum_control_update_gap_s"])
             for row in rows
             if int(float(row["receiver_state"])) in (STATE_STARTUP, STATE_TORQUE)
+            and _action_echo_coherent(row)
             and row.get("maximum_control_update_gap_s") not in (None, "")
         ),
         default=0.0,
@@ -277,14 +302,33 @@ def analyze_entry_bumplessness(
 
     if not rows:
         raise ValueError("entry_analysis_rows_empty")
-    active_indices = [
+    raw_active_indices = [
         index
         for index, row in enumerate(rows)
         if int(float(row["receiver_state"])) in (STATE_STARTUP, STATE_TORQUE)
         and int(float(row["ack_sequence"])) > 0
     ]
-    if not active_indices:
+    if not raw_active_indices:
         raise ValueError("entry_analysis_direct_torque_state_missing")
+    active_indices = [
+        index
+        for index in raw_active_indices
+        if _action_echo_coherent(rows[index])
+    ]
+    if not active_indices:
+        raise ValueError("entry_analysis_coherent_action_echo_missing")
+    first_raw_timestamp = float(
+        rows[raw_active_indices[0]]["controller_timestamp_s"]
+    )
+    entry_raw_indices = [
+        index
+        for index in raw_active_indices
+        if float(rows[index]["controller_timestamp_s"]) - first_raw_timestamp
+        <= ENTRY_ANALYSIS_WINDOW_S + 1e-12
+    ]
+    rejected_incoherent_rows = sum(
+        not _action_echo_coherent(rows[index]) for index in entry_raw_indices
+    )
     first_index = active_indices[0]
     first = rows[first_index]
     first_timestamp = float(first["controller_timestamp_s"])
@@ -293,6 +337,7 @@ def analyze_entry_bumplessness(
         for row in rows[first_index:]
         if float(row["controller_timestamp_s"]) - first_timestamp
         <= ENTRY_ANALYSIS_WINDOW_S + 1e-12
+        and _action_echo_coherent(row)
     ]
     if len(window) < 2:
         raise ValueError("entry_analysis_window_too_short")
@@ -343,16 +388,38 @@ def analyze_entry_bumplessness(
         _maximum_derived_abs_joint_acceleration(window)
     )
 
-    zero_custom_torque_at_entry = first_tau_max_abs <= 1e-6
-    acceleration_after_zero_custom_torque = (
-        maximum_derived_abs_joint_acceleration_rad_s2 > 5.0
+    maximum_abs_joint_excursion_rad = max(
+        max(float(row[f"actual_q_{axis}"]) for row in window)
+        - min(float(row[f"actual_q_{axis}"]) for row in window)
+        for axis in range(6)
     )
+    maximum_commanded_tau_nm = max(
+        abs(float(row[f"commanded_joint_torque_nm_{axis}"]))
+        for row in window
+        for axis in range(6)
+    )
+    transition_failures = []
+    if maximum_derived_abs_joint_acceleration_rad_s2 > 1.0:
+        transition_failures.append("joint_acceleration_gt_1rad_s2")
+    if maximum_abs_joint_excursion_rad > 0.0005:
+        transition_failures.append("joint_excursion_gt_0_5mrad")
+    if maximum_tcp_translation_speed_m_s > 0.002:
+        transition_failures.append("tcp_translation_speed_gt_2mm_s")
+    if maximum_commanded_tau_nm > 0.05:
+        transition_failures.append("commanded_tau_gt_0_05nm")
+    if rejected_incoherent_rows:
+        outcome = "INDETERMINATE"
+    elif transition_failures:
+        outcome = "FAIL"
+    else:
+        outcome = "PASS"
     return {
-        "schema": "ur10e_direct_torque_entry_bumplessness_analysis/v1",
+        "schema": "ur10e_direct_torque_entry_transition/v2",
         "claim_class": "offline_replay_of_recorded_live_no_contact_entry",
-        "first_direct_torque_row_index": first_index,
+        "first_coherent_direct_torque_row_index": first_index,
         "analysis_window_s": ENTRY_ANALYSIS_WINDOW_S,
-        "analysis_window_rows": len(window),
+        "analysis_window_coherent_rows": len(window),
+        "rejected_incoherent_rows": rejected_incoherent_rows,
         "first_commanded_joint_torque_nm": list(first_tau),
         "first_commanded_joint_torque_max_abs_nm": first_tau_max_abs,
         "first_pose_error_translation_m": first_pose_error_translation_m,
@@ -365,21 +432,14 @@ def analyze_entry_bumplessness(
         "maximum_derived_abs_joint_acceleration_rad_s2": (
             maximum_derived_abs_joint_acceleration_rad_s2
         ),
-        "zero_custom_torque_at_entry": zero_custom_torque_at_entry,
-        "acceleration_after_zero_custom_torque": (
-            acceleration_after_zero_custom_torque
-        ),
-        "classification": (
-            "mode_or_internal_friction_transition_precedes_custom_impedance_response"
-            if zero_custom_torque_at_entry
-            and acceleration_after_zero_custom_torque
-            else "entry_not_classified"
-        ),
+        "maximum_abs_joint_excursion_rad": maximum_abs_joint_excursion_rad,
+        "maximum_commanded_tau_nm": maximum_commanded_tau_nm,
+        "transition_failures": transition_failures,
+        "outcome": outcome,
         "causal_limit": (
-            "recorded replay distinguishes the initial custom torque command "
-            "from the transition response but does not by itself distinguish "
-            "all controller-internal torque-mode effects; the zero-friction "
-            "canary is the isolating experiment"
+            "PASS/FAIL applies only when every sampled row in the first 20 ms "
+            "has a coherent action publication; otherwise the outcome is "
+            "INDETERMINATE"
         ),
         "motion_performed": False,
         "controller_io_performed": False,
@@ -485,6 +545,145 @@ def _is_stationary(rtde: Mapping[str, Any]) -> bool:
         and max(abs(float(value)) for value in rtde["actual_qd"])
         <= COMPILE_PROBE_JOINT_SPEED_TOLERANCE_RAD_S
     )
+
+
+def _stationarity_window_evidence(
+    samples: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Separate bounded pose drift from high-frequency velocity estimation."""
+
+    def vector(sample: Mapping[str, Any], name: str) -> tuple[float, ...]:
+        raw = sample.get(name)
+        if isinstance(raw, (list, tuple)):
+            return tuple(float(value) for value in raw)
+        return tuple(float(sample[f"{name}_{axis}"]) for axis in range(6))
+
+    if not samples:
+        return {
+            "ok": False,
+            "sample_count": 0,
+            "reason": "no_samples",
+        }
+    poses = [vector(sample, "actual_TCP_pose") for sample in samples]
+    speeds = [vector(sample, "actual_TCP_speed") for sample in samples]
+    joints = [vector(sample, "actual_q") for sample in samples]
+    joint_speeds = [vector(sample, "actual_qd") for sample in samples]
+    translation_center = tuple(
+        sum(pose[axis] for pose in poses) / len(poses) for axis in range(3)
+    )
+    maximum_translation_radius_m = max(
+        math.sqrt(
+            sum(
+                (pose[axis] - translation_center[axis]) ** 2
+                for axis in range(3)
+            )
+        )
+        for pose in poses
+    )
+    orientation_reference = poses[0][3:]
+    maximum_rotation_radius_rad = max(
+        rotation_vector_distance_rad(orientation_reference, pose[3:])
+        for pose in poses
+    )
+    maximum_joint_position_excursion_rad = max(
+        max(joint[axis] for joint in joints)
+        - min(joint[axis] for joint in joints)
+        for axis in range(6)
+    )
+    mean_tcp_speed = tuple(
+        sum(speed[axis] for speed in speeds) / len(speeds)
+        for axis in range(6)
+    )
+    mean_joint_speed = tuple(
+        sum(speed[axis] for speed in joint_speeds) / len(joint_speeds)
+        for axis in range(6)
+    )
+    mean_tcp_translation_speed_m_s = math.sqrt(
+        sum(value * value for value in mean_tcp_speed[:3])
+    )
+    mean_tcp_rotation_speed_rad_s = math.sqrt(
+        sum(value * value for value in mean_tcp_speed[3:])
+    )
+    maximum_abs_mean_joint_speed_rad_s = max(
+        abs(value) for value in mean_joint_speed
+    )
+    checks = {
+        "minimum_40_samples": len(samples) >= STATIONARITY_WINDOW_MIN_SAMPLES,
+        "tcp_translation_radius_le_0_3mm": (
+            maximum_translation_radius_m
+            <= STATIONARITY_TCP_TRANSLATION_RADIUS_TOLERANCE_M
+        ),
+        "tcp_rotation_radius_le_0_6mrad": (
+            maximum_rotation_radius_rad
+            <= STATIONARITY_TCP_ROTATION_RADIUS_TOLERANCE_RAD
+        ),
+        "joint_position_excursion_le_0_3mrad": (
+            maximum_joint_position_excursion_rad
+            <= STATIONARITY_JOINT_POSITION_EXCURSION_TOLERANCE_RAD
+        ),
+        "mean_tcp_translation_speed_le_1mm_s": (
+            mean_tcp_translation_speed_m_s
+            <= COMPILE_PROBE_TCP_SPEED_TOLERANCE_M_S
+        ),
+        "mean_tcp_rotation_speed_le_1mrad_s": (
+            mean_tcp_rotation_speed_rad_s
+            <= COMPILE_PROBE_TCP_ANGULAR_SPEED_TOLERANCE_RAD_S
+        ),
+        "maximum_abs_mean_joint_speed_le_1mrad_s": (
+            maximum_abs_mean_joint_speed_rad_s
+            <= COMPILE_PROBE_JOINT_SPEED_TOLERANCE_RAD_S
+        ),
+    }
+    return {
+        "ok": all(checks.values()),
+        "sample_count": len(samples),
+        "window_s": STATIONARITY_WINDOW_S,
+        "maximum_translation_radius_m": maximum_translation_radius_m,
+        "maximum_rotation_radius_rad": maximum_rotation_radius_rad,
+        "maximum_joint_position_excursion_rad": (
+            maximum_joint_position_excursion_rad
+        ),
+        "mean_tcp_translation_speed_m_s": mean_tcp_translation_speed_m_s,
+        "mean_tcp_rotation_speed_rad_s": mean_tcp_rotation_speed_rad_s,
+        "maximum_abs_mean_joint_speed_rad_s": (
+            maximum_abs_mean_joint_speed_rad_s
+        ),
+        "checks": checks,
+    }
+
+
+def _read_rtde_status_window(
+    robot_host: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    fields = [
+        "timestamp",
+        "actual_TCP_pose",
+        "actual_TCP_speed",
+        "actual_q",
+        "actual_qd",
+        "runtime_state",
+        "robot_mode",
+        "safety_mode",
+    ]
+    samples: list[dict[str, Any]] = []
+    with LiveRTDE(robot_host, timeout=3.0) as rtde:
+        rtde.negotiate()
+        recipe, types = rtde.setup_outputs(500.0, fields)
+        rtde.start()
+        deadline = time.monotonic() + 1.0
+        while (
+            len(samples) < round(STATIONARITY_WINDOW_S * 500)
+            and time.monotonic() < deadline
+        ):
+            samples.extend(
+                _receive_available(rtde, recipe, types, fields, 0.01)
+            )
+    if len(samples) < STATIONARITY_WINDOW_MIN_SAMPLES:
+        raise RuntimeError(
+            f"stationarity_window_too_short:{len(samples)}"
+        )
+    samples = samples[: round(STATIONARITY_WINDOW_S * 500)]
+    return dict(samples[-1]), samples
 
 
 def _next_available_run_dir(output_dir: Path) -> Path:
@@ -1437,22 +1636,13 @@ def readonly_status(robot_host: str) -> dict[str, Any]:
             "is in remote control",
         ],
     )
-    rtde = read_rtde_once(
-        robot_host,
-        [
-            "actual_TCP_pose",
-            "actual_TCP_speed",
-            "actual_qd",
-            "runtime_state",
-            "robot_mode",
-            "safety_mode",
-        ],
-        frequency_hz=10.0,
-    )
-    stationary = _is_stationary(rtde)
+    rtde, stationarity_samples = _read_rtde_status_window(robot_host)
+    stationarity_window = _stationarity_window_evidence(stationarity_samples)
+    stationary = bool(stationarity_window["ok"])
     return {
         "dashboard": dashboard,
         "rtde": rtde,
+        "stationarity_window": stationarity_window,
         "remote_control": dashboard.get("is in remote control", "").lower() == "true",
         "stopped": int(rtde["runtime_state"]) == RUNTIME_STOPPED,
         "stationary": stationary,
@@ -1830,21 +2020,36 @@ def _output_row(
     outgoing: CommandLineage,
     acked: CommandLineage | None,
 ) -> dict[str, Any]:
+    receiver_state = int(sample["output_int_register_24"])
+    publish_generation_begin = int(sample["output_int_register_29"])
+    publish_generation_end = int(sample["output_int_register_33"])
+    action_echo_coherent = (
+        receiver_state in {STATE_STARTUP, STATE_TORQUE}
+        and publish_generation_begin > 0
+        and publish_generation_begin == publish_generation_end
+    )
     row: dict[str, Any] = {
         "host_elapsed_s": host_elapsed_s,
         "controller_timestamp_s": float(sample["timestamp"]),
         "runtime_state": int(sample["runtime_state"]),
         "robot_mode": int(sample["robot_mode"]),
         "safety_mode": int(sample["safety_mode"]),
-        "receiver_state": int(sample["output_int_register_24"]),
+        "receiver_state": receiver_state,
         "ack_sequence": int(sample["output_int_register_25"]),
         "fault": int(sample["output_int_register_26"]),
         "lease_echo": int(sample["output_int_register_27"]),
         "model_sequence_echo": int(sample["output_int_register_28"]),
+        "action_publish_generation_begin": publish_generation_begin,
         "frame_echo": int(sample["output_int_register_30"]),
         "episode_echo": int(sample["output_int_register_31"]),
         "protocol_echo": int(sample["output_int_register_32"]),
-        "exit_reason": int(sample["output_int_register_33"]),
+        "action_publish_generation_end": publish_generation_end,
+        "action_echo_coherent": action_echo_coherent,
+        "exit_reason": (
+            publish_generation_end
+            if receiver_state in {STATE_FAULT, STATE_COMPLETE}
+            else 0
+        ),
         "observed_command_echo": int(sample["output_int_register_34"]),
         "episode_latched_echo": int(sample["output_int_register_35"]),
         "max_abs_tau_nm": float(sample["output_double_register_24"]),
@@ -2241,6 +2446,7 @@ def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
                     ),
                     default=0.0,
                 )
+                stationarity_window = _stationarity_window_evidence(rows)
                 active_rows = sum(
                     row["probe_protocol"] == COMPILE_PROBE_PROTOCOL_TOKEN
                     and row["probe_state"] == COMPILE_PROBE_STATE_ACTIVE
@@ -2251,16 +2457,7 @@ def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
                     "observed_active_runtime_marker": observed_active,
                     "observed_complete_marker": observed_complete,
                     "at_least_45_active_500hz_rows": active_rows >= 45,
-                    "maximum_tcp_translation_le_0_2mm": maximum_translation_m
-                    <= COMPILE_PROBE_TRANSLATION_TOLERANCE_M,
-                    "maximum_tcp_speed_le_1mm_s": maximum_speed_m_s
-                    <= COMPILE_PROBE_TCP_SPEED_TOLERANCE_M_S,
-                    "maximum_tcp_angular_speed_le_1mrad_s": (
-                        maximum_tcp_angular_speed_rad_s
-                        <= COMPILE_PROBE_TCP_ANGULAR_SPEED_TOLERANCE_RAD_S
-                    ),
-                    "maximum_joint_speed_le_1mrad_s": maximum_joint_speed_rad_s
-                    <= COMPILE_PROBE_JOINT_SPEED_TOLERANCE_RAD_S,
+                    "bounded_stationarity_window": stationarity_window["ok"],
                 }
                 strict_gate["ok"] = all(strict_gate.values()) and failure is None
                 evidence = {
@@ -2278,6 +2475,7 @@ def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
                         maximum_tcp_angular_speed_rad_s
                     ),
                     "maximum_joint_speed_rad_s": maximum_joint_speed_rad_s,
+                    "stationarity_window": stationarity_window,
                     "observed_active_marker": observed_active,
                     "observed_complete_marker": observed_complete,
                     "strict_success_gate": strict_gate,
@@ -2454,26 +2652,13 @@ def run_receiver_handshake_probe(
         ),
         default=0.0,
     )
+    stationarity_window = _stationarity_window_evidence(rows)
     strict_gate = {
         "full_receiver_source_compiled_with_bounded_prefix": probe_source_sent,
         "observed_waiting_runtime_marker": observed_waiting,
         "observed_direct_torque_state": observed_direct_torque is False,
         "observed_complete_marker": observed_complete,
-        "maximum_tcp_translation_le_0_2mm": (
-            maximum_translation_m <= COMPILE_PROBE_TRANSLATION_TOLERANCE_M
-        ),
-        "maximum_tcp_speed_le_1mm_s": (
-            maximum_tcp_speed_m_s
-            <= COMPILE_PROBE_TCP_SPEED_TOLERANCE_M_S
-        ),
-        "maximum_tcp_angular_speed_le_1mrad_s": (
-            maximum_tcp_angular_speed_rad_s
-            <= COMPILE_PROBE_TCP_ANGULAR_SPEED_TOLERANCE_RAD_S
-        ),
-        "maximum_joint_speed_le_1mrad_s": (
-            maximum_joint_speed_rad_s
-            <= COMPILE_PROBE_JOINT_SPEED_TOLERANCE_RAD_S
-        ),
+        "bounded_stationarity_window": stationarity_window["ok"],
     }
     strict_gate["ok"] = (
         all(strict_gate.values())
@@ -2507,6 +2692,7 @@ def run_receiver_handshake_probe(
         "maximum_tcp_speed_m_s": maximum_tcp_speed_m_s,
         "maximum_tcp_angular_speed_rad_s": maximum_tcp_angular_speed_rad_s,
         "maximum_joint_speed_rad_s": maximum_joint_speed_rad_s,
+        "stationarity_window": stationarity_window,
         "strict_success_gate": strict_gate,
         "motion_performed": False,
         "direct_torque_called": False,
@@ -2987,7 +3173,7 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 "runtime_scheduler": scheduler_runtime,
                 "observed_direct_torque_state": observed_torque,
                 "observed_complete_state": complete,
-                "applied_action_echo_captured": bool(samples),
+                "applied_action_echo_captured": False,
                 "kunwei_stream_started": True,
                 "kunwei_force_source": "kunwei_software_baselined_sensor_to_tcp_si",
                 "kunwei_calibration_sha256": calibration_sha256,
@@ -3033,6 +3219,23 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
             lineage_misses = sum(
                 int(row["ack_command_lineage_missing"]) for row in samples
             )
+            active_action_rows = [
+                row
+                for row in samples
+                if int(float(row["receiver_state"]))
+                in (STATE_STARTUP, STATE_TORQUE)
+            ]
+            coherent_action_rows = [
+                row for row in active_action_rows if _action_echo_coherent(row)
+            ]
+            incoherent_action_row_count = (
+                len(active_action_rows) - len(coherent_action_rows)
+            )
+            coherent_action_row_fraction = (
+                len(coherent_action_rows) / len(active_action_rows)
+                if active_action_rows
+                else 0.0
+            )
             maximum_derived_abs_joint_acceleration_rad_s2 = (
                 _maximum_derived_abs_joint_acceleration(samples)
             )
@@ -3061,6 +3264,9 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 "observed_complete": complete,
                 "entry_bumplessness_analysis_present": (
                     entry_analysis is not None
+                ),
+                "coherent_action_echo_rows_present": (
+                    len(coherent_action_rows) >= 2
                 ),
                 "maximum_derived_abs_joint_acceleration_le_5rad_s2": (
                     maximum_derived_abs_joint_acceleration_rad_s2 <= 5.0
@@ -3120,6 +3326,17 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                     "duplicate_timestamp_count": duplicate_count,
                     "nonmonotonic_timestamp_count": nonmonotonic_count,
                     "ack_command_lineage_misses": lineage_misses,
+                    "active_action_echo_rows": len(active_action_rows),
+                    "coherent_action_echo_rows": len(coherent_action_rows),
+                    "incoherent_action_echo_rows": (
+                        incoherent_action_row_count
+                    ),
+                    "coherent_action_echo_row_fraction": (
+                        coherent_action_row_fraction
+                    ),
+                    "applied_action_echo_captured": bool(
+                        coherent_action_rows
+                    ),
                     "maximum_derived_abs_joint_acceleration_rad_s2": (
                         maximum_derived_abs_joint_acceleration_rad_s2
                     ),

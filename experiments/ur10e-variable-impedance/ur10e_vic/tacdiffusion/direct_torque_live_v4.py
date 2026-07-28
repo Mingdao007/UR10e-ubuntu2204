@@ -356,12 +356,27 @@ def build_live_receiver_source(
   viscous_scale = {_urscript_vector(viscous_scale)}
   coulomb_scale = {_urscript_vector(coulomb_scale)}
   torque_thread_tick_count = 0
+  control_update_count = 0
+  torque_thread_last_control_update_count = -1
+  torque_thread_stale_ticks = 0
+  torque_thread_watchdog_fault = False
 
   thread torqueThread():
     while torque_thread_run:
-      local torque = torque_command
-      direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)
-      torque_thread_tick_count = torque_thread_tick_count + 1
+      if control_update_count == torque_thread_last_control_update_count:
+        torque_thread_stale_ticks = torque_thread_stale_ticks + 1
+      else:
+        torque_thread_last_control_update_count = control_update_count
+        torque_thread_stale_ticks = 0
+      end
+      if torque_thread_stale_ticks >= 25:
+        torque_thread_watchdog_fault = True
+        torque_thread_run = False
+      else:
+        local torque = torque_command
+        direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)
+        torque_thread_tick_count = torque_thread_tick_count + 1
+      end
     end
     stopj(10.0)
   end
@@ -387,14 +402,15 @@ def build_live_receiver_source(
   local k_min = [25.0, 25.0, 25.0, 0.5, 0.5, 0.5]
   local k_max = [1000.0, 1000.0, 1000.0, 60.0, 60.0, 60.0]
   local receiver_force_limit = [20.0, 20.0, 20.0, 2.0, 2.0, 2.0]
-  # Gravity is compensated internally by direct_torque().  The no-contact
-  # canary deliberately disables UR friction/stiction injection so that a
-  # zero-error, zero-speed entry has a zero non-gravity torque equilibrium.
+  # Gravity is compensated internally by direct_torque().  Friction/stiction
+  # compensation is bound explicitly by the selected immutable profile.
   local virtual_mass = [2.0, 2.0, 2.0, 0.2, 0.2, 0.2]
   local damping_ratio = 1.0
   local critical_natural_frequency_rad_s = 92.10340371976183
   local entry_blend_duration_s = 0.1
   local entry_stable_duration_s = 0.05
+  local entry_velocity_filter_tau_s = 0.05
+  local entry_velocity_filter_warmup_s = 0.15
   local entry_tcp_translation_speed_limit_m_s = 0.001
   local entry_tcp_rotation_speed_limit_rad_s = 0.002
   local entry_joint_speed_limit_rad_s = 0.001
@@ -411,6 +427,7 @@ def build_live_receiver_source(
   local tube_rebased = False
   local entry_elapsed_s = 0.0
   local entry_stable_elapsed_s = 0.0
+  local entry_velocity_filter_elapsed_s = 0.0
   local exit_fault = 0
   local exit_reason = 0
   local last_sequence = 0
@@ -431,9 +448,11 @@ def build_live_receiver_source(
   local filtered_force = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local filter_velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local entry_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local filtered_entry_tcp_speed = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local filtered_entry_joint_speed = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local torque_thread_handle = 0
-  local control_update_count = 0
   local maximum_control_update_gap_s = 0.0
+  local action_publish_generation = 0
   local initial_control_clock = time()
   local last_control_time_s = initial_control_clock.sec + initial_control_clock.nanosec/1000000000.0
   write_output_integer_register(24, 0)
@@ -723,21 +742,34 @@ def build_live_receiver_source(
         local entry_ready = torque_entered
         if not torque_entered:
           entry_ready = True
+          local entry_velocity_alpha = control_dt_s/(entry_velocity_filter_tau_s + control_dt_s)
+          axis = 0
+          while axis < 6:
+            filtered_entry_tcp_speed[axis] = filtered_entry_tcp_speed[axis] + entry_velocity_alpha*(actual_speed[axis] - filtered_entry_tcp_speed[axis])
+            filtered_entry_joint_speed[axis] = filtered_entry_joint_speed[axis] + entry_velocity_alpha*(qd[axis] - filtered_entry_joint_speed[axis])
+            axis = axis + 1
+          end
+          entry_velocity_filter_elapsed_s = entry_velocity_filter_elapsed_s + control_dt_s
           local release_error = pose_sub(p[last_eq[0], last_eq[1], last_eq[2], last_eq[3], last_eq[4], last_eq[5]], actual_pose)
           local release_translation = sqrt(release_error[0]*release_error[0] + release_error[1]*release_error[1] + release_error[2]*release_error[2])
           if release_translation > release_ready_tolerance_m:
             control_ok = False
           end
+          actual_translation_speed = sqrt(filtered_entry_tcp_speed[0]*filtered_entry_tcp_speed[0] + filtered_entry_tcp_speed[1]*filtered_entry_tcp_speed[1] + filtered_entry_tcp_speed[2]*filtered_entry_tcp_speed[2])
+          actual_rotation_speed = sqrt(filtered_entry_tcp_speed[3]*filtered_entry_tcp_speed[3] + filtered_entry_tcp_speed[4]*filtered_entry_tcp_speed[4] + filtered_entry_tcp_speed[5]*filtered_entry_tcp_speed[5])
           if actual_translation_speed > entry_tcp_translation_speed_limit_m_s or actual_rotation_speed > entry_tcp_rotation_speed_limit_rad_s:
             entry_ready = False
           end
           axis = 0
           while axis < 6:
-            if qd[axis] > entry_joint_speed_limit_rad_s or qd[axis] < -entry_joint_speed_limit_rad_s:
+            if filtered_entry_joint_speed[axis] > entry_joint_speed_limit_rad_s or filtered_entry_joint_speed[axis] < -entry_joint_speed_limit_rad_s:
               entry_ready = False
             end
             entry_pose[axis] = actual_pose[axis]
             axis = axis + 1
+          end
+          if entry_velocity_filter_elapsed_s < entry_velocity_filter_warmup_s:
+            entry_ready = False
           end
           if entry_ready:
             entry_stable_elapsed_s = entry_stable_elapsed_s + control_dt_s
@@ -748,7 +780,11 @@ def build_live_receiver_source(
             entry_ready = False
           end
         end
-        if not control_ok:
+        if torque_thread_watchdog_fault:
+          exit_fault = 13
+          exit_reason = 13
+          running = False
+        elif not control_ok:
           if active_acceleration_violation:
             exit_fault = 12
             exit_reason = 12
@@ -844,6 +880,8 @@ def build_live_receiver_source(
               torque_thread_handle = run torqueThread()
               torque_entered = True
             end
+            action_publish_generation = action_publish_generation + 1
+            write_output_integer_register(29, action_publish_generation)
             write_output_integer_register(24, 2)
             if entry_elapsed_s < entry_blend_duration_s:
               write_output_integer_register(24, 1)
@@ -852,11 +890,9 @@ def build_live_receiver_source(
             write_output_integer_register(26, 0)
             write_output_integer_register(27, lease_id)
             write_output_integer_register(28, last_model_sequence)
-            write_output_integer_register(29, 0)
             write_output_integer_register(30, frame_token)
             write_output_integer_register(31, episode_identity)
             write_output_integer_register(32, receiver_protocol_token)
-            write_output_integer_register(33, 0)
             write_output_integer_register(34, last_observed_command)
             write_output_integer_register(35, episode_latched)
             write_output_float_register(24, max_abs_tau)
@@ -873,6 +909,7 @@ def build_live_receiver_source(
               write_output_float_register(38 + axis, tau[axis])
               axis = axis + 1
             end
+            write_output_integer_register(33, action_publish_generation)
             if entry_elapsed_s < entry_blend_duration_s:
               entry_elapsed_s = entry_elapsed_s + control_dt_s
             end
@@ -946,6 +983,18 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "tube_center_base = [actual_pose[0], actual_pose[1], actual_pose[2]]",
         "tube_anchor_pose_base = p[actual_pose[0], actual_pose[1], actual_pose[2], actual_pose[3], actual_pose[4], actual_pose[5]]",
         "entry_stable_duration_s = 0.05",
+        "entry_velocity_filter_tau_s = 0.05",
+        "entry_velocity_filter_warmup_s = 0.15",
+        "entry_velocity_alpha = control_dt_s/(entry_velocity_filter_tau_s + control_dt_s)",
+        "entry_velocity_filter_elapsed_s < entry_velocity_filter_warmup_s",
+        "filtered_entry_tcp_speed[axis] = filtered_entry_tcp_speed[axis] + entry_velocity_alpha*(actual_speed[axis] - filtered_entry_tcp_speed[axis])",
+        "filtered_entry_joint_speed[axis] = filtered_entry_joint_speed[axis] + entry_velocity_alpha*(qd[axis] - filtered_entry_joint_speed[axis])",
+        "torque_thread_stale_ticks >= 25",
+        "torque_thread_watchdog_fault = True",
+        "exit_fault = 13",
+        "action_publish_generation = action_publish_generation + 1",
+        "write_output_integer_register(29, action_publish_generation)",
+        "write_output_integer_register(33, action_publish_generation)",
         "entry_joint_speed_limit_rad_s = 0.001",
         "entry_stable_elapsed_s < entry_stable_duration_s",
         "guard_wrench = [read_input_float_register(36)",

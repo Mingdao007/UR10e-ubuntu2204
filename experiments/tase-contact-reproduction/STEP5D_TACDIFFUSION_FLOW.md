@@ -272,9 +272,60 @@ acceleration was `1.686 rad/s²`, maximum zero-baselined force norm was
 the command reached `0.636 mm`, actual maximum translation was `0.129 mm`
 (`20.3%`), and actual endpoint displacement was `0.059 mm`. Restoring the
 documented friction profile therefore does not by itself resolve tracking.
-The operator's temporal classification of the audible sound remains pending;
-the immutable derived audit is
+The operator reported no audible abnormal sound during this 7 s window. This
+falsifies the expectation that sound must recur in every official-friction
+run, but does not isolate the cause of the earlier sounds because duration and
+the fresh ordered receipt chain also differed. The derived audit is
 `runs/tacdiffusion/direct_torque_v4_reference_7s_sound_diagnostic_20260728T1442HKT/friction_and_sound_audit_v1.json`.
+
+The subsequent offline root-cause audit supersedes the earlier tracking
+interpretation without rewriting the immutable live receipts. The historical
+`actual maximum displacement / desired maximum displacement` values
+(`16.8--21.4%` in the newest 2/7/10 s comparison) are max-of-norm noise
+envelopes, not tracking coefficients. After excluding the first 20 ms, a joint
+three-axis fit `actual_xyz = alpha * desired_xyz + intercept_xyz` gives
+`alpha=-0.792%` for 2 s, `0.629%` for 7 s, and `0.414%` for 10 s, with
+`R²<=0.0021`; time-reversed desired controls are of the same magnitude. The
+retained runs therefore do not show repeatable Cartesian following above the
+null/noise floor.
+
+An independent calibrated Pinocchio cross-check on the 10 s run reconstructs
+the translation-only `J^T w` command from the recorded q, desired/actual TCP,
+K, and TCP speed. It reaches `0.2389 Nm` maximum torque norm versus
+`0.2381 Nm` recorded, with `0.0241 Nm` RMS residual that also contains the
+unreconstructed rotational, Coriolis, and joint-damping terms. This makes a
+gross stiffness sign, base-frame direction, or Jacobian-transpose error
+unlikely. The reconstructed TCP wrench is only about `0.39 N` on the sampled
+rows (`0.42 N` without downsampling), so near-zero breakaway
+friction/stiction/deadband is the leading physical hypothesis, not yet a
+proven cause.
+
+The same audit found a P0 data-publication defect: the controller wrote
+state/cadence registers before the 12D applied-action registers, allowing a
+500 Hz RTDE row to mix a fresh publication prefix with the previous run's
+action tail. In the 10 s entry-lowpass CSV, the first STARTUP row has fresh
+`control_update_count=1` and `torque_thread_tick_count=0`, but carries the
+preceding 2 s run's `0.1902146167 Nm` joint-0 action. Historical
+`first custom torque` and entry classifications are therefore retired.
+
+The offline source now:
+
+1. brackets every active action/cadence publication with generation stamps in
+   output integer registers 29 and 33;
+2. marks a row coherent only when `begin == end > 0`, retains all rows, and
+   excludes incoherent rows from action-derived metrics;
+3. stops the torque thread if `control_update_count` is stale for 25 torque
+   ticks (nominal 50 ms), reporting fault code 13;
+4. requires 150 ms (three filter time constants) of entry-velocity-filter
+   warm-up before the 50 ms stable dwell may advance.
+
+These repairs have offline source/test evidence only. Autotune owns the bench,
+so no robot, controller, Kunwei, or live writer was accessed for this audit.
+The durable numeric summary is
+`config/direct_torque_v4_offline_root_cause_20260728.json`. A new immutable
+receiver bundle and fresh no-contact hold/ramp/reference chain are still
+required after the bench is released. All historical and future pre-fix
+captures remain `training_dataset=false`.
 
 A 2026-07-26 read-only 2 s position-control shadow at the fresh bench pose
 captured 954 RTDE rows without sending a program or writing RTDE inputs. Mean
