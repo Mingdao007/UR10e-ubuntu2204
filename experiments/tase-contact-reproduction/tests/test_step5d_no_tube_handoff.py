@@ -28,7 +28,10 @@ def test_existing_script_pair_is_hash_closed_and_r026_current() -> None:
 
     assert binding["script1"]["program_id"] == "step5d_autotune_start_hover_r001"
     assert binding["script2"]["program_id"] == "step5d_strict_rnn_autotune_v3_r026"
-    assert binding["script2"]["sha256"][".script"].startswith("bd0058")
+    assert (
+        binding["script2"]["sha256"][".script"]
+        == "ea4759867995cbc950b769586826452bbbb3e7ff7fe24397f22a4a58f23f38ac"
+    )
 
 
 def test_queue_ready_counts_pending_not_inflight(tmp_path: Path) -> None:
