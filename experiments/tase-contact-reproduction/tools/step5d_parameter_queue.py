@@ -32,6 +32,12 @@ from step5d_autotune_v3.runtime_profile import (
     normalize_trial_overlay,
     normalized_overlay_sha256,
 )
+from step5d_autotune_contract import ForceCandidate
+from step5d_parameter_search_domain import (
+    MIN_SEARCH_FORCE_DAMPING,
+    require_search_candidate,
+    search_candidate_allowed,
+)
 
 
 STATE_SCHEMA = "step5d.parameter-receiver/state-v2"
@@ -47,6 +53,7 @@ CONSUMED_ABORT_RECONCILIATION_SCHEMA = (
 MIGRATION_SCHEMA = "step5d.parameter-receiver/migration-v1"
 NEXT_ARM_SCHEMA = "step5d.parameter-receiver/governance-next-arm-v1"
 TERMINAL_RECEIPT_SCHEMA = "step5d.parameter-receiver/governance-terminal-receipt-v1"
+POLICY_REJECTION_SCHEMA = "step5d.parameter-receiver/policy-rejection-v1"
 PROTOCOL = "v3_full_home_parameter_receiver_v1"
 MAX_JSON_BYTES = 16 * 1024
 POSITIONS = frozenset({"tail", "next"})
@@ -233,6 +240,10 @@ def _receipt_path(root: Path, request_uid: str) -> Path:
 
 def _reconciliation_path(root: Path, dispatch_sequence: int) -> Path:
     return root / "reconciliations" / f"{dispatch_sequence:012d}.json"
+
+
+def _policy_rejection_path(root: Path, request_uid: str) -> Path:
+    return root / "policy_rejections" / f"{request_uid.rsplit(':', 1)[-1]}.json"
 
 
 def _governance_root(root: Path) -> Path:
@@ -755,6 +766,18 @@ def _request_document(
     }
     overlay_input.pop("control_candidate_uid", None)
     overlay = normalize_trial_overlay(overlay_input, profile=profile)
+    try:
+        require_search_candidate(
+            ForceCandidate(
+                force_p_gain=float(overlay["force_p_gain"]),
+                force_i_gain=float(overlay["force_i_gain"]),
+                force_damping=float(overlay["force_damping"]),
+                normal_filter_tau_s=float(overlay["normal_filter_tau_s"]),
+            ),
+            role="parameter request",
+        )
+    except ValueError as exc:
+        raise ParameterQueueError(str(exc)) from exc
     overlay_sha = normalized_overlay_sha256(profile, overlay)
     identity = {
         "protocol": PROTOCOL,
@@ -888,6 +911,8 @@ def _pending(
         for row in _visible_requests(root, state)
         if row["request_uid"] != inflight_uid
         and not _receipt_path(root, str(row["request_uid"])).exists()
+        and not _policy_rejection_path(root, str(row["request_uid"])).exists()
+        and search_candidate_allowed(_request_candidate(row))
     ]
     rows.sort(
         key=lambda row: (
@@ -896,6 +921,55 @@ def _pending(
         )
     )
     return tuple(rows)
+
+
+def _request_candidate(request: Mapping[str, Any]) -> ForceCandidate:
+    overlay = request["overlay"]
+    return ForceCandidate(
+        force_p_gain=float(overlay["force_p_gain"]),
+        force_i_gain=float(overlay["force_i_gain"]),
+        force_damping=float(overlay["force_damping"]),
+        normal_filter_tau_s=float(overlay.get("normal_filter_tau_s", 0.35)),
+    )
+
+
+def _quarantine_policy_violations_locked(
+    root: Path, state: Mapping[str, Any]
+) -> tuple[dict[str, Any], ...]:
+    inflight_uid = (
+        None if state["inflight"] is None else state["inflight"]["request_uid"]
+    )
+    records: list[dict[str, Any]] = []
+    for request in _visible_requests(root, state):
+        request_uid = str(request["request_uid"])
+        if (
+            request_uid == inflight_uid
+            or _receipt_path(root, request_uid).exists()
+            or _policy_rejection_path(root, request_uid).exists()
+        ):
+            continue
+        candidate = _request_candidate(request)
+        if search_candidate_allowed(candidate):
+            continue
+        record = {
+            "schema": POLICY_REJECTION_SCHEMA,
+            "request_uid": request_uid,
+            "enqueue_sequence": request["enqueue_sequence"],
+            "reason": "force_damping_below_search_floor",
+            "force_damping": candidate.force_damping,
+            "minimum_force_damping": MIN_SEARCH_FORCE_DAMPING,
+            "physical_attempt": False,
+        }
+        _write_once(_policy_rejection_path(root, request_uid), record)
+        records.append(record)
+    return tuple(records)
+
+
+def quarantine_pending_search_violations(root: Path) -> tuple[dict[str, Any], ...]:
+    """Durably reject legacy pending rows that violate the current search domain."""
+
+    with _lock(root):
+        return _quarantine_policy_violations_locked(root, load_state(root))
 
 
 def list_pending(root: Path) -> tuple[dict[str, Any], ...]:
@@ -967,10 +1041,17 @@ def prepare_next_dispatch(root: Path) -> dict[str, Any] | None:
         if state["home_identity"] is None:
             raise ParameterQueueError("queue is not bound to READY_HOME")
         if state["inflight"] is not None:
-            return _strict_json(
+            inflight = _strict_json(
                 _dispatch_path(root, int(state["inflight"]["dispatch_sequence"])),
                 "parameter dispatch",
             )
+            if not search_candidate_allowed(_request_candidate(inflight["request"])):
+                raise ParameterQueueError(
+                    "inflight dispatch violates the current force_damping search "
+                    "floor and cannot be replayed; reconcile it before continuing"
+                )
+            return inflight
+        _quarantine_policy_violations_locked(root, state)
         pending = _pending(root, state)
         if not pending:
             return None

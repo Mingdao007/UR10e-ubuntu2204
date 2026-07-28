@@ -21,6 +21,10 @@ from step5d_autotune_v3.atomic_io import atomic_bytes
 from step5d_autotune_v3.state import read_strict_json
 from step5d_parameter_outbox import RESULT_SCHEMA
 from step5d_parameter_queue import authoritative_view
+from step5d_parameter_search_domain import (
+    production_candidate_catalog,
+    require_search_candidate,
+)
 
 
 PROPOSAL_SCHEMA = "step5d.parameter-receiver/offline-bo-proposal-v1"
@@ -301,10 +305,8 @@ def propose_candidates(
     observations, observed_uids, observation_material = load_observations(outbox_root)
     pending_uids, pending_material = load_pending_candidates(receiver_root)
     excluded = observed_uids | pending_uids
-    from step5d_autotune_v3.batch_producer import production_candidate_catalog
-
     catalog = tuple(
-        candidate
+        require_search_candidate(candidate, role="BO catalog candidate")
         for candidate in production_candidate_catalog()
         if candidate.candidate_uid not in excluded
     )
@@ -325,6 +327,13 @@ def propose_candidates(
         or any(candidate.candidate_uid in excluded for candidate in selected)
     ):
         raise ParameterBoError("optimizer returned invalid or excluded candidates")
+    try:
+        selected = tuple(
+            require_search_candidate(candidate, role="optimizer-selected candidate")
+            for candidate in selected
+        )
+    except ValueError as exc:
+        raise ParameterBoError(str(exc)) from exc
     material_digest = hashlib.sha256(
         json.dumps(
             {"observations": observation_material, "pending": pending_material},

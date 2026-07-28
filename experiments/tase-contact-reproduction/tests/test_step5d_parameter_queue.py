@@ -37,6 +37,7 @@ from step5d_parameter_queue import (  # noqa: E402
     prepare_next_dispatch,
     reconcile_not_consumed,
     publish_next_arm,
+    quarantine_pending_search_violations,
     read_next_arm,
     record_terminal_receipt,
     status,
@@ -114,14 +115,98 @@ def test_initial_manifest_is_exact_quarter_octave_path() -> None:
     assert len(rows) == 10
     assert all(row["position"] == "tail" for row in rows)
     assert rows[0]["force_p_gain"] == pytest.approx(0.0008408964152537145)
-    assert rows[-1]["force_damping"] == pytest.approx(4.949747468305833)
+    assert all(row["force_damping"] >= 5.0 for row in rows)
+    assert rows[-1]["force_damping"] == pytest.approx(7.0)
+
+
+def test_receiver_rejects_new_candidate_below_damping_floor(tmp_path: Path) -> None:
+    root = _queue(tmp_path)
+    with pytest.raises(ParameterQueueError, match="below the 5 search floor"):
+        submit(
+            root,
+            launch_profile_path=PROFILE,
+            force_p=0.001,
+            force_i=0.00001,
+            force_damping=4.949747468305833,
+        )
+    assert list_requests(root) == ()
+
+
+def test_legacy_pending_candidate_below_floor_is_quarantined(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _queue(tmp_path)
+    import step5d_parameter_queue as queue_module
+
+    monkeypatch.setattr(
+        queue_module,
+        "require_search_candidate",
+        lambda candidate, *, role: candidate,
+    )
+    rejected = submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.001,
+        force_i=0.00001,
+        force_damping=4.949747468305833,
+        source="legacy-before-floor",
+    )
+    monkeypatch.undo()
+    accepted = submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.001,
+        force_i=0.00001,
+        force_damping=5.886274906776001,
+        source="after-floor",
+    )
+
+    records = quarantine_pending_search_violations(root)
+    assert len(records) == 1
+    assert records[0]["request_uid"] == rejected["request_uid"]
+    assert records[0]["physical_attempt"] is False
+    assert [row["request_uid"] for row in list_pending(root)] == [
+        accepted["request_uid"]
+    ]
+
+
+def test_legacy_inflight_candidate_below_floor_cannot_be_replayed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _queue(tmp_path)
+    import step5d_parameter_queue as queue_module
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            queue_module,
+            "require_search_candidate",
+            lambda candidate, *, role: candidate,
+        )
+        patch.setattr(
+            queue_module,
+            "search_candidate_allowed",
+            lambda candidate: True,
+        )
+        submit(
+            root,
+            launch_profile_path=PROFILE,
+            force_p=0.001,
+            force_i=0.00001,
+            force_damping=4.949747468305833,
+            source="legacy-before-floor",
+        )
+        bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+        assert prepare_next_dispatch(root) is not None
+
+    with pytest.raises(ParameterQueueError, match="cannot be replayed"):
+        prepare_next_dispatch(root)
 
 
 def test_receiver_is_unbounded_file_per_request_and_next_is_fifo(tmp_path: Path) -> None:
     root = _queue(tmp_path)
     for index in range(40):
         p_step = (index % 8) - 4
-        d_step = (index // 8) - 2
+        d_step = (index // 8) - 1
         submit(
             root,
             launch_profile_path=PROFILE,
@@ -798,7 +883,7 @@ def test_receiver_handles_one_hundred_fast_continuous_dispatches(tmp_path: Path)
             launch_profile_path=PROFILE,
             force_p=0.0008408964152537145 * (2 ** ((index % 10) / 4)),
             force_i=0.00001,
-            force_damping=4.949747468305833 * (2 ** ((index // 10) / 4)),
+            force_damping=5.886274906776001 * (2 ** ((index // 10) / 4)),
             source=f"fast-{index}",
         )
     bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
@@ -977,7 +1062,7 @@ def test_finish_dispatch_with_optional_composition_writes_terminal_receipt(
         launch_profile_path=PROFILE,
         force_p=0.0008408964152537145,
         force_i=0.00001,
-        force_damping=4.949747468305833,
+        force_damping=5.886274906776001,
     )
     bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
     dispatch = prepare_next_dispatch(root)
@@ -1108,7 +1193,7 @@ def test_finish_dispatch_with_identical_governance_receipt_is_idempotent_while_i
         launch_profile_path=PROFILE,
         force_p=0.0008408964152537145,
         force_i=0.00001,
-        force_damping=4.949747468305833,
+        force_damping=5.886274906776001,
     )
     bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
     dispatch = prepare_next_dispatch(root)

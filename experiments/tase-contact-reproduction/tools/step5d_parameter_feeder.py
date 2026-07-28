@@ -21,7 +21,6 @@ import time
 from typing import Any, Callable, Iterator, Mapping, Sequence
 
 from step5d_autotune_v3.atomic_io import atomic_bytes
-from step5d_autotune_v3.batch_producer import production_candidate_catalog
 from step5d_parameter_bo import (
     ORIENTATION_KO,
     formal_cuda_qlognei,
@@ -30,6 +29,10 @@ from step5d_parameter_bo import (
 )
 from step5d_parameter_outbox import process_postprocess_task
 from step5d_parameter_queue import authoritative_view, submit_manifest
+from step5d_parameter_search_domain import (
+    production_candidate_catalog,
+    require_search_candidate,
+)
 
 
 CONFIG_SCHEMA = "step5d.parameter-receiver/no-empty-feeder-config-v1"
@@ -419,7 +422,7 @@ class ParameterFeeder:
     ) -> tuple[list[dict[str, Any]], str | None, dict[str, Any]]:
         excluded = set(observed_uids) | set(pending_uids)
         catalog = tuple(
-            candidate
+            require_search_candidate(candidate, role="feeder catalog candidate")
             for candidate in self.catalog_provider()
             if candidate.candidate_uid not in excluded
         )
@@ -442,7 +445,12 @@ class ParameterFeeder:
                     or any(candidate.candidate_uid in excluded for candidate in selected_tuple)
                 ):
                     raise FeederError("optimizer returned excluded or duplicate candidates")
-                selected.extend(selected_tuple)
+                selected.extend(
+                    require_search_candidate(
+                        candidate, role="optimizer-selected candidate"
+                    )
+                    for candidate in selected_tuple
+                )
             except Exception as exc:
                 fallback_reason = f"optimizer_unavailable:{type(exc).__name__}:{exc}"
         fallback_candidates: list[Any] = list(catalog)

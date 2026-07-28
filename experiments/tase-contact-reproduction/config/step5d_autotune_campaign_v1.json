@@ -38,6 +38,7 @@
   },
   "search": {
     "coordinate_system": "log10_i_scale_probe_then_log2_native_refine",
+    "force_damping_min": 5.0,
     "lattice_octaves": 0.25,
     "one_coordinate_per_live_trial": true,
     "i_zero_is_categorical": true,

@@ -163,7 +163,7 @@ def test_migrated_not_consumed_p05_rebinds_zero_home_then_advances_p06(
             launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
             force_p=0.0008408964152537145 * (2 ** (index / 4)),
             force_i=0.00001,
-            force_damping=4.949747468305833,
+            force_damping=5.886274906776001,
             source=f"P{index + 4:02d}",
         )
     bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
@@ -815,7 +815,7 @@ def test_send_is_idempotent_when_next_arm_already_published(
         launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
         force_p=0.0008408964152537145,
         force_i=0.00001,
-        force_damping=4.949747468305833,
+        force_damping=5.886274906776001,
     )
     bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
     dispatch = prepare_next_dispatch(receiver_root)
@@ -890,7 +890,7 @@ def test_send_blocks_newer_next_arm_marker_without_resend(
         launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
         force_p=0.0008408964152537145,
         force_i=0.00001,
-        force_damping=4.949747468305833,
+        force_damping=5.886274906776001,
     )
     bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
     dispatch = prepare_next_dispatch(receiver_root)
@@ -965,7 +965,7 @@ def test_send_blocks_same_sequence_payload_mismatch_without_resend(
         launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
         force_p=0.0008408964152537145,
         force_i=0.00001,
-        force_damping=4.949747468305833,
+        force_damping=5.886274906776001,
     )
     bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
     dispatch = prepare_next_dispatch(receiver_root)
@@ -1061,7 +1061,7 @@ def test_send_replays_from_mailbox_after_preflight_send_without_next_arm(
         launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
         force_p=0.0008408964152537145,
         force_i=0.00001,
-        force_damping=4.949747468305833,
+        force_damping=5.886274906776001,
     )
     bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
     dispatch = prepare_next_dispatch(receiver_root)
@@ -1312,7 +1312,7 @@ def test_runner_first_cycle_publishes_next_arm_and_terminal_receipt(
         launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
         force_p=0.0008408964152537145,
         force_i=0.00001,
-        force_damping=4.949747468305833,
+        force_damping=5.886274906776001,
         source="first-cycle",
     )
     bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
@@ -1479,7 +1479,7 @@ def test_runner_recovering_from_send_readback_race_reuses_mailbox_state_without_
         launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
         force_p=0.0008408964152537145,
         force_i=0.00001,
-        force_damping=4.949747468305833,
+        force_damping=5.886274906776001,
         source="recover-dispatch-1",
     )
     bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
@@ -1835,7 +1835,7 @@ def test_terminal_artifact_recovery_skips_legacy_and_recovers_missing_identity(
         launch_profile_path=profile,
         force_p=0.0008408964152537145,
         force_i=0.00001,
-        force_damping=4.949747468305833,
+        force_damping=5.886274906776001,
     )
     bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
     dispatch = prepare_next_dispatch(receiver_root)

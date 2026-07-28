@@ -167,7 +167,10 @@ def test_production_report_classifies_every_active_provider() -> None:
         "torch": "torch",
         "cupy_backends": "cupy-cuda12x",
     } == {name: uv[name] for name in ("torch", "cupy_backends")}
-    assert {"botorch", "gpytorch"}.isdisjoint(uv)
+    assert {
+        "botorch": "botorch",
+        "gpytorch": "gpytorch",
+    } == {name: uv[name] for name in ("botorch", "gpytorch")}
     host_imports = {
         row["name"]: row["provider"]
         for row in report["classifications"]["host_contract"]
@@ -219,12 +222,15 @@ def test_production_report_classifies_every_active_provider() -> None:
         "ur10e_nominal.xml" in path for path in report["repository_paths"]
     )
     assert {
-        "tools/step5d_autotune_optimizer.py",
         "tools/step5d_autotune_r008_policy.py",
         "tools/step5d_autotune_v3/optimizer_worker.py",
         "tools/step5d_autotune_v3/runtime_functional_gates.py",
     }.isdisjoint(report["experiment_paths"])
     assert {
+        "tools/step5d_autotune_optimizer.py",
+        "tools/step5d_parameter_bo.py",
+        "tools/step5d_parameter_feeder.py",
+        "tools/step5d_parameter_search_domain.py",
         "tools/step5d_autotune_v3/optimizer_policy.py",
         "tools/step5d_autotune_v3/optimizer_types.py",
     } <= set(report["experiment_paths"])

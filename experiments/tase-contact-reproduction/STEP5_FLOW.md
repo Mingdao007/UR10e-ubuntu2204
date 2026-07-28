@@ -52,6 +52,14 @@ The candidate feeder runs on the candidate plane and consumes sealed terminal
 results only. The optional guard is composed through
 `evaluate(observation, proposed_command) -> GuardDecision`; the empty policy
 set is an exact identity and therefore restores the no-tube r026 command.
+The constrained BO feasible domain is `force_damping >= 5.0`. Candidate catalog
+generation removes lower-damping points before acquisition optimization, and
+optimizer output validation enforces the same domain before queue submission.
+Queue admission repeats this as a producer/consumer seam invariant: it rejects
+new violations and durably quarantines legacy pending violations without
+counting them as physical attempts. Historical completed observations below
+the domain remain readable evidence but can never be proposed or dispatched
+again.
 
 The governed TP identity revision is r026. It carries protocol/digest identity on
 output integer registers 35--37 and requires release-manifest v3 verification,
