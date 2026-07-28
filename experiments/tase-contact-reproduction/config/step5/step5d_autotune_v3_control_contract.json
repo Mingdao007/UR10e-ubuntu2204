@@ -176,7 +176,7 @@
     ],
     [
       "--bridge-normal-max-rate-rad-s",
-      "0.500"
+      "1.000"
     ],
     [
       "--bridge-normal-min-force-n",
@@ -272,7 +272,7 @@
     ],
     [
       "--step5d-autotune-normal-rate-rad-s",
-      "0.500"
+      "1.000"
     ],
     [
       "--step5d-autotune-host-slew-rad-s2",
@@ -420,7 +420,7 @@
       "bridge_normal_follow_mode": "filtered_live",
       "bridge_normal_friction_projection": "on",
       "bridge_normal_max_angle_from_latch_deg": 20.0,
-      "bridge_normal_max_rate_rad_s": 0.5,
+      "bridge_normal_max_rate_rad_s": 1.0,
       "bridge_normal_min_force_n": 2.0,
       "bridge_normal_velocity_limit_m_s": 1.0,
       "bridge_total_linear_limit_m_s": 1.0,
@@ -452,7 +452,7 @@
       "step4e_normal_velocity_limit_m_s": 1.0,
       "step4e_total_linear_limit_m_s": 1.0,
       "step5d_autotune_host_slew_rad_s2": 2.5,
-      "step5d_autotune_normal_rate_rad_s": 0.5,
+      "step5d_autotune_normal_rate_rad_s": 1.0,
       "step5d_autotune_offline_only_profile": false,
       "step5d_autotune_profile_eligibility": "live_eligible",
       "step5d_autotune_speedj_acceleration_rad_s2": 2.5,
@@ -468,7 +468,7 @@
       "write_rtde_inputs": true
     }
   },
-  "execution_profile_id": "nf500-slew250-a250",
+  "execution_profile_id": "nf1000-slew250-a250",
   "forbidden_cli_flags": [
     "--step4e-normal-filter-alpha",
     "--bridge-normal-filter-alpha",

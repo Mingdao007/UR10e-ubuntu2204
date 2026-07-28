@@ -299,14 +299,14 @@ def verify_release_manifest(
     normal_rate, expected_profile_integer_id = (
         ROLLING_EXECUTION_PROFILE_BINDINGS[release.execution_profile_id]
     )
-    rotational_x5 = release.execution_profile_id == "nf500-slew250-a250"
+    high_dynamics = normal_rate >= 0.5
     profile = ExecutionProfile(
         release.execution_profile_id,
         normal_rate,
-        2.5 if rotational_x5 else 0.5,
-        2.5 if rotational_x5 else 0.5,
-        qdot_cap_rad_s=2.5 if rotational_x5 else 0.5,
-        bridge_angular_limit_rad_s=0.25 if rotational_x5 else 0.05,
+        2.5 if high_dynamics else 0.5,
+        2.5 if high_dynamics else 0.5,
+        qdot_cap_rad_s=2.5 if high_dynamics else 0.5,
+        bridge_angular_limit_rad_s=0.25 if high_dynamics else 0.05,
     )
     encoded_profile = execution_profile_integer_id(profile)
     if encoded_profile != expected_profile_integer_id:

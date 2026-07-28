@@ -16,6 +16,7 @@
     "execution_profile_id": {
       "allowed": [
         "nf500-slew250-a250",
+        "nf1000-slew250-a250",
         "nf100-slew050-a050"
       ]
     },

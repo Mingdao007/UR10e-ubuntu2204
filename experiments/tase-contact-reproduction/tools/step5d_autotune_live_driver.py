@@ -61,6 +61,7 @@ NORMAL_LEVELS = {
     5: 0.050,
     6: 0.100,
     7: 0.500,
+    8: 1.000,
 }
 ACTUATOR_LEVELS = {1: 0.1, 2: 0.2, 3: 0.5, 4: 2.5}
 HOST_TO_TP_NAMES = (

@@ -78,6 +78,14 @@ _EXECUTION_PROFILE_SEMANTICS = {
         "step5d_autotune_host_slew_rad_s2": 2.5,
         "step5d_autotune_speedj_acceleration_rad_s2": 2.5,
     },
+    "nf1000-slew250-a250": {
+        "bridge_angular_limit_rad_s": 0.25,
+        "bridge_normal_max_rate_rad_s": 1.0,
+        "step5d_qdot_limit_rad_s": 2.5,
+        "step5d_autotune_normal_rate_rad_s": 1.0,
+        "step5d_autotune_host_slew_rad_s2": 2.5,
+        "step5d_autotune_speedj_acceleration_rad_s2": 2.5,
+    },
 }
 
 

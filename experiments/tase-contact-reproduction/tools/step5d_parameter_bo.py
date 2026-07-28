@@ -28,7 +28,7 @@ from step5d_parameter_search_domain import (
 
 
 PROPOSAL_SCHEMA = "step5d.parameter-receiver/offline-bo-proposal-v1"
-PROFILE_ID = "nf500-slew250-a250"
+PROFILE_ID = "nf1000-slew250-a250"
 ORIENTATION_KO = 0.4
 Optimizer = Callable[
     [Sequence[Any], Sequence[ForceCandidate], int, int],

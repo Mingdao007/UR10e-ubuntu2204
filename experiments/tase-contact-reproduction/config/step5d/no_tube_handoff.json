@@ -29,7 +29,7 @@
     "release_manifest_sha256": "3ccd466d2116b8332b1bbe01f3f36ac66f01b619123ce5050e9a56af3d51e2eb",
     "readback_receipt": "config/step5d_autotune_controller_readback_v3.json",
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r026.urp",
-    "execution_profile_id": "nf500-slew250-a250",
+    "execution_profile_id": "nf1000-slew250-a250",
     "sha256": {
       ".script": "bd0058b9977279db60c706e2092629c88ef811ad9fbaf7d4672967c05c118874",
       ".txt": "f511dd7b371d9894dca3fb814befab5e4bde7e085deca6a6239911dd57cfb1d3",

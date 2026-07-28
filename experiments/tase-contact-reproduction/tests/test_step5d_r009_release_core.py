@@ -235,7 +235,12 @@ def _release_fixture(
     mirror_path = root / "config/mirror.json"
     mirror_path.write_text('{"program":"r010"}\n', encoding="utf-8")
 
-    rotational_x5 = execution_profile_id == "nf500-slew250-a250"
+    profile_bindings = {
+        "nf100-slew050-a050": (0.1, 633),
+        "nf500-slew250-a250": (0.5, 744),
+        "nf1000-slew250-a250": (1.0, 844),
+    }
+    normal_rate, integer_id = profile_bindings[execution_profile_id]
     manifest = {
         "schema": RELEASE_MANIFEST_SCHEMA,
         "identity": {
@@ -243,9 +248,9 @@ def _release_fixture(
             "release_stage_id": "step5d_strict_rnn_autotune_v3",
             "control_profile_id": "step5d_strict_rnn_autotune_v1",
             "protocol_id": "v3_full_home_rolling_arm_v1",
-            "normal_max_rate_rad_s": 0.5 if rotational_x5 else 0.1,
+            "normal_max_rate_rad_s": normal_rate,
             "execution_profile_id": execution_profile_id,
-            "execution_profile_integer_id": 744 if rotational_x5 else 633,
+            "execution_profile_integer_id": integer_id,
         },
         "artifacts": artifacts,
         "controller_target": controller_target,
@@ -417,7 +422,7 @@ def test_exact_first_row_admission_closes_plan_overlay_wrapper_and_tp_commit(
 ) -> None:
     _release_fixture(
         tmp_path,
-        execution_profile_id="nf500-slew250-a250",
+        execution_profile_id="nf1000-slew250-a250",
     )
     release = load_current_release(tmp_path)
     campaign_root = tmp_path / "campaign"
@@ -702,7 +707,7 @@ def test_candidate_prefers_canonical_repository_artifacts(tmp_path: Path) -> Non
         canonical,
         "2026-07-23T0000HKT_" + PROGRAM.upper(),
         program_id=PROGRAM,
-        execution_profile_id="nf500-slew250-a250",
+        execution_profile_id="nf1000-slew250-a250",
     )
 
     assert promoter.default_release_artifact_dir(tmp_path) == canonical

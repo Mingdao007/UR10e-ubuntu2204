@@ -35,6 +35,7 @@ LOG2_LATTICE_OCTAVE = 0.25
 CODEX_I_SCALE_MULTIPLIERS = (10.0, 50.0, 100.0, 500.0, 1000.0)
 QDOT_CAP_RAD_S = 0.5
 ROTATIONAL_DYNAMICS_X5_PROFILE_ID = "nf500-slew250-a250"
+ROTATIONAL_DYNAMICS_X10_PROFILE_ID = "nf1000-slew250-a250"
 NORMAL_FILTER_TAU_S = 0.35
 NORMAL_FILTER_DT_MODE = "fixed_0.002s"
 EXACT_REPLAY_ENGINE_ID = "step5d_v35_candidate_bound_exact_replay_v1"
@@ -405,7 +406,16 @@ class ExecutionProfile:
             "bridge_angular_limit_rad_s", self.bridge_angular_limit_rad_s
         )
         _strict_bool("live_eligible", self.live_eligible)
-        if normal_rate not in {0.010, 0.015, 0.020, 0.030, 0.050, 0.100, 0.500}:
+        if normal_rate not in {
+            0.010,
+            0.015,
+            0.020,
+            0.030,
+            0.050,
+            0.100,
+            0.500,
+            1.000,
+        }:
             raise ValueError(
                 "normal max-rate must be one of .010/.015/.020/.030/.050/.100/.500 rad/s"
             )
@@ -442,7 +452,10 @@ class ExecutionProfile:
             or not math.isclose(tp_accel, 0.1, abs_tol=1e-12)
         ):
             raise ValueError("offline .030 profile is fixed to host-slew=.1 and TP-accel=.1")
-        if math.isclose(normal_rate, 0.500, abs_tol=1e-12):
+        if any(
+            math.isclose(normal_rate, value, abs_tol=1e-12)
+            for value in (0.500, 1.000)
+        ):
             if not (
                 math.isclose(host_slew, 2.5, abs_tol=1e-12)
                 and math.isclose(tp_accel, 2.5, abs_tol=1e-12)
@@ -450,7 +463,7 @@ class ExecutionProfile:
                 and math.isclose(bridge_angular_limit, 0.25, abs_tol=1e-12)
             ):
                 raise ValueError(
-                    "nf500-slew250-a250 must bind normal=.5, bridge-angular=.25, "
+                    "high-dynamics profiles must bind bridge-angular=.25, "
                     "qdot=2.5, host-slew=2.5, and TP-accel=2.5"
                 )
         elif not (
@@ -479,6 +492,14 @@ NORMAL_FILTER_PROFILES: tuple[ExecutionProfile, ...] = (
     ExecutionProfile(
         ROTATIONAL_DYNAMICS_X5_PROFILE_ID,
         0.500,
+        2.5,
+        2.5,
+        qdot_cap_rad_s=2.5,
+        bridge_angular_limit_rad_s=0.25,
+    ),
+    ExecutionProfile(
+        ROTATIONAL_DYNAMICS_X10_PROFILE_ID,
+        1.000,
         2.5,
         2.5,
         qdot_cap_rad_s=2.5,

@@ -25,7 +25,10 @@ if str(RUNTIME_SRC) not in sys.path:
     sys.path.insert(0, str(RUNTIME_SRC))
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
-from step5d_autotune_v3.release_identity import ROLLING_PROTOCOL
+from step5d_autotune_v3.release_identity import (
+    ROLLING_EXECUTION_PROFILE_BINDINGS,
+    ROLLING_PROTOCOL,
+)
 from step5d_autotune_contract import NORMAL_FILTER_PROFILES
 from step5d_autotune_v3.runtime_identity import (
     RuntimeIdentityError,
@@ -51,6 +54,9 @@ STAGE25_STALE_COMMAND_HOLD_S = 1.000
 CONTROLLER_DIR = v1.CONTROLLER_DIR
 LOCAL_PROGRAM_DIR = v1.LOCAL_PROGRAM_DIR
 DEFAULT_EXECUTION_PROFILE_ID = "nf100-slew050-a050"
+HIGH_DYNAMICS_PROFILE_IDS = frozenset(
+    {"nf500-slew250-a250", "nf1000-slew250-a250"}
+)
 
 
 def _execution_profile(profile_id: str):
@@ -64,12 +70,12 @@ _EXECUTION_PROFILE_OVERLAY = (
     (
         "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050 rad/s;",
         "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100 rad/s;",
-        "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100, 7=.500 rad/s;",
+        "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100, 7=.500, 8=1.000 rad/s;",
     ),
     (
         "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
         "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
-        "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6 or normal_level == 7) and host_slew_level >= 1 and host_slew_level <= 4 and tp_accel_level >= 1 and tp_accel_level <= 4",
+        "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6 or normal_level == 7 or normal_level == 8) and host_slew_level >= 1 and host_slew_level <= 4 and tp_accel_level >= 1 and tp_accel_level <= 4",
     ),
     (
         "  elif accel_level == 3:\n    return 0.500",
@@ -89,7 +95,7 @@ def _rewrite_execution_profile(
 ) -> str:
     if profile_id == DEFAULT_EXECUTION_PROFILE_ID:
         return script
-    if profile_id != "nf500-slew250-a250":
+    if profile_id not in HIGH_DYNAMICS_PROFILE_IDS:
         raise ValueError(f"execution profile has no TP generator overlay: {profile_id!r}")
     rendered = script
     for legacy, batch, profile in _EXECUTION_PROFILE_OVERLAY:
@@ -119,7 +125,8 @@ def _apply_execution_profile(script: str, profile_id: str) -> str:
         raise ValueError(f"execution profile overlay failed for {profile.profile_id}")
     if "elif accel_level == 4:" not in rendered:
         raise ValueError(f"execution profile TP acceleration overlay failed for {profile.profile_id}")
-    if "normal_level == 7" not in rendered:
+    expected_normal_level = 8 if profile_id == "nf1000-slew250-a250" else 7
+    if f"normal_level == {expected_normal_level}" not in rendered:
         raise ValueError(f"execution profile normal-rate overlay failed for {profile.profile_id}")
     return rendered
 
@@ -129,7 +136,7 @@ def _remove_execution_profile(script: str, profile_id: str) -> str:
 
 
 def _prepare_profile_for_batch_normalization(script: str, profile_id: str) -> str:
-    if profile_id != "nf500-slew250-a250":
+    if profile_id not in HIGH_DYNAMICS_PROFILE_IDS:
         return script
     return _rewrite_execution_profile(script, profile_id, normalize_batch=True)
 
@@ -1127,7 +1134,7 @@ def numeric_sanity(
         "far_search_speed_m_s": 0.03375,
         "speedj_acceleration_profiles_rad_s2": (
             [0.1, 0.2, 0.5, 2.5]
-            if execution_profile_id == "nf500-slew250-a250"
+            if execution_profile_id in HIGH_DYNAMICS_PROFILE_IDS
             else [0.1, 0.2, 0.5]
         ),
         "input_integer_registers": [24, 25, 26, 27, 28, 29, 30, 31],
@@ -1135,7 +1142,7 @@ def numeric_sanity(
         "tp_runtime_identity": runtime_identity,
         "execution_profile_id": execution_profile_id,
         "execution_profile_integer_id": (
-            744 if execution_profile_id == "nf500-slew250-a250" else 633
+            ROLLING_EXECUTION_PROFILE_BINDINGS[execution_profile_id][1]
         ),
         "safe_transfer_z_m": 0.033,
         "return_segment_count": 3,
