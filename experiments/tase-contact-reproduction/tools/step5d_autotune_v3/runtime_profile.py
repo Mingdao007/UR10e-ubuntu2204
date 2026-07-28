@@ -208,6 +208,7 @@ class LaunchProfile:
     launch_overrides: Mapping[str, str]
     trial_overlay_policy: Mapping[str, Mapping[str, Any]]
     fingerprint: str
+    hard_tube_enabled: bool
 
 
 def load_launch_profile(
@@ -239,6 +240,7 @@ def load_launch_profile(
         "tp_program_id",
         "control_contract_sha256",
         "moving_sphere_reference_sha256",
+        "hard_tube_policy",
         "launch_overrides",
         "trial_overlay_policy",
     }
@@ -258,6 +260,13 @@ def load_launch_profile(
         payload["moving_sphere_reference_sha256"],
         name="moving_sphere_reference_sha256",
     )
+    hard_tube_policy = payload["hard_tube_policy"]
+    if (
+        not isinstance(hard_tube_policy, dict)
+        or set(hard_tube_policy) != {"enabled"}
+        or not isinstance(hard_tube_policy["enabled"], bool)
+    ):
+        raise ContractViolation("hard-tube launch policy differs")
     if payload["control_contract_sha256"] != contract_sha256(payload_contract):
         raise ContractViolation("launch profile control contract binding differs")
     mutable = launch_mutable_flags(payload_contract)
@@ -308,7 +317,13 @@ def load_launch_profile(
                 raise ContractViolation(f"trial overlay range is inverted for {field}")
     document = dict(payload)
     fingerprint = hashlib.sha256(canonical_json_bytes(document)).hexdigest()
-    profile = LaunchProfile(document, overrides, policy, fingerprint)
+    profile = LaunchProfile(
+        document,
+        overrides,
+        policy,
+        fingerprint,
+        hard_tube_enabled=hard_tube_policy["enabled"],
+    )
     normalize_trial_overlay(DEFAULT_OVERLAY, profile=profile)
     return profile
 

@@ -68,6 +68,7 @@ def launch_profile() -> LaunchProfile:
         launch_overrides={},
         trial_overlay_policy=policy,
         fingerprint="c" * 64,
+        hard_tube_enabled=True,
     )
 
 

@@ -48,6 +48,8 @@ def test_default_profile_exposes_broad_launch_surface_and_exact_trial_overlay() 
     assert overlay["normal_filter_tau_s"] == 0.35
     assert profile.document["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
     assert profile.document["tp_program_id"] == PROGRAM
+    assert profile.hard_tube_enabled is False
+    assert profile.document["hard_tube_policy"] == {"enabled": False}
 
 
 def test_default_tau_preserves_v2_identity_and_nondefault_tau_uses_v3() -> None:
@@ -132,6 +134,35 @@ def test_launch_profile_rejects_contract_bound_and_over_ceiling_override(tmp_pat
     with pytest.raises(ContractViolation, match="hard ceiling"):
         load_launch_profile(
             path, contract=contract, expected_tp_program_id=PROGRAM
+        )
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [
+        None,
+        {},
+        {"enabled": 0},
+        {"enabled": False, "radius_m": 0.03},
+    ],
+)
+def test_launch_profile_rejects_non_boolean_or_ambiguous_hard_tube_policy(
+    tmp_path: Path,
+    policy: object,
+) -> None:
+    profile = load_launch_profile(expected_tp_program_id=PROGRAM)
+    payload = dict(profile.document)
+    payload["hard_tube_policy"] = policy
+    path = tmp_path / "profile.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    contract = json.loads(
+        (ROOT / "config/step5/step5d_autotune_v3_control_contract.json").read_text()
+    )
+    with pytest.raises(ContractViolation, match="hard-tube launch policy"):
+        load_launch_profile(
+            path,
+            contract=contract,
+            expected_tp_program_id=PROGRAM,
         )
 
 

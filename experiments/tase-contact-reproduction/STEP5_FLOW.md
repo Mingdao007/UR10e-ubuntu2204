@@ -14,14 +14,14 @@ prove registers 35--37 before it executes, so that pre-identity Play barrier
 is explicit and never aliases `BENCH_READY`; Play may start the TP program but
 ARM remains fail-closed until the runtime identity is observed and rechecked.
 This compatibility projection currently selects
-`step5d_strict_rnn_autotune_v3`; its governed TP identity revision is r012.
+`step5d_strict_rnn_autotune_v3`; its governed TP identity revision is r026.
 
-The governed TP identity revision is r012. It carries protocol/digest identity on
+The governed TP identity revision is r026. It carries protocol/digest identity on
 output integer registers 35--37 and requires release-manifest v3 verification,
 fresh controller GET closure, exact Dashboard loaded-program identity, and the
 runtime register identity before ARM. r011 and r010 are superseded; r009 lacks
 that runtime identity oracle. All earlier revisions are historical-only and
-cannot be treated as the active release. Until the r012 atomic promotion and current observed predicates
+cannot be treated as the active release. Until the r026 atomic promotion and current observed predicates
 both verify, the route remains fail-closed and no `BENCH_READY` claim is valid.
 
 The only public live command is `step5d-autotune-v3.sh bridge-live`; the only resume
@@ -104,17 +104,13 @@ evidence. Pose, stillness, and transfer guards must pass before state 76
 read-only observer may sample TCP angular speed and controller/sample time but
 cannot issue any motion call.
 
-During active Stage25, the shared moving-sphere kernel checks actual and
-conservative predicted-stop distance against a `15 mm` radius using the
-authoritative frozen cycloid progress. Frozen progress freezes the center.
-Missing, nonfinite, mismatched, or uncertified stopping-bound inputs fail
-closed through the existing exact-stop transport. The legacy AABB is not
-simultaneously enforced. Two current-source, 30,000-tick seam diagnostics each
-had zero compute misses and zero sphere stops but one absolute host-schedule
-miss, so they remain `diagnostic_failed_host_schedule`. The exact production
-`SCHED_OTHER/0` formal harness also failed two current-source attempts because
-the full-tick P99/deadline robustness gate was not accepted. Neither result is
-promoted by retrying until lucky; V3 remains `pre_live_blocked`.
+The Stage25 hard tube is an independent `HardTubeGuard` primitive composed
+through the immutable launch profile. The current profile explicitly sets
+`hard_tube_policy.enabled=false`, so the bridge does not allocate or evaluate
+that guard. The module remains independently testable and can be restored by a
+new immutable profile/release. Disabling it does not change the raw 60 N normal
+force, 100 N force-norm, 3 Nm torque, heartbeat, sensor-stale, stage, or
+attitude guards.
 
 Historical v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
 acceleration `0.1 rad/s²`, fresh-feedback drain, permissive ordinary guards,

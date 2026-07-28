@@ -709,6 +709,7 @@ def active_tick_semantics_manifest(
             "moving_sphere_reference_sha256": launch_profile_document[
                 "moving_sphere_reference_sha256"
             ],
+            "hard_tube_policy": launch_profile_document["hard_tube_policy"],
             "launch_overrides": launch_profile_document["launch_overrides"],
             "trial_overlay_policy": launch_profile_document[
                 "trial_overlay_policy"

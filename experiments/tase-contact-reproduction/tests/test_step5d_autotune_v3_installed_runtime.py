@@ -85,22 +85,11 @@ result = wrapper.check_v3_runtime_prewarm([
 expected = validate_installed_calibration()
 if result['tcp_offset_tool0_m'] != list(expected.tcp_offset_tool0_m):
     raise AssertionError('prewarmed TCP offset differs from compact calibration')
-if result['hard_tube']['enabled'] is not True:
-    raise AssertionError('hard-tube guard was not enabled during prewarm')
-if result['hard_tube']['radius_m'] != 0.03:
-    raise AssertionError('hard-tube radius differs from 30 mm')
-if result['hard_tube']['evaluation_hz'] != 100.0:
-    raise AssertionError('hard-tube evaluation rate differs from 100 Hz')
-if result['hard_tube']['configured_evaluation_floor_hz'] != 50.0:
-    raise AssertionError('hard-tube configured evaluation floor differs from 50 Hz')
-if result['hard_tube']['progress_stale_dwell_ms'] != 100.0:
-    raise AssertionError('hard-tube continuous stale dwell differs from 100 ms')
-if result['hard_tube']['progress_stale_recovery_dwell_ms'] != 100.0:
-    raise AssertionError('hard-tube fresh recovery dwell differs from 100 ms')
-if result['hard_tube']['cadence_semantics'] != 'target_not_watchdog_guarantee':
-    raise AssertionError('hard-tube cadence semantics overclaim a watchdog floor')
-if result['hard_tube']['evaluation_clock'] != 'host_monotonic':
-    raise AssertionError('hard-tube evaluation clock is not host monotonic')
+if result['hard_tube'] != {
+    'enabled': False,
+    'mode': 'disabled_by_immutable_launch_policy',
+}:
+    raise AssertionError('hard-tube immutable disabled policy differs')
 if 'pandas' in sys.modules:
     raise AssertionError('pandas remained loaded after control startup')
 print(json.dumps(result, sort_keys=True))

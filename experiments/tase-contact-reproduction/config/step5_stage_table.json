@@ -11048,6 +11048,19 @@
         },
         "manual_v2_route": "archived_historical_only",
         "mode": "single-owner-one-play-unbounded-parameter-receiver",
+        "hard_tube_policy": {
+          "enabled": false,
+          "source": "config/step5/step5d_autotune_v3_launch_profile.json",
+          "unchanged_guards": [
+            "raw_normal_force",
+            "force_norm",
+            "torque_norm",
+            "heartbeat",
+            "sensor_stale",
+            "stage",
+            "attitude"
+          ]
+        },
         "parameter_receiver": {
           "candidate_pool_owner": "sender",
           "capacity": null,

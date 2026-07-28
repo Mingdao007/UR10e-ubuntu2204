@@ -124,7 +124,7 @@ _V3_RUNNER_CLOSURE_FIELDS = frozenset(
 
 
 def _install_v3_hard_tube(args: Any, launch_profile: Any | None) -> None:
-    """Preallocate the V3 30 mm / 100 Hz geometric guard at startup."""
+    """Bind the immutable V3 tube policy and preallocate only when enabled."""
 
     from ur10e_experiment_runtime.hard_tube import (
         HARD_TUBE_EVALUATION_DIVISOR,
@@ -139,8 +139,23 @@ def _install_v3_hard_tube(args: Any, launch_profile: Any | None) -> None:
         Stage25ControllerProgressAdapter,
     )
 
+    enabled = (
+        True
+        if launch_profile is None
+        else bool(launch_profile.hard_tube_enabled)
+    )
     adapter = getattr(args, "step5d_controller_progress_adapter", None)
     guard = getattr(args, "step5d_hard_tube_guard", None)
+    if not enabled:
+        if adapter is not None or guard is not None:
+            raise BridgeTicketError(
+                "V3 disabled hard-tube policy has preallocated state"
+            )
+        args.step5d_controller_progress_adapter = None
+        args.step5d_hard_tube_guard = None
+        args.step5d_hard_tube_progress_age_ns = 0
+        args.step5d_hard_tube_enabled = False
+        return
     if adapter is None and guard is None:
         adapter = Stage25ControllerProgressAdapter(
             physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint,
@@ -193,13 +208,47 @@ def _install_v3_hard_tube(args: Any, launch_profile: Any | None) -> None:
 
 
 def _require_v3_hard_tube_preallocated(args: Any) -> None:
+    enabled = bool(getattr(args, "step5d_hard_tube_enabled", False))
+    adapter = getattr(args, "step5d_controller_progress_adapter", None)
+    guard = getattr(args, "step5d_hard_tube_guard", None)
+    if enabled:
+        if adapter is None or guard is None:
+            raise BridgeTicketError("V3 hard-tube guard is not preallocated")
+        return
+    if adapter is not None or guard is not None:
+        raise BridgeTicketError("V3 disabled hard-tube policy retained state")
+
+
+def _v3_hard_tube_status(args: Any) -> dict[str, Any]:
     if not bool(getattr(args, "step5d_hard_tube_enabled", False)):
-        raise BridgeTicketError("V3 hard-tube guard is not enabled")
-    if (
-        getattr(args, "step5d_controller_progress_adapter", None) is None
-        or getattr(args, "step5d_hard_tube_guard", None) is None
-    ):
-        raise BridgeTicketError("V3 hard-tube guard is not preallocated")
+        return {
+            "enabled": False,
+            "mode": "disabled_by_immutable_launch_policy",
+        }
+    guard = getattr(args, "step5d_hard_tube_guard", None)
+    if guard is None:
+        raise BridgeTicketError("V3 enabled hard-tube status lacks guard state")
+    return {
+        "enabled": True,
+        "radius_m": float(guard.radius_m),
+        "evaluation_hz": float(guard.evaluation_hz),
+        "progress_max_age_ms": (
+            float(guard.progress_max_age_ns) / 1_000_000.0
+        ),
+        "progress_freshness_floor_hz": float(
+            guard.progress_freshness_floor_hz
+        ),
+        "progress_stale_dwell_ms": (
+            float(guard.progress_stale_dwell_ns) / 1_000_000.0
+        ),
+        "progress_stale_recovery_dwell_ms": (
+            float(guard.progress_stale_recovery_dwell_ns) / 1_000_000.0
+        ),
+        "configured_evaluation_floor_hz": 50.0,
+        "cadence_semantics": "target_not_watchdog_guarantee",
+        "evaluation_clock": "host_monotonic",
+        "reference_sha256": guard.reference_sha256,
+    }
 
 
 def compact_v3_fieldnames(fieldnames: Sequence[str]) -> tuple[str, ...]:
@@ -939,36 +988,7 @@ def check_v3_runtime_prewarm(bridge_argv: Sequence[str]) -> dict[str, Any]:
         "tcp_offset_tool0_m": [
             float(value) for value in state.step5d_tcp_offset_tool0
         ],
-        "hard_tube": {
-            "enabled": bool(args.step5d_hard_tube_enabled),
-            "radius_m": float(args.step5d_hard_tube_guard.radius_m),
-            "evaluation_hz": float(
-                args.step5d_hard_tube_guard.evaluation_hz
-            ),
-            "progress_max_age_ms": (
-                float(args.step5d_hard_tube_guard.progress_max_age_ns)
-                / 1_000_000.0
-            ),
-            "progress_freshness_floor_hz": float(
-                args.step5d_hard_tube_guard.progress_freshness_floor_hz
-            ),
-            "progress_stale_dwell_ms": (
-                float(args.step5d_hard_tube_guard.progress_stale_dwell_ns)
-                / 1_000_000.0
-            ),
-            "progress_stale_recovery_dwell_ms": (
-                float(
-                    args.step5d_hard_tube_guard.progress_stale_recovery_dwell_ns
-                )
-                / 1_000_000.0
-            ),
-            "configured_evaluation_floor_hz": 50.0,
-            "cadence_semantics": "target_not_watchdog_guarantee",
-            "evaluation_clock": "host_monotonic",
-            "reference_sha256": (
-                args.step5d_hard_tube_guard.reference_sha256
-            ),
-        },
+        "hard_tube": _v3_hard_tube_status(args),
         "missing": [],
     }
 

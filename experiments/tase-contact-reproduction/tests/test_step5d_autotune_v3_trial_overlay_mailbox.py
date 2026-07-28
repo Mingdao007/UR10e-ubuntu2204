@@ -16,6 +16,7 @@ from step5d_autotune_contract import (  # noqa: E402
     CampaignSpec,
     ExecutionProfile,
     ForceCandidate,
+    NORMAL_FILTER_PROFILES,
     TrialSpec,
     TrialTransition,
     TrialTransitionKind,
@@ -49,6 +50,7 @@ from run_step5d_autotune_v3_bridge import (  # noqa: E402
     _V3_RUNNER_CLOSURE_FIELDS,
     _apply_v3_arm_runtime,
     _install_v3_hard_tube,
+    _v3_hard_tube_status,
 )
 import run_step5d_autotune_v3_live as live  # noqa: E402
 
@@ -84,6 +86,7 @@ def _test_launch_profile() -> LaunchProfile:
         launch_overrides=payload["launch_overrides"],
         trial_overlay_policy=payload["trial_overlay_policy"],
         fingerprint="f" * 64,
+        hard_tube_enabled=payload["hard_tube_policy"]["enabled"],
     )
 
 
@@ -217,6 +220,7 @@ def test_v3_mailbox_binds_and_applies_all_seven_preload_fields(tmp_path: Path) -
     overlay = dict(DEFAULT_OVERLAY)
     overlay.update(
         {
+            "execution_profile_id": "nf100-slew050-a050",
             "step5d_preload_filtered_min_n": 6.0,
             "step5d_preload_filtered_max_n": 16.0,
             "step5d_preload_raw_min_n": 5.0,
@@ -481,7 +485,11 @@ def test_initial_live_batch_uses_fresh_campaign_local_history(
     resolved = campaign_runner._v3_overlay_for_candidate(
         campaign_root / "control/v3_trial_overlays.json",
         candidate=selected.candidate,
-        profile=ExecutionProfile("nf100-slew050-a050", 0.1, 0.5, 0.5),
+        profile=next(
+            row
+            for row in NORMAL_FILTER_PROFILES
+            if row.profile_id == "nf500-slew250-a250"
+        ),
         plan_revision=plan.revision,
         launch_profile_path=launch_profile_path,
         tp_program_id=PROGRAM,
@@ -500,10 +508,10 @@ def test_initial_control_batch_is_five_rows_with_three_baseline_occurrences() ->
     assert len(overlays) == 5
     assert len({row["control_candidate_uid"] for row in overlays}) == 3
     assert len({row["control_candidate_uid"] for row in overlays[:3]}) == 1
-    assert all(row["execution_profile_id"] == "nf100-slew050-a050" for row in overlays)
+    assert all(row["execution_profile_id"] == "nf500-slew250-a250" for row in overlays)
 
 
-def test_v3_arm_boundary_applies_real_orientation_k_without_moving_sphere() -> None:
+def test_v3_arm_boundary_applies_real_orientation_k_with_tube_disabled() -> None:
     profile = _test_launch_profile()
     overlay = _initial_control_overlays(profile)[0]
     binding = SimpleNamespace(
@@ -532,20 +540,30 @@ def test_v3_arm_boundary_applies_real_orientation_k_without_moving_sphere() -> N
     )
     assert args.step5d_physical_prior_binding_valid is True
     assert args.step5d_moving_sphere_enabled is False
-    assert args.step5d_hard_tube_enabled is True
-    assert args.step5d_hard_tube_guard.radius_m == 0.03
-    assert args.step5d_hard_tube_guard.evaluation_hz == 100.0
-    assert args.step5d_hard_tube_guard.progress_freshness_floor_hz == 50.0
-    assert args.step5d_hard_tube_guard.progress_stale_dwell_ns == 100_000_000
-    assert (
-        args.step5d_hard_tube_guard.progress_stale_recovery_dwell_ns
-        == 100_000_000
-    )
+    assert args.step5d_hard_tube_enabled is False
+    assert args.step5d_hard_tube_guard is None
+    assert args.step5d_controller_progress_adapter is None
+    assert _v3_hard_tube_status(args) == {
+        "enabled": False,
+        "mode": "disabled_by_immutable_launch_policy",
+    }
     assert args.step5d_physical_prior_identity_payload["approach_axis_b"] == [
         0.043955267,
         -0.020079909,
         -0.998831683,
     ]
+
+
+def test_v3_hard_tube_module_remains_available_when_policy_enables_it() -> None:
+    args = SimpleNamespace()
+    _install_v3_hard_tube(args, None)
+
+    assert args.step5d_hard_tube_enabled is True
+    assert args.step5d_hard_tube_guard.radius_m == 0.03
+    assert args.step5d_hard_tube_guard.evaluation_hz == 100.0
+    assert args.step5d_hard_tube_guard.progress_freshness_floor_hz == 50.0
+    assert args.step5d_controller_progress_adapter.allow_tick_gaps is True
+    assert _v3_hard_tube_status(args)["enabled"] is True
 
 
 def test_v3_capture_writer_is_async_compact_and_binds_real_candidate(tmp_path: Path) -> None:

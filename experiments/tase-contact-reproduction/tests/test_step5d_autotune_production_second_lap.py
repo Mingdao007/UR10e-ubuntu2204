@@ -70,6 +70,7 @@ def _overlay_launch_profile() -> LaunchProfile:
         launch_overrides=payload["launch_overrides"],
         trial_overlay_policy=payload["trial_overlay_policy"],
         fingerprint="b" * 64,
+        hard_tube_enabled=payload["hard_tube_policy"]["enabled"],
     )
 
 
