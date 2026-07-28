@@ -25,15 +25,15 @@
   "script2": {
     "program_id": "step5d_strict_rnn_autotune_v3_r026",
     "package_dir": "programs/step5/step5d",
-    "release_manifest": "config/step5d/releases/3ccd466d2116b8332b1bbe01f3f36ac66f01b619123ce5050e9a56af3d51e2eb/manifest.json",
-    "release_manifest_sha256": "3ccd466d2116b8332b1bbe01f3f36ac66f01b619123ce5050e9a56af3d51e2eb",
+    "release_manifest": "config/step5d/releases/0ab51b936a6e704651cecc72608819af4e54afe3ac1abe06b3d5298847300184/manifest.json",
+    "release_manifest_sha256": "0ab51b936a6e704651cecc72608819af4e54afe3ac1abe06b3d5298847300184",
     "readback_receipt": "config/step5d_autotune_controller_readback_v3.json",
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r026.urp",
     "execution_profile_id": "nf1000-slew250-a250",
     "sha256": {
-      ".script": "bd0058b9977279db60c706e2092629c88ef811ad9fbaf7d4672967c05c118874",
-      ".txt": "f511dd7b371d9894dca3fb814befab5e4bde7e085deca6a6239911dd57cfb1d3",
-      ".urp": "1e30209b0f5c8f15629e5a937680c5f5ca54e50735fcc55db3dd3a95bf220c8b"
+      ".script": "711deaa786d4523791f1bbef49411b6efb86ba1fd53a2739071467c080e7decd",
+      ".txt": "d3d5b642891478fabfa382642b05c353b4b55ad0855ac8890a5d64f2ea5b4a80",
+      ".urp": "e90530c11da3d829cf9db73328abbde4e39b7d1cb1352bb428f28e107ca40e15"
     }
   },
   "queue": {
