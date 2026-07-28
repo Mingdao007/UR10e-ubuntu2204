@@ -139,6 +139,7 @@ REPOSITORY_SOURCE_PATHS = frozenset({
     'src/ur10e_experiment_runtime/ur10e_experiment_runtime/contracts.py',
     'src/ur10e_experiment_runtime/ur10e_experiment_runtime/evidence.py',
     'src/ur10e_experiment_runtime/ur10e_experiment_runtime/failure_to_guard.py',
+    'src/ur10e_experiment_runtime/ur10e_experiment_runtime/hard_tube.py',
     'src/ur10e_experiment_runtime/ur10e_experiment_runtime/identity.py',
     'src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py',
     'src/ur10e_experiment_runtime/ur10e_experiment_runtime/physical_prior.py',

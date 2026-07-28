@@ -700,3 +700,80 @@ def test_production_sphere_seam_uses_typed_progress_and_exact_stop() -> None:
     assert values["stop_request"] == 1.0
     assert values["step4e_cmd_valid"] == 0.0
     assert all(values[name] == 0.0 for name in bridge.BRIDGE_INPUT_NAMES[:6])
+
+
+def test_production_hard_tube_seam_is_30_mm_100_hz_and_exact_stop() -> None:
+    import kunwei_rtde_bridge as bridge
+    from ur10e_experiment_runtime.hard_tube import (
+        HardTubeGuard,
+        HardTubeReason,
+    )
+    from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+    from ur10e_experiment_runtime.stage_adapters import (
+        PATH_ORIGIN_XY_M,
+        Stage25ControllerProgressAdapter,
+    )
+
+    adapter = Stage25ControllerProgressAdapter(
+        physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint
+    )
+    guard = HardTubeGuard(reference_sha256=adapter.reference_sha256)
+    args = SimpleNamespace(
+        step5d_controller_progress_adapter=adapter,
+        step5d_hard_tube_guard=guard,
+        step5d_hard_tube_progress_age_ns=0,
+    )
+    values = bridge.bridge_zero_values()
+    values["stop_request"] = 0.0
+    inside = [
+        PATH_ORIGIN_XY_M[0] + 0.029,
+        PATH_ORIGIN_XY_M[1],
+        0.008,
+        0.0,
+        0.0,
+        0.0,
+    ]
+    bridge.apply_step5d_hard_tube_guard(
+        values=values,
+        args=args,
+        latest_output={"output_double_register_31": 0.0, "timestamp": 1.0},
+        robot_stage=25.0,
+        pose=inside,
+    )
+    assert values["_step5d_hard_tube_reason"] == HardTubeReason.TUBE_OK.name
+    assert values["_step5d_hard_tube_radius_m"] == 0.03
+    assert values["_step5d_hard_tube_evaluation_hz"] == 100.0
+    assert values["stop_request"] == 0.0
+
+    outside = [inside[0] + 0.002, *inside[1:]]
+    for tick in range(1, 5):
+        bridge.apply_step5d_hard_tube_guard(
+            values=values,
+            args=args,
+            latest_output={
+                "output_double_register_31": 0.0,
+                "timestamp": 1.0 + 0.002 * tick,
+            },
+            robot_stage=25.0,
+            pose=outside,
+        )
+        assert values["_step5d_hard_tube_reason"] == (
+            HardTubeReason.TUBE_BETWEEN_SAMPLES.name
+        )
+        assert values["stop_request"] == 0.0
+
+    values.update({name: 0.1 for name in bridge.BRIDGE_INPUT_NAMES[:6]})
+    values["step4e_cmd_valid"] = 1.0
+    bridge.apply_step5d_hard_tube_guard(
+        values=values,
+        args=args,
+        latest_output={"output_double_register_31": 0.0, "timestamp": 1.01},
+        robot_stage=25.0,
+        pose=outside,
+    )
+    assert values["_step5d_hard_tube_reason"] == (
+        HardTubeReason.TUBE_ACTUAL_BREACH.name
+    )
+    assert values["stop_request"] == 1.0
+    assert values["step4e_cmd_valid"] == 0.0
+    assert all(values[name] == 0.0 for name in bridge.BRIDGE_INPUT_NAMES[:6])

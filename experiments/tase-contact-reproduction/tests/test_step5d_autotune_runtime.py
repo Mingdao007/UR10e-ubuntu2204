@@ -280,6 +280,8 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         args.step5d_physical_prior_binding_valid = True
         args.step5d_controller_progress_adapter = Mock()
         args.step5d_moving_sphere_kernel = Mock()
+        args.step5d_hard_tube_guard = Mock()
+        args.step5d_hard_tube_enabled = True
         state = bridge.BridgeState()
         diagnostics = bridge.DeferredV30Diagnostics(capacity=2)
         state.step5d_v30_deferred_diagnostics = diagnostics
@@ -294,6 +296,7 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         self.assertFalse(diagnostics.overflowed)
         args.step5d_controller_progress_adapter.reset.assert_called_once_with()
         args.step5d_moving_sphere_kernel.reset.assert_called_once_with()
+        args.step5d_hard_tube_guard.reset.assert_called_once_with()
 
         diagnostics.count = 1
         self.assertFalse(
@@ -302,6 +305,7 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         self.assertEqual(diagnostics.count, 1)
         args.step5d_controller_progress_adapter.reset.assert_called_once_with()
         args.step5d_moving_sphere_kernel.reset.assert_called_once_with()
+        args.step5d_hard_tube_guard.reset.assert_called_once_with()
 
         args.step5d_autotune_handshake["trial_id"] = 2
         self.assertTrue(
@@ -310,6 +314,7 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         self.assertEqual(diagnostics.count, 0)
         self.assertEqual(args.step5d_controller_progress_adapter.reset.call_count, 2)
         self.assertEqual(args.step5d_moving_sphere_kernel.reset.call_count, 2)
+        self.assertEqual(args.step5d_hard_tube_guard.reset.call_count, 2)
 
     def test_qdot_and_low_frequency_levels_are_fail_closed_while_tau_is_tunable(self) -> None:
         with patch.dict(os.environ, {}, clear=True):

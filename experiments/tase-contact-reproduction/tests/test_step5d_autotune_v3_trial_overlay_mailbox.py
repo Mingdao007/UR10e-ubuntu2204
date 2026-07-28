@@ -48,6 +48,7 @@ from run_step5d_autotune_v3_bridge import (  # noqa: E402
     V3AsyncBridgeTrialCsvRotator,
     _V3_RUNNER_CLOSURE_FIELDS,
     _apply_v3_arm_runtime,
+    _install_v3_hard_tube,
 )
 import run_step5d_autotune_v3_live as live  # noqa: E402
 
@@ -512,6 +513,7 @@ def test_v3_arm_boundary_applies_real_orientation_k_without_moving_sphere() -> N
     )
     args = SimpleNamespace()
     bridge = SimpleNamespace(STEP5D_V33_ORIENTATION_KO=0.4)
+    _install_v3_hard_tube(args, profile)
     _apply_v3_arm_runtime(
         bridge,
         args,
@@ -530,6 +532,9 @@ def test_v3_arm_boundary_applies_real_orientation_k_without_moving_sphere() -> N
     )
     assert args.step5d_physical_prior_binding_valid is True
     assert args.step5d_moving_sphere_enabled is False
+    assert args.step5d_hard_tube_enabled is True
+    assert args.step5d_hard_tube_guard.radius_m == 0.03
+    assert args.step5d_hard_tube_guard.evaluation_hz == 100.0
     assert args.step5d_physical_prior_identity_payload["approach_axis_b"] == [
         0.043955267,
         -0.020079909,

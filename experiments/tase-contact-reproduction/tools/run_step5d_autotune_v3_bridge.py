@@ -78,6 +78,9 @@ _V3_COMPACT_EXACT_FIELDS = frozenset(
         "_step5d_rnn_accepted", "_step5d_safe_hold_active",
         "_step5d_contact_safety_reason", "_step5d_contact_orientation_error_rad",
         "_step5d_outer_orientation_error_rad",
+        "_step5d_hard_tube_reason", "_step5d_hard_tube_actual_distance_m",
+        "_step5d_hard_tube_radius_m", "_step5d_hard_tube_remaining_margin_m",
+        "_step5d_hard_tube_evaluation_hz",
         "_step5d_outer_xdot_limited_approach_normal_m_s",
         "_step5d_jqdot_cmd_approach_normal_m_s",
         "_bridge_loop_gap_s", "_bridge_loop_deadline_lateness_s",
@@ -118,6 +121,62 @@ _V3_RUNNER_CLOSURE_FIELDS = frozenset(
         *(f"ur_output_double_register_{index}" for index in range(35, 45)),
     }
 )
+
+
+def _install_v3_hard_tube(args: Any, launch_profile: Any | None) -> None:
+    """Preallocate the V3 30 mm / 100 Hz geometric guard at startup."""
+
+    from ur10e_experiment_runtime.hard_tube import (
+        HARD_TUBE_EVALUATION_DIVISOR,
+        HARD_TUBE_RADIUS_M,
+        HardTubeGuard,
+    )
+    from ur10e_experiment_runtime.stage_adapters import (
+        Stage25ControllerProgressAdapter,
+    )
+
+    adapter = getattr(args, "step5d_controller_progress_adapter", None)
+    guard = getattr(args, "step5d_hard_tube_guard", None)
+    if adapter is None and guard is None:
+        adapter = Stage25ControllerProgressAdapter(
+            physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint,
+            allow_tick_gaps=True,
+        )
+        guard = HardTubeGuard(
+            reference_sha256=adapter.reference_sha256,
+            radius_m=HARD_TUBE_RADIUS_M,
+            evaluation_divisor=HARD_TUBE_EVALUATION_DIVISOR,
+        )
+        args.step5d_controller_progress_adapter = adapter
+        args.step5d_hard_tube_guard = guard
+    elif adapter is None or guard is None:
+        raise BridgeTicketError("V3 hard-tube preallocation is incomplete")
+    if guard.reference_sha256 != adapter.reference_sha256:
+        raise BridgeTicketError("V3 hard-tube adapter reference differs")
+    if not bool(getattr(adapter, "allow_tick_gaps", False)):
+        raise BridgeTicketError("V3 hard-tube adapter gap policy differs")
+    if guard.radius_m != HARD_TUBE_RADIUS_M:
+        raise BridgeTicketError("V3 hard-tube radius differs from 30 mm")
+    if guard.evaluation_divisor != HARD_TUBE_EVALUATION_DIVISOR:
+        raise BridgeTicketError("V3 hard-tube evaluation rate differs from 100 Hz")
+    if launch_profile is not None:
+        expected_reference = launch_profile.document.get(
+            "moving_sphere_reference_sha256"
+        )
+        if expected_reference != adapter.reference_sha256:
+            raise BridgeTicketError("V3 hard-tube launch reference differs")
+    args.step5d_hard_tube_progress_age_ns = 0
+    args.step5d_hard_tube_enabled = True
+
+
+def _require_v3_hard_tube_preallocated(args: Any) -> None:
+    if not bool(getattr(args, "step5d_hard_tube_enabled", False)):
+        raise BridgeTicketError("V3 hard-tube guard is not enabled")
+    if (
+        getattr(args, "step5d_controller_progress_adapter", None) is None
+        or getattr(args, "step5d_hard_tube_guard", None) is None
+    ):
+        raise BridgeTicketError("V3 hard-tube guard is not preallocated")
 
 
 def compact_v3_fieldnames(fieldnames: Sequence[str]) -> tuple[str, ...]:
@@ -372,6 +431,7 @@ def _apply_v3_arm_runtime(
     args.bridge_normal_max_rate_rad_s = STEP5D_V3_PHYSICAL_PRIOR.normal_rate_limit_rad_s
     args.step4e_normal_max_rate_rad_s = STEP5D_V3_PHYSICAL_PRIOR.normal_rate_limit_rad_s
     args.step5d_moving_sphere_enabled = False
+    _require_v3_hard_tube_preallocated(args)
 
 
 def _strict_ticket(
@@ -811,6 +871,7 @@ def install_v3_seams(
     del no_arm_expected_loaded_program
 
     def v3_runtime_prewarm(state: Any, args: Any) -> None:
+        _install_v3_hard_tube(args, immutable_launch_profile)
         if state.step5d_model_bundle is None:
             state.step5d_model_bundle = bridge.step5d_kin.build_calibrated_model()
         observed_hash = getattr(state.step5d_model_bundle, "calibration_hash", None)
@@ -855,6 +916,16 @@ def check_v3_runtime_prewarm(bridge_argv: Sequence[str]) -> dict[str, Any]:
         "tcp_offset_tool0_m": [
             float(value) for value in state.step5d_tcp_offset_tool0
         ],
+        "hard_tube": {
+            "enabled": bool(args.step5d_hard_tube_enabled),
+            "radius_m": float(args.step5d_hard_tube_guard.radius_m),
+            "evaluation_hz": float(
+                args.step5d_hard_tube_guard.evaluation_hz
+            ),
+            "reference_sha256": (
+                args.step5d_hard_tube_guard.reference_sha256
+            ),
+        },
         "missing": [],
     }
 

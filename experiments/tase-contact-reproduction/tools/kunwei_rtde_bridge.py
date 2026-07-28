@@ -403,6 +403,11 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_tcp_cage_signed_distance_m",
     "_step5d_tcp_cage_cell_index",
     "_step5d_tcp_cage_reason",
+    "_step5d_hard_tube_reason",
+    "_step5d_hard_tube_actual_distance_m",
+    "_step5d_hard_tube_radius_m",
+    "_step5d_hard_tube_remaining_margin_m",
+    "_step5d_hard_tube_evaluation_hz",
     "_step5d_hold_event_count",
     "_step5d_consecutive_hold_s",
     "_step5d_total_hold_s",
@@ -4048,15 +4053,25 @@ def reset_step5d_autotune_diagnostics_for_trial(
     state.step5d_normal_rate_limiter_active_s = 0.0
     progress_adapter = getattr(args, "step5d_controller_progress_adapter", None)
     sphere_kernel = getattr(args, "step5d_moving_sphere_kernel", None)
-    if (
-        bool(getattr(args, "step5d_moving_sphere_enabled", False))
-        or progress_adapter is not None
-        or sphere_kernel is not None
-    ):
-        if progress_adapter is None or sphere_kernel is None:
+    hard_tube_guard = getattr(args, "step5d_hard_tube_guard", None)
+    moving_sphere_active = bool(
+        getattr(args, "step5d_moving_sphere_enabled", False)
+    ) or sphere_kernel is not None
+    hard_tube_active = bool(
+        getattr(args, "step5d_hard_tube_enabled", False)
+    ) or hard_tube_guard is not None
+    if moving_sphere_active or hard_tube_active or progress_adapter is not None:
+        if progress_adapter is None:
+            raise RuntimeError("autotune controller-progress state is not preallocated")
+        if moving_sphere_active and sphere_kernel is None:
             raise RuntimeError("autotune moving-sphere state is not preallocated")
         progress_adapter.reset()
-        sphere_kernel.reset()
+        if sphere_kernel is not None:
+            sphere_kernel.reset()
+        if hard_tube_active and hard_tube_guard is None:
+            raise RuntimeError("autotune hard-tube state is not preallocated")
+        if hard_tube_guard is not None:
+            hard_tube_guard.reset()
     return True
 
 
@@ -7401,6 +7416,17 @@ def compute_bridge_values(
             pose=pose,
             tcp_speed_m_s=step5d_line_tcp_speed_m_s,
         )
+    if (
+        args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+        and bool(getattr(args, "step5d_hard_tube_enabled", False))
+    ):
+        apply_step5d_hard_tube_guard(
+            values=values,
+            args=args,
+            latest_output=latest_output,
+            robot_stage=robot_stage,
+            pose=pose,
+        )
     return values
 
 
@@ -8303,6 +8329,55 @@ def apply_step5d_moving_sphere_guard(
     values["_step5d_moving_sphere_actual_distance_m"] = result.actual_distance_m
     values["_step5d_moving_sphere_predicted_bound_m"] = (
         result.predicted_radial_bound_m
+    )
+    if result.stop:
+        for name in BRIDGE_INPUT_NAMES[:6]:
+            values[name] = 0.0
+        values["step4e_cmd_valid"] = 0.0
+        values["stop_request"] = 1.0
+        values["_step5d_contact_safety_reason"] = result.reason.name
+
+
+def apply_step5d_hard_tube_guard(
+    *,
+    values: dict[str, Any],
+    args: argparse.Namespace,
+    latest_output: Mapping[str, Any],
+    robot_stage: float,
+    pose: Sequence[float],
+) -> None:
+    """Execute the 100 Hz geometric tube decision and exact-stop transport."""
+
+    try:
+        controller_progress_s = float(latest_output["output_double_register_31"])
+        controller_timestamp_s = float(latest_output["timestamp"])
+        controller_tick_seq = int(round(controller_timestamp_s * 500.0))
+        progress_age_ns = int(args.step5d_hard_tube_progress_age_ns)
+    except (KeyError, TypeError, ValueError, OverflowError):
+        controller_progress_s = math.nan
+        controller_timestamp_s = math.nan
+        controller_tick_seq = None
+        progress_age_ns = None
+    controller_progress = args.step5d_controller_progress_adapter.sample(
+        stage=robot_stage,
+        controller_progress_s=controller_progress_s,
+        controller_tick_seq=controller_tick_seq,
+        controller_timestamp_s=controller_timestamp_s,
+        age_ns=progress_age_ns,
+        tcp_z_m=float(pose[2]),
+    )
+    result = args.step5d_hard_tube_guard.tick(
+        progress=controller_progress,
+        tcp_base=pose,
+    )
+    values["_step5d_hard_tube_reason"] = result.reason.name
+    values["_step5d_hard_tube_actual_distance_m"] = result.actual_distance_m
+    values["_step5d_hard_tube_radius_m"] = (
+        args.step5d_hard_tube_guard.radius_m
+    )
+    values["_step5d_hard_tube_remaining_margin_m"] = result.remaining_margin_m
+    values["_step5d_hard_tube_evaluation_hz"] = (
+        args.step5d_hard_tube_guard.evaluation_hz
     )
     if result.stop:
         for name in BRIDGE_INPUT_NAMES[:6]:
@@ -11135,6 +11210,14 @@ def main(argv: list[str] | None = None) -> int:
     rtde_watch_saw_playing = False
     next_dashboard_watch = start_mono
     metadata["step5d_liveprep_runtime_prewarm"] = step5d_runtime_prewarm
+    hard_tube_guard = getattr(args, "step5d_hard_tube_guard", None)
+    metadata["step5d_hard_tube"] = {
+        "enabled": bool(getattr(args, "step5d_hard_tube_enabled", False)),
+        "mode": "actual_tcp_geometric_fail_closed_v1",
+        "reference_sha256": getattr(hard_tube_guard, "reference_sha256", None),
+        "radius_m": getattr(hard_tube_guard, "radius_m", None),
+        "evaluation_hz": getattr(hard_tube_guard, "evaluation_hz", None),
+    }
     metadata["dashboard_program_watch"].update(dashboard_watch)
     write_json(metadata_path, metadata)
 
@@ -11827,6 +11910,12 @@ def main(argv: list[str] | None = None) -> int:
                                 getattr(args, "step5d_moving_sphere_enabled", False)
                             ):
                                 args.step5d_moving_sphere_progress_age_ns = int(
+                                    max(0.0, feedback_age_s) * 1_000_000_000
+                                ) if math.isfinite(feedback_age_s) else 2_000_001
+                            if bool(
+                                getattr(args, "step5d_hard_tube_enabled", False)
+                            ):
+                                args.step5d_hard_tube_progress_age_ns = int(
                                     max(0.0, feedback_age_s) * 1_000_000_000
                                 ) if math.isfinite(feedback_age_s) else 2_000_001
                             reset_step5d_autotune_diagnostics_for_trial(

@@ -85,6 +85,12 @@ result = wrapper.check_v3_runtime_prewarm([
 expected = validate_installed_calibration()
 if result['tcp_offset_tool0_m'] != list(expected.tcp_offset_tool0_m):
     raise AssertionError('prewarmed TCP offset differs from compact calibration')
+if result['hard_tube']['enabled'] is not True:
+    raise AssertionError('hard-tube guard was not enabled during prewarm')
+if result['hard_tube']['radius_m'] != 0.03:
+    raise AssertionError('hard-tube radius differs from 30 mm')
+if result['hard_tube']['evaluation_hz'] != 100.0:
+    raise AssertionError('hard-tube evaluation rate differs from 100 Hz')
 if 'pandas' in sys.modules:
     raise AssertionError('pandas remained loaded after control startup')
 print(json.dumps(result, sort_keys=True))

@@ -236,6 +236,7 @@ class Stage25ControllerProgressAdapter:
 
     __slots__ = (
         "reference_sha256",
+        "allow_tick_gaps",
         "progress",
         "last_controller_timestamp_ns",
         "_last_controller_tick_seq",
@@ -243,10 +244,16 @@ class Stage25ControllerProgressAdapter:
         "anchor_z_m",
     )
 
-    def __init__(self, *, physical_prior_sha256: str) -> None:
+    def __init__(
+        self,
+        *,
+        physical_prior_sha256: str,
+        allow_tick_gaps: bool = False,
+    ) -> None:
         self.reference_sha256 = moving_sphere_reference_sha256(
             physical_prior_sha256
         )
+        self.allow_tick_gaps = bool(allow_tick_gaps)
         self.progress = ControllerProgress(reference_sha256=self.reference_sha256)
         self.last_controller_timestamp_ns = 0
         self._last_controller_tick_seq = 0
@@ -329,6 +336,10 @@ class Stage25ControllerProgressAdapter:
                 and (
                     self.last_controller_timestamp_ns == 0
                     or controller_tick_seq == self._last_controller_tick_seq + 1
+                    or (
+                        self.allow_tick_gaps
+                        and controller_tick_seq > self._last_controller_tick_seq
+                    )
                 )
             ):
                 out.monotonic = True
