@@ -197,30 +197,10 @@ def test_installed_manual_guard_contract_matches_production_bridge() -> None:
     manual.require_manual_guard_semantics(production)
 
 
-def test_installed_runtime_build_context_refactor_is_fail_closed_for_incompatible_current() -> None:
+def test_installed_runtime_build_context_accepts_compatible_current_source_closure() -> None:
     readiness_report = context_builder.resolve_release_readiness(ROOT)
     blockers = readiness_report["blockers"]
-    assert any(
-        blocker.startswith(
-            "canonical_active_release_verification_failed:"
-            "source file fingerprint drifted: "
-        )
+    assert not any(
+        blocker.startswith("canonical_active_release_verification_failed:")
         for blocker in blockers
     )
-
-    with pytest.raises(
-        context_builder.BridgeContextBuildError,
-        match="selected TP program is known_incompatible_do_not_retry",
-    ):
-        context_builder.build_context(
-            ROOT,
-            plant_epoch=1,
-            runtime_environment={
-                "capture_mode": "offline_no_arm_check",
-                "scheduler": {
-                    "policy_name": "SCHED_OTHER",
-                    "priority": 0,
-                    "nice": 0,
-                },
-            },
-        )

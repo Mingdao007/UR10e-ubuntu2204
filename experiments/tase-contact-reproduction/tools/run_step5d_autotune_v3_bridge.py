@@ -30,9 +30,11 @@ if str(RUNTIME_SRC) not in sys.path:
 from ur10e_experiment_runtime.identity import canonical_sha256
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 from step5d_autotune_v3.release_identity import (
+    LAUNCH_PROFILE_PATH,
     ReleaseIdentity,
     ReleaseIdentityError,
     load_runtime_release,
+    release_payload_path,
 )
 from step5d_autotune_v3.runtime_gate import (
     ArmGateProvider,
@@ -766,17 +768,19 @@ def install_v3_seams(
     from step5d_autotune_v3.runtime_calibration import validate_installed_calibration
     from step5d_autotune_v3.runtime_profile import IdentityCachedMailbox
 
-    release = release_identity
-    if ticket is not None and release is None:
-        release = load_runtime_release(ROOT)
-    immutable_launch_profile = None
-    if ticket is not None:
-        from step5d_autotune_v3.runtime_profile import load_launch_profile
+    release = release_identity or load_runtime_release(ROOT)
+    from step5d_autotune_v3.runtime_profile import load_launch_profile
 
-        immutable_launch_profile = load_launch_profile(
-            Path(ticket["launch_profile"]["path"]),
-            expected_tp_program_id=release.program_id,
-        )
+    launch_profile_path = (
+        Path(ticket["launch_profile"]["path"])
+        if ticket is not None
+        else release_payload_path(ROOT, release, LAUNCH_PROFILE_PATH)
+    )
+    immutable_launch_profile = load_launch_profile(
+        launch_profile_path,
+        expected_tp_program_id=release.program_id,
+    )
+    if ticket is not None:
         if (
             immutable_launch_profile.fingerprint
             != ticket["launch_profile_fingerprint"]
