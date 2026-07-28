@@ -241,6 +241,18 @@
       "gravity_compensation": "internal_to_direct_torque_do_not_add_gravity",
       "viscous_scale_target": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
       "coulomb_scale_target": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+      "diagnostic_profiles": {
+        "ur_default_v2_diagnostic": {
+          "status": "offline_validated_pending_ordered_live_chain",
+          "changed_factor": "friction_scales_only",
+          "viscous_scale": [0.9, 0.9, 0.8, 0.9, 0.9, 0.9],
+          "coulomb_scale": [0.8, 0.8, 0.7, 0.8, 0.8, 0.8],
+          "numeric_sanity": "direct_torque_v4_ur_default_v2_friction_diagnostic_sanity.json",
+          "first_live_stage": "hold_100ms",
+          "contact": false,
+          "training_dataset": false
+        }
+      },
       "deprecated_friction_comp_argument": false
     },
     "torque_law": "coriolis_plus_jacobian_transpose_impedance_minus_joint_damping",

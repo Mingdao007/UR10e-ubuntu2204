@@ -189,6 +189,53 @@ structure 不变，只把同一路径从 2 s 拉长到 10 s。实测：
 对应 numeric sanity：
 `config/direct_torque_v4_reference_10s_diagnostic_sanity.json`。
 
+## 11. zero-friction 是 isolation profile，不是最终 tracking profile
+
+UR 的 Direct Torque v2 文档明确给出：
+
+- viscous 默认值：`[0.9, 0.9, 0.8, 0.9, 0.9, 0.9]`；
+- Coulomb 默认值：`[0.8, 0.8, 0.7, 0.8, 0.8, 0.8]`；
+- scale `0` 表示不做对应 friction compensation；
+- custom torque 不包含 gravity，gravity 仍由机器人内部补偿。
+
+官方来源：
+
+- `https://www.universal-robots.com/articles/ur/release-notes/release-note-software-version-525x/`
+- `https://www.universal-robots.com/manuals/EN/PDF/SW5_25_1/scriptmanualG5/script_directory_Poly5.pdf`
+
+当前 `zero_isolation` 把两组 scale 都固定为零，是为了隔离早期 mode
+transition、thread cadence 与 rotvec branch-cut 故障。它通过了安全/cadence
+chain，但不能据此认为零 friction compensation 是最终控制配置。
+
+现有 tracking 数据与官方语义一致地支持下一 A/B：
+
+- `K=600 N/m`、约 `0.64 mm` error 只产生约 `0.38 N` Cartesian
+  restoring force；
+- 实测 maximum commanded joint torque 约 `0.193 Nm`；
+- 2 s 拉长到 10 s 后 response ratio 仍仅从 `15.7%` 到 `20.8%`；
+- 完全关闭 Coulomb/stiction compensation 是 weak response 的强候选。
+
+因此新增独立 `ur_default_v2_diagnostic`，只恢复官方 V2 friction scales。
+它必须从 100 ms hold 重新开始完整 ordered receipt chain；不得复用
+`zero_isolation` 的 prior-stage receipt，也不得把诊断结果升级为 contact
+或 expert-data acceptance。
+
+实测更新：
+
+- official-friction 2 s response ratio 为 `26.7%`，高于 zero-isolation
+  2 s 的 `15.7%`；
+- official-friction 7 s response ratio 又降至 `20.3%`，command
+  `0.636 mm`、actual maximum `0.129 mm`、actual endpoint `0.059 mm`；
+- 7 s 最大 commanded joint torque 仍仅约 `0.194 Nm`；
+- 7 s 最大推导关节加速度 `1.686 rad/s²`，Kunwei 最大零基线力范数
+  `0.619 N`，没有 guard 或 cadence failure。
+
+因此恢复官方 friction compensation 对短 2 s response 有帮助，但没有
+解决更长时间 tracking。操作者报告 recent official-friction canary 均有
+可听声音；3 s 被认为不足，7 s 已采集，声音究竟持续全程还是集中在
+entry/exit 仍需操作者按时间分类。没有 audio capture 时，不得仅凭
+RTDE 数值把声音归因给 acceleration、tracking 或 friction model。
+
 ## 禁止回归项
 
 - 不在 dry-run/compile probe 中调用 `direct_torque()`、`stopj()` 或 motion
@@ -201,3 +248,5 @@ structure 不变，只把同一路径从 2 s 拉长到 10 s。实测：
 - 不把 no-contact canary 数据标记为 expert/training data；
 - 不因 tracking 不足直接提高 torque、速度或接触力，先做单变量时间尺度
   isolation。
+- 不把为根因隔离设置的全零 friction scales 当作最终 tracking 默认值；
+  恢复 friction compensation 必须使用独立 profile 和完整 ordered chain。

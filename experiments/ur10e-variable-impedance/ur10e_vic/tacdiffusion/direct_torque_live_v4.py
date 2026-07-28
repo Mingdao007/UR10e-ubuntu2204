@@ -38,6 +38,18 @@ ORIENTATION_INTERPOLATION_POLICIES = (
     ORIENTATION_POLICY_HOLD_ENTRY,
     ORIENTATION_POLICY_INTERPOLATE_POSE,
 )
+FRICTION_PROFILE_ZERO_ISOLATION = "zero_isolation"
+FRICTION_PROFILE_UR_DEFAULT_V2_DIAGNOSTIC = "ur_default_v2_diagnostic"
+FRICTION_PROFILES = {
+    FRICTION_PROFILE_ZERO_ISOLATION: (
+        (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+    ),
+    FRICTION_PROFILE_UR_DEFAULT_V2_DIAGNOSTIC: (
+        (0.9, 0.9, 0.8, 0.9, 0.9, 0.9),
+        (0.8, 0.8, 0.7, 0.8, 0.8, 0.8),
+    ),
+}
 
 
 def build_compile_probe_source() -> str:
@@ -278,6 +290,9 @@ class LiveReceiverContract:
     hard_tube_guard: bool
     dedicated_torque_thread: bool
     orientation_interpolation_policy: str
+    friction_profile: str
+    viscous_scale: tuple[float, ...]
+    coulomb_scale: tuple[float, ...]
     source_builder_physical_io_enabled: bool
     controller_runtime_physical_io_enabled: bool
 
@@ -287,6 +302,7 @@ def build_live_receiver_source(
     *,
     heartbeat_timeout_ticks: int = DEFAULT_HEARTBEAT_TIMEOUT_TICKS,
     orientation_interpolation_policy: str = ORIENTATION_POLICY_HOLD_ENTRY,
+    friction_profile: str = FRICTION_PROFILE_ZERO_ISOLATION,
 ) -> str:
     """Build one controller-resident 500 Hz program; sending is a separate gate."""
 
@@ -299,6 +315,11 @@ def build_live_receiver_source(
             "orientation interpolation policy must be one of "
             + ", ".join(ORIENTATION_INTERPOLATION_POLICIES)
         )
+    if friction_profile not in FRICTION_PROFILES:
+        raise ValueError(
+            "friction profile must be one of " + ", ".join(FRICTION_PROFILES)
+        )
+    viscous_scale, coulomb_scale = FRICTION_PROFILES[friction_profile]
     center = _urscript_vector(tube.center_base_m)
     anchor = _urscript_vector(tube.anchor_pose_base)
     u_axis = _urscript_vector(tube.u_axis_base)
@@ -331,8 +352,9 @@ def build_live_receiver_source(
     wrapped_source = f'''def tacdiffusion_remote_direct_torque_v4_program():
   torque_thread_run = False
   torque_command = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  viscous_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  coulomb_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  friction_profile = "{friction_profile}"
+  viscous_scale = {_urscript_vector(viscous_scale)}
+  coulomb_scale = {_urscript_vector(coulomb_scale)}
   torque_thread_tick_count = 0
 
   thread torqueThread():
@@ -930,8 +952,8 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "guard_force_norm > 6.0 or guard_torque_norm > 0.5",
         "entry_elapsed_s < entry_blend_duration_s",
         "control_k[axis] = last_k[axis]",
-        "viscous_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
-        "coulomb_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
+        "viscous_scale = [",
+        "coulomb_scale = [",
         "actual_translation_speed > active_tcp_translation_speed_limit_m_s",
         "actual_rotation_speed > active_tcp_rotation_speed_limit_rad_s",
         "active_speed_violation",
@@ -1044,6 +1066,49 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
             )
     else:
         raise ValueError("live receiver orientation interpolation policy is unsupported")
+    friction_profile_match = re.search(
+        r'^\s*friction_profile = "([^"]+)"$',
+        source,
+        re.MULTILINE,
+    )
+    viscous_scale_match = re.search(
+        r"^\s*viscous_scale = \[([^\]]+)\]$",
+        source,
+        re.MULTILINE,
+    )
+    coulomb_scale_match = re.search(
+        r"^\s*coulomb_scale = \[([^\]]+)\]$",
+        source,
+        re.MULTILINE,
+    )
+    if viscous_scale_match is None or coulomb_scale_match is None:
+        raise ValueError("live receiver friction scales are not parseable")
+    viscous_scale = _finite(
+        [float(value.strip()) for value in viscous_scale_match.group(1).split(",")],
+        6,
+        "viscous_scale",
+    )
+    coulomb_scale = _finite(
+        [float(value.strip()) for value in coulomb_scale_match.group(1).split(",")],
+        6,
+        "coulomb_scale",
+    )
+    if friction_profile_match is None:
+        if (
+            viscous_scale
+            != FRICTION_PROFILES[FRICTION_PROFILE_ZERO_ISOLATION][0]
+            or coulomb_scale
+            != FRICTION_PROFILES[FRICTION_PROFILE_ZERO_ISOLATION][1]
+        ):
+            raise ValueError("live receiver nonzero friction profile is undeclared")
+        friction_profile = FRICTION_PROFILE_ZERO_ISOLATION
+    else:
+        friction_profile = friction_profile_match.group(1)
+    if friction_profile not in FRICTION_PROFILES:
+        raise ValueError("live receiver friction profile is unsupported")
+    expected_viscous, expected_coulomb = FRICTION_PROFILES[friction_profile]
+    if viscous_scale != expected_viscous or coulomb_scale != expected_coulomb:
+        raise ValueError("live receiver friction scales do not match declared profile")
     if re.search(
         r"(?m)^\s*tacdiffusion_remote_direct_torque_v4_program\(\)\s*$",
         source,
@@ -1061,6 +1126,9 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         hard_tube_guard=True,
         dedicated_torque_thread=True,
         orientation_interpolation_policy=orientation_interpolation_policy,
+        friction_profile=friction_profile,
+        viscous_scale=viscous_scale,
+        coulomb_scale=coulomb_scale,
         source_builder_physical_io_enabled=False,
         controller_runtime_physical_io_enabled=True,
     )

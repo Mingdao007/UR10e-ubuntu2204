@@ -63,6 +63,7 @@ from step5d_v34_transport_primitives import (  # noqa: E402
 from ur10e_parallel import ResourceProfile, writer_lease  # noqa: E402
 from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
     COMPILE_PROBE_PROTOCOL_TOKEN,
+    FRICTION_PROFILE_ZERO_ISOLATION,
     LIVE_PROTOCOL_TOKEN,
     WRENCH_FRAME_TOKEN,
     NO_CONTACT_RELEASE_TOLERANCE_M,
@@ -127,21 +128,37 @@ LIVE_WRITER_TASK = "tacdiffusion-remote-direct-torque-v4"
 CANARY_STAGE_HOLD = "hold_100ms"
 CANARY_STAGE_RAMP = "ramp_0_2mm_500ms"
 CANARY_STAGE_REFERENCE = "reference_2s"
+CANARY_STAGE_REFERENCE_3S_SOUND_DIAGNOSTIC = "reference_3s_sound_diagnostic"
+CANARY_STAGE_REFERENCE_7S_SOUND_DIAGNOSTIC = "reference_7s_sound_diagnostic"
 CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC = "reference_10s_diagnostic"
 CANARY_STAGE_ORDER = (
     CANARY_STAGE_HOLD,
     CANARY_STAGE_RAMP,
     CANARY_STAGE_REFERENCE,
+    CANARY_STAGE_REFERENCE_3S_SOUND_DIAGNOSTIC,
+    CANARY_STAGE_REFERENCE_7S_SOUND_DIAGNOSTIC,
     CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC,
 )
 CANARY_STAGE_DURATIONS_S = {
     CANARY_STAGE_HOLD: 0.1,
     CANARY_STAGE_RAMP: 0.5,
     CANARY_STAGE_REFERENCE: 2.0,
+    CANARY_STAGE_REFERENCE_3S_SOUND_DIAGNOSTIC: 3.0,
+    CANARY_STAGE_REFERENCE_7S_SOUND_DIAGNOSTIC: 7.0,
     CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC: 10.0,
+}
+CANARY_STAGE_REQUIRED_PRIOR = {
+    CANARY_STAGE_HOLD: None,
+    CANARY_STAGE_RAMP: CANARY_STAGE_HOLD,
+    CANARY_STAGE_REFERENCE: CANARY_STAGE_RAMP,
+    CANARY_STAGE_REFERENCE_3S_SOUND_DIAGNOSTIC: CANARY_STAGE_RAMP,
+    CANARY_STAGE_REFERENCE_7S_SOUND_DIAGNOSTIC: CANARY_STAGE_RAMP,
+    CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC: CANARY_STAGE_REFERENCE,
 }
 CANARY_REFERENCE_STAGES = (
     CANARY_STAGE_REFERENCE,
+    CANARY_STAGE_REFERENCE_3S_SOUND_DIAGNOSTIC,
+    CANARY_STAGE_REFERENCE_7S_SOUND_DIAGNOSTIC,
     CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC,
 )
 ENTRY_ANALYSIS_WINDOW_S = 0.020
@@ -1223,6 +1240,9 @@ class ValidatedBundle:
     source_sha256: str
     manifest_sha256: str
     reference_sha256: str
+    friction_profile: str
+    viscous_scale: tuple[float, ...]
+    coulomb_scale: tuple[float, ...]
     source: str
     reference: Mapping[str, Any]
     timeline: ReferenceTimeline
@@ -1246,6 +1266,27 @@ def validate_bundle(manifest_path: Path) -> ValidatedBundle:
     contract = parse_live_receiver_source(source)
     if contract.protocol_token != LIVE_PROTOCOL_TOKEN:
         raise ValueError("receiver protocol token mismatch")
+    manifest_profile = manifest.get("friction_profile")
+    manifest_viscous_raw = manifest.get("viscous_scale")
+    manifest_coulomb_raw = manifest.get("coulomb_scale")
+    if (
+        manifest_profile is None
+        and manifest_viscous_raw is None
+        and manifest_coulomb_raw is None
+        and contract.friction_profile == FRICTION_PROFILE_ZERO_ISOLATION
+    ):
+        manifest_profile = contract.friction_profile
+        manifest_viscous = contract.viscous_scale
+        manifest_coulomb = contract.coulomb_scale
+    else:
+        manifest_viscous = _finite6(manifest_viscous_raw, "viscous_scale")
+        manifest_coulomb = _finite6(manifest_coulomb_raw, "coulomb_scale")
+    if (
+        manifest_profile != contract.friction_profile
+        or manifest_viscous != contract.viscous_scale
+        or manifest_coulomb != contract.coulomb_scale
+    ):
+        raise ValueError("bundle friction profile does not match receiver source")
     reference = json.loads(reference_path.read_text(encoding="utf-8"))
     if not isinstance(reference, Mapping):
         raise ValueError("reference artifact type mismatch")
@@ -1260,6 +1301,9 @@ def validate_bundle(manifest_path: Path) -> ValidatedBundle:
         source_sha256=source_sha,
         manifest_sha256=_sha256(manifest_path),
         reference_sha256=reference_sha,
+        friction_profile=contract.friction_profile,
+        viscous_scale=contract.viscous_scale,
+        coulomb_scale=contract.coulomb_scale,
         source=source,
         reference=reference,
         timeline=timeline,
@@ -1327,6 +1371,11 @@ def validate_prior_stage_evidence(
         "kunwei_stream_started": True,
         "kunwei_force_source": "kunwei_software_baselined_sensor_to_tcp_si",
     }
+    if (
+        payload.get("friction_profile") is not None
+        or bundle.friction_profile != FRICTION_PROFILE_ZERO_ISOLATION
+    ):
+        checks["friction_profile"] = bundle.friction_profile
     failures = [
         key for key, expected in checks.items() if payload.get(key) != expected
     ]
@@ -2442,6 +2491,9 @@ def run_receiver_handshake_probe(
         "robot_host": args.robot_host,
         "receiver_source_sha256": bundle.source_sha256,
         "bundle_manifest_sha256": bundle.manifest_sha256,
+        "friction_profile": bundle.friction_profile,
+        "viscous_scale": list(bundle.viscous_scale),
+        "coulomb_scale": list(bundle.coulomb_scale),
         "receiver_handshake_probe_source_sha256": probe_source_sha256,
         "receiver_handshake_source_derivation": (
             "exact_bundle_receiver_plus_single_50tick_pre_main_early_exit"
@@ -2520,10 +2572,7 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
         args.compile_probe_evidence.resolve(),
         robot_host=args.robot_host,
     )
-    stage_index = CANARY_STAGE_ORDER.index(canary_stage)
-    required_prior_stage = (
-        None if stage_index == 0 else CANARY_STAGE_ORDER[stage_index - 1]
-    )
+    required_prior_stage = CANARY_STAGE_REQUIRED_PRIOR[canary_stage]
     prior_stage_evidence = validate_prior_stage_evidence(
         (
             None
@@ -2884,6 +2933,9 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 "robot_host": args.robot_host,
                 "receiver_source_sha256": bundle.source_sha256,
                 "bundle_manifest_sha256": bundle.manifest_sha256,
+                "friction_profile": bundle.friction_profile,
+                "viscous_scale": list(bundle.viscous_scale),
+                "coulomb_scale": list(bundle.coulomb_scale),
                 "reference_artifact_sha256": bundle.reference_sha256,
                 "runtime_source_sha256": runtime_binding["sha256"],
                 "runtime_source_binding": runtime_binding,
@@ -3300,6 +3352,9 @@ def main(argv: list[str] | None = None) -> int:
                     "claim_class": "offline_validated_no_live_actions",
                     "receiver_source_sha256": bundle.source_sha256,
                     "bundle_manifest_sha256": bundle.manifest_sha256,
+                    "friction_profile": bundle.friction_profile,
+                    "viscous_scale": list(bundle.viscous_scale),
+                    "coulomb_scale": list(bundle.coulomb_scale),
                     "reference_artifact_sha256": bundle.reference_sha256,
                     "runtime_source_sha256": runtime_binding["sha256"],
                     "runtime_source_binding": runtime_binding,

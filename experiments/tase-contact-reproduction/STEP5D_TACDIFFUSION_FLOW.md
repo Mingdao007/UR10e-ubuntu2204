@@ -237,6 +237,45 @@ This diagnostic does not qualify trajectory fidelity, contact control, or
 expert-data eligibility. Reusable failure, timing, sensor, and acceptance
 lessons are collected in `DIRECT_TORQUE_V4_LIVE_LESSONS.md`.
 
+The next A/B changes only the Direct Torque v2 friction profile. The accepted
+zero-scale chain remains immutable as `zero_isolation`. A separate
+`ur_default_v2_diagnostic` bundle uses UR's documented PolyScope 5.25+
+defaults: viscous `[0.9, 0.9, 0.8, 0.9, 0.9, 0.9]` and Coulomb
+`[0.8, 0.8, 0.7, 0.8, 0.8, 0.8]`. UR documents scale `0` as no compensation
+and the listed values as the V2 defaults. The spatial reference, stiffness,
+zero feedforward, orientation policy, tube, guards, and no-contact claim stay
+unchanged. A new source fingerprint must begin again at `hold_100ms`; it may
+advance only through the ordered chain. Numeric sanity is
+`config/direct_torque_v4_ur_default_v2_friction_diagnostic_sanity.json`.
+
+After the first official-friction hold, ramp, and 2 s reference all passed
+numeric safety gates, the operator reported audible sound in every recent
+run and requested one continuous 3 s trial for a complete subjective
+startup/steady/exit assessment. The 10 s stage is therefore paused. A
+`reference_3s_sound_diagnostic` retains the official-friction profile and the
+same spatial path, stiffness, feedforward, tube, and guards, stretching only
+the 2 s reference time by `1.5x`. It is diagnostic-only and requires a fresh
+same-runtime hold and ramp receipt before execution.
+
+The 3 s diagnostic passed all recorded gates, but the operator judged its
+listening window too short. It is retained as evidence and superseded only
+for subjective listening duration by `reference_7s_sound_diagnostic`. The
+7 s stage changes no control or spatial parameter, uses a `3.5x` time stretch
+of the same 2 s reference, and again requires fresh same-runtime hold and ramp
+receipts. The paused 10 s stage remains out of scope.
+
+The 7 s diagnostic completed with 3590 RTDE rows and 8303 Kunwei frames.
+Direct Torque remained active for `7.176 s`; RTDE was `500 Hz`, torque calls
+were `499.7 Hz`, and Kunwei was `1002.0 Hz`. Maximum derived joint
+acceleration was `1.686 rad/s²`, maximum zero-baselined force norm was
+`0.619 N`, and no guard or lineage fault occurred. Tracking remained weak:
+the command reached `0.636 mm`, actual maximum translation was `0.129 mm`
+(`20.3%`), and actual endpoint displacement was `0.059 mm`. Restoring the
+documented friction profile therefore does not by itself resolve tracking.
+The operator's temporal classification of the audible sound remains pending;
+the immutable derived audit is
+`runs/tacdiffusion/direct_torque_v4_reference_7s_sound_diagnostic_20260728T1442HKT/friction_and_sound_audit_v1.json`.
+
 A 2026-07-26 read-only 2 s position-control shadow at the fresh bench pose
 captured 954 RTDE rows without sending a program or writing RTDE inputs. Mean
 `target_moment` was approximately

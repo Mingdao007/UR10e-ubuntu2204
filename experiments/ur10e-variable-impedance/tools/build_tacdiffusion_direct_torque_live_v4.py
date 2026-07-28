@@ -18,6 +18,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
+    FRICTION_PROFILES,
+    FRICTION_PROFILE_ZERO_ISOLATION,
     LIVE_PROTOCOL_TOKEN,
     LIVE_RECEIVER_SCHEMA,
     ORIENTATION_INTERPOLATION_POLICIES,
@@ -207,6 +209,7 @@ def build(args: argparse.Namespace) -> dict[str, object]:
         tube,
         heartbeat_timeout_ticks=args.heartbeat_timeout_ticks,
         orientation_interpolation_policy=args.orientation_interpolation_policy,
+        friction_profile=args.friction_profile,
     )
     contract = parse_live_receiver_source(source)
     numeric_sanity = _numeric_sanity(reference, tube)
@@ -222,6 +225,9 @@ def build(args: argparse.Namespace) -> dict[str, object]:
         "orientation_interpolation_policy": (
             contract.orientation_interpolation_policy
         ),
+        "friction_profile": contract.friction_profile,
+        "viscous_scale": list(contract.viscous_scale),
+        "coulomb_scale": list(contract.coulomb_scale),
         "receiver_source": args.receiver_source.name,
         "receiver_source_sha256": source_sha,
         "reference_artifact": str(reference_path),
@@ -274,7 +280,7 @@ def build(args: argparse.Namespace) -> dict[str, object]:
             ),
             "continuous_500hz_torque_site": contract.dedicated_torque_thread,
             "zero_torque_startup_or_exit": False,
-            "friction_compensation": "v2_zero_scales_no_contact_entry_canary",
+            "friction_compensation": contract.friction_profile,
             "source_builder_physical_io": contract.source_builder_physical_io_enabled,
             "controller_runtime_physical_io": contract.controller_runtime_physical_io_enabled,
         },
@@ -311,6 +317,11 @@ def main(argv: list[str] | None = None) -> int:
         "--orientation-interpolation-policy",
         choices=ORIENTATION_INTERPOLATION_POLICIES,
         default=ORIENTATION_POLICY_HOLD_ENTRY,
+    )
+    parser.add_argument(
+        "--friction-profile",
+        choices=tuple(FRICTION_PROFILES),
+        default=FRICTION_PROFILE_ZERO_ISOLATION,
     )
     args = parser.parse_args(argv)
     try:

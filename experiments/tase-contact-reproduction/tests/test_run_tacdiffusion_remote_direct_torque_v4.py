@@ -38,6 +38,8 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     CANARY_STAGE_HOLD,
     CANARY_STAGE_RAMP,
     CANARY_STAGE_REFERENCE,
+    CANARY_STAGE_REFERENCE_3S_SOUND_DIAGNOSTIC,
+    CANARY_STAGE_REFERENCE_7S_SOUND_DIAGNOSTIC,
     CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC,
     LiveRTDE,
     _LIVE_WRITER_PATTERNS,
@@ -391,6 +393,9 @@ def _fake_control_bundle(pose: list[float], *, unsafe_x: float | None = None):
         source_sha256="source-sha",
         manifest_sha256="manifest-sha",
         reference_sha256="reference-sha",
+        friction_profile="zero_isolation",
+        viscous_scale=(0.0,) * 6,
+        coulomb_scale=(0.0,) * 6,
     )
 
 
@@ -852,6 +857,36 @@ def test_canary_timeline_has_fixed_hold_ramp_and_reference_stages(
         reference.row_at(bundle.timeline.duration_s / 2.0)["desired_pose_base"]
     )
 
+    sound_diagnostic = CanaryTimeline.from_stage(
+        CANARY_STAGE_REFERENCE_3S_SOUND_DIAGNOSTIC,
+        actual_pose=actual,
+        bundle=bundle,
+    )
+    assert sound_diagnostic.duration_s == pytest.approx(3.0)
+    assert sound_diagnostic.row_at(0.0)["desired_pose_base"] == pytest.approx(actual)
+    assert sound_diagnostic.row_at(3.0)["desired_pose_base"] == pytest.approx(
+        reference.row_at(reference.duration_s)["desired_pose_base"]
+    )
+    assert sound_diagnostic.row_at(1.5)["desired_pose_base"] == pytest.approx(
+        reference.row_at(bundle.timeline.duration_s / 2.0)["desired_pose_base"]
+    )
+
+    sound_diagnostic_7s = CanaryTimeline.from_stage(
+        CANARY_STAGE_REFERENCE_7S_SOUND_DIAGNOSTIC,
+        actual_pose=actual,
+        bundle=bundle,
+    )
+    assert sound_diagnostic_7s.duration_s == pytest.approx(7.0)
+    assert sound_diagnostic_7s.row_at(0.0)["desired_pose_base"] == pytest.approx(
+        actual
+    )
+    assert sound_diagnostic_7s.row_at(7.0)["desired_pose_base"] == pytest.approx(
+        reference.row_at(reference.duration_s)["desired_pose_base"]
+    )
+    assert sound_diagnostic_7s.row_at(3.5)["desired_pose_base"] == pytest.approx(
+        reference.row_at(bundle.timeline.duration_s / 2.0)["desired_pose_base"]
+    )
+
 
 def test_reference_10s_numeric_sanity_is_a_time_only_stretch() -> None:
     sanity = json.loads(REFERENCE_10S_SANITY.read_text(encoding="utf-8"))
@@ -897,6 +932,8 @@ def test_old_reference_drift_does_not_block_reanchored_canary_preflight(
         CANARY_STAGE_HOLD,
         CANARY_STAGE_RAMP,
         CANARY_STAGE_REFERENCE,
+        CANARY_STAGE_REFERENCE_3S_SOUND_DIAGNOSTIC,
+        CANARY_STAGE_REFERENCE_7S_SOUND_DIAGNOSTIC,
         CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC,
     ):
         timeline = CanaryTimeline.from_stage(stage, actual_pose=actual, bundle=bundle)
@@ -1175,6 +1212,7 @@ def test_stage_evidence_prevents_skipping_a_live_canary_stage(tmp_path: Path) ->
                 "robot_host": "192.168.1.18",
                 "receiver_source_sha256": bundle.source_sha256,
                 "bundle_manifest_sha256": bundle.manifest_sha256,
+                "friction_profile": bundle.friction_profile,
                 "reference_artifact_sha256": bundle.reference_sha256,
                 "runtime_source_sha256": runtime_source_binding()["sha256"],
                 "canary_stage": CANARY_STAGE_HOLD,

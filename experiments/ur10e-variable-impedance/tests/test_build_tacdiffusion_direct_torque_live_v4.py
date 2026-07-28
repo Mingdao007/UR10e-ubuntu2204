@@ -18,18 +18,26 @@ REFERENCE = (
 )
 
 
-def _build(tmp_path: Path, reference: Path = REFERENCE) -> subprocess.CompletedProcess[str]:
+def _build(
+    tmp_path: Path,
+    reference: Path = REFERENCE,
+    *,
+    friction_profile: str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    command = [
+        sys.executable,
+        str(BUILDER),
+        "--reference",
+        str(reference),
+        "--receiver-source",
+        str(tmp_path / "receiver.script"),
+        "--manifest",
+        str(tmp_path / "manifest.json"),
+    ]
+    if friction_profile is not None:
+        command.extend(["--friction-profile", friction_profile])
     return subprocess.run(
-        [
-            sys.executable,
-            str(BUILDER),
-            "--reference",
-            str(reference),
-            "--receiver-source",
-            str(tmp_path / "receiver.script"),
-            "--manifest",
-            str(tmp_path / "manifest.json"),
-        ],
+        command,
         cwd=ROOT.parents[1],
         env={"PYTHONPATH": str(ROOT)},
         text=True,
@@ -60,6 +68,23 @@ def test_bundle_records_complete_numeric_sanity(tmp_path: Path) -> None:
     assert sanity["target_load_n"] == 0.0
     assert sanity["preload_n"] == 0.0
     assert sanity["feedforward_wrench"] == [0.0] * 6
+
+
+def test_bundle_records_ur_default_v2_friction_diagnostic(tmp_path: Path) -> None:
+    if not REFERENCE.is_file():
+        pytest.skip("fresh passive reference artifact is unavailable")
+    completed = _build(
+        tmp_path,
+        friction_profile="ur_default_v2_diagnostic",
+    )
+    assert completed.returncode == 0, completed.stderr
+    manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["friction_profile"] == "ur_default_v2_diagnostic"
+    assert manifest["viscous_scale"] == [0.9, 0.9, 0.8, 0.9, 0.9, 0.9]
+    assert manifest["coulomb_scale"] == [0.8, 0.8, 0.7, 0.8, 0.8, 0.8]
+    assert manifest["gates"]["friction_compensation"] == (
+        "ur_default_v2_diagnostic"
+    )
 
 
 def test_builder_rejects_reference_that_is_not_one_mm(tmp_path: Path) -> None:

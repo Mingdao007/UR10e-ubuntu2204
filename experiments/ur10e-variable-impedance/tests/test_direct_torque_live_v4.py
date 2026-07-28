@@ -10,6 +10,8 @@ import pytest
 
 from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (
     COMPILE_PROBE_PROTOCOL_TOKEN,
+    FRICTION_PROFILE_UR_DEFAULT_V2_DIAGNOSTIC,
+    FRICTION_PROFILE_ZERO_ISOLATION,
     LIVE_PROTOCOL_TOKEN,
     LIVE_RECEIVER_SCHEMA,
     ORIENTATION_POLICY_HOLD_ENTRY,
@@ -131,8 +133,9 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
         "join torque_thread_handle"
     )
     assert "friction_comp=True" not in source
-    assert "viscous_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]" in source
-    assert "coulomb_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]" in source
+    assert contract.friction_profile == FRICTION_PROFILE_ZERO_ISOLATION
+    assert contract.viscous_scale == (0.0,) * 6
+    assert contract.coulomb_scale == (0.0,) * 6
     assert "blend*viscous_scale_target[axis]" not in source
     assert "blend*coulomb_scale_target[axis]" not in source
     assert "direct_torque([0.0" not in source
@@ -278,6 +281,38 @@ def test_v4_source_is_episode_bound_and_deterministic() -> None:
     ).hexdigest()
     for value in tube.anchor_pose_base:
         assert f"{value:.17g}" in first
+
+
+def test_v4_source_supports_explicit_ur_default_v2_friction_diagnostic() -> None:
+    tube = LiveTubeContract.from_reference_artifact(reference_path())
+    source = build_live_receiver_source(
+        tube,
+        friction_profile=FRICTION_PROFILE_UR_DEFAULT_V2_DIAGNOSTIC,
+    )
+    contract = parse_live_receiver_source(source)
+    assert contract.friction_profile == FRICTION_PROFILE_UR_DEFAULT_V2_DIAGNOSTIC
+    assert contract.viscous_scale == pytest.approx(
+        [0.9, 0.9, 0.8, 0.9, 0.9, 0.9]
+    )
+    assert contract.coulomb_scale == pytest.approx(
+        [0.8, 0.8, 0.7, 0.8, 0.8, 0.8]
+    )
+    assert f'friction_profile = "{FRICTION_PROFILE_ZERO_ISOLATION}"' not in source
+
+
+def test_v4_parser_rejects_friction_profile_scale_mismatch() -> None:
+    tube = LiveTubeContract.from_reference_artifact(reference_path())
+    source = build_live_receiver_source(
+        tube,
+        friction_profile=FRICTION_PROFILE_UR_DEFAULT_V2_DIAGNOSTIC,
+    )
+    mismatched = source.replace(
+        "viscous_scale = [0.90000000000000002",
+        "viscous_scale = [0.80000000000000004",
+        1,
+    )
+    with pytest.raises(ValueError, match="do not match declared profile"):
+        parse_live_receiver_source(mismatched)
 
 
 def test_receiver_parser_rejects_empty_sync_after_direct_torque() -> None:
