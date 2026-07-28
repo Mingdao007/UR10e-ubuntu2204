@@ -9060,8 +9060,8 @@
       "stage": "Step5d",
       "owner": "native_remote_direct_torque_candidate",
       "active": false,
-      "blocked": true,
-      "complete": false,
+      "blocked": false,
+      "complete": true,
       "completion_target": false,
       "shape": "anchor_circle",
       "frame": "config/step5_safe_frame.json",
@@ -9077,6 +9077,16 @@
         "runtime_reuse_basis": "step5d_v34_rtde_and_absolute_deadline_primitives",
         "scheduler_policy": "step5d_v35_sched_other_no_fifo",
         "remote_specific_surface": "secondary_client_source_send_and_receiver_handshake_only",
+        "primary_client_start_barrier": {
+          "port": 30001,
+          "mode": "read_only_receive_only",
+          "fresh_connection_immediately_before_secondary_send": true,
+          "hold_s": 0.15,
+          "controller_write": false,
+          "evidence_reason": "2026-07-28 idle-only A/B: delay-only did not start the exact receiver, while a fresh Primary observer produced PROGRAM_XXX_STARTED and the new WAITING identity"
+        },
+        "maximum_secondary_send_attempts": 2,
+        "secondary_resend_gate": "only_after_fresh_rtde_proves_stopped_stale_terminal_identity_with_no_new_waiting_lease_or_episode_echo",
         "historical_bridge_source_modified": false
       },
       "geometry_contract": {
@@ -9095,10 +9105,10 @@
         "live_cli_gates_required": true,
         "runtime_source_binding_remains_evidence": true,
         "prior_stage_runtime_identity_must_match": true,
-        "urscript_send_tcp_secondary_30002": "pending_independent_live_authority",
-        "rtde_input_write": "pending_independent_live_authority",
-        "direct_torque_motion": "pending_independent_live_authority",
-        "kunwei_stream": "deferred",
+        "urscript_send_tcp_secondary_30002": "accepted_no_contact_canary_chain_20260728",
+        "rtde_input_write": "accepted_no_contact_canary_chain_20260728",
+        "direct_torque_motion": "accepted_no_contact_canary_chain_20260728",
+        "kunwei_stream": "accepted_no_contact_canary_chain_20260728",
         "contact": "deferred"
       },
       "hold_contract": {
@@ -9133,7 +9143,7 @@
         "main_loop_sync_runs_concurrently_with_torque_thread": true,
         "root_cause_evidence": "runs/tacdiffusion/direct_torque_v4_v34reuse_live_20260726T1859HKT/hold_100ms/entry_bumplessness_analysis_v1.json",
         "root_fix": "official_style_dedicated_torque_thread_plus_translation_only_entry_blend_and_entry_orientation_hold",
-        "root_fix_live_validation": "historical_source_hold_100ms_passed_20260726; timing_corrected_source_requires_fresh_canonical_hold_after_a2a3a7ec",
+        "root_fix_live_validation": "runtime fingerprint 4f615e45 passed ordered hold_100ms, ramp_0_2mm_500ms, and reference_2s no-contact canaries on 2026-07-28",
         "guard_claim": "acceleration_guard_is_defense_in_depth_not_root_fix"
       },
       "cadence_contract": {
@@ -9165,7 +9175,7 @@
         "rtde_minimum_row_fraction": 0.9,
         "command_lineage_required": true,
         "kunwei_parse_and_drop_errors_required_zero": true,
-        "latest_timing_corrected_hold": {
+        "historical_timing_corrected_hold": {
           "run": "runs/tacdiffusion/direct_torque_v4_pow_decay_hold_live_20260727T1019HKT",
           "original_evidence_ok": false,
           "original_failed_gate": "maximum_control_update_gap_le_10ms",
@@ -9175,6 +9185,20 @@
           "physical_metrics_within_intended_bounds": true,
           "canonical_prior_stage_receipt": false,
           "runner_fix_commit": "a2a3a7ec"
+        },
+        "latest_canonical_chain": {
+          "runtime_source_sha256": "4f615e45c92f2e210bfb0dc614f5fa9cac3f5d0fd5b6ee9fec389eeab95df54f",
+          "receiver_source_sha256": "86545a209b348b9f19469239686f778a7b9ff19c065f771d73f2c3310a85e67f",
+          "hold": "runs/tacdiffusion/direct_torque_v4_pow_decay_hold_fresh_primary_20260728T1257HKT/evidence.json",
+          "hold_evidence_sha256": "02d24ea93499f49493fc96825017b1cf36e7448f6ba20ebc77dc95aba27b9e68",
+          "ramp": "runs/tacdiffusion/direct_torque_v4_pow_decay_ramp_0_2mm_fresh_primary_20260728T1258HKT/evidence.json",
+          "ramp_evidence_sha256": "8bc1a93eda653a7b7fc4dc49f59342db89dbdd1839cd7573fc4abe3a25bb176b",
+          "reference": "runs/tacdiffusion/direct_torque_v4_pow_decay_reference_2s_fresh_primary_20260728T1259HKT/evidence.json",
+          "reference_evidence_sha256": "d4b66974db40fd9c4eeb884de59fbb2c4d89c0336cc277bad15797e056bddfc3",
+          "chain_audit": "runs/tacdiffusion/direct_torque_v4_pow_decay_reference_2s_fresh_primary_20260728T1259HKT/canary_chain_audit_v1.json",
+          "ordered_chain_ok": true,
+          "tracking_fidelity_is_strict_gate": false,
+          "training_dataset": false
         }
       },
       "register_contract_ref": "config/direct_torque_remote_live_v4.json#rtde_register_contract",
@@ -9182,7 +9206,8 @@
         "is_current": false,
         "stage_id": "step5d_direct_torque_remote_live_v4",
         "current_stage_pointer": "config/current_stage.json",
-        "live_authorized": false
+        "live_authorized": false,
+        "no_contact_canary_chain_accepted": true
       },
       "success_condition": "Direct Torque RTDE v4 remains an inactive no-contact candidate. Each new source fingerprint must pass compile probe, 50 ms consecutive stationary entry, zero-friction-scale 100 ms hold, 0.2 mm/500 ms ramp, and bounded 2 s reference in order, with Direct Torque and COMPLETE observed, actual joint acceleration at or below 5 rad/s^2, at least 90% of expected 500 Hz RTDE rows, torque-thread calls at 450-550 Hz, controller-law refresh at or above 150 Hz, STARTUP/TORQUE control-update gap at or below 10 ms, zero lineage/parse/drop errors, Kunwei raw rate 900-1100 Hz, and TCP delivery gaps within 80 ms. This does not imply contact success or training-data eligibility."
     },

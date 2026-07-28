@@ -1606,6 +1606,31 @@ def summarize_receiver_handshake_samples(
     }
 
 
+def _stale_terminal_receiver_allows_one_resend(
+    samples: Sequence[Mapping[str, Any]],
+    *,
+    lease_id: int,
+    episode_identity: int,
+) -> bool:
+    """Allow one resend only when no new receiver execution was observed."""
+
+    summary = summarize_receiver_handshake_samples(
+        samples,
+        lease_id=lease_id,
+        episode_identity=episode_identity,
+    )
+    last = summary["last_observed"]
+    return bool(
+        summary["protocol_rows"] > 0
+        and summary["waiting_rows"] == 0
+        and summary["accepted_rows"] == 0
+        and int(last.get("runtime_state", -1)) == RUNTIME_STOPPED
+        and int(last.get("receiver_state", -1)) in (STATE_COMPLETE, STATE_FAULT)
+        and int(last.get("lease_echo", -1)) != lease_id
+        and int(last.get("episode_echo", -1)) != episode_identity
+    )
+
+
 def _prime_idle_inputs(
     rtde: LiveRTDE,
     input_recipe: int,
@@ -1669,6 +1694,67 @@ def _send_urscript(host: str, source: str, timeout_s: float) -> None:
     payload = source if source.endswith("\n") else source + "\n"
     with socket.create_connection((host, 30002), timeout=timeout_s) as connection:
         connection.sendall(payload.encode("utf-8"))
+
+
+@contextmanager
+def _primary_client_observer(
+    host: str,
+    *,
+    timeout_s: float,
+):
+    """Hold a read-only Primary Client connection while Secondary runs."""
+
+    connection = socket.create_connection((host, 30001), timeout=timeout_s)
+    connection.settimeout(0.1)
+    stop_event = threading.Event()
+    stats = {"connected": True, "bytes_received": 0}
+
+    def drain() -> None:
+        while not stop_event.is_set():
+            try:
+                payload = connection.recv(65536)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            if not payload:
+                break
+            stats["bytes_received"] += len(payload)
+
+    thread = threading.Thread(
+        target=drain,
+        name="ur-primary-client-observer",
+        daemon=True,
+    )
+    thread.start()
+    try:
+        yield stats
+    finally:
+        stop_event.set()
+        try:
+            connection.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        connection.close()
+        thread.join(timeout=1.0)
+
+
+def _send_urscript_with_primary_start_barrier(
+    host: str,
+    source: str,
+    *,
+    timeout_s: float,
+    barrier_hold_s: float = 0.15,
+) -> dict[str, Any]:
+    """Send Secondary source beside a fresh, read-only Primary connection."""
+
+    with _primary_client_observer(host, timeout_s=timeout_s) as stats:
+        _send_urscript(host, source, timeout_s)
+        time.sleep(barrier_hold_s)
+    return {
+        **stats,
+        "barrier_hold_s": barrier_hold_s,
+    }
 
 
 def _output_row(
@@ -2447,6 +2533,8 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
     scheduler = AckPacedScheduler()
     samples: list[dict[str, Any]] = []
     sent_sequences = 0
+    receiver_send_attempts = 0
+    primary_start_barriers: list[dict[str, Any]] = []
     observed_torque = False
     torque_start_elapsed_s: float | None = None
     complete = False
@@ -2490,19 +2578,48 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
         )
         handshake_samples: list[dict[str, Any]] = []
         handshake_diagnostic_samples: list[dict[str, Any]] = []
-        _send_urscript(args.robot_host, bundle.source, args.connect_timeout_s)
         try:
-            start, sample = _wait_for_fresh_receiver_waiting(
-                rtde,
-                output_recipe,
-                output_types,
-                OUTPUT_FIELDS,
-                receiver_wait_s=args.receiver_wait_s,
-                lease_id=lease_id,
-                episode_identity=episode_identity,
-                samples_out=handshake_samples,
-                diagnostic_samples_out=handshake_diagnostic_samples,
-            )
+            while True:
+                receiver_send_attempts += 1
+                primary_start_barriers.append(
+                    _send_urscript_with_primary_start_barrier(
+                        args.robot_host,
+                        bundle.source,
+                        timeout_s=args.connect_timeout_s,
+                    )
+                )
+                try:
+                    start, sample = _wait_for_fresh_receiver_waiting(
+                        rtde,
+                        output_recipe,
+                        output_types,
+                        OUTPUT_FIELDS,
+                        receiver_wait_s=args.receiver_wait_s,
+                        lease_id=lease_id,
+                        episode_identity=episode_identity,
+                        samples_out=handshake_samples,
+                        diagnostic_samples_out=handshake_diagnostic_samples,
+                    )
+                    break
+                except RuntimeError:
+                    if not (
+                        receiver_send_attempts == 1
+                        and _stale_terminal_receiver_allows_one_resend(
+                            handshake_diagnostic_samples,
+                            lease_id=lease_id,
+                            episode_identity=episode_identity,
+                        )
+                    ):
+                        raise
+                    _prime_idle_inputs(
+                        rtde,
+                        input_recipe,
+                        input_types,
+                        outgoing.values,
+                        output_recipe,
+                        output_types,
+                        OUTPUT_FIELDS,
+                    )
             scheduler.arm(start)
             pending = handshake_samples or [dict(sample)]
             while True:
@@ -2781,7 +2898,9 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                     )
                 ),
                 "stationary_entry_dwell_excluded_from_stage_clock": True,
+                "primary_client_start_barriers": primary_start_barriers,
                 "receiver_handshake_summary": handshake_summary,
+                "receiver_send_attempts": receiver_send_attempts,
                 "receiver_handshake_diagnostics": (
                     str(handshake_diagnostics_path)
                     if handshake_diagnostic_samples

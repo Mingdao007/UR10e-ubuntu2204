@@ -163,8 +163,8 @@ uses URScript's supported `pow(e, -omega*dt)` form rather than the unsupported
 `exp()` spelling. The exact frozen source passed an official 5.25.2 URSim
 full-source no-motion check and a real 5.26 bounded parser/start probe with
 WAITING and COMPLETE observed, no RTDE inputs, no Direct Torque, and no
-motion. It has not yet passed a physical Direct Torque hold; the historical
-hold does not promote it.
+motion. The later 2026-07-28 canary chain below supersedes the earlier
+physical-hold gap.
 
 The timing-corrected source was exercised in one authorized no-contact hold on
 2026-07-27. The receiver followed WAITING -> STARTUP -> TORQUE -> SAFE_EXIT ->
@@ -182,6 +182,42 @@ Commit `a2a3a7ec` limits cadence aggregation to STARTUP/TORQUE and adds a
 regression test. A fresh 100 ms hold is still required to produce the
 canonical `ok=true` prior-stage receipt; this run does not authorize the
 0.2 mm ramp.
+
+On 2026-07-28, repeated exact-source sends exposed a separate Secondary Client
+startup condition: port 30002 could retain the previous terminal output
+registers without starting the new receiver. Controlled idle-only A/B probes
+showed that a fresh read-only Primary Client connection on port 30001,
+established immediately beside the Secondary send, reliably produced the
+controller `PROGRAM_XXX_STARTED` event and the new WAITING identity. A delay
+without that connection did not. The runner now holds a 150 ms fresh Primary
+start barrier that only receives controller state/messages and never writes.
+It also permits at most one resend, and only after fresh RTDE ticks prove that
+the controller is still STOPPED in a stale terminal identity. PLAYING,
+WAITING, or either new lease/episode echo blocks the resend.
+
+The corrected runtime fingerprint
+`4f615e45c92f2e210bfb0dc614f5fa9cac3f5d0fd5b6ee9fec389eeab95df54f`
+then passed the complete ordered no-contact chain:
+
+1. `hold_100ms`: `500.00 Hz` RTDE, `481.13 Hz` torque thread,
+   `198.11 Hz` control refresh, `6.00 ms` maximum active update gap,
+   `0.292 rad/s²` maximum derived joint acceleration, and `1007.26 Hz`
+   Kunwei;
+2. `ramp_0_2mm_500ms`: `500.00 Hz`, `496.05 Hz`, `199.60 Hz`,
+   `6.00 ms`, `1.482 rad/s²`, and `1001.72 Hz`, respectively;
+3. `reference_2s`: `500.00 Hz`, `499.50 Hz`, `199.90 Hz`, `6.00 ms`,
+   `2.157 rad/s²`, and `1005.57 Hz`, respectively.
+
+All three runs used one receiver send, observed Direct Torque and COMPLETE,
+had zero lineage/nonmonotonic/parse/drop errors, and returned the robot to
+STOPPED, stationary, RUNNING/NORMAL. The chain evidence and hashes are in
+`runs/tacdiffusion/direct_torque_v4_pow_decay_reference_2s_fresh_primary_20260728T1259HKT/canary_chain_audit_v1.json`.
+Trajectory fidelity is not a strict gate in this canary: the 0.2 mm ramp
+command reached `0.183 mm` in the captured TORQUE rows while actual maximum
+translation was `0.092 mm`; the bounded 2 s command reached `0.634 mm` while
+actual maximum translation was `0.119 mm`. The chain therefore qualifies
+transport, cadence, bounded Direct Torque execution, and capture, not
+trajectory fidelity, contact control, or training-data eligibility.
 
 A 2026-07-26 read-only 2 s position-control shadow at the fresh bench pose
 captured 954 RTDE rows without sending a program or writing RTDE inputs. Mean

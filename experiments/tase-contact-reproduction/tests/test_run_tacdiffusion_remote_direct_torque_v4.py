@@ -3,9 +3,11 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import socket
 import struct
 import subprocess
 import sys
+import time
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
@@ -65,7 +67,10 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     _next_available_run_dir,
     _new_live_identity_pair,
     _prime_idle_inputs,
+    _primary_client_observer,
     _sample_translation_error_sqm3,
+    _send_urscript_with_primary_start_barrier,
+    _stale_terminal_receiver_allows_one_resend,
     _wait_for_fresh_receiver_waiting,
     _update_compile_probe_markers,
     _update_receiver_handshake_markers,
@@ -935,6 +940,93 @@ def test_idle_prime_overwrites_stale_command_for_five_fresh_controller_ticks() -
     assert rtde.batch_index >= 6
 
 
+def test_primary_client_observer_is_read_only() -> None:
+    class FakeConnection:
+        def __init__(self) -> None:
+            self.payloads = [b"controller-state"]
+            self.closed = False
+
+        def settimeout(self, _timeout_s: float) -> None:
+            return None
+
+        def recv(self, _size: int) -> bytes:
+            if self.payloads:
+                return self.payloads.pop(0)
+            raise socket.timeout
+
+        def sendall(self, _payload: bytes) -> None:
+            raise AssertionError("primary observer must never write")
+
+        def shutdown(self, _how: int) -> None:
+            return None
+
+        def close(self) -> None:
+            self.closed = True
+
+    connection = FakeConnection()
+    with patch(
+        "run_tacdiffusion_remote_direct_torque_v4.socket.create_connection",
+        return_value=connection,
+    ) as create_connection:
+        with _primary_client_observer(
+            "192.168.1.18",
+            timeout_s=1.0,
+        ) as stats:
+            deadline = time.monotonic() + 0.1
+            while stats["bytes_received"] == 0 and time.monotonic() < deadline:
+                time.sleep(0.001)
+
+    create_connection.assert_called_once_with(
+        ("192.168.1.18", 30001),
+        timeout=1.0,
+    )
+    assert stats == {
+        "connected": True,
+        "bytes_received": len(b"controller-state"),
+    }
+    assert connection.closed
+
+
+def test_secondary_send_holds_fresh_primary_start_barrier() -> None:
+    events: list[str] = []
+
+    @contextmanager
+    def fake_primary_observer(*_args: object, **_kwargs: object):
+        events.append("primary_enter")
+        try:
+            yield {"connected": True, "bytes_received": 321}
+        finally:
+            events.append("primary_exit")
+
+    with patch(
+        "run_tacdiffusion_remote_direct_torque_v4._primary_client_observer",
+        side_effect=fake_primary_observer,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4._send_urscript",
+        side_effect=lambda *_args, **_kwargs: events.append("secondary_send"),
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.time.sleep",
+        side_effect=lambda _seconds: events.append("barrier_hold"),
+    ):
+        stats = _send_urscript_with_primary_start_barrier(
+            "192.168.1.18",
+            "def probe():\nend\n",
+            timeout_s=1.0,
+        )
+
+    assert events == [
+        "primary_enter",
+        "secondary_send",
+        "barrier_hold",
+        "primary_exit",
+    ]
+    assert stats == {
+        "connected": True,
+        "bytes_received": 321,
+        "barrier_hold_s": 0.15,
+    }
+
+
 def test_compile_probe_evidence_is_strictly_no_motion(
     tmp_path: Path,
 ) -> None:
@@ -1396,6 +1488,56 @@ def test_receiver_handshake_summary_localizes_startup_latch_failure() -> None:
             "episode_echo": 0,
         },
     }
+
+
+def test_stale_terminal_receiver_allows_one_resend() -> None:
+    stale = {
+        "timestamp": 10.0,
+        "runtime_state": RUNTIME_STOPPED,
+        "output_int_register_24": STATE_COMPLETE,
+        "output_int_register_27": 111,
+        "output_int_register_31": 222,
+        "output_int_register_32": LIVE_PROTOCOL_TOKEN,
+        "output_int_register_34": MODE_END,
+        "output_int_register_35": 1,
+    }
+    assert _stale_terminal_receiver_allows_one_resend(
+        [stale],
+        lease_id=333,
+        episode_identity=444,
+    )
+
+
+@pytest.mark.parametrize(
+    ("runtime_state", "receiver_state", "lease_echo", "episode_echo"),
+    [
+        (RUNTIME_PLAYING, STATE_COMPLETE, 111, 222),
+        (RUNTIME_STOPPED, STATE_WAITING, 111, 222),
+        (RUNTIME_STOPPED, STATE_COMPLETE, 333, 222),
+        (RUNTIME_STOPPED, STATE_COMPLETE, 111, 444),
+    ],
+)
+def test_receiver_resend_is_blocked_after_any_new_execution_evidence(
+    runtime_state: int,
+    receiver_state: int,
+    lease_echo: int,
+    episode_echo: int,
+) -> None:
+    sample = {
+        "timestamp": 10.0,
+        "runtime_state": runtime_state,
+        "output_int_register_24": receiver_state,
+        "output_int_register_27": lease_echo,
+        "output_int_register_31": episode_echo,
+        "output_int_register_32": LIVE_PROTOCOL_TOKEN,
+        "output_int_register_34": MODE_IDLE,
+        "output_int_register_35": 1,
+    }
+    assert not _stale_terminal_receiver_allows_one_resend(
+        [sample],
+        lease_id=333,
+        episode_identity=444,
+    )
 
 
 def test_run_live_rejects_partial_cli_gates_before_preflight_or_connect(tmp_path: Path) -> None:
