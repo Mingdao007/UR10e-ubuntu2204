@@ -60,7 +60,11 @@
         "tests/test_step5d_autotune_v3_installed_runtime.py",
         "tests/test_step5d_parameter_queue.py",
       "tests/test_step5d_parameter_campaign_receiver.py",
-      "tests/test_step5d_autotune_start_hover_r001.py"
+      "tests/test_step5d_autotune_start_hover_r001.py",
+      "tests/test_step5d_campaign_start.py",
+      "tests/test_step5d_guard_policy.py",
+      "tests/test_step5d_no_tube_handoff.py",
+      "tests/test_step5d_parameter_feeder.py"
       ],
       "obsolete": [
         "tests/test_cross_step_parameter_table.py",
@@ -226,6 +230,16 @@
         "tests/test_step5d_v3_launch_basis.py",
           "tests/test_step5d_v3_shell_source_fingerprint.py",
           "tests/test_step5d_v3_supervisor_guard.py"
+        ],
+        [
+          "@hermetic-python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_step5d_campaign_start.py",
+          "tests/test_step5d_guard_policy.py",
+          "tests/test_step5d_no_tube_handoff.py",
+          "tests/test_step5d_parameter_feeder.py"
         ]
       ],
       "ci": true,

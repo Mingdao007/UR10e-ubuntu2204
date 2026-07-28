@@ -16,6 +16,38 @@ ARM remains fail-closed until the runtime identity is observed and rechecked.
 This compatibility projection currently selects
 `step5d_strict_rnn_autotune_v3`; its governed TP identity revision is r026.
 
+## No-tube campaign-start state machine
+
+The executable no-tube handoff is bound by
+`config/step5d/no_tube_handoff.json`, and its canonical mutable status owner is
+`tools/step5d_no_tube_handoff.py:HandoffStateStore`. The stage table repeats the
+same binding as a checked-in projection. The only operator campaign-start
+entrypoint is:
+
+`scripts/step5d-autotune-v3.sh campaign-start`
+
+Its qualified transition order is:
+
+`RELEASE_READY → QUEUE_READY → SCRIPT1_LOADED → SCRIPT1_PLAYED → HOME_VERIFIED → R026_LOADED → R026_IDENTITY_VERIFIED → BRIDGE_READY → CAMPAIGN_RUNNING`
+
+Every transition writes an immutable receipt. `QUEUE_READY` is bound to the
+actual pending candidate IDs, queue revision, campaign ID, execution profile,
+and configured high/low watermarks. `HOME_VERIFIED` is a read-only observer
+receipt: Script 1 must be stopped, Safety must be NORMAL, the exact TCP Home
+pose must be within tolerance, TCP/joint speeds must be stationary for 0.5 s,
+and no target joint vector is introduced. Script 1 is the existing
+`step5d_autotune_start_hover_r001`; Script 2 is the current immutable r026
+release. Script 1 has no bridge, lease, ARM, contact, zero, or tare lifecycle.
+
+The current implementation exposes this entrypoint as fail-closed offline
+preflight until a route-specific live adapter is independently qualified. The
+current running lineage remains r026 runtime-continuity evidence only; the next
+new campaign is the acceptance point for the complete Script 1 → 2 startup.
+The candidate feeder runs on the candidate plane and consumes sealed terminal
+results only. The optional guard is composed through
+`evaluate(observation, proposed_command) -> GuardDecision`; the empty policy
+set is an exact identity and therefore restores the no-tube r026 command.
+
 The governed TP identity revision is r026. It carries protocol/digest identity on
 output integer registers 35--37 and requires release-manifest v3 verification,
 fresh controller GET closure, exact Dashboard loaded-program identity, and the

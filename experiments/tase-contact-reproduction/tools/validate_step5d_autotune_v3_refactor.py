@@ -89,6 +89,10 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_v3_source_closure.py",
     "tests/test_step5d_layer_boundaries.py",
     "tests/test_step5d_autotune_start_hover_r001.py",
+    "tests/test_step5d_campaign_start.py",
+    "tests/test_step5d_guard_policy.py",
+    "tests/test_step5d_no_tube_handoff.py",
+    "tests/test_step5d_parameter_feeder.py",
 }
 AUTHORITATIVE_OBSOLETE_TESTS = {
     "tests/test_cross_step_parameter_table.py",

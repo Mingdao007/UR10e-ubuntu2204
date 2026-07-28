@@ -102,9 +102,25 @@ Options:
 EOF
 }
 
+campaign_start_usage() {
+  cat <<'EOF'
+Usage: step5d-autotune-v3.sh campaign-start [OPTIONS]
+
+Single governed campaign-start entrypoint. The currently bound implementation
+is an offline preflight until a route-specific live adapter is qualified. The
+canonical handoff manifest is fixed by the active surface and cannot be
+overridden through this public entrypoint.
+
+Options:
+  --offline         Validate release/state-machine contracts without live I/O
+  -h, --help        Show this help without starting any work
+EOF
+}
+
 usage() {
   cat <<'EOF'
 Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
+       step5d-autotune-v3.sh campaign-start [OPTIONS]
        step5d-autotune-v3.sh release-contract-check [OPTIONS]
        step5d-autotune-v3.sh tp-deliver [OPTIONS]
        step5d-autotune-v3.sh revalidate-current [OPTIONS]
@@ -114,6 +130,7 @@ Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
        step5d-autotune-v3.sh [OPERATOR-CLI-ARGS]
 
 Use "step5d-autotune-v3.sh bridge-live --help" for bridge options.
+Use "step5d-autotune-v3.sh campaign-start --help" for governed startup preflight.
 Use "step5d-autotune-v3.sh release-contract-check --help" for contract options.
 Use "step5d-autotune-v3.sh tp-deliver --help" for delivery options.
 Use "step5d-autotune-v3.sh revalidate-current --help" for runtime revalidation.
@@ -430,6 +447,24 @@ fi
 if [[ "${1:-}" == "bridge" ]]; then
   echo "bridge argv refused: compatibility cutoff passed; use bridge-live" >&2
   exit 64
+fi
+
+if [[ "${1:-}" == "campaign-start" ]]; then
+  shift
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    campaign_start_usage
+    exit 0
+  fi
+  for option in "$@"; do
+    if [[ "${option}" == "--manifest" || "${option}" == --manifest=* ]]; then
+      echo "campaign-start argv refused: canonical handoff manifest cannot be overridden" >&2
+      exit 64
+    fi
+  done
+  HANDOFF_PYTHONPATH="${EXPERIMENT_ROOT}/tools:${REPOSITORY_ROOT}/src/ur10e_experiment_runtime"
+  export PYTHONPATH="${HANDOFF_PYTHONPATH}${PYTHONPATH:+:${PYTHONPATH}}"
+  exec /usr/bin/python3 -B "${EXPERIMENT_ROOT}/tools/step5d_campaign_start.py" \
+    campaign-start --manifest "${EXPERIMENT_ROOT}/config/step5d/no_tube_handoff.json" "$@"
 fi
 
 if [[ "${1:-}" == "bridge-live" ]]; then

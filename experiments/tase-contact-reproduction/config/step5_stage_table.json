@@ -11093,6 +11093,32 @@
             "safety_normal"
           ]
         },
+        "campaign_start": {
+          "public_entrypoint": "scripts/step5d-autotune-v3.sh campaign-start",
+          "manifest": "config/step5d/no_tube_handoff.json",
+          "state_owner": "tools/step5d_no_tube_handoff.py:HandoffStateStore",
+          "coordinator": "tools/step5d_campaign_start.py:CampaignStartCoordinator",
+          "state_sequence": [
+            "RELEASE_READY",
+            "QUEUE_READY",
+            "SCRIPT1_LOADED",
+            "SCRIPT1_PLAYED",
+            "HOME_VERIFIED",
+            "R026_LOADED",
+            "R026_IDENTITY_VERIFIED",
+            "BRIDGE_READY",
+            "CAMPAIGN_RUNNING"
+          ],
+          "current_run_boundary": "r026_runtime_continuity_only",
+          "next_campaign_acceptance": "full_script1_to_script2_startup"
+        },
+        "optional_guard_seam": {
+          "interface": "evaluate(observation, proposed_command) -> GuardDecision",
+          "implementation": "tools/step5d_autotune_v3/guard_policy.py:GuardPolicyChain",
+          "no_tube_policy_set": [],
+          "empty_policy_behavior": "exact_proposed_command_identity",
+          "lifecycle_scope": "must_not_own_queue_release_startup_postprocess_or_controller_lifecycle"
+        },
         "service": "config/systemd/step5d-autotune-v3.service",
         "service_restart": "no",
         "stop_after_current": "explicit_operator_stop_only"

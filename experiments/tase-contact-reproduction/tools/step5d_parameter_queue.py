@@ -1432,31 +1432,71 @@ def reconcile_not_consumed(
 
 
 def status(root: Path) -> dict[str, Any]:
-    state = load_state(root)
-    pending = list_pending(root)
-    receipts = ()
-    if (root / "receipts").is_dir():
-        receipts = tuple(
-            path
-            for path in (root / "receipts").glob("*.json")
-            if not path.is_symlink()
-            and path.is_file()
-            and _strict_json(path, "parameter receipt").get("schema")
-            in {RECEIPT_SCHEMA, LEGACY_RECEIPT_SCHEMA, "step5d.parameter-receiver/receipt-v1"}
-        )
-    return {
-        "schema": STATE_SCHEMA,
-        "campaign_id": state["campaign_id"],
-        "release_manifest_sha256": state.get("release_manifest_sha256"),
-        "revision": state["revision"],
-        "dispatch_sequence": state["dispatch_sequence"],
-        "pending_count": len(pending),
-        "terminal_receipt_count": len(receipts),
-        "inflight": state["inflight"],
-        "next_request": None if not pending else pending[0],
-        "accepting": True,
-        "capacity": None,
-    }
+    return authoritative_status(root)
+
+
+def authoritative_view(root: Path) -> dict[str, Any]:
+    """Read queue state, pending rows, and inflight identity under ``.queue.lock``.
+
+    ``parameter_receiver_status.json`` is a lagging observer artifact.  Feeder
+    watermarks and candidate exclusion must use this view instead, so a
+    concurrent ``finish_dispatch`` or ``submit_manifest`` cannot make a stale
+    status file look authoritative.
+    """
+
+    root = root.expanduser().absolute()
+    if root.is_symlink() or not root.is_dir():
+        raise ParameterQueueError("queue root must be an existing real directory")
+    if not (_state_path(root).is_file() and not _state_path(root).is_symlink()):
+        raise ParameterQueueError("queue state is missing")
+    with _lock(root):
+        state = load_state(root)
+        pending = _pending(root, state)
+        requests = tuple(_visible_requests(root, state))
+        receipts = ()
+        receipts_root = root / "receipts"
+        if receipts_root.is_dir() and not receipts_root.is_symlink():
+            receipts = tuple(
+                path
+                for path in receipts_root.glob("*.json")
+                if not path.is_symlink()
+                and path.is_file()
+                and _strict_json(path, "parameter receipt").get("schema")
+                in {
+                    RECEIPT_SCHEMA,
+                    LEGACY_RECEIPT_SCHEMA,
+                    "step5d.parameter-receiver/receipt-v1",
+                }
+            )
+        payload = {
+            "schema": STATE_SCHEMA,
+            "campaign_id": state["campaign_id"],
+            "release_manifest_sha256": state.get("release_manifest_sha256"),
+            "revision": state["revision"],
+            "dispatch_sequence": state["dispatch_sequence"],
+            "pending_count": len(pending),
+            "terminal_receipt_count": len(receipts),
+            "inflight": state["inflight"],
+            "next_request": None if not pending else pending[0],
+            "accepting": True,
+            "capacity": None,
+        }
+        return {
+            "status": payload,
+            "state": dict(state),
+            "requests": requests,
+            "pending_requests": tuple(pending),
+            # Inflight is already committed to the receiver and cannot serve
+            # as refillable backup capacity.  Watermarks therefore describe
+            # pending candidates only.
+            "depth": len(pending),
+        }
+
+
+def authoritative_status(root: Path) -> dict[str, Any]:
+    """Return queue status from the state snapshot protected by ``.queue.lock``."""
+
+    return dict(authoritative_view(root)["status"])
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
