@@ -17,7 +17,10 @@ from step5d_autotune_v3.release_identity import (
     release_payload_path,
 )
 from step5d_campaign_identity import campaign_spec, discover_campaign_epochs
-from step5d_parameter_queue import initialize as initialize_parameter_receiver
+from step5d_parameter_queue import (
+    initialize as initialize_parameter_receiver,
+    load_state as load_parameter_receiver_state,
+)
 
 
 INITIAL_MANIFEST_PATH = "config/step5d/parameter_receiver_initial.json"
@@ -139,6 +142,16 @@ def prepare(args: LaunchPreparationRequest) -> dict[str, object]:
     )
     launch_profile_sha256 = _sha256_path(launch_profile_path)
     fingerprint = _validate_campaign_fingerprint(requested_fingerprint=args.campaign_fingerprint)
+    receiver_root = campaign_root / "control" / "parameter_receiver"
+    existing_receiver_state = None
+    receiver_state_path = receiver_root / "state.json"
+    if receiver_state_path.exists() or receiver_state_path.is_symlink():
+        existing_receiver_state = load_parameter_receiver_state(receiver_root)
+    queue_campaign_id = (
+        existing_receiver_state["campaign_id"]
+        if existing_receiver_state is not None
+        else None
+    )
     chain = discover_campaign_epochs(campaign_root)
     if chain:
         latest = chain[-1]
@@ -153,7 +166,7 @@ def prepare(args: LaunchPreparationRequest) -> dict[str, object]:
         campaign_id = latest.campaign.campaign_id
     else:
         epoch = 1
-        campaign_id = None
+        campaign_id = queue_campaign_id
     campaign = campaign_spec(
         root,
         fingerprint,
@@ -168,7 +181,6 @@ def prepare(args: LaunchPreparationRequest) -> dict[str, object]:
     )
     plan_path = legacy_binding_root / "plan.json"
     source_path = legacy_binding_root / "source.json"
-    receiver_root = campaign_root / "control" / "parameter_receiver"
     plan, source = _receiver_documents(
         campaign_id=campaign.campaign_id,
         release_manifest_sha256=release.manifest_sha256,
