@@ -219,6 +219,24 @@ actual maximum translation was `0.119 mm`. The chain therefore qualifies
 transport, cadence, bounded Direct Torque execution, and capture, not
 trajectory fidelity, contact control, or training-data eligibility.
 
+The `reference_10s_diagnostic` time-scale isolation passed on 2026-07-28 with
+runtime fingerprint `baa666d2`. It retained the same spatial reference,
+stiffness, zero friction scales, tube, and guards while stretching time by
+`5x`. Relative to its fresh 2 s baseline, maximum derived joint acceleration
+fell from `2.061 rad/s²` to `0.917 rad/s²`, but actual/desired maximum
+translation improved only from `15.7%` (`0.099/0.631 mm`) to `20.8%`
+(`0.132/0.636 mm`), and the 10 s actual endpoint displacement was only
+`0.029 mm`. Short-horizon acceleration is therefore not the primary cause of
+weak tracking. The next isolation is offline-first inspection of effective
+impedance gain and torque/Jacobian mapping, not an increase in torque, speed,
+or contact force. Numeric sanity is recorded in
+`config/direct_torque_v4_reference_10s_diagnostic_sanity.json`; immutable run
+data and the derived audit are under
+`runs/tacdiffusion/direct_torque_v4_reference_10s_diagnostic_20260728T1314HKT/`.
+This diagnostic does not qualify trajectory fidelity, contact control, or
+expert-data eligibility. Reusable failure, timing, sensor, and acceptance
+lessons are collected in `DIRECT_TORQUE_V4_LIVE_LESSONS.md`.
+
 A 2026-07-26 read-only 2 s position-control shadow at the fresh bench pose
 captured 954 RTDE rows without sending a program or writing RTDE inputs. Mean
 `target_moment` was approximately

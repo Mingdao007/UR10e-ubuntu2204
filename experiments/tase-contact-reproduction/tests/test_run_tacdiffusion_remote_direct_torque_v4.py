@@ -38,6 +38,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     CANARY_STAGE_HOLD,
     CANARY_STAGE_RAMP,
     CANARY_STAGE_REFERENCE,
+    CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC,
     LiveRTDE,
     _LIVE_WRITER_PATTERNS,
     _LIVE_WRITER_IGNORED_PATTERNS,
@@ -98,6 +99,9 @@ REFERENCE = PASSIVE_RUN / "unknown_surface_anchor_circle_no_contact_2s_reference
 BUILDER = VIC_ROOT / "tools" / "build_tacdiffusion_direct_torque_live_v4.py"
 RUNNER = TOOLS / "run_tacdiffusion_remote_direct_torque_v4.py"
 KUNWEI_CALIBRATION = ROOT / "config/step5d_tacdiffusion_sensor_frame_v1.json"
+REFERENCE_10S_SANITY = (
+    ROOT / "config/direct_torque_v4_reference_10s_diagnostic_sanity.json"
+)
 
 
 def test_cadence_counter_rate_uses_controller_time_and_counter_delta() -> None:
@@ -834,6 +838,35 @@ def test_canary_timeline_has_fixed_hold_ramp_and_reference_stages(
         actual[3:]
     )
 
+    diagnostic = CanaryTimeline.from_stage(
+        CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC,
+        actual_pose=actual,
+        bundle=bundle,
+    )
+    assert diagnostic.duration_s == pytest.approx(10.0)
+    assert diagnostic.row_at(0.0)["desired_pose_base"] == pytest.approx(actual)
+    assert diagnostic.row_at(10.0)["desired_pose_base"] == pytest.approx(
+        reference.row_at(reference.duration_s)["desired_pose_base"]
+    )
+    assert diagnostic.row_at(5.0)["desired_pose_base"] == pytest.approx(
+        reference.row_at(bundle.timeline.duration_s / 2.0)["desired_pose_base"]
+    )
+
+
+def test_reference_10s_numeric_sanity_is_a_time_only_stretch() -> None:
+    sanity = json.loads(REFERENCE_10S_SANITY.read_text(encoding="utf-8"))
+    factor = sanity["time_stretch_factor"]
+
+    assert sanity["ok"] is True
+    assert sanity["spatial_scale"] == 1.0
+    assert sanity["maximum_speed_m_s"] == pytest.approx(
+        sanity["source_maximum_speed_m_s"] / factor
+    )
+    assert sanity["maximum_acceleration_m_s2"] == pytest.approx(
+        sanity["source_maximum_acceleration_m_s2"] / factor**2
+    )
+    assert sanity["training_dataset"] is False
+
 
 def test_old_reference_drift_does_not_block_reanchored_canary_preflight(
     tmp_path: Path,
@@ -864,6 +897,7 @@ def test_old_reference_drift_does_not_block_reanchored_canary_preflight(
         CANARY_STAGE_HOLD,
         CANARY_STAGE_RAMP,
         CANARY_STAGE_REFERENCE,
+        CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC,
     ):
         timeline = CanaryTimeline.from_stage(stage, actual_pose=actual, bundle=bundle)
         validate_live_preflight(status, bundle, timeline=timeline)

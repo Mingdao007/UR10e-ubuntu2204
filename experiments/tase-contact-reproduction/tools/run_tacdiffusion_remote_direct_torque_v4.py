@@ -127,16 +127,23 @@ LIVE_WRITER_TASK = "tacdiffusion-remote-direct-torque-v4"
 CANARY_STAGE_HOLD = "hold_100ms"
 CANARY_STAGE_RAMP = "ramp_0_2mm_500ms"
 CANARY_STAGE_REFERENCE = "reference_2s"
+CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC = "reference_10s_diagnostic"
 CANARY_STAGE_ORDER = (
     CANARY_STAGE_HOLD,
     CANARY_STAGE_RAMP,
     CANARY_STAGE_REFERENCE,
+    CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC,
 )
 CANARY_STAGE_DURATIONS_S = {
     CANARY_STAGE_HOLD: 0.1,
     CANARY_STAGE_RAMP: 0.5,
     CANARY_STAGE_REFERENCE: 2.0,
+    CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC: 10.0,
 }
+CANARY_REFERENCE_STAGES = (
+    CANARY_STAGE_REFERENCE,
+    CANARY_STAGE_REFERENCE_10S_DIAGNOSTIC,
+)
 ENTRY_ANALYSIS_WINDOW_S = 0.020
 MIN_CONTROL_UPDATE_RATE_HZ = 150.0
 MIN_TORQUE_CALL_RATE_HZ = 450.0
@@ -1003,10 +1010,15 @@ class CanaryTimeline:
         episode_tube.assert_contains_pose(
             timeline.row_at(duration_s)["desired_pose_base"], role="desired"
         )
-        if stage == CANARY_STAGE_REFERENCE:
+        if stage in CANARY_REFERENCE_STAGES:
             for row in bundle.timeline.rows:
+                stage_progress_s = (
+                    float(row["progress_s"])
+                    * duration_s
+                    / bundle.timeline.duration_s
+                )
                 episode_tube.assert_contains_pose(
-                    timeline.row_at(float(row["progress_s"]))["desired_pose_base"],
+                    timeline.row_at(stage_progress_s)["desired_pose_base"],
                     role="desired",
                 )
         return timeline
@@ -1017,8 +1029,13 @@ class CanaryTimeline:
 
     def row_at(self, elapsed_s: float) -> Mapping[str, Any]:
         bounded = min(max(float(elapsed_s), 0.0), self.duration_s)
-        if self.stage == CANARY_STAGE_REFERENCE:
-            reference_row = self.bundle_timeline.row_at(bounded)
+        if self.stage in CANARY_REFERENCE_STAGES:
+            reference_progress_s = (
+                bounded
+                * self.bundle_timeline.duration_s
+                / self.duration_s
+            )
+            reference_row = self.bundle_timeline.row_at(reference_progress_s)
             reference_origin = _finite6(
                 self.bundle_timeline.rows[0]["desired_pose_base"],
                 "reference_origin_pose",

@@ -9095,6 +9095,34 @@
         "release_translation_tolerance_m": 0.001,
         "hard_tube_normal_half_width_m": 0.002
       },
+      "diagnostic_extensions": {
+        "reference_10s_diagnostic": {
+          "status": "accepted_diagnostic_tracking_insufficient",
+          "claim_class": "live_no_contact_diagnostic_only",
+          "required_prior_stage": "reference_2s",
+          "duration_s": 10.0,
+          "source_reference_duration_s": 2.0,
+          "time_stretch_factor": 5.0,
+          "spatial_scale": 1.0,
+          "changed_factor": "time_scale_only",
+          "numeric_sanity": "config/direct_torque_v4_reference_10s_diagnostic_sanity.json",
+          "question": "distinguish short-horizon bandwidth limitation from torque_or_impedance_mapping response limitation",
+          "tracking_metrics_required": true,
+          "runtime_source_sha256": "baa666d2510d775c1af2ba96e9021ac64ff3eaf75931b1bcaea00ae2bbdd03d0",
+          "run": "runs/tacdiffusion/direct_torque_v4_reference_10s_diagnostic_20260728T1314HKT",
+          "evidence_sha256": "03cc97597591aa9c875c63748b123d9a5f2c0c09d51a1f3c2a164b84b2f27b2f",
+          "tracking_audit": "runs/tacdiffusion/direct_torque_v4_reference_10s_diagnostic_20260728T1314HKT/reference_10s_tracking_audit_v1.json",
+          "tracking_audit_sha256": "b1bed870c83ea228bc5f7d60cffe1e2137473b283ea96a9cdf238a47b70c563a",
+          "reference_2s_actual_over_desired_ratio": 0.15746473494477106,
+          "reference_10s_actual_over_desired_ratio": 0.20776688369403762,
+          "reference_2s_maximum_derived_abs_joint_acceleration_rad_s2": 2.060728500821498,
+          "reference_10s_maximum_derived_abs_joint_acceleration_rad_s2": 0.9173877254347691,
+          "conclusion": "time_stretch_reduced_acceleration_but_did_not_resolve_weak_tracking",
+          "next_isolation": "offline_effective_impedance_gain_and_torque_jacobian_mapping_audit",
+          "tracking_fidelity_passed": false,
+          "training_dataset": false
+        }
+      },
       "offline_validation": {
         "source_build_physical_io": false,
         "validation_physical_io": false,
@@ -9143,7 +9171,7 @@
         "main_loop_sync_runs_concurrently_with_torque_thread": true,
         "root_cause_evidence": "runs/tacdiffusion/direct_torque_v4_v34reuse_live_20260726T1859HKT/hold_100ms/entry_bumplessness_analysis_v1.json",
         "root_fix": "official_style_dedicated_torque_thread_plus_translation_only_entry_blend_and_entry_orientation_hold",
-        "root_fix_live_validation": "runtime fingerprint 4f615e45 passed ordered hold_100ms, ramp_0_2mm_500ms, and reference_2s no-contact canaries on 2026-07-28",
+        "root_fix_live_validation": "runtime fingerprint baa666d2 passed ordered hold_100ms, ramp_0_2mm_500ms, and reference_2s no-contact canaries on 2026-07-28; the following 10 s diagnostic also passed runtime gates but not tracking fidelity",
         "guard_claim": "acceleration_guard_is_defense_in_depth_not_root_fix"
       },
       "cadence_contract": {
@@ -9187,15 +9215,15 @@
           "runner_fix_commit": "a2a3a7ec"
         },
         "latest_canonical_chain": {
-          "runtime_source_sha256": "4f615e45c92f2e210bfb0dc614f5fa9cac3f5d0fd5b6ee9fec389eeab95df54f",
+          "runtime_source_sha256": "baa666d2510d775c1af2ba96e9021ac64ff3eaf75931b1bcaea00ae2bbdd03d0",
           "receiver_source_sha256": "86545a209b348b9f19469239686f778a7b9ff19c065f771d73f2c3310a85e67f",
-          "hold": "runs/tacdiffusion/direct_torque_v4_pow_decay_hold_fresh_primary_20260728T1257HKT/evidence.json",
-          "hold_evidence_sha256": "02d24ea93499f49493fc96825017b1cf36e7448f6ba20ebc77dc95aba27b9e68",
-          "ramp": "runs/tacdiffusion/direct_torque_v4_pow_decay_ramp_0_2mm_fresh_primary_20260728T1258HKT/evidence.json",
-          "ramp_evidence_sha256": "8bc1a93eda653a7b7fc4dc49f59342db89dbdd1839cd7573fc4abe3a25bb176b",
-          "reference": "runs/tacdiffusion/direct_torque_v4_pow_decay_reference_2s_fresh_primary_20260728T1259HKT/evidence.json",
-          "reference_evidence_sha256": "d4b66974db40fd9c4eeb884de59fbb2c4d89c0336cc277bad15797e056bddfc3",
-          "chain_audit": "runs/tacdiffusion/direct_torque_v4_pow_decay_reference_2s_fresh_primary_20260728T1259HKT/canary_chain_audit_v1.json",
+          "hold": "runs/tacdiffusion/direct_torque_v4_reference10s_chain_hold_20260728T1311HKT/evidence.json",
+          "hold_evidence_sha256": "faece133ab0a441b3177eae3f62b5a8e0d903ed8e9ae4dcb2688a9d6eb84d5d7",
+          "ramp": "runs/tacdiffusion/direct_torque_v4_reference10s_chain_ramp_20260728T1312HKT/evidence.json",
+          "ramp_evidence_sha256": "86e69caba7cd4c2b0569d7f387e674ac377853bd17a3bf1f140147658235915e",
+          "reference": "runs/tacdiffusion/direct_torque_v4_reference10s_chain_reference2s_20260728T1313HKT/evidence.json",
+          "reference_evidence_sha256": "ed0e6a5bf39ce4705f28c617fa43971af2248341dceaf208de4be95138089997",
+          "chain_audit": "runs/tacdiffusion/direct_torque_v4_reference_10s_diagnostic_20260728T1314HKT/reference_10s_tracking_audit_v1.json",
           "ordered_chain_ok": true,
           "tracking_fidelity_is_strict_gate": false,
           "training_dataset": false
