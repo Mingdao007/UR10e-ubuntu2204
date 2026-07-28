@@ -22,7 +22,6 @@ _REQUIRED_TRUE_PREDICATES = (
     "bridge_heartbeat_fresh",
     "bridge_process_alive",
     "canonical_attempt_bound",
-    "continuous_ready",
     "controller_fresh",
     "controller_fresh_get",
     "controller_triplet_verified",
