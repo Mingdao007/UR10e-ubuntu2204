@@ -82,6 +82,34 @@ def test_hard_tube_known_inactive_stage_allows_without_geometry() -> None:
     assert result.reason is HardTubeReason.TUBE_INACTIVE
 
 
+def test_full_home_stage_is_known_inactive_for_stage25_tube() -> None:
+    from ur10e_experiment_runtime.stage_adapters import (
+        Stage25ControllerProgressAdapter,
+    )
+
+    adapter = Stage25ControllerProgressAdapter(
+        physical_prior_sha256="b" * 64,
+        allow_tick_gaps=True,
+    )
+    controller_progress = adapter.sample(
+        stage=40.3,
+        controller_progress_s=0.0,
+        controller_tick_seq=1,
+        controller_timestamp_s=1.0,
+        age_ns=0,
+        tcp_z_m=None,
+    )
+    assert controller_progress.phase is ControllerProgressPhase.INACTIVE
+    result = HardTubeGuard(
+        reference_sha256=adapter.reference_sha256
+    ).tick(
+        progress=controller_progress,
+        tcp_base=None,
+    )
+    assert result.stop is False
+    assert result.reason is HardTubeReason.TUBE_INACTIVE
+
+
 def test_hard_tube_fail_closed_input_contracts() -> None:
     cases = (
         (None, (0.0, 0.0, 0.0), HardTubeReason.TUBE_INPUT_MISSING),

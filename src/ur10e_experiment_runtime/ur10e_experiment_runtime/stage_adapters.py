@@ -78,6 +78,7 @@ KNOWN_INACTIVE_CONTROLLER_STAGES = (
     25.3,
     25.95,
     29.0,
+    40.3,
     70.0,
 )
 
