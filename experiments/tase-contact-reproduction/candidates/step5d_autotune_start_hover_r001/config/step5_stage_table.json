@@ -1,0 +1,77 @@
+{
+  "schema": "step5d.autotune-start-hover/candidate-stage-table-v1",
+  "status": "controller_readback_verified_not_current",
+  "canonical_pair": {
+    "flow": "experiments/tase-contact-reproduction/STEP5_FLOW.md",
+    "stage_table": "experiments/tase-contact-reproduction/config/step5_stage_table.json",
+    "unchanged": true
+  },
+  "current_stage": {
+    "id": "step5d_strict_rnn_autotune_v3",
+    "pointer": "experiments/tase-contact-reproduction/config/current_stage.json",
+    "pointer_changed": false,
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r026.urp"
+  },
+  "retained_evidence_stages": [
+    "step5d_strict_rnn_autotune_v3_r026_stage22",
+    "step5d_strict_rnn_autotune_v3_r026_return_route"
+  ],
+  "candidate_stage": {
+    "id": "step5d_autotune_start_hover_r001",
+    "active": false,
+    "current": false,
+    "owner": "TP positioning helper",
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_autotune_start_hover_r001.urp",
+    "script_role": "standalone_immutable_one_shot_script_1",
+    "script_2": {
+      "program": "step5d_strict_rnn_autotune_v3_r026",
+      "byte_for_byte_unchanged": true,
+      "captures_current_pose_on_play": true
+    },
+    "bridge_contract": {
+      "bridge_required": false,
+      "register_protocol": false,
+      "runtime_config_changed": false
+    },
+    "contact_contract": {
+      "contact": false,
+      "force_control": false,
+      "sensor_zero_or_tare": false,
+      "sensor_writes": false
+    },
+    "guard": {
+      "initial_pose": "finite six-vector required",
+      "target_position": {
+        "x_range_m": [0.3, 0.7],
+        "y_range_m": [-0.2, 0.4],
+        "z_range_m": [0.025, 0.2]
+      },
+      "target_rotation_norm_max_rad": 3.2,
+      "final_position_error_max_m": 0.003,
+      "final_orientation_error_max_rad": 0.05,
+      "final_linear_speed_max_m_s": 0.001,
+      "final_angular_speed_max_rad_s": 0.01,
+      "final_joint_speed_max_rad_s": 0.01
+    },
+    "timing": {
+      "segment_1": {"acceleration_m_s2": 0.06, "speed_m_s": 0.04},
+      "segment_2": {"acceleration_m_s2": 0.135, "speed_m_s": 0.09},
+      "segment_3": {"conditional": true, "acceleration_m_s2": 0.06, "speed_m_s": 0.04},
+      "blend_radius_m": 0.0,
+      "stopl_decel_m_s2": 0.1
+    },
+    "success_condition": "one-shot final stationary verification passes at the exact target hover pose; this candidate remains non-current"
+  },
+  "gates": {
+    "numeric_sanity_artifact": "programs/step5/step5d/step5d_autotune_start_hover_r001.numeric-sanity.json",
+    "deploy_manifest": "programs/step5/step5d/step5d_autotune_start_hover_r001.deploy-manifest.json",
+    "controller_deploy_manifest": "programs/step5/step5d/step5d_autotune_start_hover_r001.controller-deploy-manifest.json",
+    "local_urp_internal_content_gate": true,
+    "controller_readback": {
+      "state": "controller read-back verified",
+      "evidence": "candidates/step5d_autotune_start_hover_r001/controller-readback-verification.json"
+    },
+    "bridge_run_artifact": "not_run",
+    "report_evidence": "package_delivery_only_no_motion"
+  }
+}

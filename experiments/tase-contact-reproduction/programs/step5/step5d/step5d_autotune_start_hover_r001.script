@@ -1,0 +1,147 @@
+# VERSION: 2026-07-28T1353HKT_STEP5D_AUTOTUNE_START_HOVER_R001
+# ROLE: standalone immutable one-shot campaign Home positioning helper
+# TP_PROGRAM_ID: step5d_autotune_start_hover_r001
+# GEOMETRY_BASIS_R026_SCRIPT_SHA256: bd0058b9977279db60c706e2092629c88ef811ad9fbaf7d4672967c05c118874
+# TARGET_POSE: p[0.487834547, 0.129337053, 0.033000000, 3.120752062, 0.000000000, 0.068626833]
+# SAFE_TRANSFER_Z_POLICY: max(current_z, 0.033000000)
+# MOTION_SEGMENT_1: vertical current xy/current orientation, a=0.060 m/s^2, v=0.040 m/s
+# MOTION_SEGMENT_2: safe transfer z/target xy/target orientation, a=0.135 m/s^2, v=0.090 m/s
+# MOTION_SEGMENT_3: conditional vertical descent to z=0.033000000, a=0.060 m/s^2, v=0.040 m/s
+# BLEND_RADIUS_M: 0.0
+
+def codex_start_hover_finite_value(value, absolute_limit):
+  if value != value:
+    return False
+  end
+  if value > absolute_limit or value < -absolute_limit:
+    return False
+  end
+  return True
+end
+
+def codex_start_hover_finite_pose(pose_value):
+  local index = 0
+  while index < 6:
+    if not codex_start_hover_finite_value(pose_value[index], 100.0):
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
+def codex_start_hover_motion_limits_ok():
+  local segment_1_accel_m_s2 = 0.060
+  local segment_1_speed_m_s = 0.040
+  local segment_2_accel_m_s2 = 0.135
+  local segment_2_speed_m_s = 0.090
+  if segment_1_accel_m_s2 <= 0.0 or segment_1_accel_m_s2 > 0.150000000:
+    return False
+  end
+  if segment_2_accel_m_s2 <= 0.0 or segment_2_accel_m_s2 > 0.150000000:
+    return False
+  end
+  if segment_1_speed_m_s <= 0.0 or segment_1_speed_m_s > 0.100000000:
+    return False
+  end
+  if segment_2_speed_m_s <= 0.0 or segment_2_speed_m_s > 0.100000000:
+    return False
+  end
+  return True
+end
+
+def codex_start_hover_target_within_limits(target_pose):
+  if not codex_start_hover_finite_pose(target_pose):
+    return False
+  end
+  if target_pose[0] < 0.300000000 or target_pose[0] > 0.700000000:
+    return False
+  end
+  if target_pose[1] < -0.200000000 or target_pose[1] > 0.400000000:
+    return False
+  end
+  if target_pose[2] < 0.025000000 or target_pose[2] > 0.200000000:
+    return False
+  end
+  local rotation_norm_rad = sqrt(target_pose[3] * target_pose[3] + target_pose[4] * target_pose[4] + target_pose[5] * target_pose[5])
+  if rotation_norm_rad > 3.200000000:
+    return False
+  end
+  return codex_start_hover_motion_limits_ok()
+end
+
+def codex_start_hover_final_stationary_verified(target_pose):
+  local actual_pose = get_actual_tcp_pose()
+  if not codex_start_hover_finite_pose(actual_pose):
+    return False
+  end
+  local actual_speed = get_actual_tcp_speed()
+  local actual_joint_speed = get_actual_joint_speeds()
+  local speed_index = 0
+  local joint_speed_max_rad_s = 0.0
+  while speed_index < 6:
+    if not codex_start_hover_finite_value(actual_speed[speed_index], 100.0):
+      return False
+    end
+    if not codex_start_hover_finite_value(actual_joint_speed[speed_index], 100.0):
+      return False
+    end
+    local joint_speed_abs = actual_joint_speed[speed_index]
+    if joint_speed_abs < 0.0:
+      joint_speed_abs = -joint_speed_abs
+    end
+    if joint_speed_abs > joint_speed_max_rad_s:
+      joint_speed_max_rad_s = joint_speed_abs
+    end
+    speed_index = speed_index + 1
+  end
+  local delta_pose = pose_trans(pose_inv(target_pose), actual_pose)
+  local position_error_m = sqrt(delta_pose[0] * delta_pose[0] + delta_pose[1] * delta_pose[1] + delta_pose[2] * delta_pose[2])
+  local orientation_error_rad = sqrt(delta_pose[3] * delta_pose[3] + delta_pose[4] * delta_pose[4] + delta_pose[5] * delta_pose[5])
+  local linear_speed_m_s = sqrt(actual_speed[0] * actual_speed[0] + actual_speed[1] * actual_speed[1] + actual_speed[2] * actual_speed[2])
+  local angular_speed_rad_s = sqrt(actual_speed[3] * actual_speed[3] + actual_speed[4] * actual_speed[4] + actual_speed[5] * actual_speed[5])
+  if position_error_m != position_error_m or orientation_error_rad != orientation_error_rad:
+    return False
+  end
+  if linear_speed_m_s != linear_speed_m_s or angular_speed_rad_s != angular_speed_rad_s:
+    return False
+  end
+  return position_error_m <= 0.003000000 and orientation_error_rad <= 0.050000000 and linear_speed_m_s <= 0.001000000 and angular_speed_rad_s <= 0.010000000 and joint_speed_max_rad_s <= 0.010000000
+end
+
+def step5d_autotune_start_hover_r001():
+  local current_pose = get_actual_tcp_pose()
+  local target_pose = p[0.487834547, 0.129337053, 0.033000000, 3.120752062, 0.000000000, 0.068626833]
+  if not codex_start_hover_finite_pose(current_pose):
+    textmsg("start_hover_r001: nonfinite initial pose; halted")
+    halt
+  end
+  if not codex_start_hover_target_within_limits(target_pose):
+    textmsg("start_hover_r001: target or motion limits rejected; halted")
+    halt
+  end
+  local safe_transfer_z = 0.033000000
+  if current_pose[2] > safe_transfer_z:
+    safe_transfer_z = current_pose[2]
+  end
+  local rise_pose = p[current_pose[0], current_pose[1], safe_transfer_z, current_pose[3], current_pose[4], current_pose[5]]
+  local transfer_pose = p[target_pose[0], target_pose[1], safe_transfer_z, target_pose[3], target_pose[4], target_pose[5]]
+  movel(rise_pose, a=0.060, v=0.040, r=0.0)
+  stopl(0.1)
+  movel(transfer_pose, a=0.135, v=0.090, r=0.0)
+  stopl(0.1)
+  if safe_transfer_z > target_pose[2] + 0.000001:
+    local descent_pose = p[target_pose[0], target_pose[1], 0.033000000, target_pose[3], target_pose[4], target_pose[5]]
+    movel(descent_pose, a=0.060, v=0.040, r=0.0)
+    stopl(0.1)
+  end
+  sleep(0.20)
+  if not codex_start_hover_final_stationary_verified(target_pose):
+    textmsg("start_hover_r001: final stationary verification failed; halted")
+    halt
+  end
+  textmsg("start_hover_r001: final target stationary and verified")
+  halt
+end
+
+step5d_autotune_start_hover_r001()

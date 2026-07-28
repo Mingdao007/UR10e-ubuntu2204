@@ -1,0 +1,25 @@
+Step5d one-shot campaign Home positioning TP package
+
+Open on the Teach Pendant only after the separate delivery and live gates are satisfied:
+  /programs/andyl/kunwei/step5/step5d_autotune_start_hover_r001.urp
+
+Version:
+  2026-07-28T1353HKT_STEP5D_AUTOTUNE_START_HOVER_R001
+
+Role:
+  Standalone one-shot positioning helper. It starts motion only when explicitly played.
+  Script 2 remains the existing step5d_strict_rnn_autotune_v3_r026 package unchanged.
+
+Motion geometry:
+  Final target: p[0.487834547, 0.129337053, 0.033000000, 3.120752062, 0.000000000, 0.068626833]
+  Segment 1: current x/y/orientation to max(current z, 0.033000000), a=0.060 m/s^2, v=0.040 m/s.
+  Segment 2: constant safe-transfer Z to target x/y/orientation, a=0.135 m/s^2, v=0.090 m/s.
+  Segment 3: only when needed, vertical descent to z=0.033000000 with a=0.060 m/s^2, v=0.040 m/s.
+  Every segment uses r=0.0 and is separated by stopl(0.1); final position and stationary checks are required.
+
+Safety scope:
+  No contact or force action. No sensor zero/tare, bridge/register protocol, or external runtime command path.
+  Nonfinite initial pose and target/profile limit failures halt before motion.
+
+Local candidate status:
+  This triplet is immutable and local-only in this worktree. No controller upload/read-back or current-pointer change is recorded here.

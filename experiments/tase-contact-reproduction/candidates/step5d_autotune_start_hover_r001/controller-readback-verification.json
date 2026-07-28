@@ -1,0 +1,42 @@
+{
+  "schema": "step5d.autotune-start-hover/controller-readback-verification-v1",
+  "program": "step5d_autotune_start_hover_r001",
+  "controller_host": "192.168.1.18",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_urp": "/programs/andyl/kunwei/step5/step5d_autotune_start_hover_r001.urp",
+  "source_stamp": "2026-07-28T1353HKT_STEP5D_AUTOTUNE_START_HOVER_R001",
+  "recorded_at_hkt": "2026-07-28T14:01:23+08:00",
+  "state": "controller read-back verified",
+  "readback_directory": "runs/controller-readback-step5d-autotune-start-hover-r001-20260728T1355HKT",
+  "sha256": {
+    ".script": {
+      "local": "79b62fd48d2deeb1b14ec3c3c9c78ea7901aa0ddd716a09742f1ff39c48a36c2",
+      "readback": "79b62fd48d2deeb1b14ec3c3c9c78ea7901aa0ddd716a09742f1ff39c48a36c2"
+    },
+    ".txt": {
+      "local": "46e542e9236a2c9177a2d880a5daac4e641ced53b5d8989c094371cb5e7b3576",
+      "readback": "46e542e9236a2c9177a2d880a5daac4e641ced53b5d8989c094371cb5e7b3576"
+    },
+    ".urp": {
+      "local": "d9eda6a7013de125cacb47c9a16623fd5981bc23ddd94a3ca4e9d751f9ec8642",
+      "readback": "d9eda6a7013de125cacb47c9a16623fd5981bc23ddd94a3ca4e9d751f9ec8642"
+    }
+  },
+  "urp_internal_gate": {
+    "program_name": "step5d_autotune_start_hover_r001",
+    "directory": "/programs/andyl/kunwei/step5",
+    "script_node": "/programs/andyl/kunwei/step5/step5d_autotune_start_hover_r001.script",
+    "installation_relative_path": "../../../default",
+    "cached_contents_matches_script": true,
+    "source_stamp_matches": true
+  },
+  "live_boundary": {
+    "dashboard_load": false,
+    "dashboard_play": false,
+    "bridge": false,
+    "arm": false,
+    "motion": false,
+    "contact": false,
+    "current_pointer_changed": false
+  }
+}

@@ -1,0 +1,148 @@
+{
+  "branches": {
+    "representative_return_from_above": {
+      "current_pose": [
+        0.45,
+        0.1,
+        0.05,
+        3.0,
+        0.1,
+        0.0
+      ],
+      "safe_transfer_z_m": 0.05,
+      "segments": [
+        {
+          "acceleration_m_s2": 0.06,
+          "id": 1,
+          "kind": "vertical_current_xy_current_orientation",
+          "minimum_duration_s": 0.0,
+          "span_m": 0.0,
+          "speed_m_s": 0.04
+        },
+        {
+          "acceleration_m_s2": 0.135,
+          "id": 2,
+          "kind": "safe_z_target_xy_target_orientation",
+          "minimum_duration_s": 1.191028741506212,
+          "orientation_delta_norm_rad": 0.1711452677840138,
+          "span_m": 0.04787604437941816,
+          "speed_m_s": 0.09
+        },
+        {
+          "acceleration_m_s2": 0.06,
+          "id": 3,
+          "included": true,
+          "kind": "conditional_vertical_target_xy_target_orientation",
+          "minimum_duration_s": 1.0645812948447542,
+          "span_m": 0.017,
+          "speed_m_s": 0.04
+        }
+      ]
+    },
+    "representative_transfer_from_below": {
+      "current_pose": [
+        0.45,
+        0.1,
+        0.02,
+        3.0,
+        0.1,
+        0.0
+      ],
+      "safe_transfer_z_m": 0.033,
+      "segments": [
+        {
+          "acceleration_m_s2": 0.06,
+          "id": 1,
+          "kind": "vertical_current_xy_current_orientation",
+          "minimum_duration_s": 0.9309493362512629,
+          "span_m": 0.013000000000000001,
+          "speed_m_s": 0.04
+        },
+        {
+          "acceleration_m_s2": 0.135,
+          "id": 2,
+          "kind": "safe_z_target_xy_target_orientation",
+          "minimum_duration_s": 1.191028741506212,
+          "orientation_delta_norm_rad": 0.1711452677840138,
+          "span_m": 0.04787604437941816,
+          "speed_m_s": 0.09
+        },
+        {
+          "acceleration_m_s2": 0.06,
+          "id": 3,
+          "included": false,
+          "kind": "conditional_vertical_target_xy_target_orientation",
+          "minimum_duration_s": 0.0,
+          "span_m": 0.0,
+          "speed_m_s": 0.04
+        }
+      ]
+    }
+  },
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_autotune_start_hover_r001.urp",
+  "final_stationary_limits": {
+    "angular_speed_rad_s": 0.01,
+    "joint_speed_rad_s": 0.01,
+    "linear_speed_m_s": 0.001,
+    "orientation_error_rad": 0.05,
+    "position_error_m": 0.003
+  },
+  "force_torque_guards": {
+    "contact": false,
+    "force_control": false,
+    "guard_source": "not_applicable_one_shot_positioning",
+    "zero_or_tare": false
+  },
+  "geometry_source": {
+    "r026_script": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r026.script",
+    "r026_script_sha256": "bd0058b9977279db60c706e2092629c88ef811ad9fbaf7d4672967c05c118874",
+    "target_pose_is_reproduced": true
+  },
+  "motion_limits": {
+    "blend_radius_m": 0.0,
+    "maximum_command_acceleration_m_s2": 0.135,
+    "maximum_command_speed_m_s": 0.09,
+    "segment_1": {
+      "acceleration_m_s2": 0.06,
+      "speed_m_s": 0.04
+    },
+    "segment_2": {
+      "acceleration_m_s2": 0.135,
+      "speed_m_s": 0.09
+    },
+    "stopl_decel_m_s2": 0.1
+  },
+  "package_delivery": {
+    "controller_readback": false,
+    "controller_upload": false,
+    "current_pointer_change": false,
+    "local_validation_required": true
+  },
+  "package_stamp": "2026-07-28T1353HKT_STEP5D_AUTOTUNE_START_HOVER_R001",
+  "program": "step5d_autotune_start_hover_r001",
+  "safe_transfer_z_policy": "max(current_z, 0.033000000 m)",
+  "schema": "step5d.autotune-start-hover/numeric-sanity-v1",
+  "target_limits": {
+    "rotation_norm_max_rad": 3.2,
+    "x_range_m": [
+      0.3,
+      0.7
+    ],
+    "y_range_m": [
+      -0.2,
+      0.4
+    ],
+    "z_range_m": [
+      0.025,
+      0.2
+    ]
+  },
+  "target_pose": [
+    0.487834547,
+    0.129337053,
+    0.033,
+    3.120752062,
+    0.0,
+    0.068626833
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "artifacts": [
+    {
+      "filename": "step5d_autotune_start_hover_r001.script",
+      "sha256": "79b62fd48d2deeb1b14ec3c3c9c78ea7901aa0ddd716a09742f1ff39c48a36c2",
+      "source": "step5d_autotune_start_hover_r001.script"
+    },
+    {
+      "filename": "step5d_autotune_start_hover_r001.txt",
+      "sha256": "46e542e9236a2c9177a2d880a5daac4e641ced53b5d8989c094371cb5e7b3576",
+      "source": "step5d_autotune_start_hover_r001.txt"
+    },
+    {
+      "filename": "step5d_autotune_start_hover_r001.urp",
+      "sha256": "d9eda6a7013de125cacb47c9a16623fd5981bc23ddd94a3ca4e9d751f9ec8642",
+      "source": "step5d_autotune_start_hover_r001.urp"
+    }
+  ],
+  "basename": "step5d_autotune_start_hover_r001",
+  "builder": "tools/build_step5d_autotune_start_hover_r001.py",
+  "builder_sha256": "4983ac1b334ba8d4752d29f4a1ed8c2c0fa788a201aca0e269af2d003b72c7ba",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_autotune_start_hover_r001.urp",
+  "delivery": {
+    "controller_readback": false,
+    "controller_upload": false,
+    "current_release_pointer_changed": false,
+    "local_urp_internal_content_gate": true
+  },
+  "geometry_basis": {
+    "design": "standalone_one_shot_start_hover; r026_bytes_untouched",
+    "program": "step5d_strict_rnn_autotune_v3_r026",
+    "script_sha256": "bd0058b9977279db60c706e2092629c88ef811ad9fbaf7d4672967c05c118874"
+  },
+  "immutable": true,
+  "local_package_dir": "programs/step5/step5d",
+  "schema": "step5d.autotune-start-hover/local-candidate-v1",
+  "schema_version": 2,
+  "source_stamp": "2026-07-28T1353HKT_STEP5D_AUTOTUNE_START_HOVER_R001",
+  "status": "local_candidate_not_uploaded"
+}
