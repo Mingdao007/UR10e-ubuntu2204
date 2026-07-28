@@ -85,8 +85,8 @@
       "tools/run_step5d_release_contract.py"
     ],
     "public_live": "scripts/step5d-autotune-v3.sh bridge-live",
-    "public_remote_play": "scripts/step5d-autotune-v3.sh remote-play",
     "public_release_contract": "scripts/step5d-autotune-v3.sh release-contract-check",
+    "public_remote_play": "scripts/step5d-autotune-v3.sh remote-play",
     "public_runtime_revalidation": "scripts/step5d-autotune-v3.sh revalidate-current",
     "public_status": "scripts/step5d-autotune-v3.sh status --json",
     "public_tp_delivery": "scripts/step5d-autotune-v3.sh tp-deliver"

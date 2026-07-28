@@ -11079,6 +11079,7 @@
         },
         "play_trigger_policy": {
           "local_control": "physical_tp_play",
+          "receipt_schema": "step5d.autotune-v3/remote-play-receipt-v1",
           "remote_control": "scripts/step5d-autotune-v3.sh remote-play",
           "remote_required_predicates": [
             "WAITING_FOR_PLAY",
@@ -11090,8 +11091,7 @@
             "lease_valid",
             "single_writer",
             "safety_normal"
-          ],
-          "receipt_schema": "step5d.autotune-v3/remote-play-receipt-v1"
+          ]
         },
         "service": "config/systemd/step5d-autotune-v3.service",
         "service_restart": "no",
