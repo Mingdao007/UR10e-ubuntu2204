@@ -50,6 +50,9 @@ RECONCILIATION_SCHEMA = "step5d.parameter-receiver/reconciliation-v1"
 CONSUMED_ABORT_RECONCILIATION_SCHEMA = (
     "step5d.parameter-receiver/consumed-infra-abort-v1"
 )
+CONSUMED_GUARD_ABORT_RECONCILIATION_SCHEMA = (
+    "step5d.parameter-receiver/consumed-guard-abort-v1"
+)
 MIGRATION_SCHEMA = "step5d.parameter-receiver/migration-v1"
 NEXT_ARM_SCHEMA = "step5d.parameter-receiver/governance-next-arm-v1"
 TERMINAL_RECEIPT_SCHEMA = "step5d.parameter-receiver/governance-terminal-receipt-v1"
@@ -1469,6 +1472,187 @@ def terminalize_consumed_infra_abort(
         return reconciliation
 
 
+def terminalize_consumed_guard_abort(
+    root: Path,
+    *,
+    bridge_summary_path: Path,
+    partial_capture_path: Path,
+    detail: str,
+) -> dict[str, Any]:
+    """Tombstone a consumed dispatch after a proven bridge safety-guard abort."""
+
+    if not isinstance(detail, str) or not detail or "\n" in detail:
+        raise ParameterQueueError(
+            "consumed-guard-abort detail must be one non-empty line"
+        )
+    summary_path = bridge_summary_path.expanduser().resolve()
+    capture_path = partial_capture_path.expanduser().resolve()
+    if capture_path.suffix != ".part" or not capture_path.name.endswith(".csv.part"):
+        raise ParameterQueueError(
+            "consumed-guard-abort capture must be a .csv.part file"
+        )
+    with _lock(root):
+        state = load_state(root)
+        if state["inflight"] is None:
+            raise ParameterQueueError("no parameter dispatch is inflight")
+        dispatch = _strict_json(
+            _dispatch_path(root, int(state["inflight"]["dispatch_sequence"])),
+            "parameter dispatch",
+        )
+        next_arm = _load_next_arm(root)
+        if next_arm is None:
+            raise ParameterQueueError(
+                "consumed-guard-abort requires published next-arm evidence"
+            )
+        if (
+            next_arm["dispatch_identity"] != dispatch["dispatch_identity"]
+            or next_arm["dispatch_sequence"] != dispatch["dispatch_sequence"]
+        ):
+            raise ParameterQueueError(
+                "consumed-guard-abort next-arm identity differs from inflight dispatch"
+            )
+
+        summary_sha256 = _sha256_file(
+            summary_path, "consumed-guard-abort bridge summary"
+        )
+        summary = _strict_json(summary_path, "consumed-guard-abort bridge summary")
+        stop_reason = summary.get("stop_reason")
+        allowed_guard_reasons = {
+            "normal_force_guard",
+            "force_norm_guard",
+            "torque_norm_guard",
+        }
+        if stop_reason not in allowed_guard_reasons:
+            raise ParameterQueueError(
+                "consumed-guard-abort bridge summary lacks a recognized safety guard"
+            )
+
+        capture_sha256 = _sha256_file(
+            capture_path, "consumed-guard-abort partial capture"
+        )
+        packet = dispatch["packet"]
+        required_identity = {
+            "campaign_epoch": int(packet["campaign_epoch"]),
+            "trial_id": int(packet["trial_id"]),
+            "candidate_token": int(packet["candidate_token"]),
+            "execution_profile_id": int(packet["execution_profile_id"]),
+            "command_seq": int(packet["command_seq"]),
+        }
+        row_count = 0
+        consumed_echo_seen = False
+        first_monotonic_s: float | None = None
+        last_monotonic_s: float | None = None
+        last_guard_reason = ""
+        with capture_path.open("r", encoding="utf-8", newline="") as stream:
+            reader = csv.DictReader(stream)
+            fields = set(reader.fieldnames or ())
+            required_fields = {
+                *required_identity,
+                "_step5d_stage25_echo_consumed",
+                "guard_reason",
+                "t_monotonic_s",
+            }
+            if not required_fields.issubset(fields):
+                raise ParameterQueueError(
+                    "consumed-guard-abort partial capture lacks identity fields"
+                )
+            for row in reader:
+                row_count += 1
+                try:
+                    observed_identity = {
+                        name: int(float(row[name]))
+                        for name in required_identity
+                    }
+                    monotonic_s = float(row["t_monotonic_s"])
+                    raw_consumed_echo = row[
+                        "_step5d_stage25_echo_consumed"
+                    ].strip()
+                    consumed_echo_seen = consumed_echo_seen or (
+                        bool(raw_consumed_echo)
+                        and int(float(raw_consumed_echo)) == 1
+                    )
+                    last_guard_reason = row["guard_reason"].strip()
+                except (TypeError, ValueError) as exc:
+                    raise ParameterQueueError(
+                        "consumed-guard-abort partial capture identity is malformed"
+                    ) from exc
+                if observed_identity != required_identity:
+                    raise ParameterQueueError(
+                        "consumed-guard-abort partial capture identity differs"
+                    )
+                if first_monotonic_s is None:
+                    first_monotonic_s = monotonic_s
+                last_monotonic_s = monotonic_s
+        if row_count <= 0 or not consumed_echo_seen:
+            raise ParameterQueueError(
+                "consumed-guard-abort partial capture does not prove command consumption"
+            )
+        if last_guard_reason != stop_reason:
+            raise ParameterQueueError(
+                "consumed-guard-abort final capture guard differs from bridge summary"
+            )
+
+        terminal_state = {
+            "kind": "GUARD_ABORTED_CONSUMED",
+            "dispatch_identity": dispatch["dispatch_identity"],
+            "dispatch_sequence": dispatch["dispatch_sequence"],
+            "bridge_summary": {
+                "path": str(summary_path),
+                "sha256": summary_sha256,
+                "stop_reason": stop_reason,
+            },
+            "partial_capture": {
+                "path": str(capture_path),
+                "sha256": capture_sha256,
+                "rows": row_count,
+                "duration_s": max(
+                    0.0,
+                    float(last_monotonic_s) - float(first_monotonic_s),
+                ),
+                "final_guard_reason": last_guard_reason,
+            },
+            "fail_closed_safety_guard": True,
+        }
+        receipt = {
+            "schema": RECEIPT_SCHEMA,
+            "request_uid": dispatch["request"]["request_uid"],
+            "dispatch_sequence": dispatch["dispatch_sequence"],
+            "dispatch_sha256": dispatch["dispatch_sha256"],
+            "status": "FAILED",
+            "detail": detail,
+            "terminal_observation": terminal_state,
+        }
+        reconciliation = {
+            "schema": CONSUMED_GUARD_ABORT_RECONCILIATION_SCHEMA,
+            "request_uid": dispatch["request"]["request_uid"],
+            "dispatch_sequence": dispatch["dispatch_sequence"],
+            "dispatch_sha256": dispatch["dispatch_sha256"],
+            "status": "GUARD_ABORTED_CONSUMED",
+            "detail": detail,
+            "terminal_observation": terminal_state,
+            "requires_transport_rebind": True,
+        }
+        _write_once(_receipt_path(root, str(receipt["request_uid"])), receipt)
+        _write_once(
+            _reconciliation_path(root, int(dispatch["dispatch_sequence"])),
+            reconciliation,
+        )
+        _record_terminal_receipt_locked(
+            root=root,
+            existing=_load_terminal_receipts(root),
+            record=_terminal_receipt_document(
+                process_composition_sha256=next_arm["campaign_fingerprint"],
+                dispatch_identity=str(dispatch["dispatch_identity"]),
+                dispatch_sequence=int(dispatch["dispatch_sequence"]),
+                terminal_state=terminal_state,
+            ),
+        )
+        state["home_identity"] = None
+        state["inflight"] = None
+        _atomic_json(_state_path(root), state)
+        return reconciliation
+
+
 def reconcile_not_consumed(
     root: Path,
     detail: str,
@@ -1609,6 +1793,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     abort_parser.add_argument("--bridge-summary", type=Path, required=True)
     abort_parser.add_argument("--partial-capture", type=Path, required=True)
     abort_parser.add_argument("--detail", required=True)
+    guard_abort_parser = subparsers.add_parser("abort-consumed-guard")
+    guard_abort_parser.add_argument("--queue-root", type=Path, required=True)
+    guard_abort_parser.add_argument("--bridge-summary", type=Path, required=True)
+    guard_abort_parser.add_argument("--partial-capture", type=Path, required=True)
+    guard_abort_parser.add_argument("--detail", required=True)
     return parser.parse_args(argv)
 
 
@@ -1624,6 +1813,13 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "abort-consumed":
         payload = terminalize_consumed_infra_abort(
+            args.queue_root,
+            bridge_summary_path=args.bridge_summary,
+            partial_capture_path=args.partial_capture,
+            detail=args.detail,
+        )
+    elif args.command == "abort-consumed-guard":
+        payload = terminalize_consumed_guard_abort(
             args.queue_root,
             bridge_summary_path=args.bridge_summary,
             partial_capture_path=args.partial_capture,
