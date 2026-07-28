@@ -535,6 +535,12 @@ def test_v3_arm_boundary_applies_real_orientation_k_without_moving_sphere() -> N
     assert args.step5d_hard_tube_enabled is True
     assert args.step5d_hard_tube_guard.radius_m == 0.03
     assert args.step5d_hard_tube_guard.evaluation_hz == 100.0
+    assert args.step5d_hard_tube_guard.progress_freshness_floor_hz == 50.0
+    assert args.step5d_hard_tube_guard.progress_stale_dwell_ns == 100_000_000
+    assert (
+        args.step5d_hard_tube_guard.progress_stale_recovery_dwell_ns
+        == 100_000_000
+    )
     assert args.step5d_physical_prior_identity_payload["approach_axis_b"] == [
         0.043955267,
         -0.020079909,

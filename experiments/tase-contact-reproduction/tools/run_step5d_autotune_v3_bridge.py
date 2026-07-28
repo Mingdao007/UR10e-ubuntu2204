@@ -128,7 +128,10 @@ def _install_v3_hard_tube(args: Any, launch_profile: Any | None) -> None:
 
     from ur10e_experiment_runtime.hard_tube import (
         HARD_TUBE_EVALUATION_DIVISOR,
+        HARD_TUBE_EVALUATION_FLOOR_HZ,
         HARD_TUBE_PROGRESS_MAX_AGE_NS,
+        HARD_TUBE_PROGRESS_STALE_DWELL_NS,
+        HARD_TUBE_PROGRESS_STALE_RECOVERY_DWELL_NS,
         HARD_TUBE_RADIUS_M,
         HardTubeGuard,
     )
@@ -163,6 +166,21 @@ def _install_v3_hard_tube(args: Any, launch_profile: Any | None) -> None:
     if guard.progress_max_age_ns != HARD_TUBE_PROGRESS_MAX_AGE_NS:
         raise BridgeTicketError(
             "V3 hard-tube progress freshness floor differs from 50 Hz"
+        )
+    if guard.progress_stale_dwell_ns != HARD_TUBE_PROGRESS_STALE_DWELL_NS:
+        raise BridgeTicketError(
+            "V3 hard-tube continuous stale dwell differs from 100 ms"
+        )
+    if (
+        guard.progress_stale_recovery_dwell_ns
+        != HARD_TUBE_PROGRESS_STALE_RECOVERY_DWELL_NS
+    ):
+        raise BridgeTicketError(
+            "V3 hard-tube stale recovery dwell differs from 100 ms"
+        )
+    if guard.evaluation_hz < HARD_TUBE_EVALUATION_FLOOR_HZ:
+        raise BridgeTicketError(
+            "V3 hard-tube evaluation rate is below the 50 Hz floor"
         )
     if launch_profile is not None:
         expected_reference = launch_profile.document.get(
@@ -934,6 +952,19 @@ def check_v3_runtime_prewarm(bridge_argv: Sequence[str]) -> dict[str, Any]:
             "progress_freshness_floor_hz": float(
                 args.step5d_hard_tube_guard.progress_freshness_floor_hz
             ),
+            "progress_stale_dwell_ms": (
+                float(args.step5d_hard_tube_guard.progress_stale_dwell_ns)
+                / 1_000_000.0
+            ),
+            "progress_stale_recovery_dwell_ms": (
+                float(
+                    args.step5d_hard_tube_guard.progress_stale_recovery_dwell_ns
+                )
+                / 1_000_000.0
+            ),
+            "configured_evaluation_floor_hz": 50.0,
+            "cadence_semantics": "target_not_watchdog_guarantee",
+            "evaluation_clock": "host_monotonic",
             "reference_sha256": (
                 args.step5d_hard_tube_guard.reference_sha256
             ),

@@ -65,6 +65,7 @@ class ProductionCsvWriter:
         self._buffered_flushes = 0
         self._terminal_flushes = 0
         self._durable_fsyncs = 0
+        self._last_terminal_state: int | None = None
         self.writer.writeheader()
         self.flush(durable=True)
 
@@ -84,13 +85,19 @@ class ProductionCsvWriter:
         self.writer.writerow(row)
         self._rows_written += 1
         self._rows_since_flush += 1
-        terminal = self._state(row.get(self.terminal_state_column)) in TERMINAL_TP_STATES
-        if terminal:
+        state = self._state(row.get(self.terminal_state_column))
+        terminal = state in TERMINAL_TP_STATES
+        terminal_transition = terminal and state != self._last_terminal_state
+        if terminal_transition:
             self._terminal_flushes += 1
             self.flush(durable=True)
         elif self._rows_since_flush >= self.flush_interval_rows:
             self._buffered_flushes += 1
             self.flush(durable=False)
+        if terminal:
+            self._last_terminal_state = state
+        elif state is not None:
+            self._last_terminal_state = None
         return terminal
 
     def publish_row_with_partial_visibility(
@@ -123,12 +130,20 @@ class ProductionCsvWriter:
         time.sleep(partial_visible_s)
         self.handle.write(encoded[split_at:])
         self._rows_written += 1
-        terminal = self._state(row.get(self.terminal_state_column)) in TERMINAL_TP_STATES
-        if terminal:
+        self._rows_since_flush += 1
+        state = self._state(row.get(self.terminal_state_column))
+        terminal = state in TERMINAL_TP_STATES
+        terminal_transition = terminal and state != self._last_terminal_state
+        if terminal_transition:
             self._terminal_flushes += 1
             self.flush(durable=True)
-        else:
-            self._rows_since_flush += 1
+        elif self._rows_since_flush >= self.flush_interval_rows:
+            self._buffered_flushes += 1
+            self.flush(durable=False)
+        if terminal:
+            self._last_terminal_state = state
+        elif state is not None:
+            self._last_terminal_state = None
         return terminal
 
     def flush(self, *, durable: bool) -> None:

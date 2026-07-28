@@ -18,6 +18,49 @@ from step5d_production_csv import (  # noqa: E402
 )
 
 
+def test_repeated_terminal_state_fsyncs_once_per_transition(
+    tmp_path: Path,
+) -> None:
+    csv_path = tmp_path / "terminal-episode.csv"
+    fields = ("t_monotonic_s", "ur_output_int_register_26")
+    with csv_path.open("x", newline="", encoding="utf-8") as handle:
+        writer = ProductionCsvWriter(handle, fields, flush_interval_rows=50)
+        for index in range(101):
+            assert writer.writerow(
+                {
+                    "t_monotonic_s": index * 0.002,
+                    "ur_output_int_register_26": 78,
+                }
+            )
+        assert writer.stats.terminal_flushes == 1
+        assert writer.stats.durable_fsyncs == 2
+        assert writer.stats.buffered_flushes == 2
+
+        assert not writer.writerow(
+            {"t_monotonic_s": 0.203, "ur_output_int_register_26": ""}
+        )
+        assert writer.writerow(
+            {"t_monotonic_s": 0.2035, "ur_output_int_register_26": 78}
+        )
+        assert writer.stats.terminal_flushes == 1
+        assert writer.stats.durable_fsyncs == 2
+
+        assert writer.writerow(
+            {"t_monotonic_s": 0.204, "ur_output_int_register_26": 75}
+        )
+        assert writer.stats.terminal_flushes == 2
+        assert writer.stats.durable_fsyncs == 3
+
+        assert not writer.writerow(
+            {"t_monotonic_s": 0.206, "ur_output_int_register_26": 10}
+        )
+        assert writer.writerow(
+            {"t_monotonic_s": 0.208, "ur_output_int_register_26": 78}
+        )
+        assert writer.stats.terminal_flushes == 3
+        assert writer.stats.durable_fsyncs == 4
+
+
 def test_partial_line_rolls_back_then_complete_row_is_consumed_once(
     tmp_path: Path,
 ) -> None:
@@ -91,6 +134,7 @@ def test_r005_incident_is_fresh_rows_with_prefixed_schema_not_no_fresh(
         follower = BridgeCsvFollower(csv_path)
         for index, source in enumerate(rows):
             writer.writerow({"t_monotonic_s": index * 0.01, **source})
+        writer.flush(durable=False)
 
         expected_unprefixed = tuple(
             incident["deterministic_root_cause"]["collector_expected"]

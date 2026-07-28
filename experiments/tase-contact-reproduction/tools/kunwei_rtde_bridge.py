@@ -8351,13 +8351,17 @@ def apply_step5d_hard_tube_guard(
     try:
         controller_progress_s = float(latest_output["output_double_register_31"])
         controller_timestamp_s = float(latest_output["timestamp"])
-        controller_tick_seq = int(round(controller_timestamp_s * 500.0))
+        controller_tick_seq = int(controller_timestamp_s * 1_000_000_000.0)
         progress_age_ns = int(args.step5d_hard_tube_progress_age_ns)
     except (KeyError, TypeError, ValueError, OverflowError):
         controller_progress_s = math.nan
         controller_timestamp_s = math.nan
         controller_tick_seq = None
         progress_age_ns = None
+    try:
+        tp_protocol_state = latest_output["output_int_register_26"]
+    except KeyError:
+        tp_protocol_state = math.nan
     controller_progress = args.step5d_controller_progress_adapter.sample(
         stage=robot_stage,
         controller_progress_s=controller_progress_s,
@@ -8365,10 +8369,12 @@ def apply_step5d_hard_tube_guard(
         controller_timestamp_s=controller_timestamp_s,
         age_ns=progress_age_ns,
         tcp_z_m=float(pose[2]),
+        tp_protocol_state=tp_protocol_state,
     )
     result = args.step5d_hard_tube_guard.tick(
         progress=controller_progress,
         tcp_base=pose,
+        observed_monotonic_ns=time.monotonic_ns(),
     )
     values["_step5d_hard_tube_reason"] = result.reason.name
     values["_step5d_hard_tube_actual_distance_m"] = result.actual_distance_m
@@ -11225,6 +11231,29 @@ def main(argv: list[str] | None = None) -> int:
         "progress_freshness_floor_hz": getattr(
             hard_tube_guard, "progress_freshness_floor_hz", None
         ),
+        "progress_stale_dwell_ms": (
+            getattr(hard_tube_guard, "progress_stale_dwell_ns", 0)
+            / 1_000_000.0
+            if hard_tube_guard is not None
+            else None
+        ),
+        "progress_stale_recovery_dwell_ms": (
+            getattr(hard_tube_guard, "progress_stale_recovery_dwell_ns", 0)
+            / 1_000_000.0
+            if hard_tube_guard is not None
+            else None
+        ),
+        "configured_evaluation_floor_hz": (
+            50.0 if hard_tube_guard is not None else None
+        ),
+        "cadence_semantics": (
+            "target_not_watchdog_guarantee"
+            if hard_tube_guard is not None
+            else None
+        ),
+        "evaluation_clock": (
+            "host_monotonic" if hard_tube_guard is not None else None
+        ),
     }
     metadata["dashboard_program_watch"].update(dashboard_watch)
     write_json(metadata_path, metadata)
@@ -11925,7 +11954,10 @@ def main(argv: list[str] | None = None) -> int:
                             ):
                                 args.step5d_hard_tube_progress_age_ns = int(
                                     max(0.0, feedback_age_s) * 1_000_000_000
-                                ) if math.isfinite(feedback_age_s) else 2_000_001
+                                ) if math.isfinite(feedback_age_s) else (
+                                    args.step5d_hard_tube_guard.progress_max_age_ns
+                                    + 1
+                                )
                             reset_step5d_autotune_diagnostics_for_trial(
                                 step4e_state, args
                             )

@@ -65,8 +65,12 @@ PATH_ORIGIN_XY_M = (0.487795411149049, 0.12932679270060748)
 PATH_U_ALONG_XY = (-0.010785642631908187, 0.9999418332648238)
 PATH_P_LATERAL_XY = (-0.9999418332648239, -0.010785642631908406)
 ACTIVE_STAGE25_CODE = 25.0
+ACTIVE_TP_PROTOCOL_STATE = 20
 STAGE_CODE_TOLERANCE = 0.03
 CONTROLLER_TICK_PERIOD_NS = 2_000_000
+KNOWN_TP_PROTOCOL_STATES = frozenset(
+    {10, 11, 20, 30, 40, 50, 60, 70, 75, 76, 77, 78, 90}
+)
 KNOWN_INACTIVE_CONTROLLER_STAGES = (
     20.0,
     22.0,
@@ -243,6 +247,7 @@ class Stage25ControllerProgressAdapter:
         "_last_controller_tick_seq",
         "last_progress_s",
         "anchor_z_m",
+        "protocol_initialized",
     )
 
     def __init__(
@@ -260,6 +265,7 @@ class Stage25ControllerProgressAdapter:
         self._last_controller_tick_seq = 0
         self.last_progress_s = math.nan
         self.anchor_z_m = math.nan
+        self.protocol_initialized = False
 
     def reset(self) -> None:
         self.progress.phase = ControllerProgressPhase.UNKNOWN
@@ -277,6 +283,7 @@ class Stage25ControllerProgressAdapter:
         self._last_controller_tick_seq = 0
         self.last_progress_s = math.nan
         self.anchor_z_m = math.nan
+        self.protocol_initialized = False
 
     def sample(
         self,
@@ -287,6 +294,7 @@ class Stage25ControllerProgressAdapter:
         controller_timestamp_s: float | None,
         age_ns: int | None,
         tcp_z_m: float | None,
+        tp_protocol_state: int | float | None = None,
     ) -> ControllerProgress:
         out = self.progress
         out.reference_sha256 = self.reference_sha256
@@ -301,6 +309,35 @@ class Stage25ControllerProgressAdapter:
         out.center_z_m = math.nan
         out.monotonic = False
         out.center_frozen = False
+        if tp_protocol_state is not None:
+            try:
+                protocol_value = float(tp_protocol_state)
+            except (TypeError, ValueError):
+                protocol_state = None
+            else:
+                protocol_state = (
+                    int(protocol_value)
+                    if math.isfinite(protocol_value)
+                    and protocol_value.is_integer()
+                    else None
+                )
+            stage_is_active = bool(
+                stage is not None
+                and math.isfinite(float(stage))
+                and abs(float(stage) - ACTIVE_STAGE25_CODE)
+                < STAGE_CODE_TOLERANCE
+            )
+            if protocol_state in KNOWN_TP_PROTOCOL_STATES:
+                self.protocol_initialized = True
+                if protocol_state != ACTIVE_TP_PROTOCOL_STATE:
+                    out.phase = ControllerProgressPhase.INACTIVE
+                    return out
+            elif not self.protocol_initialized and not stage_is_active:
+                out.phase = ControllerProgressPhase.INACTIVE
+                return out
+            else:
+                out.phase = ControllerProgressPhase.UNKNOWN
+                return out
         if stage is None or not math.isfinite(float(stage)):
             out.phase = ControllerProgressPhase.UNKNOWN
             return out

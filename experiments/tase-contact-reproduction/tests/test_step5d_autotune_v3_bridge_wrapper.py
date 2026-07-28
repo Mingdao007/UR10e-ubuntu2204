@@ -625,7 +625,7 @@ def test_production_sphere_seam_uses_typed_progress_and_exact_stop() -> None:
         validity_domain="offline_fixture_only_not_live_certification",
     )
     adapter = Stage25ControllerProgressAdapter(
-        physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint
+        physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint,
     )
     args = SimpleNamespace(
         step5d_controller_progress_adapter=adapter,
@@ -642,7 +642,10 @@ def test_production_sphere_seam_uses_typed_progress_and_exact_stop() -> None:
     bridge.apply_step5d_moving_sphere_guard(
         values=values,
         args=args,
-        latest_output={"output_double_register_31": 0.0, "timestamp": 1.0},
+        latest_output={
+            "output_double_register_31": 0.0,
+            "timestamp": 1.0,
+        },
         robot_stage=25.0,
         pose=pose,
         tcp_speed_m_s=0.0,
@@ -702,7 +705,9 @@ def test_production_sphere_seam_uses_typed_progress_and_exact_stop() -> None:
     assert all(values[name] == 0.0 for name in bridge.BRIDGE_INPUT_NAMES[:6])
 
 
-def test_production_hard_tube_seam_is_30_mm_100_hz_and_exact_stop() -> None:
+def test_production_hard_tube_seam_is_30_mm_100_hz_and_exact_stop(
+    monkeypatch,
+) -> None:
     import kunwei_rtde_bridge as bridge
     from ur10e_experiment_runtime.hard_tube import (
         HardTubeGuard,
@@ -715,7 +720,8 @@ def test_production_hard_tube_seam_is_30_mm_100_hz_and_exact_stop() -> None:
     )
 
     adapter = Stage25ControllerProgressAdapter(
-        physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint
+        physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint,
+        allow_tick_gaps=True,
     )
     guard = HardTubeGuard(reference_sha256=adapter.reference_sha256)
     args = SimpleNamespace(
@@ -725,6 +731,10 @@ def test_production_hard_tube_seam_is_30_mm_100_hz_and_exact_stop() -> None:
     )
     values = bridge.bridge_zero_values()
     values["stop_request"] = 0.0
+    observed_ns = iter(
+        [1_000_000_000 + index * 2_000_000 for index in range(6)]
+    )
+    monkeypatch.setattr(bridge.time, "monotonic_ns", lambda: next(observed_ns))
     inside = [
         PATH_ORIGIN_XY_M[0] + 0.029,
         PATH_ORIGIN_XY_M[1],
@@ -736,7 +746,11 @@ def test_production_hard_tube_seam_is_30_mm_100_hz_and_exact_stop() -> None:
     bridge.apply_step5d_hard_tube_guard(
         values=values,
         args=args,
-        latest_output={"output_double_register_31": 0.0, "timestamp": 1.0},
+        latest_output={
+            "output_double_register_31": 0.0,
+            "output_int_register_26": 20,
+            "timestamp": 1.0,
+        },
         robot_stage=25.0,
         pose=inside,
     )
@@ -752,6 +766,7 @@ def test_production_hard_tube_seam_is_30_mm_100_hz_and_exact_stop() -> None:
             args=args,
             latest_output={
                 "output_double_register_31": 0.0,
+                "output_int_register_26": 20,
                 "timestamp": 1.0 + 0.002 * tick,
             },
             robot_stage=25.0,
@@ -767,7 +782,11 @@ def test_production_hard_tube_seam_is_30_mm_100_hz_and_exact_stop() -> None:
     bridge.apply_step5d_hard_tube_guard(
         values=values,
         args=args,
-        latest_output={"output_double_register_31": 0.0, "timestamp": 1.01},
+        latest_output={
+            "output_double_register_31": 0.0,
+            "output_int_register_26": 20,
+            "timestamp": 1.01,
+        },
         robot_stage=25.0,
         pose=outside,
     )
@@ -777,3 +796,53 @@ def test_production_hard_tube_seam_is_30_mm_100_hz_and_exact_stop() -> None:
     assert values["stop_request"] == 1.0
     assert values["step4e_cmd_valid"] == 0.0
     assert all(values[name] == 0.0 for name in bridge.BRIDGE_INPUT_NAMES[:6])
+
+
+def test_production_hard_tube_fails_closed_on_missing_or_fractional_protocol_state(
+    monkeypatch,
+) -> None:
+    import kunwei_rtde_bridge as bridge
+    from ur10e_experiment_runtime.hard_tube import HardTubeGuard, HardTubeReason
+    from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+    from ur10e_experiment_runtime.stage_adapters import (
+        PATH_ORIGIN_XY_M,
+        Stage25ControllerProgressAdapter,
+    )
+
+    adapter = Stage25ControllerProgressAdapter(
+        physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint,
+        allow_tick_gaps=True,
+    )
+    args = SimpleNamespace(
+        step5d_controller_progress_adapter=adapter,
+        step5d_hard_tube_guard=HardTubeGuard(
+            reference_sha256=adapter.reference_sha256
+        ),
+        step5d_hard_tube_progress_age_ns=0,
+    )
+    pose = [*PATH_ORIGIN_XY_M, 0.008, 0.0, 0.0, 0.0]
+    observed_ns = iter((1_000_000_000, 1_002_000_000))
+    monkeypatch.setattr(bridge.time, "monotonic_ns", lambda: next(observed_ns))
+
+    for protocol in (None, 20.5):
+        values = bridge.bridge_zero_values()
+        values.update({name: 0.1 for name in bridge.BRIDGE_INPUT_NAMES[:6]})
+        values["step4e_cmd_valid"] = 1.0
+        latest_output = {
+            "output_double_register_31": 0.0,
+            "timestamp": 1.0,
+        }
+        if protocol is not None:
+            latest_output["output_int_register_26"] = protocol
+        bridge.apply_step5d_hard_tube_guard(
+            values=values,
+            args=args,
+            latest_output=latest_output,
+            robot_stage=25.0,
+            pose=pose,
+        )
+        assert values["_step5d_hard_tube_reason"] == (
+            HardTubeReason.TUBE_STAGE_UNKNOWN.name
+        )
+        assert values["stop_request"] == 1.0
+        assert values["step4e_cmd_valid"] == 0.0
