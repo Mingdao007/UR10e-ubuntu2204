@@ -88,12 +88,27 @@ Output:
 EOF
 }
 
+remote_play_usage() {
+  cat <<'EOF'
+Usage: step5d-autotune-v3.sh remote-play [OPTIONS]
+
+Governed one-shot Dashboard Play for the active Remote Control route. Requires
+a fresh canonical WAITING_FOR_PLAY status, exact controller identity, Safety
+NORMAL, a live bridge heartbeat, and one live writer. Writes a bound receipt.
+
+Options:
+  --evidence-output PATH     Optional receipt path; defaults to active run root
+  -h, --help                 Show this help without sending Play
+EOF
+}
+
 usage() {
   cat <<'EOF'
 Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
        step5d-autotune-v3.sh release-contract-check [OPTIONS]
        step5d-autotune-v3.sh tp-deliver [OPTIONS]
        step5d-autotune-v3.sh revalidate-current [OPTIONS]
+       step5d-autotune-v3.sh remote-play [OPTIONS]
        step5d-autotune-v3.sh status [--json]
        step5d-autotune-v3.sh status --json --assert-state STATE
        step5d-autotune-v3.sh [OPERATOR-CLI-ARGS]
@@ -102,6 +117,7 @@ Use "step5d-autotune-v3.sh bridge-live --help" for bridge options.
 Use "step5d-autotune-v3.sh release-contract-check --help" for contract options.
 Use "step5d-autotune-v3.sh tp-deliver --help" for delivery options.
 Use "step5d-autotune-v3.sh revalidate-current --help" for runtime revalidation.
+Use "step5d-autotune-v3.sh remote-play --help" for governed Remote Play.
 EOF
 }
 
@@ -372,6 +388,7 @@ bridge_mode=0
 release_contract_check_mode=0
 tp_deliver_mode=0
 runtime_revalidate_mode=0
+remote_play_mode=0
 tp_deliver_args=()
 release_candidate=""
 arguments=()
@@ -738,6 +755,45 @@ if [[ "${1:-}" == "revalidate-current" ]]; then
   fi
 fi
 
+if [[ "${1:-}" == "remote-play" ]]; then
+  remote_play_mode=1
+  shift
+  arguments=("$@")
+  remote_play_evidence_output=""
+  seen_remote_play_evidence_output=0
+  index=0
+  while (( index < ${#arguments[@]} )); do
+    option="${arguments[index]}"
+    option_name="${option%%=*}"
+    value=""
+    if [[ "${option}" == "-h" || "${option}" == "--help" ]]; then
+      remote_play_usage
+      exit 0
+    fi
+    case "${option}" in
+      --evidence-output)
+        if (( index + 1 >= ${#arguments[@]} )) || [[ "${arguments[index + 1]}" == -* ]]; then
+          bridge_argv_error "${option} requires a value"
+        fi
+        value="${arguments[index + 1]}"
+        ((index += 2))
+        ;;
+      --evidence-output=*)
+        value="${option#*=}"
+        [[ -n "${value}" ]] || bridge_argv_error "${option_name} requires a value"
+        ((index += 1))
+        ;;
+      *)
+        bridge_argv_error "unsupported remote-play option: ${option}"
+        ;;
+    esac
+    (( seen_remote_play_evidence_output == 0 )) \
+      || bridge_argv_error "--evidence-output may appear only once"
+    seen_remote_play_evidence_output=1
+    remote_play_evidence_output="$(readlink -m -- "${value}")"
+  done
+fi
+
 if (( bridge_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"
@@ -857,6 +913,17 @@ if [[ "${1:-}" == "status" && "${2:-}" == "--json" ]]; then
     exit 64
   fi
   exec "${status_command[@]}"
+fi
+if (( remote_play_mode == 1 )); then
+  remote_play_command=(
+    "${CONTROL_PYTHON}" -B -I
+    "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_remote_play.py"
+    --experiment-root "${EXPERIMENT_ROOT}"
+  )
+  if [[ -n "${remote_play_evidence_output}" ]]; then
+    remote_play_command+=(--evidence-output "${remote_play_evidence_output}")
+  fi
+  exec "${remote_play_command[@]}"
 fi
 if (( release_contract_check_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"

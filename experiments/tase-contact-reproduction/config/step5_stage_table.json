@@ -11077,6 +11077,22 @@
           "pending_behavior": "zero_command_no_mailbox_no_arm",
           "time_source": "rtde_controller_timestamp"
         },
+        "play_trigger_policy": {
+          "local_control": "physical_tp_play",
+          "remote_control": "scripts/step5d-autotune-v3.sh remote-play",
+          "remote_required_predicates": [
+            "WAITING_FOR_PLAY",
+            "release_current",
+            "controller_triplet_verified",
+            "loaded_program_verified",
+            "tp_runtime_identity_verified",
+            "bridge_heartbeat_fresh",
+            "lease_valid",
+            "single_writer",
+            "safety_normal"
+          ],
+          "receipt_schema": "step5d.autotune-v3/remote-play-receipt-v1"
+        },
         "service": "config/systemd/step5d-autotune-v3.service",
         "service_restart": "no",
         "stop_after_current": "explicit_operator_stop_only"

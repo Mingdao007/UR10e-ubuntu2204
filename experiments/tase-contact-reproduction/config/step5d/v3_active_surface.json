@@ -12,6 +12,7 @@
     "tools/run_step5d_autotune_v3_bridge.py",
     "tools/run_step5d_autotune_v3_coordinator.py",
     "tools/run_step5d_autotune_v3_live.py",
+    "tools/run_step5d_autotune_v3_remote_play.py",
     "tools/measure_step5d_startup_timing.py",
     "tools/run_step5d_autotune_v3_tp_transaction.py",
     "tools/run_step5d_parameter_campaign.py",
@@ -40,6 +41,7 @@
     "tools/step5d_autotune_v3/preflight_support.py",
     "tools/step5d_autotune_v3/profile.py",
     "tools/step5d_autotune_v3/public_state.py",
+    "tools/step5d_autotune_v3/remote_play.py",
     "tools/step5d_autotune_v3/release_certificate.py",
     "tools/step5d_autotune_v3/release_contract.py",
     "tools/step5d_autotune_v3/release_identity.py",
@@ -83,6 +85,7 @@
       "tools/run_step5d_release_contract.py"
     ],
     "public_live": "scripts/step5d-autotune-v3.sh bridge-live",
+    "public_remote_play": "scripts/step5d-autotune-v3.sh remote-play",
     "public_release_contract": "scripts/step5d-autotune-v3.sh release-contract-check",
     "public_runtime_revalidation": "scripts/step5d-autotune-v3.sh revalidate-current",
     "public_status": "scripts/step5d-autotune-v3.sh status --json",

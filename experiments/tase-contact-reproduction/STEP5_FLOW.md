@@ -24,9 +24,13 @@ that runtime identity oracle. All earlier revisions are historical-only and
 cannot be treated as the active release. Until the r026 atomic promotion and current observed predicates
 both verify, the route remains fail-closed and no `BENCH_READY` claim is valid.
 
-The only public live command is `step5d-autotune-v3.sh bridge-live`; the only resume
-anchor is `step5d-autotune-v3.sh status --json`. The Python live/bridge/campaign
-runners are internal workers, not operator entrypoints. The old
+The public live commands are `step5d-autotune-v3.sh bridge-live` and the
+route-bound `step5d-autotune-v3.sh remote-play`; the only resume anchor is
+`step5d-autotune-v3.sh status --json`. `remote-play` is valid only in Remote
+Control after a fresh `WAITING_FOR_PLAY` status proves exact release/controller
+identity, Safety NORMAL, bridge heartbeat, campaign lease, and a single live
+writer. Local Control keeps physical TP Play. The Python
+live/bridge/campaign runners are internal workers, not operator entrypoints. The old
 `step5d-autotune-live.sh bridge` name is a passthrough adapter only through TP
 revision r010 and performs no write before `exec`; it fails with exit 64 after
 that cutoff. `step5d-liveprep-operator.sh` and `step5d-workflow.sh` are retired
@@ -1155,9 +1159,12 @@ On a valid trigger:
    exact-program-loaded/stopped observation before creating an attempt. If the
    TP has not loaded and stopped the exact program, it exits 75 with
    `EXTERNAL_ACTION_REQUIRED`; after the operator completes Load/Stop, rerun the
-   same `bridge-live` command. The operator separately owns physical Play and
-   Stop.
-3. `WAITING_FOR_PLAY` is the only state that permits a Play prompt. Every ARM
+   same `bridge-live` command. In Local Control the operator owns physical Play;
+   in Remote Control invoke the canonical `remote-play` subcommand, which
+   reanchors all live predicates and writes a receipt after observing the exact
+   program in `PLAYING`.
+3. `WAITING_FOR_PLAY` is the only state that permits either a Local TP Play
+   prompt or the governed Remote Play primitive. Every ARM
    still requires a fresh exact-command grant; readiness observations cannot
    authorize ARM and a prior grant cannot be reused by the next command.
 4. After compaction or resume, run `scripts/step5d-autotune-v3.sh status --json`

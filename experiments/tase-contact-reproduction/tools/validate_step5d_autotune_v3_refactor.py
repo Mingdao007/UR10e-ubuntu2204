@@ -55,6 +55,7 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_autotune_v3_live_startup.py",
     "tests/test_step5d_live_session_lifecycle.py",
     "tests/test_step5d_autotune_v3_public_state.py",
+    "tests/test_step5d_autotune_v3_remote_play.py",
     "tests/test_step5d_autotune_v3_shared_contracts.py",
     "tests/test_step5d_optimizer_protocol.py",
     "tests/test_step5d_release_contract.py",
@@ -79,6 +80,7 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_runtime_observation.py",
     "tests/test_step5d_production_csv.py",
     "tests/test_step5d_historical_incident_contracts.py",
+    "tests/test_step5d_hard_tube.py",
     "tests/test_step5d_no_contact_p0.py",
     "tests/test_step5d_v3_active_surface_architecture.py",
     "tests/test_step5d_v3_immutable_payload_routing.py",
@@ -86,6 +88,7 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_v3_runtime_installation.py",
     "tests/test_step5d_v3_source_closure.py",
     "tests/test_step5d_layer_boundaries.py",
+    "tests/test_step5d_autotune_start_hover_r001.py",
 }
 AUTHORITATIVE_OBSOLETE_TESTS = {
     "tests/test_cross_step_parameter_table.py",
