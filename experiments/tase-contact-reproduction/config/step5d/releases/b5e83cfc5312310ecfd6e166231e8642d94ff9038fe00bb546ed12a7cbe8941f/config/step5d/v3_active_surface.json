@@ -1,0 +1,205 @@
+{
+  "active_orchestration_paths": [
+    "scripts/step5d-autotune-v3.sh",
+    "tools/build_step5d_autotune_tp_v3.py",
+    "tools/check_step5d_autotune_v3_bridge_admission.py",
+    "tools/kunwei_rtde_bridge.py",
+    "tools/preflight_step5d_autotune_v3.py",
+    "tools/prepare_step5d_autotune_launch.py",
+    "tools/promote_step5d_r009_atomic_release.py",
+    "tools/resolve_step5d_autotune_v3_runtime.py",
+    "tools/resolve_step5d_bridge_route.py",
+    "tools/run_step5d_autotune_v3_bridge.py",
+    "tools/run_step5d_autotune_v3_coordinator.py",
+    "tools/run_step5d_autotune_v3_live.py",
+    "tools/run_step5d_autotune_v3_remote_play.py",
+    "tools/measure_step5d_startup_timing.py",
+    "tools/run_step5d_autotune_v3_tp_transaction.py",
+    "tools/run_step5d_parameter_campaign.py",
+    "tools/run_step5d_release_contract.py",
+    "tools/step5d_autotune_live_driver.py",
+    "tools/step5d_autotune_runtime_contract.py",
+    "tools/step5d_bridge_authority.py",
+    "tools/step5d_bridge_status.py",
+    "tools/step5d_campaign_identity.py",
+    "tools/step5d_parameter_manifest.py",
+    "tools/step5d_parameter_queue.py",
+    "tools/step5d_runtime_codec.py",
+    "tools/step5d_autotune_v3/__init__.py",
+    "tools/step5d_autotune_v3/atomic_io.py",
+    "tools/step5d_autotune_v3/atomic_release.py",
+    "tools/step5d_autotune_v3/bridge_admission.py",
+    "tools/step5d_autotune_v3/campaign_basis.py",
+    "tools/step5d_autotune_v3/cli.py",
+    "tools/step5d_autotune_v3/dashboard.py",
+    "tools/step5d_autotune_v3/delivery_observation.py",
+    "tools/step5d_autotune_v3/governance.py",
+    "tools/step5d_autotune_v3/identity_layers.py",
+    "tools/step5d_autotune_v3/launcher.py",
+    "tools/step5d_autotune_v3/launch_basis.py",
+    "tools/step5d_autotune_v3/postprocess.py",
+    "tools/step5d_autotune_v3/preflight_support.py",
+    "tools/step5d_autotune_v3/profile.py",
+    "tools/step5d_autotune_v3/public_state.py",
+    "tools/step5d_autotune_v3/remote_play.py",
+    "tools/step5d_autotune_v3/release_certificate.py",
+    "tools/step5d_autotune_v3/release_contract.py",
+    "tools/step5d_autotune_v3/release_identity.py",
+    "tools/step5d_autotune_v3/release_transition.py",
+    "tools/step5d_autotune_v3/release_verifier.py",
+    "tools/step5d_autotune_v3/rtde_client.py",
+    "tools/step5d_autotune_v3/runtime_calibration.py",
+    "tools/step5d_autotune_v3/runtime_environment.py",
+    "tools/step5d_autotune_v3/runtime_gate.py",
+    "tools/step5d_autotune_v3/runtime_identity.py",
+    "tools/step5d_autotune_v3/runtime_installation.py",
+    "tools/step5d_autotune_v3/runtime_observation.py",
+    "tools/step5d_autotune_v3/runtime_profile.py",
+    "tools/step5d_autotune_v3/service.py",
+    "tools/step5d_autotune_v3/source_closure.py",
+    "tools/step5d_autotune_v3/source_fingerprint_contract.py",
+    "tools/step5d_autotune_v3/state.py"
+  ],
+  "archived_routes": {
+    "manual_v2": "historical_only_no_runtime_entrypoint"
+  },
+  "compatibility_adapter": {
+    "after_cutoff": "deterministic_exit_64",
+    "allowed_subcommands": [
+      "bridge"
+    ],
+    "delegates_to": "scripts/step5d-autotune-v3.sh",
+    "last_supported_tp_revision": 10,
+    "path": "scripts/step5d-autotune-live.sh",
+    "writes_before_exec": false
+  },
+  "control_profile_id": "step5d_strict_rnn_autotune_v1",
+  "current_release_pointer": "config/step5d/current.json",
+  "deployment_source": "current release manifest artifact references",
+  "entrypoints": {
+    "compatibility_adapter": "scripts/step5d-autotune-live.sh bridge",
+    "internal_workers": [
+      "tools/run_step5d_autotune_v3_live.py",
+      "tools/run_step5d_autotune_v3_bridge.py",
+      "tools/run_step5d_parameter_campaign.py",
+      "tools/run_step5d_release_contract.py"
+    ],
+    "public_live": "scripts/step5d-autotune-v3.sh bridge-live",
+    "public_release_contract": "scripts/step5d-autotune-v3.sh release-contract-check",
+    "public_remote_play": "scripts/step5d-autotune-v3.sh remote-play",
+    "public_runtime_revalidation": "scripts/step5d-autotune-v3.sh revalidate-current",
+    "public_status": "scripts/step5d-autotune-v3.sh status --json",
+    "public_tp_delivery": "scripts/step5d-autotune-v3.sh tp-deliver"
+  },
+  "historical_only": [
+    "tools/run_step5d_autotune_campaign.py",
+    "tools/promote_step5d_manual_release.py",
+    "tools/run_step5d_manual_bridge.py",
+    "tools/run_step5d_manual_bridge_live.py",
+    "tools/run_step5d_manual_live_campaign.py",
+    "tools/step5d_manual_bridge.py",
+    "tools/step5d_manual_release_contract.py",
+    "tools/step5d_manual_status.py",
+    "tools/step5d_autotune_v3/admission.py",
+    "tools/step5d_autotune_v3/arming.py",
+    "tools/step5d_autotune_v3/batch_producer.py",
+    "tools/step5d_autotune_v3/campaign_prepare.py",
+    "tools/step5d_autotune_v3/certification.py",
+    "tools/step5d_autotune_v3/control_policy.py",
+    "tools/step5d_autotune_v3/optimizer_deployment.py",
+    "tools/step5d_autotune_v3/optimizer_payloads.py",
+    "tools/step5d_autotune_v3/optimizer_policy.py",
+    "tools/step5d_autotune_v3/optimizer_protocol.py",
+    "tools/step5d_autotune_v3/optimizer_types.py",
+    "tools/step5d_autotune_v3/optimizer_wire.py",
+    "tools/step5d_autotune_v3/optimizer_worker.py",
+    "tools/step5d_autotune_v3/readiness.py",
+    "tools/step5d_autotune_v3/runtime_functional_gates.py",
+    "tools/step5d_autotune_v3/shared_contracts.py",
+    "tools/step5d_autotune_v3/trial_contract_admission.py",
+    "programs/step5/step5d/step5d_strict_rnn_manual_tune_v2.urp"
+  ],
+  "host_protocol": "v3_full_home_rolling_arm_v1",
+  "idle_policy": {
+    "host_wait_for_play_timeout_s": null,
+    "tp_no_command_timeout_s": null
+  },
+  "parameter_flow": {
+    "data_failure_policy": "record_terminal_and_continue",
+    "inflight_limit": 1,
+    "initial_source": "config/step5d/parameter_receiver_initial.json",
+    "optimizer_required_for_experiment": false,
+    "optimizer_role": "optional_external_sender",
+    "physical_replay_allowed": false,
+    "priority": "next_then_fifo",
+    "receiver": "unbounded_file_queue"
+  },
+  "recovery_loaded_program_ids": [
+    "step5d_strict_rnn_autotune_v3_r023",
+    "step5d_strict_rnn_autotune_v3_r024",
+    "step5d_strict_rnn_autotune_v3_r025"
+  ],
+  "release_claims": {
+    "step5d_strict_rnn_autotune_v3_r004": "historical_incompatible_release",
+    "step5d_strict_rnn_autotune_v3_r006": "historical_incompatible_release",
+    "step5d_strict_rnn_autotune_v3_r008": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r009": "historical_superseded_missing_runtime_identity_oracle",
+    "step5d_strict_rnn_autotune_v3_r010": "historical_superseded_with_runtime_identity_oracle",
+    "step5d_strict_rnn_autotune_v3_r011": "historical_superseded_with_runtime_identity_oracle",
+    "step5d_strict_rnn_autotune_v3_r012": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r013": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r014": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r015": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r016": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r017": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r018": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r019": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r020": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r021": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r022": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r023": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r024": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r025": "historical_superseded_release"
+  },
+  "release_stage_id": "step5d_strict_rnn_autotune_v3",
+  "release_truth": {
+    "current_pointer": "config/step5d/current.json",
+    "dynamic_readiness_fields_forbidden": [
+      "bridge_start_ready",
+      "bench_ready",
+      "loaded",
+      "playing",
+      "running"
+    ],
+    "manifest_schema": "step5d.autotune-v3/release-manifest-v3",
+    "observed_attestation_location": "campaign_root/governance/evidence"
+  },
+  "retired_entrypoints": [
+    "scripts/step5d-liveprep-operator.sh",
+    "scripts/step5d-workflow.sh"
+  ],
+  "runtime_identity": {
+    "degraded_identity_allowed": false,
+    "digest_output_integer_registers": [
+      36,
+      37
+    ],
+    "protocol_output_integer_register": 35
+  },
+  "schema": "step5d.autotune-v3/active-surface-v3",
+  "tp_commands": {
+    "active_allowed": [
+      1,
+      3,
+      4
+    ],
+    "arm": 1,
+    "legacy_replay_only_ack": 2,
+    "operator_stop_request": 3,
+    "retired": [
+      5,
+      6
+    ]
+  },
+  "tp_program_disposition": "immutable_identity_only_readiness_is_observed"
+}
