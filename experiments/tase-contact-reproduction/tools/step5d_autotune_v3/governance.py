@@ -1290,7 +1290,10 @@ def _publish_launch_attempt_unlocked(
             current_phase = LAUNCH_ATTEMPT_PHASES.index(current["phase"])
             next_phase = LAUNCH_ATTEMPT_PHASES.index(payload["phase"])
             if next_phase < current_phase:
-                raise GovernanceError("launch attempt phase cannot move backwards")
+                if payload["state"] not in {"FAILED", "CANCELLED"}:
+                    raise GovernanceError("launch attempt phase cannot move backwards")
+                payload["phase"] = current["phase"]
+                next_phase = current_phase
             v2_transition = (
                 current["schema"] == LAUNCH_ATTEMPT_SCHEMA
                 and payload["schema"] == LAUNCH_ATTEMPT_SCHEMA
@@ -1966,7 +1969,15 @@ def _parameter_receiver_predicates(
         and latest_sequence == next_arm["dispatch_sequence"]
         and latest_receipt["dispatch_identity"] == next_arm["dispatch_identity"]
     )
-    status["trial_1_complete"] = terminal_count > 0 and latest_matches_next_arm
+    next_arm_follows_latest = bool(
+        latest_receipt is not None
+        and next_arm["dispatch_sequence"] == latest_sequence + 1
+        and next_arm["dispatch_identity"] not in seen_identity
+    )
+    receiver_progress_consistent = (
+        latest_matches_next_arm or next_arm_follows_latest
+    )
+    status["trial_1_complete"] = terminal_count > 0 and not duplicate_or_gap
     ready = False
     if len(seen_sequence) >= 10:
         sorted_sequence = sorted(seen_sequence)
@@ -1978,7 +1989,7 @@ def _parameter_receiver_predicates(
         )
         ready = (
             not duplicate_or_gap
-            and latest_matches_next_arm
+            and receiver_progress_consistent
             and len(seen_sequence) >= 10
         )
     status["continuous_ready"] = ready

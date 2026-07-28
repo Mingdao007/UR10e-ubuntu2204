@@ -766,6 +766,24 @@ def test_shell_authority_root_args_are_reusable_and_resource_id_is_shared() -> N
     assert '--_launch-campaign-path "${campaign_root}"' in source
 
 
+def test_shell_failure_terminalizes_the_active_launch_phase() -> None:
+    source = (ROOT / "scripts" / "step5d-autotune-v3.sh").read_text(
+        encoding="utf-8"
+    )
+    start = source.index("bridge_runtime_fail() {")
+    end = source.index("bridge_failure_trap() {", start)
+    runtime_fail = source[start:end]
+
+    assert (
+        'FAILED "${launch_attempt_phase:-runtime_gate}" \\\n'
+        '          "${exit_code}" "${detail}" "${reason_code}"'
+        in runtime_fail
+    )
+    assert 'FAILED runtime_gate "${exit_code}" "${detail}" "${reason_code}"' not in (
+        runtime_fail[runtime_fail.index("launch_runtime_bootstrap=0") :]
+    )
+
+
 def test_bridge_startup_sequence_places_runtime_start_after_basis_and_before_local_phases() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
@@ -3271,6 +3289,33 @@ def test_campaign_authority_revoke_reports_both_failures(monkeypatch, tmp_path: 
         "observation_lease:RuntimeError:publisher failed",
         "arm_gate:RuntimeError:gate failed",
     ]
+
+
+def test_campaign_authority_revoke_preserves_session_failure_reason(
+    monkeypatch, tmp_path: Path
+) -> None:
+    publisher_calls: list[dict[str, Any]] = []
+    gate_calls: list[dict[str, Any]] = []
+
+    class Publisher:
+        def revoke_lease(self, **kwargs: Any) -> None:
+            publisher_calls.append(kwargs)
+
+    def revoke_gate(*_args: Any, **kwargs: Any) -> None:
+        gate_calls.append(kwargs)
+
+    monkeypatch.setattr(live, "revoke_arm_observation", revoke_gate)
+    errors = live._revoke_campaign_authority(
+        tmp_path / "arm_gate.json",
+        lease=object(),
+        lease_sha256="a" * 64,
+        publisher=Publisher(),
+        reason="session_failure",
+    )
+
+    assert errors == []
+    assert publisher_calls[0]["reason"] == "session_failure"
+    assert gate_calls[0]["reason_code"] == "session_failure"
 
 
 def test_post_play_loop_never_runs_an_optimizer_or_producer() -> None:

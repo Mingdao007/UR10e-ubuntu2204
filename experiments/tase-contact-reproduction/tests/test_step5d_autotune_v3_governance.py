@@ -1039,6 +1039,64 @@ def test_launch_attempt_completed_is_terminal(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.parametrize("terminal_state", ("FAILED", "CANCELLED"))
+def test_launch_attempt_failure_is_terminal_sink_from_live_handoff(
+    tmp_path: Path, terminal_state: str
+) -> None:
+    output = tmp_path / "output"
+    campaign = tmp_path / "campaign"
+    output.mkdir()
+    campaign.mkdir()
+    route_snapshot = output / "route-snapshot.json"
+    route_snapshot.write_text(
+        '{"route":"autotune_v3"}\n', encoding="utf-8"
+    )
+    bindings = {
+        "repository_head": "a" * 40,
+        "runtime_environment_id": digest("runtime"),
+        "campaign_root": str(campaign),
+        "output_root": str(output),
+        "resource_owner": {
+            "pid": os.getpid(),
+            "starttime_ticks": governance.read_proc_starttime_ticks(os.getpid()),
+            "authority_epoch": 1,
+        },
+        "route_snapshot": {
+            "path": str(route_snapshot),
+            "sha256": hashlib.sha256(route_snapshot.read_bytes()).hexdigest(),
+        },
+    }
+    publish_launch_attempt(
+        tmp_path,
+        attempt_id="failed-live-attempt",
+        state="STARTED",
+        phase="live_handoff",
+        route="autotune_v3",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS,
+    )
+
+    terminal = publish_launch_attempt(
+        tmp_path,
+        attempt_id="failed-live-attempt",
+        state=terminal_state,
+        phase="runtime_gate",
+        route="autotune_v3",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS + 1,
+        exit_code=70 if terminal_state == "FAILED" else 130,
+        reason_code=(
+            "LAUNCH_ATTEMPT_FAILED"
+            if terminal_state == "FAILED"
+            else "LAUNCH_ATTEMPT_CANCELLED"
+        ),
+        detail="synthetic terminal transition",
+    )
+
+    assert terminal["attestation"]["state"] == terminal_state
+    assert terminal["attestation"]["phase"] == "live_handoff"
+
+
 def test_launch_attempt_external_class_requires_positive_evidence(
     tmp_path: Path,
 ) -> None:
@@ -1323,6 +1381,41 @@ def test_resolve_governed_status_marks_continuous_ready_from_receiver_readiness(
     )
 
     assert status["predicates"]["next_arm_published"] is True
+    assert status["predicates"]["trial_1_complete"] is True
+    assert status["predicates"]["continuous_ready"] is True
+
+
+def test_receiver_progress_remains_ready_when_next_arm_is_one_ahead(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_governed_release(monkeypatch)
+    publish_observed_attestation(tmp_path, observed_attestation(tmp_path))
+    receiver = parameter_receiver_root(tmp_path)
+    fingerprint = "a" * 64
+    publish_next_arm(
+        receiver,
+        dispatch_identity="dispatch:v1:" + ("b" * 64),
+        dispatch_sequence=11,
+        campaign_fingerprint=fingerprint,
+        mailbox_packet_sha256="c" * 64,
+        observed_at=NOW_NS,
+    )
+    for sequence in range(1, 11):
+        record_terminal_receipt(
+            receiver,
+            process_composition_sha256=fingerprint,
+            dispatch_identity=f"identity-{sequence}",
+            dispatch_sequence=sequence,
+            terminal_state={"sequence": sequence},
+        )
+
+    status = resolve_governed_status(
+        ROOT,
+        tmp_path,
+        now_ns=NOW_NS,
+        proc_starttime_reader=process_reader,
+    )
+
     assert status["predicates"]["trial_1_complete"] is True
     assert status["predicates"]["continuous_ready"] is True
 

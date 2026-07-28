@@ -12508,7 +12508,27 @@ def main(argv: list[str] | None = None) -> int:
         run_manifest["finished_at"] = summary["finished_at"]
         write_json(manifest_path, run_manifest)
     print(json.dumps(summary, indent=2, sort_keys=True))
-    if args.bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
+    return bridge_process_exit_code(
+        bridge_profile=args.bridge_profile,
+        stop_reason=stop_reason,
+        samples=samples,
+        parse_errors=parse_errors,
+    )
+
+
+def bridge_process_exit_code(
+    *,
+    bridge_profile: str,
+    stop_reason: str,
+    samples: int,
+    parse_errors: int,
+) -> int:
+    if (
+        uses_v30_control_contract(bridge_profile)
+        and stop_reason.startswith("v30_control_exception_")
+    ):
+        return 70
+    if bridge_profile == STEP5D_NO_CONTACT_P0_V9_STAGE_ID:
         return 0 if samples > 0 else 3
     return 0 if samples > 0 and parse_errors == 0 else 3
 

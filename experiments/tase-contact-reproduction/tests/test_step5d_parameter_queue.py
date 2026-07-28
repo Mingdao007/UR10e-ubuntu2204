@@ -41,6 +41,7 @@ from step5d_parameter_queue import (  # noqa: E402
     record_terminal_receipt,
     status,
     submit,
+    terminalize_consumed_infra_abort,
 )
 
 
@@ -57,6 +58,55 @@ def _queue(tmp_path: Path) -> Path:
         launch_profile_path=PROFILE,
     )
     return root
+
+
+def _consumed_abort_artifacts(
+    tmp_path: Path,
+    dispatch: dict,
+    *,
+    command_seq_delta: int = 0,
+) -> tuple[Path, Path]:
+    summary = tmp_path / "bridge-summary.json"
+    summary.write_text(
+        json.dumps(
+            {
+                "stop_reason": "v30_control_exception_stop_published",
+                "rtde_reconnect_events": [
+                    {
+                        "event": "v30_control_exception_fail_closed_publish",
+                        "stop_publish_succeeded": True,
+                        "stop_command": {
+                            "cmd_valid": False,
+                            "qdot": [0.0] * 6,
+                            "stop_request": True,
+                        },
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet = dispatch["packet"]
+    partial = tmp_path / "capture.csv.part"
+    header = (
+        "campaign_epoch,trial_id,candidate_token,execution_profile_id,"
+        "command_seq,_step5d_stage25_echo_consumed,t_monotonic_s\n"
+    )
+    rows = [
+        (
+            f"{packet['campaign_epoch']},{packet['trial_id']},"
+            f"{packet['candidate_token']},{packet['execution_profile_id']},"
+            f"{packet['command_seq'] + command_seq_delta},,10.0\n"
+        ),
+        (
+            f"{packet['campaign_epoch']},{packet['trial_id']},"
+            f"{packet['candidate_token']},{packet['execution_profile_id']},"
+            f"{packet['command_seq'] + command_seq_delta},1,10.2\n"
+        ),
+    ]
+    partial.write_text(header + "".join(rows), encoding="utf-8")
+    return summary, partial
 
 
 def test_initial_manifest_is_exact_quarter_octave_path() -> None:
@@ -401,6 +451,98 @@ def test_not_consumed_is_immutable_non_attempt_and_request_remains_pending(
     assert redispatched["request"]["request_uid"] == request["request_uid"]
     assert redispatched["dispatch_sequence"] == 1
     assert redispatched["dispatch_sha256"] == dispatch["dispatch_sha256"]
+
+
+def test_consumed_infra_abort_is_tombstoned_and_requires_transport_rebind(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    request = submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.001189207115002721,
+        force_i=0.00001,
+        force_damping=5.886274906776001,
+    )
+    bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(root)
+    assert dispatch is not None
+    publish_next_arm(
+        root,
+        dispatch_identity=dispatch["dispatch_identity"],
+        dispatch_sequence=dispatch["dispatch_sequence"],
+        campaign_fingerprint="c" * 64,
+        mailbox_packet_sha256="d" * 64,
+        observed_at=1,
+    )
+    summary, partial = _consumed_abort_artifacts(tmp_path, dispatch)
+
+    reconciliation = terminalize_consumed_infra_abort(
+        root,
+        bridge_summary_path=summary,
+        partial_capture_path=partial,
+        detail="source closure fail-closed",
+    )
+
+    assert reconciliation["status"] == "INFRA_ABORTED_CONSUMED"
+    assert reconciliation["requires_transport_rebind"] is True
+    assert reconciliation["terminal_observation"]["partial_capture"]["rows"] == 2
+    assert status(root)["inflight"] is None
+    assert status(root)["pending_count"] == 0
+    assert status(root)["terminal_receipt_count"] == 1
+    state = json.loads((root / "state.json").read_text(encoding="utf-8"))
+    assert state["home_identity"] is None
+    receipt = json.loads(
+        (
+            root
+            / "receipts"
+            / f"{request['request_uid'].rsplit(':', 1)[-1]}.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert receipt["status"] == "FAILED"
+    assert receipt["terminal_observation"]["kind"] == "INFRA_ABORTED_CONSUMED"
+    with pytest.raises(ParameterQueueError, match="not bound to READY_HOME"):
+        prepare_next_dispatch(root)
+
+
+def test_consumed_infra_abort_rejects_mismatched_partial_identity(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.001189207115002721,
+        force_i=0.00001,
+        force_damping=5.886274906776001,
+    )
+    bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(root)
+    assert dispatch is not None
+    publish_next_arm(
+        root,
+        dispatch_identity=dispatch["dispatch_identity"],
+        dispatch_sequence=dispatch["dispatch_sequence"],
+        campaign_fingerprint="c" * 64,
+        mailbox_packet_sha256="d" * 64,
+        observed_at=1,
+    )
+    summary, partial = _consumed_abort_artifacts(
+        tmp_path, dispatch, command_seq_delta=1
+    )
+
+    with pytest.raises(
+        ParameterQueueError, match="partial capture identity differs"
+    ):
+        terminalize_consumed_infra_abort(
+            root,
+            bridge_summary_path=summary,
+            partial_capture_path=partial,
+            detail="source closure fail-closed",
+        )
+
+    assert status(root)["inflight"]["dispatch_sequence"] == 1
+    assert status(root)["terminal_receipt_count"] == 0
 
 
 def test_crash_restart_preserves_inflight_dispatch_and_ignores_legacy_queue_attempts(

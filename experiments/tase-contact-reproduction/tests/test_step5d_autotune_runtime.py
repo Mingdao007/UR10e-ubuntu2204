@@ -564,6 +564,26 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         self.assertEqual(len(rtde.values), len(bridge.INPUT_NAMES) + extra)
         self.assertEqual(rtde.values[-extra:], [0] * extra)
 
+    def test_v30_exception_stop_returns_nonzero_process_status(self) -> None:
+        self.assertEqual(
+            bridge.bridge_process_exit_code(
+                bridge_profile=AUTOTUNE,
+                stop_reason="v30_control_exception_stop_published",
+                samples=10,
+                parse_errors=0,
+            ),
+            70,
+        )
+        self.assertEqual(
+            bridge.bridge_process_exit_code(
+                bridge_profile=AUTOTUNE,
+                stop_reason="duration",
+                samples=10,
+                parse_errors=0,
+            ),
+            0,
+        )
+
     def test_rtde_decoder_uses_the_negotiated_autotune_output_fields(self) -> None:
         client = object.__new__(bridge.RTDEBridgeClient)
         client._output_fields = list(bridge.STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_FIELDS)

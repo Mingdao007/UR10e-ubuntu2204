@@ -665,7 +665,7 @@ def _revoke_campaign_authority(
     publisher: RuntimeObservationPublisher | None,
     reason: str,
 ) -> list[str]:
-    if reason not in {"campaign_terminal", "supervisor_exit"}:
+    if reason not in {"campaign_terminal", "session_failure", "supervisor_exit"}:
         raise ValueError("campaign authority revocation reason differs")
     errors: list[str] = []
     if publisher is not None:
@@ -1715,6 +1715,7 @@ def _run_live_session(
     governed_status: Mapping[str, Any] | None = None
     authority_revocation_errors: list[str] = []
     campaign_completed = False
+    authority_revocation_reason = "supervisor_exit"
     publisher_terminalization_started = False
     lifecycle = LiveSessionLifecycle()
     mailbox_reader = AtomicCommandMailbox(
@@ -2198,6 +2199,7 @@ def _run_live_session(
         )
         raise
     except Exception as exc:
+        authority_revocation_reason = "session_failure"
         lifecycle.observe(error=exc)
         try:
             _write_session_lifecycle(
@@ -2241,7 +2243,7 @@ def _run_live_session(
                         reason=(
                             "campaign_terminal"
                             if campaign_completed
-                            else "supervisor_exit"
+                            else authority_revocation_reason
                         ),
                     )
                 )

@@ -320,7 +320,8 @@ bridge_runtime_fail() {
       launch_runtime_bootstrap=0
       if (( launch_runtime_gate_started == 1 )); then
         bridge_record_launch_attempt \
-          FAILED runtime_gate "${exit_code}" "${detail}" "${reason_code}"
+          FAILED "${launch_attempt_phase:-runtime_gate}" \
+          "${exit_code}" "${detail}" "${reason_code}"
       fi
       if [[ "${reason_code}" == "LAUNCH_ATTEMPT_CANCELLED" ]]; then
         bridge_revoke_authority cancelled
