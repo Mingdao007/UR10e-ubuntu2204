@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 import math
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 from step5d_autotune_contract import ForceCandidate
 
@@ -132,9 +132,61 @@ def joint_physics_log_weight(
     return sum(physics_log_weight(candidate, prior) for candidate in candidates)
 
 
+def _bootstrap_lattice_distance(
+    candidate: ForceCandidate,
+    anchor: ForceCandidate,
+) -> float:
+    """Return a dimensionless log-lattice distance from a proven anchor."""
+
+    continuous = (
+        abs(candidate.log2_p - anchor.log2_p),
+        abs(candidate.log2_damping - anchor.log2_damping),
+        abs(candidate.log2_filter_tau - anchor.log2_filter_tau),
+        abs(candidate.log2_orientation_ko - anchor.log2_orientation_ko),
+        abs(candidate.log2_motion_kp - anchor.log2_motion_kp),
+    )
+    i_distance = 1.0
+    if candidate.i_mode == anchor.i_mode:
+        i_distance = (
+            0.0
+            if candidate.i_mode == "off"
+            else abs(candidate.log2_i - anchor.log2_i)
+        )
+    return sum((*continuous, i_distance))
+
+
+def rank_degraded_bootstrap_candidates(
+    candidates: Iterable[ForceCandidate],
+    prior: PhysicsSoftPrior,
+    *,
+    anchor: ForceCandidate | None = None,
+) -> tuple[ForceCandidate, ...]:
+    """Rank optimizer-free bootstrap rows locally, then by the soft prior.
+
+    This is deliberately a producer policy, not an acceptance boundary.  A
+    candidate at any finite positive damping remains eligible.  Distance from
+    the proven anchor prevents a cold-start fallback from jumping across many
+    log-lattice steps; the physics prior orders candidates within each equally
+    local shell.
+    """
+
+    selected_anchor = anchor or ForceCandidate()
+    return tuple(
+        sorted(
+            candidates,
+            key=lambda candidate: (
+                _bootstrap_lattice_distance(candidate, selected_anchor),
+                -physics_log_weight(candidate, prior),
+                candidate.candidate_uid,
+            ),
+        )
+    )
+
+
 __all__ = [
     "PhysicsSoftPrior",
     "effective_damping_ratio",
     "joint_physics_log_weight",
     "physics_log_weight",
+    "rank_degraded_bootstrap_candidates",
 ]

@@ -156,12 +156,16 @@ def _terminal_observed(dispatch: dict) -> dict:
 
 def test_initial_prefill_reaches_target_depth(tmp_path: Path) -> None:
     queue = _queue(tmp_path)
-    feeder = _feeder(tmp_path, queue)
+    feeder = _feeder(tmp_path, queue, catalog=(ForceCandidate(), *_catalog()))
     receipt = feeder.cycle()
     assert receipt["before_depth"] == 0
     assert receipt["after_depth"] == 8
     assert receipt["fallback_reason"]
-    assert len(authoritative_view(queue)["pending_requests"]) == 8
+    pending = authoritative_view(queue)["pending_requests"]
+    assert len(pending) == 8
+    assert pending[0]["overlay"]["force_p_gain"] == ForceCandidate().force_p_gain
+    assert pending[0]["overlay"]["force_i_gain"] == ForceCandidate().force_i_gain
+    assert pending[0]["overlay"]["force_damping"] == ForceCandidate().force_damping
 
 
 def test_dry_run_with_full_queue_reports_success_without_submission(

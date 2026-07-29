@@ -33,7 +33,10 @@ from step5d_parameter_search_domain import (
     production_candidate_catalog,
     require_search_candidate,
 )
-from step5d_physics_soft_prior import PhysicsSoftPrior
+from step5d_physics_soft_prior import (
+    PhysicsSoftPrior,
+    rank_degraded_bootstrap_candidates,
+)
 
 
 CONFIG_SCHEMA = "step5d.parameter-receiver/no-empty-feeder-config-v1"
@@ -473,7 +476,12 @@ class ParameterFeeder:
                 )
             except Exception as exc:
                 fallback_reason = f"optimizer_unavailable:{type(exc).__name__}:{exc}"
-        fallback_candidates: list[Any] = list(catalog)
+        fallback_candidates = list(
+            rank_degraded_bootstrap_candidates(
+                catalog,
+                self.config.physics_soft_prior,
+            )
+        )
         if fallback_reason is not None:
             if not fallback_candidates:
                 raise FeederError("no validated candidate is available for degraded bootstrap")

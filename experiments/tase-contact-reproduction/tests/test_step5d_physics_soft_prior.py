@@ -16,6 +16,7 @@ from step5d_physics_soft_prior import (  # noqa: E402
     effective_damping_ratio,
     joint_physics_log_weight,
     physics_log_weight,
+    rank_degraded_bootstrap_candidates,
 )
 
 
@@ -66,3 +67,23 @@ def test_prior_mapping_rejects_unknown_or_nonpositive_values() -> None:
         PhysicsSoftPrior.from_mapping({"mystery": 1})
     with pytest.raises(ValueError, match="finite and positive"):
         PhysicsSoftPrior.from_mapping({"strength": 0.0})
+
+
+def test_degraded_bootstrap_starts_at_baseline_then_uses_prior_within_local_shell(
+) -> None:
+    prior = PhysicsSoftPrior(contact_stiffness_n_m=32_000.0)
+    anchor = ForceCandidate()
+    local_p_up = ForceCandidate.from_log2(p=0.25, damping=0.0, i=0.0)
+    local_d_up = ForceCandidate.from_log2(p=0.0, damping=0.25, i=0.0)
+    far_aggressive = ForceCandidate.from_log2(p=-0.75, damping=-2.0, i=0.0)
+
+    ranked = rank_degraded_bootstrap_candidates(
+        (far_aggressive, local_p_up, anchor, local_d_up),
+        prior,
+    )
+
+    assert ranked[0] == anchor
+    assert ranked[-1] == far_aggressive
+    assert physics_log_weight(ranked[1], prior) >= physics_log_weight(
+        ranked[2], prior
+    )
