@@ -13,6 +13,7 @@ from step5d_autotune_contract import ForceCandidate  # noqa: E402
 from step5d_autotune_optimizer import candidate_vector  # noqa: E402
 from step5d_parameter_search_domain import (  # noqa: E402
     MIN_SEARCH_FORCE_DAMPING,
+    MOTION_KP_LATTICE,
     ORIENTATION_KO_LATTICE,
     augment_catalog_with_orientation_anchors,
     orientation_variants,
@@ -74,7 +75,12 @@ def test_orientation_variants_change_identity_without_cross_product() -> None:
 
     base = production_candidate_catalog()
     augmented = augment_catalog_with_orientation_anchors(base, (anchor,))
-    assert len(augmented) == len(base) + len(ORIENTATION_KO_LATTICE) - 1
+    assert len(augmented) == (
+        len(base)
+        + len(ORIENTATION_KO_LATTICE)
+        + len(MOTION_KP_LATTICE)
+        - 2
+    )
 
 
 def test_orientation_k_is_an_explicit_gp_feature_with_legacy_default_uid() -> None:
@@ -83,7 +89,8 @@ def test_orientation_k_is_an_explicit_gp_feature_with_legacy_default_uid() -> No
     assert "orientation_ko" not in default.payload()
     assert lower.payload()["orientation_ko"] == pytest.approx(0.2)
     assert default.candidate_uid != lower.candidate_uid
-    assert len(candidate_vector(default)) == 6
-    assert candidate_vector(default)[:-1] == candidate_vector(lower)[:-1]
-    assert candidate_vector(default)[-1] == pytest.approx(0.0)
-    assert candidate_vector(lower)[-1] == pytest.approx(-1.0)
+    assert len(candidate_vector(default)) == 7
+    assert candidate_vector(default)[:5] == candidate_vector(lower)[:5]
+    assert candidate_vector(default)[6] == candidate_vector(lower)[6]
+    assert candidate_vector(default)[5] == pytest.approx(0.0)
+    assert candidate_vector(lower)[5] == pytest.approx(-1.0)
