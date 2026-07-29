@@ -23,6 +23,11 @@ from step5d_autotune_v3.state import atomic_json, read_strict_json
 OUTBOX_SCHEMA = "step5d.parameter-receiver/postprocess-task-v1"
 RESULT_SCHEMA = "step5d.parameter-receiver/postprocess-result-v1"
 EXPECTED_OPERATIONS = ("sha256", "analysis", "png")
+# TP/bridge telemetry is serialized with nine significant decimal digits.
+# Identity fields remain exact strings/integers; only numeric parameter echoes
+# use this representation-aware tolerance.
+TP_PARAMETER_ECHO_REL_TOL = 1e-8
+TP_PARAMETER_ECHO_ABS_TOL = 1e-12
 
 
 class PostprocessError(RuntimeError):
@@ -164,8 +169,8 @@ def _matching_float(
     if not math.isclose(
         observed,
         expected_value,
-        rel_tol=1e-12,
-        abs_tol=1e-15,
+        rel_tol=TP_PARAMETER_ECHO_REL_TOL,
+        abs_tol=TP_PARAMETER_ECHO_ABS_TOL,
     ):
         raise PostprocessError(
             f"capture {field} differs from immutable dispatch overlay"

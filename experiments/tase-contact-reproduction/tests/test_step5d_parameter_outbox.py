@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from step5d_parameter_outbox import (  # noqa: E402
     PostprocessError,
+    _matching_float,
     enqueue_postprocess_task,
     process_pending_tasks,
     process_postprocess_task,
@@ -253,6 +254,23 @@ def test_consumer_validates_identity_and_writes_immutable_metrics(
     }
     assert Path(payload["diagnostic_plot"]["path"]).is_file()
     assert _process(paths) == result_path
+
+
+def test_parameter_echo_accepts_nine_digit_transport_rounding_but_not_drift():
+    rows = [{"_step5d_applied_force_damping": "8.32444981"}]
+    expected = 8.324449805019047
+
+    assert _matching_float(
+        rows,
+        field="_step5d_applied_force_damping",
+        expected=expected,
+    ) == pytest.approx(8.32444981)
+    with pytest.raises(PostprocessError, match="differs from immutable"):
+        _matching_float(
+            rows,
+            field="_step5d_applied_force_damping",
+            expected=8.3244,
+        )
 
 
 def test_consumer_rejects_capture_trial_identity_mismatch(tmp_path: Path):
