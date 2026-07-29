@@ -1,0 +1,30 @@
+Step5d Autotune V3 TP package
+
+Controller target:
+  /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r026.urp
+
+Version:
+  2026-07-29T1015HKT_STEP5D_NORMAL_RATE_5P0
+
+Identity:
+  release_stage_id=step5d_strict_rnn_autotune_v3_r026
+  control_profile_id=step5d_strict_rnn_autotune_v1
+  tp_program_id=step5d_strict_rnn_autotune_v3_r026
+
+Motion class:
+  Contact motion package. Upload/read-back does not Load or Play it.
+  One Play enters the live campaign; there is no HIL HOLD or second user authorization.
+  Before guarded search, Stage22 first moves at the existing safe Z, then moves
+  vertically to (0.487834547, 0.129337053, 0.022863519) with a 0.005 m clearance
+  above the completed contact-plus-0.1 s robust surface pose. FAR/NEAR speeds and
+  force thresholds remain frozen.
+
+Frozen control contract:
+  qdot cap 2.500 rad/s; target 12 N; input integer registers 24..31;
+  transactional output integer registers 24..34; immutable runtime identity
+  protocol/digest output integer registers 35..37; heartbeat watchdog fail-closed.
+  Every trial returns to the campaign home captured once when Play begins.
+  Five-trial logical batches roll without imposing a physical stop at row 5 or 10.
+  ACK_BUNDLE and WAIT_ACK are not active. A fresh next ARM is accepted only after
+  the host has durably committed and cold-read the previous trial bundle.
+  READY_HOME_NEXT waits indefinitely for ARM/STOP/COMPLETE while stationary.
