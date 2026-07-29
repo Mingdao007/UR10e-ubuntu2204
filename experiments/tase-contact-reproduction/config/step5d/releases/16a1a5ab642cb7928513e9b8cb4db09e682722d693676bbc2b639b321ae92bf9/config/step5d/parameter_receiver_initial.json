@@ -1,0 +1,15 @@
+{
+  "schema": "step5d.parameter-receiver/initial-manifest-v1",
+  "parameters": [
+    {"force_p_gain": 0.0008408964152537145, "force_i_gain": 0.00001, "force_damping": 7.0},
+    {"force_p_gain": 0.0008408964152537145, "force_i_gain": 0.00001, "force_damping": 5.886274906776001},
+    {"force_p_gain": 0.0007071067811865476, "force_i_gain": 0.00001, "force_damping": 5.886274906776001},
+    {"force_p_gain": 0.0007071067811865476, "force_i_gain": 0.00001, "force_damping": 7.0},
+    {"force_p_gain": 0.0007071067811865476, "force_i_gain": 0.00001, "force_damping": 8.324449805019047},
+    {"force_p_gain": 0.0005946035575013605, "force_i_gain": 0.00001, "force_damping": 8.324449805019047},
+    {"force_p_gain": 0.0005946035575013605, "force_i_gain": 0.00001, "force_damping": 7.0},
+    {"force_p_gain": 0.0005946035575013605, "force_i_gain": 0.00001, "force_damping": 5.886274906776001},
+    {"force_p_gain": 0.0005, "force_i_gain": 0.00001, "force_damping": 5.886274906776001},
+    {"force_p_gain": 0.0005, "force_i_gain": 0.00001, "force_damping": 7.0}
+  ]
+}
