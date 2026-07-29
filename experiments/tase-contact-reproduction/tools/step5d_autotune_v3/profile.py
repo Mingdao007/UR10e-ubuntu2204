@@ -415,6 +415,8 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
         "step5d_autotune_force_i",
         "step5d_autotune_force_damping",
         "step5d_autotune_force_terms",
+        "step5d_autotune_motion_kp",
+        "step5d_autotune_orientation_ko",
     }:
         raise ContractViolation("campaign_tunable field set differs")
     if candidate_fields != set(candidate_schema["required"]):

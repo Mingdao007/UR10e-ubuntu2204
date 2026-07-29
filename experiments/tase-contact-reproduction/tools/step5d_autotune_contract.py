@@ -32,10 +32,13 @@ SEED_FORCE_P_GAIN = 0.001
 SEED_FORCE_I_GAIN = 0.00001
 SEED_FORCE_DAMPING = 7.0
 SEED_ORIENTATION_KO = 0.4
+SEED_MOTION_KP = 1.5
 LOG2_LATTICE_OCTAVE = 0.25
 MIN_PRODUCTION_FORCE_DAMPING = 0.1
 MIN_PRODUCTION_ORIENTATION_KO = 0.1
 MAX_PRODUCTION_ORIENTATION_KO = 0.8
+MIN_PRODUCTION_MOTION_KP = 1.5
+MAX_PRODUCTION_MOTION_KP = 6.0
 CODEX_I_SCALE_MULTIPLIERS = (10.0, 50.0, 100.0, 500.0, 1000.0)
 QDOT_CAP_RAD_S = 0.5
 ROTATIONAL_DYNAMICS_X5_PROFILE_ID = "nf500-slew250-a250"
@@ -181,6 +184,7 @@ class ForceCandidate:
     force_i_gain: float = SEED_FORCE_I_GAIN
     force_damping: float = SEED_FORCE_DAMPING
     orientation_ko: float = SEED_ORIENTATION_KO
+    motion_kp: float = SEED_MOTION_KP
     normal_filter_tau_s: float = NORMAL_FILTER_TAU_S
     target_force_n: float = TARGET_FORCE_N
 
@@ -189,17 +193,19 @@ class ForceCandidate:
         i = _finite("force_i_gain", self.force_i_gain)
         damping = _finite("force_damping", self.force_damping)
         orientation = _finite("orientation_ko", self.orientation_ko)
+        motion_kp = _finite("motion_kp", self.motion_kp)
         filter_tau = _finite("normal_filter_tau_s", self.normal_filter_tau_s)
         target = _finite("target_force_n", self.target_force_n)
         if (
             p <= 0.0
             or damping <= 0.0
             or orientation <= 0.0
+            or motion_kp <= 0.0
             or filter_tau <= 0.0
             or i < 0.0
         ):
             raise ValueError(
-                "force P/damping/orientation K/filter tau must be positive "
+                "force P/damping/orientation K/motion Kp/filter tau must be positive "
                 "and I must be non-negative"
             )
         if not math.isclose(target, TARGET_FORCE_N, abs_tol=1e-12):
@@ -208,6 +214,7 @@ class ForceCandidate:
             ("log2_p", self.log2_p),
             ("log2_damping", self.log2_damping),
             ("log2_orientation_ko", self.log2_orientation_ko),
+            ("log2_motion_kp", self.log2_motion_kp),
             ("log2_filter_tau", self.log2_filter_tau),
         ):
             if not _on_lattice(coordinate):
@@ -230,6 +237,7 @@ class ForceCandidate:
         object.__setattr__(self, "force_i_gain", i)
         object.__setattr__(self, "force_damping", damping)
         object.__setattr__(self, "orientation_ko", orientation)
+        object.__setattr__(self, "motion_kp", motion_kp)
         object.__setattr__(self, "normal_filter_tau_s", filter_tau)
         object.__setattr__(self, "target_force_n", target)
 
@@ -254,6 +262,10 @@ class ForceCandidate:
     @property
     def log2_orientation_ko(self) -> float:
         return math.log2(self.orientation_ko / SEED_ORIENTATION_KO)
+
+    @property
+    def log2_motion_kp(self) -> float:
+        return math.log2(self.motion_kp / SEED_MOTION_KP)
 
     @property
     def i_mode(self) -> str:
@@ -315,9 +327,18 @@ class ForceCandidate:
             payload["log2_coordinates"]["orientation_ko"] = (
                 self.log2_orientation_ko
             )
+        if not math.isclose(self.motion_kp, SEED_MOTION_KP, abs_tol=1e-12):
+            payload["motion_kp"] = self.motion_kp
+            payload["log2_coordinates"]["motion_kp"] = self.log2_motion_kp
         return payload
 
     def within_tier(self, tier: SearchTier) -> bool:
+        if not (
+            MIN_PRODUCTION_MOTION_KP
+            <= self.motion_kp
+            <= MAX_PRODUCTION_MOTION_KP
+        ):
+            return False
         if abs(self.log2_p) > tier.p_d_radius_octaves + 1e-9:
             return False
         if abs(self.log2_damping) > tier.p_d_radius_octaves + 1e-9:
@@ -355,6 +376,8 @@ class ForceCandidate:
             self.force_damping >= MIN_PRODUCTION_FORCE_DAMPING
             and self.orientation_ko >= MIN_PRODUCTION_ORIENTATION_KO
             and self.orientation_ko <= MAX_PRODUCTION_ORIENTATION_KO
+            and self.motion_kp >= MIN_PRODUCTION_MOTION_KP
+            and self.motion_kp <= MAX_PRODUCTION_MOTION_KP
             and self.log2_damping
             <= SearchTier.T2.p_d_radius_octaves + 1e-9
             and abs(self.log2_p) <= SearchTier.T2.p_d_radius_octaves + 1e-9
@@ -373,6 +396,7 @@ class ForceCandidate:
         p: float,
         damping: float,
         orientation: float = 0.0,
+        motion: float = 0.0,
         filter_tau: float = 0.0,
         i: float | None = 0.0,
         i_off: bool = False,
@@ -381,6 +405,7 @@ class ForceCandidate:
             ("p", p),
             ("damping", damping),
             ("orientation", orientation),
+            ("motion", motion),
             ("filter_tau", filter_tau),
         ):
             coordinate = _finite(name, coordinate)
@@ -398,6 +423,7 @@ class ForceCandidate:
             force_i_gain=force_i_gain,
             force_damping=SEED_FORCE_DAMPING * (2.0**float(damping)),
             orientation_ko=SEED_ORIENTATION_KO * (2.0**float(orientation)),
+            motion_kp=SEED_MOTION_KP * (2.0**float(motion)),
             normal_filter_tau_s=NORMAL_FILTER_TAU_S * (2.0**float(filter_tau)),
         )
 
@@ -434,6 +460,7 @@ class ForceCandidate:
             "force_i_gain",
             "force_damping",
             "orientation_ko",
+            "motion_kp",
             "normal_filter_tau_s",
         }
         unknown = set(payload) - allowed
@@ -938,6 +965,7 @@ class SearchAttestation:
                 force_i_gain=value.get("force_i_gain"),
                 force_damping=value.get("force_damping"),
                 orientation_ko=value.get("orientation_ko", SEED_ORIENTATION_KO),
+                motion_kp=value.get("motion_kp", SEED_MOTION_KP),
                 normal_filter_tau_s=value.get(
                     "normal_filter_tau_s", NORMAL_FILTER_TAU_S
                 ),
@@ -1103,6 +1131,7 @@ class TrialSource:
             orientation_ko=candidate_payload.get(
                 "orientation_ko", SEED_ORIENTATION_KO
             ),
+            motion_kp=candidate_payload.get("motion_kp", SEED_MOTION_KP),
             normal_filter_tau_s=candidate_payload.get(
                 "normal_filter_tau_s", NORMAL_FILTER_TAU_S
             ),
@@ -1209,6 +1238,12 @@ def _trial_candidate_step(
         ("p", source.log2_p, target.log2_p),
         ("damping", source.log2_damping, target.log2_damping),
         ("filter_tau", source.log2_filter_tau, target.log2_filter_tau),
+        (
+            "orientation_ko",
+            source.log2_orientation_ko,
+            target.log2_orientation_ko,
+        ),
+        ("motion_kp", source.log2_motion_kp, target.log2_motion_kp),
     ):
         if not math.isclose(before, after, abs_tol=1e-9):
             deltas.append((axis, after - before))
@@ -1241,6 +1276,16 @@ def codex_i_scale_probe_transition(
         and math.isclose(source.log2_damping, target.log2_damping, abs_tol=1e-9)
         and math.isclose(
             source.log2_filter_tau, target.log2_filter_tau, abs_tol=1e-9
+        )
+        and math.isclose(
+            source.log2_orientation_ko,
+            target.log2_orientation_ko,
+            abs_tol=1e-9,
+        )
+        and math.isclose(
+            source.log2_motion_kp,
+            target.log2_motion_kp,
+            abs_tol=1e-9,
         )
         and not math.isclose(source.log2_i, target.log2_i, abs_tol=1e-9)
         and target.approved_i_scale_multiplier is not None
@@ -1367,6 +1412,12 @@ class TrialSpec:
                     elif axis == "filter_tau":
                         before = source.candidate.log2_filter_tau
                         after = self.candidate.log2_filter_tau
+                    elif axis == "orientation_ko":
+                        before = source.candidate.log2_orientation_ko
+                        after = self.candidate.log2_orientation_ko
+                    elif axis == "motion_kp":
+                        before = source.candidate.log2_motion_kp
+                        after = self.candidate.log2_motion_kp
                     else:
                         before = source.candidate.log2_i
                         after = self.candidate.log2_i

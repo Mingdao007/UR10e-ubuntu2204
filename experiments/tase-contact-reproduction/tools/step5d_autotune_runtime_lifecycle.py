@@ -2172,6 +2172,7 @@ def prepare_batch_attempt_context(
                 "force_damping",
                 "orientation_ko",
                 "normal_filter_tau_s",
+                "motion_kp",
             )
             if name in overlay
         }
@@ -2314,6 +2315,8 @@ def next_runtime_batch_candidate(
                 item.force_i_gain,
                 item.force_damping,
                 item.normal_filter_tau_s,
+                item.orientation_ko,
+                item.motion_kp,
             )
             for item in candidates
         )
@@ -2323,6 +2326,8 @@ def next_runtime_batch_candidate(
                 row.control_candidate["force_i_gain"],
                 row.control_candidate["force_damping"],
                 row.control_candidate.get("normal_filter_tau_s", 0.35),
+                row.control_candidate.get("orientation_ko", 0.4),
+                row.control_candidate.get("motion_kp", 1.5),
             )
             for row in identity.rows
         )

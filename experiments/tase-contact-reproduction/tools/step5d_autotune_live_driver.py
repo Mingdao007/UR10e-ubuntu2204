@@ -277,6 +277,8 @@ class RuntimeTrialBinding:
     trial_overlay_sha256: str | None = None
 
     def __post_init__(self) -> None:
+        if not isinstance(self.candidate, ForceCandidate):
+            raise MailboxError("runtime candidate must be a ForceCandidate")
         if not isinstance(self.trial_uid, str) or not _SHA256_RE.fullmatch(self.trial_uid):
             raise MailboxError("trial_uid must be a lowercase SHA-256 identity")
         if not isinstance(self.backend_id, str) or not self.backend_id.strip():
@@ -344,6 +346,32 @@ class RuntimeTrialBinding:
                 self.trial_overlay_sha256
             ):
                 raise MailboxError("rolling normalized overlay SHA is invalid")
+        if self.trial_overlay is not None:
+            if not isinstance(self.trial_overlay, Mapping):
+                raise MailboxError("runtime trial overlay must be a mapping")
+            expected = (
+                self.candidate.force_p_gain,
+                self.candidate.force_i_gain,
+                self.candidate.force_damping,
+                self.candidate.orientation_ko,
+                self.candidate.normal_filter_tau_s,
+                self.candidate.motion_kp,
+            )
+            try:
+                observed = (
+                    float(self.trial_overlay["force_p_gain"]),
+                    float(self.trial_overlay["force_i_gain"]),
+                    float(self.trial_overlay["force_damping"]),
+                    float(self.trial_overlay.get("orientation_ko", 0.4)),
+                    float(self.trial_overlay.get("normal_filter_tau_s", 0.35)),
+                    float(self.trial_overlay.get("motion_kp", 1.5)),
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise MailboxError("runtime trial overlay candidate is invalid") from exc
+            if observed != expected:
+                raise MailboxError(
+                    "runtime candidate differs from authoritative trial overlay"
+                )
 
     def payload(self) -> dict[str, Any]:
         payload = {
@@ -359,6 +387,9 @@ class RuntimeTrialBinding:
                 "force_p_gain": self.candidate.force_p_gain,
                 "force_i_gain": self.candidate.force_i_gain,
                 "force_damping": self.candidate.force_damping,
+                "orientation_ko": self.candidate.orientation_ko,
+                "normal_filter_tau_s": self.candidate.normal_filter_tau_s,
+                "motion_kp": self.candidate.motion_kp,
             },
             "profile": self.profile.payload(),
             "source_fingerprint": self.source_fingerprint,
@@ -793,11 +824,20 @@ def _mailbox_command_from_payload(
     ):
         raise MailboxError("command mailbox runtime binding is incomplete")
     raw_candidate = raw_runtime["candidate"]
-    if not isinstance(raw_candidate, Mapping) or set(raw_candidate) != {
+    legacy_candidate_fields = {
         "target_force_n",
         "force_p_gain",
         "force_i_gain",
         "force_damping",
+    }
+    current_candidate_fields = legacy_candidate_fields | {
+        "orientation_ko",
+        "normal_filter_tau_s",
+        "motion_kp",
+    }
+    if not isinstance(raw_candidate, Mapping) or frozenset(raw_candidate) not in {
+        frozenset(legacy_candidate_fields),
+        frozenset(current_candidate_fields),
     }:
         raise MailboxError("command mailbox candidate is not canonical")
     try:
@@ -1293,6 +1333,9 @@ class BridgeMailboxRuntime:
         args.step5d_autotune_force_p = candidate.force_p_gain
         args.step5d_autotune_force_i = candidate.force_i_gain
         args.step5d_autotune_force_damping = candidate.force_damping
+        args.step5d_autotune_orientation_ko = candidate.orientation_ko
+        args.step5d_autotune_motion_kp = candidate.motion_kp
+        args.bridge_normal_filter_tau_s = candidate.normal_filter_tau_s
         args.step5d_autotune_force_terms = {
             "P": candidate.force_p_gain,
             "I": candidate.force_i_gain,

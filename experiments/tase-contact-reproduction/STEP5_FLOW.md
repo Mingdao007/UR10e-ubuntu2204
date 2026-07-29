@@ -14,7 +14,9 @@ prove registers 35--37 before it executes, so that pre-identity Play barrier
 is explicit and never aliases `BENCH_READY`; Play may start the TP program but
 ARM remains fail-closed until the runtime identity is observed and rechecked.
 This compatibility projection currently selects
-`step5d_strict_rnn_autotune_v3`; its governed TP identity revision is r026.
+`step5d_strict_rnn_autotune_v3`; the exact governed TP revision must always be
+resolved from `config/step5d/current.json`, never copied into a launcher or
+inferred from this document.
 
 ## No-tube campaign-start state machine
 
@@ -28,7 +30,7 @@ entrypoint is:
 
 Its qualified transition order is:
 
-`RELEASE_READY → QUEUE_READY → SCRIPT1_LOADED → SCRIPT1_PLAYED → HOME_VERIFIED → R026_LOADED → R026_IDENTITY_VERIFIED → BRIDGE_READY → CAMPAIGN_RUNNING`
+`RELEASE_READY → QUEUE_READY → SCRIPT1_LOADED → SCRIPT1_PLAYED → HOME_VERIFIED → SCRIPT2_LOADED → SCRIPT2_PLAYED → SCRIPT2_IDENTITY_VERIFIED → BRIDGE_READY → CAMPAIGN_RUNNING`
 
 Every transition writes an immutable receipt. `QUEUE_READY` is bound to the
 actual pending candidate IDs, queue revision, campaign ID, execution profile,
@@ -38,37 +40,72 @@ pose must be within tolerance, TCP/joint speeds must be stationary for 0.5 s,
 host-monotonic and controller-timestamp gaps must each stay within the
 manifest-bound `max_sample_gap_s=0.2`, and no target joint vector is introduced.
 Script 1 is the existing
-`step5d_autotune_start_hover_r001`; Script 2 is the current immutable r026
-release. Script 1 has no bridge, lease, ARM, contact, zero, or tare lifecycle.
+`step5d_autotune_start_hover_r001`; Script 2 is the immutable release resolved
+from `config/step5d/current.json`. Script 1 has no bridge, lease, ARM, contact,
+zero, or tare lifecycle.
 
 The concrete implementation binds this entrypoint to the route-bound Remote
 Control startup adapter. `--offline` remains a no-network preflight; a live
 campaign-start performs Dashboard Load/Play for Script 1, read-only RTDE Home
-verification, exact r026 Load/identity rebind, canonical bridge readiness, and
+verification, exact Script 2 Load/identity rebind, canonical bridge readiness, and
 the existing governed Remote Play primitive. The current running lineage
-remains r026 runtime-continuity evidence only; the next new campaign is the
+remains runtime-continuity evidence only; the next new campaign is the
 acceptance point for the complete Script 1 → 2 startup.
 The candidate feeder runs on the candidate plane and consumes sealed terminal
 results only. The optional guard is composed through
 `evaluate(observation, proposed_command) -> GuardDecision`; the empty policy
-set is an exact identity and therefore restores the no-tube r026 command.
+set is an exact identity and therefore preserves the no-tube command.
 The constrained BO feasible domain is `force_damping >= 0.1`; on the frozen
 0.25-octave lattice the lowest proposal is `0.109375`. P, I, and filter-tau
-retain their T2 producer bounds. A producer-only physics soft prior adds a
-finite Gaussian log-weight around
+retain their producer bounds. A producer-only physics soft prior adds a finite
+Gaussian log-weight around
 `zeta = D / (2*sqrt(P*K_e)) = 1/sqrt(2)` using the declared local stiffness
-estimate. It changes qLogNEI ranking only: force MAE remains the sole objective,
-and the prior is neither a feasibility, acceptance, nor runtime safety gate.
+estimate, plus a separate finite preference for tangential path `Kp=4`.
+Both change qLogNEI ranking only: force MAE remains the sole objective, and
+neither prior is a feasibility, acceptance, or runtime safety gate.
 Candidate generation and queue admission independently enforce the 0.1 hard
 floor. Historical observations remain readable evidence.
 
-The governed TP identity revision is r026. It carries protocol/digest identity on
+The governed TP identity carries protocol/digest identity on
 output integer registers 35--37 and requires release-manifest v3 verification,
 fresh controller GET closure, exact Dashboard loaded-program identity, and the
-runtime register identity before ARM. r011 and r010 are superseded; r009 lacks
-that runtime identity oracle. All earlier revisions are historical-only and
-cannot be treated as the active release. Until the r026 atomic promotion and current observed predicates
-both verify, the route remains fail-closed and no `BENCH_READY` claim is valid.
+runtime register identity before ARM. Superseded revisions are historical-only
+and cannot be treated as the active release. Until atomic promotion and current
+observed predicates both verify, the route remains fail-closed and no
+`BENCH_READY` claim is valid.
+
+## Autotune capability and runtime seams
+
+The parameter plane is not a second controller. Its independently testable
+primitives are: sealed observation reader, candidate catalog, physics-prior
+ranker, BO proposer, authoritative queue, and feeder. They may run in parallel
+with the live campaign, but they cannot import or call Dashboard, RTDE writer,
+bridge, Load, Play, ARM, contact, zero, or tare. The only producer/consumer seam
+is an immutable queued candidate.
+
+The control plane consumes exactly one candidate at a Home/ready boundary. A
+candidate has six physical coordinates: force `P`, force `I`, force damping
+`D`, normal-filter `tau`, orientation `Ko`, and tangential path `Kp`. BO uses a
+seventh internal feature to represent categorical `I=0`; this is not a seventh
+physical gain. Every candidate must satisfy this acyclic acceptance chain:
+
+`proposal → canonical candidate UID → queue row → dispatch overlay → ARM binding → runtime args → applied telemetry → sealed result`
+
+The final three identities must agree numerically for all six physical
+coordinates. A mismatch is fail-closed and the result is not optimizer
+eligible. Requested `autotune_*` columns alone are not applied evidence;
+`_step5d_applied_*` and the actual filter tau are the consumer-side receipts.
+This prevents a parameter from appearing to vary in BO while the controller is
+still running a hard-coded default.
+
+The runtime feedback loop remains separate from that capability DAG:
+
+`measured force/pose → outer-loop command → RNN IK → slew/limit → TP speedj → measured force/pose`
+
+Tube/no-tube is an optional guard composition at the proposed-command seam. An
+empty guard set is the identity function and must not alter the controller,
+candidate, queue, or evidence schemas. Optional modules may add a typed
+`GuardDecision`; they may not be wired through unrelated lifecycle states.
 
 The operator campaign-start entrypoint is
 `step5d-autotune-v3.sh campaign-start`; it composes the canonical bridge and
@@ -133,13 +170,14 @@ integral, outer-loop, normal, filter, and rate-limit state. The first loaded
 tick cannot relatch; live-normal blending starts only after load is at least
 `8 N` continuously for `0.10 s` and remains limited to `0.05 rad/s`.
 
-Each V3 trial binds four real control coordinates: force P, I, damping, and
-`orientation_ko`. A `BatchIdentity` binds exactly ten candidate/overlay rows.
-For production BO, `orientation_ko` is a first-class 0.25-octave GP
-coordinate over `[0.1, 0.8]`. Its finite producer domain is composed from all
-K variants at force-loop settings that already have sealed observations,
-instead of a global force-by-K Cartesian product. Force MAE remains the sole
-objective; orientation error remains diagnostic evidence.
+Each V3 trial binds six real control coordinates: force P, I, damping,
+normal-filter tau, `orientation_ko`, and tangential path `Kp`. A
+`BatchIdentity` binds the exact candidate/overlay rows. For production BO,
+`orientation_ko` and path `Kp` are first-class 0.25-octave GP coordinates.
+Their finite producer domains are sparse variants around force-loop settings
+that already have sealed observations, rather than a global Cartesian product.
+Force MAE remains the sole objective; orientation error remains diagnostic
+evidence.
 For r006, rows remain `unattempted` or `attempted_incomplete` until a durable
 direct completion makes them `direct_completed`; resume executes only the
 remaining rows. TrialBrief publication happens exactly once after immutable

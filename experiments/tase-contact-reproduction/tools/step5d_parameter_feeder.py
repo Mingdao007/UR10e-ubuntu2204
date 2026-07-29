@@ -323,6 +323,7 @@ def _candidate_row(candidate: Any, *, source: str, nonce: str) -> dict[str, Any]
         "force_damping": candidate.force_damping,
         "normal_filter_tau_s": candidate.normal_filter_tau_s,
         "orientation_ko": candidate.orientation_ko,
+        "motion_kp": candidate.motion_kp,
         "position": "tail",
         "source": source,
         "occurrence_nonce": nonce,

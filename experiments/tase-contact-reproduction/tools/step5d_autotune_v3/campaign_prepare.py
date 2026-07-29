@@ -555,11 +555,17 @@ def _validate_v2_coherence(
                     normalized["force_p_gain"],
                     normalized["force_i_gain"],
                     normalized["force_damping"],
+                    normalized.get("normal_filter_tau_s", 0.35),
+                    normalized.get("orientation_ko", 0.4),
+                    normalized.get("motion_kp", 1.5),
                 )
                 != (
                     occurrence.candidate.force_p_gain,
                     occurrence.candidate.force_i_gain,
                     occurrence.candidate.force_damping,
+                    occurrence.candidate.normal_filter_tau_s,
+                    occurrence.candidate.orientation_ko,
+                    occurrence.candidate.motion_kp,
                 )
             ):
                 raise CampaignPrepareError(

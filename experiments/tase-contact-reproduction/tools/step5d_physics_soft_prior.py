@@ -24,6 +24,9 @@ class PhysicsSoftPrior:
     target_damping_ratio: float = 1.0 / math.sqrt(2.0)
     log2_sigma_octaves: float = 2.0
     strength: float = 0.35
+    target_motion_kp: float = 4.0
+    motion_log2_sigma_octaves: float = 1.0
+    motion_strength: float = 0.20
 
     def __post_init__(self) -> None:
         if not isinstance(self.enabled, bool):
@@ -33,6 +36,9 @@ class PhysicsSoftPrior:
             "target_damping_ratio",
             "log2_sigma_octaves",
             "strength",
+            "target_motion_kp",
+            "motion_log2_sigma_octaves",
+            "motion_strength",
         ):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -56,6 +62,9 @@ class PhysicsSoftPrior:
             "target_damping_ratio",
             "log2_sigma_octaves",
             "strength",
+            "target_motion_kp",
+            "motion_log2_sigma_octaves",
+            "motion_strength",
         }
         unknown = set(payload) - allowed
         if unknown:
@@ -104,7 +113,14 @@ def physics_log_weight(
         math.log2(ratio / prior.target_damping_ratio)
         / prior.log2_sigma_octaves
     )
-    return -0.5 * prior.strength * normalized * normalized
+    motion_normalized = (
+        math.log2(candidate.motion_kp / prior.target_motion_kp)
+        / prior.motion_log2_sigma_octaves
+    )
+    return (
+        -0.5 * prior.strength * normalized * normalized
+        -0.5 * prior.motion_strength * motion_normalized * motion_normalized
+    )
 
 
 def joint_physics_log_weight(

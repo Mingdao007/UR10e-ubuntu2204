@@ -387,7 +387,9 @@ def exact_trial_overlay(
         "force_p_gain": candidate.force_p_gain,
         "force_i_gain": candidate.force_i_gain,
         "force_damping": candidate.force_damping,
-        "orientation_ko": 0.4,
+        "orientation_ko": candidate.orientation_ko,
+        "normal_filter_tau_s": candidate.normal_filter_tau_s,
+        "motion_kp": candidate.motion_kp,
     }
     return {
         **control,

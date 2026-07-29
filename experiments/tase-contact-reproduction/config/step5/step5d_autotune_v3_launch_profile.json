@@ -1,5 +1,5 @@
 {
-  "control_contract_sha256": "a164c3770a2424dbfde433841f152a19e465a258bfbc933ee3e08498df82f659",
+  "control_contract_sha256": "95a5a8346f33c0e58df705783575606cb7a3bfad51e249bccd61bb65a5b49606",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "hard_tube_policy": {
     "enabled": false
@@ -56,6 +56,19 @@
         0.5656854249492381,
         0.6727171322029717,
         0.8
+      ]
+    },
+    "motion_kp": {
+      "allowed": [
+        1.5,
+        1.7838106725040817,
+        2.121320343559643,
+        2.5226892457611436,
+        3.0,
+        3.5676213450081633,
+        4.242640687119286,
+        5.045378491522287,
+        6.0
       ]
     },
     "step5d_preload_filtered_max_n": {

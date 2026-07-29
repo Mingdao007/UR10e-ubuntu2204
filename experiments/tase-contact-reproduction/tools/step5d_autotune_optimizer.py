@@ -33,7 +33,7 @@ R008_NOISE_VARIANCE_FLOOR_N2 = 1e-4
 
 def candidate_vector(
     candidate: ForceCandidate,
-) -> tuple[float, float, float, float, float, float]:
+) -> tuple[float, float, float, float, float, float, float]:
     return (
         candidate.log2_p,
         candidate.log2_damping,
@@ -41,6 +41,7 @@ def candidate_vector(
         0.0 if candidate.force_i_gain == 0.0 else candidate.log2_i,
         1.0 if candidate.force_i_gain == 0.0 else 0.0,
         candidate.log2_orientation_ko,
+        candidate.log2_motion_kp,
     )
 
 
@@ -56,6 +57,8 @@ def _changed_coordinates(a: ForceCandidate, b: ForceCandidate) -> tuple[str, ...
         a.log2_orientation_ko, b.log2_orientation_ko, abs_tol=1e-9
     ):
         changed.append("orientation_ko")
+    if not math.isclose(a.log2_motion_kp, b.log2_motion_kp, abs_tol=1e-9):
+        changed.append("motion_kp")
     if a.i_mode != b.i_mode:
         changed.append("i_mode")
     elif a.i_mode == "positive" and not math.isclose(a.log2_i, b.log2_i, abs_tol=1e-9):
@@ -72,6 +75,8 @@ def _coordinate(candidate: ForceCandidate, axis: str) -> float:
         return candidate.log2_filter_tau
     if axis == "orientation_ko":
         return candidate.log2_orientation_ko
+    if axis == "motion_kp":
+        return candidate.log2_motion_kp
     if axis == "i" and candidate.i_mode == "positive":
         return candidate.log2_i
     raise ValueError(f"candidate has no continuous {axis} coordinate")
@@ -96,6 +101,7 @@ def one_step_neighbors(incumbent: ForceCandidate, tier: SearchTier) -> tuple[For
     p, damping = incumbent.log2_p, incumbent.log2_damping
     filter_tau = incumbent.log2_filter_tau
     orientation = incumbent.log2_orientation_ko
+    motion = incumbent.log2_motion_kp
     i = 0.0 if incumbent.force_i_gain == 0.0 else incumbent.log2_i
     for delta in (-LOG2_LATTICE_OCTAVE, LOG2_LATTICE_OCTAVE):
         candidates.add(
@@ -103,6 +109,7 @@ def one_step_neighbors(incumbent: ForceCandidate, tier: SearchTier) -> tuple[For
                 p=p + delta,
                 damping=damping,
                 orientation=orientation,
+                motion=motion,
                 i=i,
                 i_off=incumbent.i_mode == "off",
                 filter_tau=filter_tau,
@@ -113,6 +120,7 @@ def one_step_neighbors(incumbent: ForceCandidate, tier: SearchTier) -> tuple[For
                 p=p,
                 damping=damping + delta,
                 orientation=orientation,
+                motion=motion,
                 i=i,
                 i_off=incumbent.i_mode == "off",
                 filter_tau=filter_tau,
@@ -124,6 +132,7 @@ def one_step_neighbors(incumbent: ForceCandidate, tier: SearchTier) -> tuple[For
                     p=p,
                     damping=damping,
                     orientation=orientation,
+                    motion=motion,
                     i=i + delta,
                     filter_tau=filter_tau,
                 )
@@ -133,6 +142,7 @@ def one_step_neighbors(incumbent: ForceCandidate, tier: SearchTier) -> tuple[For
                 p=p,
                 damping=damping,
                 orientation=orientation,
+                motion=motion,
                 i=i,
                 i_off=incumbent.i_mode == "off",
                 filter_tau=filter_tau + delta,
@@ -144,6 +154,18 @@ def one_step_neighbors(incumbent: ForceCandidate, tier: SearchTier) -> tuple[For
                     p=p,
                     damping=damping,
                     orientation=orientation + delta,
+                    motion=motion,
+                    i=i,
+                    i_off=incumbent.i_mode == "off",
+                    filter_tau=filter_tau,
+                )
+            )
+            candidates.add(
+                ForceCandidate.from_log2(
+                    p=p,
+                    damping=damping,
+                    orientation=orientation,
+                    motion=motion + delta,
                     i=i,
                     i_off=incumbent.i_mode == "off",
                     filter_tau=filter_tau,
@@ -155,6 +177,7 @@ def one_step_neighbors(incumbent: ForceCandidate, tier: SearchTier) -> tuple[For
                 p=p,
                 damping=damping,
                 orientation=orientation,
+                motion=motion,
                 i=0.0 if incumbent.i_mode == "off" else incumbent.log2_i,
                 i_off=incumbent.i_mode != "off",
                 filter_tau=filter_tau,
@@ -176,7 +199,7 @@ def _one_step_toward(
 
     if actual == target:
         return actual
-    for axis in ("p", "damping", "i", "filter_tau", "orientation_ko"):
+    for axis in ("p", "damping", "i", "filter_tau", "orientation_ko", "motion_kp"):
         if axis == "i" and (
             actual.i_mode != "positive" or target.i_mode != "positive"
         ):
@@ -192,11 +215,14 @@ def _one_step_toward(
             "p": actual.log2_p,
             "damping": actual.log2_damping,
             "orientation": actual.log2_orientation_ko,
+            "motion": actual.log2_motion_kp,
             "i": 0.0 if actual.i_mode == "off" else actual.log2_i,
             "i_off": actual.i_mode == "off",
             "filter_tau": actual.log2_filter_tau,
         }
-        kwargs["orientation" if axis == "orientation_ko" else axis] = coordinate
+        kwargs[
+            {"orientation_ko": "orientation", "motion_kp": "motion"}.get(axis, axis)
+        ] = coordinate
         candidate = ForceCandidate.from_log2(**kwargs)
         if not live_trust_region_step(actual, candidate):
             raise RuntimeError("one-step transition construction violated live trust region")
@@ -206,6 +232,7 @@ def _one_step_toward(
             p=actual.log2_p,
             damping=actual.log2_damping,
             orientation=actual.log2_orientation_ko,
+            motion=actual.log2_motion_kp,
             i=0.0 if actual.i_mode == "off" else actual.log2_i,
             i_off=actual.i_mode != "off",
             filter_tau=actual.log2_filter_tau,
@@ -533,7 +560,7 @@ def _cuda_botorch_candidate(
         train_x,
         train_y,
         train_Yvar=train_yvar,
-        input_transform=Normalize(d=6),
+        input_transform=Normalize(d=7),
         outcome_transform=Standardize(m=1),
     )
     fit_gpytorch_mll(ExactMarginalLogLikelihood(model.likelihood, model))
@@ -680,7 +707,7 @@ def cuda_botorch_joint_candidates(
         train_x,
         train_y,
         train_Yvar=train_yvar,
-        input_transform=Normalize(d=6),
+        input_transform=Normalize(d=7),
         outcome_transform=Standardize(m=1),
     )
     fit_gpytorch_mll(ExactMarginalLogLikelihood(model.likelihood, model))
@@ -727,7 +754,22 @@ def cuda_botorch_joint_candidates(
                 * float(self.prior.strength)
                 * torch.sum(normalized * normalized, dim=-1)
             )
-            return base_value + log_weight
+            motion_kp = 1.5 * torch.pow(2.0, X[..., 6])
+            motion_normalized = (
+                torch.log2(
+                    motion_kp / float(self.prior.target_motion_kp)
+                )
+                / float(self.prior.motion_log2_sigma_octaves)
+            )
+            motion_log_weight = (
+                -0.5
+                * float(self.prior.motion_strength)
+                * torch.sum(
+                    motion_normalized * motion_normalized,
+                    dim=-1,
+                )
+            )
+            return base_value + log_weight + motion_log_weight
 
     acquisition = PhysicsPriorAdjustedAcquisition(
         base_acquisition,

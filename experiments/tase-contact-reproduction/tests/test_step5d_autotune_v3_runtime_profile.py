@@ -44,7 +44,7 @@ def test_default_profile_exposes_broad_launch_surface_and_exact_trial_overlay() 
     assert len(launch_mutable_flags(contract)) == 39
     overlay = normalize_trial_overlay(DEFAULT_OVERLAY, profile=profile)
     assert tuple(overlay) == OVERLAY_FIELDS
-    assert len(overlay) == 14
+    assert len(overlay) == 15
     assert overlay["normal_filter_tau_s"] == 0.35
     assert profile.document["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
     assert profile.document["tp_program_id"] == PROGRAM

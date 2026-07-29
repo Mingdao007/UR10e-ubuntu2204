@@ -35,7 +35,9 @@ CONTROL_CANDIDATE_FIELDS = (
     "force_damping",
     "orientation_ko",
     "normal_filter_tau_s",
+    "motion_kp",
 )
+MOTION_KP_LATTICE = tuple(1.5 * (2.0 ** (index / 4.0)) for index in range(9))
 ORIENTATION_KO_LATTICE = (
     0.1,
     0.11892071150027211,
@@ -73,7 +75,10 @@ OVERLAY_FIELDS = (
     "step5d_preload_timeout_s",
 )
 LEGACY_OVERLAY_FIELDS = tuple(
-    field for field in OVERLAY_FIELDS if field != "normal_filter_tau_s"
+    field for field in OVERLAY_FIELDS if field not in {"normal_filter_tau_s", "motion_kp"}
+)
+PRE_MOTION_OVERLAY_FIELDS = tuple(
+    field for field in OVERLAY_FIELDS if field != "motion_kp"
 )
 _DEFAULT_OVERLAY_INPUT: dict[str, Any] = {
     "force_p_gain": 0.001,
@@ -81,6 +86,7 @@ _DEFAULT_OVERLAY_INPUT: dict[str, Any] = {
     "force_damping": 7.0,
     "orientation_ko": 0.4,
     "normal_filter_tau_s": 0.35,
+    "motion_kp": 1.5,
     "execution_profile_id": "nf100000-slew250-a2000",
     "step5d_preload_filtered_min_n": 7.5,
     "step5d_preload_filtered_max_n": 14.0,
@@ -289,12 +295,15 @@ def load_launch_profile(
     raw_policy = payload["trial_overlay_policy"]
     if not isinstance(raw_policy, dict) or frozenset(raw_policy) not in {
         frozenset(OVERLAY_FIELDS),
+        frozenset(PRE_MOTION_OVERLAY_FIELDS),
         frozenset(LEGACY_OVERLAY_FIELDS),
     }:
         raise ContractViolation("trial overlay policy fields or order differ")
     policy = dict(raw_policy)
     if "normal_filter_tau_s" not in policy:
         policy["normal_filter_tau_s"] = {"min": 0.35, "max": 0.35}
+    if "motion_kp" not in policy:
+        policy["motion_kp"] = {"allowed": list(MOTION_KP_LATTICE)}
     for field in OVERLAY_FIELDS:
         rule = policy[field]
         if field == "execution_profile_id":
@@ -308,11 +317,16 @@ def load_launch_profile(
                 or any(not isinstance(value, str) or not value for value in allowed)
             ):
                 raise ContractViolation("execution profile allowlist is invalid")
-        elif field == "orientation_ko":
+        elif field in {"orientation_ko", "motion_kp"}:
             if not isinstance(rule, dict) or set(rule) != {"allowed"}:
-                raise ContractViolation("orientation_ko overlay policy differs")
-            if rule["allowed"] != list(ORIENTATION_KO_LATTICE):
-                raise ContractViolation("orientation_ko lattice differs")
+                raise ContractViolation(f"{field} overlay policy differs")
+            expected = (
+                list(ORIENTATION_KO_LATTICE)
+                if field == "orientation_ko"
+                else list(MOTION_KP_LATTICE)
+            )
+            if rule["allowed"] != expected:
+                raise ContractViolation(f"{field} lattice differs")
         elif field == "control_candidate_uid":
             if rule != {"derived": "sha256"}:
                 raise ContractViolation("control candidate UID policy differs")
@@ -354,6 +368,8 @@ def normalize_trial_overlay(
     allowed_shapes = (
         set(OVERLAY_FIELDS),
         set(OVERLAY_FIELDS) - {"control_candidate_uid"},
+        set(PRE_MOTION_OVERLAY_FIELDS),
+        set(PRE_MOTION_OVERLAY_FIELDS) - {"control_candidate_uid"},
         set(LEGACY_OVERLAY_FIELDS),
         set(LEGACY_OVERLAY_FIELDS) - {"control_candidate_uid"},
     )
@@ -361,7 +377,7 @@ def normalize_trial_overlay(
         raise ContractViolation("trial overlay fields or order differ")
     result: dict[str, Any] = {}
     for field in OVERLAY_FIELDS:
-        if field == "normal_filter_tau_s" and field not in raw:
+        if field in {"normal_filter_tau_s", "motion_kp"} and field not in raw:
             continue
         rule = profile.trial_overlay_policy[field]
         if field == "control_candidate_uid":
@@ -382,15 +398,20 @@ def normalize_trial_overlay(
             _execution_profile(value)
             result[field] = value
             continue
-        if field == "orientation_ko":
+        if field in {"orientation_ko", "motion_kp"}:
             numeric = _finite(field, value)
+            lattice = (
+                ORIENTATION_KO_LATTICE
+                if field == "orientation_ko"
+                else MOTION_KP_LATTICE
+            )
             matches = [
                 allowed
-                for allowed in ORIENTATION_KO_LATTICE
+                for allowed in lattice
                 if math.isclose(numeric, allowed, rel_tol=0.0, abs_tol=1e-12)
             ]
             if len(matches) != 1:
-                raise ContractViolation("trial orientation_ko is outside its lattice")
+                raise ContractViolation(f"trial {field} is outside its lattice")
             result[field] = matches[0]
             continue
         numeric = _finite(field, value)
@@ -406,6 +427,7 @@ def normalize_trial_overlay(
             force_damping=result["force_damping"],
             orientation_ko=result["orientation_ko"],
             normal_filter_tau_s=result.get("normal_filter_tau_s", 0.35),
+            motion_kp=result.get("motion_kp", 1.5),
         )
     except ValueError as exc:
         raise ContractViolation(f"trial force candidate is invalid: {exc}") from exc
@@ -432,6 +454,7 @@ def control_candidate_coordinates(overlay: Mapping[str, Any]) -> tuple[float, ..
         force_damping=float(overlay["force_damping"]),
         orientation_ko=float(overlay["orientation_ko"]),
         normal_filter_tau_s=float(overlay.get("normal_filter_tau_s", 0.35)),
+        motion_kp=float(overlay.get("motion_kp", 1.5)),
     )
     return (
         candidate.log2_p,
@@ -439,6 +462,7 @@ def control_candidate_coordinates(overlay: Mapping[str, Any]) -> tuple[float, ..
         candidate.log2_damping,
         math.log2(float(overlay["orientation_ko"]) / SEED_ORIENTATION_KO),
         candidate.log2_filter_tau,
+        candidate.log2_motion_kp,
     )
 
 

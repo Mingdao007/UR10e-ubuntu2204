@@ -9,9 +9,12 @@ from typing import Any
 from step5d_autotune_contract import (
     LOG2_LATTICE_OCTAVE,
     MAX_PRODUCTION_ORIENTATION_KO,
+    MAX_PRODUCTION_MOTION_KP,
     MIN_PRODUCTION_FORCE_DAMPING,
     MIN_PRODUCTION_ORIENTATION_KO,
+    MIN_PRODUCTION_MOTION_KP,
     SEED_ORIENTATION_KO,
+    SEED_MOTION_KP,
     ForceCandidate,
     SearchTier,
 )
@@ -37,6 +40,10 @@ ORIENTATION_KO_LATTICE = tuple(
     SEED_ORIENTATION_KO * (2.0 ** (quarter * LOG2_LATTICE_OCTAVE))
     for quarter in range(MIN_ORIENTATION_QUARTER, MAX_ORIENTATION_QUARTER + 1)
 )
+MOTION_KP_LATTICE = tuple(
+    SEED_MOTION_KP * (2.0 ** (quarter * LOG2_LATTICE_OCTAVE))
+    for quarter in range(0, 9)
+)
 
 
 def search_candidate_allowed(candidate: Any) -> bool:
@@ -49,6 +56,9 @@ def search_candidate_allowed(candidate: Any) -> bool:
         and MIN_PRODUCTION_ORIENTATION_KO
         <= candidate.orientation_ko
         <= MAX_PRODUCTION_ORIENTATION_KO
+        and MIN_PRODUCTION_MOTION_KP
+        <= candidate.motion_kp
+        <= MAX_PRODUCTION_MOTION_KP
     )
 
 
@@ -81,9 +91,27 @@ def orientation_variants(candidate: ForceCandidate) -> tuple[ForceCandidate, ...
             force_damping=candidate.force_damping,
             orientation_ko=orientation_ko,
             normal_filter_tau_s=candidate.normal_filter_tau_s,
+            motion_kp=candidate.motion_kp,
             target_force_n=candidate.target_force_n,
         )
         for orientation_ko in ORIENTATION_KO_LATTICE
+    )
+
+def motion_variants(candidate: ForceCandidate) -> tuple[ForceCandidate, ...]:
+    """Vary only tangential motion Kp at one observed force-loop anchor."""
+
+    require_search_candidate(candidate, role="motion anchor")
+    return tuple(
+        ForceCandidate(
+            force_p_gain=candidate.force_p_gain,
+            force_i_gain=candidate.force_i_gain,
+            force_damping=candidate.force_damping,
+            orientation_ko=candidate.orientation_ko,
+            normal_filter_tau_s=candidate.normal_filter_tau_s,
+            motion_kp=motion_kp,
+            target_force_n=candidate.target_force_n,
+        )
+        for motion_kp in MOTION_KP_LATTICE
     )
 
 
@@ -101,6 +129,7 @@ def augment_catalog_with_orientation_anchors(
     candidates = set(base_catalog)
     for anchor in anchors:
         candidates.update(orientation_variants(anchor))
+        candidates.update(motion_variants(anchor))
     return tuple(sorted(candidates, key=lambda item: item.candidate_uid))
 
 
@@ -155,8 +184,10 @@ def production_candidate_catalog() -> tuple[ForceCandidate, ...]:
 __all__ = [
     "MIN_SEARCH_FORCE_DAMPING",
     "ORIENTATION_KO_LATTICE",
+    "MOTION_KP_LATTICE",
     "augment_catalog_with_orientation_anchors",
     "orientation_variants",
+    "motion_variants",
     "production_candidate_catalog",
     "require_search_candidate",
     "search_candidate_allowed",

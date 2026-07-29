@@ -246,7 +246,9 @@ def _direct_trial_brief_reference(
             isinstance(document.get("transport_candidate_uid"), str)
             and document["transport_candidate_uid"].startswith("transport:v2:"),
             isinstance(document.get("control_candidate_uid"), str)
-            and document["control_candidate_uid"].startswith("control:v2:"),
+            and document["control_candidate_uid"].startswith(
+                ("control:v2:", "control:v3:", "control:v4:")
+            ),
         )
     )
     if any(
@@ -553,7 +555,9 @@ def _verify_trial_brief_evidence(
             isinstance(document.get("transport_candidate_uid"), str)
             and document["transport_candidate_uid"].startswith("transport:v2:"),
             isinstance(document.get("control_candidate_uid"), str)
-            and document["control_candidate_uid"].startswith("control:v2:"),
+            and document["control_candidate_uid"].startswith(
+                ("control:v2:", "control:v3:", "control:v4:")
+            ),
         )
     )
     if any(
@@ -589,6 +593,9 @@ def _candidate_from_payload(payload: Any) -> ForceCandidate:
             force_p_gain=payload["force_p_gain"],
             force_i_gain=payload["force_i_gain"],
             force_damping=payload["force_damping"],
+            orientation_ko=payload.get("orientation_ko", 0.4),
+            normal_filter_tau_s=payload.get("normal_filter_tau_s", 0.35),
+            motion_kp=payload.get("motion_kp", 1.5),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise RecoveryError(f"history candidate is invalid: {exc}") from exc

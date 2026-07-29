@@ -394,6 +394,7 @@ def _observations_from_history(
                 force_i_gain=candidate_payload["force_i_gain"],
                 force_damping=candidate_payload["force_damping"],
                 orientation_ko=candidate_payload.get("orientation_ko", 0.4),
+                motion_kp=candidate_payload.get("motion_kp", 1.5),
                 normal_filter_tau_s=candidate_payload.get(
                     "normal_filter_tau_s", 0.35
                 ),
@@ -547,12 +548,16 @@ class ProductionProposalProvider:
                             runtime_row.control_candidate.get(
                                 "normal_filter_tau_s", 0.35
                             ),
+                            runtime_row.control_candidate.get("orientation_ko", 0.4),
+                            runtime_row.control_candidate.get("motion_kp", 1.5),
                         )
                         != (
                             candidate.force_p_gain,
                             candidate.force_i_gain,
                             candidate.force_damping,
                             candidate.normal_filter_tau_s,
+                            candidate.orientation_ko,
+                            candidate.motion_kp,
                         )
                     ):
                         raise BatchProducerError(
@@ -1054,12 +1059,16 @@ class RollingBatchProducer:
                     candidate.force_i_gain,
                     candidate.force_damping,
                     candidate.normal_filter_tau_s,
+                    candidate.orientation_ko,
+                    candidate.motion_kp,
                 )
                 overlay_coordinates = (
                     normalized["force_p_gain"],
                     normalized["force_i_gain"],
                     normalized["force_damping"],
                     normalized.get("normal_filter_tau_s", 0.35),
+                    normalized.get("orientation_ko", 0.4),
+                    normalized.get("motion_kp", 1.5),
                 )
                 if (
                     trial["overlay"] != normalized
@@ -1210,6 +1219,8 @@ class RollingBatchProducer:
                 "force_p_gain": raw_occurrence.candidate.force_p_gain,
                 "force_i_gain": raw_occurrence.candidate.force_i_gain,
                 "force_damping": raw_occurrence.candidate.force_damping,
+                "orientation_ko": raw_occurrence.candidate.orientation_ko,
+                "motion_kp": raw_occurrence.candidate.motion_kp,
                 "normal_filter_tau_s": (
                     raw_occurrence.candidate.normal_filter_tau_s
                 ),
@@ -1422,12 +1433,16 @@ class RollingBatchProducer:
                     normalized["force_i_gain"],
                     normalized["force_damping"],
                     normalized.get("normal_filter_tau_s", 0.35),
+                    normalized.get("orientation_ko", 0.4),
+                    normalized.get("motion_kp", 1.5),
                 )
                 != (
                     candidate.force_p_gain,
                     candidate.force_i_gain,
                     candidate.force_damping,
                     candidate.normal_filter_tau_s,
+                    candidate.orientation_ko,
+                    candidate.motion_kp,
                 )
             ):
                 raise BatchProducerError("INTENT_INVALID", f"intent row {index} is incoherent")

@@ -354,6 +354,11 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_normal_rate_limiter_duty",
     "_step5d_normal_filter_dt_s",
     "_step5d_normal_filter_tau_s",
+    "_step5d_applied_force_p_gain",
+    "_step5d_applied_force_i_gain",
+    "_step5d_applied_force_damping",
+    "_step5d_applied_orientation_ko",
+    "_step5d_applied_motion_kp",
     "_step5d_normal_rate_limit_rad_s",
     "_step5d_engage_gate_ok",
     "_step5d_line_guard_ok",
@@ -5925,8 +5930,18 @@ def compute_bridge_values(
                     )
                     step5d_outer_output = compute_step5d_outer_loop(
                         Step5dOuterLoopConfig(
-                            kp=STEP5D_V33_TANGENTIAL_KP if step5d_v33_outer_profile else 4.0,
-                            ko=base_step5d_ko,
+                            kp=(
+                                float(args.step5d_autotune_motion_kp)
+                                if step5d_autotune_profile
+                                else STEP5D_V33_TANGENTIAL_KP
+                                if step5d_v33_outer_profile
+                                else 4.0
+                            ),
+                            ko=(
+                                float(args.step5d_autotune_orientation_ko)
+                                if step5d_autotune_profile
+                                else base_step5d_ko
+                            ),
                             orientation_gain_scale=float(step5d_p0_posture_policy["orientation_gain_scale"]),
                             kf=float(autotune_force_terms["kf"]) if autotune_force_terms is not None else STEP5D_V33_FORCE_KF if step5d_v33_outer_profile else 1.0,
                             Md_scalar=float(autotune_force_terms["Md"]) if autotune_force_terms is not None else STEP5D_V33_FORCE_MD if step5d_v33_outer_profile else STEP5D_V28_SHADOW_MD if step5d_step5b_speedl_live_profile else 12.0,
@@ -7356,6 +7371,22 @@ def compute_bridge_values(
     values["_step4e_desired_vy_m_s"] = desired_velocity_xy[1]
     values["_step4e_path_error_x_m"] = path_error[0]
     values["_step4e_path_error_y_m"] = path_error[1]
+    if step5d_autotune_profile:
+        values["_step5d_applied_force_p_gain"] = float(
+            args.step5d_autotune_force_terms["P"]
+        )
+        values["_step5d_applied_force_i_gain"] = float(
+            args.step5d_autotune_force_terms["I"]
+        )
+        values["_step5d_applied_force_damping"] = float(
+            args.step5d_autotune_force_terms["damping"]
+        )
+        values["_step5d_applied_orientation_ko"] = float(
+            args.step5d_autotune_orientation_ko
+        )
+        values["_step5d_applied_motion_kp"] = float(
+            args.step5d_autotune_motion_kp
+        )
     values["_step4e_contact_offset_x_m"] = contact_offset_x
     values["_step4e_contact_offset_y_m"] = contact_offset_y
     if speed and len(speed) >= 6:
@@ -8152,6 +8183,10 @@ def configure_step5d_autotune_args(
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
+    if args.step5d_autotune_orientation_ko <= 0.0:
+        raise SystemExit("--step5d-autotune-orientation-ko must be positive")
+    if args.step5d_autotune_motion_kp <= 0.0:
+        raise SystemExit("--step5d-autotune-motion-kp must be positive")
     live_rates = STEP5D_AUTOTUNE_LIVE_NORMAL_RATE_RAD_S
     offline_rates = STEP5D_AUTOTUNE_OFFLINE_ONLY_NORMAL_RATE_RAD_S
     normal_rate = _autotune_level(
@@ -9256,6 +9291,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--step5d-autotune-force-damping",
         type=float,
         default=env_float("STEP5D_AUTOTUNE_FORCE_DAMPING", 7.0),
+    )
+    parser.add_argument(
+        "--step5d-autotune-orientation-ko",
+        type=float,
+        default=env_float("STEP5D_AUTOTUNE_ORIENTATION_KO", 0.4),
+    )
+    parser.add_argument(
+        "--step5d-autotune-motion-kp",
+        type=float,
+        default=env_float("STEP5D_AUTOTUNE_MOTION_KP", 1.5),
     )
     parser.add_argument(
         "--step5d-autotune-normal-rate-rad-s",
@@ -10738,8 +10783,16 @@ def main(argv: list[str] | None = None) -> int:
                 "exact_binding": True,
                 "active_only_in_stage25_paper_outer": True,
                 "contact_search_cli_parameters_are_not_active_outer_parameters": True,
-                "tangential_kp": STEP5D_V33_TANGENTIAL_KP,
-                "orientation_ko": STEP5D_V33_ORIENTATION_KO,
+                "tangential_kp": (
+                    args.step5d_autotune_motion_kp
+                    if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+                    else STEP5D_V33_TANGENTIAL_KP
+                ),
+                "orientation_ko": (
+                    args.step5d_autotune_orientation_ko
+                    if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+                    else STEP5D_V33_ORIENTATION_KO
+                ),
                 "force_Md": (
                     args.step5d_autotune_force_terms["Md"]
                     if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID

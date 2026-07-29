@@ -328,7 +328,9 @@
       "step5d_autotune_force_damping": "$candidate.force_damping",
       "step5d_autotune_force_i": "$candidate.force_i_gain",
       "step5d_autotune_force_p": "$candidate.force_p_gain",
-      "step5d_autotune_force_terms": "$candidate.force_terms"
+      "step5d_autotune_force_terms": "$candidate.force_terms",
+      "step5d_autotune_motion_kp": 1.5,
+      "step5d_autotune_orientation_ko": 0.4
     },
     "control_invariant": {
       "baseline_s": 1.0,

@@ -45,6 +45,7 @@ def _observation(*, seq: int, trial: int, state: int = 20, reason: int = 0):
         "ur_output_int_register_30": seq,
         "ur_output_int_register_34": trial,
         "ur_output_int_register_31": 1,
+        "ur_output_int_register_33": 1,
         "ur_safety_mode": 1,
         "step4e_controller_state": 0,
     }
@@ -495,6 +496,9 @@ def test_restart_adopts_terminal_outcome_without_resending_arm(
     )
     terminal_row = _observation(seq=1, trial=1, state=78, reason=reason)
     terminal_row["ur_output_int_register_27"] = dispatch["packet"]["candidate_token"]
+    terminal_row["ur_output_int_register_29"] = dispatch["packet"][
+        "execution_profile_id"
+    ]
     binding = {"campaign_fingerprint": "a" * 64}
     observed = runner._adopt_inflight(
         args,

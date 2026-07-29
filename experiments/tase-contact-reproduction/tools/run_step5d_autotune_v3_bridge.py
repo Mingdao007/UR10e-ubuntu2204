@@ -76,6 +76,10 @@ _V3_COMPACT_EXACT_FIELDS = frozenset(
         "_step5d_constraint_residual_norm", "_step5d_raw_rnn_residual_norm",
         "_step5d_post_slew_residual_norm", "_step5d_rnn_vs_oracle_qdot_norm",
         "_step5d_qdot_slew_limiter_active", "_step5d_normal_rate_limiter_active",
+        "_step5d_applied_force_p_gain", "_step5d_applied_force_i_gain",
+        "_step5d_applied_force_damping", "_step5d_applied_orientation_ko",
+        "_step5d_applied_motion_kp",
+        "_step5d_normal_filter_tau_s",
         "_step5d_qdot_cap_rad_s", "_step5d_rnn_qdot_max_abs_raw_rad_s",
         "_step5d_rnn_accepted", "_step5d_safe_hold_active",
         "_step5d_contact_safety_reason", "_step5d_contact_orientation_error_rad",
@@ -112,6 +116,8 @@ _V3_CAPTURE_IDENTITY_FIELDS = (
     "autotune_force_i_gain",
     "autotune_force_damping",
     "autotune_orientation_ko",
+    "autotune_motion_kp",
+    "autotune_normal_filter_tau_s",
 )
 _V3_RUNNER_CLOSURE_FIELDS = frozenset(
     {
@@ -423,6 +429,10 @@ class V3AsyncBridgeTrialCsvRotator:
                 "autotune_force_i_gain": overlay["force_i_gain"],
                 "autotune_force_damping": overlay["force_damping"],
                 "autotune_orientation_ko": overlay["orientation_ko"],
+                "autotune_motion_kp": overlay.get("motion_kp", 1.5),
+                "autotune_normal_filter_tau_s": overlay.get(
+                    "normal_filter_tau_s", 0.35
+                ),
             }
         )
         self._enqueue(("row", binding.trial_uid, payload))
@@ -474,6 +484,7 @@ def _apply_v3_arm_runtime(
         force_damping=normalized["force_damping"],
         orientation_ko=normalized["orientation_ko"],
         normal_filter_tau_s=normalized.get("normal_filter_tau_s", 0.35),
+        motion_kp=normalized.get("motion_kp", 1.5),
     )
     args.step5d_autotune_force_p = candidate.force_p_gain
     args.step5d_autotune_force_i = candidate.force_i_gain
@@ -491,6 +502,7 @@ def _apply_v3_arm_runtime(
         "control_candidate_uid"
     ]
     args.step5d_autotune_orientation_ko = normalized["orientation_ko"]
+    args.step5d_autotune_motion_kp = normalized.get("motion_kp", 1.5)
     bridge.STEP5D_V33_ORIENTATION_KO = normalized["orientation_ko"]
     args.step5d_physical_prior_reaction_normal_b = STEP5D_V3_PHYSICAL_PRIOR.reaction_normal_b
     args.step5d_physical_prior_approach_axis_b = STEP5D_V3_PHYSICAL_PRIOR.approach_axis_b

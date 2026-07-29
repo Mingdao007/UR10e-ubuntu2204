@@ -75,12 +75,19 @@ def _positive_int(payload: Mapping[str, Any], key: str, role: str) -> int:
 
 def _candidate(payload: Mapping[str, Any], role: str) -> ForceCandidate:
     orientation = _finite(payload, "orientation_ko", role)
+    motion_value = payload.get("motion_kp", 1.5)
+    if isinstance(motion_value, bool) or not isinstance(
+        motion_value, (int, float)
+    ):
+        raise ParameterBoError(f"{role} motion_kp must be numeric")
+    motion_kp = float(motion_value)
     try:
         return ForceCandidate(
             force_p_gain=_finite(payload, "force_p_gain", role),
             force_i_gain=_finite(payload, "force_i_gain", role),
             force_damping=_finite(payload, "force_damping", role),
             orientation_ko=orientation,
+            motion_kp=motion_kp,
             normal_filter_tau_s=_finite(payload, "normal_filter_tau_s", role),
         )
     except ValueError as exc:
@@ -371,6 +378,7 @@ def propose_candidates(
                 "force_damping": candidate.force_damping,
                 "normal_filter_tau_s": candidate.normal_filter_tau_s,
                 "orientation_ko": candidate.orientation_ko,
+                "motion_kp": candidate.motion_kp,
                 "position": "next",
                 "source": f"{source_prefix}_q{q}_seed{seed}:{label}",
                 "occurrence_nonce": occurrence_nonce,

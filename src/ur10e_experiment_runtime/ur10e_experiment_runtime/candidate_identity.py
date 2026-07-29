@@ -20,6 +20,7 @@ LEGACY_CONTROL_FIELDS = (
     "orientation_ko",
 )
 CONTROL_FIELDS = (*LEGACY_CONTROL_FIELDS, "normal_filter_tau_s")
+MOTION_CONTROL_FIELDS = (*CONTROL_FIELDS, "motion_kp")
 
 
 def _canonical_digest(material: Mapping[str, Any]) -> str:
@@ -105,7 +106,8 @@ class ParameterUid(_DomainUid):
 
 
 class ControlCandidateUid(_DomainUid):
-    prefix = "control:v3:"
+    prefix = "control:v4:"
+    filter_prefix = "control:v3:"
     legacy_prefix = "control:v2:"
 
     @classmethod
@@ -122,22 +124,44 @@ class ControlCandidateUid(_DomainUid):
                 abs_tol=1e-12,
             )
         )
-        fields = CONTROL_FIELDS if has_nondefault_tau else LEGACY_CONTROL_FIELDS
+        has_nondefault_motion = (
+            "motion_kp" in overlay
+            and not math.isclose(
+                _finite(overlay["motion_kp"], name="motion_kp"),
+                1.5,
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            )
+        )
+        fields = (
+            MOTION_CONTROL_FIELDS
+            if has_nondefault_motion
+            else CONTROL_FIELDS
+            if has_nondefault_tau
+            else LEGACY_CONTROL_FIELDS
+        )
         values = {
             field: _finite(overlay[field], name=field) for field in fields
         }
         digest = _canonical_digest(
             {
                 "schema": (
-                    "step5d.autotune-v3/control-candidate/v3"
+                    "step5d.autotune-v3/control-candidate/v4"
+                    if has_nondefault_motion
+                    else "step5d.autotune-v3/control-candidate/v3"
                     if has_nondefault_tau
                     else "step5d.autotune-v3/control-candidate/v2"
                 ),
                 **values,
             }
         )
-        if has_nondefault_tau:
+        if has_nondefault_motion:
             return cls._from_digest(digest)  # type: ignore[return-value]
+        if has_nondefault_tau:
+            return cls(  # type: ignore[return-value]
+                cls.filter_prefix + digest,
+                _factory=cls._factory_token,
+            )
         return cls(  # type: ignore[return-value]
             cls.legacy_prefix + digest,
             _factory=cls._factory_token,
@@ -152,7 +176,7 @@ class ControlCandidateUid(_DomainUid):
     ) -> "ControlCandidateUid":
         if not isinstance(value, str):
             raise ValueError("ControlCandidateUid must be a string")
-        for prefix in (cls.prefix, cls.legacy_prefix):
+        for prefix in (cls.prefix, cls.filter_prefix, cls.legacy_prefix):
             if value.startswith(prefix):
                 _lower_sha256(
                     value[len(prefix) :],
@@ -162,13 +186,14 @@ class ControlCandidateUid(_DomainUid):
         if allow_legacy:
             return cls.from_legacy(value)  # type: ignore[return-value]
         raise ValueError(
-            "ControlCandidateUid must use the 'control:v2:' or 'control:v3:' domain prefix"
+            "ControlCandidateUid must use a control:v2/v3/v4 domain prefix"
         )
 
     @property
     def is_legacy(self) -> bool:
         return not (
             self.startswith(self.prefix)
+            or self.startswith(self.filter_prefix)
             or self.startswith(self.legacy_prefix)
         )
 
@@ -176,6 +201,8 @@ class ControlCandidateUid(_DomainUid):
     def digest(self) -> str:
         if self.startswith(self.prefix):
             return self[len(self.prefix) :]
+        if self.startswith(self.filter_prefix):
+            return self[len(self.filter_prefix) :]
         if self.startswith(self.legacy_prefix):
             return self[len(self.legacy_prefix) :]
         return str(self)

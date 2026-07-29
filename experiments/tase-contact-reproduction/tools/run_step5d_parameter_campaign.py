@@ -326,6 +326,8 @@ def _prepared(
             force_p_gain=float(overlay["force_p_gain"]),
             force_i_gain=float(overlay["force_i_gain"]),
             force_damping=float(overlay["force_damping"]),
+            orientation_ko=float(overlay.get("orientation_ko", 0.4)),
+            motion_kp=float(overlay.get("motion_kp", 1.5)),
             normal_filter_tau_s=float(
                 overlay.get("normal_filter_tau_s", 0.35)
             ),
@@ -351,6 +353,10 @@ def _prepared(
             "BRIDGE_NORMAL_FILTER_TAU_S": repr(
                 trial.candidate.normal_filter_tau_s
             ),
+            "STEP5D_AUTOTUNE_ORIENTATION_KO": repr(
+                trial.candidate.orientation_ko
+            ),
+            "STEP5D_AUTOTUNE_MOTION_KP": repr(trial.candidate.motion_kp),
             "STEP5D_AUTOTUNE_NORMAL_RATE_RAD_S": repr(
                 execution_profile.normal_max_rate_rad_s
             ),

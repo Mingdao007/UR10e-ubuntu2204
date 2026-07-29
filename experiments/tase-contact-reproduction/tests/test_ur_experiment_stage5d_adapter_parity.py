@@ -134,9 +134,16 @@ def test_register_and_csv_contracts_match_the_current_bridge_and_state_machine()
     ]
     assert STEP5D_AUTOTUNE_HANDSHAKE_INPUT_NAMES == list(ACTIVE_HOST_TO_TP)
     assert STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_FIELDS == [
-        f"output_int_register_{index}" for index in range(24, 35)
+        f"output_int_register_{index}" for index in range(24, 38)
     ]
-    assert STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES == list(ACTIVE_TP_TO_HOST)
+    assert STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES[: len(ACTIVE_TP_TO_HOST)] == list(
+        ACTIVE_TP_TO_HOST
+    )
+    assert STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES[-3:] == [
+        "runtime_protocol_version",
+        "runtime_digest_hi",
+        "runtime_digest_lo",
+    ]
     assert CSV_IDENTITY_COLUMNS == BridgeTrialCsvRotator.IDENTITY_COLUMNS
     assert CSV_HANDSHAKE_COLUMNS == tuple(
         f"ur_output_int_register_{index}" for index in range(24, 34)
@@ -243,7 +250,8 @@ def test_batch_identity_binds_the_exact_current_five_rolling_rows() -> None:
                         "force_i_gain",
                         "force_damping",
                         "orientation_ko",
-                        "normal_filter_tau_s",
+                            "normal_filter_tau_s",
+                            "motion_kp",
                     )
                 },
                 trial_overlay=overlay,

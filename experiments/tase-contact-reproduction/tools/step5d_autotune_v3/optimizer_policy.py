@@ -23,7 +23,7 @@ from .optimizer_types import Observation
 
 def candidate_vector(
     candidate: ForceCandidate,
-) -> tuple[float, float, float, float, float, float]:
+) -> tuple[float, float, float, float, float, float, float]:
     return (
         candidate.log2_p,
         candidate.log2_damping,
@@ -31,6 +31,7 @@ def candidate_vector(
         0.0 if candidate.force_i_gain == 0.0 else candidate.log2_i,
         1.0 if candidate.force_i_gain == 0.0 else 0.0,
         candidate.log2_orientation_ko,
+        candidate.log2_motion_kp,
     )
 
 
@@ -49,6 +50,8 @@ def _changed_coordinates(
         a.log2_orientation_ko, b.log2_orientation_ko, abs_tol=1e-9
     ):
         changed.append("orientation_ko")
+    if not math.isclose(a.log2_motion_kp, b.log2_motion_kp, abs_tol=1e-9):
+        changed.append("motion_kp")
     if a.i_mode != b.i_mode:
         changed.append("i_mode")
     elif a.i_mode == "positive" and not math.isclose(
@@ -67,6 +70,8 @@ def _coordinate(candidate: ForceCandidate, axis: str) -> float:
         return candidate.log2_filter_tau
     if axis == "orientation_ko":
         return candidate.log2_orientation_ko
+    if axis == "motion_kp":
+        return candidate.log2_motion_kp
     if axis == "i" and candidate.i_mode == "positive":
         return candidate.log2_i
     raise ValueError(f"candidate has no continuous {axis} coordinate")
@@ -106,6 +111,7 @@ def one_step_neighbors(
     p, damping = incumbent.log2_p, incumbent.log2_damping
     filter_tau = incumbent.log2_filter_tau
     orientation = incumbent.log2_orientation_ko
+    motion = incumbent.log2_motion_kp
     i = 0.0 if incumbent.force_i_gain == 0.0 else incumbent.log2_i
     for delta in (-LOG2_LATTICE_OCTAVE, LOG2_LATTICE_OCTAVE):
         candidates.add(
@@ -113,6 +119,7 @@ def one_step_neighbors(
                 p=p + delta,
                 damping=damping,
                 orientation=orientation,
+                motion=motion,
                 i=i,
                 i_off=incumbent.i_mode == "off",
                 filter_tau=filter_tau,
@@ -123,6 +130,7 @@ def one_step_neighbors(
                 p=p,
                 damping=damping + delta,
                 orientation=orientation,
+                motion=motion,
                 i=i,
                 i_off=incumbent.i_mode == "off",
                 filter_tau=filter_tau,
@@ -134,6 +142,7 @@ def one_step_neighbors(
                     p=p,
                     damping=damping,
                     orientation=orientation,
+                    motion=motion,
                     i=i + delta,
                     filter_tau=filter_tau,
                 )
@@ -143,6 +152,7 @@ def one_step_neighbors(
                 p=p,
                 damping=damping,
                 orientation=orientation,
+                motion=motion,
                 i=i,
                 i_off=incumbent.i_mode == "off",
                 filter_tau=filter_tau + delta,
@@ -154,6 +164,18 @@ def one_step_neighbors(
                     p=p,
                     damping=damping,
                     orientation=orientation + delta,
+                    motion=motion,
+                    i=i,
+                    i_off=incumbent.i_mode == "off",
+                    filter_tau=filter_tau,
+                )
+            )
+            candidates.add(
+                ForceCandidate.from_log2(
+                    p=p,
+                    damping=damping,
+                    orientation=orientation,
+                    motion=motion + delta,
                     i=i,
                     i_off=incumbent.i_mode == "off",
                     filter_tau=filter_tau,
@@ -165,6 +187,7 @@ def one_step_neighbors(
                 p=p,
                 damping=damping,
                 orientation=orientation,
+                motion=motion,
                 i=0.0 if incumbent.i_mode == "off" else incumbent.log2_i,
                 i_off=incumbent.i_mode != "off",
                 filter_tau=filter_tau,
@@ -191,7 +214,7 @@ def one_step_toward(
 
     if actual == target:
         return actual
-    for axis in ("p", "damping", "i", "filter_tau", "orientation_ko"):
+    for axis in ("p", "damping", "i", "filter_tau", "orientation_ko", "motion_kp"):
         if axis == "i" and (
             actual.i_mode != "positive" or target.i_mode != "positive"
         ):
@@ -208,11 +231,14 @@ def one_step_toward(
             "p": actual.log2_p,
             "damping": actual.log2_damping,
             "orientation": actual.log2_orientation_ko,
+            "motion": actual.log2_motion_kp,
             "i": 0.0 if actual.i_mode == "off" else actual.log2_i,
             "i_off": actual.i_mode == "off",
             "filter_tau": actual.log2_filter_tau,
         }
-        kwargs["orientation" if axis == "orientation_ko" else axis] = coordinate
+        kwargs[
+            {"orientation_ko": "orientation", "motion_kp": "motion"}.get(axis, axis)
+        ] = coordinate
         candidate = ForceCandidate.from_log2(**kwargs)
         if not live_trust_region_step(actual, candidate):
             raise RuntimeError(
@@ -224,6 +250,7 @@ def one_step_toward(
             p=actual.log2_p,
             damping=actual.log2_damping,
             orientation=actual.log2_orientation_ko,
+            motion=actual.log2_motion_kp,
             i=0.0 if actual.i_mode == "off" else actual.log2_i,
             i_off=actual.i_mode != "off",
             filter_tau=actual.log2_filter_tau,

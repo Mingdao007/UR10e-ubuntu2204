@@ -745,6 +745,7 @@ def _request_document(
     force_damping: float,
     normal_filter_tau_s: float,
     orientation_ko: float,
+    motion_kp: float,
     source: str,
     position: str,
     occurrence_nonce: str,
@@ -766,6 +767,7 @@ def _request_document(
         "force_damping": force_damping,
         "normal_filter_tau_s": normal_filter_tau_s,
         "orientation_ko": orientation_ko,
+        "motion_kp": motion_kp,
     }
     overlay_input.pop("control_candidate_uid", None)
     overlay = normalize_trial_overlay(overlay_input, profile=profile)
@@ -776,6 +778,7 @@ def _request_document(
                 force_i_gain=float(overlay["force_i_gain"]),
                 force_damping=float(overlay["force_damping"]),
                 orientation_ko=float(overlay["orientation_ko"]),
+                motion_kp=float(overlay["motion_kp"]),
                 normal_filter_tau_s=float(overlay["normal_filter_tau_s"]),
             ),
             role="parameter request",
@@ -846,6 +849,7 @@ def submit_manifest(
                     row.get("normal_filter_tau_s", 0.35)
                 ),
                 orientation_ko=float(row.get("orientation_ko", 0.4)),
+                motion_kp=float(row.get("motion_kp", 1.5)),
                 source=str(row.get("source", "manual_cli")),
                 position=str(row.get("position", "tail")),
                 occurrence_nonce=str(row.get("occurrence_nonce") or secrets.token_hex(16)),
@@ -880,6 +884,7 @@ def submit(
     force_damping: float,
     normal_filter_tau_s: float = 0.35,
     orientation_ko: float = 0.4,
+    motion_kp: float = 1.5,
     source: str = "manual_cli",
     position: str = "tail",
     occurrence_nonce: str | None = None,
@@ -895,6 +900,7 @@ def submit(
                 "force_damping": force_damping,
                 "normal_filter_tau_s": normal_filter_tau_s,
                 "orientation_ko": orientation_ko,
+                "motion_kp": motion_kp,
                 "source": source,
                 "position": position,
                 "occurrence_nonce": occurrence_nonce,
@@ -934,6 +940,7 @@ def _request_candidate(request: Mapping[str, Any]) -> ForceCandidate:
         force_i_gain=float(overlay["force_i_gain"]),
         force_damping=float(overlay["force_damping"]),
         orientation_ko=float(overlay.get("orientation_ko", 0.4)),
+        motion_kp=float(overlay.get("motion_kp", 1.5)),
         normal_filter_tau_s=float(overlay.get("normal_filter_tau_s", 0.35)),
     )
 
@@ -1777,6 +1784,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     submit_parser.add_argument("--force-damping", type=float, required=True)
     submit_parser.add_argument("--normal-filter-tau-s", type=float, default=0.35)
     submit_parser.add_argument("--orientation-ko", type=float, default=0.4)
+    submit_parser.add_argument("--motion-kp", type=float, default=1.5)
     submit_parser.add_argument("--source", default="manual_cli")
     submit_parser.add_argument("--position", choices=sorted(POSITIONS), default="tail")
     submit_parser.add_argument(
@@ -1836,6 +1844,7 @@ def main(argv: list[str] | None = None) -> int:
             force_damping=args.force_damping,
             normal_filter_tau_s=args.normal_filter_tau_s,
             orientation_ko=args.orientation_ko,
+            motion_kp=args.motion_kp,
             source=args.source,
             position=args.position,
         )

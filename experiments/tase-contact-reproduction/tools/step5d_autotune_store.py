@@ -1015,6 +1015,8 @@ class CampaignStore:
                 force_p_gain=candidate_payload["force_p_gain"],
                 force_i_gain=candidate_payload["force_i_gain"],
                 force_damping=candidate_payload["force_damping"],
+                orientation_ko=candidate_payload.get("orientation_ko", 0.4),
+                motion_kp=candidate_payload.get("motion_kp", 1.5),
                 normal_filter_tau_s=candidate_payload.get(
                     "normal_filter_tau_s", 0.35
                 ),
@@ -1302,6 +1304,8 @@ class CampaignStore:
                         force_p_gain=candidate_payload["force_p_gain"],
                         force_i_gain=candidate_payload["force_i_gain"],
                         force_damping=candidate_payload["force_damping"],
+                        orientation_ko=candidate_payload.get("orientation_ko", 0.4),
+                        motion_kp=candidate_payload.get("motion_kp", 1.5),
                         normal_filter_tau_s=candidate_payload.get(
                             "normal_filter_tau_s", 0.35
                         ),

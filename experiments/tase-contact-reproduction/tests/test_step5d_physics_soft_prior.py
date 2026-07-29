@@ -34,13 +34,20 @@ def test_default_seed_matches_butterworth_ratio_at_implied_stiffness() -> None:
 def test_prior_is_soft_finite_and_prefers_target_ratio() -> None:
     prior = PhysicsSoftPrior(contact_stiffness_n_m=24_500.0)
     target = ForceCandidate()
+    near_motion_target = ForceCandidate.from_log2(
+        p=0.0,
+        damping=0.0,
+        motion=1.5,
+    )
     low_damping = ForceCandidate.from_log2(
         p=0.0,
         damping=-6.0,
         i=0.0,
     )
 
-    assert physics_log_weight(target, prior) == pytest.approx(0.0, abs=1e-12)
+    assert physics_log_weight(near_motion_target, prior) > physics_log_weight(
+        target, prior
+    )
     assert math.isfinite(physics_log_weight(low_damping, prior))
     assert physics_log_weight(low_damping, prior) < 0.0
 

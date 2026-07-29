@@ -254,11 +254,50 @@ def _candidate_and_identity(
             field="autotune_force_damping",
             expected=overlay.get("force_damping"),
         ),
-        "normal_filter_tau_s": overlay.get("normal_filter_tau_s"),
+        "applied_force_p_gain": _matching_float(
+            rows,
+            field="_step5d_applied_force_p_gain",
+            expected=overlay.get("force_p_gain"),
+        ),
+        "applied_force_i_gain": _matching_float(
+            rows,
+            field="_step5d_applied_force_i_gain",
+            expected=overlay.get("force_i_gain"),
+        ),
+        "applied_force_damping": _matching_float(
+            rows,
+            field="_step5d_applied_force_damping",
+            expected=overlay.get("force_damping"),
+        ),
         "orientation_ko": _matching_float(
             rows,
             field="autotune_orientation_ko",
             expected=overlay.get("orientation_ko"),
+        ),
+        "motion_kp": _matching_float(
+            rows,
+            field="autotune_motion_kp",
+            expected=overlay.get("motion_kp", 1.5),
+        ),
+        "normal_filter_tau_s": _matching_float(
+            rows,
+            field="autotune_normal_filter_tau_s",
+            expected=overlay.get("normal_filter_tau_s", 0.35),
+        ),
+        "applied_normal_filter_tau_s": _matching_float(
+            rows,
+            field="_step5d_normal_filter_tau_s",
+            expected=overlay.get("normal_filter_tau_s", 0.35),
+        ),
+        "applied_orientation_ko": _matching_float(
+            rows,
+            field="_step5d_applied_orientation_ko",
+            expected=overlay.get("orientation_ko"),
+        ),
+        "applied_motion_kp": _matching_float(
+            rows,
+            field="_step5d_applied_motion_kp",
+            expected=overlay.get("motion_kp", 1.5),
         ),
         "source": request.get("source"),
     }

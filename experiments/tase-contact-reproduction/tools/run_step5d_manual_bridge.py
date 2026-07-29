@@ -264,7 +264,9 @@ def apply_manual_arm_runtime(
         force_p_gain=normalized["force_p_gain"],
         force_i_gain=normalized["force_i_gain"],
         force_damping=normalized["force_damping"],
+        orientation_ko=normalized["orientation_ko"],
         normal_filter_tau_s=normalized.get("normal_filter_tau_s", 0.35),
+        motion_kp=normalized.get("motion_kp", 1.5),
     )
     profile = binding.profile
     args.step5d_autotune_force_p = candidate.force_p_gain
@@ -303,6 +305,7 @@ def apply_manual_arm_runtime(
         setattr(args, field, float(normalized[field]))
     args.step5d_autotune_control_candidate_uid = normalized["control_candidate_uid"]
     args.step5d_autotune_orientation_ko = normalized["orientation_ko"]
+    args.step5d_autotune_motion_kp = normalized.get("motion_kp", 1.5)
     bridge.STEP5D_V33_ORIENTATION_KO = normalized["orientation_ko"]
     prior = r009_bridge.STEP5D_V3_PHYSICAL_PRIOR
     args.step5d_physical_prior_reaction_normal_b = prior.reaction_normal_b

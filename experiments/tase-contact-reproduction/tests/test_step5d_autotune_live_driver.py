@@ -9,6 +9,7 @@ import math
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -216,6 +217,30 @@ def fake_rtde(
         "actual_qd": [0.0] * 6,
         "safety_mode": "NORMAL",
     }
+
+
+def test_mailbox_round_trip_preserves_outer_loop_candidate_fields() -> None:
+    candidate = ForceCandidate(
+        orientation_ko=0.2,
+        normal_filter_tau_s=0.7,
+        motion_kp=3.0,
+    )
+    trial = replace(
+        make_trial(),
+        candidate=candidate,
+        transition=TrialTransition(TrialTransitionKind.BATCH_BOOTSTRAP),
+    )
+    with tempfile.TemporaryDirectory() as directory:
+        mailbox = AtomicCommandMailbox(Path(directory) / "command.json")
+        mailbox.send_command(
+            packet_for(trial, HostCommand.ARM),
+            prepared_trial=make_prepared(trial),
+        )
+        decoded = mailbox.read_latest()
+        assert decoded is not None
+        assert decoded.binding.candidate.orientation_ko == 0.2
+        assert decoded.binding.candidate.normal_filter_tau_s == 0.7
+        assert decoded.binding.candidate.motion_kp == 3.0
 
 
 def fake_bridge_args() -> SimpleNamespace:
@@ -808,7 +833,8 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
             self.assertTrue(capture_path.is_file())
             text = capture_path.read_text()
             self.assertEqual(text.count(trial.trial_uid), 2)
-            self.assertNotIn(str(trial.candidate_token + 1), text)
+            with capture_path.open(newline="", encoding="utf-8") as handle:
+                self.assertEqual(len(list(csv.DictReader(handle))), 2)
 
     def test_run_stop_uses_legacy_float_and_integer_stop_is_outer_only(self) -> None:
         self.assertEqual(

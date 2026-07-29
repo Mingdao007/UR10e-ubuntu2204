@@ -220,12 +220,71 @@ def derive_bundle_summary(capture: Path, trial_id: str, output_dir: Path) -> Map
         "force_p_gain": _same_identity(rows, "autotune_force_p_gain"),
         "force_i_gain": _same_identity(rows, "autotune_force_i_gain"),
         "force_damping": _same_identity(rows, "autotune_force_damping"),
+        "applied_force_p_gain": _same_identity(
+            rows, "_step5d_applied_force_p_gain"
+        ),
+        "applied_force_i_gain": _same_identity(
+            rows, "_step5d_applied_force_i_gain"
+        ),
+        "applied_force_damping": _same_identity(
+            rows, "_step5d_applied_force_damping"
+        ),
         "orientation_ko": _same_identity(rows, "autotune_orientation_ko"),
+        "motion_kp": _same_identity(rows, "autotune_motion_kp"),
+        "normal_filter_tau_s": _same_identity(
+            rows, "autotune_normal_filter_tau_s"
+        ),
+        "applied_normal_filter_tau_s": _same_identity(
+            rows, "_step5d_normal_filter_tau_s"
+        ),
+        "applied_orientation_ko": _same_identity(
+            rows, "_step5d_applied_orientation_ko"
+        ),
+        "applied_motion_kp": _same_identity(
+            rows, "_step5d_applied_motion_kp"
+        ),
     }
+    applied_identity_matches = all(
+        requested is not None
+        and applied is not None
+        and math.isclose(
+            float(requested),
+            float(applied),
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        )
+        for requested, applied in (
+            (
+                exact_candidate["force_p_gain"],
+                exact_candidate["applied_force_p_gain"],
+            ),
+            (
+                exact_candidate["force_i_gain"],
+                exact_candidate["applied_force_i_gain"],
+            ),
+            (
+                exact_candidate["force_damping"],
+                exact_candidate["applied_force_damping"],
+            ),
+            (
+                exact_candidate["orientation_ko"],
+                exact_candidate["applied_orientation_ko"],
+            ),
+            (
+                exact_candidate["motion_kp"],
+                exact_candidate["applied_motion_kp"],
+            ),
+            (
+                exact_candidate["normal_filter_tau_s"],
+                exact_candidate["applied_normal_filter_tau_s"],
+            ),
+        )
+    )
     round_a = rounds["round_a"]
     optimizer_eligible = bool(
         control_uid
         and all(value is not None for value in exact_candidate.values())
+        and applied_identity_matches
         and not blocking_failures
         and capture_summary.get("terminal_reason") == 1
         and capture_summary.get("cadence_ok") is True
@@ -242,6 +301,7 @@ def derive_bundle_summary(capture: Path, trial_id: str, output_dir: Path) -> Map
         "optimizer_eligible": optimizer_eligible,
         "control_candidate_uid": control_uid,
         "control_candidate": exact_candidate,
+        "applied_identity_matches": applied_identity_matches,
         "rounds": rounds,
         "blocking_structural_failures": blocking_failures,
         "diagnostic_only_failures": sorted(

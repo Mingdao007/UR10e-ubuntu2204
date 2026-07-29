@@ -868,6 +868,9 @@ def adopted_candidate_history(
             force_p_gain=payload.get("force_p_gain"),
             force_i_gain=payload.get("force_i_gain"),
             force_damping=payload.get("force_damping"),
+            orientation_ko=payload.get("orientation_ko", 0.4),
+            normal_filter_tau_s=payload.get("normal_filter_tau_s", 0.35),
+            motion_kp=payload.get("motion_kp", 1.5),
         )
         if row.get("candidate_uid") != candidate.candidate_uid:
             raise RuntimeError("adopted candidate history identity differs")
@@ -2038,6 +2041,11 @@ def run(args: argparse.Namespace) -> int:
                     force_p_gain=float(control["force_p_gain"]),
                     force_i_gain=float(control["force_i_gain"]),
                     force_damping=float(control["force_damping"]),
+                    orientation_ko=float(control.get("orientation_ko", 0.4)),
+                    normal_filter_tau_s=float(
+                        control.get("normal_filter_tau_s", 0.35)
+                    ),
+                    motion_kp=float(control.get("motion_kp", 1.5)),
                 )
             next_arm_command_seq = (
                 supervisor.recovery_snapshot().command_seq + 1

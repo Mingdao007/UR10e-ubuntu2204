@@ -448,6 +448,7 @@ OVERLAY_FIELDS = (
     "force_damping",
     "orientation_ko",
     "normal_filter_tau_s",
+    "motion_kp",
     "control_candidate_uid",
     "execution_profile_id",
     "step5d_preload_filtered_min_n",
@@ -459,7 +460,10 @@ OVERLAY_FIELDS = (
     "step5d_preload_timeout_s",
 )
 LEGACY_OVERLAY_FIELDS = tuple(
-    field for field in OVERLAY_FIELDS if field != "normal_filter_tau_s"
+    field for field in OVERLAY_FIELDS if field not in {"normal_filter_tau_s", "motion_kp"}
+)
+PRE_MOTION_OVERLAY_FIELDS = tuple(
+    field for field in OVERLAY_FIELDS if field != "motion_kp"
 )
 CONTROL_CANDIDATE_FIELDS = (
     "force_p_gain",
@@ -467,9 +471,15 @@ CONTROL_CANDIDATE_FIELDS = (
     "force_damping",
     "orientation_ko",
     "normal_filter_tau_s",
+    "motion_kp",
+)
+PRE_MOTION_CONTROL_CANDIDATE_FIELDS = tuple(
+    field for field in CONTROL_CANDIDATE_FIELDS if field != "motion_kp"
 )
 LEGACY_CONTROL_CANDIDATE_FIELDS = tuple(
-    field for field in CONTROL_CANDIDATE_FIELDS if field != "normal_filter_tau_s"
+    field
+    for field in CONTROL_CANDIDATE_FIELDS
+    if field not in {"normal_filter_tau_s", "motion_kp"}
 )
 
 
@@ -491,6 +501,8 @@ def _finite(value: Any, name: str) -> float:
 def control_candidate_uid(candidate: Mapping[str, Any]) -> str:
     fields = (
         CONTROL_CANDIDATE_FIELDS
+        if "motion_kp" in candidate
+        else PRE_MOTION_CONTROL_CANDIDATE_FIELDS
         if "normal_filter_tau_s" in candidate
         else LEGACY_CONTROL_CANDIDATE_FIELDS
     )
@@ -505,12 +517,13 @@ def normalize_trial_overlay(overlay: Mapping[str, Any]) -> dict[str, Any]:
 
     if not isinstance(overlay, Mapping) or frozenset(overlay) not in {
         frozenset(OVERLAY_FIELDS),
+        frozenset(PRE_MOTION_OVERLAY_FIELDS),
         frozenset(LEGACY_OVERLAY_FIELDS),
     }:
         raise ValueError("Step5d V3 trial overlay fields differ from the frozen wire schema")
     normalized: dict[str, Any] = {}
     for name in OVERLAY_FIELDS:
-        if name == "normal_filter_tau_s" and name not in overlay:
+        if name in {"normal_filter_tau_s", "motion_kp"} and name not in overlay:
             continue
         value = overlay[name]
         normalized[name] = (
@@ -523,6 +536,8 @@ def normalize_trial_overlay(overlay: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("force I must be non-negative")
     if normalized.get("normal_filter_tau_s", 0.35) <= 0.0:
         raise ValueError("normal filter tau must be positive")
+    if normalized.get("motion_kp", 1.5) <= 0.0:
+        raise ValueError("motion Kp must be positive")
     supplied_control_uid = ControlCandidateUid.parse(
         normalized["control_candidate_uid"], allow_legacy=True
     )
@@ -671,7 +686,7 @@ class StageAutotuneAdapter:
             {
                 "source_id": "step5d_autotune_v1_campaign",
                 "artifact_path": "config/step5d_autotune_campaign_v1.json",
-                "sha256": "70e6d4ef41a1427acbfcbff38b898b00d9ebf277547331d701f253b49d7a72ce",
+                "sha256": "48f6d162345e9d190725358b5696426508d5282a3b8096636e0f91453e1d1664",
                 "claim_class": "authoritative",
             },
             {

@@ -21,6 +21,7 @@ from .identity import canonical_json_bytes, canonical_sha256, strict_json_loads
 from .stage_adapters import (
     CONTROL_CANDIDATE_FIELDS,
     LEGACY_CONTROL_CANDIDATE_FIELDS,
+    PRE_MOTION_CONTROL_CANDIDATE_FIELDS,
     normalize_trial_overlay,
 )
 
@@ -304,6 +305,8 @@ class BatchRow:
         overlay = normalize_trial_overlay(self.trial_overlay)
         candidate_fields = (
             CONTROL_CANDIDATE_FIELDS
+            if "motion_kp" in overlay
+            else PRE_MOTION_CONTROL_CANDIDATE_FIELDS
             if "normal_filter_tau_s" in overlay
             else LEGACY_CONTROL_CANDIDATE_FIELDS
         )
