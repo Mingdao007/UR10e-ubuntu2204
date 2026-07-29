@@ -39,6 +39,11 @@ _REQUIRED_TRUE_PREDICATES = (
     "tp_runtime_identity_verified",
     "uploaded_identity_verified",
 )
+_IDENTITY_PLAY_REQUIRED_TRUE_PREDICATES = tuple(
+    name
+    for name in _REQUIRED_TRUE_PREDICATES
+    if name not in {"bench_ready", "tp_runtime_identity_verified"}
+)
 
 _DASHBOARD_OBSERVATION_COMMANDS = [
     "is in remote control",
@@ -131,7 +136,8 @@ def _validate_status(
 ) -> tuple[str, str, str]:
     if status.get("schema") != STATUS_SCHEMA:
         raise RemotePlayError("governed status schema differs")
-    if status.get("compatibility_phase") != "WAITING_FOR_PLAY":
+    phase = status.get("compatibility_phase")
+    if phase not in {"WAITING_FOR_IDENTITY_PLAY", "WAITING_FOR_PLAY"}:
         raise RemotePlayError("bridge is not waiting for Play")
     if status.get("state") != "BENCH_READY":
         raise RemotePlayError("bench is not ready")
@@ -145,8 +151,13 @@ def _validate_status(
     predicates = status.get("predicates")
     if not isinstance(predicates, Mapping):
         raise RemotePlayError("governed predicates are missing")
+    required_predicates = (
+        _IDENTITY_PLAY_REQUIRED_TRUE_PREDICATES
+        if phase == "WAITING_FOR_IDENTITY_PLAY"
+        else _REQUIRED_TRUE_PREDICATES
+    )
     missing = [
-        name for name in _REQUIRED_TRUE_PREDICATES
+        name for name in required_predicates
         if predicates.get(name) is not True
     ]
     if missing:

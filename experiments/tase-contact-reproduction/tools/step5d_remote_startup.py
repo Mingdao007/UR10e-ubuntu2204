@@ -860,8 +860,12 @@ class RemoteBridgeStarter:
             )
         if status.get("schema") != "step5d.bridge/governed-status-v3":
             raise RemoteStartupPending("bridge status schema is not visible yet")
-        if status.get("state") != "BENCH_READY" or status.get("compatibility_phase") != "WAITING_FOR_PLAY":
-            raise RemoteStartupPending("fresh bridge attempt has not reached WAITING_FOR_PLAY")
+        phase = status.get("compatibility_phase")
+        if status.get("state") != "BENCH_READY" or phase not in {
+            "WAITING_FOR_IDENTITY_PLAY",
+            "WAITING_FOR_PLAY",
+        }:
+            raise RemoteStartupPending("fresh bridge attempt has not reached a governed Play barrier")
         expected_target = manifest.payload["script2"]["controller_target"]
         controller = status.get("controller")
         loaded = controller.get("loaded") if isinstance(controller, Mapping) else None
@@ -982,7 +986,13 @@ class RemoteBridgeStarter:
                     )
                 try:
                     status = dict(self.status_resolver(self.experiment_root))
-                    claim = dict(self.readiness_claim_builder(status, "WAITING_FOR_PLAY"))
+                    phase = status.get("compatibility_phase")
+                    required_state = (
+                        phase
+                        if phase in {"WAITING_FOR_IDENTITY_PLAY", "WAITING_FOR_PLAY"}
+                        else "WAITING_FOR_PLAY"
+                    )
+                    claim = dict(self.readiness_claim_builder(status, required_state))
                     self.readiness_claim_verifier(status, claim)
                     response = self._validate_ready_status(manifest, status, claim)
                     self.bridge_id = str(response["bridge_id"])

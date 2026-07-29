@@ -165,6 +165,30 @@ def test_governed_remote_play_writes_receipt_only_after_play_observed(
     assert persisted == receipt
 
 
+def test_governed_remote_play_bootstraps_missing_tp_runtime_identity(
+    tmp_path: Path,
+) -> None:
+    payload = status(tmp_path)
+    payload["compatibility_phase"] = "WAITING_FOR_IDENTITY_PLAY"
+    payload["predicates"]["bench_ready"] = False
+    payload["predicates"]["tp_runtime_identity_verified"] = False
+    observations = iter([dashboard(), dashboard(playing=True)])
+
+    receipt = governed_remote_play(
+        tmp_path,
+        robot_host="robot",
+        status_resolver=lambda _root: payload,
+        dashboard_observer=lambda *_args, **_kwargs: next(observations),
+        dashboard_writer=lambda *_args, **_kwargs: "Starting program",
+        now_ns=iter([10_100, 10_200]).__next__,
+        monotonic=lambda: 1.0,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert receipt["status"] == "play_observed"
+    assert receipt["expected_program"] == EXPECTED
+
+
 def test_governed_remote_play_does_not_require_post_play_continuity_milestone(
     tmp_path: Path,
 ) -> None:

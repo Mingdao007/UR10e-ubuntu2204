@@ -385,7 +385,7 @@ def test_bridge_starter_uses_canonical_launcher_and_readiness_claim(tmp_path: Pa
     status = {
         "schema": "step5d.bridge/governed-status-v3",
         "state": "BENCH_READY",
-        "compatibility_phase": "WAITING_FOR_PLAY",
+        "compatibility_phase": "WAITING_FOR_IDENTITY_PLAY",
         "controller": {"loaded": {"verified": True, "expected": R026_TARGET, "observed": R026_TARGET}},
         "release": {"sha256": manifest.payload["script2"]["release_manifest_sha256"]},
         "predicates": {
@@ -410,6 +410,7 @@ def test_bridge_starter_uses_canonical_launcher_and_readiness_claim(tmp_path: Pa
     }
     process = _Process()
     commands: list[list[str]] = []
+    readiness_states: list[str] = []
     resolver_calls = 0
 
     def status_resolver(_root: Path):
@@ -432,7 +433,7 @@ def test_bridge_starter_uses_canonical_launcher_and_readiness_claim(tmp_path: Pa
         shell_path=manifest.experiment_root / "scripts/step5d-autotune-v3.sh",
         status_resolver=status_resolver,
         readiness_claim_builder=lambda _status, state: {
-            "state": state,
+            "state": readiness_states.append(state) or state,
             "attempt_id": "attempt-remote-1",
         },
         readiness_claim_verifier=lambda _status, _claim: {},
@@ -445,6 +446,7 @@ def test_bridge_starter_uses_canonical_launcher_and_readiness_claim(tmp_path: Pa
     receipt = starter.start(manifest)
     assert receipt["bridge_id"] == "canonical:attempt-remote-1"
     assert commands[0][0:2] == [str(manifest.experiment_root / "scripts/step5d-autotune-v3.sh"), "bridge-live"]
+    assert readiness_states == ["WAITING_FOR_IDENTITY_PLAY"]
     assert receipt["safety_normal"] is True
     starter.abort()
 
