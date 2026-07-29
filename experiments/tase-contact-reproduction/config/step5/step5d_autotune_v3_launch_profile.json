@@ -1,5 +1,5 @@
 {
-  "control_contract_sha256": "95a5a8346f33c0e58df705783575606cb7a3bfad51e249bccd61bb65a5b49606",
+  "control_contract_sha256": "f3778314b2d0847d3d72161b312eac00e497d8098027de6e40e04bab00d1ed3c",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "hard_tube_policy": {
     "enabled": false
@@ -8,7 +8,7 @@
   "moving_sphere_reference_sha256": "dd5f065a5cecc04098865dda08891e11bfa8c6c11f40bbd964d1b1dcb2b60b86",
   "release_stage_id": "step5d_strict_rnn_autotune_v3",
   "schema": "step5d.autotune-v3/launch-profile-v1",
-  "tp_program_id": "step5d_strict_rnn_autotune_v3_r029",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3_r030",
   "trial_overlay_policy": {
     "control_candidate_uid": {
       "derived": "sha256"
@@ -37,6 +37,19 @@
       "max": 0.004,
       "min": 0.00025
     },
+    "motion_kp": {
+      "allowed": [
+        1.5,
+        1.7838106725040817,
+        2.121320343559643,
+        2.5226892457611436,
+        3.0,
+        3.5676213450081633,
+        4.242640687119286,
+        5.045378491522287,
+        6.0
+      ]
+    },
     "normal_filter_tau_s": {
       "max": 0.7,
       "min": 0.175
@@ -56,19 +69,6 @@
         0.5656854249492381,
         0.6727171322029717,
         0.8
-      ]
-    },
-    "motion_kp": {
-      "allowed": [
-        1.5,
-        1.7838106725040817,
-        2.121320343559643,
-        2.5226892457611436,
-        3.0,
-        3.5676213450081633,
-        4.242640687119286,
-        5.045378491522287,
-        6.0
       ]
     },
     "step5d_preload_filtered_max_n": {
