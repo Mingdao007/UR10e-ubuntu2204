@@ -4,7 +4,7 @@ Controller target:
   /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r026.urp
 
 Version:
-  2026-07-29T_CURRENT_HKT_STEP5D_NORMAL_RATE_2P0
+  2026-07-29T1015HKT_STEP5D_NORMAL_RATE_5P0
 
 Identity:
   release_stage_id=step5d_strict_rnn_autotune_v3_r026
