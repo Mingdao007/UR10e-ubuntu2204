@@ -73,7 +73,7 @@ _DEFAULT_OVERLAY_INPUT: dict[str, Any] = {
     "force_damping": 7.0,
     "orientation_ko": 0.4,
     "normal_filter_tau_s": 0.35,
-    "execution_profile_id": "nf15000-slew250-a250",
+    "execution_profile_id": "nf100000-slew250-a250",
     "step5d_preload_filtered_min_n": 7.5,
     "step5d_preload_filtered_max_n": 14.0,
     "step5d_preload_raw_min_n": 7.0,

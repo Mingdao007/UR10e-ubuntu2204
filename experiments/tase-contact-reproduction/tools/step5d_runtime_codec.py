@@ -45,6 +45,7 @@ def execution_profile_integer_id(profile: ExecutionProfile) -> int:
         2.000: 9,
         5.000: 10,
         15.000: 11,
+        100.000: 12,
     }
     actuator_levels = {0.1: 1, 0.2: 2, 0.5: 3, 2.5: 4}
     try:

@@ -61,6 +61,7 @@ HIGH_DYNAMICS_PROFILE_IDS = frozenset(
         "nf2000-slew250-a250",
         "nf5000-slew250-a250",
         "nf15000-slew250-a250",
+        "nf100000-slew250-a250",
     }
 )
 
@@ -76,12 +77,12 @@ _EXECUTION_PROFILE_OVERLAY = (
     (
         "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050 rad/s;",
         "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100 rad/s;",
-        "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100, 7=.500, 8=1.000, 9=2.000, 10=5.000, 11=15.000 rad/s;",
+        "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100, 7=.500, 8=1.000, 9=2.000, 10=5.000, 11=15.000, 12=100.000 rad/s;",
     ),
     (
         "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
         "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
-        "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6 or normal_level == 7 or normal_level == 8 or normal_level == 9 or normal_level == 10 or normal_level == 11) and host_slew_level >= 1 and host_slew_level <= 4 and tp_accel_level >= 1 and tp_accel_level <= 4",
+        "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6 or normal_level == 7 or normal_level == 8 or normal_level == 9 or normal_level == 10 or normal_level == 11 or normal_level == 12) and host_slew_level >= 1 and host_slew_level <= 4 and tp_accel_level >= 1 and tp_accel_level <= 4",
     ),
     (
         "  elif accel_level == 3:\n    return 0.500",
@@ -137,6 +138,7 @@ def _apply_execution_profile(script: str, profile_id: str) -> str:
         "nf2000-slew250-a250": 9,
         "nf5000-slew250-a250": 10,
         "nf15000-slew250-a250": 11,
+        "nf100000-slew250-a250": 12,
     }[profile_id]
     if f"normal_level == {expected_normal_level}" not in rendered:
         raise ValueError(f"execution profile normal-rate overlay failed for {profile.profile_id}")
