@@ -1,0 +1,20 @@
+{
+  "control_profile_id": "step5d_strict_rnn_autotune_v1",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r033.urp",
+  "fresh_get_evidence": "per_campaign_delivery_observation",
+  "program": "step5d_strict_rnn_autotune_v3_r033",
+  "safety_boundary": [
+    "controller package upload and fresh GET only",
+    "no Load or Play",
+    "no bridge, ARM, contact, or motion"
+  ],
+  "schema": "step5d.autotune.controller-readback/v3",
+  "status": "controller read-back verified",
+  "tp_fingerprint": "2bbcdde2848116002a07be98190df9db4e1e2b4313a21a16350854e545476f14",
+  "triplet_sha256": {
+    ".script": "09ca95381c6b2e87cce5a98cb8a743e27a16cad5424729667d8115964473f69c",
+    ".txt": "ceb2c5be1e9e40d34644ff6745ff443cb53f7d09307c07e22cfaac017ac6e540",
+    ".urp": "f5ef030ab131d7cee1f2c06f4cdfb60a2ab66e2c9b3eb7bdbf15233d218417f8"
+  },
+  "verified": true
+}

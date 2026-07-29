@@ -1,0 +1,37 @@
+{
+  "artifacts": [
+    {
+      "filename": "step5d_strict_rnn_autotune_v3_r033.script",
+      "sha256": "09ca95381c6b2e87cce5a98cb8a743e27a16cad5424729667d8115964473f69c",
+      "source": "step5d_strict_rnn_autotune_v3_r033.script"
+    },
+    {
+      "filename": "step5d_strict_rnn_autotune_v3_r033.txt",
+      "sha256": "ceb2c5be1e9e40d34644ff6745ff443cb53f7d09307c07e22cfaac017ac6e540",
+      "source": "step5d_strict_rnn_autotune_v3_r033.txt"
+    },
+    {
+      "filename": "step5d_strict_rnn_autotune_v3_r033.urp",
+      "sha256": "f5ef030ab131d7cee1f2c06f4cdfb60a2ab66e2c9b3eb7bdbf15233d218417f8",
+      "source": "step5d_strict_rnn_autotune_v3_r033.urp"
+    }
+  ],
+  "basename": "step5d_strict_rnn_autotune_v3_r033",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "schema_version": 2,
+  "tp_runtime_identity": {
+    "digest_hi": 879486535,
+    "digest_lo": 1133012367,
+    "program_id": "step5d_strict_rnn_autotune_v3_r033",
+    "protocol_id": "v3_full_home_rolling_arm_v1",
+    "protocol_version": 1,
+    "registers": {
+      "digest_hi": 36,
+      "digest_lo": 37,
+      "protocol_version": 35
+    },
+    "schema": "step5d.autotune-v3/tp-runtime-identity-v1",
+    "script_artifact_sha256": "09ca95381c6b2e87cce5a98cb8a743e27a16cad5424729667d8115964473f69c",
+    "script_basis_sha256": "5681c31340101754f933ff46f9dc6ed1892fc1e3ef512b73cd324654eaf3a767"
+  }
+}

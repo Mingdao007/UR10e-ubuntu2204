@@ -1,0 +1,103 @@
+{
+  "control_contract_sha256": "c0ea80dc63ad832356ecd4af5055836b778cfff039036d410c2c7ed0a66cd62d",
+  "control_profile_id": "step5d_strict_rnn_autotune_v1",
+  "hard_tube_policy": {
+    "enabled": false
+  },
+  "launch_overrides": {},
+  "moving_sphere_reference_sha256": "dd5f065a5cecc04098865dda08891e11bfa8c6c11f40bbd964d1b1dcb2b60b86",
+  "release_stage_id": "step5d_strict_rnn_autotune_v3",
+  "schema": "step5d.autotune-v3/launch-profile-v1",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3_r033",
+  "trial_overlay_policy": {
+    "control_candidate_uid": {
+      "derived": "sha256"
+    },
+    "execution_profile_id": {
+      "allowed": [
+        "nf500-slew250-a250",
+        "nf1000-slew250-a250",
+        "nf2000-slew250-a250",
+        "nf5000-slew250-a250",
+        "nf15000-slew250-a250",
+        "nf100000-slew250-a250",
+        "nf100000-slew250-a2000",
+        "nf100-slew050-a050"
+      ]
+    },
+    "force_damping": {
+      "max": 28.0,
+      "min": 0.1
+    },
+    "force_i_gain": {
+      "max": 0.01,
+      "min": 0.0
+    },
+    "force_p_gain": {
+      "max": 0.004,
+      "min": 0.00025
+    },
+    "motion_kp": {
+      "allowed": [
+        1.5,
+        1.7838106725040817,
+        2.121320343559643,
+        2.5226892457611436,
+        3.0,
+        3.5676213450081633,
+        4.242640687119286,
+        5.045378491522287,
+        6.0
+      ]
+    },
+    "normal_filter_tau_s": {
+      "max": 0.7,
+      "min": 0.175
+    },
+    "orientation_ko": {
+      "allowed": [
+        0.1,
+        0.11892071150027211,
+        0.14142135623730953,
+        0.16817928305074292,
+        0.2,
+        0.23784142300054423,
+        0.28284271247461906,
+        0.33635856610148585,
+        0.4,
+        0.47568284600108846,
+        0.5656854249492381,
+        0.6727171322029717,
+        0.8
+      ]
+    },
+    "step5d_preload_filtered_max_n": {
+      "max": 22.0,
+      "min": 7.5
+    },
+    "step5d_preload_filtered_min_n": {
+      "max": 14.0,
+      "min": 0.0
+    },
+    "step5d_preload_force_norm_max_n": {
+      "max": 25.0,
+      "min": 15.0
+    },
+    "step5d_preload_hold_s": {
+      "max": 1.0,
+      "min": 0.05
+    },
+    "step5d_preload_raw_max_n": {
+      "max": 25.0,
+      "min": 7.0
+    },
+    "step5d_preload_raw_min_n": {
+      "max": 15.0,
+      "min": 0.0
+    },
+    "step5d_preload_timeout_s": {
+      "max": 30.0,
+      "min": 1.0
+    }
+  }
+}
