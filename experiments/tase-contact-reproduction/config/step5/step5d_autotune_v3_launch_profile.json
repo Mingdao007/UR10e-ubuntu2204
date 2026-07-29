@@ -1,5 +1,5 @@
 {
-  "control_contract_sha256": "56c4ea8ac6b2bcf8eac483e163b9c711a4367b197dce2011738e076525cb37a4",
+  "control_contract_sha256": "c0ea80dc63ad832356ecd4af5055836b778cfff039036d410c2c7ed0a66cd62d",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "hard_tube_policy": {
     "enabled": false
@@ -8,7 +8,7 @@
   "moving_sphere_reference_sha256": "dd5f065a5cecc04098865dda08891e11bfa8c6c11f40bbd964d1b1dcb2b60b86",
   "release_stage_id": "step5d_strict_rnn_autotune_v3",
   "schema": "step5d.autotune-v3/launch-profile-v1",
-  "tp_program_id": "step5d_strict_rnn_autotune_v3_r031",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3_r033",
   "trial_overlay_policy": {
     "control_candidate_uid": {
       "derived": "sha256"

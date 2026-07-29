@@ -147,9 +147,9 @@
     "receiver": "unbounded_file_queue"
   },
   "recovery_loaded_program_ids": [
-    "step5d_strict_rnn_autotune_v3_r028",
-    "step5d_strict_rnn_autotune_v3_r029",
-    "step5d_strict_rnn_autotune_v3_r030"
+    "step5d_strict_rnn_autotune_v3_r030",
+    "step5d_strict_rnn_autotune_v3_r031",
+    "step5d_strict_rnn_autotune_v3_r032"
   ],
   "release_claims": {
     "step5d_strict_rnn_autotune_v3_r004": "historical_incompatible_release",
@@ -176,7 +176,9 @@
     "step5d_strict_rnn_autotune_v3_r027": "historical_superseded_release",
     "step5d_strict_rnn_autotune_v3_r028": "historical_superseded_release",
     "step5d_strict_rnn_autotune_v3_r029": "historical_superseded_release",
-    "step5d_strict_rnn_autotune_v3_r030": "historical_superseded_release"
+    "step5d_strict_rnn_autotune_v3_r030": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r031": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r032": "historical_superseded_release"
   },
   "release_stage_id": "step5d_strict_rnn_autotune_v3",
   "release_truth": {
