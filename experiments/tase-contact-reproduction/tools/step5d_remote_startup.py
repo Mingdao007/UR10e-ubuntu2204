@@ -28,7 +28,6 @@ from step5d_no_tube_handoff import (
     HandoffError,
     HandoffManifest,
     SCRIPT1_PROGRAM,
-    SCRIPT2_PROGRAM,
     build_home_verified_receipt,
     validate_release_binding,
 )
@@ -690,7 +689,7 @@ class RemoteR026Loader:
         adapter = _ExactLoadAdapter(
             host=self.robot_host,
             target=target,
-            program_id=SCRIPT2_PROGRAM,
+            program_id=manifest.payload["script2"]["program_id"],
             dashboard_observer=self.dashboard_observer,
             writer=self.writer,
             dashboard_port=self.dashboard_port,
@@ -737,7 +736,7 @@ class RemoteR026IdentityObserver:
             expected_stopped=True,
         )
         return {
-            "program_id": SCRIPT2_PROGRAM,
+            "program_id": manifest.payload["script2"]["program_id"],
             "controller_target": target,
             "execution_profile_id": manifest.payload["script2"]["execution_profile_id"],
             "release_manifest_sha256": manifest.payload["script2"]["release_manifest_sha256"],
@@ -930,7 +929,7 @@ class RemoteBridgeStarter:
             ) from exc
         return {
             "bridge_id": f"canonical:{attempt_id}",
-            "controller_program_id": SCRIPT2_PROGRAM,
+            "controller_program_id": manifest.payload["script2"]["program_id"],
             "release_manifest_sha256": manifest.payload["script2"]["release_manifest_sha256"],
             "heartbeat_fresh": True,
             "lease_valid": True,
@@ -1130,7 +1129,7 @@ class RemoteCampaignPlayer:
         return {
             "action": "PLAY",
             "accepted": receipt["status"] == "play_observed",
-            "program_id": SCRIPT2_PROGRAM,
+            "program_id": manifest.payload["script2"]["program_id"],
             "program_running": after["running"].strip().lower() == "program running: true",
             "safety_mode": after["safetymode"].split(":", 1)[-1].strip(),
             "bridge_id": bridge_id,

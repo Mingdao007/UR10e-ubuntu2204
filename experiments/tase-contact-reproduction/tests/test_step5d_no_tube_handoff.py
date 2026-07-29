@@ -22,15 +22,15 @@ from step5d_no_tube_handoff import (  # noqa: E402
 MANIFEST = ROOT / "config/step5d/no_tube_handoff.json"
 
 
-def test_existing_script_pair_is_hash_closed_and_r026_current() -> None:
+def test_existing_script_pair_is_hash_closed_and_script2_current() -> None:
     manifest = load_manifest(MANIFEST)
     binding = validate_release_binding(manifest)
 
     assert binding["script1"]["program_id"] == "step5d_autotune_start_hover_r001"
-    assert binding["script2"]["program_id"] == "step5d_strict_rnn_autotune_v3_r026"
+    assert binding["script2"]["program_id"] == "step5d_strict_rnn_autotune_v3_r027"
     assert (
         binding["script2"]["sha256"][".script"]
-        == "6369ebc6150ef68c0ed14f16992427f49d3d355967f7b484f1ac6d9f2e80adc6"
+        == "443154e620d1b68dd2da748c5c96ceb77759e49fc0a3dec301d4c57c7bae65dd"
     )
 
 

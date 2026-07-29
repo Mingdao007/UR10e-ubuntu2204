@@ -16,6 +16,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 import time
 from typing import Any, Mapping, Sequence
 
@@ -29,7 +30,7 @@ QUEUE_READY_SCHEMA = "step5d.no-tube-handoff/queue-ready-v1"
 HOME_VERIFIED_SCHEMA = "step5d.no-tube-handoff/home-verified-v1"
 
 SCRIPT1_PROGRAM = "step5d_autotune_start_hover_r001"
-SCRIPT2_PROGRAM = "step5d_strict_rnn_autotune_v3_r026"
+SCRIPT2_PROGRAM_PATTERN = re.compile(r"step5d_strict_rnn_autotune_v3_r[0-9]{3}\Z")
 STATIONARY_DWELL_S = 0.5
 POSITION_ERROR_M = 0.003
 ORIENTATION_ERROR_RAD = 0.05
@@ -207,8 +208,12 @@ def load_manifest(path: Path, *, experiment_root: Path | None = None) -> Handoff
         raise HandoffError("handoff manifest sections must be objects")
     if script1.get("program_id") != SCRIPT1_PROGRAM:
         raise HandoffError("Script 1 program identity differs")
-    if script2.get("program_id") != SCRIPT2_PROGRAM:
-        raise HandoffError("Script 2 program identity differs")
+    script2_program_id = script2.get("program_id")
+    if (
+        not isinstance(script2_program_id, str)
+        or SCRIPT2_PROGRAM_PATTERN.fullmatch(script2_program_id) is None
+    ):
+        raise HandoffError("Script 2 program identity is not a governed V3 revision")
     _finite_vector(script1.get("target_tcp_pose"), 6, "Script 1 target_tcp_pose")
     if script1.get("target_joint_q") is not None:
         raise HandoffError("Script 1 must not introduce a commanded target joint vector")
@@ -334,27 +339,36 @@ def validate_triplet(manifest: HandoffManifest, section_name: str) -> dict[str, 
 def validate_release_binding(manifest: HandoffManifest) -> dict[str, Any]:
     script1 = validate_triplet(manifest, "script1")
     script2 = validate_triplet(manifest, "script2")
-    release_path = manifest.path_for(manifest.payload["script2"]["release_manifest"], "r026 release manifest")
-    release_sha = _file_sha256(release_path, "r026 release manifest")
+    script2_program_id = manifest.payload["script2"]["program_id"]
+    release_path = manifest.path_for(
+        manifest.payload["script2"]["release_manifest"],
+        "Script 2 release manifest",
+    )
+    release_sha = _file_sha256(release_path, "Script 2 release manifest")
     expected_release_sha = manifest.payload["script2"].get("release_manifest_sha256")
     if expected_release_sha is not None and release_sha != expected_release_sha:
-        raise HandoffError("r026 release manifest SHA differs")
-    release = _strict_json(release_path, "r026 release manifest")
+        raise HandoffError("Script 2 release manifest SHA differs")
+    release = _strict_json(release_path, "Script 2 release manifest")
     identity = release.get("identity")
-    if not isinstance(identity, Mapping) or identity.get("program_id") != SCRIPT2_PROGRAM:
-        raise HandoffError("r026 release program identity differs")
+    if (
+        not isinstance(identity, Mapping)
+        or identity.get("program_id") != script2_program_id
+    ):
+        raise HandoffError("Script 2 release program identity differs")
     current_path = manifest.experiment_root / "config/step5d/current.json"
     current = _strict_json(current_path, "current release pointer")
     current_manifest = _root_path(manifest.experiment_root, current.get("manifest_path"), "current release manifest")
     if _file_sha256(current_manifest, "current release manifest") != current.get("manifest_sha256"):
         raise HandoffError("current release pointer is not hash-closed")
     if current_manifest != release_path or current.get("manifest_sha256") != release_sha:
-        raise HandoffError("r026 is not the current immutable release")
+        raise HandoffError("Script 2 is not the current immutable release")
     return {
         "script1": script1,
         "script2": script2,
-        "r026_release_manifest": str(release_path.relative_to(manifest.experiment_root)),
-        "r026_release_manifest_sha256": release_sha,
+        "script2_release_manifest": str(
+            release_path.relative_to(manifest.experiment_root)
+        ),
+        "script2_release_manifest_sha256": release_sha,
         "current_pointer": str(current_path.relative_to(manifest.experiment_root)),
     }
 
