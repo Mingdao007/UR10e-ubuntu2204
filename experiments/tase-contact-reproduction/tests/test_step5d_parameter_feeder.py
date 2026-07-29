@@ -164,6 +164,23 @@ def test_initial_prefill_reaches_target_depth(tmp_path: Path) -> None:
     assert len(authoritative_view(queue)["pending_requests"]) == 8
 
 
+def test_dry_run_with_full_queue_reports_success_without_submission(
+    tmp_path: Path,
+) -> None:
+    queue = _queue(tmp_path)
+    feeder = _feeder(tmp_path, queue)
+    feeder.cycle()
+
+    receipt = feeder.cycle(dry_run=True)
+
+    assert receipt["status"] == "SUCCEEDED"
+    assert receipt["dry_run"] is True
+    assert receipt["before_depth"] == 8
+    assert receipt["after_depth"] == 8
+    assert receipt["submitted_request_uids"] == []
+    assert receipt["errors"] == []
+
+
 def test_limiter_saturation_diagnostic_does_not_delete_mae_observation(
     tmp_path: Path,
 ) -> None:

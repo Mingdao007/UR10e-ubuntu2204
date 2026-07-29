@@ -535,6 +535,7 @@ class ParameterFeeder:
             after_depth: int | None = None
             errors: list[dict[str, Any]] = []
             task_summary: dict[str, Any] = {"processed": [], "skipped_existing": [], "errors": []}
+            submitted: tuple[dict[str, Any], ...] = ()
             fallback_reason: str | None = None
             proposal_basis: dict[str, Any] = {"cycle_sequence": cycle_id}
             proposal_mode = "dry_run" if dry_run else "not_needed_above_low_watermark"
