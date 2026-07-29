@@ -240,6 +240,7 @@ def _release_fixture(
         "nf500-slew250-a250": (0.5, 744),
         "nf1000-slew250-a250": (1.0, 844),
         "nf2000-slew250-a250": (2.0, 944),
+        "nf5000-slew250-a250": (5.0, 1044),
     }
     normal_rate, integer_id = profile_bindings[execution_profile_id]
     manifest = {
@@ -423,7 +424,7 @@ def test_exact_first_row_admission_closes_plan_overlay_wrapper_and_tp_commit(
 ) -> None:
     _release_fixture(
         tmp_path,
-        execution_profile_id="nf2000-slew250-a250",
+        execution_profile_id="nf5000-slew250-a250",
     )
     release = load_current_release(tmp_path)
     campaign_root = tmp_path / "campaign"
@@ -708,7 +709,7 @@ def test_candidate_prefers_canonical_repository_artifacts(tmp_path: Path) -> Non
         canonical,
         "2026-07-23T0000HKT_" + PROGRAM.upper(),
         program_id=PROGRAM,
-        execution_profile_id="nf2000-slew250-a250",
+        execution_profile_id="nf5000-slew250-a250",
     )
 
     assert promoter.default_release_artifact_dir(tmp_path) == canonical

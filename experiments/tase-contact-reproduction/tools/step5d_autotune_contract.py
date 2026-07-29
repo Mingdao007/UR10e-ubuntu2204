@@ -37,6 +37,7 @@ QDOT_CAP_RAD_S = 0.5
 ROTATIONAL_DYNAMICS_X5_PROFILE_ID = "nf500-slew250-a250"
 ROTATIONAL_DYNAMICS_X10_PROFILE_ID = "nf1000-slew250-a250"
 ROTATIONAL_DYNAMICS_X20_PROFILE_ID = "nf2000-slew250-a250"
+ROTATIONAL_DYNAMICS_X50_PROFILE_ID = "nf5000-slew250-a250"
 NORMAL_FILTER_TAU_S = 0.35
 NORMAL_FILTER_DT_MODE = "fixed_0.002s"
 EXACT_REPLAY_ENGINE_ID = "step5d_v35_candidate_bound_exact_replay_v1"
@@ -417,9 +418,10 @@ class ExecutionProfile:
             0.500,
             1.000,
             2.000,
+            5.000,
         }:
             raise ValueError(
-                "normal max-rate must be one of .010/.015/.020/.030/.050/.100/.500/1.000/2.000 rad/s"
+                "normal max-rate must be one of .010/.015/.020/.030/.050/.100/.500/1.000/2.000/5.000 rad/s"
             )
         if host_slew not in {0.1, 0.2, 0.5, 2.5}:
             raise ValueError("host qdot slew must be one of .1/.2/.5/2.5 rad/s^2")
@@ -456,7 +458,7 @@ class ExecutionProfile:
             raise ValueError("offline .030 profile is fixed to host-slew=.1 and TP-accel=.1")
         if any(
             math.isclose(normal_rate, value, abs_tol=1e-12)
-            for value in (0.500, 1.000, 2.000)
+            for value in (0.500, 1.000, 2.000, 5.000)
         ):
             if not (
                 math.isclose(host_slew, 2.5, abs_tol=1e-12)
@@ -510,6 +512,14 @@ NORMAL_FILTER_PROFILES: tuple[ExecutionProfile, ...] = (
     ExecutionProfile(
         ROTATIONAL_DYNAMICS_X20_PROFILE_ID,
         2.000,
+        2.5,
+        2.5,
+        qdot_cap_rad_s=2.5,
+        bridge_angular_limit_rad_s=0.25,
+    ),
+    ExecutionProfile(
+        ROTATIONAL_DYNAMICS_X50_PROFILE_ID,
+        5.000,
         2.5,
         2.5,
         qdot_cap_rad_s=2.5,

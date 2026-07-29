@@ -63,6 +63,7 @@ NORMAL_LEVELS = {
     7: 0.500,
     8: 1.000,
     9: 2.000,
+    10: 5.000,
 }
 ACTUATOR_LEVELS = {1: 0.1, 2: 0.2, 3: 0.5, 4: 2.5}
 HOST_TO_TP_NAMES = (
@@ -157,11 +158,11 @@ def decode_execution_profile_id(
     *,
     network_mode: bool,
 ) -> tuple[float, float, float]:
-    """Decode and validate all three digits, not merely TP's ones digit."""
+    """Decode and validate all encoded level fields, not merely TP's ones digit."""
 
     value = _strict_int("execution_profile_id", execution_profile_id, positive=True)
-    if value < 100 or value > 999:
-        raise MailboxError("execution_profile_id must contain exactly three level digits")
+    if value < 100 or value > 1099:
+        raise MailboxError("execution_profile_id is outside the encoded level range")
     normal_level = value // 100
     host_level = (value // 10) % 10
     tp_level = value % 10

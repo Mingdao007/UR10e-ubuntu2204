@@ -499,7 +499,7 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
             decode_execution_profile_id(323, network_mode=True),
             (0.020, 0.2, 0.5),
         )
-        with self.assertRaisesRegex(MailboxError, "three level digits"):
+        with self.assertRaisesRegex(MailboxError, "encoded level range"):
             decode_execution_profile_id(3, network_mode=True)
         with self.assertRaisesRegex(MailboxError, "offline_only"):
             decode_execution_profile_id(411, network_mode=True)
