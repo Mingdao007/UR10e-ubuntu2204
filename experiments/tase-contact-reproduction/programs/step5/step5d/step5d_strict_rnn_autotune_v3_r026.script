@@ -1,4 +1,4 @@
-# VERSION: 2026-07-29T1015HKT_STEP5D_NORMAL_RATE_5P0
+# VERSION: 2026-07-29T1100HKT_STEP5D_NORMAL_RATE_15P0
 # RELEASE_STAGE_ID: step5d_strict_rnn_autotune_v3_r026
 # CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1
 # TP_PROGRAM_ID: step5d_strict_rnn_autotune_v3_r026
@@ -6,8 +6,8 @@
 # PARENT_AUTOTUNE_V1_RENDERED_SHA256: eca2c7acaa878b1944c24b46c823ed64ffc0fb9e8658021dfd863a9f624f6676
 # TP_RUNTIME_IDENTITY_INT: protocol_version=35 digest_hi=36 digest_lo=37
 global codex_step5d_runtime_protocol_version = 1
-global codex_step5d_runtime_digest_hi = 1302879124
-global codex_step5d_runtime_digest_lo = 118376481
+global codex_step5d_runtime_digest_hi = 1860481276
+global codex_step5d_runtime_digest_lo = 287918057
 
 def codex_step5d_publish_runtime_identity():
   write_output_integer_register(35, codex_step5d_runtime_protocol_version)
@@ -649,7 +649,7 @@ end
 # TP_TO_HOST_INT: epoch=24 trial=25 state=26 token=27 reason=28 profile=29 consumed_sequence=30 batch_row=31 return_kind=32 guard_mask=33 logical_batch=34
 # PROFILE_ID: hundreds=normal-rate level; tens=host-slew level; ones=TP accel level
 # NETWORK_PROFILE_LEVELS: normal=1..3 (.010/.015/.020); host/TP=1..3 (.1/.2/.5)
-# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100, 7=.500, 8=1.000, 9=2.000, 10=5.000 rad/s;
+# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100, 7=.500, 8=1.000, 9=2.000, 10=5.000, 11=15.000 rad/s;
 # level 4 (.030 rad/s) is offline_only and must never reach this TP
 # TP_ACCEL_LEVEL: 1=.1 rad/s^2, 2=.2 rad/s^2, 3=.5 rad/s^2
 # STOP_CONTRACT: integer STOP is polled only in stationary ready states; during RUN
@@ -829,7 +829,7 @@ def codex_autotune_network_profile_valid(execution_profile_id):
   local remainder = execution_profile_id - 100 * normal_level
   local host_slew_level = floor(remainder / 10.0)
   local tp_accel_level = remainder - 10 * host_slew_level
-  return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6 or normal_level == 7 or normal_level == 8 or normal_level == 9 or normal_level == 10) and host_slew_level >= 1 and host_slew_level <= 4 and tp_accel_level >= 1 and tp_accel_level <= 4
+  return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6 or normal_level == 7 or normal_level == 8 or normal_level == 9 or normal_level == 10 or normal_level == 11) and host_slew_level >= 1 and host_slew_level <= 4 and tp_accel_level >= 1 and tp_accel_level <= 4
 end
 
 def codex_autotune_direct_terminal_state(stop_reason, batch_row_index):
