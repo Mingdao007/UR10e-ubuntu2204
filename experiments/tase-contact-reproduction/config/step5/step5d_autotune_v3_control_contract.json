@@ -8,16 +8,16 @@
     ]
   },
   "candidate_tp_artifact_sha256": {
-    ".script": "443154e620d1b68dd2da748c5c96ceb77759e49fc0a3dec301d4c57c7bae65dd",
-    ".txt": "9bc4a9d9590cd25ceab649a3bfbd963820b51dc9b82f2bb0189700186dab3af8",
-    ".urp": "5de89652c5f4445505b36bba2b93b23f9224c565fbabddbab0b5f6190e3a4393"
+    ".script": "5550631b4caffdbfbe38238b5fc2802a2a5ed3196372564fff5d086340ae4987",
+    ".txt": "26748b2f2794fd6e5d6c441d7930735a7770ec4d56aabe7f62f72edad90195c6",
+    ".urp": "1df52224e283d5aaac469744bc52ba6f29b414974d5f55ab02993264e1d194eb"
   },
   "candidate_tp_identity": {
     "artifact_dir": "programs/step5/step5d",
-    "deploy_manifest_sha256": "e03a2e522fb895f26420c27381dc3f1cfd55df85f41cb14abd0e718a74774fa6",
+    "deploy_manifest_sha256": "821db4b40b6732a3f7acdce5380242361635bc0301fe91b67ed0c69ab1187d27",
     "mode": "controller_readback_verified_promoted_current",
-    "numeric_sanity_sha256": "e03a9cc1d4660650447c1dbfab51e13eec186dba324f9dc4ee581c0ada0abc36",
-    "program": "step5d_strict_rnn_autotune_v3_r027"
+    "numeric_sanity_sha256": "cebd32c1db73f0b776f3b36b748a5efaa8bd4b467d083371cd3ca1774192139a",
+    "program": "step5d_strict_rnn_autotune_v3_r028"
   },
   "cli_arguments": [
     [
@@ -318,10 +318,10 @@
   "deployment_tp_identity": {
     "artifact_dir": "programs/step5/step5d",
     "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
-    "program": "step5d_strict_rnn_autotune_v3_r027",
+    "program": "step5d_strict_rnn_autotune_v3_r028",
     "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-    "readback_manifest_sha256": "0f290f774b646a6c1e117cb3a41dd06e8b3b8103c9f389f867a015fc306db4a8",
-    "tp_fingerprint": "e03a2e522fb895f26420c27381dc3f1cfd55df85f41cb14abd0e718a74774fa6"
+    "readback_manifest_sha256": "a69629c6cd284f9cfd72c8dc0472e84bbbb367bf8692d138216916c0a0eb92d0",
+    "tp_fingerprint": "821db4b40b6732a3f7acdce5380242361635bc0301fe91b67ed0c69ab1187d27"
   },
   "effective_fields": {
     "campaign_tunable": {
@@ -579,8 +579,8 @@
     "tools/step5d_runtime_interface.py": "9175a90143eb158608e4ea8a02dd720e62c560f4a6b4d5ec3b341a59a89720a4"
   },
   "tp_artifact_sha256": {
-    ".script": "443154e620d1b68dd2da748c5c96ceb77759e49fc0a3dec301d4c57c7bae65dd",
-    ".txt": "9bc4a9d9590cd25ceab649a3bfbd963820b51dc9b82f2bb0189700186dab3af8",
-    ".urp": "5de89652c5f4445505b36bba2b93b23f9224c565fbabddbab0b5f6190e3a4393"
+    ".script": "5550631b4caffdbfbe38238b5fc2802a2a5ed3196372564fff5d086340ae4987",
+    ".txt": "26748b2f2794fd6e5d6c441d7930735a7770ec4d56aabe7f62f72edad90195c6",
+    ".urp": "1df52224e283d5aaac469744bc52ba6f29b414974d5f55ab02993264e1d194eb"
   }
 }
