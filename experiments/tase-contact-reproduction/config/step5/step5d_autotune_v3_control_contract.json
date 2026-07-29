@@ -176,7 +176,7 @@
     ],
     [
       "--bridge-normal-max-rate-rad-s",
-      "5.000"
+      "15.000"
     ],
     [
       "--bridge-normal-min-force-n",
@@ -272,7 +272,7 @@
     ],
     [
       "--step5d-autotune-normal-rate-rad-s",
-      "5.000"
+      "15.000"
     ],
     [
       "--step5d-autotune-host-slew-rad-s2",
@@ -420,7 +420,7 @@
       "bridge_normal_follow_mode": "filtered_live",
       "bridge_normal_friction_projection": "on",
       "bridge_normal_max_angle_from_latch_deg": 20.0,
-      "bridge_normal_max_rate_rad_s": 5.0,
+      "bridge_normal_max_rate_rad_s": 15.0,
       "bridge_normal_min_force_n": 2.0,
       "bridge_normal_velocity_limit_m_s": 1.0,
       "bridge_total_linear_limit_m_s": 1.0,
@@ -452,7 +452,7 @@
       "step4e_normal_velocity_limit_m_s": 1.0,
       "step4e_total_linear_limit_m_s": 1.0,
       "step5d_autotune_host_slew_rad_s2": 2.5,
-      "step5d_autotune_normal_rate_rad_s": 5.0,
+      "step5d_autotune_normal_rate_rad_s": 15.0,
       "step5d_autotune_offline_only_profile": false,
       "step5d_autotune_profile_eligibility": "live_eligible",
       "step5d_autotune_speedj_acceleration_rad_s2": 2.5,
@@ -468,7 +468,7 @@
       "write_rtde_inputs": true
     }
   },
-  "execution_profile_id": "nf5000-slew250-a250",
+  "execution_profile_id": "nf15000-slew250-a250",
   "forbidden_cli_flags": [
     "--step4e-normal-filter-alpha",
     "--bridge-normal-filter-alpha",
@@ -558,16 +558,16 @@
     "config/step5d_autotune_i_scale_sanity_v1.json": "19b2a07cc43722cf486863150b65b9984160ccec1b326e762022135d20f6a225",
     "scripts/bridge-line-operator.sh": "38d9a5f7b17a40459a8e45e3a651a126e5a1831a9c96395f3d15daffa9691a0f",
     "scripts/step5d-autotune-live.sh": "d3f5b47b2ceb7f2f888c6f16f3c25d63f95afe867c5ce160b5871adb14d2380e",
-    "tools/build_step5d_autotune_tp_v3.py": "e1fedc587a191124698ad97c18ed4c985b2630aac0629b40ba445befa4747ec4",
+    "tools/build_step5d_autotune_tp_v3.py": "a9c1e547ced32e726e125cae57eb1ed903761193b8a3208d597684dab84c04c2",
     "tools/contact_semantics.py": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
     "tools/kunwei_rtde_bridge.py": "87816d2977b99135d0daccd655df306b7c03aefd27dd30f28501c483904f89ee",
     "tools/run_step5d_autotune_campaign.py": "05a5142867c3732e19670f278728829cb2c2895985b8ba4507a0033c0fbfe78b",
     "tools/step5d_autotune_backend.py": "2d4f2f8b44bb149af9b27ae4abfa438fabfeb1fe5284fbdbc77a9516d4dbaec1",
     "tools/step5d_autotune_batch_plan.py": "c42c30fb12aae72c515a7e175564fe9aab9b2ff0a4fbb76215395f6b16709825",
-    "tools/step5d_autotune_contract.py": "3ace71c1fba3a1fd3ab6ff2919f05e4d9ffcd5c9d2e019c54315684a746b5b74",
+    "tools/step5d_autotune_contract.py": "4716efbaf6231505f0181b200f6fd60802115b9ffb4adb22e2e8742fdb20cdf7",
     "tools/step5d_autotune_coordinator.py": "9d02995c68f1ecbdae2b1a4522b7c9a00140b541045087f46548c5fd5a1aceb3",
     "tools/step5d_autotune_journal.py": "bd3f7accf87ba02932d9e30772fcf261635b572f6f1be5ccaa6010bdaa2978d5",
-    "tools/step5d_autotune_live_driver.py": "49f753f7656d942aeb3782ed29e481ff7794cd30c762dda087b8ec5e40eaa966",
+    "tools/step5d_autotune_live_driver.py": "ae4c60a1051d73d3c8d86291122e56593d5a1a26ff964379e5afc88fac385fcc",
     "tools/step5d_autotune_optimizer.py": "4ab071fecc050a8e291fdb8aec5d55f7f9ca3901ec295cbd4991f60bb80c82ef",
     "tools/step5d_autotune_r008_policy.py": "4239a1d21abf31ea07a52a26f12c740d35a64afd84771a36eea62470236598be",
     "tools/step5d_autotune_runtime_lifecycle.py": "ca599cdaba906502c7f9ef145a08383bb30e8d3164f1e206a433953b5022d6db",
@@ -576,7 +576,7 @@
     "tools/step5d_control_contract.py": "eed2782da7d44d617758f4ca5f848fd082e40c7b85a9a5e3ffdfa7f5f7ffecb2",
     "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
     "tools/step5d_r008_completion.py": "8abad28f2da85b34ec793f7c6c42f203f5d7136217711a8cc01f83f02ce09321",
-    "tools/step5d_runtime_interface.py": "1a369f6375a875ee905bc6c4e7f456aa7aa46d2e1fe62704bb59fca31f9f299c"
+    "tools/step5d_runtime_interface.py": "c297fb256361961cf5411424e2fd89cc7b7646608bf4cb38ad1e9520df076784"
   },
   "tp_artifact_sha256": {
     ".script": "42d89b25ab9b9133758f819e29c0345b20d0d3c1032af2b14729c61c5735cc91",

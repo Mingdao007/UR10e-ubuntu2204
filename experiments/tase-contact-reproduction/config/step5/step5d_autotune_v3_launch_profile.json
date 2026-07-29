@@ -1,5 +1,5 @@
 {
-  "control_contract_sha256": "043ace932bdcf365bf171efd1caafacbb0a87fa8fe67155199d47fa64d6f09f1",
+  "control_contract_sha256": "2237a222516edd72053ccfeffc681ced3eae10955bbe1af88b5bf256339ebc3c",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "hard_tube_policy": {
     "enabled": false
@@ -19,6 +19,7 @@
         "nf1000-slew250-a250",
         "nf2000-slew250-a250",
         "nf5000-slew250-a250",
+        "nf15000-slew250-a250",
         "nf100-slew050-a050"
       ]
     },

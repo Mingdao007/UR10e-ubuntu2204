@@ -64,6 +64,7 @@ NORMAL_LEVELS = {
     8: 1.000,
     9: 2.000,
     10: 5.000,
+    11: 15.000,
 }
 ACTUATOR_LEVELS = {1: 0.1, 2: 0.2, 3: 0.5, 4: 2.5}
 HOST_TO_TP_NAMES = (
@@ -161,7 +162,7 @@ def decode_execution_profile_id(
     """Decode and validate all encoded level fields, not merely TP's ones digit."""
 
     value = _strict_int("execution_profile_id", execution_profile_id, positive=True)
-    if value < 100 or value > 1099:
+    if value < 100 or value > 1199:
         raise MailboxError("execution_profile_id is outside the encoded level range")
     normal_level = value // 100
     host_level = (value // 10) % 10
