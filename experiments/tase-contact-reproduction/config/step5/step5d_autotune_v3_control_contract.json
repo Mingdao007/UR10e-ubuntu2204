@@ -8,16 +8,16 @@
     ]
   },
   "candidate_tp_artifact_sha256": {
-    ".script": "5550631b4caffdbfbe38238b5fc2802a2a5ed3196372564fff5d086340ae4987",
-    ".txt": "26748b2f2794fd6e5d6c441d7930735a7770ec4d56aabe7f62f72edad90195c6",
-    ".urp": "1df52224e283d5aaac469744bc52ba6f29b414974d5f55ab02993264e1d194eb"
+    ".script": "f0d939f3821d6b285327ab2c94a09bb05e05bddeac721985b4b6171f8bb67458",
+    ".txt": "f3888bbebc852a6bc736598a97441ebfa8b47febfab6cb0d0fd248bc36f0f3a7",
+    ".urp": "fa3e620939b565657742fcbbc56e1bd62655b7f67b71b58e7db5b6606d780c2e"
   },
   "candidate_tp_identity": {
     "artifact_dir": "programs/step5/step5d",
-    "deploy_manifest_sha256": "821db4b40b6732a3f7acdce5380242361635bc0301fe91b67ed0c69ab1187d27",
+    "deploy_manifest_sha256": "0b6e990810141939a0ae178f594bf17e4646d731995080ef26650fe647ab676a",
     "mode": "controller_readback_verified_promoted_current",
-    "numeric_sanity_sha256": "cebd32c1db73f0b776f3b36b748a5efaa8bd4b467d083371cd3ca1774192139a",
-    "program": "step5d_strict_rnn_autotune_v3_r028"
+    "numeric_sanity_sha256": "0d43bd539c52aa5c51d2e953c6b7997722b611875bbe120024beca5751f2116e",
+    "program": "step5d_strict_rnn_autotune_v3_r029"
   },
   "cli_arguments": [
     [
@@ -318,10 +318,10 @@
   "deployment_tp_identity": {
     "artifact_dir": "programs/step5/step5d",
     "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
-    "program": "step5d_strict_rnn_autotune_v3_r028",
+    "program": "step5d_strict_rnn_autotune_v3_r029",
     "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-    "readback_manifest_sha256": "a69629c6cd284f9cfd72c8dc0472e84bbbb367bf8692d138216916c0a0eb92d0",
-    "tp_fingerprint": "821db4b40b6732a3f7acdce5380242361635bc0301fe91b67ed0c69ab1187d27"
+    "readback_manifest_sha256": "b229351624400ac5cd7b6726dc3485171466ddc0970be80febc0177e15a57cff",
+    "tp_fingerprint": "0b6e990810141939a0ae178f594bf17e4646d731995080ef26650fe647ab676a"
   },
   "effective_fields": {
     "campaign_tunable": {
@@ -564,11 +564,11 @@
     "tools/run_step5d_autotune_campaign.py": "05a5142867c3732e19670f278728829cb2c2895985b8ba4507a0033c0fbfe78b",
     "tools/step5d_autotune_backend.py": "2d4f2f8b44bb149af9b27ae4abfa438fabfeb1fe5284fbdbc77a9516d4dbaec1",
     "tools/step5d_autotune_batch_plan.py": "c42c30fb12aae72c515a7e175564fe9aab9b2ff0a4fbb76215395f6b16709825",
-    "tools/step5d_autotune_contract.py": "cbe9c012947c3fde7ad57e5253d27e9b3cf0f21a03309a398c4ef2c8d39acc66",
+    "tools/step5d_autotune_contract.py": "da32f6d773b21d71de59e29f6e0c3d9318f6c245ffffee3d7eea74ca44bcfb7e",
     "tools/step5d_autotune_coordinator.py": "9d02995c68f1ecbdae2b1a4522b7c9a00140b541045087f46548c5fd5a1aceb3",
     "tools/step5d_autotune_journal.py": "bd3f7accf87ba02932d9e30772fcf261635b572f6f1be5ccaa6010bdaa2978d5",
     "tools/step5d_autotune_live_driver.py": "d41c60a805b340807f5edba1469736537f9ea52b1b25e2b8acc2c63a8a95ed65",
-    "tools/step5d_autotune_optimizer.py": "4ab071fecc050a8e291fdb8aec5d55f7f9ca3901ec295cbd4991f60bb80c82ef",
+    "tools/step5d_autotune_optimizer.py": "4790ea94d3d8b1b1240bf690572f950bba1ee3c21efc5e87e4ada5cf8bd4abd5",
     "tools/step5d_autotune_r008_policy.py": "4239a1d21abf31ea07a52a26f12c740d35a64afd84771a36eea62470236598be",
     "tools/step5d_autotune_runtime_lifecycle.py": "ca599cdaba906502c7f9ef145a08383bb30e8d3164f1e206a433953b5022d6db",
     "tools/step5d_autotune_state_machine.py": "a6273c7fc909a6d5c4553421d10772ed3eb5bc20c4cda7212fcde2916c40dabd",
@@ -579,8 +579,8 @@
     "tools/step5d_runtime_interface.py": "9175a90143eb158608e4ea8a02dd720e62c560f4a6b4d5ec3b341a59a89720a4"
   },
   "tp_artifact_sha256": {
-    ".script": "5550631b4caffdbfbe38238b5fc2802a2a5ed3196372564fff5d086340ae4987",
-    ".txt": "26748b2f2794fd6e5d6c441d7930735a7770ec4d56aabe7f62f72edad90195c6",
-    ".urp": "1df52224e283d5aaac469744bc52ba6f29b414974d5f55ab02993264e1d194eb"
+    ".script": "f0d939f3821d6b285327ab2c94a09bb05e05bddeac721985b4b6171f8bb67458",
+    ".txt": "f3888bbebc852a6bc736598a97441ebfa8b47febfab6cb0d0fd248bc36f0f3a7",
+    ".urp": "fa3e620939b565657742fcbbc56e1bd62655b7f67b71b58e7db5b6606d780c2e"
   }
 }
