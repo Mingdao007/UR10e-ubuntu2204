@@ -136,7 +136,8 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_AUTOTUNE_NORMAL_FILTER_TAU_S,
     STEP5D_AUTOTUNE_OFFLINE_ONLY_NORMAL_RATE_RAD_S,
     STEP5D_AUTOTUNE_QDOT_CAP_RAD_S,
-    STEP5D_AUTOTUNE_SLEW_LEVELS_RAD_S2,
+    STEP5D_AUTOTUNE_HOST_SLEW_LEVELS_RAD_S2,
+    STEP5D_AUTOTUNE_SPEEDJ_ACCELERATION_LEVELS_RAD_S2,
     STEP5D_AUTOTUNE_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_ID,
     STEP5D_NO_CONTACT_P0_STAGE_IDS,
@@ -8166,12 +8167,12 @@ def configure_step5d_autotune_args(
         )
     host_slew = _autotune_level(
         args.step5d_autotune_host_slew_rad_s2,
-        STEP5D_AUTOTUNE_SLEW_LEVELS_RAD_S2,
+        STEP5D_AUTOTUNE_HOST_SLEW_LEVELS_RAD_S2,
         "--step5d-autotune-host-slew-rad-s2",
     )
     speedj_acceleration = _autotune_level(
         args.step5d_autotune_speedj_acceleration_rad_s2,
-        STEP5D_AUTOTUNE_SLEW_LEVELS_RAD_S2,
+        STEP5D_AUTOTUNE_SPEEDJ_ACCELERATION_LEVELS_RAD_S2,
         "--step5d-autotune-speedj-acceleration-rad-s2",
     )
 

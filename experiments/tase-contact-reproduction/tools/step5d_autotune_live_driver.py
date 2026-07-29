@@ -67,7 +67,8 @@ NORMAL_LEVELS = {
     11: 15.000,
     12: 100.000,
 }
-ACTUATOR_LEVELS = {1: 0.1, 2: 0.2, 3: 0.5, 4: 2.5}
+HOST_SLEW_LEVELS = {1: 0.1, 2: 0.2, 3: 0.5, 4: 2.5}
+TP_ACCEL_LEVELS = {1: 0.1, 2: 0.2, 3: 0.5, 4: 2.5, 5: 20.0}
 HOST_TO_TP_NAMES = (
     "campaign_epoch",
     "trial_id",
@@ -170,16 +171,16 @@ def decode_execution_profile_id(
     tp_level = value % 10
     if normal_level not in NORMAL_LEVELS:
         raise MailboxError("execution_profile_id has an invalid normal-rate digit")
-    if host_level not in ACTUATOR_LEVELS:
+    if host_level not in HOST_SLEW_LEVELS:
         raise MailboxError("execution_profile_id has an invalid host-slew digit")
-    if tp_level not in ACTUATOR_LEVELS:
+    if tp_level not in TP_ACCEL_LEVELS:
         raise MailboxError("execution_profile_id has an invalid TP-accel digit")
     if network_mode and normal_level == 4:
         raise MailboxError("the .030 rad/s profile is offline_only and forbidden on network/live")
     return (
         NORMAL_LEVELS[normal_level],
-        ACTUATOR_LEVELS[host_level],
-        ACTUATOR_LEVELS[tp_level],
+        HOST_SLEW_LEVELS[host_level],
+        TP_ACCEL_LEVELS[tp_level],
     )
 
 
@@ -188,10 +189,14 @@ def execution_profile_id_for(profile: ExecutionProfile, *, network_mode: bool) -
         "normal_max_rate_rad_s", profile.normal_max_rate_rad_s, NORMAL_LEVELS
     )
     host_digit, host = _exact_level(
-        "host_qdot_slew_rad_s2", profile.host_qdot_slew_rad_s2, ACTUATOR_LEVELS
+        "host_qdot_slew_rad_s2",
+        profile.host_qdot_slew_rad_s2,
+        HOST_SLEW_LEVELS,
     )
     tp_digit, tp = _exact_level(
-        "tp_speedj_accel_rad_s2", profile.tp_speedj_accel_rad_s2, ACTUATOR_LEVELS
+        "tp_speedj_accel_rad_s2",
+        profile.tp_speedj_accel_rad_s2,
+        TP_ACCEL_LEVELS,
     )
     if network_mode and (normal_digit == 4 or not profile.live_eligible):
         raise MailboxError("offline_only execution profile cannot enter the network mailbox")

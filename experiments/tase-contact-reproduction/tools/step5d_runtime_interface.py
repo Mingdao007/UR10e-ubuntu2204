@@ -99,8 +99,9 @@ STEP5D_AUTOTUNE_LIVE_NORMAL_RATE_RAD_S = (
 STEP5D_AUTOTUNE_OFFLINE_ONLY_NORMAL_RATE_RAD_S = (0.030,)
 STEP5D_AUTOTUNE_QDOT_CAP_RAD_S = 2.5
 STEP5D_AUTOTUNE_BRIDGE_ANGULAR_LIMIT_RAD_S = 0.25
-STEP5D_AUTOTUNE_SLEW_LEVELS_RAD_S2 = (0.1, 0.2, 0.5, 2.5)
-STEP5D_AUTOTUNE_EXECUTION_PROFILE_ID = "nf100000-slew250-a250"
+STEP5D_AUTOTUNE_HOST_SLEW_LEVELS_RAD_S2 = (0.1, 0.2, 0.5, 2.5)
+STEP5D_AUTOTUNE_SPEEDJ_ACCELERATION_LEVELS_RAD_S2 = (0.1, 0.2, 0.5, 2.5, 20.0)
+STEP5D_AUTOTUNE_EXECUTION_PROFILE_ID = "nf100000-slew250-a2000"
 STEP5D_AUTOTUNE_HANDSHAKE_HOST_TO_TP = {
     "input_int_register_24": "campaign_epoch",
     "input_int_register_25": "trial_id",
@@ -995,7 +996,10 @@ def resolve_runtime_interface(
                     "offline_only_normal_rate_rad_s": STEP5D_AUTOTUNE_OFFLINE_ONLY_NORMAL_RATE_RAD_S,
                     "qdot_cap_rad_s": STEP5D_AUTOTUNE_QDOT_CAP_RAD_S,
                     "bridge_angular_limit_rad_s": STEP5D_AUTOTUNE_BRIDGE_ANGULAR_LIMIT_RAD_S,
-                    "host_slew_and_speedj_levels_rad_s2": STEP5D_AUTOTUNE_SLEW_LEVELS_RAD_S2,
+                    "host_slew_levels_rad_s2": STEP5D_AUTOTUNE_HOST_SLEW_LEVELS_RAD_S2,
+                    "speedj_acceleration_levels_rad_s2": (
+                        STEP5D_AUTOTUNE_SPEEDJ_ACCELERATION_LEVELS_RAD_S2
+                    ),
                     "handshake": {
                         "host_to_tp": STEP5D_AUTOTUNE_HANDSHAKE_HOST_TO_TP,
                         "tp_to_host": STEP5D_AUTOTUNE_HANDSHAKE_TP_TO_HOST,

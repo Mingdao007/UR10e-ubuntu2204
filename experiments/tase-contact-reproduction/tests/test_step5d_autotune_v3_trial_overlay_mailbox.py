@@ -488,7 +488,7 @@ def test_initial_live_batch_uses_fresh_campaign_local_history(
         profile=next(
             row
             for row in NORMAL_FILTER_PROFILES
-            if row.profile_id == "nf100000-slew250-a250"
+            if row.profile_id == "nf100000-slew250-a2000"
         ),
         plan_revision=plan.revision,
         launch_profile_path=launch_profile_path,
@@ -508,7 +508,10 @@ def test_initial_control_batch_is_five_rows_with_three_baseline_occurrences() ->
     assert len(overlays) == 5
     assert len({row["control_candidate_uid"] for row in overlays}) == 3
     assert len({row["control_candidate_uid"] for row in overlays[:3]}) == 1
-    assert all(row["execution_profile_id"] == "nf100000-slew250-a250" for row in overlays)
+    assert all(
+        row["execution_profile_id"] == "nf100000-slew250-a2000"
+        for row in overlays
+    )
 
 
 def test_v3_arm_boundary_applies_real_orientation_k_with_tube_disabled() -> None:

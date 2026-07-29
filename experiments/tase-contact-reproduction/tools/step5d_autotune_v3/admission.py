@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -12,7 +13,10 @@ from step5d_autotune_batch_plan import (
     load_plan,
 )
 from step5d_autotune_contract import ExecutionProfile
-from step5d_autotune_live_driver import BridgeMailboxRuntime
+from step5d_autotune_live_driver import (
+    BridgeMailboxRuntime,
+    decode_execution_profile_id,
+)
 from step5d_autotune_runtime_lifecycle import next_runtime_plan_row
 from step5d_autotune_state_machine import HostCommand, HostPacket, TpLoopState
 
@@ -201,12 +205,20 @@ def verify_first_row_admission(
     normal_rate, profile_integer_id = ROLLING_EXECUTION_PROFILE_BINDINGS[
         release.execution_profile_id
     ]
+    decoded_normal, host_slew, tp_accel = decode_execution_profile_id(
+        profile_integer_id,
+        network_mode=True,
+    )
+    if not math.isclose(decoded_normal, normal_rate, rel_tol=0.0, abs_tol=1e-12):
+        raise FirstRowAdmissionError(
+            "release binding normal-rate differs from the integer codec"
+        )
     high_dynamics = normal_rate >= 0.5
     profile = ExecutionProfile(
         release.execution_profile_id,
         normal_rate,
-        2.5 if high_dynamics else 0.5,
-        2.5 if high_dynamics else 0.5,
+        host_slew,
+        tp_accel,
         qdot_cap_rad_s=2.5 if high_dynamics else 0.5,
         bridge_angular_limit_rad_s=0.25 if high_dynamics else 0.05,
     )

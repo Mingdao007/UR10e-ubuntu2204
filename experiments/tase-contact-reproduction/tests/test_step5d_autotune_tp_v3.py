@@ -38,7 +38,25 @@ def test_rotational_x5_generator_profile_is_explicit_and_offline_renderable() ->
     assert sanity["execution_profile_id"] == "nf500-slew250-a250"
     assert sanity["execution_profile_integer_id"] == 744
     assert sanity["qdot_cap_rad_s"] == 2.5
-    assert sanity["speedj_acceleration_profiles_rad_s2"][-1] == 2.5
+    assert sanity["speedj_acceleration_profiles_rad_s2"][-1] == 20.0
+
+
+def test_tp_accel_20_profile_is_encoded_in_the_tp_consumer() -> None:
+    rendered = v3.build_package_script(
+        TEST_STAMP,
+        program_id=TEST_PROGRAM,
+        execution_profile_id="nf100000-slew250-a2000",
+    )
+    assert "normal_level == 12" in rendered
+    assert "elif accel_level == 5:" in rendered
+    assert "return 20.000" in rendered
+    sanity = v3.numeric_sanity(
+        rendered,
+        program_id=TEST_PROGRAM,
+        execution_profile_id="nf100000-slew250-a2000",
+    )
+    assert sanity["execution_profile_integer_id"] == 1245
+    assert sanity["speedj_acceleration_profiles_rad_s2"][-1] == 20.0
 
 
 def test_urscript_block_balance_rejects_missing_inner_end() -> None:

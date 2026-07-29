@@ -40,6 +40,7 @@ ROTATIONAL_DYNAMICS_X20_PROFILE_ID = "nf2000-slew250-a250"
 ROTATIONAL_DYNAMICS_X50_PROFILE_ID = "nf5000-slew250-a250"
 ROTATIONAL_DYNAMICS_X150_PROFILE_ID = "nf15000-slew250-a250"
 ROTATIONAL_DYNAMICS_X1000_PROFILE_ID = "nf100000-slew250-a250"
+ROTATIONAL_DYNAMICS_X1000_TP_ACCEL_20_PROFILE_ID = "nf100000-slew250-a2000"
 NORMAL_FILTER_TAU_S = 0.35
 NORMAL_FILTER_DT_MODE = "fixed_0.002s"
 EXACT_REPLAY_ENGINE_ID = "step5d_v35_candidate_bound_exact_replay_v1"
@@ -429,8 +430,10 @@ class ExecutionProfile:
             )
         if host_slew not in {0.1, 0.2, 0.5, 2.5}:
             raise ValueError("host qdot slew must be one of .1/.2/.5/2.5 rad/s^2")
-        if tp_accel not in {0.1, 0.2, 0.5, 2.5}:
-            raise ValueError("TP speedj acceleration must be one of .1/.2/.5/2.5 rad/s^2")
+        if tp_accel not in {0.1, 0.2, 0.5, 2.5, 20.0}:
+            raise ValueError(
+                "TP speedj acceleration must be one of .1/.2/.5/2.5/20 rad/s^2"
+            )
         if qdot_cap not in {0.5, 2.5}:
             raise ValueError("qdot cap must be one of .5/2.5 rad/s")
         if bridge_angular_limit not in {0.05, 0.25}:
@@ -466,13 +469,20 @@ class ExecutionProfile:
         ):
             if not (
                 math.isclose(host_slew, 2.5, abs_tol=1e-12)
-                and math.isclose(tp_accel, 2.5, abs_tol=1e-12)
+                and (
+                    math.isclose(tp_accel, 2.5, abs_tol=1e-12)
+                    or (
+                        math.isclose(normal_rate, 100.0, abs_tol=1e-12)
+                        and math.isclose(tp_accel, 20.0, abs_tol=1e-12)
+                    )
+                )
                 and math.isclose(qdot_cap, 2.5, abs_tol=1e-12)
                 and math.isclose(bridge_angular_limit, 0.25, abs_tol=1e-12)
             ):
                 raise ValueError(
                     "high-dynamics profiles must bind bridge-angular=.25, "
-                    "qdot=2.5, host-slew=2.5, and TP-accel=2.5"
+                    "qdot=2.5, host-slew=2.5, and TP-accel=2.5 "
+                    "(or TP-accel=20 only for normal-rate=100)"
                 )
         elif not (
             math.isclose(qdot_cap, 0.5, abs_tol=1e-12)
@@ -542,6 +552,14 @@ NORMAL_FILTER_PROFILES: tuple[ExecutionProfile, ...] = (
         100.000,
         2.5,
         2.5,
+        qdot_cap_rad_s=2.5,
+        bridge_angular_limit_rad_s=0.25,
+    ),
+    ExecutionProfile(
+        ROTATIONAL_DYNAMICS_X1000_TP_ACCEL_20_PROFILE_ID,
+        100.000,
+        2.5,
+        20.0,
         qdot_cap_rad_s=2.5,
         bridge_angular_limit_rad_s=0.25,
     ),

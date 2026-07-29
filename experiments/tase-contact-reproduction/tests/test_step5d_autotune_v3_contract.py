@@ -51,17 +51,17 @@ CONTRACT = load_contract()
 CLI_ROWS = tuple(tuple(row) for row in CONTRACT["cli_arguments"])
 
 
-def test_rotational_x1000_profile_cross_checks_all_five_dynamics_values() -> None:
+def test_rotational_x1000_tp_accel_20_profile_cross_checks_all_dynamics_values() -> None:
     profile = ExecutionProfile(
-        "nf100000-slew250-a250",
+        "nf100000-slew250-a2000",
         100.0,
         2.5,
-        2.5,
+        20.0,
         qdot_cap_rad_s=2.5,
         bridge_angular_limit_rad_s=0.25,
     )
-    assert execution_profile_integer_id(profile) == 1244
-    assert decode_execution_profile_id(1244, network_mode=True) == (100.0, 2.5, 2.5)
+    assert execution_profile_integer_id(profile) == 1245
+    assert decode_execution_profile_id(1245, network_mode=True) == (100.0, 2.5, 20.0)
     assert CONTRACT["execution_profile_id"] == profile.profile_id
     cli = {row[0]: row[1] for row in CONTRACT["cli_arguments"] if len(row) == 2}
     assert {
@@ -71,14 +71,14 @@ def test_rotational_x1000_profile_cross_checks_all_five_dynamics_values() -> Non
         cli["--step5d-autotune-normal-rate-rad-s"],
         cli["--step5d-autotune-host-slew-rad-s2"],
         cli["--step5d-autotune-speedj-acceleration-rad-s2"],
-    } == {"100.000", "0.250", "2.500"}
+    } == {"100.000", "0.250", "2.500", "20.000"}
     safety = CONTRACT["effective_fields"]["safety_invariant"]
     assert safety["bridge_angular_limit_rad_s"] == 0.25
     assert safety["bridge_normal_max_rate_rad_s"] == 100.0
     assert safety["step5d_qdot_limit_rad_s"] == 2.5
     assert safety["step5d_autotune_normal_rate_rad_s"] == 100.0
     assert safety["step5d_autotune_host_slew_rad_s2"] == 2.5
-    assert safety["step5d_autotune_speedj_acceleration_rad_s2"] == 2.5
+    assert safety["step5d_autotune_speedj_acceleration_rad_s2"] == 20.0
     assert safety["step4e_angular_limit_rad_s"] == 0.05
     assert safety["step4e_normal_max_rate_rad_s"] == 0.1
 
@@ -290,7 +290,7 @@ def test_real_parser_round_trip_classifies_every_effective_field() -> None:
         ).hexdigest(),
         "tp_fingerprint": readback["tp_fingerprint"],
     }
-    assert report["execution_profile_id"] == "nf100000-slew250-a250"
+    assert report["execution_profile_id"] == "nf100000-slew250-a2000"
     categories = report["field_categories"]
     classified = [name for category in CATEGORIES for name in categories[category]]
     assert len(classified) == len(set(classified)) == 126

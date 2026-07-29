@@ -47,11 +47,12 @@ def execution_profile_integer_id(profile: ExecutionProfile) -> int:
         15.000: 11,
         100.000: 12,
     }
-    actuator_levels = {0.1: 1, 0.2: 2, 0.5: 3, 2.5: 4}
+    host_slew_levels = {0.1: 1, 0.2: 2, 0.5: 3, 2.5: 4}
+    tp_accel_levels = {0.1: 1, 0.2: 2, 0.5: 3, 2.5: 4, 20.0: 5}
     try:
         normal = normal_levels[profile.normal_max_rate_rad_s]
-        host_slew = actuator_levels[profile.host_qdot_slew_rad_s2]
-        tp_accel = actuator_levels[profile.tp_speedj_accel_rad_s2]
+        host_slew = host_slew_levels[profile.host_qdot_slew_rad_s2]
+        tp_accel = tp_accel_levels[profile.tp_speedj_accel_rad_s2]
     except KeyError as exc:
         raise ValueError(
             "execution profile is outside the frozen profile lattice"

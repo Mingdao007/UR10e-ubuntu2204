@@ -62,6 +62,7 @@ HIGH_DYNAMICS_PROFILE_IDS = frozenset(
         "nf5000-slew250-a250",
         "nf15000-slew250-a250",
         "nf100000-slew250-a250",
+        "nf100000-slew250-a2000",
     }
 )
 
@@ -82,12 +83,12 @@ _EXECUTION_PROFILE_OVERLAY = (
     (
         "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
         "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
-        "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6 or normal_level == 7 or normal_level == 8 or normal_level == 9 or normal_level == 10 or normal_level == 11 or normal_level == 12) and host_slew_level >= 1 and host_slew_level <= 4 and tp_accel_level >= 1 and tp_accel_level <= 4",
+        "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6 or normal_level == 7 or normal_level == 8 or normal_level == 9 or normal_level == 10 or normal_level == 11 or normal_level == 12) and host_slew_level >= 1 and host_slew_level <= 4 and tp_accel_level >= 1 and tp_accel_level <= 5",
     ),
     (
         "  elif accel_level == 3:\n    return 0.500",
         None,
-        "  elif accel_level == 3:\n    return 0.500\n  elif accel_level == 4:\n    return 2.500",
+        "  elif accel_level == 3:\n    return 0.500\n  elif accel_level == 4:\n    return 2.500\n  elif accel_level == 5:\n    return 20.000",
     ),
     ("local qdot_cap_rad_s = 0.500", None, "local qdot_cap_rad_s = 2.500"),
 )
@@ -130,7 +131,7 @@ def _apply_execution_profile(script: str, profile_id: str) -> str:
     rendered = _rewrite_execution_profile(script, profile_id)
     if "local qdot_cap_rad_s = 2.500" not in rendered:
         raise ValueError(f"execution profile overlay failed for {profile.profile_id}")
-    if "elif accel_level == 4:" not in rendered:
+    if "elif accel_level == 5:" not in rendered:
         raise ValueError(f"execution profile TP acceleration overlay failed for {profile.profile_id}")
     expected_normal_level = {
         "nf500-slew250-a250": 7,
@@ -139,6 +140,7 @@ def _apply_execution_profile(script: str, profile_id: str) -> str:
         "nf5000-slew250-a250": 10,
         "nf15000-slew250-a250": 11,
         "nf100000-slew250-a250": 12,
+        "nf100000-slew250-a2000": 12,
     }[profile_id]
     if f"normal_level == {expected_normal_level}" not in rendered:
         raise ValueError(f"execution profile normal-rate overlay failed for {profile.profile_id}")
@@ -1147,7 +1149,7 @@ def numeric_sanity(
         "precontact_entry_speed_m_s": 0.09,
         "far_search_speed_m_s": 0.03375,
         "speedj_acceleration_profiles_rad_s2": (
-            [0.1, 0.2, 0.5, 2.5]
+            [0.1, 0.2, 0.5, 2.5, 20.0]
             if execution_profile_id in HIGH_DYNAMICS_PROFILE_IDS
             else [0.1, 0.2, 0.5]
         ),
