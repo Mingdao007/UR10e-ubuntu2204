@@ -7,8 +7,8 @@
   "batch_row_policy": "five_row_logical_batches_every_row_campaign_home",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "delta_class": "identity_precontact_prior_corrective_entry_batch_lifecycle_single_owner_return_read_only_telemetry_v6",
-  "execution_profile_id": "nf15000-slew250-a250",
-  "execution_profile_integer_id": 1144,
+  "execution_profile_id": "nf100000-slew250-a250",
+  "execution_profile_integer_id": 1244,
   "far_search_speed_m_s": 0.03375,
   "host_protocol": "v3_full_home_rolling_arm_v1",
   "input_integer_registers": [
@@ -73,8 +73,8 @@
   ],
   "stage25_stale_command_hold_s": 1.0,
   "tp_runtime_identity": {
-    "digest_hi": 1860481276,
-    "digest_lo": 287918057,
+    "digest_hi": 589523900,
+    "digest_lo": 2044380998,
     "program_id": "step5d_strict_rnn_autotune_v3_r026",
     "protocol_id": "v3_full_home_rolling_arm_v1",
     "protocol_version": 1,
@@ -84,7 +84,7 @@
       "protocol_version": 35
     },
     "schema": "step5d.autotune-v3/tp-runtime-identity-v1",
-    "script_artifact_sha256": "dabc7ce46682c7c3e3ef0d93dafa86aa2d09580d5629bb515cee4d540ed6e21c",
-    "script_basis_sha256": "fb0d6eeff49e99862f1cb8d07a1db3d6d603bf76089d11abc66dcf4970fdc32a"
+    "script_artifact_sha256": "6369ebc6150ef68c0ed14f16992427f49d3d355967f7b484f1ac6d9f2e80adc6",
+    "script_basis_sha256": "9982f51169922e882bf1c1ad11623248502dd05f1604cad41794359db606da4c"
   }
 }

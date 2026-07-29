@@ -1,5 +1,5 @@
 {
-  "control_contract_sha256": "6fe317aa9f08243c0776514e9d1a7a146228ae3e4312471337313eca6bf20af9",
+  "control_contract_sha256": "1ebb6607a8dee032bd5d9a1595aa8877d10150faba9c5330dd4a7eca7928af12",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "hard_tube_policy": {
     "enabled": false
