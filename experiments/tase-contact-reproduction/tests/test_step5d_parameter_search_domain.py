@@ -16,19 +16,20 @@ from step5d_parameter_search_domain import (  # noqa: E402
     MOTION_KP_LATTICE,
     ORIENTATION_KO_LATTICE,
     augment_catalog_with_orientation_anchors,
+    damping_variants,
     orientation_variants,
     production_candidate_catalog,
     require_search_candidate,
 )
 
 
-def test_catalog_uses_declared_point_one_floor_on_quarter_octave_lattice() -> None:
+def test_catalog_bootstrap_support_is_not_the_damping_acceptance_boundary() -> None:
     catalog = production_candidate_catalog()
     assert catalog
-    assert min(row.force_damping for row in catalog) >= MIN_SEARCH_FORCE_DAMPING
     assert min(row.force_damping for row in catalog) == pytest.approx(
         0.109375
     )
+    assert MIN_SEARCH_FORCE_DAMPING == 0.0
 
 
 def test_candidate_above_point_one_is_searchable() -> None:
@@ -42,15 +43,22 @@ def test_candidate_above_point_one_is_searchable() -> None:
     assert candidate.within_production_search_envelope()
 
 
-def test_candidate_below_point_one_remains_decodable_but_not_searchable() -> None:
+def test_candidate_below_point_one_is_searchable_without_a_hard_floor() -> None:
     candidate = ForceCandidate.from_log2(
         p=0.0,
         damping=-6.25,
         i=0.0,
     )
     assert candidate.force_damping == pytest.approx(0.09197304541837502)
-    with pytest.raises(ValueError, match="below the 0.1 search floor"):
-        require_search_candidate(candidate, role="test candidate")
+    assert require_search_candidate(candidate, role="test candidate") is candidate
+    assert candidate.within_production_search_envelope()
+
+
+def test_observed_boundary_expands_damping_without_a_new_floor() -> None:
+    boundary = min(production_candidate_catalog(), key=lambda row: row.force_damping)
+    lower = min(damping_variants(boundary), key=lambda row: row.force_damping)
+    assert lower.force_damping < boundary.force_damping
+    assert require_search_candidate(lower, role="expanded candidate") is lower
 
 
 def test_orientation_k_is_a_bounded_quarter_octave_axis() -> None:

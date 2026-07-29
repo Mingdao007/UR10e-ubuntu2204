@@ -55,16 +55,17 @@ The candidate feeder runs on the candidate plane and consumes sealed terminal
 results only. The optional guard is composed through
 `evaluate(observation, proposed_command) -> GuardDecision`; the empty policy
 set is an exact identity and therefore preserves the no-tube command.
-The constrained BO feasible domain is `force_damping >= 0.1`; on the frozen
-0.25-octave lattice the lowest proposal is `0.109375`. P, I, and filter-tau
-retain their producer bounds. A producer-only physics soft prior adds a finite
+The BO acceptance domain admits every finite positive `force_damping`; D has
+no policy floor or ceiling. The producer starts from a finite 0.25-octave
+lattice and expands one step beyond observed D boundary points. P, I, and
+filter-tau retain their producer bounds. A producer-only physics soft prior adds a finite
 Gaussian log-weight around
 `zeta = D / (2*sqrt(P*K_e)) = 1/sqrt(2)` using the declared local stiffness
 estimate, plus a separate finite preference for tangential path `Kp=4`.
 Both change qLogNEI ranking only: force MAE remains the sole objective, and
 neither prior is a feasibility, acceptance, or runtime safety gate.
-Candidate generation and queue admission independently enforce the 0.1 hard
-floor. Historical observations remain readable evidence.
+Queue admission enforces only positive finite D. Historical observations
+remain readable evidence.
 
 The governed TP identity carries protocol/digest identity on
 output integer registers 35--37 and requires release-manifest v3 verification,

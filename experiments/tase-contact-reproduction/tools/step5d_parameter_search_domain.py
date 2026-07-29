@@ -21,10 +21,10 @@ from step5d_autotune_contract import (
 
 
 MIN_SEARCH_FORCE_DAMPING = MIN_PRODUCTION_FORCE_DAMPING
-MIN_DAMPING_QUARTER = math.ceil(
-    math.log2(MIN_SEARCH_FORCE_DAMPING / ForceCandidate().force_damping)
-    / LOG2_LATTICE_OCTAVE
-)
+# This is bootstrap support, not an acceptance boundary.  Observed anchors add
+# one-step D neighbours, so the positive lattice can expand indefinitely in
+# either direction without encoding a new hard floor.
+INITIAL_MIN_DAMPING_QUARTER = -24
 MAX_DAMPING_QUARTER = int(
     SearchTier.T2.p_d_radius_octaves / LOG2_LATTICE_OCTAVE
 )
@@ -52,7 +52,7 @@ def search_candidate_allowed(candidate: Any) -> bool:
     return (
         isinstance(candidate, ForceCandidate)
         and math.isfinite(candidate.force_damping)
-        and candidate.force_damping >= MIN_SEARCH_FORCE_DAMPING
+        and candidate.force_damping > MIN_SEARCH_FORCE_DAMPING
         and MIN_PRODUCTION_ORIENTATION_KO
         <= candidate.orientation_ko
         <= MAX_PRODUCTION_ORIENTATION_KO
@@ -66,14 +66,9 @@ def require_search_candidate(candidate: Any, *, role: str) -> ForceCandidate:
     if not search_candidate_allowed(candidate):
         damping = getattr(candidate, "force_damping", None)
         orientation = getattr(candidate, "orientation_ko", None)
-        if isinstance(damping, (int, float)) and damping < MIN_SEARCH_FORCE_DAMPING:
-            raise ValueError(
-                f"{role} force_damping {damping!r} is below the "
-                f"{MIN_SEARCH_FORCE_DAMPING:g} search floor"
-            )
         raise ValueError(
-            f"{role} orientation_ko {orientation!r} is outside the search "
-            f"envelope "
+            f"{role} candidate is outside the search envelope; "
+            f"force_damping must be finite and positive and orientation_ko must satisfy "
             f"{MIN_PRODUCTION_ORIENTATION_KO:g}<=Ko<="
             f"{MAX_PRODUCTION_ORIENTATION_KO:g}"
         )
@@ -114,6 +109,23 @@ def motion_variants(candidate: ForceCandidate) -> tuple[ForceCandidate, ...]:
         for motion_kp in MOTION_KP_LATTICE
     )
 
+def damping_variants(candidate: ForceCandidate) -> tuple[ForceCandidate, ...]:
+    """Expand D one lattice step from an observed anchor with no hard bound."""
+
+    require_search_candidate(candidate, role="damping anchor")
+    return tuple(
+        ForceCandidate.from_log2(
+            p=candidate.log2_p,
+            damping=candidate.log2_damping + delta,
+            orientation=candidate.log2_orientation_ko,
+            motion=candidate.log2_motion_kp,
+            i=0.0 if candidate.force_i_gain == 0.0 else candidate.log2_i,
+            i_off=candidate.force_i_gain == 0.0,
+            filter_tau=candidate.log2_filter_tau,
+        )
+        for delta in (-LOG2_LATTICE_OCTAVE, LOG2_LATTICE_OCTAVE)
+    )
+
 
 def augment_catalog_with_orientation_anchors(
     base_catalog: tuple[ForceCandidate, ...],
@@ -130,6 +142,7 @@ def augment_catalog_with_orientation_anchors(
     for anchor in anchors:
         candidates.update(orientation_variants(anchor))
         candidates.update(motion_variants(anchor))
+        candidates.update(damping_variants(anchor))
     return tuple(sorted(candidates, key=lambda item: item.candidate_uid))
 
 
@@ -140,7 +153,7 @@ def production_candidate_catalog() -> tuple[ForceCandidate, ...]:
     quarters = range(-6, 7)
     for p_quarter in quarters:
         for damping_quarter in range(
-            MIN_DAMPING_QUARTER,
+            INITIAL_MIN_DAMPING_QUARTER,
             MAX_DAMPING_QUARTER + 1,
         ):
             p = p_quarter * 0.25
@@ -186,6 +199,7 @@ __all__ = [
     "ORIENTATION_KO_LATTICE",
     "MOTION_KP_LATTICE",
     "augment_catalog_with_orientation_anchors",
+    "damping_variants",
     "orientation_variants",
     "motion_variants",
     "production_candidate_catalog",

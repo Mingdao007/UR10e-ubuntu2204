@@ -64,7 +64,7 @@
       "required": ["coordinate_system", "force_damping_min", "orientation_ko_min", "orientation_ko_max", "orientation_catalog_mode", "physics_soft_prior", "lattice_octaves", "one_coordinate_per_live_trial", "i_zero_is_categorical", "trial_budget_stop_enabled", "low_ei_stop_enabled", "exact_parameter_set_max_trials_per_profile", "first_threshold_hit_succeeds", "outer_boundary_requires_pointwise_replay_unlock", "batch_grid", "tiers", "plant_epoch_policy"],
       "properties": {
         "coordinate_system": {"const": "log10_i_scale_probe_then_log2_native_refine"},
-        "force_damping_min": {"const": 0.1},
+        "force_damping_min": {"const": 0.0},
         "orientation_ko_min": {"const": 0.1},
         "orientation_ko_max": {"const": 0.8},
         "orientation_catalog_mode": {"const": "observed_force_anchor_variants"},

@@ -381,20 +381,24 @@ def test_cuda_failure_uses_unique_validated_catalog_candidates(tmp_path: Path) -
     assert all("degraded_bootstrap" in row["source"] for row in requests)
 
 
-def test_feeder_fails_closed_if_catalog_contains_damping_below_floor(
+def test_feeder_accepts_positive_damping_below_historical_floor(
     tmp_path: Path,
 ) -> None:
     queue = _queue(tmp_path)
-    unsafe = ForceCandidate.from_log2(
+    below_historical_floor = ForceCandidate.from_log2(
         p=0.0,
         damping=-6.25,
         i=0.0,
     )
-    feeder = _feeder(tmp_path, queue, catalog=(unsafe, *_catalog(30)))
+    feeder = _feeder(
+        tmp_path,
+        queue,
+        catalog=(below_historical_floor, *_catalog(30)),
+    )
     receipt = feeder.cycle()
-    assert receipt["errors"]
-    assert "below the 0.1 search floor" in receipt["errors"][0]["error"]
-    assert authoritative_view(queue)["requests"] == ()
+    assert receipt["errors"] == []
+    requests = authoritative_view(queue)["requests"]
+    assert len(requests) == 8
 
 
 def test_atomic_batch_submission_commits_one_revision_and_all_rows(tmp_path: Path) -> None:

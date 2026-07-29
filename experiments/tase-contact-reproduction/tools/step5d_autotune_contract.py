@@ -34,7 +34,10 @@ SEED_FORCE_DAMPING = 7.0
 SEED_ORIENTATION_KO = 0.4
 SEED_MOTION_KP = 1.5
 LOG2_LATTICE_OCTAVE = 0.25
-MIN_PRODUCTION_FORCE_DAMPING = 0.1
+# D has no policy floor or ceiling.  Zero/negative values remain outside this
+# log2-native primitive; the producer expands the positive lattice from
+# observed boundary points instead of substituting another arbitrary floor.
+MIN_PRODUCTION_FORCE_DAMPING = 0.0
 MIN_PRODUCTION_ORIENTATION_KO = 0.1
 MAX_PRODUCTION_ORIENTATION_KO = 0.8
 MIN_PRODUCTION_MOTION_KP = 1.5
@@ -341,8 +344,6 @@ class ForceCandidate:
             return False
         if abs(self.log2_p) > tier.p_d_radius_octaves + 1e-9:
             return False
-        if abs(self.log2_damping) > tier.p_d_radius_octaves + 1e-9:
-            return False
         if abs(self.log2_filter_tau) > 1.0 + 1e-9:
             return False
         if tier is SearchTier.T1:
@@ -350,11 +351,10 @@ class ForceCandidate:
         return self.force_i_gain == 0.0 or abs(self.log2_i) <= tier.positive_i_radius_octaves + 1e-9
 
     def within_codex_hybrid_i_envelope(self) -> bool:
-        """Bound P/D normally while allowing the approved log10-like I scale probes."""
+        """Bound P normally while allowing the approved log10-like I probes."""
 
         if (
             abs(self.log2_p) > SearchTier.T1.p_d_radius_octaves + 1e-9
-            or abs(self.log2_damping) > SearchTier.T1.p_d_radius_octaves + 1e-9
             or abs(self.log2_filter_tau) > 1.0 + 1e-9
             or self.force_i_gain <= 0.0
         ):
@@ -367,19 +367,17 @@ class ForceCandidate:
     def within_production_search_envelope(self) -> bool:
         """Return whether the candidate belongs to the producer BO envelope.
 
-        P, I, and filter tau retain their accepted T2 bounds.  Only the lower
-        damping side is extended, down to the declared positive hard floor.
-        This keeps the new competence local to the D axis.
+        P, I, and filter tau retain their accepted T2 bounds.  Positive finite
+        damping is deliberately unbounded at acceptance; proposal expansion is
+        a separate producer concern.
         """
 
         return (
-            self.force_damping >= MIN_PRODUCTION_FORCE_DAMPING
+            self.force_damping > MIN_PRODUCTION_FORCE_DAMPING
             and self.orientation_ko >= MIN_PRODUCTION_ORIENTATION_KO
             and self.orientation_ko <= MAX_PRODUCTION_ORIENTATION_KO
             and self.motion_kp >= MIN_PRODUCTION_MOTION_KP
             and self.motion_kp <= MAX_PRODUCTION_MOTION_KP
-            and self.log2_damping
-            <= SearchTier.T2.p_d_radius_octaves + 1e-9
             and abs(self.log2_p) <= SearchTier.T2.p_d_radius_octaves + 1e-9
             and abs(self.log2_filter_tau) <= 1.0 + 1e-9
             and (

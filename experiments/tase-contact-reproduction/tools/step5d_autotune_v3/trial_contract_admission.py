@@ -17,9 +17,7 @@ import secrets
 from typing import Any, Mapping
 
 from step5d_autotune_contract import (
-    MIN_PRODUCTION_FORCE_DAMPING,
     CODEX_I_SCALE_MULTIPLIERS,
-    SEED_FORCE_DAMPING,
     SEED_FORCE_I_GAIN,
     SEED_FORCE_P_GAIN,
     CaptureManifest,
@@ -150,8 +148,8 @@ def _parameter_bounds() -> dict[str, tuple[float, float]]:
         ),
         "force_i_gain": (min(i_values), max(i_values)),
         "force_damping": (
-            MIN_PRODUCTION_FORCE_DAMPING,
-            SEED_FORCE_DAMPING * (2.0**radius),
+            0.0,
+            float.fromhex("0x1.fffffffffffffp+1023"),
         ),
     }
 

@@ -33,11 +33,7 @@ from step5d_autotune_v3.runtime_profile import (
     normalized_overlay_sha256,
 )
 from step5d_autotune_contract import ForceCandidate
-from step5d_parameter_search_domain import (
-    MIN_SEARCH_FORCE_DAMPING,
-    require_search_candidate,
-    search_candidate_allowed,
-)
+from step5d_parameter_search_domain import require_search_candidate, search_candidate_allowed
 
 
 STATE_SCHEMA = "step5d.parameter-receiver/state-v2"
@@ -967,9 +963,9 @@ def _quarantine_policy_violations_locked(
             "schema": POLICY_REJECTION_SCHEMA,
             "request_uid": request_uid,
             "enqueue_sequence": request["enqueue_sequence"],
-            "reason": "force_damping_below_search_floor",
+            "reason": "candidate_outside_search_envelope",
             "force_damping": candidate.force_damping,
-            "minimum_force_damping": MIN_SEARCH_FORCE_DAMPING,
+            "damping_acceptance": "finite_positive_no_policy_bound",
             "physical_attempt": False,
         }
         _write_once(_policy_rejection_path(root, request_uid), record)
