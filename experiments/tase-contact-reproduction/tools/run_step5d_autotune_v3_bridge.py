@@ -472,6 +472,7 @@ def _apply_v3_arm_runtime(
         force_p_gain=normalized["force_p_gain"],
         force_i_gain=normalized["force_i_gain"],
         force_damping=normalized["force_damping"],
+        orientation_ko=normalized["orientation_ko"],
         normal_filter_tau_s=normalized.get("normal_filter_tau_s", 0.35),
     )
     args.step5d_autotune_force_p = candidate.force_p_gain

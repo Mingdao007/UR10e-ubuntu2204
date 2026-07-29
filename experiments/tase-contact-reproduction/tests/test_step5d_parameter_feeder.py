@@ -113,7 +113,7 @@ def _write_result(outbox: Path, index: int, candidate: ForceCandidate) -> Path:
         "identity": {"backend_id": "offline-test"},
         "candidate": {
             **candidate.payload(),
-            "orientation_ko": 0.4,
+            "orientation_ko": candidate.orientation_ko,
             "force_p_gain": candidate.force_p_gain,
             "force_i_gain": candidate.force_i_gain,
             "force_damping": candidate.force_damping,
@@ -207,6 +207,43 @@ def test_limiter_saturation_diagnostic_does_not_delete_mae_observation(
     assert candidate.candidate_uid in candidate_uids
     assert material[0]["eligible"] is True
     assert material[0]["exclusion_reasons"] == []
+
+
+def test_feeder_exposes_orientation_variants_to_bo_and_preserves_selected_k(
+    tmp_path: Path,
+) -> None:
+    queue = _queue(tmp_path)
+    anchor = _catalog()[0]
+    observed: list[ForceCandidate] = []
+
+    def optimizer(observations, candidates, *, q, seed):
+        del seed
+        assert len(observations) == 1
+        variants = [
+            row
+            for row in candidates
+            if row.force_p_gain == anchor.force_p_gain
+            and row.force_i_gain == anchor.force_i_gain
+            and row.force_damping == anchor.force_damping
+            and row.normal_filter_tau_s == anchor.normal_filter_tau_s
+            and row.orientation_ko != 0.4
+        ]
+        observed.extend(variants)
+        return tuple(variants[:q]), {"selection": "test_orientation_axis"}
+
+    feeder = _feeder(
+        tmp_path,
+        queue,
+        optimizer=optimizer,
+        catalog=_catalog(30),
+    )
+    _write_result(feeder.config.outbox_root, 0, anchor)
+    receipt = feeder.cycle()
+    assert receipt["fallback_reason"] is None
+    assert len(observed) == 12
+    requests = authoritative_view(queue)["requests"]
+    assert len(requests) == 8
+    assert all(row["overlay"]["orientation_ko"] != 0.4 for row in requests)
 
 
 def test_low_watermark_refill_and_pending_only_depth(tmp_path: Path) -> None:
@@ -350,13 +387,13 @@ def test_feeder_fails_closed_if_catalog_contains_damping_below_floor(
     queue = _queue(tmp_path)
     unsafe = ForceCandidate.from_log2(
         p=0.0,
-        damping=-0.5,
+        damping=-6.25,
         i=0.0,
     )
     feeder = _feeder(tmp_path, queue, catalog=(unsafe, *_catalog(30)))
     receipt = feeder.cycle()
     assert receipt["errors"]
-    assert "below the 5 search floor" in receipt["errors"][0]["error"]
+    assert "below the 0.1 search floor" in receipt["errors"][0]["error"]
     assert authoritative_view(queue)["requests"] == ()
 
 

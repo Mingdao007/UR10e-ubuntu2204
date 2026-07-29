@@ -20,19 +20,27 @@ from step5d_autotune_v3.optimizer_types import (
     OutcomeRecord,
     PRODUCTION_OPTIMIZER_SEED,
 )
+from step5d_physics_soft_prior import (
+    PhysicsSoftPrior,
+    effective_damping_ratio,
+    physics_log_weight,
+)
 
 
 CUDA_FIT_MODES = {"serial", "verified_parallel"}
 R008_NOISE_VARIANCE_FLOOR_N2 = 1e-4
 
 
-def candidate_vector(candidate: ForceCandidate) -> tuple[float, float, float, float, float]:
+def candidate_vector(
+    candidate: ForceCandidate,
+) -> tuple[float, float, float, float, float, float]:
     return (
         candidate.log2_p,
         candidate.log2_damping,
         candidate.log2_filter_tau,
         0.0 if candidate.force_i_gain == 0.0 else candidate.log2_i,
         1.0 if candidate.force_i_gain == 0.0 else 0.0,
+        candidate.log2_orientation_ko,
     )
 
 
@@ -44,6 +52,10 @@ def _changed_coordinates(a: ForceCandidate, b: ForceCandidate) -> tuple[str, ...
         changed.append("damping")
     if not math.isclose(a.log2_filter_tau, b.log2_filter_tau, abs_tol=1e-9):
         changed.append("filter_tau")
+    if not math.isclose(
+        a.log2_orientation_ko, b.log2_orientation_ko, abs_tol=1e-9
+    ):
+        changed.append("orientation_ko")
     if a.i_mode != b.i_mode:
         changed.append("i_mode")
     elif a.i_mode == "positive" and not math.isclose(a.log2_i, b.log2_i, abs_tol=1e-9):
@@ -58,6 +70,8 @@ def _coordinate(candidate: ForceCandidate, axis: str) -> float:
         return candidate.log2_damping
     if axis == "filter_tau":
         return candidate.log2_filter_tau
+    if axis == "orientation_ko":
+        return candidate.log2_orientation_ko
     if axis == "i" and candidate.i_mode == "positive":
         return candidate.log2_i
     raise ValueError(f"candidate has no continuous {axis} coordinate")
@@ -81,18 +95,66 @@ def one_step_neighbors(incumbent: ForceCandidate, tier: SearchTier) -> tuple[For
     candidates: set[ForceCandidate] = set()
     p, damping = incumbent.log2_p, incumbent.log2_damping
     filter_tau = incumbent.log2_filter_tau
+    orientation = incumbent.log2_orientation_ko
     i = 0.0 if incumbent.force_i_gain == 0.0 else incumbent.log2_i
     for delta in (-LOG2_LATTICE_OCTAVE, LOG2_LATTICE_OCTAVE):
-        candidates.add(ForceCandidate.from_log2(p=p + delta, damping=damping, i=i, i_off=incumbent.i_mode == "off", filter_tau=filter_tau))
-        candidates.add(ForceCandidate.from_log2(p=p, damping=damping + delta, i=i, i_off=incumbent.i_mode == "off", filter_tau=filter_tau))
+        candidates.add(
+            ForceCandidate.from_log2(
+                p=p + delta,
+                damping=damping,
+                orientation=orientation,
+                i=i,
+                i_off=incumbent.i_mode == "off",
+                filter_tau=filter_tau,
+            )
+        )
+        candidates.add(
+            ForceCandidate.from_log2(
+                p=p,
+                damping=damping + delta,
+                orientation=orientation,
+                i=i,
+                i_off=incumbent.i_mode == "off",
+                filter_tau=filter_tau,
+            )
+        )
         if tier is not SearchTier.T1 and incumbent.i_mode == "positive":
-            candidates.add(ForceCandidate.from_log2(p=p, damping=damping, i=i + delta, filter_tau=filter_tau))
-        candidates.add(ForceCandidate.from_log2(p=p, damping=damping, i=i, i_off=incumbent.i_mode == "off", filter_tau=filter_tau + delta))
+            candidates.add(
+                ForceCandidate.from_log2(
+                    p=p,
+                    damping=damping,
+                    orientation=orientation,
+                    i=i + delta,
+                    filter_tau=filter_tau,
+                )
+            )
+        candidates.add(
+            ForceCandidate.from_log2(
+                p=p,
+                damping=damping,
+                orientation=orientation,
+                i=i,
+                i_off=incumbent.i_mode == "off",
+                filter_tau=filter_tau + delta,
+            )
+        )
+        if tier is not SearchTier.T1:
+            candidates.add(
+                ForceCandidate.from_log2(
+                    p=p,
+                    damping=damping,
+                    orientation=orientation + delta,
+                    i=i,
+                    i_off=incumbent.i_mode == "off",
+                    filter_tau=filter_tau,
+                )
+            )
     if tier is not SearchTier.T1:
         candidates.add(
             ForceCandidate.from_log2(
                 p=p,
                 damping=damping,
+                orientation=orientation,
                 i=0.0 if incumbent.i_mode == "off" else incumbent.log2_i,
                 i_off=incumbent.i_mode != "off",
                 filter_tau=filter_tau,
@@ -114,7 +176,7 @@ def _one_step_toward(
 
     if actual == target:
         return actual
-    for axis in ("p", "damping", "i", "filter_tau"):
+    for axis in ("p", "damping", "i", "filter_tau", "orientation_ko"):
         if axis == "i" and (
             actual.i_mode != "positive" or target.i_mode != "positive"
         ):
@@ -129,11 +191,12 @@ def _one_step_toward(
         kwargs = {
             "p": actual.log2_p,
             "damping": actual.log2_damping,
+            "orientation": actual.log2_orientation_ko,
             "i": 0.0 if actual.i_mode == "off" else actual.log2_i,
             "i_off": actual.i_mode == "off",
             "filter_tau": actual.log2_filter_tau,
         }
-        kwargs[axis] = coordinate
+        kwargs["orientation" if axis == "orientation_ko" else axis] = coordinate
         candidate = ForceCandidate.from_log2(**kwargs)
         if not live_trust_region_step(actual, candidate):
             raise RuntimeError("one-step transition construction violated live trust region")
@@ -142,6 +205,7 @@ def _one_step_toward(
         candidate = ForceCandidate.from_log2(
             p=actual.log2_p,
             damping=actual.log2_damping,
+            orientation=actual.log2_orientation_ko,
             i=0.0 if actual.i_mode == "off" else actual.log2_i,
             i_off=actual.i_mode != "off",
             filter_tau=actual.log2_filter_tau,
@@ -456,7 +520,10 @@ def _cuda_botorch_candidate(
     torch.backends.cudnn.benchmark = False
     torch.set_default_dtype(torch.double)
     torch.set_num_threads(1)
-    train_x = torch.tensor([candidate_vector(item.candidate) for item in trainable], device=device)
+    train_x = torch.tensor(
+        [candidate_vector(item.candidate) for item in trainable],
+        device=device,
+    )
     train_y = torch.tensor([[-item.objective] for item in trainable], device=device)
     train_yvar = torch.tensor(
         [[value] for value in replicate_noise_variances(trainable)],
@@ -466,11 +533,14 @@ def _cuda_botorch_candidate(
         train_x,
         train_y,
         train_Yvar=train_yvar,
-        input_transform=Normalize(d=5),
+        input_transform=Normalize(d=6),
         outcome_transform=Standardize(m=1),
     )
     fit_gpytorch_mll(ExactMarginalLogLikelihood(model.likelihood, model))
-    candidate_x = torch.tensor([candidate_vector(item) for item in candidates], device=device).unsqueeze(1)
+    candidate_x = torch.tensor(
+        [candidate_vector(item) for item in candidates],
+        device=device,
+    ).unsqueeze(1)
     acquisition = qLogNoisyExpectedImprovement(
         model=model,
         X_baseline=train_x,
@@ -551,6 +621,7 @@ def cuda_botorch_joint_candidates(
     q: int,
     seed: int = 8008,
     anchor: ForceCandidate | None = None,
+    physics_soft_prior: PhysicsSoftPrior | None = None,
 ) -> tuple[tuple[ForceCandidate, ...], dict[str, Any]]:
     """Fit once and optimize one unique discrete qLogNEI proposal on CUDA."""
 
@@ -559,6 +630,7 @@ def cuda_botorch_joint_candidates(
     if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
         raise ValueError("seed must be a non-negative integer")
     anchor = anchor or ForceCandidate()
+    physics_soft_prior = physics_soft_prior or PhysicsSoftPrior()
     trainable = [item for item in observations if item.eligible]
     if len(trainable) < 6:
         raise ValueError("r008 BoTorch gate requires at least 6 eligible observations")
@@ -608,17 +680,63 @@ def cuda_botorch_joint_candidates(
         train_x,
         train_y,
         train_Yvar=train_yvar,
-        input_transform=Normalize(d=5),
+        input_transform=Normalize(d=6),
         outcome_transform=Standardize(m=1),
     )
     fit_gpytorch_mll(ExactMarginalLogLikelihood(model.likelihood, model))
-    acquisition = qLogNoisyExpectedImprovement(
+    base_acquisition = qLogNoisyExpectedImprovement(
         model=model,
         X_baseline=train_x,
         sampler=SobolQMCNormalSampler(sample_shape=torch.Size([256]), seed=seed),
         prune_baseline=True,
     )
-    choice_x = torch.tensor([candidate_vector(item) for item in choices], device=device)
+
+    class PhysicsPriorAdjustedAcquisition(torch.nn.Module):
+        """Add a finite Gaussian physics log-weight to joint qLogNEI."""
+
+        def __init__(self, base: Any, prior: PhysicsSoftPrior) -> None:
+            super().__init__()
+            self.base = base
+            self.prior = prior
+
+        @property
+        def X_pending(self) -> Any:
+            return self.base.X_pending
+
+        def set_X_pending(self, X_pending: Any = None) -> None:
+            self.base.set_X_pending(X_pending)
+
+        def forward(self, X: Any) -> Any:
+            base_value = self.base(X)
+            if not self.prior.enabled:
+                return base_value
+            force_p = 0.001 * torch.pow(2.0, X[..., 0])
+            force_damping = 7.0 * torch.pow(2.0, X[..., 1])
+            zeta = force_damping / (
+                2.0
+                * torch.sqrt(
+                    force_p * float(self.prior.contact_stiffness_n_m)
+                )
+            )
+            normalized = (
+                torch.log2(zeta / float(self.prior.target_damping_ratio))
+                / float(self.prior.log2_sigma_octaves)
+            )
+            log_weight = (
+                -0.5
+                * float(self.prior.strength)
+                * torch.sum(normalized * normalized, dim=-1)
+            )
+            return base_value + log_weight
+
+    acquisition = PhysicsPriorAdjustedAcquisition(
+        base_acquisition,
+        physics_soft_prior,
+    )
+    choice_x = torch.tensor(
+        [candidate_vector(item) for item in choices],
+        device=device,
+    )
     selected_x, value = optimize_acqf_discrete(
         acq_function=acquisition,
         q=q,
@@ -631,7 +749,10 @@ def cuda_botorch_joint_candidates(
     if len({item.candidate_uid for item in selected}) != q or anchor in selected:
         raise RuntimeError("r008 joint optimizer violated uniqueness or anchor exclusion")
     return selected, {
-        "selection": f"botorch_qLogNoisyExpectedImprovement_q{q}_cuda_discrete_joint",
+        "selection": (
+            f"botorch_qLogNoisyExpectedImprovement_q{q}_cuda_discrete_joint"
+            "_physics_soft_prior"
+        ),
         "device": str(device),
         "gpu_name": torch.cuda.get_device_name(device),
         "seed": seed,
@@ -640,6 +761,17 @@ def cuda_botorch_joint_candidates(
         "noise_variance_floor_n2": R008_NOISE_VARIANCE_FLOOR_N2,
         "selected_acquisition": float(value.detach().cpu().reshape(-1)[0]),
         "selected_candidate_uids": [item.candidate_uid for item in selected],
+        "physics_soft_prior": physics_soft_prior.payload(),
+        "selected_effective_damping_ratios": [
+            effective_damping_ratio(
+                item,
+                contact_stiffness_n_m=physics_soft_prior.contact_stiffness_n_m,
+            )
+            for item in selected
+        ],
+        "selected_physics_log_weights": [
+            physics_log_weight(item, physics_soft_prior) for item in selected
+        ],
     }
 
 

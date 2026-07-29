@@ -52,14 +52,15 @@ The candidate feeder runs on the candidate plane and consumes sealed terminal
 results only. The optional guard is composed through
 `evaluate(observation, proposed_command) -> GuardDecision`; the empty policy
 set is an exact identity and therefore restores the no-tube r026 command.
-The constrained BO feasible domain is `force_damping >= 5.0`. Candidate catalog
-generation removes lower-damping points before acquisition optimization, and
-optimizer output validation enforces the same domain before queue submission.
-Queue admission repeats this as a producer/consumer seam invariant: it rejects
-new violations and durably quarantines legacy pending violations without
-counting them as physical attempts. Historical completed observations below
-the domain remain readable evidence but can never be proposed or dispatched
-again.
+The constrained BO feasible domain is `force_damping >= 0.1`; on the frozen
+0.25-octave lattice the lowest proposal is `0.109375`. P, I, and filter-tau
+retain their T2 producer bounds. A producer-only physics soft prior adds a
+finite Gaussian log-weight around
+`zeta = D / (2*sqrt(P*K_e)) = 1/sqrt(2)` using the declared local stiffness
+estimate. It changes qLogNEI ranking only: force MAE remains the sole objective,
+and the prior is neither a feasibility, acceptance, nor runtime safety gate.
+Candidate generation and queue admission independently enforce the 0.1 hard
+floor. Historical observations remain readable evidence.
 
 The governed TP identity revision is r026. It carries protocol/digest identity on
 output integer registers 35--37 and requires release-manifest v3 verification,
@@ -134,6 +135,11 @@ tick cannot relatch; live-normal blending starts only after load is at least
 
 Each V3 trial binds four real control coordinates: force P, I, damping, and
 `orientation_ko`. A `BatchIdentity` binds exactly ten candidate/overlay rows.
+For production BO, `orientation_ko` is a first-class 0.25-octave GP
+coordinate over `[0.1, 0.8]`. Its finite producer domain is composed from all
+K variants at force-loop settings that already have sealed observations,
+instead of a global force-by-K Cartesian product. Force MAE remains the sole
+objective; orientation error remains diagnostic evidence.
 For r006, rows remain `unattempted` or `attempted_incomplete` until a durable
 direct completion makes them `direct_completed`; resume executes only the
 remaining rows. TrialBrief publication happens exactly once after immutable

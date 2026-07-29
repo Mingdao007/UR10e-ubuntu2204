@@ -21,13 +21,16 @@ from step5d_autotune_contract import (
 from .optimizer_types import Observation
 
 
-def candidate_vector(candidate: ForceCandidate) -> tuple[float, float, float, float, float]:
+def candidate_vector(
+    candidate: ForceCandidate,
+) -> tuple[float, float, float, float, float, float]:
     return (
         candidate.log2_p,
         candidate.log2_damping,
         candidate.log2_filter_tau,
         0.0 if candidate.force_i_gain == 0.0 else candidate.log2_i,
         1.0 if candidate.force_i_gain == 0.0 else 0.0,
+        candidate.log2_orientation_ko,
     )
 
 
@@ -42,6 +45,10 @@ def _changed_coordinates(
         changed.append("damping")
     if not math.isclose(a.log2_filter_tau, b.log2_filter_tau, abs_tol=1e-9):
         changed.append("filter_tau")
+    if not math.isclose(
+        a.log2_orientation_ko, b.log2_orientation_ko, abs_tol=1e-9
+    ):
+        changed.append("orientation_ko")
     if a.i_mode != b.i_mode:
         changed.append("i_mode")
     elif a.i_mode == "positive" and not math.isclose(
@@ -58,6 +65,8 @@ def _coordinate(candidate: ForceCandidate, axis: str) -> float:
         return candidate.log2_damping
     if axis == "filter_tau":
         return candidate.log2_filter_tau
+    if axis == "orientation_ko":
+        return candidate.log2_orientation_ko
     if axis == "i" and candidate.i_mode == "positive":
         return candidate.log2_i
     raise ValueError(f"candidate has no continuous {axis} coordinate")
@@ -96,12 +105,14 @@ def one_step_neighbors(
     candidates: set[ForceCandidate] = set()
     p, damping = incumbent.log2_p, incumbent.log2_damping
     filter_tau = incumbent.log2_filter_tau
+    orientation = incumbent.log2_orientation_ko
     i = 0.0 if incumbent.force_i_gain == 0.0 else incumbent.log2_i
     for delta in (-LOG2_LATTICE_OCTAVE, LOG2_LATTICE_OCTAVE):
         candidates.add(
             ForceCandidate.from_log2(
                 p=p + delta,
                 damping=damping,
+                orientation=orientation,
                 i=i,
                 i_off=incumbent.i_mode == "off",
                 filter_tau=filter_tau,
@@ -111,6 +122,7 @@ def one_step_neighbors(
             ForceCandidate.from_log2(
                 p=p,
                 damping=damping + delta,
+                orientation=orientation,
                 i=i,
                 i_off=incumbent.i_mode == "off",
                 filter_tau=filter_tau,
@@ -121,6 +133,7 @@ def one_step_neighbors(
                 ForceCandidate.from_log2(
                     p=p,
                     damping=damping,
+                    orientation=orientation,
                     i=i + delta,
                     filter_tau=filter_tau,
                 )
@@ -129,16 +142,29 @@ def one_step_neighbors(
             ForceCandidate.from_log2(
                 p=p,
                 damping=damping,
+                orientation=orientation,
                 i=i,
                 i_off=incumbent.i_mode == "off",
                 filter_tau=filter_tau + delta,
             )
         )
+        if tier is not SearchTier.T1:
+            candidates.add(
+                ForceCandidate.from_log2(
+                    p=p,
+                    damping=damping,
+                    orientation=orientation + delta,
+                    i=i,
+                    i_off=incumbent.i_mode == "off",
+                    filter_tau=filter_tau,
+                )
+            )
     if tier is not SearchTier.T1:
         candidates.add(
             ForceCandidate.from_log2(
                 p=p,
                 damping=damping,
+                orientation=orientation,
                 i=0.0 if incumbent.i_mode == "off" else incumbent.log2_i,
                 i_off=incumbent.i_mode != "off",
                 filter_tau=filter_tau,
@@ -165,7 +191,7 @@ def one_step_toward(
 
     if actual == target:
         return actual
-    for axis in ("p", "damping", "i", "filter_tau"):
+    for axis in ("p", "damping", "i", "filter_tau", "orientation_ko"):
         if axis == "i" and (
             actual.i_mode != "positive" or target.i_mode != "positive"
         ):
@@ -181,11 +207,12 @@ def one_step_toward(
         kwargs = {
             "p": actual.log2_p,
             "damping": actual.log2_damping,
+            "orientation": actual.log2_orientation_ko,
             "i": 0.0 if actual.i_mode == "off" else actual.log2_i,
             "i_off": actual.i_mode == "off",
             "filter_tau": actual.log2_filter_tau,
         }
-        kwargs[axis] = coordinate
+        kwargs["orientation" if axis == "orientation_ko" else axis] = coordinate
         candidate = ForceCandidate.from_log2(**kwargs)
         if not live_trust_region_step(actual, candidate):
             raise RuntimeError(
@@ -196,6 +223,7 @@ def one_step_toward(
         candidate = ForceCandidate.from_log2(
             p=actual.log2_p,
             damping=actual.log2_damping,
+            orientation=actual.log2_orientation_ko,
             i=0.0 if actual.i_mode == "off" else actual.log2_i,
             i_off=actual.i_mode != "off",
             filter_tau=actual.log2_filter_tau,

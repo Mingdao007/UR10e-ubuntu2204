@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import fcntl
 import hashlib
 import json
@@ -22,7 +22,6 @@ from typing import Any, Callable, Iterator, Mapping, Sequence
 
 from step5d_autotune_v3.atomic_io import atomic_bytes
 from step5d_parameter_bo import (
-    ORIENTATION_KO,
     formal_cuda_qlognei,
     load_observations,
     load_pending_candidates,
@@ -30,9 +29,11 @@ from step5d_parameter_bo import (
 from step5d_parameter_outbox import process_postprocess_task
 from step5d_parameter_queue import authoritative_view, submit_manifest
 from step5d_parameter_search_domain import (
+    augment_catalog_with_orientation_anchors,
     production_candidate_catalog,
     require_search_candidate,
 )
+from step5d_physics_soft_prior import PhysicsSoftPrior
 
 
 CONFIG_SCHEMA = "step5d.parameter-receiver/no-empty-feeder-config-v1"
@@ -63,6 +64,7 @@ class FeederConfig:
     q: int = 8
     seed: int = 9009
     max_fallback_repeats: int = 8
+    physics_soft_prior: PhysicsSoftPrior = field(default_factory=PhysicsSoftPrior)
 
     def __post_init__(self) -> None:
         for name in (
@@ -100,6 +102,8 @@ class FeederConfig:
             raise FeederError("low_watermark must be in [0, target_depth)")
         if isinstance(self.seed, bool) or not isinstance(self.seed, int) or self.seed < 0:
             raise FeederError("seed must be a non-negative integer")
+        if not isinstance(self.physics_soft_prior, PhysicsSoftPrior):
+            raise FeederError("physics_soft_prior must be a PhysicsSoftPrior")
 
     @classmethod
     def from_json(cls, path: Path) -> "FeederConfig":
@@ -149,6 +153,9 @@ class FeederConfig:
             q=int(payload.get("q", 8)),
             seed=int(payload.get("seed", 9009)),
             max_fallback_repeats=int(payload.get("max_fallback_repeats", 8)),
+            physics_soft_prior=PhysicsSoftPrior.from_mapping(
+                payload.get("physics_soft_prior")
+            ),
         )
 
 
@@ -315,7 +322,7 @@ def _candidate_row(candidate: Any, *, source: str, nonce: str) -> dict[str, Any]
         "force_i_gain": candidate.force_i_gain,
         "force_damping": candidate.force_damping,
         "normal_filter_tau_s": candidate.normal_filter_tau_s,
-        "orientation_ko": ORIENTATION_KO,
+        "orientation_ko": candidate.orientation_ko,
         "position": "tail",
         "source": source,
         "occurrence_nonce": nonce,
@@ -337,7 +344,15 @@ class ParameterFeeder:
     ) -> None:
         self.config = config
         self.process_task = process_task or process_postprocess_task
-        self.optimizer = optimizer or formal_cuda_qlognei
+        self.optimizer = optimizer or (
+            lambda observations, candidates, *, q, seed: formal_cuda_qlognei(
+                observations,
+                candidates,
+                q=q,
+                seed=seed,
+                physics_soft_prior=self.config.physics_soft_prior,
+            )
+        )
         self.submitter = submitter or submit_manifest
         self.queue_viewer = queue_viewer or authoritative_view
         self.catalog_provider = catalog_provider or production_candidate_catalog
@@ -421,9 +436,13 @@ class ParameterFeeder:
         task_errors: Sequence[Mapping[str, Any]],
     ) -> tuple[list[dict[str, Any]], str | None, dict[str, Any]]:
         excluded = set(observed_uids) | set(pending_uids)
+        raw_catalog = augment_catalog_with_orientation_anchors(
+            tuple(self.catalog_provider()),
+            tuple(observation.candidate for observation in observations),
+        )
         catalog = tuple(
             require_search_candidate(candidate, role="feeder catalog candidate")
-            for candidate in self.catalog_provider()
+            for candidate in raw_catalog
             if candidate.candidate_uid not in excluded
         )
         if len(catalog) < need:

@@ -775,6 +775,7 @@ def _request_document(
                 force_p_gain=float(overlay["force_p_gain"]),
                 force_i_gain=float(overlay["force_i_gain"]),
                 force_damping=float(overlay["force_damping"]),
+                orientation_ko=float(overlay["orientation_ko"]),
                 normal_filter_tau_s=float(overlay["normal_filter_tau_s"]),
             ),
             role="parameter request",
@@ -932,6 +933,7 @@ def _request_candidate(request: Mapping[str, Any]) -> ForceCandidate:
         force_p_gain=float(overlay["force_p_gain"]),
         force_i_gain=float(overlay["force_i_gain"]),
         force_damping=float(overlay["force_damping"]),
+        orientation_ko=float(overlay.get("orientation_ko", 0.4)),
         normal_filter_tau_s=float(overlay.get("normal_filter_tau_s", 0.35)),
     )
 

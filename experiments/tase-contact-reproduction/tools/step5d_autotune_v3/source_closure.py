@@ -9,6 +9,7 @@ No observed host path is included, so the result is clone-location independent.
 
 from __future__ import annotations
 
+import argparse
 import ast
 import hashlib
 import json
@@ -695,6 +696,57 @@ def production_source_closure(
     )
 
 
+def render_source_fingerprint_contract(experiment_root: Path) -> str:
+    """Render the generated immutable source-path contract deterministically."""
+
+    experiment, repository = production_source_closure(experiment_root)
+
+    def block(name: str, paths: frozenset[str]) -> list[str]:
+        return [
+            f"{name} = frozenset({{",
+            *(f"    {path!r}," for path in sorted(paths)),
+            "})",
+        ]
+
+    lines = [
+        '"""Generated immutable source-path contract for the active runtime closure."""',
+        "",
+        "from __future__ import annotations",
+        "",
+        *block("EXPERIMENT_SOURCE_PATHS", experiment),
+        *block("REPOSITORY_SOURCE_PATHS", repository),
+        "",
+        "REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS = EXPERIMENT_SOURCE_PATHS",
+        "REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS = REPOSITORY_SOURCE_PATHS",
+        "",
+        "__all__ = [",
+        '    "EXPERIMENT_SOURCE_PATHS",',
+        '    "REPOSITORY_SOURCE_PATHS",',
+        '    "REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS",',
+        '    "REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS",',
+        "]",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--experiment-root", type=Path, required=True)
+    parser.add_argument("--write-contract", type=Path)
+    parser.add_argument("--check-contract", type=Path)
+    args = parser.parse_args(argv)
+    rendered = render_source_fingerprint_contract(args.experiment_root)
+    if args.write_contract is not None:
+        args.write_contract.write_text(rendered, encoding="utf-8")
+    if args.check_contract is not None:
+        if args.check_contract.read_text(encoding="utf-8") != rendered:
+            parser.error("generated source fingerprint contract differs")
+    if args.write_contract is None and args.check_contract is None:
+        parser.error("one of --write-contract or --check-contract is required")
+    return 0
+
+
 __all__ = [
     "HOST_IMPORT_PACKAGES",
     "PRODUCTION_EXPERIMENT_DATA",
@@ -706,4 +758,9 @@ __all__ = [
     "UV_IMPORT_DISTRIBUTIONS",
     "production_source_closure",
     "production_source_closure_report",
+    "render_source_fingerprint_contract",
 ]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

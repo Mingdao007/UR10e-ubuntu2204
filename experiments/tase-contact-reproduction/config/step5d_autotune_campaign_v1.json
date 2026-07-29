@@ -38,7 +38,17 @@
   },
   "search": {
     "coordinate_system": "log10_i_scale_probe_then_log2_native_refine",
-    "force_damping_min": 5.0,
+    "force_damping_min": 0.1,
+    "orientation_ko_min": 0.1,
+    "orientation_ko_max": 0.8,
+    "orientation_catalog_mode": "observed_force_anchor_variants",
+    "physics_soft_prior": {
+      "enabled": true,
+      "contact_stiffness_n_m": 32000.0,
+      "target_damping_ratio": 0.7071067811865476,
+      "log2_sigma_octaves": 2.0,
+      "strength": 0.35
+    },
     "lattice_octaves": 0.25,
     "one_coordinate_per_live_trial": true,
     "i_zero_is_categorical": true,

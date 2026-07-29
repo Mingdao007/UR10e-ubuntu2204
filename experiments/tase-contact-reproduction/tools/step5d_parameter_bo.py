@@ -22,14 +22,15 @@ from step5d_autotune_v3.state import read_strict_json
 from step5d_parameter_outbox import RESULT_SCHEMA
 from step5d_parameter_queue import authoritative_view
 from step5d_parameter_search_domain import (
+    augment_catalog_with_orientation_anchors,
     production_candidate_catalog,
     require_search_candidate,
 )
+from step5d_physics_soft_prior import PhysicsSoftPrior
 
 
 PROPOSAL_SCHEMA = "step5d.parameter-receiver/offline-bo-proposal-v1"
 PROFILE_ID = "nf100000-slew250-a2000"
-ORIENTATION_KO = 0.4
 Optimizer = Callable[
     [Sequence[Any], Sequence[ForceCandidate], int, int],
     tuple[tuple[ForceCandidate, ...], dict[str, Any]],
@@ -74,13 +75,12 @@ def _positive_int(payload: Mapping[str, Any], key: str, role: str) -> int:
 
 def _candidate(payload: Mapping[str, Any], role: str) -> ForceCandidate:
     orientation = _finite(payload, "orientation_ko", role)
-    if not math.isclose(orientation, ORIENTATION_KO, rel_tol=0.0, abs_tol=1e-12):
-        raise ParameterBoError(f"{role} orientation_ko is not fixed at 0.4")
     try:
         return ForceCandidate(
             force_p_gain=_finite(payload, "force_p_gain", role),
             force_i_gain=_finite(payload, "force_i_gain", role),
             force_damping=_finite(payload, "force_damping", role),
+            orientation_ko=orientation,
             normal_filter_tau_s=_finite(payload, "normal_filter_tau_s", role),
         )
     except ValueError as exc:
@@ -258,12 +258,19 @@ def formal_cuda_qlognei(
     *,
     q: int,
     seed: int,
+    physics_soft_prior: PhysicsSoftPrior | None = None,
 ) -> tuple[tuple[ForceCandidate, ...], dict[str, Any]]:
     """Run the repository's deterministic CUDA qLogNEI implementation."""
 
     from step5d_autotune_optimizer import cuda_botorch_joint_candidates
 
-    return cuda_botorch_joint_candidates(observations, candidates, q=q, seed=seed)
+    return cuda_botorch_joint_candidates(
+        observations,
+        candidates,
+        q=q,
+        seed=seed,
+        physics_soft_prior=physics_soft_prior,
+    )
 
 
 def best_eligible_candidate(observations: Sequence[Any]) -> ForceCandidate | None:
@@ -308,9 +315,13 @@ def propose_candidates(
     observations, observed_uids, observation_material = load_observations(outbox_root)
     pending_uids, pending_material = load_pending_candidates(receiver_root)
     excluded = observed_uids | pending_uids
+    raw_catalog = augment_catalog_with_orientation_anchors(
+        production_candidate_catalog(),
+        tuple(observation.candidate for observation in observations),
+    )
     catalog = tuple(
         require_search_candidate(candidate, role="BO catalog candidate")
-        for candidate in production_candidate_catalog()
+        for candidate in raw_catalog
         if candidate.candidate_uid not in excluded
     )
     if len(catalog) < q:
@@ -359,7 +370,7 @@ def propose_candidates(
                 "force_i_gain": candidate.force_i_gain,
                 "force_damping": candidate.force_damping,
                 "normal_filter_tau_s": candidate.normal_filter_tau_s,
-                "orientation_ko": ORIENTATION_KO,
+                "orientation_ko": candidate.orientation_ko,
                 "position": "next",
                 "source": f"{source_prefix}_q{q}_seed{seed}:{label}",
                 "occurrence_nonce": occurrence_nonce,

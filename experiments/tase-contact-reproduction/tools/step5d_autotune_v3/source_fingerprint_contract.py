@@ -114,6 +114,7 @@ EXPERIMENT_SOURCE_PATHS = frozenset({
     'tools/step5d_parameter_outbox.py',
     'tools/step5d_parameter_queue.py',
     'tools/step5d_parameter_search_domain.py',
+    'tools/step5d_physics_soft_prior.py',
     'tools/step5d_production_csv.py',
     'tools/step5d_review_v3.py',
     'tools/step5d_runtime_codec.py',

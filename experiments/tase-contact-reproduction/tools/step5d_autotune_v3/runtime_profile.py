@@ -37,6 +37,14 @@ CONTROL_CANDIDATE_FIELDS = (
     "normal_filter_tau_s",
 )
 ORIENTATION_KO_LATTICE = (
+    0.1,
+    0.11892071150027211,
+    0.14142135623730953,
+    0.16817928305074292,
+    0.2,
+    0.23784142300054423,
+    0.28284271247461906,
+    0.33635856610148585,
     0.4,
     0.47568284600108846,
     0.5656854249492381,
@@ -396,6 +404,7 @@ def normalize_trial_overlay(
             force_p_gain=result["force_p_gain"],
             force_i_gain=result["force_i_gain"],
             force_damping=result["force_damping"],
+            orientation_ko=result["orientation_ko"],
             normal_filter_tau_s=result.get("normal_filter_tau_s", 0.35),
         )
     except ValueError as exc:
@@ -415,19 +424,20 @@ def normalize_trial_overlay(
 def control_candidate_coordinates(overlay: Mapping[str, Any]) -> tuple[float, ...]:
     """Return P/I/damping/K physical coordinates in log2 space."""
 
-    from step5d_autotune_contract import ForceCandidate
+    from step5d_autotune_contract import ForceCandidate, SEED_ORIENTATION_KO
 
     candidate = ForceCandidate(
         force_p_gain=float(overlay["force_p_gain"]),
         force_i_gain=float(overlay["force_i_gain"]),
         force_damping=float(overlay["force_damping"]),
+        orientation_ko=float(overlay["orientation_ko"]),
         normal_filter_tau_s=float(overlay.get("normal_filter_tau_s", 0.35)),
     )
     return (
         candidate.log2_p,
         candidate.log2_i,
         candidate.log2_damping,
-        math.log2(float(overlay["orientation_ko"]) / ORIENTATION_KO_LATTICE[0]),
+        math.log2(float(overlay["orientation_ko"]) / SEED_ORIENTATION_KO),
         candidate.log2_filter_tau,
     )
 

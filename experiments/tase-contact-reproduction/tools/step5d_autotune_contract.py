@@ -31,7 +31,11 @@ TARGET_FORCE_N = 12.0
 SEED_FORCE_P_GAIN = 0.001
 SEED_FORCE_I_GAIN = 0.00001
 SEED_FORCE_DAMPING = 7.0
+SEED_ORIENTATION_KO = 0.4
 LOG2_LATTICE_OCTAVE = 0.25
+MIN_PRODUCTION_FORCE_DAMPING = 0.1
+MIN_PRODUCTION_ORIENTATION_KO = 0.1
+MAX_PRODUCTION_ORIENTATION_KO = 0.8
 CODEX_I_SCALE_MULTIPLIERS = (10.0, 50.0, 100.0, 500.0, 1000.0)
 QDOT_CAP_RAD_S = 0.5
 ROTATIONAL_DYNAMICS_X5_PROFILE_ID = "nf500-slew250-a250"
@@ -176,6 +180,7 @@ class ForceCandidate:
     force_p_gain: float = SEED_FORCE_P_GAIN
     force_i_gain: float = SEED_FORCE_I_GAIN
     force_damping: float = SEED_FORCE_DAMPING
+    orientation_ko: float = SEED_ORIENTATION_KO
     normal_filter_tau_s: float = NORMAL_FILTER_TAU_S
     target_force_n: float = TARGET_FORCE_N
 
@@ -183,17 +188,26 @@ class ForceCandidate:
         p = _finite("force_p_gain", self.force_p_gain)
         i = _finite("force_i_gain", self.force_i_gain)
         damping = _finite("force_damping", self.force_damping)
+        orientation = _finite("orientation_ko", self.orientation_ko)
         filter_tau = _finite("normal_filter_tau_s", self.normal_filter_tau_s)
         target = _finite("target_force_n", self.target_force_n)
-        if p <= 0.0 or damping <= 0.0 or filter_tau <= 0.0 or i < 0.0:
+        if (
+            p <= 0.0
+            or damping <= 0.0
+            or orientation <= 0.0
+            or filter_tau <= 0.0
+            or i < 0.0
+        ):
             raise ValueError(
-                "force P/damping/filter tau must be positive and I must be non-negative"
+                "force P/damping/orientation K/filter tau must be positive "
+                "and I must be non-negative"
             )
         if not math.isclose(target, TARGET_FORCE_N, abs_tol=1e-12):
             raise ValueError("Step5d autotune target_force_n is fixed at 12 N")
         for name, coordinate in (
             ("log2_p", self.log2_p),
             ("log2_damping", self.log2_damping),
+            ("log2_orientation_ko", self.log2_orientation_ko),
             ("log2_filter_tau", self.log2_filter_tau),
         ):
             if not _on_lattice(coordinate):
@@ -215,6 +229,7 @@ class ForceCandidate:
         object.__setattr__(self, "force_p_gain", p)
         object.__setattr__(self, "force_i_gain", i)
         object.__setattr__(self, "force_damping", damping)
+        object.__setattr__(self, "orientation_ko", orientation)
         object.__setattr__(self, "normal_filter_tau_s", filter_tau)
         object.__setattr__(self, "target_force_n", target)
 
@@ -235,6 +250,10 @@ class ForceCandidate:
     @property
     def log2_filter_tau(self) -> float:
         return math.log2(self.normal_filter_tau_s / NORMAL_FILTER_TAU_S)
+
+    @property
+    def log2_orientation_ko(self) -> float:
+        return math.log2(self.orientation_ko / SEED_ORIENTATION_KO)
 
     @property
     def i_mode(self) -> str:
@@ -287,6 +306,15 @@ class ForceCandidate:
         ):
             payload["normal_filter_tau_s"] = self.normal_filter_tau_s
             payload["log2_coordinates"]["filter_tau"] = self.log2_filter_tau
+        # Keep historical K=0.4 candidate UIDs stable while making every
+        # non-default orientation gain an explicit part of candidate identity.
+        if not math.isclose(
+            self.orientation_ko, SEED_ORIENTATION_KO, abs_tol=1e-12
+        ):
+            payload["orientation_ko"] = self.orientation_ko
+            payload["log2_coordinates"]["orientation_ko"] = (
+                self.log2_orientation_ko
+            )
         return payload
 
     def within_tier(self, tier: SearchTier) -> bool:
@@ -315,12 +343,36 @@ class ForceCandidate:
             or self.approved_i_scale_multiplier is not None
         )
 
+    def within_production_search_envelope(self) -> bool:
+        """Return whether the candidate belongs to the producer BO envelope.
+
+        P, I, and filter tau retain their accepted T2 bounds.  Only the lower
+        damping side is extended, down to the declared positive hard floor.
+        This keeps the new competence local to the D axis.
+        """
+
+        return (
+            self.force_damping >= MIN_PRODUCTION_FORCE_DAMPING
+            and self.orientation_ko >= MIN_PRODUCTION_ORIENTATION_KO
+            and self.orientation_ko <= MAX_PRODUCTION_ORIENTATION_KO
+            and self.log2_damping
+            <= SearchTier.T2.p_d_radius_octaves + 1e-9
+            and abs(self.log2_p) <= SearchTier.T2.p_d_radius_octaves + 1e-9
+            and abs(self.log2_filter_tau) <= 1.0 + 1e-9
+            and (
+                self.force_i_gain == 0.0
+                or abs(self.log2_i)
+                <= SearchTier.T2.positive_i_radius_octaves + 1e-9
+            )
+        )
+
     @classmethod
     def from_log2(
         cls,
         *,
         p: float,
         damping: float,
+        orientation: float = 0.0,
         filter_tau: float = 0.0,
         i: float | None = 0.0,
         i_off: bool = False,
@@ -328,6 +380,7 @@ class ForceCandidate:
         for name, coordinate in (
             ("p", p),
             ("damping", damping),
+            ("orientation", orientation),
             ("filter_tau", filter_tau),
         ):
             coordinate = _finite(name, coordinate)
@@ -344,6 +397,7 @@ class ForceCandidate:
             force_p_gain=SEED_FORCE_P_GAIN * (2.0**float(p)),
             force_i_gain=force_i_gain,
             force_damping=SEED_FORCE_DAMPING * (2.0**float(damping)),
+            orientation_ko=SEED_ORIENTATION_KO * (2.0**float(orientation)),
             normal_filter_tau_s=NORMAL_FILTER_TAU_S * (2.0**float(filter_tau)),
         )
 
@@ -379,6 +433,7 @@ class ForceCandidate:
             "force_p_gain",
             "force_i_gain",
             "force_damping",
+            "orientation_ko",
             "normal_filter_tau_s",
         }
         unknown = set(payload) - allowed
@@ -882,6 +937,7 @@ class SearchAttestation:
                 force_p_gain=value.get("force_p_gain"),
                 force_i_gain=value.get("force_i_gain"),
                 force_damping=value.get("force_damping"),
+                orientation_ko=value.get("orientation_ko", SEED_ORIENTATION_KO),
                 normal_filter_tau_s=value.get(
                     "normal_filter_tau_s", NORMAL_FILTER_TAU_S
                 ),
@@ -1044,6 +1100,9 @@ class TrialSource:
             force_p_gain=candidate_payload.get("force_p_gain"),
             force_i_gain=candidate_payload.get("force_i_gain"),
             force_damping=candidate_payload.get("force_damping"),
+            orientation_ko=candidate_payload.get(
+                "orientation_ko", SEED_ORIENTATION_KO
+            ),
             normal_filter_tau_s=candidate_payload.get(
                 "normal_filter_tau_s", NORMAL_FILTER_TAU_S
             ),
@@ -1227,8 +1286,11 @@ class TrialSpec:
         if not (
             self.candidate.within_tier(SearchTier.T3)
             or self.candidate.within_codex_hybrid_i_envelope()
+            or self.candidate.within_production_search_envelope()
         ):
-            raise ValueError("trial candidate is outside the frozen T3 envelope")
+            raise ValueError(
+                "trial candidate is outside the frozen T3 and production envelopes"
+            )
         if not isinstance(self.transition, TrialTransition):
             raise ValueError("transition must be TrialTransition")
         transition = self.transition

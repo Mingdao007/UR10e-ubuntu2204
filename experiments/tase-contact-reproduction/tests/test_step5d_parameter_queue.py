@@ -153,20 +153,23 @@ def test_initial_manifest_is_exact_quarter_octave_path() -> None:
     assert rows[-1]["force_damping"] == pytest.approx(7.0)
 
 
-def test_receiver_rejects_new_candidate_below_damping_floor(tmp_path: Path) -> None:
+def test_receiver_accepts_candidate_above_new_point_one_damping_floor(
+    tmp_path: Path,
+) -> None:
     root = _queue(tmp_path)
-    with pytest.raises(ParameterQueueError, match="below the 5 search floor"):
-        submit(
-            root,
-            launch_profile_path=PROFILE,
-            force_p=0.001,
-            force_i=0.00001,
-            force_damping=4.949747468305833,
-        )
-    assert list_requests(root) == ()
+    request = submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.001,
+        force_i=0.00001,
+        force_damping=4.949747468305833,
+    )
+    assert request["overlay"]["force_damping"] == pytest.approx(
+        4.949747468305833
+    )
 
 
-def test_legacy_pending_candidate_below_floor_is_quarantined(
+def test_formerly_legacy_pending_candidate_is_not_quarantined(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = _queue(tmp_path)
@@ -196,15 +199,14 @@ def test_legacy_pending_candidate_below_floor_is_quarantined(
     )
 
     records = quarantine_pending_search_violations(root)
-    assert len(records) == 1
-    assert records[0]["request_uid"] == rejected["request_uid"]
-    assert records[0]["physical_attempt"] is False
+    assert records == ()
     assert [row["request_uid"] for row in list_pending(root)] == [
+        rejected["request_uid"],
         accepted["request_uid"]
     ]
 
 
-def test_legacy_inflight_candidate_below_floor_cannot_be_replayed(
+def test_formerly_legacy_inflight_candidate_can_be_replayed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = _queue(tmp_path)
@@ -232,8 +234,11 @@ def test_legacy_inflight_candidate_below_floor_cannot_be_replayed(
         bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
         assert prepare_next_dispatch(root) is not None
 
-    with pytest.raises(ParameterQueueError, match="cannot be replayed"):
-        prepare_next_dispatch(root)
+    replayed = prepare_next_dispatch(root)
+    assert replayed is not None
+    assert replayed["request"]["overlay"]["force_damping"] == pytest.approx(
+        4.949747468305833
+    )
 
 
 def test_receiver_is_unbounded_file_per_request_and_next_is_fifo(tmp_path: Path) -> None:
