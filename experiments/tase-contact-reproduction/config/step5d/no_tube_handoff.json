@@ -25,8 +25,8 @@
   "script2": {
     "program_id": "step5d_strict_rnn_autotune_v3_r026",
     "package_dir": "programs/step5/step5d",
-    "release_manifest": "config/step5d/releases/fcd3dbb72634d8f43ec5e63d4e6e8a363746fc699e6ab66e734729eb7d1c386a/manifest.json",
-    "release_manifest_sha256": "fcd3dbb72634d8f43ec5e63d4e6e8a363746fc699e6ab66e734729eb7d1c386a",
+    "release_manifest": "config/step5d/releases/d60393a257c6d2297eae1ee3c4b250c291f4cebe76559dfefcbba4c1e997297e/manifest.json",
+    "release_manifest_sha256": "d60393a257c6d2297eae1ee3c4b250c291f4cebe76559dfefcbba4c1e997297e",
     "readback_receipt": "config/step5d_autotune_controller_readback_v3.json",
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r026.urp",
     "execution_profile_id": "nf5000-slew250-a250",
