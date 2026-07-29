@@ -190,6 +190,31 @@ def test_governed_remote_play_does_not_require_post_play_continuity_milestone(
     assert receipt["status"] == "play_observed"
 
 
+def test_governed_remote_play_does_not_require_next_arm_before_program_start(
+    tmp_path: Path,
+) -> None:
+    payload = status(tmp_path)
+    payload["predicates"]["next_arm_published"] = False
+    observations = iter([dashboard(), dashboard(playing=True)])
+    writes: list[str] = []
+
+    receipt = governed_remote_play(
+        tmp_path,
+        robot_host="robot",
+        status_resolver=lambda _root: payload,
+        dashboard_observer=lambda *_args, **_kwargs: next(observations),
+        dashboard_writer=lambda _host, command, **_kwargs: (
+            writes.append(command) or "Starting program"
+        ),
+        now_ns=iter([10_100, 10_200]).__next__,
+        monotonic=lambda: 1.0,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert writes == ["play"]
+    assert receipt["status"] == "play_observed"
+
+
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [

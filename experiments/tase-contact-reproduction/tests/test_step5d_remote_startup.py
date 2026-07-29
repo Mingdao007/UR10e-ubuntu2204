@@ -359,7 +359,6 @@ def _bridge_status(
             "bridge_heartbeat_fresh": True,
             "single_writer": True,
             "lease_valid": True,
-            "next_arm_published": True,
             "loaded_program_verified": True,
             "safety_normal": True,
         },
@@ -393,7 +392,6 @@ def test_bridge_starter_uses_canonical_launcher_and_readiness_claim(tmp_path: Pa
             "bridge_heartbeat_fresh": True,
             "single_writer": True,
             "lease_valid": True,
-            "next_arm_published": True,
             "loaded_program_verified": True,
             "safety_normal": True,
         },
@@ -505,18 +503,10 @@ def test_bridge_startup_waits_through_pending_status_until_fresh_ready(
         tmp_path / "campaign",
         attempt_id="fresh-attempt",
     )
-    arm_pending = {
-        **fresh,
-        "predicates": {
-            **fresh["predicates"],
-            "next_arm_published": False,
-        },
-    }
     statuses = iter(
         [
             {"launch_attempt": {"present": False}},
             {"launch_attempt": {"present": True, "attempt_id": "fresh-attempt"}},
-            arm_pending,
             fresh,
         ]
     )
@@ -535,7 +525,7 @@ def test_bridge_startup_waits_through_pending_status_until_fresh_ready(
         dashboard_observer=lambda *_args, **_kwargs: _dashboard(R026_TARGET),
         popen_factory=lambda _command, **_kwargs: process,
         owner_starttime_reader=lambda _pid: 456,
-        monotonic=iter([0.0, 0.1, 0.2, 0.3]).__next__,
+        monotonic=iter([0.0, 0.1, 0.2]).__next__,
         sleeper=lambda _seconds: None,
     )
 

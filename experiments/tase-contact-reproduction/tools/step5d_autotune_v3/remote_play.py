@@ -29,7 +29,6 @@ _REQUIRED_TRUE_PREDICATES = (
     "lease_valid",
     "loaded_program_verified",
     "mailbox_clean",
-    "next_arm_published",
     "play_identity_rechecked",
     "play_prompt_ready",
     "release_contract_proven",

@@ -887,12 +887,7 @@ class RemoteBridgeStarter:
             raise RemoteStartupTerminal("fresh bridge loaded-program predicate is false")
         if predicates.get("safety_normal") is False:
             raise RemoteStartupTerminal("fresh bridge safety predicate is false")
-        for key in (
-            "bridge_heartbeat_fresh",
-            "single_writer",
-            "lease_valid",
-            "next_arm_published",
-        ):
+        for key in ("bridge_heartbeat_fresh", "single_writer", "lease_valid"):
             if predicates.get(key) is not True:
                 raise RemoteStartupPending(f"fresh bridge readiness predicate is pending: {key}")
         bridge = status.get("bridge")
