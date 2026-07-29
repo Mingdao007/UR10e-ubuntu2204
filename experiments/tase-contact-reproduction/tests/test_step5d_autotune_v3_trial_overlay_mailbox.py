@@ -519,7 +519,10 @@ def test_v3_arm_boundary_applies_real_orientation_k_with_tube_disabled() -> None
         campaign_epoch=1,
         campaign_fingerprint="a" * 64,
     )
-    args = SimpleNamespace()
+    args = SimpleNamespace(
+        bridge_normal_max_rate_rad_s=100.0,
+        step4e_normal_max_rate_rad_s=100.0,
+    )
     bridge = SimpleNamespace(STEP5D_V33_ORIENTATION_KO=0.4)
     _install_v3_hard_tube(args, profile)
     _apply_v3_arm_runtime(
@@ -539,6 +542,8 @@ def test_v3_arm_boundary_applies_real_orientation_k_with_tube_disabled() -> None
         "c8019aee2c293746e1edb23097aeab1d7dfb1b8dee09df10ce568fb634f47c9f"
     )
     assert args.step5d_physical_prior_binding_valid is True
+    assert args.bridge_normal_max_rate_rad_s == 100.0
+    assert args.step4e_normal_max_rate_rad_s == 100.0
     assert args.step5d_moving_sphere_enabled is False
     assert args.step5d_hard_tube_enabled is False
     assert args.step5d_hard_tube_guard is None

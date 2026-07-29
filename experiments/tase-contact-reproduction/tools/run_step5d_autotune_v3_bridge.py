@@ -502,8 +502,6 @@ def _apply_v3_arm_runtime(
     )
     args.step5d_live_normal_load_gate_n = STEP5D_V3_PHYSICAL_PRIOR.load_gate_n
     args.step5d_live_normal_load_gate_dwell_s = STEP5D_V3_PHYSICAL_PRIOR.load_gate_dwell_s
-    args.bridge_normal_max_rate_rad_s = STEP5D_V3_PHYSICAL_PRIOR.normal_rate_limit_rad_s
-    args.step4e_normal_max_rate_rad_s = STEP5D_V3_PHYSICAL_PRIOR.normal_rate_limit_rad_s
     args.step5d_moving_sphere_enabled = False
     _require_v3_hard_tube_preallocated(args)
 
