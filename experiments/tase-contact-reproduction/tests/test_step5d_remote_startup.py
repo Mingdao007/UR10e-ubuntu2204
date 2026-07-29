@@ -30,7 +30,7 @@ from step5d_no_tube_handoff import load_manifest  # noqa: E402
 
 MANIFEST = ROOT / "config/step5d/no_tube_handoff.json"
 SCRIPT1_TARGET = "/programs/andyl/kunwei/step5/step5d_autotune_start_hover_r001.urp"
-SCRIPT2_TARGET = "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r031.urp"
+SCRIPT2_TARGET = "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r033.urp"
 
 
 class _Socket:
