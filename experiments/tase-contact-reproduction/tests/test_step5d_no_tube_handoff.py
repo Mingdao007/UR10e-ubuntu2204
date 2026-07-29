@@ -27,10 +27,10 @@ def test_existing_script_pair_is_hash_closed_and_script2_current() -> None:
     binding = validate_release_binding(manifest)
 
     assert binding["script1"]["program_id"] == "step5d_autotune_start_hover_r001"
-    assert binding["script2"]["program_id"] == "step5d_strict_rnn_autotune_v3_r028"
+    assert binding["script2"]["program_id"] == "step5d_strict_rnn_autotune_v3_r029"
     assert (
         binding["script2"]["sha256"][".script"]
-        == "5550631b4caffdbfbe38238b5fc2802a2a5ed3196372564fff5d086340ae4987"
+        == "f0d939f3821d6b285327ab2c94a09bb05e05bddeac721985b4b6171f8bb67458"
     )
 
 
