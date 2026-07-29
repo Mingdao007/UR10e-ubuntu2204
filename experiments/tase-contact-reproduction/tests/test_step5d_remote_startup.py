@@ -30,7 +30,7 @@ from step5d_no_tube_handoff import load_manifest  # noqa: E402
 
 MANIFEST = ROOT / "config/step5d/no_tube_handoff.json"
 SCRIPT1_TARGET = "/programs/andyl/kunwei/step5/step5d_autotune_start_hover_r001.urp"
-R026_TARGET = "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r029.urp"
+SCRIPT2_TARGET = "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r030.urp"
 
 
 class _Socket:
@@ -112,7 +112,7 @@ def test_remote_dashboard_writer_allows_exact_load_and_no_arbitrary_command() ->
     with pytest.raises(RemoteStartupError, match="unsupported"):
         writer.write("power on")
     with pytest.raises(RemoteStartupError, match="unsupported"):
-        writer.write(f"load {R026_TARGET}")
+        writer.write(f"load {SCRIPT2_TARGET}")
 
 
 def test_script1_refuses_remote_false_before_any_write() -> None:
@@ -151,7 +151,7 @@ def test_script1_rejects_wrong_loaded_identity_after_exact_load() -> None:
     adapter = RemoteScript1Trigger(
         robot_host="robot",
         writer=writer,  # type: ignore[arg-type]
-        dashboard_observer=lambda *_args, **_kwargs: _dashboard(R026_TARGET),
+        dashboard_observer=lambda *_args, **_kwargs: _dashboard(SCRIPT2_TARGET),
     )
     with pytest.raises(RemoteStartupError, match="loaded program differs"):
         adapter.load(manifest)
@@ -302,13 +302,13 @@ def test_home_observer_is_read_only_and_emits_fresh_stationary_samples() -> None
     assert all(call != "input_write" for call in rtde.calls)
 
 
-def test_r026_loader_rejects_wrong_exact_binding_before_write() -> None:
+def test_script2_loader_rejects_wrong_exact_binding_before_write() -> None:
     manifest = load_manifest(MANIFEST)
     writer = _Writer(SCRIPT1_TARGET)
     loader = RemoteR026Loader(
         robot_host="robot",
         writer=writer,  # type: ignore[arg-type]
-        dashboard_observer=lambda *_args, **_kwargs: _dashboard(R026_TARGET),
+        dashboard_observer=lambda *_args, **_kwargs: _dashboard(SCRIPT2_TARGET),
     )
     with pytest.raises(RemoteStartupError, match="binding differs"):
         loader.load(manifest)
@@ -341,7 +341,7 @@ def _bridge_status(
     campaign_root: Path,
     *,
     attempt_id: str,
-    target: str = R026_TARGET,
+    target: str = SCRIPT2_TARGET,
 ) -> dict:
     return {
         "schema": "step5d.bridge/governed-status-v3",
@@ -386,7 +386,13 @@ def test_bridge_starter_uses_canonical_launcher_and_readiness_claim(tmp_path: Pa
         "schema": "step5d.bridge/governed-status-v3",
         "state": "BENCH_READY",
         "compatibility_phase": "WAITING_FOR_IDENTITY_PLAY",
-        "controller": {"loaded": {"verified": True, "expected": R026_TARGET, "observed": R026_TARGET}},
+        "controller": {
+            "loaded": {
+                "verified": True,
+                "expected": SCRIPT2_TARGET,
+                "observed": SCRIPT2_TARGET,
+            }
+        },
         "release": {"sha256": manifest.payload["script2"]["release_manifest_sha256"]},
         "predicates": {
             "bridge_heartbeat_fresh": True,
@@ -437,7 +443,7 @@ def test_bridge_starter_uses_canonical_launcher_and_readiness_claim(tmp_path: Pa
             "attempt_id": "attempt-remote-1",
         },
         readiness_claim_verifier=lambda _status, _claim: {},
-        dashboard_observer=lambda *_args, **_kwargs: _dashboard(R026_TARGET),
+        dashboard_observer=lambda *_args, **_kwargs: _dashboard(SCRIPT2_TARGET),
         popen_factory=lambda command, **_kwargs: commands.append(command) or process,
         owner_starttime_reader=lambda _pid: 456,
         monotonic=monotonic,
@@ -480,7 +486,7 @@ def test_bridge_starter_does_not_accept_stale_prior_ready_status(tmp_path: Path)
             "attempt_id": status["launch_attempt"]["attempt_id"],
         },
         readiness_claim_verifier=lambda _status, _claim: {},
-        dashboard_observer=lambda *_args, **_kwargs: _dashboard(R026_TARGET),
+        dashboard_observer=lambda *_args, **_kwargs: _dashboard(SCRIPT2_TARGET),
         popen_factory=lambda _command, **_kwargs: process,
         owner_starttime_reader=lambda _pid: 456,
         monotonic=clock,
@@ -524,7 +530,7 @@ def test_bridge_startup_waits_through_pending_status_until_fresh_ready(
             "attempt_id": status.get("launch_attempt", {}).get("attempt_id"),
         },
         readiness_claim_verifier=lambda _status, _claim: {},
-        dashboard_observer=lambda *_args, **_kwargs: _dashboard(R026_TARGET),
+        dashboard_observer=lambda *_args, **_kwargs: _dashboard(SCRIPT2_TARGET),
         popen_factory=lambda _command, **_kwargs: process,
         owner_starttime_reader=lambda _pid: 456,
         monotonic=iter([0.0, 0.1, 0.2]).__next__,
@@ -559,7 +565,7 @@ def test_bridge_fresh_identity_violation_is_terminal_not_pending(tmp_path: Path)
             "attempt_id": status["launch_attempt"]["attempt_id"],
         },
         readiness_claim_verifier=lambda _status, _claim: {},
-        dashboard_observer=lambda *_args, **_kwargs: _dashboard(R026_TARGET),
+        dashboard_observer=lambda *_args, **_kwargs: _dashboard(SCRIPT2_TARGET),
         popen_factory=lambda _command, **_kwargs: process,
         owner_starttime_reader=lambda _pid: 456,
         monotonic=iter([0.0, 0.1]).__next__,
@@ -582,13 +588,13 @@ def _play_receipt(manifest, *, status: str = "play_observed") -> dict:
         "status": status,
         "attempt_id": "fresh-attempt",
         "release_manifest_sha256": manifest.payload["script2"]["release_manifest_sha256"],
-        "expected_program": R026_TARGET,
+        "expected_program": SCRIPT2_TARGET,
         "governed_status_sha256": "a" * 64,
         "observed_at_unix_ns": 100,
         "play_observed_at_unix_ns": 200,
-        "dashboard_before": _dashboard(R026_TARGET),
+        "dashboard_before": _dashboard(SCRIPT2_TARGET),
         "dashboard_write_response": "Starting program\n",
-        "dashboard_after": _dashboard(R026_TARGET, running=True),
+        "dashboard_after": _dashboard(SCRIPT2_TARGET, running=True),
     }
 
 
