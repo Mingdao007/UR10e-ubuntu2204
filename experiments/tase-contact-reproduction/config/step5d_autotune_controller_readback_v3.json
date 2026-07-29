@@ -1,8 +1,8 @@
 {
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r033.urp",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r034.urp",
   "fresh_get_evidence": "per_campaign_delivery_observation",
-  "program": "step5d_strict_rnn_autotune_v3_r033",
+  "program": "step5d_strict_rnn_autotune_v3_r034",
   "safety_boundary": [
     "controller package upload and fresh GET only",
     "no Load or Play",
@@ -10,11 +10,11 @@
   ],
   "schema": "step5d.autotune.controller-readback/v3",
   "status": "controller read-back verified",
-  "tp_fingerprint": "2bbcdde2848116002a07be98190df9db4e1e2b4313a21a16350854e545476f14",
+  "tp_fingerprint": "91752240b939b059a5bef8d076d10ec576d3a8ba261cc111cae581052bf37b28",
   "triplet_sha256": {
-    ".script": "09ca95381c6b2e87cce5a98cb8a743e27a16cad5424729667d8115964473f69c",
-    ".txt": "ceb2c5be1e9e40d34644ff6745ff443cb53f7d09307c07e22cfaac017ac6e540",
-    ".urp": "f5ef030ab131d7cee1f2c06f4cdfb60a2ab66e2c9b3eb7bdbf15233d218417f8"
+    ".script": "6a6af44ebdb79553307c2acb45ba6a2914c26f6dd7b05f393a6c1eb2c2d11f1d",
+    ".txt": "19b77977e08d759359e5c9f5b372a32e198eb6ac71200680d29bf7a17ba62785",
+    ".urp": "10f482d8c8e305b1aea979ceefb2cd24ef1fbc79e5e22235dae8e4a2b9093f66"
   },
   "verified": true
 }
