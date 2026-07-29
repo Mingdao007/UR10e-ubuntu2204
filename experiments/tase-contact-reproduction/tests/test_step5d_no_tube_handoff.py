@@ -30,7 +30,7 @@ def test_existing_script_pair_is_hash_closed_and_r026_current() -> None:
     assert binding["script2"]["program_id"] == "step5d_strict_rnn_autotune_v3_r026"
     assert (
         binding["script2"]["sha256"][".script"]
-        == "dabc7ce46682c7c3e3ef0d93dafa86aa2d09580d5629bb515cee4d540ed6e21c"
+        == "6369ebc6150ef68c0ed14f16992427f49d3d355967f7b484f1ac6d9f2e80adc6"
     )
 
 
