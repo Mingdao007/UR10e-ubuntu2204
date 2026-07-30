@@ -1,0 +1,80 @@
+{
+  "schema": "step5d.autotune-v4/review-tracking-v1",
+  "lineage": "step5d_strict_rnn_autotune_v4",
+  "program": "step5d_strict_rnn_autotune_v4_r002",
+  "formal_live_gate_passed": false,
+  "implementation_validation": {
+    "focused_tests_passed": 76,
+    "cross_step_stage_table_passed": true,
+    "offline_force_frame_semantic_gate_passed": true,
+    "controller_readback_verified": true,
+    "controller_readback_receipt": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r002.controller-readback-receipt.json",
+    "controller_load_or_play_performed": false
+  },
+  "reviews": [
+    {
+      "lane": "opus",
+      "requested_model": "Opus 5",
+      "requested_effort": "high",
+      "status": "APPROVED_WITH_BLOCKERS"
+    },
+    {
+      "lane": "luna",
+      "requested_model": "GPT-5.6 Luna",
+      "requested_effort": "max",
+      "status": "APPROVED_WITH_BLOCKERS"
+    },
+    {
+      "lane": "grok",
+      "previous_status": "BLOCKED_PENDING_OPUS",
+      "status": "APPROVED_WITH_BLOCKERS",
+      "status_correction": "The pending-Opus dependency is expired because the Opus review returned."
+    }
+  ],
+  "resolved_design_corrections": {
+    "program_delta_z_mm": 0,
+    "tcp_derivation_mm": "37.0991729 + 50.3 = 87.3991729 -> 87.4",
+    "duplicate_34p7mm_compensation_forbidden": true,
+    "two_level_pointer": {
+      "active": "V3/r034 with legacy old EOAT",
+      "staged": "V4/r002 with new EOAT profile",
+      "canonical_transition_required": true
+    },
+    "typed_i_off": {
+      "schema": "typed_composite",
+      "off_log2_i_on": 0,
+      "off_i_off": 1,
+      "off_to_on_counts_one_physical_transition": true
+    },
+    "remote_owner_gate": "Remote owner verifies controller identity, Safety NORMAL, single writer, bound route, and fresh Kunwei before Dashboard Load/Play.",
+    "behavioral_primitives": {
+      "policy_bundle_injected": true,
+      "invariant_envelope_replaceable": false,
+      "missing_non_safety_provider_behavior": "zero_qdot_no_motion",
+      "force_search_shared_engine": true,
+      "r006_triplet_byte_identical": true,
+      "baseline_qualification_owner": "BaselineQualificationLedger",
+      "baseline_success_terminal_stage": 22,
+      "bo_optional_candidate_provider": true
+    },
+    "eoat_profiles": {
+      "old_v3": "config/step5d/eoat_profile_old_v3.json",
+      "new_v4": "config/step5d/eoat_profile_new_v4.json",
+      "shared_primitive": "apply_and_verify_eoat(profile, controller)",
+      "fresh_receipt_required_before_motion": true
+    },
+    "r001_status": "SUPERSEDED_ARCHITECTURE_NOT_LOADABLE"
+  },
+  "remaining_live_blockers": [
+    "formal Review v3 receipt for the final source/package closure",
+    "new EOAT active context",
+    "fresh force-frame semantic gate completed offline; live route still needs a fresh owner snapshot",
+    "r006 live canary success",
+    "three consecutive governed 5 N baseline successes",
+    "canonical V4 lineage transition"
+  ],
+  "claim_boundary": [
+    "Review statuses are tracking metadata, not a formal live-gate receipt.",
+    "No review status authorizes Load, Play, bridge start, motion, contact, zero/tare, or pointer mutation."
+  ]
+}

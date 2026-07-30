@@ -1,0 +1,34 @@
+{
+  "schema": "step5d.autotune-v4/controller-readback-receipt-v1",
+  "basename": "step5d_strict_rnn_autotune_v4_r002",
+  "controller_host": "192.168.1.18",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r002.urp",
+  "source_stamp": "2026-07-30T1505HKT_STEP5D_AUTOTUNE_V4_R002",
+  "verified_at_hkt": "2026-07-30T15:06:29+08:00",
+  "state": "controller read-back verified",
+  "artifacts": {
+    "script_sha256": "f7d103ff3fb264658789227e8484d0596632e995fa4081e76455fdbcb119fb98",
+    "txt_sha256": "1b390c203605474797e8b6359c906e0a990bb749ced8c85bad9d503197072df5",
+    "urp_sha256": "2e4036b74ecabc3ed1e6beaca3a93d064894a70f1c4295efedf226c5e1900c08"
+  },
+  "gates": {
+    "local_triplet_sha_match": true,
+    "fetched_triplet_sha_match": true,
+    "urp_gzip_xml_readable": true,
+    "program_name_match": true,
+    "script_node_path_match": true,
+    "cached_contents_exact": true,
+    "version_stamp_match": true,
+    "semantic_greps_match": true,
+    "controller_load_or_play_performed": false,
+    "v3_current_pointer_changed": false,
+    "v4_lineage_selected": false
+  },
+  "claim_boundary": [
+    "This receipt proves controller filesystem upload and fresh read-back only.",
+    "It does not prove that PolyScope loaded or played V4 r002.",
+    "V3/r034 bytes and current pointer remain unchanged.",
+    "V4 activation and live contact remain blocked on the canonical live evidence gates."
+  ]
+}

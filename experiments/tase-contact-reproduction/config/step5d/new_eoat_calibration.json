@@ -1,0 +1,100 @@
+{
+  "schema": "step5d.new-eoat/calibration-contract-v2",
+  "artifact_id": "new-3d-printed-eoat-20260730-v2",
+  "source_evidence": {
+    "eight_pose_fit": {
+      "origin": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/payload-cog-refinement-new-eoat-20260730/summary.json",
+      "sha256": "0f6398adb0476d3051f7941083ffd031e8ebde6feb7409e951e02af331b9707f",
+      "pose_count": 8,
+      "samples_per_pose": 400,
+      "sampling_frequency_hz": 50.0,
+      "pose_sha256": [
+        "166624f0e46bf843e8512aa629362c04dd331046564ce61b24cf9c1ac78ebaec",
+        "c3a7e55eca96b7bea69e15d0b3637d106ba867574b187e8400b0472058a9ec50",
+        "b997fba9dc5bd03f8f3d44855d2c080e5e16148dd80577984dc8e47b9c75a1d9",
+        "6d6a3859786e02eff959899db0ff9b112b222afe59e9fed7d298e7e3ade59af7",
+        "2860811a2dcd381a1f9992b2faf5d1eb25926ec2daef01afb08fb4a4e2d3c6f6",
+        "77b3136ad9a32359335ea3efedb80a604dc918f133b477e6d17a7e5936bf4a11",
+        "7d02e4c3bf8baadbc843517fd58a4b7055e9fc0061d475e4471aa1e676f9a8e7",
+        "5bc3a40d044e625bb2f9be85eda831a26f36507289b80e8ba55433abb703879c"
+      ]
+    },
+    "digital_twin_stack": {
+      "origin": "config/digital_twin_model_inputs_v1.json",
+      "sha256": "b0b122ade87d5c4da80964c6cd72a855737d6adf2c80017e0dbd05ea900ec337",
+      "current_stack_offset_z_mm": 122.09917288991741,
+      "separate_prior_direct_flange_tool_mm": 85.0,
+      "residual_stack_mm": 37.09917288991741
+    },
+    "mac_cad_model_stack": {
+      "host": "100.127.94.11",
+      "directory": "/Users/andyl/Documents/UR10e/eoat/eoat_print/v1_tase_roundhead_onepiece_52mm",
+      "nominal_cad_height_mm": 52.0,
+      "user_measured_height_mm": 50.3,
+      "readme_sha256": "411781262eaf66548adfd5800d6c0891e3a93fcc6f9002984400dd8fc993dba6",
+      "verification_sha256": "8d7dff3bc1b7285c19bf563178a16b27b79e8a299c5412962050c6eade0222a7",
+      "validation_report_sha256": "f534764c3436303f4bcc73703d6d3a87417a5d797f00ef97cf775eed372400b1",
+      "cad_source_sha256": "0f3b0f56a4ff7e394a16ae73acd0d4b9cf2128b98e9b6c45c2a0d2baadded796",
+      "model_yaml_sha256": "d53737a9522dfeefcb747d7069f7503d999fe4f65308ab063e7222ab6c00dd4e",
+      "urdf_xacro_sha256": "8ae0f69b086e71c6bad199b295e1a3a4400b5d3b71a68c8bbb87869aad5b36d1",
+      "step_sha256": "51827b730b212fd7f39f3cb1342fb6cea6b32a28e89be76b5d58e78b019221ec"
+    }
+  },
+  "fit": {
+    "payload_raw_kg": 0.413423363868186,
+    "payload_controller_kg": 0.413,
+    "cog_raw_mm": [
+      1.0611615485494126,
+      3.081943706082646,
+      16.275935707423656
+    ],
+    "cog_controller_m": [
+      0.0011,
+      0.0031,
+      0.0163
+    ],
+    "force_rmse_n": 0.4115365269838625,
+    "torque_rmse_nm": 0.0043431717968189
+  },
+  "tcp_derivation": {
+    "residual_stack_mm": 37.09917288991741,
+    "measured_new_head_mm": 50.3,
+    "unrounded_tcp_mm": 87.39917288991741,
+    "controller_tcp_mm": 87.4,
+    "program_z_delta_mm": 0.0,
+    "rule": "The program controls TCP pose after set_tcp; preserve old X/Y, orientation, and program Z. Do not subtract 34.7 mm again."
+  },
+  "tcp_pose_m_rad": [
+    0.0,
+    0.0,
+    0.0874,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "controller_get_receipt": {
+    "origin": "config/step5d/new_eoat_controller_readback_v2.json",
+    "sha256": "9fe0a697cc501d4387959b9b80df88ce29450f18effc974bb7ad2da84411beca",
+    "required_schema": "step5d.new-eoat/controller-get-receipt-v2"
+  },
+  "controller_write_contract": {
+    "payload_api": "set_target_payload_three_argument",
+    "tcp_api": "set_tcp",
+    "tp_initialization_required": true,
+    "premotion_controller_get_match_required": true
+  },
+  "revocations": [
+    {
+      "tcp_mm": 59.14,
+      "status": "REVOKED",
+      "reason": "double-compensated geometry from an inapplicable prior direct-flange 85 mm reference"
+    }
+  ],
+  "claim_boundary": [
+    "Payload and CoG are rounded controller values from the SHA-bound eight-pose fit.",
+    "TCP is 37.09917288991741 + 50.3 = 87.39917288991741 mm, rounded to 87.4 mm.",
+    "The fresh controller GET receipt replaces the prior self-declared pass boolean.",
+    "Every generated TP program must set payload and TCP, and its register live writer must verify controller readback before motion.",
+    "This contract does not itself authorize motion, contact, force control, Kunwei stream start, sensor zero, or tare."
+  ]
+}

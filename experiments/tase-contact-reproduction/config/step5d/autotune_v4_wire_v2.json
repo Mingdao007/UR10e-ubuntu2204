@@ -1,0 +1,38 @@
+{
+  "schema": "step5d.autotune-v4/register-wire-v2",
+  "program": "step5d_strict_rnn_autotune_v4_r002",
+  "double_inputs": {
+    "24": "raw positive normal_load_n from Kunwei",
+    "25": "Kunwei translational force norm N",
+    "26": "monotonic heartbeat",
+    "27": "fresh finite Kunwei flag",
+    "28": "fail-closed stop request",
+    "29": "fresh EOAT controller GET acknowledgement",
+    "30": "Kunwei torque norm Nm",
+    "31_to_36": "Kunwei zeroed Fx Fy Fz Mx My Mz",
+    "37_to_42": "hash-gated qdot0..qdot5 rad/s",
+    "43": "qdot command valid",
+    "44": "injected baseline policy internal setpoint evidence",
+    "45": "filtered positive normal_load_n",
+    "46": "monotonic command sequence",
+    "47": "V4 r002 layout code 605"
+  },
+  "integer_inputs": {
+    "24": "BaselineQualificationLedger consecutive stage-22 success receipts",
+    "25": "typed command mode: 0 HOLD, 1 BASELINE, 2 PATH, 3 RETRACT, 4 STOP"
+  },
+  "constants": {
+    "layout_code": 605,
+    "target_force_n_not_transported": 5,
+    "qdot_cap_rad_s": 0.15,
+    "speedj_acceleration_rad_s2": 2.5,
+    "stopj_acceleration_rad_s2": 2.5
+  },
+  "invariants": [
+    "Target force is construction/decode/runtime asserted at 5 N and is not a tunable wire field.",
+    "Baseline count is accepted only from BaselineQualificationLedger snapshots.",
+    "Registers 37..42 are written only after the bound model/Jacobian gate and fixed invariant envelope pass.",
+    "Any stale, nonfinite, safety, structural, layout, sequence, mode, EOAT, or qualification failure publishes zero qdot and STOP.",
+    "Kunwei is the sole wrench authority; UR built-in force is absent."
+  ]
+}

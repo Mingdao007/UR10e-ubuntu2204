@@ -1,0 +1,44 @@
+Step5d new-EOAT force-search canary
+
+Controller target:
+  /programs/andyl/kunwei/step5/step5d_force_search_canary_r005.urp
+
+Version:
+  2026-07-30T0355HKT_STEP5D_FORCE_SEARCH_CANARY_R005
+
+Primitive:
+  Start at the current stationary pose.
+  Require vertical-down tool Z and a fresh zeroed Kunwei wrench.
+  Search base -Z at 0.500 mm/s.
+  Latch first contact at abs(normal) >= 0.800 N
+  or force_norm >= 1.000 N.
+  Stop immediately, then retract 5.0 mm
+  at 1.0 mm/s on successful contact only.
+
+Hard bounds:
+  normal=3.0 N
+  force_norm=3.0 N
+  torque_norm=0.2 Nm
+  travel=25.0 mm
+  runtime=60.0 s
+
+Bridge:
+  contract_id=new-eoat-force-search-observer-20260730
+  contract_sha256=968f913f52346bed957a90fefd6f64de3ffc7b5679484ce2b28930fc876dde54
+  fixed observer-only mode; 125 Hz; fz/-1; software baseline only;
+  registers 37..47 are zero and ignored by this TP primitive.
+
+EOAT:
+  payload=0.413 kg
+  CoG=[0.0011, 0.0031, 0.0163] m
+  TCP=[0.0, 0.0, 0.0874, 0.0, 0.0, 0.0]
+
+Excluded:
+  Absolute XY/Home, lateral/angular motion, force_mode, Autotune, RNN,
+  optimizer, mailbox, hardware zero/tare, and motion after an unsafe stop.
+
+Unsafe-stop recovery:
+  Stop reasons 2/3/4/5/6/7/8/10 do not retract automatically.
+  Keep the program stopped. Do not restart it or load r002 Home.
+  In Local Control, jog only reverse base +Z after confirming the obstruction,
+  force state, and safety state; then return to Remote Control for a new run.

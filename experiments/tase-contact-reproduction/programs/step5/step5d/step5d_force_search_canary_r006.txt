@@ -1,0 +1,44 @@
+Step5d independent Kunwei 1 N force-search canary r006
+
+Controller target:
+  /programs/andyl/kunwei/step5/step5d_force_search_canary_r006.urp
+
+Version:
+  2026-07-30T1330HKT_STEP5D_FORCE_SEARCH_CANARY_R006
+
+Program-side step table:
+  P1 INIT: set payload=0.413 kg, CoG=[0.0011, 0.0031, 0.0163] m,
+     TCP=[0.0, 0.0, 0.0874, 0.0, 0.0, 0.0].
+  P2 GATE: require writer register 29 controller-GET acknowledgement and three
+     heartbeat increments, each strictly below 80 ms.
+  P3 SEARCH: base -Z only, 0.5 mm/s,
+     0.010 m/s^2, at most
+     25.0 mm / 90 s.
+  P4 LATCH: positive normal_load >= 0.8 N
+     OR force norm >= 1.0 N.
+  P5 STOP: stopl(0.01); continue Kunwei
+     monitoring throughout deceleration.
+  P6 DWELL: require fresh, finite, stationary state continuously for
+     0.25 s.
+  P7 RETRACT: success only, base +Z 5.0 mm
+     at 0.5 mm/s; monitor every cycle.
+  P8 TERMINAL: output stage 15/reason 11 on success, stage 90 on failure.
+
+User-side / Remote-owner step table:
+  U1 Confirm exact controller readback, Remote Control, Safety NORMAL,
+     stationary robot, one live writer, and fresh Kunwei route.
+  U2 Start the r006 register live writer and wait for its ready receipt.
+  U3 Dashboard Load exact target, verify loaded identity, then Dashboard Play.
+  U4 Observe writer terminal receipt; it exits immediately after TP terminal.
+  U5 Do not restart or Home after any failure. Inspect stop reason and fresh
+     controller/Kunwei evidence before a new governed attempt.
+
+Hard guards:
+  abs(normal)=3.0 N
+  force_norm=3.0 N
+  torque_norm=0.2 Nm
+
+Claim boundary:
+  Kunwei is the sole wrench authority. UR built-in force, force_mode, Home,
+  XY/angular motion, hardware zero/tare, optimizer, RNN, and Autotune are absent.
+  Absolute normal is a hard guard only; it is not a contact latch.

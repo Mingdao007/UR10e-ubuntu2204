@@ -1,0 +1,16 @@
+{
+  "checks": {
+    "baseline_post_contact_guard": true,
+    "entry_xyz_exact": true,
+    "expected_contact_z_not_motion_target": true,
+    "full_path_exact_60s": true,
+    "no_auto_home": true,
+    "no_duplicate_tcp_z_compensation": true,
+    "search_base_z_only": true,
+    "search_guard_remains_3n": true,
+    "target_exact_5n": true
+  },
+  "passed": true,
+  "program": "step5d_strict_rnn_autotune_v4_r001",
+  "schema": "step5d.autotune-v4/numeric-sanity-v1"
+}

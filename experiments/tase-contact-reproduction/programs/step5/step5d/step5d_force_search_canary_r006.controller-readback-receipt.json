@@ -1,0 +1,33 @@
+{
+  "schema": "step5d.force-search-canary/controller-readback-receipt-v1",
+  "basename": "step5d_force_search_canary_r006",
+  "controller_host": "192.168.1.18",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_force_search_canary_r006.urp",
+  "source_stamp": "2026-07-30T1330HKT_STEP5D_FORCE_SEARCH_CANARY_R006",
+  "verified_at_hkt": "2026-07-30T13:40:00+08:00",
+  "state": "controller read-back verified",
+  "artifacts": {
+    "script_sha256": "de8d071885d21274cd44b1b33408e51b52caf7342aecb099c12f75c8fbd62922",
+    "txt_sha256": "4910584992b62e8fccee1849a4650d5f287a831b8345734dcbb936204c593698",
+    "urp_sha256": "bc9044e7621ffcfa7aa785b04affbaab5a558137aa015006c7c6b2cff3175c26"
+  },
+  "gates": {
+    "local_triplet_sha_match": true,
+    "fetched_triplet_sha_match": true,
+    "urp_gzip_xml_readable": true,
+    "program_name_match": true,
+    "script_node_path_match": true,
+    "cached_contents_exact": true,
+    "version_stamp_match": true,
+    "semantic_greps_match": true,
+    "controller_load_or_play_performed": false,
+    "current_pointer_changed": false
+  },
+  "claim_boundary": [
+    "This receipt proves controller filesystem upload and fresh read-back only.",
+    "It does not prove that PolyScope loaded or played r006.",
+    "V3/r034 remains the active old-EOAT lineage and was not modified or promoted.",
+    "r006 live contact remains pending a separate new-EOAT context transition and live acceptance gates."
+  ]
+}

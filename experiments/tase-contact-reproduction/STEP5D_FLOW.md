@@ -1,9 +1,9 @@
-# Step5d current flow
+# Step5d current and staged flow
 
 ## Current stage
 
 - Stage: `step5d_strict_rnn_autotune_v3`.
-- Controller target: `step5d_strict_rnn_autotune_v3_r022.urp`.
+- Controller target: `step5d_strict_rnn_autotune_v3_r034.urp`.
 - Canonical launcher: `scripts/step5d-autotune-v3.sh bridge-live`.
 - Current immutable release: `config/step5d/current.json`.
 
@@ -46,3 +46,51 @@
   bridge.
 - The bridge reaches the governed waiting-for-ARM state with zero command.
 - No live acceptance is claimed until an explicitly authorized bench run.
+
+## Staged independent V4 r002
+
+- V4 is a separate `step5d_strict_rnn_autotune_v4` lineage and does not mutate
+  V3/r034, its observations, GP, incumbent, current pointer, or fixed-2 ms
+  contract.
+- V4 r001 is historical and `SUPERSEDED_ARCHITECTURE_NOT_LOADABLE`; r002 is the
+  only staged architecture candidate.
+- Old and new EOATs are hash-bound typed profiles. Both use the same
+  `apply_and_verify_eoat(profile, controller)` primitive; profile selection is
+  data, while stationary, Safety NORMAL, single writer, and fresh GET match are
+  invariants.
+- Entry, force search, baseline, timing, qdot gate, and candidate provider are
+  replaceable behavior primitives. Provider outputs pass through the fixed
+  V4 invariant envelope before a typed wire packet can be published.
+- Removing a non-safety provider degrades to zero qdot/no motion. Target 5 N,
+  Kunwei-only authority, model hashes, hard guards, physical caps, timing
+  stop conditions, schema, and EOAT readback are not removable.
+- Baseline qualification has one owner:
+  `BaselineQualificationLedger`. Only hash-bound terminal stage-22 receipts
+  change the consecutive-success count; the typed TP command mode is
+  `HOLD/BASELINE/PATH/RETRACT/STOP`.
+- BO is an optional candidate provider. Without BO, the anchor/manual staged
+  provider still produces useful bounded behavior.
+
+### V4 capability DAG
+
+`EOAT profile -> shared force search -> injected entry/timing/baseline/qdot
+policies -> fixed invariant envelope -> typed wire -> attempt/replay evidence
+-> optional candidate provider`
+
+### V4 runtime feedback loop
+
+`fresh Kunwei + robot observation -> local policies -> invariant envelope ->
+typed command -> single RTDE writer -> guarded TP execution -> fresh
+observation`
+
+### V4 live blockers
+
+- New EOAT physically installed and freshly apply/GET-verified.
+- r006 live success.
+- Three consecutive ledger-owned 5 N baseline receipts.
+- Formal Review v3 and fresh Remote route-owner gates.
+- Canonical lineage transition. Exact r002 triplet upload/read-back is closed
+  by the controller-readback receipt; it did not Load/Play or select V4.
+
+Until all blockers close, V4 remains no-Load/no-Play/no-motion and V3/r034
+remains the active old-EOAT autotune path.

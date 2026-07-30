@@ -1,0 +1,80 @@
+{
+  "schema": "step5d.force-search-canary/register-live-writer-v1",
+  "artifact_id": "new-eoat-kunwei-register-live-writer-r006",
+  "program": {
+    "basename": "step5d_force_search_canary_r006",
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_force_search_canary_r006.urp"
+  },
+  "endpoints": {
+    "robot_host": "192.168.1.18",
+    "kunwei_host": "192.168.50.25",
+    "kunwei_port": 5152
+  },
+  "timing": {
+    "rtde_hz": 125.0,
+    "publish_period_s": 0.008,
+    "baseline_s": 5.0,
+    "sensor_stale_s": 0.08,
+    "maximum_runtime_s": 120.0,
+    "terminal_exit_timeout_s": 2.0
+  },
+  "force_mapping": {
+    "normal_axis": "fz",
+    "normal_sign": -1.0,
+    "software_baseline_only": true,
+    "hardware_zero_or_tare": false
+  },
+  "hard_guards": {
+    "absolute_normal_load_n": 3.0,
+    "force_norm_n": 3.0,
+    "torque_norm_nm": 0.2
+  },
+  "eoat_controller_get": {
+    "payload_kg": 0.413,
+    "payload_cog_m": [
+      0.0011,
+      0.0031,
+      0.0163
+    ],
+    "tcp_offset_m_rad": [
+      0.0,
+      0.0,
+      0.0874,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "payload_tolerance_kg": 0.0005,
+    "cog_tolerance_m": 0.00005,
+    "tcp_tolerance_m_rad": 0.00005,
+    "ack_input_register": 29
+  },
+  "lease": {
+    "resource_id": "step5d-bridge-writer",
+    "authority_root": "/run/user/1000/step5d-autotune-v3/resources/step5d-bridge-writer"
+  },
+  "terminal": {
+    "stage_output_register": 35,
+    "reason_output_register": 30,
+    "active_stages": [
+      10,
+      11,
+      12,
+      13,
+      14
+    ],
+    "terminal_stages": [
+      15,
+      90
+    ]
+  },
+  "invariants": [
+    "This process is the sole RTDE input-register live writer, not an observer.",
+    "It sends only Kunwei START_STREAM and STOP_STREAM; zero, tare, and configuration writes are forbidden.",
+    "It never sends URScript, Dashboard Load/Play/stop, robot motion, TCP, or payload writes.",
+    "It acquires the canonical single-writer lease before opening RTDE inputs.",
+    "It publishes EOAT acknowledgement only after fresh controller GET fields match.",
+    "It publishes fail-closed stop_request on stale, nonfinite, safety, or hard-guard failure.",
+    "It exits immediately after a fresh TP terminal echo instead of filling the runtime limit."
+  ]
+}

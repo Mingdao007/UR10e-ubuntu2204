@@ -1,0 +1,56 @@
+{
+  "schema": "step5d.old-eoat/controller-get-receipt-v1",
+  "receipt_id": "old-eoat-controller-get-20260730T150224HKT",
+  "source": {
+    "path": "/home/andy/.codex-worktrees/step5d-v3-r034-old-eoat-live-20260730/experiments/tase-contact-reproduction/runs/step5d_autotune_v3/preflight-old-eoat-20260730T070222Z/preflight_readonly.json",
+    "sha256": "5887ded371e2e43aac60ae2340cabfbcb91ff7adf027c26e554a460864c3b625",
+    "completed_at_hkt": "2026-07-30T15:02:24.970+08:00",
+    "method": "read-only RTDE output recipe and read-only Dashboard GET commands",
+    "projection": "lossless EOAT and stationary-state field projection from the SHA-bound canonical preflight snapshot"
+  },
+  "controller": {
+    "host": "192.168.1.18",
+    "remote_control": true,
+    "robot_mode": "RUNNING",
+    "safety_mode": "NORMAL",
+    "program_state": "STOPPED <unnamed>",
+    "program_running": false
+  },
+  "readback": {
+    "payload_kg": 0.404,
+    "payload_cog_m": [
+      -0.00044,
+      -0.00094,
+      0.0268
+    ],
+    "tcp_offset_m_rad": [
+      0.0,
+      0.0,
+      0.1221,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "actual_tcp_speed_m_s_rad_s": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "tolerances": {
+    "payload_kg": 0.0005,
+    "cog_m": 0.00005,
+    "tcp_m_rad": 0.00005,
+    "stationary_linear_m_s": 0.0005,
+    "stationary_angular_rad_s": 0.005
+  },
+  "claim_boundary": [
+    "This bounded receipt is derived from a real SHA-bound controller GET snapshot, not a runtime_readback_passed self-assertion.",
+    "It proves the old EOAT payload, CoG, TCP, stationary state, Remote mode, and Safety NORMAL only at the recorded timestamp.",
+    "A new apply-and-verify receipt is still required immediately before V3 motion.",
+    "This read-only receipt does not authorize payload/TCP writes, Load, Play, motion, contact, zero, or tare."
+  ]
+}

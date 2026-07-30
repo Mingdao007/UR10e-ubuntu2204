@@ -1,0 +1,55 @@
+{
+  "schema": "step5d.new-eoat/controller-get-receipt-v2",
+  "receipt_id": "new-eoat-controller-get-20260730T131610HKT",
+  "source": {
+    "path": "runs/preflight_new_eoat_v4_20260730T1200HKT/preflight_readonly.json",
+    "sha256": "01c9f7d27bf7efd946750733ec1466679740c2d1cd3de8d23f30c0a120ab3097",
+    "completed_at_hkt": "2026-07-30T13:16:10.760+08:00",
+    "method": "read-only RTDE output recipe and read-only Dashboard GET commands"
+  },
+  "controller": {
+    "host": "192.168.1.18",
+    "remote_control": true,
+    "robot_mode": "RUNNING",
+    "safety_mode": "NORMAL",
+    "program_state": "STOPPED <unnamed>",
+    "program_running": false
+  },
+  "readback": {
+    "payload_kg": 0.413,
+    "payload_cog_m": [
+      0.0011,
+      0.0031,
+      0.0163
+    ],
+    "tcp_offset_m_rad": [
+      0.0,
+      0.0,
+      0.0874,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "actual_tcp_speed_m_s_rad_s": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "tolerances": {
+    "payload_kg": 0.0005,
+    "cog_m": 0.00005,
+    "tcp_m_rad": 0.00005,
+    "stationary_linear_m_s": 0.0005,
+    "stationary_angular_rad_s": 0.005
+  },
+  "claim_boundary": [
+    "This is a fresh controller GET receipt, not a self-reported runtime_readback_passed flag.",
+    "The receipt proves controller payload, CoG, TCP, stationary state, Remote mode, and Safety NORMAL only at the recorded timestamp.",
+    "UR built-in actual_TCP_force is excluded from force authority; Kunwei remains the sole campaign wrench authority.",
+    "This read-only receipt does not authorize motion, contact, zero, tare, Load, or Play."
+  ]
+}

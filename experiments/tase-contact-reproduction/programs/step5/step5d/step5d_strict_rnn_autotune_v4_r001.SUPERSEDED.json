@@ -1,0 +1,13 @@
+{
+  "schema": "step5d.autotune-v4/superseded-release-v1",
+  "program": "step5d_strict_rnn_autotune_v4_r001",
+  "status": "SUPERSEDED_ARCHITECTURE_NOT_LOADABLE",
+  "load_or_play_allowed": false,
+  "replacement": "step5d_strict_rnn_autotune_v4_r002",
+  "historical_triplet_sha256": {
+    "script": "7942073606faaccc6d95778f63fffe50d5dd25181e51b3a466a059ee8878f655",
+    "txt": "e2abde0169a9d85738d1a264b5ee485867e5ea473e8329f031f109dfae056fac",
+    "urp": "8f243d1c52a79b1d4fc22d9dbaf25ddc162f11e6d6c10df6680e8f91266bbce0"
+  },
+  "reason": "r001 predates injected policy seams, typed command modes, and single-owner baseline qualification receipts"
+}

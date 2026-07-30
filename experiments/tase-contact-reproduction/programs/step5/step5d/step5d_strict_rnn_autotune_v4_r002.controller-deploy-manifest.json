@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "basename": "step5d_strict_rnn_autotune_v4_r002",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "artifacts": [
+    {
+      "filename": "step5d_strict_rnn_autotune_v4_r002.urp",
+      "source": "step5d_strict_rnn_autotune_v4_r002.urp",
+      "sha256": "2e4036b74ecabc3ed1e6beaca3a93d064894a70f1c4295efedf226c5e1900c08"
+    },
+    {
+      "filename": "step5d_strict_rnn_autotune_v4_r002.txt",
+      "source": "step5d_strict_rnn_autotune_v4_r002.txt",
+      "sha256": "1b390c203605474797e8b6359c906e0a990bb749ced8c85bad9d503197072df5"
+    },
+    {
+      "filename": "step5d_strict_rnn_autotune_v4_r002.script",
+      "source": "step5d_strict_rnn_autotune_v4_r002.script",
+      "sha256": "f7d103ff3fb264658789227e8484d0596632e995fa4081e76455fdbcb119fb98"
+    }
+  ]
+}

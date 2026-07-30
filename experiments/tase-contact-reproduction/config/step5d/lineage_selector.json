@@ -1,0 +1,54 @@
+{
+  "schema": "step5d.lineage-selector/v1",
+  "active": {
+    "lineage": "step5d_strict_rnn_autotune_v3",
+    "program": "step5d_strict_rnn_autotune_v3_r034",
+    "current_pointer": "config/step5d/current.json",
+    "current_pointer_sha256": "646edefaf6fbbd76b0cbfe86bc00b5d8ac26b787231f9ac345425256bbc78f5e",
+    "eoat_mode": "legacy_old_eoat_v3",
+    "eoat_contract": "config/step5d/eoat_profile_old_v3.json",
+    "eoat_contract_sha256": "acd8c9320b0d891be85c8d313319a8d91fa688b10dea8d936f97184e377c67c4",
+    "fresh_apply_and_verify_receipt": null,
+    "live_compatible_now": false,
+    "block_reason": "fresh hash-bound old-EOAT apply/GET receipt is missing; verify it before V3 motion"
+  },
+  "staged": {
+    "lineage": "step5d_strict_rnn_autotune_v4",
+    "program": "step5d_strict_rnn_autotune_v4_r002",
+    "release_contract": "config/step5d/autotune_v4_r002.json",
+    "release_contract_sha256": "2f46e7ff1392e81f295b293a4e10ed9c0cf5098dc11d7ef1a0e585af9218474d",
+    "wire_contract": "config/step5d/autotune_v4_wire_v2.json",
+    "wire_contract_sha256": "d8363bd0305ffff4f4772afa257f79145b61e9df07a561e62da28510c390b810",
+    "eoat_contract": "config/step5d/eoat_profile_new_v4.json",
+    "eoat_contract_sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+    "offline_closure": "config/step5d/autotune_v4_r002_offline_closure.json",
+    "offline_closure_sha256": "dcdbcc2a34e92be107bd88390d996e909452c4ad8fea15e95bab6f85be52809e",
+    "campaign_fingerprint": "4e185180a8a2b366d118ae5e4b4b9d635577c2ec0963a148823131f9ee0ed60e",
+    "status": "offline_candidate_live_blocked"
+  },
+  "activation_contract": {
+    "canonical_tool": "tools/transition_step5d_lineage.py",
+    "required_before_v4_activation": [
+      "r006_controller_readback",
+      "r006_live_success",
+      "three_5n_baseline_successes",
+      "v4_formal_review_v3",
+      "v4_triplet_controller_readback",
+      "v4_eoat_apply_and_verify_receipt",
+      "v4_release_pointer",
+      "fresh_owner_route_gates"
+    ],
+    "writes": [
+      "config/step5d/lineage_selector.json",
+      "config/eoat_context.json"
+    ],
+    "manual_pointer_edit_forbidden": true,
+    "v3_pointer_remains_unchanged": true
+  },
+  "claim_boundary": [
+    "V3/r034 remains active for the old EOAT and is not modified by staged V4 work.",
+    "V3 bytes and pointer remain active, but live V3 motion is machine-blocked whenever its old EOAT profile lacks a matching fresh apply/GET receipt.",
+    "The staged V4 profile is independent and does not make r001 loadable.",
+    "Selecting a lineage does not itself Load, Play, start a bridge, authorize motion, or mutate controller files."
+  ]
+}

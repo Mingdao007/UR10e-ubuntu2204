@@ -1,0 +1,44 @@
+Step5d independent new-EOAT 5 N Autotune V4 r002
+
+Controller target:
+  /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r002.urp
+
+Version:
+  2026-07-30T1505HKT_STEP5D_AUTOTUNE_V4_R002
+
+Program-side step table:
+  P1 INIT: apply the hash-bound new EOAT profile using the shared profile
+     renderer; require a fresh controller GET acknowledgement before motion.
+  P2 STARTUP: require two fresh writer heartbeat increments within 250 ms.
+  P3 ENTRY: consume the fixed three-segment entry contract; r=0 and stationary
+     validation remain TP-side invariants.
+  P4 SEARCH: use the shared 1 N force-search profile; base -Z only, bounded
+     travel/runtime, Kunwei-only guards, stopl(0.01).
+  P5 BASELINE: consume typed BASELINE packets from an injected host policy.
+     The TP validates actual dt, setpoint 1..5 N and <=0.5 N/s rise, qdot,
+     hard guards, layout, sequence, and command mode.
+  P6 QUALIFY: only BaselineQualificationLedger owns stage-22 success receipts;
+     typed RETRACT is accepted below three receipts and typed PATH only at >=3.
+  P7 EXECUTE: consume typed PATH packets after the hash-bound Jacobian gate;
+     every packet remains inside the fixed V4 invariant envelope.
+  P8 TERMINAL: failure stays stopped; fresh stationary success may retract.
+     No automatic Home.
+
+Remote-owner step table:
+  U1 Keep V3/r034 active for the old EOAT; V4 r001 is superseded and unloadable.
+  U2 Do not Load/Play r002 until the new EOAT is installed, r006 succeeds,
+     three governed 5 N baselines close, Review v3 closes, and route gates pass.
+  U3 Use only the canonical lineage transition; never hand-edit either pointer.
+
+Behavioral primitive identities:
+  lineage=step5d_strict_rnn_autotune_v4
+  program=step5d_strict_rnn_autotune_v4_r002
+  target_force_n=5.0
+  contract_sha256=2f46e7ff1392e81f295b293a4e10ed9c0cf5098dc11d7ef1a0e585af9218474d
+  campaign_fingerprint=4e185180a8a2b366d118ae5e4b4b9d635577c2ec0963a148823131f9ee0ed60e
+  eoat_profile_sha256=1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4
+  wire_layout=605 typed command mode
+
+Claim boundary:
+  Generation/upload/read-back are package delivery only. They do not select,
+  Load, Play, ARM, move, contact, zero/tare, or import V3 observations.

@@ -1,0 +1,54 @@
+{
+  "schema": "step5d.force-search-primitive/v1",
+  "artifact_id": "new-eoat-force-search-canary-20260730",
+  "eoat_contract": "config/step5d/new_eoat_calibration.json",
+  "motion": {
+    "frame": "base",
+    "axis": "z",
+    "search_speed_m_s": -0.0005,
+    "search_acceleration_m_s2": 0.01,
+    "cycle_s": 0.008,
+    "max_travel_m": 0.025,
+    "runtime_limit_s": 60.0,
+    "retract_distance_m": 0.005,
+    "retract_speed_m_s": 0.001,
+    "retract_acceleration_m_s2": 0.01
+  },
+  "entry_gates": {
+    "tool_z_down_cos_min": 0.98,
+    "initial_linear_speed_max_m_s": 0.0005,
+    "initial_angular_speed_max_rad_s": 0.005,
+    "initial_joint_speed_max_rad_s": 0.005,
+    "initial_abs_normal_force_max_n": 0.65,
+    "initial_force_norm_max_n": 0.75,
+    "initial_torque_norm_max_nm": 0.05,
+    "sensor_fresh_timeout_s": 10.0,
+    "heartbeat_stale_s": 0.08
+  },
+  "force_stop": {
+    "contact_abs_normal_force_n": 0.8,
+    "contact_force_norm_n": 1.0,
+    "hard_abs_normal_force_n": 3.0,
+    "hard_force_norm_n": 3.0,
+    "hard_torque_norm_nm": 0.2
+  },
+  "capability_dag": [
+    "eoat_configuration",
+    "stationary_and_vertical_entry_gate",
+    "fresh_zeroed_sensor_gate",
+    "bounded_base_z_search",
+    "raw_force_first-crossing_stop",
+    "success_only_vertical_retract"
+  ],
+  "runtime_feedback_loop": "fresh zeroed Kunwei wrench -> raw hard guards/contact latch -> bounded base-Z speed command -> robot motion -> fresh wrench",
+  "non_tunable_invariants": [
+    "no absolute XY or Home target",
+    "no lateral or angular command",
+    "no force_mode, optimizer, RNN, mailbox, or autotune",
+    "no hardware zero/tare",
+    "contact and hard thresholds are evaluated against both absolute zeroed wrench and entry-relative wrench deltas",
+    "Kunwei is the sole force and torque authority; UR built-in TCP wrench is forbidden",
+    "no automatic motion after sensor fault, stale heartbeat, external stop, hard force guard, or hard torque guard",
+    "a successful 1 N canary retracts only along reverse base-Z"
+  ]
+}

@@ -1,0 +1,222 @@
+# VERSION: 2026-07-30T0355HKT_STEP5D_FORCE_SEARCH_CANARY_R005
+# ROLE: standalone low-speed force-search primitive
+# TP_PROGRAM_ID: step5d_force_search_canary_r005
+# FORCE_SEARCH_CONTRACT_ID: new-eoat-force-search-canary-20260730
+# FORCE_SEARCH_CONTRACT_SHA256: 15c271ef5a44dca56d1c35394e5be79dcabd4012c90245d7b2891cdf7f63a1a4
+# BOUNDARY: no absolute XY/Home, no lateral/angular command, no force_mode, no optimizer
+
+def codex_abs(value):
+  if value < 0.0:
+    return -value
+  end
+  return value
+end
+
+def codex_finite_value(value, absolute_limit):
+  if value != value:
+    return False
+  end
+  if value > absolute_limit or value < -absolute_limit:
+    return False
+  end
+  return True
+end
+
+def codex_finite_vector(value, size, absolute_limit):
+  local index = 0
+  while index < size:
+    if not codex_finite_value(value[index], absolute_limit):
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
+def codex_echo_force_search(stage, stop_reason, travel_m, search_speed_m_s, force_delta_norm_n):
+  write_output_float_register(24, read_input_float_register(24))
+  write_output_float_register(25, read_input_float_register(25))
+  write_output_float_register(26, read_input_float_register(26))
+  write_output_float_register(27, read_input_float_register(27))
+  write_output_float_register(28, read_input_float_register(28))
+  write_output_float_register(29, force_delta_norm_n)
+  write_output_float_register(30, stop_reason)
+  write_output_float_register(31, read_input_float_register(30))
+  write_output_float_register(32, travel_m)
+  write_output_float_register(33, search_speed_m_s)
+  write_output_float_register(35, stage)
+end
+
+def step5d_force_search_canary_r005():
+  # EOAT_CONTRACT_ID: new-3d-printed-eoat-20260730
+  # EOAT_CONTRACT_SHA256: ccd88518be8f995d11b2cd90787b41c4fc78789a98c7a417acbf3dcd28f49f16
+  set_target_payload(0.413, [0.001100000, 0.003100000, 0.016300000], [0, 0, 0, 0, 0, 0])
+  set_tcp(p[0.000000000, 0.000000000, 0.087400000, 0.000000000, 0.000000000, 0.000000000])
+  local search_speed_m_s = -0.000500000
+  local search_accel_m_s2 = 0.010000000
+  local cycle_s = 0.008000000
+  local max_travel_m = 0.025000000
+  local runtime_limit_s = 60.000000000
+  local stale_limit_s = 0.080000000
+  local stop_reason = 0.0
+  local initial_heartbeat = read_input_float_register(26)
+  local last_wait_heartbeat = initial_heartbeat
+  local fresh_heartbeat_count = 0
+  local fresh_sensor = False
+  local wait_s = 0.0
+
+  while wait_s < 10.000000000 and not fresh_sensor:
+    local heartbeat_wait = read_input_float_register(26)
+    local sensor_ok_wait = read_input_float_register(27)
+    codex_echo_force_search(10.0, 0.0, 0.0, 0.0, 0.0)
+    if codex_finite_value(heartbeat_wait, 1000000000000.0) and codex_finite_value(sensor_ok_wait, 10.0) and sensor_ok_wait > 0.5:
+      if heartbeat_wait != last_wait_heartbeat:
+        fresh_heartbeat_count = fresh_heartbeat_count + 1
+        last_wait_heartbeat = heartbeat_wait
+      end
+      if fresh_heartbeat_count >= 3:
+        fresh_sensor = True
+      end
+    else:
+      fresh_heartbeat_count = 0
+    end
+    sync()
+    wait_s = wait_s + get_steptime()
+  end
+  if not fresh_sensor:
+    textmsg("force_search_canary_r005: fresh zeroed sensor unavailable")
+    halt
+  end
+
+  local start_pose = get_actual_tcp_pose()
+  local start_speed = get_actual_tcp_speed()
+  local start_joint_speed = get_actual_joint_speeds()
+  if not codex_finite_vector(start_pose, 6, 100.0) or not codex_finite_vector(start_speed, 6, 100.0) or not codex_finite_vector(start_joint_speed, 6, 100.0):
+    textmsg("force_search_canary_r005: nonfinite robot entry state")
+    halt
+  end
+  local linear_speed = sqrt(start_speed[0] * start_speed[0] + start_speed[1] * start_speed[1] + start_speed[2] * start_speed[2])
+  local angular_speed = sqrt(start_speed[3] * start_speed[3] + start_speed[4] * start_speed[4] + start_speed[5] * start_speed[5])
+  local max_joint_speed = 0.0
+  local joint_index = 0
+  while joint_index < 6:
+    local joint_speed_abs = codex_abs(start_joint_speed[joint_index])
+    if joint_speed_abs > max_joint_speed:
+      max_joint_speed = joint_speed_abs
+    end
+    joint_index = joint_index + 1
+  end
+  if linear_speed > 0.000500000 or angular_speed > 0.005000000 or max_joint_speed > 0.005000000:
+    textmsg("force_search_canary_r005: nonstationary entry")
+    halt
+  end
+
+  local tool_z_point = pose_trans(start_pose, p[0, 0, 1, 0, 0, 0])
+  local tool_z_dx = tool_z_point[0] - start_pose[0]
+  local tool_z_dy = tool_z_point[1] - start_pose[1]
+  local tool_z_dz = tool_z_point[2] - start_pose[2]
+  local tool_z_norm = sqrt(tool_z_dx * tool_z_dx + tool_z_dy * tool_z_dy + tool_z_dz * tool_z_dz)
+  if not codex_finite_value(tool_z_norm, 2.0) or tool_z_norm < 0.999 or tool_z_norm > 1.001:
+    textmsg("force_search_canary_r005: invalid tool-Z axis")
+    halt
+  end
+  local tool_z_down_cos = -tool_z_dz / tool_z_norm
+  if not codex_finite_value(tool_z_down_cos, 1.0) or tool_z_down_cos < 0.980000000:
+    textmsg("force_search_canary_r005: tool Z is not vertical-down")
+    halt
+  end
+
+  local initial_normal = read_input_float_register(24)
+  local initial_force_norm = read_input_float_register(25)
+  local initial_torque_norm = read_input_float_register(30)
+  local initial_fx = read_input_float_register(31)
+  local initial_fy = read_input_float_register(32)
+  local initial_fz = read_input_float_register(33)
+  local initial_mx = read_input_float_register(34)
+  local initial_my = read_input_float_register(35)
+  local initial_mz = read_input_float_register(36)
+  if not codex_finite_value(initial_normal, 1000.0) or not codex_finite_value(initial_force_norm, 1000.0) or not codex_finite_value(initial_torque_norm, 100.0) or not codex_finite_value(initial_fx, 1000.0) or not codex_finite_value(initial_fy, 1000.0) or not codex_finite_value(initial_fz, 1000.0) or not codex_finite_value(initial_mx, 100.0) or not codex_finite_value(initial_my, 100.0) or not codex_finite_value(initial_mz, 100.0):
+    textmsg("force_search_canary_r005: nonfinite Kunwei entry wrench")
+    halt
+  end
+  if codex_abs(initial_normal) > 0.650000000 or initial_force_norm > 0.750000000 or initial_torque_norm > 0.050000000:
+    textmsg("force_search_canary_r005: Kunwei entry wrench is not zeroed")
+    halt
+  end
+
+  local last_heartbeat = read_input_float_register(26)
+  local heartbeat_stale_s = 0.0
+  local elapsed_s = 0.0
+  local travel_m = 0.0
+  codex_echo_force_search(11.0, 0.0, 0.0, search_speed_m_s, 0.0)
+  while stop_reason == 0.0:
+    local normal_force = read_input_float_register(24)
+    local force_norm = read_input_float_register(25)
+    local heartbeat = read_input_float_register(26)
+    local sensor_ok = read_input_float_register(27)
+    local stop_request = read_input_float_register(28)
+    local torque_norm = read_input_float_register(30)
+    local fx = read_input_float_register(31)
+    local fy = read_input_float_register(32)
+    local fz = read_input_float_register(33)
+    local mx = read_input_float_register(34)
+    local my = read_input_float_register(35)
+    local mz = read_input_float_register(36)
+    local delta_normal = normal_force - initial_normal
+    local delta_fx = fx - initial_fx
+    local delta_fy = fy - initial_fy
+    local delta_fz = fz - initial_fz
+    local delta_mx = mx - initial_mx
+    local delta_my = my - initial_my
+    local delta_mz = mz - initial_mz
+    local delta_force_norm = sqrt(delta_fx * delta_fx + delta_fy * delta_fy + delta_fz * delta_fz)
+    local delta_torque_norm = sqrt(delta_mx * delta_mx + delta_my * delta_my + delta_mz * delta_mz)
+    local pose_now = get_actual_tcp_pose()
+    travel_m = start_pose[2] - pose_now[2]
+    if codex_finite_value(heartbeat, 1000000000000.0) and heartbeat == last_heartbeat:
+      heartbeat_stale_s = heartbeat_stale_s + cycle_s
+    elif codex_finite_value(heartbeat, 1000000000000.0):
+      heartbeat_stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    codex_echo_force_search(11.0, stop_reason, travel_m, search_speed_m_s, delta_force_norm)
+    if not codex_finite_value(normal_force, 1000.0) or not codex_finite_value(force_norm, 1000.0) or not codex_finite_value(heartbeat, 1000000000000.0) or not codex_finite_value(sensor_ok, 10.0) or not codex_finite_value(stop_request, 10.0) or not codex_finite_value(torque_norm, 100.0) or not codex_finite_value(delta_normal, 1000.0) or not codex_finite_value(delta_force_norm, 1000.0) or not codex_finite_value(delta_torque_norm, 100.0) or not codex_finite_vector(pose_now, 6, 100.0) or not codex_finite_value(travel_m, 100.0):
+      stop_reason = 3.0
+    elif heartbeat_stale_s > stale_limit_s:
+      stop_reason = 2.0
+    elif sensor_ok < 0.5:
+      stop_reason = 3.0
+    elif stop_request > 0.5:
+      stop_reason = 4.0
+    elif codex_abs(normal_force) >= 3.000000000 or codex_abs(delta_normal) >= 3.000000000:
+      stop_reason = 5.0
+    elif force_norm >= 3.000000000 or delta_force_norm >= 3.000000000:
+      stop_reason = 6.0
+    elif torque_norm >= 0.200000000 or delta_torque_norm >= 0.200000000:
+      stop_reason = 7.0
+    elif codex_abs(delta_normal) >= 0.800000000 or delta_force_norm >= 1.000000000:
+      stop_reason = 11.0
+    elif travel_m >= max_travel_m:
+      stop_reason = 8.0
+    elif elapsed_s >= runtime_limit_s:
+      stop_reason = 10.0
+    else:
+      speedl([0.0, 0.0, search_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, cycle_s)
+      elapsed_s = elapsed_s + cycle_s
+    end
+  end
+  stopl(0.5)
+  codex_echo_force_search(12.0, stop_reason, travel_m, 0.0, 0.0)
+
+  if stop_reason == 11.0:
+    local contact_pose = get_actual_tcp_pose()
+    local retract_pose = p[contact_pose[0], contact_pose[1], contact_pose[2] + 0.005000000, contact_pose[3], contact_pose[4], contact_pose[5]]
+    movel(retract_pose, a=0.010000000, v=0.001000000, r=0.0)
+    stopl(0.5)
+    codex_echo_force_search(13.0, stop_reason, travel_m, 0.0, 0.0)
+  end
+  textmsg("force_search_canary_r005 stop reason:", stop_reason)
+  halt
+end
+
+step5d_force_search_canary_r005()

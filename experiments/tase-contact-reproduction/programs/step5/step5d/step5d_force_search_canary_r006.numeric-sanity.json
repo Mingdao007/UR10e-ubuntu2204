@@ -1,0 +1,21 @@
+{
+  "checks": {
+    "absolute_normal_hard_guard_only": true,
+    "heartbeat_gap_strict_80ms": true,
+    "normal_contact_positive": true,
+    "runtime_covers_travel": true,
+    "search_accel_exact_0p01_m_s2": true,
+    "search_speed_exact_0p5_mm_s": true,
+    "search_stopl_exact_0p01": true,
+    "success_dwell_exact_0p25s": true
+  },
+  "contract_sha256": "726f7ef520a70d04bcce4d7fd4fbcb04b8ef461335624f4fa15ab2886a55d92b",
+  "derived": {
+    "minimum_time_to_travel_limit_s": 50.0,
+    "runtime_limited_search_travel_m": 0.045,
+    "travel_limit_m": 0.025
+  },
+  "passed": true,
+  "program": "step5d_force_search_canary_r006",
+  "schema": "step5d.force-search-canary/numeric-sanity-v1"
+}

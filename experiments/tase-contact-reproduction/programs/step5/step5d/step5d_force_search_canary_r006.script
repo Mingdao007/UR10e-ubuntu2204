@@ -1,0 +1,217 @@
+# VERSION: 2026-07-30T1330HKT_STEP5D_FORCE_SEARCH_CANARY_R006
+# ROLE: independent Kunwei register-live-writer 1 N canary
+# TP_PROGRAM_ID: step5d_force_search_canary_r006
+# FORCE_SEARCH_CONTRACT_SHA256: 726f7ef520a70d04bcce4d7fd4fbcb04b8ef461335624f4fa15ab2886a55d92b
+# EOAT_CONTRACT_SHA256: f6b49c7c1952c9773003fa1293cd417c2808780157e58990a658b5bf353ac925
+# BOUNDARY: base-Z only; no Home/XY/angular/force_mode/UR built-in wrench
+
+global codex_canary_monitor_active = False
+global codex_canary_monitor_fault = 0.0
+global codex_canary_last_heartbeat = 0.0
+global codex_canary_heartbeat_gap_s = 0.0
+
+def codex_abs(value):
+  if value < 0.0:
+    return -value
+  end
+  return value
+end
+
+def codex_finite(value, limit):
+  return value == value and value <= limit and value >= -limit
+end
+
+def codex_echo(stage, reason, travel_m):
+  write_output_float_register(24, read_input_float_register(24))
+  write_output_float_register(25, read_input_float_register(25))
+  write_output_float_register(26, read_input_float_register(26))
+  write_output_float_register(27, read_input_float_register(27))
+  write_output_float_register(28, read_input_float_register(28))
+  write_output_float_register(29, read_input_float_register(29))
+  write_output_float_register(30, reason)
+  write_output_float_register(32, travel_m)
+  write_output_float_register(35, stage)
+end
+
+def codex_monitor_reason():
+  local normal_load = read_input_float_register(24)
+  local force_norm = read_input_float_register(25)
+  local heartbeat = read_input_float_register(26)
+  local sensor_fresh = read_input_float_register(27)
+  local stop_request = read_input_float_register(28)
+  local torque_norm = read_input_float_register(30)
+  if not codex_finite(normal_load, 1000.0) or not codex_finite(force_norm, 1000.0) or not codex_finite(heartbeat, 1000000000000.0) or not codex_finite(sensor_fresh, 10.0) or not codex_finite(stop_request, 10.0) or not codex_finite(torque_norm, 100.0):
+    return 3.0
+  elif codex_canary_heartbeat_gap_s >= 0.080000000:
+    return 2.0
+  elif sensor_fresh < 0.5:
+    return 3.0
+  elif stop_request > 0.5:
+    return 4.0
+  elif codex_abs(normal_load) >= 3.000000000:
+    return 5.0
+  elif force_norm >= 3.000000000:
+    return 6.0
+  elif torque_norm >= 0.200000000:
+    return 7.0
+  end
+  return 0.0
+end
+
+thread codex_deceleration_and_retract_monitor():
+  while codex_canary_monitor_active:
+    local heartbeat = read_input_float_register(26)
+    if not codex_finite(heartbeat, 1000000000000.0):
+      codex_canary_monitor_fault = 3.0
+    elif heartbeat == codex_canary_last_heartbeat:
+      codex_canary_heartbeat_gap_s = codex_canary_heartbeat_gap_s + get_steptime()
+    else:
+      codex_canary_last_heartbeat = heartbeat
+      codex_canary_heartbeat_gap_s = 0.0
+    end
+    local monitor_reason = codex_monitor_reason()
+    if monitor_reason != 0.0:
+      codex_canary_monitor_fault = monitor_reason
+    end
+    sync()
+  end
+end
+
+def step5d_force_search_canary_r006():
+  # EOAT_CONTRACT_ID: new-3d-printed-eoat-20260730-v2
+  # EOAT_CONTRACT_SHA256: f6b49c7c1952c9773003fa1293cd417c2808780157e58990a658b5bf353ac925
+  # EOAT_CONTROLLER_GET_SHA256: 9fe0a697cc501d4387959b9b80df88ce29450f18effc974bb7ad2da84411beca
+  set_target_payload(0.413, [0.001100000, 0.003100000, 0.016300000], [0, 0, 0, 0, 0, 0])
+  set_tcp(p[0.000000000, 0.000000000, 0.087400000, 0.000000000, 0.000000000, 0.000000000])
+  local last_startup_heartbeat = read_input_float_register(26)
+  local startup_increment_count = 0
+  local startup_gap_s = 0.0
+  local startup_elapsed_s = 0.0
+  while startup_increment_count < 3 and startup_elapsed_s < 10.000000000:
+    local heartbeat = read_input_float_register(26)
+    local sensor_fresh = read_input_float_register(27)
+    local eoat_get_ack = read_input_float_register(29)
+    codex_echo(10.0, 0.0, 0.0)
+    if not codex_finite(heartbeat, 1000000000000.0) or not codex_finite(sensor_fresh, 10.0) or not codex_finite(eoat_get_ack, 10.0):
+      startup_increment_count = 0
+      startup_gap_s = 0.0
+    elif sensor_fresh < 0.5 or eoat_get_ack < 0.5:
+      startup_increment_count = 0
+      startup_gap_s = 0.0
+    elif heartbeat != last_startup_heartbeat:
+      if startup_gap_s < 0.080000000:
+        startup_increment_count = startup_increment_count + 1
+      else:
+        startup_increment_count = 1
+      end
+      last_startup_heartbeat = heartbeat
+      startup_gap_s = 0.0
+    else:
+      startup_gap_s = startup_gap_s + get_steptime()
+      if startup_gap_s >= 0.080000000:
+        startup_increment_count = 0
+      end
+    end
+    sync()
+    startup_elapsed_s = startup_elapsed_s + get_steptime()
+  end
+  if startup_increment_count < 3:
+    codex_echo(90.0, 2.0, 0.0)
+    halt
+  end
+
+  local start_pose = get_actual_tcp_pose()
+  local start_speed = get_actual_tcp_speed()
+  if not codex_finite(start_pose[2], 10.0) or not codex_finite(start_speed[0], 10.0) or not codex_finite(start_speed[1], 10.0) or not codex_finite(start_speed[2], 10.0) or not codex_finite(start_speed[3], 10.0) or not codex_finite(start_speed[4], 10.0) or not codex_finite(start_speed[5], 10.0):
+    codex_echo(90.0, 3.0, 0.0)
+    halt
+  end
+  local entry_linear_speed = sqrt(start_speed[0] * start_speed[0] + start_speed[1] * start_speed[1] + start_speed[2] * start_speed[2])
+  local entry_angular_speed = sqrt(start_speed[3] * start_speed[3] + start_speed[4] * start_speed[4] + start_speed[5] * start_speed[5])
+  if entry_linear_speed > 0.000500000 or entry_angular_speed > 0.005000000:
+    codex_echo(90.0, 9.0, 0.0)
+    halt
+  end
+
+  codex_canary_last_heartbeat = read_input_float_register(26)
+  codex_canary_heartbeat_gap_s = 0.0
+  codex_canary_monitor_fault = 0.0
+  codex_canary_monitor_active = True
+  local monitor_handle = run codex_deceleration_and_retract_monitor()
+  local reason = 0.0
+  local travel_m = 0.0
+  local elapsed_s = 0.0
+  while reason == 0.0:
+    local normal_load = read_input_float_register(24)
+    local force_norm = read_input_float_register(25)
+    local torque_norm = read_input_float_register(30)
+    local pose_now = get_actual_tcp_pose()
+    travel_m = start_pose[2] - pose_now[2]
+    reason = codex_monitor_reason()
+    if codex_canary_monitor_fault != 0.0:
+      reason = codex_canary_monitor_fault
+    elif reason == 0.0 and normal_load >= 0.800000000:
+      reason = 11.0
+    elif reason == 0.0 and force_norm >= 1.000000000:
+      reason = 11.0
+    elif reason == 0.0 and travel_m >= 0.025000000:
+      reason = 8.0
+    elif reason == 0.0 and elapsed_s >= 90.000000000:
+      reason = 10.0
+    end
+    codex_echo(11.0, reason, travel_m)
+    if reason == 0.0:
+      speedl([0.0, 0.0, -0.000500000, 0.0, 0.0, 0.0], 0.010000000, 0.008000000)
+      elapsed_s = elapsed_s + 0.008000000
+    end
+  end
+
+  stopl(0.010000000)
+  codex_echo(12.0, reason, travel_m)
+  if codex_canary_monitor_fault != 0.0:
+    reason = codex_canary_monitor_fault
+  end
+
+  local stationary_dwell_s = 0.0
+  while reason == 11.0 and stationary_dwell_s < 0.250000000:
+    local speed_now = get_actual_tcp_speed()
+    local linear_now = sqrt(speed_now[0] * speed_now[0] + speed_now[1] * speed_now[1] + speed_now[2] * speed_now[2])
+    local angular_now = sqrt(speed_now[3] * speed_now[3] + speed_now[4] * speed_now[4] + speed_now[5] * speed_now[5])
+    if codex_canary_monitor_fault != 0.0:
+      reason = codex_canary_monitor_fault
+    elif linear_now <= 0.000500000 and angular_now <= 0.005000000:
+      stationary_dwell_s = stationary_dwell_s + get_steptime()
+    else:
+      stationary_dwell_s = 0.0
+    end
+    codex_echo(13.0, reason, travel_m)
+    sync()
+  end
+
+  if reason == 11.0:
+    local retract_start_z = get_actual_tcp_pose()[2]
+    local retract_travel_m = 0.0
+    while reason == 11.0 and retract_travel_m < 0.005000000:
+      if codex_canary_monitor_fault != 0.0:
+        reason = codex_canary_monitor_fault
+      else:
+        speedl([0.0, 0.0, 0.000500000, 0.0, 0.0, 0.0], 0.010000000, 0.008000000)
+        retract_travel_m = get_actual_tcp_pose()[2] - retract_start_z
+      end
+      codex_echo(14.0, reason, travel_m)
+    end
+    stopl(0.010000000)
+  end
+
+  codex_canary_monitor_active = False
+  kill monitor_handle
+  if reason == 11.0:
+    codex_echo(15.0, reason, travel_m)
+  else:
+    codex_echo(90.0, reason, travel_m)
+  end
+  textmsg("step5d_force_search_canary_r006 terminal reason:", reason)
+  halt
+end
+
+step5d_force_search_canary_r006()

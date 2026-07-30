@@ -1,0 +1,33 @@
+{
+  "schema": "step5d.eoat/profile-v1",
+  "profile_id": "new-3d-printed-eoat-v4",
+  "revision": 1,
+  "payload_kg": 0.413,
+  "cog_m": [0.0011, 0.0031, 0.0163],
+  "controller_tcp_m_rad": [0, 0, 0.0874, 0, 0, 0],
+  "kinematic_tcp_xyz_m": [0, 0, 0.0874],
+  "program_z_delta_m": 0,
+  "evidence": [
+    {
+      "role": "calibration_contract_v2",
+      "path": "config/step5d/new_eoat_calibration.json",
+      "sha256": "f6b49c7c1952c9773003fa1293cd417c2808780157e58990a658b5bf353ac925"
+    },
+    {
+      "role": "fresh_controller_get_at_calibration",
+      "path": "config/step5d/new_eoat_controller_readback_v2.json",
+      "sha256": "9fe0a697cc501d4387959b9b80df88ce29450f18effc974bb7ad2da84411beca"
+    }
+  ],
+  "invariants": {
+    "fresh_apply_and_verify_before_motion": true,
+    "stationary_required": true,
+    "safety_normal_required": true,
+    "single_writer_required": true
+  },
+  "claim_boundary": [
+    "Payload, CoG, and TCP are profile data; apply/verify behavior is shared with the old EOAT.",
+    "Program Z delta is exactly zero; 34.7 mm must not be subtracted again.",
+    "Selecting this profile does not write the controller or authorize Load, Play, motion, or contact."
+  ]
+}

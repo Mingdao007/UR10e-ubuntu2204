@@ -1,0 +1,547 @@
+{
+  "bootstrap": {
+    "batch_a": [
+      {
+        "candidate_uid": "5f3bc78704bf850e8729e894f13ad57cda8139a322fa7510ef26e440917a4759",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "5f3bc78704bf850e8729e894f13ad57cda8139a322fa7510ef26e440917a4759",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "5f3bc78704bf850e8729e894f13ad57cda8139a322fa7510ef26e440917a4759",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "7e75a31fa71e526f04f8876c44ef5f142ede9b7e4e50fdb969d0c2d0f92a52a4",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": -0.24999999978811643,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0002973017788,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "5be90d0bce9fa9efa405e141991d465b6b6f1fd755d4c9315e39eaeda789e120",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.2499999998803972,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0004204482076,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      }
+    ],
+    "batch_b": [
+      {
+        "candidate_uid": "5f3bc78704bf850e8729e894f13ad57cda8139a322fa7510ef26e440917a4759",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "5f3bc78704bf850e8729e894f13ad57cda8139a322fa7510ef26e440917a4759",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "5f3bc78704bf850e8729e894f13ad57cda8139a322fa7510ef26e440917a4759",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "89840350343fe49ece933f4346e9f4d3aaeab2c63b7135a57d2f260ef74c481a",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": -0.25000000166076247,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 23.5450996,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "5c779fac529819acd6ef73d8822ac4458595f7d01a93e029c0c004bfdf190923",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.24999999913015822,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 33.2977992,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      }
+    ],
+    "i_path": [
+      {
+        "candidate_uid": "559023046d63c337d2b684faa07c2838e540332d9f792137956c85c4a4cd6b36",
+        "named7d": {
+          "I_off": 0.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": -1.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 5e-06,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "aefaee91a8d109c208bde26030b5753735a5a90645c0d6864e6c49390a59b07f",
+        "named7d": {
+          "I_off": 0.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": -0.75,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 5.946035575013605e-06,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "9689f14358a4e6e9036313d3f717d68c9628b8511535dad474f1d71468900363",
+        "named7d": {
+          "I_off": 0.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": -0.4999999999999999,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 7.071067811865476e-06,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "7e563080b10923e1f0da1e71c89ef1339d14121021e364a66e66d4f96ee6bcd4",
+        "named7d": {
+          "I_off": 0.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": -0.25000000000000006,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 8.408964152537146e-06,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "d05d1f07ada5f36993825bd5f8fab3d2c8cb2ac892ac61396796b785de738e15",
+        "named7d": {
+          "I_off": 0.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 1e-05,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      }
+    ],
+    "stage_order": [
+      "pd",
+      "tau",
+      "i",
+      "ko_kp"
+    ],
+    "tau": [
+      {
+        "candidate_uid": "5f3bc78704bf850e8729e894f13ad57cda8139a322fa7510ef26e440917a4759",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "5f3bc78704bf850e8729e894f13ad57cda8139a322fa7510ef26e440917a4759",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "5f3bc78704bf850e8729e894f13ad57cda8139a322fa7510ef26e440917a4759",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.0
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.35,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "73cb16b6e4a8026f1b3fd88630694f28fa96cdc6ded8f884684f18a3c141418c",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": -0.2500000001901939
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.2943137453,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      },
+      {
+        "candidate_uid": "70a5ab492a7c1909e563928ee0c5ab60857b1e50b3f54b12034265a9a55485c1",
+        "named7d": {
+          "I_off": 1.0,
+          "log2(D)": 0.0,
+          "log2(I_on)": 0.0,
+          "log2(Ko)": 0.0,
+          "log2(Kp)": 0.0,
+          "log2(P)": 0.0,
+          "log2(tau)": 0.25000000017000734
+        },
+        "physical": {
+          "force_damping": 28.0,
+          "force_i_gain": 0.0,
+          "force_p_gain": 0.0003535533906,
+          "motion_kp": 1.5,
+          "normal_filter_tau_s": 0.4162224903,
+          "orientation_ko": 0.1,
+          "target_force_n": 5.0
+        }
+      }
+    ]
+  },
+  "campaign_fingerprint": "4e185180a8a2b366d118ae5e4b4b9d635577c2ec0963a148823131f9ee0ed60e",
+  "contract_sha256": "2f46e7ff1392e81f295b293a4e10ed9c0cf5098dc11d7ef1a0e585af9218474d",
+  "eoat_sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+  "force_search_shared_core": {
+    "core_path": "tools/step5d_force_search_core.py",
+    "core_sha256": "46ba42254a22102ad0b020f62ed9a261565e3355e8843dc5e74d766ee56b5b72",
+    "r005_wrapper_path": "tools/step5d_force_search_primitive.py",
+    "r005_wrapper_sha256": "d1d4a9cf33c0d7b0685d4f74c3ded1ad35c9753ad9ddec930c96a5aa16a62f4b",
+    "r006_triplet_byte_identity": true,
+    "r006_wrapper_path": "tools/step5d_force_search_canary_r006.py",
+    "r006_wrapper_sha256": "1defe550fcd5d952d0d72f0b0713ef50db812b12fa4f8d45dfaaceffaffebe01",
+    "triplet_sha256": {
+      "r005": {
+        ".script": "6b8bb20f01bc7b822bb39d2980cf52caeabdb9c76a4b0d97c285603a83269e60",
+        ".txt": "b02fc6c0c5c3cf6893b5d3e8c2f800c4680abc79975a762aba76b86a1010cfce",
+        ".urp": "504641dbd0d8c654778316d4a6d79c96f9c7d1052e091bbdf47adb856f0f0d52"
+      },
+      "r006": {
+        ".script": "de8d071885d21274cd44b1b33408e51b52caf7342aecb099c12f75c8fbd62922",
+        ".txt": "4910584992b62e8fccee1849a4650d5f287a831b8345734dcbb936204c593698",
+        ".urp": "bc9044e7621ffcfa7aa785b04affbaab5a558137aa015006c7c6b2cff3175c26"
+      }
+    }
+  },
+  "lineage": "step5d_strict_rnn_autotune_v4",
+  "live_status": "BLOCKED_PENDING_R006_CANARY_THREE_5N_BASELINES_FORMAL_REVIEW_AND_CANONICAL_TRANSITION",
+  "program": "step5d_strict_rnn_autotune_v4_r002",
+  "replay": {
+    "bias_n": 0.0022352102407576444,
+    "complete_bins": 550,
+    "eligible_shape": true,
+    "mae_n": 0.06318645537814364,
+    "max_force_norm_n": 5.1,
+    "max_torque_norm_nm": 0.1,
+    "p99_normal_n": 5.149930910880907,
+    "required_bins": 550,
+    "std_n": 0.07028784397165799,
+    "synthetic_evidence_only": true,
+    "timing": {
+      "max_gap_s": 0.010000000000005116,
+      "p99_gap_s": 0.010000000000005116,
+      "passed": true,
+      "rate_hz": 100.0,
+      "stop_reason": ""
+    }
+  },
+  "safety_boundary": [
+    "offline deterministic construction only",
+    "no controller, Dashboard, RTDE, Kunwei, Load, Play, motion, contact, zero, tare, or pointer mutation"
+  ],
+  "schema": "step5d.autotune-v4/offline-closure-v2",
+  "source_closure": {
+    "STEP5D_FLOW.md": "1e99b9b0a19a181a9b6e4c8bbf8a1449c506e163d8c13a9c12b2fc36da4ac609",
+    "config/step5_stage_table.json": "0a1372a5dd0220268a4e304f02f3f666bd7df402a9056a566b8048131a10f81c",
+    "config/step5d/autotune_v4_r002.json": "2f46e7ff1392e81f295b293a4e10ed9c0cf5098dc11d7ef1a0e585af9218474d",
+    "config/step5d/autotune_v4_wire_v2.json": "d8363bd0305ffff4f4772afa257f79145b61e9df07a561e62da28510c390b810",
+    "config/step5d/eoat_profile_new_v4.json": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+    "config/step5d/eoat_profile_old_v3.json": "acd8c9320b0d891be85c8d313319a8d91fa688b10dea8d936f97184e377c67c4",
+    "config/step5d/force_search_canary_r006.json": "726f7ef520a70d04bcce4d7fd4fbcb04b8ef461335624f4fa15ab2886a55d92b",
+    "config/step5d/force_search_canary_v1.json": "15c271ef5a44dca56d1c35394e5be79dcabd4012c90245d7b2891cdf7f63a1a4",
+    "config/step5d/new_eoat_calibration.json": "f6b49c7c1952c9773003fa1293cd417c2808780157e58990a658b5bf353ac925",
+    "config/step5d/old_eoat_controller_readback_v1.json": "84515e027f6c8bd30c4fffdfff26ae970ad03e2d6f00867fe62ac6bda0b5c844",
+    "programs/step5/step5d/step5d_force_search_canary_r005.script": "6b8bb20f01bc7b822bb39d2980cf52caeabdb9c76a4b0d97c285603a83269e60",
+    "programs/step5/step5d/step5d_force_search_canary_r005.txt": "b02fc6c0c5c3cf6893b5d3e8c2f800c4680abc79975a762aba76b86a1010cfce",
+    "programs/step5/step5d/step5d_force_search_canary_r005.urp": "504641dbd0d8c654778316d4a6d79c96f9c7d1052e091bbdf47adb856f0f0d52",
+    "programs/step5/step5d/step5d_force_search_canary_r006.script": "de8d071885d21274cd44b1b33408e51b52caf7342aecb099c12f75c8fbd62922",
+    "programs/step5/step5d/step5d_force_search_canary_r006.txt": "4910584992b62e8fccee1849a4650d5f287a831b8345734dcbb936204c593698",
+    "programs/step5/step5d/step5d_force_search_canary_r006.urp": "bc9044e7621ffcfa7aa785b04affbaab5a558137aa015006c7c6b2cff3175c26",
+    "tests/test_step5d_autotune_v4.py": "71d101de7ae9cd3bf6a0ba2c68d915fd2d79aba2e3742530593fb0d5370e892c",
+    "tests/test_step5d_autotune_v4_architecture.py": "d4dc9e5fd8d6bcc4602556f0ddc68933970c396ad86e24c38c52c09006802885",
+    "tools/build_step5d_autotune_start_hover_r001.py": "4983ac1b334ba8d4752d29f4a1ed8c2c0fa788a201aca0e269af2d003b72c7ba",
+    "tools/build_step5d_autotune_v4_offline_closure.py": "22f3fe6acf3861fad7d5f95eaf8dfc862e02b72b4935573cb5e999c9accdde7b",
+    "tools/build_step5d_autotune_v4_r002.py": "2587bdd985fea73d421ffd7ba43ba272aefca05ab2b849f224a5be3a27ebc4ad",
+    "tools/build_step5d_force_search_canary_r005.py": "24d063764f3776d2c71eab4ec47b2e4300864870c4702c144db6561a102cdbea",
+    "tools/build_step5d_force_search_canary_r006.py": "a72209332c22d5d32c89b3f169ef4d445f58bbc6ac1c15f7b498d0915ba6d810",
+    "tools/step5d_autotune_v4/__init__.py": "ae4b6304f3ba5aee43cd495f40282638760ac9e47420bbc0bf84a1719f30d2e4",
+    "tools/step5d_autotune_v4/adapter.py": "d2b8f37634d858941fbfa56d5d34874c537bd00ef62943abe9f4fd00cf228030",
+    "tools/step5d_autotune_v4/baseline.py": "b35fdcd8d7c6af21b3522e337e4cc08ff7afc8f4bcd2cfdf04170f00c7e25352",
+    "tools/step5d_autotune_v4/baseline_ledger.py": "8fe83778feb03bb11cacc5ebf3ab038f68fd8a072a41553a7ec9bad65c3d28a7",
+    "tools/step5d_autotune_v4/bo.py": "488920db164b9677d50b8cb03e7a821aa8ce6cdb755b7710ed188177e5169ef7",
+    "tools/step5d_autotune_v4/contracts.py": "fb74de6895cb862a8cacd8731bac3c93137826557490df557cc04bb954aa46ea",
+    "tools/step5d_autotune_v4/control.py": "72cf2a2a5c6d35cd3bdff0d76ad348cfefbc5f553f8a869ae17fc7db82614cd5",
+    "tools/step5d_autotune_v4/eligibility.py": "d313c7025dd3b983d44a16f694f5bce7eb1bc8931231d72d370720f485d7b944",
+    "tools/step5d_autotune_v4/entry.py": "aa5d199981020a1ec7e0528baab7aee442734a165aedf0f23cf7af1e3680a471",
+    "tools/step5d_autotune_v4/policies.py": "9d8ec13dc38fb84e2510f0fab5d63934a22c7f70f1d7192743567dadcdaadd75",
+    "tools/step5d_autotune_v4/replay.py": "b6dcb09cc7befa0888332f408438f9c5667efb9172be79215a13f5b1164e00ce",
+    "tools/step5d_autotune_v4/runtime.py": "dd2ffd1d38ca1709ad60a0221248c673d943cf7d2b9143e8d734603c87de1d42",
+    "tools/step5d_autotune_v4/tp.py": "b82dfe95a2e66f3a2a002f2ce1d398f18594addc236673f86435e7c8b89b401a",
+    "tools/step5d_autotune_v4/wire.py": "bba4c61f80659160dd5594d4daee8b43e64fe2cbea62c316ecbae3fcae1a6adf",
+    "tools/step5d_eoat_profiles.py": "e2396db961818929b78f24bd63b270754d6a662dca5978a4ae947a2147b72906",
+    "tools/step5d_force_search_bridge_contract.py": "74d4a3ef2ec06415f5c8341477c0c728f579bd1c88edbb3415217d4721b721b2",
+    "tools/step5d_force_search_canary_r006.py": "1defe550fcd5d952d0d72f0b0713ef50db812b12fa4f8d45dfaaceffaffebe01",
+    "tools/step5d_force_search_core.py": "46ba42254a22102ad0b020f62ed9a261565e3355e8843dc5e74d766ee56b5b72",
+    "tools/step5d_force_search_primitive.py": "d1d4a9cf33c0d7b0685d4f74c3ded1ad35c9753ad9ddec930c96a5aa16a62f4b",
+    "tools/step5d_new_eoat.py": "849777aacd317a6b78cdc81cb0944846327b001b5b868bd5778edae0965a0c86",
+    "tools/transition_step5d_lineage.py": "efaaf033d33d2f61887c24a214df5c2e529b9afbf59075d62dc4741e1b39fb3a"
+  },
+  "v3_isolation": {
+    "sha256": {
+      "config/step5d/current.json": "646edefaf6fbbd76b0cbfe86bc00b5d8ac26b787231f9ac345425256bbc78f5e",
+      "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r034.script": "6a6af44ebdb79553307c2acb45ba6a2914c26f6dd7b05f393a6c1eb2c2d11f1d",
+      "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r034.txt": "19b77977e08d759359e5c9f5b372a32e198eb6ac71200680d29bf7a17ba62785",
+      "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r034.urp": "10f482d8c8e305b1aea979ceefb2cd24ef1fbc79e5e22235dae8e4a2b9093f66",
+      "tools/step5d_autotune_contract.py": "973adc8c73e0187f8b4a5ef8dc6520890530b436b0eddaad02f41444bf5cafd6"
+    },
+    "v3_current_pointer_changed": false,
+    "v3_observations_or_gp_imported": false,
+    "verified_unchanged": true
+  }
+}

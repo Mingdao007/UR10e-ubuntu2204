@@ -11193,6 +11193,86 @@
       "stage": "Step5d",
       "strict_rnn": true,
       "success_condition": "V3 remains the unique selected route; failures fail closed as V3 and never fall back to V1."
+    },
+    {
+      "id": "step5d_strict_rnn_autotune_v4",
+      "stage": "Step5d",
+      "owner": "contact_control_staged",
+      "active": false,
+      "blocked": true,
+      "complete": false,
+      "shape": "cycloid",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "strict_rnn": true,
+      "duration_s": 60,
+      "current_binding": {
+        "is_current": false,
+        "stage_id": "step5d_strict_rnn_autotune_v4",
+        "program": "step5d_strict_rnn_autotune_v4_r002",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r002.urp",
+        "current_stage_pointer": "config/step5d/lineage_selector.json"
+      },
+      "source_binding": {
+        "release_contract": "config/step5d/autotune_v4_r002.json",
+        "eoat_profile": "config/step5d/eoat_profile_new_v4.json",
+        "wire_contract": "config/step5d/autotune_v4_wire_v2.json",
+        "policy_composition": "tools/step5d_autotune_v4/policies.py",
+        "baseline_qualification_owner": "tools/step5d_autotune_v4/baseline_ledger.py",
+        "force_search_core": "tools/step5d_force_search_core.py"
+      },
+      "package_delivery": {
+        "state": "controller read-back verified",
+        "receipt": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r002.controller-readback-receipt.json",
+        "script_sha256": "f7d103ff3fb264658789227e8484d0596632e995fa4081e76455fdbcb119fb98",
+        "txt_sha256": "1b390c203605474797e8b6359c906e0a990bb749ced8c85bad9d503197072df5",
+        "urp_sha256": "2e4036b74ecabc3ed1e6beaca3a93d064894a70f1c4295efedf226c5e1900c08",
+        "load_or_play_performed": false
+      },
+      "operator_lifecycle": {
+        "route": "remote_control_only",
+        "autotune_route_fixed": "Remote",
+        "load_or_play_now": false,
+        "current_v3_remains_available": true,
+        "v4_r001_status": "SUPERSEDED_ARCHITECTURE_NOT_LOADABLE"
+      },
+      "guards": {
+        "search": {
+          "abs_normal_n": 3,
+          "force_norm_n": 3,
+          "torque_norm_nm": 0.2
+        },
+        "baseline_and_initial_path": {
+          "abs_normal_n": 15,
+          "force_norm_n": 20,
+          "torque_norm_nm": 1
+        },
+        "later_after_first_ten_eligible": {
+          "abs_normal_n": 25,
+          "force_norm_n": 30,
+          "torque_norm_nm": 1.5
+        }
+      },
+      "timing": {
+        "mode": "monotonic_actual_dt",
+        "minimum_rate_hz": 75,
+        "p99_gap_max_s": 0.02,
+        "maximum_gap_exclusive_s": 0.08,
+        "startup_increments": 2,
+        "startup_window_s": 0.25
+      },
+      "acceptance": {
+        "offline_primitive_and_seam_validation_required": true,
+        "offline_primitive_and_seam_validation_passed": true,
+        "r006_live_success_required": true,
+        "three_5n_stage22_receipts_required": true,
+        "formal_review_v3_required": true,
+        "fresh_owner_route_gates_required": true,
+        "controller_readback_verified": true,
+        "live_run_accepted": false
+      },
+      "success_condition": "After canonical activation only: exact r002 controller read-back, new EOAT fresh GET match, r006 live success, three ledger-owned 5 N baseline receipts, Review v3, and fresh Remote owner gates."
     }
   ],
   "startup_gate_profiles": {

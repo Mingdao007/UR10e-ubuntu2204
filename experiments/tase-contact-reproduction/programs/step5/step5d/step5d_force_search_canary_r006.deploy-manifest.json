@@ -1,0 +1,54 @@
+{
+  "artifacts": [
+    {
+      "filename": "step5d_force_search_canary_r006.script",
+      "sha256": "de8d071885d21274cd44b1b33408e51b52caf7342aecb099c12f75c8fbd62922",
+      "source": "step5d_force_search_canary_r006.script"
+    },
+    {
+      "filename": "step5d_force_search_canary_r006.txt",
+      "sha256": "4910584992b62e8fccee1849a4650d5f287a831b8345734dcbb936204c593698",
+      "source": "step5d_force_search_canary_r006.txt"
+    },
+    {
+      "filename": "step5d_force_search_canary_r006.urp",
+      "sha256": "bc9044e7621ffcfa7aa785b04affbaab5a558137aa015006c7c6b2cff3175c26",
+      "source": "step5d_force_search_canary_r006.urp"
+    }
+  ],
+  "basename": "step5d_force_search_canary_r006",
+  "builder": "tools/build_step5d_force_search_canary_r006.py",
+  "builder_sha256": "a72209332c22d5d32c89b3f169ef4d445f58bbc6ac1c15f7b498d0915ba6d810",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_force_search_canary_r006.urp",
+  "delivery": {
+    "controller_readback": false,
+    "controller_upload": false,
+    "current_release_pointer_changed": false,
+    "local_urp_internal_content_gate": true
+  },
+  "eoat_binding": {
+    "artifact_id": "new-3d-printed-eoat-20260730-v2",
+    "contract_sha256": "f6b49c7c1952c9773003fa1293cd417c2808780157e58990a658b5bf353ac925",
+    "controller_get_receipt_sha256": "9fe0a697cc501d4387959b9b80df88ce29450f18effc974bb7ad2da84411beca"
+  },
+  "force_search_contract": {
+    "artifact_id": "new-eoat-kunwei-1n-canary-r006",
+    "sha256": "726f7ef520a70d04bcce4d7fd4fbcb04b8ef461335624f4fa15ab2886a55d92b"
+  },
+  "immutable": true,
+  "numeric_sanity": {
+    "filename": "step5d_force_search_canary_r006.numeric-sanity.json",
+    "passed": true,
+    "sha256": "f7aa760ade615c24eb08353c0e7361ccafb117869d9c5a2b7bb64cd1629164be"
+  },
+  "register_live_writer": {
+    "exit_on_tp_terminal": true,
+    "implementation": "tools/step5d_force_search_register_writer_r006.py",
+    "single_writer_lease_required": true
+  },
+  "schema": "step5d.force-search-canary/local-candidate-v2",
+  "schema_version": 2,
+  "source_stamp": "2026-07-30T1330HKT_STEP5D_FORCE_SEARCH_CANARY_R006",
+  "status": "local_candidate_not_uploaded"
+}

@@ -1,0 +1,71 @@
+{
+  "schema": "step5d.force-search-canary/contract-v2",
+  "artifact_id": "new-eoat-kunwei-1n-canary-r006",
+  "eoat_contract": {
+    "path": "config/step5d/new_eoat_calibration.json",
+    "sha256": "f6b49c7c1952c9773003fa1293cd417c2808780157e58990a658b5bf353ac925"
+  },
+  "motion": {
+    "frame": "base",
+    "axis": "negative_z_search_positive_z_retract",
+    "search_speed_m_s": 0.0005,
+    "search_acceleration_m_s2": 0.01,
+    "cycle_s": 0.008,
+    "max_travel_m": 0.025,
+    "runtime_limit_s": 90.0,
+    "search_stopl_acceleration_m_s2": 0.01,
+    "retract_distance_m": 0.005,
+    "retract_speed_m_s": 0.0005,
+    "retract_acceleration_m_s2": 0.01
+  },
+  "startup": {
+    "heartbeat_increment_count": 3,
+    "each_increment_max_gap_s": 0.08,
+    "startup_timeout_s": 10.0,
+    "eoat_controller_get_ack_register": 29
+  },
+  "contact": {
+    "positive_normal_load_n": 0.8,
+    "force_norm_n": 1.0,
+    "hard_abs_normal_load_n": 3.0,
+    "hard_force_norm_n": 3.0,
+    "hard_torque_norm_nm": 0.2
+  },
+  "stationary": {
+    "linear_speed_max_m_s": 0.0005,
+    "angular_speed_max_rad_s": 0.005,
+    "continuous_dwell_s": 0.25
+  },
+  "register_contract": {
+    "24": "positive normal_load_n from zeroed Kunwei wrench",
+    "25": "zeroed Kunwei translational force norm N",
+    "26": "monotonic register-live-writer heartbeat",
+    "27": "fresh finite software-baselined Kunwei sample flag",
+    "28": "fail-closed stop request",
+    "29": "fresh controller payload CoG TCP GET match acknowledgement",
+    "30": "zeroed Kunwei torque norm Nm",
+    "31_to_36": "zeroed Kunwei Fx Fy Fz Mx My Mz"
+  },
+  "capability_dag": [
+    "eoat_set_payload_and_tcp",
+    "fresh_controller_get_ack",
+    "three_increment_heartbeat_gate",
+    "fresh_finite_kunwei_gate",
+    "bounded_base_negative_z_search",
+    "continuous_deceleration_monitor",
+    "fresh_stationary_dwell",
+    "success_only_base_positive_z_retract"
+  ],
+  "runtime_feedback_loop": "fresh Kunwei wrench and heartbeat -> hard guards/contact latch -> bounded base-Z command -> robot state -> fresh Kunwei wrench",
+  "invariants": [
+    "r005 triplet and source remain immutable",
+    "Kunwei is the sole wrench authority; UR built-in force is forbidden",
+    "absolute normal load is used only by hard guards",
+    "NaN, Inf, stale heartbeat, stale sensor, or stop request fail closed",
+    "search stop uses stopl(0.01); entry-stop acceleration is not used here",
+    "deceleration is continuously monitored",
+    "retract is allowed only after successful contact plus 0.25 s fresh stationary dwell",
+    "any abnormal stop prevents all later motion",
+    "no automatic Home"
+  ]
+}

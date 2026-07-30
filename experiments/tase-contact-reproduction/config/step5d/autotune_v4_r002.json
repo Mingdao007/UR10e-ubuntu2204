@@ -1,0 +1,87 @@
+{
+  "schema": "step5d.autotune-v4/release-contract-v2",
+  "lineage": "step5d_strict_rnn_autotune_v4",
+  "program": "step5d_strict_rnn_autotune_v4_r002",
+  "revision": 2,
+  "status": "offline_candidate_live_blocked",
+  "inherits": {
+    "path": "config/step5d/autotune_v4_r001.json",
+    "sha256": "c8143fb37945cb8f67a8335c99056f63624eba882de9efe28519e0469e1e8def",
+    "scope": [
+      "isolation",
+      "robot_model_binding",
+      "entry",
+      "baseline_5n",
+      "runtime",
+      "bo",
+      "eligibility",
+      "promotion",
+      "live_activation"
+    ]
+  },
+  "fingerprint": {
+    "eoat_contract_path": "config/step5d/eoat_profile_new_v4.json",
+    "eoat_contract_sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+    "target_force_n": 5,
+    "wrench_authority": "kunwei_only",
+    "ur_builtin_force_allowed": false,
+    "normalization_revision": 1,
+    "bounds_revision": 1
+  },
+  "policy_binding": {
+    "schema": "step5d.autotune-v4/policy-bundle-v1",
+    "composition_path": "tools/step5d_autotune_v4/policies.py",
+    "composition_sha256": "9d8ec13dc38fb84e2510f0fab5d63934a22c7f70f1d7192743567dadcdaadd75",
+    "baseline_ledger_path": "tools/step5d_autotune_v4/baseline_ledger.py",
+    "baseline_ledger_sha256": "8fe83778feb03bb11cacc5ebf3ab038f68fd8a072a41553a7ec9bad65c3d28a7",
+    "force_search_core_path": "tools/step5d_force_search_core.py",
+    "force_search_core_sha256": "46ba42254a22102ad0b020f62ed9a261565e3355e8843dc5e74d766ee56b5b72",
+    "eoat_profiles_path": "tools/step5d_eoat_profiles.py",
+    "eoat_profiles_sha256": "e2396db961818929b78f24bd63b270754d6a662dca5978a4ae947a2147b72906",
+    "providers": {
+      "entry": "step5d.v4.entry/default-v1",
+      "force_search": "step5d.force-search/shared-engine-v1",
+      "baseline": "step5d.v4.baseline/default-1to5n-v1",
+      "timing": "step5d.v4.timing/actual-dt-75hz-v1",
+      "qdot_gate": "step5d.v4.qdot-gate/hash-bound-jacobian-v1",
+      "candidate_provider": "step5d.v4.candidate/anchor-v1"
+    },
+    "missing_non_safety_provider_behavior": "zero_qdot_no_motion",
+    "invariant_envelope_replaceable": false
+  },
+  "wire": {
+    "schema": "step5d.autotune-v4/register-wire-v2",
+    "layout_code": 605,
+    "typed_command_mode_integer_register": 25,
+    "baseline_qualification_integer_register": 24,
+    "baseline_qualification_owner": "BaselineQualificationLedger",
+    "baseline_success_terminal_stage": 22
+  },
+  "architecture": {
+    "capability_dag": [
+      "hash_bound_eoat_profile",
+      "shared_force_search_engine",
+      "injected_entry_policy",
+      "injected_timing_policy",
+      "injected_baseline_policy",
+      "single_owner_baseline_ledger",
+      "injected_qdot_gate",
+      "fixed_invariant_envelope",
+      "typed_wire_packet",
+      "attempt_ledger_and_replay",
+      "optional_candidate_provider"
+    ],
+    "runtime_feedback_loop": "fresh Kunwei and robot observation -> injected local policies -> fixed invariant envelope -> typed command packet -> single RTDE writer -> TP guarded execution -> fresh observation",
+    "bo_optional": true,
+    "anchor_provider_without_bo": true
+  },
+  "supersedes": {
+    "program": "step5d_strict_rnn_autotune_v4_r001",
+    "status": "SUPERSEDED_ARCHITECTURE_NOT_LOADABLE",
+    "triplet_sha256": {
+      "script": "7942073606faaccc6d95778f63fffe50d5dd25181e51b3a466a059ee8878f655",
+      "txt": "e2abde0169a9d85738d1a264b5ee485867e5ea473e8329f031f109dfae056fac",
+      "urp": "8f243d1c52a79b1d4fc22d9dbaf25ddc162f11e6d6c10df6680e8f91266bbce0"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "artifacts": [
+    {
+      "filename": "step5d_strict_rnn_autotune_v4_r001.script",
+      "sha256": "7942073606faaccc6d95778f63fffe50d5dd25181e51b3a466a059ee8878f655",
+      "source": "step5d_strict_rnn_autotune_v4_r001.script"
+    },
+    {
+      "filename": "step5d_strict_rnn_autotune_v4_r001.txt",
+      "sha256": "e2abde0169a9d85738d1a264b5ee485867e5ea473e8329f031f109dfae056fac",
+      "source": "step5d_strict_rnn_autotune_v4_r001.txt"
+    },
+    {
+      "filename": "step5d_strict_rnn_autotune_v4_r001.urp",
+      "sha256": "8f243d1c52a79b1d4fc22d9dbaf25ddc162f11e6d6c10df6680e8f91266bbce0",
+      "source": "step5d_strict_rnn_autotune_v4_r001.urp"
+    }
+  ],
+  "basename": "step5d_strict_rnn_autotune_v4_r001",
+  "builder": "tools/build_step5d_autotune_v4_r001.py",
+  "builder_sha256": "c0a7d4fcf024f8793d4547b1650e54fe08e533149e933475ceb139af3e2a3fdd",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r001.urp",
+  "delivery": {
+    "controller_load_or_play": false,
+    "controller_readback": false,
+    "controller_upload": false,
+    "local_urp_internal_content_gate": true,
+    "v3_current_pointer_changed": false,
+    "v4_lineage_selected": false
+  },
+  "immutable": true,
+  "numeric_sanity": {
+    "filename": "step5d_strict_rnn_autotune_v4_r001.numeric-sanity.json",
+    "passed": true,
+    "sha256": "7c1078b67800ed58e1e3bd08ae242b457b8f2c3614a49dea86db7dadefdba921"
+  },
+  "schema": "step5d.autotune-v4/local-candidate-v1",
+  "schema_version": 2,
+  "source_stamp": "2026-07-30T1415HKT_STEP5D_AUTOTUNE_V4_R001",
+  "status": "local_candidate_not_uploaded_live_blocked",
+  "v4_binding": {
+    "campaign_fingerprint": "27b3bfd3577edce35c6a2f6c3c40a43e622869c69b17d8b630de9aceebb680b9",
+    "eoat_contract_sha256": "f6b49c7c1952c9773003fa1293cd417c2808780157e58990a658b5bf353ac925",
+    "lineage": "step5d_strict_rnn_autotune_v4",
+    "release_contract_sha256": "c8143fb37945cb8f67a8335c99056f63624eba882de9efe28519e0469e1e8def",
+    "target_force_n": 5.0,
+    "wrench_authority": "kunwei_only"
+  }
+}

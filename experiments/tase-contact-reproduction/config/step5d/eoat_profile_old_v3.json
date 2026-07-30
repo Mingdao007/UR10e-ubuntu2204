@@ -1,0 +1,33 @@
+{
+  "schema": "step5d.eoat/profile-v1",
+  "profile_id": "legacy-old-eoat-v3",
+  "revision": 1,
+  "payload_kg": 0.404,
+  "cog_m": [-0.00044, -0.00094, 0.0268],
+  "controller_tcp_m_rad": [0, 0, 0.1221, 0, 0, 0],
+  "kinematic_tcp_xyz_m": [0, 0, 0.1221],
+  "program_z_delta_m": 0,
+  "evidence": [
+    {
+      "role": "fresh_controller_get_at_old_eoat",
+      "path": "config/step5d/old_eoat_controller_readback_v1.json",
+      "sha256": "84515e027f6c8bd30c4fffdfff26ae970ad03e2d6f00867fe62ac6bda0b5c844"
+    },
+    {
+      "role": "v3_tcp_kinematic_contract",
+      "path": "tools/run_step5d_v34_live_path_timing.py",
+      "sha256": "ff61e44b12be9274611cad88d9c130050ca2eb452485e6f29c033194e7282f55"
+    }
+  ],
+  "invariants": {
+    "fresh_apply_and_verify_before_motion": true,
+    "stationary_required": true,
+    "safety_normal_required": true,
+    "single_writer_required": true
+  },
+  "claim_boundary": [
+    "This profile preserves the immutable V3/r034 program and its 122.1 mm kinematic TCP identity.",
+    "The bound controller GET is evidence only; a fresh apply-and-verify receipt is required before V3 motion.",
+    "Selecting this profile does not write the controller or authorize Load, Play, motion, or contact."
+  ]
+}
