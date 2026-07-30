@@ -1,0 +1,27 @@
+{
+  "schema": "step5d.autotune-v4/package-delivery-state-v1",
+  "program": "step5d_strict_rnn_autotune_v4_r003",
+  "state": "upload blocked",
+  "observed_at_hkt": "2026-07-30T19:19:00+08:00",
+  "controller_host": "192.168.1.18",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r003.urp",
+  "probe_error": "ssh: connect to host 192.168.1.18 port 22: No route to host",
+  "contract_sha256": "88b2236818457594dcbd7cb8989191745483a0b6d66c693d3e2794edfebb51b3",
+  "campaign_fingerprint": "29b7330d09039ae0fde4903be1873071e91ca62c9bff4f35a94578ad89a8d4dd",
+  "artifacts": {
+    "script_sha256": "b0898df98966a1103f1dff67f0cf0542b57bddfcc26fe47ca04a50edc082fe1d",
+    "txt_sha256": "6840e2707b8241c08c3028d4f19569f3f507ac9771516708fe615755ab36f819",
+    "urp_sha256": "ddfcc945dff17d423a4423fb43a8e4e8fe6ff4782267a13a38029a692221133a"
+  },
+  "gates": {
+    "local_package_verified": true,
+    "controller_upload_performed": false,
+    "controller_readback_verified": false,
+    "dashboard_load_performed": false,
+    "dashboard_play_performed": false,
+    "motion_performed": false,
+    "v3_current_pointer_changed": false,
+    "v4_pointer_promoted": false
+  }
+}

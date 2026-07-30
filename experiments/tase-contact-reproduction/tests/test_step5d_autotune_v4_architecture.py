@@ -13,7 +13,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
+import step5d_force_search_canary_shared as force_search_canary_shared  # noqa: E402
 import step5d_force_search_canary_r006 as r006  # noqa: E402
+import step5d_force_search_canary_r007 as r007  # noqa: E402
 import step5d_force_search_primitive as r005  # noqa: E402
 import transition_step5d_lineage as lineage_transition  # noqa: E402
 from step5d_autotune_v4 import contracts  # noqa: E402
@@ -353,7 +355,7 @@ def test_apply_verify_eoat_rejects_non_normal_or_missing_single_writer() -> None
 def test_v4_activation_evidence_is_independent_of_active_v3_eoat_receipt(
     tmp_path: Path,
 ) -> None:
-    contract = contracts.load_contract()
+    contract = contracts.load_contract(contracts.R002_CONTRACT)
     eoat_receipt = apply_and_verify_eoat(
         load_new_eoat_profile(), FakeController()
     )
@@ -390,8 +392,27 @@ def test_v4_activation_evidence_is_independent_of_active_v3_eoat_receipt(
 
 
 def test_force_search_wrappers_share_engine_and_r006_triplet_bytes_are_golden() -> None:
-    assert "ForceSearchEngine" in Path(r005.__file__).read_text(encoding="utf-8")
-    assert "ForceSearchEngine" in Path(r006.__file__).read_text(encoding="utf-8")
+    assert "ForceSearchEngine" in Path(
+        force_search_canary_shared.__file__
+    ).read_text(encoding="utf-8")
+    assert "canary_stop_reason" in Path(r006.__file__).read_text(encoding="utf-8")
+    assert "canary_stop_reason" in Path(r007.__file__).read_text(encoding="utf-8")
+    assert "render_force_search_canary_script" in Path(
+        r006.__file__
+    ).read_text(encoding="utf-8")
+    assert "render_force_search_canary_script" in Path(
+        r007.__file__
+    ).read_text(encoding="utf-8")
+    assert r006.stop_reason is force_search_canary_shared.canary_stop_reason
+    assert r007.stop_reason is force_search_canary_shared.canary_stop_reason
+    assert (
+        r006.render_script.__globals__["render_force_search_canary_script"]
+        is force_search_canary_shared.render_force_search_canary_script
+    )
+    assert (
+        r007.render_script.__globals__["render_force_search_canary_script"]
+        is force_search_canary_shared.render_force_search_canary_script
+    )
     triplet = ROOT / "programs/step5/step5d"
     assert _sha(triplet / "step5d_force_search_canary_r006.script") == (
         "de8d071885d21274cd44b1b33408e51b52caf7342aecb099c12f75c8fbd62922"

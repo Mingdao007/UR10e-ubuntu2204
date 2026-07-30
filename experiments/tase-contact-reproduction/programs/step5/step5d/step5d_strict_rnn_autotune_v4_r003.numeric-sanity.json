@@ -1,0 +1,17 @@
+{
+  "checks": {
+    "baseline_guards_15_20_1": true,
+    "entry_xyz_exact": true,
+    "expected_contact_z_evidence_only": true,
+    "full_path_60s": true,
+    "layout_605": true,
+    "no_auto_home": true,
+    "program_z_delta_zero": true,
+    "search_base_z_only": true,
+    "search_guards_3_3_0p2": true,
+    "target_exact_5n": true
+  },
+  "passed": true,
+  "program": "step5d_strict_rnn_autotune_v4_r003",
+  "schema": "step5d.autotune-v4/numeric-sanity-v2"
+}

@@ -1,0 +1,10 @@
+{
+  "campaign_fingerprint": "29b7330d09039ae0fde4903be1873071e91ca62c9bff4f35a94578ad89a8d4dd",
+  "consecutive_success_attempt_ids": [],
+  "eoat_sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+  "freeze_reason": "",
+  "frozen": false,
+  "ledger_sha256": "cb5c5599c17e4880619d4dbc610d018b4bfa2016fb3dac6fa4752032132ce515",
+  "receipts": [],
+  "schema": "step5d.autotune-v4/baseline-qualification-ledger-v1"
+}

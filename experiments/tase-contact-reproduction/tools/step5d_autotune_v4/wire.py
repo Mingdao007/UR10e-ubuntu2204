@@ -196,8 +196,6 @@ def build_wire_packet(
         stop_reason = "hold_mode_requires_zero_qdot"
     elif command_mode is CommandMode.PATH and not baseline_qualification.full_path_allowed:
         stop_reason = "baseline_qualification_missing"
-    elif command_mode is CommandMode.RETRACT and baseline_qualification.full_path_allowed:
-        stop_reason = "retract_mode_after_path_qualification"
     elif not gate.allowed:
         stop_reason = gate.reason or "kinematic_gate_blocked"
     elif command_mode is CommandMode.BASELINE and (

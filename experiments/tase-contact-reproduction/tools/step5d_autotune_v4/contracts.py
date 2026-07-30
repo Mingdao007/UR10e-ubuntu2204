@@ -12,13 +12,23 @@ from typing import Any, Mapping, Sequence
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[2]
 R001_CONTRACT = EXPERIMENT_ROOT / "config/step5d/autotune_v4_r001.json"
-DEFAULT_CONTRACT = EXPERIMENT_ROOT / "config/step5d/autotune_v4_r002.json"
+R002_CONTRACT = EXPERIMENT_ROOT / "config/step5d/autotune_v4_r002.json"
+R003_CONTRACT = EXPERIMENT_ROOT / "config/step5d/autotune_v4_r003.json"
+DEFAULT_CONTRACT = R003_CONTRACT
 SCHEMA = "step5d.autotune-v4/release-contract-v2"
 LEGACY_SCHEMA = "step5d.autotune-v4/release-contract-v1"
 LINEAGE = "step5d_strict_rnn_autotune_v4"
 PROGRAM_R001 = "step5d_strict_rnn_autotune_v4_r001"
-PROGRAM = "step5d_strict_rnn_autotune_v4_r002"
+PROGRAM_R002 = "step5d_strict_rnn_autotune_v4_r002"
+PROGRAM_R003 = "step5d_strict_rnn_autotune_v4_r003"
+PROGRAM = PROGRAM_R003
 TARGET_FORCE_N = 5.0
+GENTLE_CONTACT_SPEED_M_S = 0.0002
+GENTLE_CONTACT_ACCEL_M_S2 = 0.005
+GENTLE_CONTACT_NORMAL_N = 0.5
+GENTLE_CONTACT_FORCE_NORM_N = 0.7
+GENTLE_CONTACT_MAX_TRAVEL_M = 0.025
+GENTLE_CONTACT_TIMEOUT_S = 90.0
 P_ANCHOR = 0.0003535533906
 I_ON_ANCHOR = 0.00001
 D_ANCHOR = 28.0
@@ -228,10 +238,11 @@ def load_contract(path: Path = DEFAULT_CONTRACT) -> V4Contract:
     if not isinstance(document, dict):
         raise V4ContractError("V4 contract must be an object")
     is_legacy = document.get("schema") == LEGACY_SCHEMA
+    revision = document.get("revision")
     if not is_legacy:
         inheritance = document.get("inherits")
         if not isinstance(inheritance, dict):
-            raise V4ContractError("V4 r002 inheritance binding is missing")
+            raise V4ContractError("V4 inheritance binding is missing")
         base_path = _require_hash(
             inheritance.get("path"),
             inheritance.get("sha256"),
@@ -244,21 +255,33 @@ def load_contract(path: Path = DEFAULT_CONTRACT) -> V4Contract:
             raise V4ContractError("V4 inheritance scope is invalid")
         inherited = {key: base[key] for key in scope}
         document = _merge(inherited, document)
+        revision = document.get("revision")
+    expected_program = {
+        1: PROGRAM_R001,
+        2: PROGRAM_R002,
+        3: PROGRAM_R003,
+    }.get(1 if is_legacy else revision)
     if (
         document.get("schema") not in (SCHEMA, LEGACY_SCHEMA)
         or document.get("lineage") != LINEAGE
-        or document.get("program") != (PROGRAM_R001 if is_legacy else PROGRAM)
-        or document.get("revision") != (1 if is_legacy else 2)
+        or expected_program is None
+        or document.get("program") != expected_program
+        or document.get("revision") != (1 if is_legacy else revision)
+        or (not is_legacy and revision not in (2, 3))
     ):
         raise V4ContractError("V4 release identity differs")
     if not is_legacy:
         if document.get("status") != "offline_candidate_live_blocked":
-            raise V4ContractError("V4 r002 must remain inactive")
+            raise V4ContractError("V4 candidate must remain inactive")
         activation = document.get("live_activation")
         if not isinstance(activation, dict) or not str(
             activation.get("current_status", "")
         ).startswith("BLOCKED_"):
-            raise V4ContractError("V4 r002 activation is not machine-blocked")
+            raise V4ContractError("V4 activation is not machine-blocked")
+        if revision == 3 and activation.get("r006_canary_required") is not False:
+            raise V4ContractError("V4 r003 must not require standalone r006 canary")
+        if revision == 2 and activation.get("r006_canary_required") is not True:
+            raise V4ContractError("V4 r002 historical activation still requires r006")
     isolation = document.get("isolation")
     fingerprint = document.get("fingerprint")
     binding = document.get("robot_model_binding")
@@ -273,7 +296,7 @@ def load_contract(path: Path = DEFAULT_CONTRACT) -> V4Contract:
         policy = document.get("policy_binding")
         wire = document.get("wire")
         if not isinstance(policy, dict) or not isinstance(wire, dict):
-            raise V4ContractError("V4 r002 policy/wire binding is missing")
+            raise V4ContractError("V4 policy/wire binding is missing")
         for role in (
             "composition",
             "baseline_ledger",
@@ -295,7 +318,30 @@ def load_contract(path: Path = DEFAULT_CONTRACT) -> V4Contract:
             != "BaselineQualificationLedger"
             or wire.get("baseline_success_terminal_stage") != 22
         ):
-            raise V4ContractError("V4 r002 primitive seam contract differs")
+            raise V4ContractError("V4 primitive seam contract differs")
+        if revision == 3:
+            contact = document.get("contact_acquisition")
+            if not isinstance(contact, dict):
+                raise V4ContractError("V4 r003 contact acquisition contract is missing")
+            if (
+                _finite(contact.get("search_speed_m_s"), "search speed")
+                != GENTLE_CONTACT_SPEED_M_S
+                or _finite(contact.get("search_acceleration_m_s2"), "search accel")
+                != GENTLE_CONTACT_ACCEL_M_S2
+                or _finite(contact.get("positive_normal_load_n"), "contact normal")
+                != GENTLE_CONTACT_NORMAL_N
+                or _finite(contact.get("force_norm_n"), "contact force norm")
+                != GENTLE_CONTACT_FORCE_NORM_N
+                or _finite(contact.get("max_travel_m"), "contact travel")
+                != GENTLE_CONTACT_MAX_TRAVEL_M
+                or _finite(contact.get("timeout_s"), "contact timeout")
+                != GENTLE_CONTACT_TIMEOUT_S
+                or contact.get("standalone_canary_prerequisite") is not False
+                or contact.get("frame") != "base"
+                or contact.get("axis") != "negative_z"
+            ):
+                raise V4ContractError("V4 r003 gentle contact acquisition differs")
+
     if isolation.get("v3_lineage") != "step5d_strict_rnn_autotune_v3" or any(
         isolation.get(field) is not False
         for field in (
@@ -321,22 +367,40 @@ def load_contract(path: Path = DEFAULT_CONTRACT) -> V4Contract:
     ):
         raise V4ContractError("V4 campaign fingerprint semantics differ")
     model_hashes: dict[str, str] = {}
-    for prefix in (
+    model_roles = [
         "ur_xacro",
         "calibration_yaml",
         "jacobian_gate",
         "kinematics_solver",
         "strict_rnn",
         "contact_semantics",
-    ):
+    ]
+    if revision == 3:
+        model_roles.extend(
+            (
+                "calibrated_runtime",
+                "path_reference",
+                "path_table",
+                "strict_rnn_gate",
+            )
+        )
+    for prefix in model_roles:
         _require_hash(
             binding.get(f"{prefix}_path"),
             binding.get(f"{prefix}_sha256"),
             prefix,
         )
-        model_hashes[prefix] = _digest(
-            binding.get(f"{prefix}_sha256"), f"{prefix} digest"
-        )
+        if prefix in {
+            "ur_xacro",
+            "calibration_yaml",
+            "jacobian_gate",
+            "kinematics_solver",
+            "strict_rnn",
+            "contact_semantics",
+        }:
+            model_hashes[prefix] = _digest(
+                binding.get(f"{prefix}_sha256"), f"{prefix} digest"
+            )
     if runtime != {
         "dt_mode": "monotonic_actual",
         "startup_increment_count": 2,
@@ -492,6 +556,12 @@ def validate_live_transition(
 __all__ = [
     "DEFAULT_CONTRACT",
     "D_ANCHOR",
+    "GENTLE_CONTACT_ACCEL_M_S2",
+    "GENTLE_CONTACT_FORCE_NORM_N",
+    "GENTLE_CONTACT_MAX_TRAVEL_M",
+    "GENTLE_CONTACT_NORMAL_N",
+    "GENTLE_CONTACT_SPEED_M_S",
+    "GENTLE_CONTACT_TIMEOUT_S",
     "I_GRID",
     "I_ON_ANCHOR",
     "KO_ANCHOR",
@@ -501,8 +571,12 @@ __all__ = [
     "P_ANCHOR",
     "PROGRAM",
     "PROGRAM_R001",
+    "PROGRAM_R002",
+    "PROGRAM_R003",
     "R001_CONTRACT",
+    "R002_CONTRACT",
     "R002_INHERIT_SCOPE",
+    "R003_CONTRACT",
     "TARGET_FORCE_N",
     "TAU_ANCHOR",
     "V4Candidate",

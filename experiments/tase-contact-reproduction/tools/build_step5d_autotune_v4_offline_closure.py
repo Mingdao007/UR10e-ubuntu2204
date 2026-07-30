@@ -14,9 +14,11 @@ from step5d_autotune_v4 import bo, contracts, replay
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT = ROOT / "config/step5d/autotune_v4_r002_offline_closure.json"
+DEFAULT_OUTPUT = ROOT / "config/step5d/autotune_v4_r003_offline_closure.json"
 SOURCE_PATHS = (
-    "config/step5d/autotune_v4_r002.json",
+    "config/step5d/autotune_v4_r003.json",
+    "config/step5d/autotune_v4_live_writer_r003.json",
+    "config/step5d/autotune_v4_r003_baseline_ledger_genesis.json",
     "config/step5d/autotune_v4_wire_v2.json",
     "config/step5d/new_eoat_calibration.json",
     "config/step5d/old_eoat_controller_readback_v1.json",
@@ -33,33 +35,30 @@ SOURCE_PATHS = (
     "tools/step5d_autotune_v4/runtime.py",
     "tools/step5d_autotune_v4/control.py",
     "tools/step5d_autotune_v4/adapter.py",
+    "tools/step5d_autotune_v4/live_attempt.py",
+    "tools/step5d_autotune_v4/path_controller.py",
+    "tools/step5d_autotune_v4/calibrated_runtime.py",
     "tools/step5d_autotune_v4/bo.py",
     "tools/step5d_autotune_v4/eligibility.py",
     "tools/step5d_autotune_v4/replay.py",
     "tools/step5d_autotune_v4/wire.py",
     "tools/step5d_autotune_v4/tp.py",
     "tools/step5d_force_search_core.py",
-    "config/step5d/force_search_canary_v1.json",
-    "config/step5d/force_search_canary_r006.json",
-    "tools/step5d_force_search_bridge_contract.py",
     "tools/step5d_new_eoat.py",
-    "tools/step5d_force_search_primitive.py",
-    "tools/step5d_force_search_canary_r006.py",
-    "tools/build_step5d_force_search_canary_r005.py",
-    "tools/build_step5d_force_search_canary_r006.py",
     "tools/build_step5d_autotune_start_hover_r001.py",
-    "programs/step5/step5d/step5d_force_search_canary_r005.script",
-    "programs/step5/step5d/step5d_force_search_canary_r005.txt",
-    "programs/step5/step5d/step5d_force_search_canary_r005.urp",
-    "programs/step5/step5d/step5d_force_search_canary_r006.script",
-    "programs/step5/step5d/step5d_force_search_canary_r006.txt",
-    "programs/step5/step5d/step5d_force_search_canary_r006.urp",
     "tools/step5d_eoat_profiles.py",
-    "tools/build_step5d_autotune_v4_r002.py",
+    "tools/build_step5d_autotune_v4_r003.py",
+    "tools/step5d_autotune_v4_live_writer.py",
+    "tools/run_step5d_autotune_v4_campaign.py",
     "tools/build_step5d_autotune_v4_offline_closure.py",
     "tools/transition_step5d_lineage.py",
     "tests/test_step5d_autotune_v4.py",
     "tests/test_step5d_autotune_v4_architecture.py",
+    "tests/test_step5d_autotune_v4_r003_campaign.py",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r003.script",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r003.txt",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r003.urp",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r003.controller-deploy-manifest.json",
 )
 V3_UNTOUCHED = {
     "tools/step5d_autotune_contract.py": "973adc8c73e0187f8b4a5ef8dc6520890530b436b0eddaad02f41444bf5cafd6",
@@ -81,20 +80,6 @@ def _closed_sha(relative_path: str) -> str:
     return _sha(path)
 
 
-FORCE_SEARCH_TRIPLETS = {
-    "r005": {
-        ".script": "6b8bb20f01bc7b822bb39d2980cf52caeabdb9c76a4b0d97c285603a83269e60",
-        ".txt": "b02fc6c0c5c3cf6893b5d3e8c2f800c4680abc79975a762aba76b86a1010cfce",
-        ".urp": "504641dbd0d8c654778316d4a6d79c96f9c7d1052e091bbdf47adb856f0f0d52",
-    },
-    "r006": {
-        ".script": "de8d071885d21274cd44b1b33408e51b52caf7342aecb099c12f75c8fbd62922",
-        ".txt": "4910584992b62e8fccee1849a4650d5f287a831b8345734dcbb936204c593698",
-        ".urp": "bc9044e7621ffcfa7aa785b04affbaab5a558137aa015006c7c6b2cff3175c26",
-    },
-}
-
-
 def _candidate(value: contracts.V4Candidate) -> dict[str, Any]:
     return {
         "physical": value.canonical_physical,
@@ -109,15 +94,6 @@ def build_closure() -> dict[str, Any]:
     v3_actual = {path: _sha(ROOT / path) for path in V3_UNTOUCHED}
     if v3_actual != V3_UNTOUCHED:
         raise RuntimeError("V3 source/current/triplet bytes changed during V4 build")
-    triplets: dict[str, dict[str, str]] = {}
-    for revision in ("r005", "r006"):
-        triplets[revision] = {}
-        for suffix, expected in FORCE_SEARCH_TRIPLETS[revision].items():
-            relative_path = f"programs/step5/step5d/step5d_force_search_canary_{revision}{suffix}"
-            actual = _closed_sha(relative_path)
-            if revision == "r006" and actual != expected:
-                raise RuntimeError("immutable r006 force-search triplet bytes changed")
-            triplets[revision][suffix] = actual
     batch_a, batch_b = bo.initial_pd_batches()
     tau = bo.tau_qualification_batch(bo.anchor())
     i_path = bo.i_qualification_path(bo.anchor())
@@ -136,7 +112,7 @@ def build_closure() -> dict[str, Any]:
     if replay_result.complete_bins != 550 or not replay_result.eligible_shape:
         raise RuntimeError("V4 exact-550-bin offline replay closure failed")
     return {
-        "schema": "step5d.autotune-v4/offline-closure-v2",
+        "schema": "step5d.autotune-v4/offline-closure-v3",
         "lineage": contracts.LINEAGE,
         "program": contracts.PROGRAM,
         "contract_sha256": contract.sha256,
@@ -152,17 +128,8 @@ def build_closure() -> dict[str, Any]:
         "force_search_shared_core": {
             "core_path": "tools/step5d_force_search_core.py",
             "core_sha256": source_closure["tools/step5d_force_search_core.py"],
-            "r005_wrapper_path": "tools/step5d_force_search_primitive.py",
-            "r005_wrapper_sha256": source_closure[
-                "tools/step5d_force_search_primitive.py"
-            ],
-            "r006_wrapper_path": "tools/step5d_force_search_canary_r006.py",
-            "r006_wrapper_sha256": source_closure[
-                "tools/step5d_force_search_canary_r006.py"
-            ],
-            "triplet_sha256": triplets,
-            "r006_triplet_byte_identity": triplets["r006"]
-            == FORCE_SEARCH_TRIPLETS["r006"],
+            "integrated_contact_acquisition": True,
+            "standalone_canary_prerequisite": False,
         },
         "bootstrap": {
             "batch_a": [_candidate(value) for value in batch_a],
@@ -184,7 +151,7 @@ def build_closure() -> dict[str, Any]:
             "eligible_shape": replay_result.eligible_shape,
             "synthetic_evidence_only": True,
         },
-        "live_status": "BLOCKED_PENDING_R006_CANARY_THREE_5N_BASELINES_FORMAL_REVIEW_AND_CANONICAL_TRANSITION",
+        "live_status": "BLOCKED_PENDING_CONTROLLER_UPLOAD_READBACK_THREE_5N_BASELINES_FORMAL_REVIEW_AND_CANONICAL_TRANSITION",
         "safety_boundary": [
             "offline deterministic construction only",
             "no controller, Dashboard, RTDE, Kunwei, Load, Play, motion, contact, zero, tare, or pointer mutation",

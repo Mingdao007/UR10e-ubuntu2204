@@ -1,42 +1,10 @@
-"""URScript renderer for the independent V4 r003 guarded command consumer."""
-
-from __future__ import annotations
-
-from step5d_eoat_profiles import load_new_eoat_profile, render_urscript_apply
-
-from .contracts import (
-    GENTLE_CONTACT_ACCEL_M_S2,
-    GENTLE_CONTACT_FORCE_NORM_N,
-    GENTLE_CONTACT_MAX_TRAVEL_M,
-    GENTLE_CONTACT_NORMAL_N,
-    GENTLE_CONTACT_SPEED_M_S,
-    GENTLE_CONTACT_TIMEOUT_S,
-    PROGRAM,
-    TARGET_FORCE_N,
-    load_contract,
-)
-from .wire import LAYOUT_CODE
-
-
-CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
-
-
-def render_script(contract_path=None) -> str:
-    contract = load_contract() if contract_path is None else load_contract(contract_path)
-    program = str(contract.raw.get("program", PROGRAM))
-    eoat_block = render_urscript_apply(load_new_eoat_profile())
-    search_speed = GENTLE_CONTACT_SPEED_M_S
-    search_accel = GENTLE_CONTACT_ACCEL_M_S2
-    latch_normal = GENTLE_CONTACT_NORMAL_N
-    latch_force = GENTLE_CONTACT_FORCE_NORM_N
-    max_travel = GENTLE_CONTACT_MAX_TRAVEL_M
-    timeout_s = GENTLE_CONTACT_TIMEOUT_S
-    return f"""# ROLE: independent new-EOAT 5 N Autotune V4 executor
-# TP_PROGRAM_ID: {program}
-# V4_CONTRACT_SHA256: {contract.sha256}
-# V4_CAMPAIGN_FINGERPRINT: {contract.campaign_fingerprint}
-# EOAT_CONTRACT_SHA256: {contract.eoat_sha256}
-# TARGET_FORCE_N: {TARGET_FORCE_N:.1f} immutable, not transported as a tunable
+# VERSION: 2026-07-30T1917HKT_STEP5D_AUTOTUNE_V4_R003
+# ROLE: independent new-EOAT 5 N Autotune V4 executor
+# TP_PROGRAM_ID: step5d_strict_rnn_autotune_v4_r003
+# V4_CONTRACT_SHA256: 88b2236818457594dcbd7cb8989191745483a0b6d66c693d3e2794edfebb51b3
+# V4_CAMPAIGN_FINGERPRINT: 29b7330d09039ae0fde4903be1873071e91ca62c9bff4f35a94578ad89a8d4dd
+# EOAT_CONTRACT_SHA256: 1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4
+# TARGET_FORCE_N: 5.0 immutable, not transported as a tunable
 # BOUNDARY: Kunwei-only wrench; no UR built-in force; no auto-Home
 # CONTACT: integrated gentle acquisition; no standalone canary prerequisite
 
@@ -189,7 +157,7 @@ def codex_v4_command_guard(last_sequence, expected_mode):
   local qdot = codex_v4_read_qdot()
   if not codex_finite(valid, 10.0) or not codex_finite(setpoint, 100.0) or not codex_finite(sequence, 1000000000000.0) or not codex_finite(layout, 10000.0):
     return 41.0
-  elif valid < 0.5 or layout != {LAYOUT_CODE:.1f}:
+  elif valid < 0.5 or layout != 605.0:
     return 42.0
   elif sequence <= last_sequence:
     return 43.0
@@ -203,8 +171,11 @@ def codex_v4_command_guard(last_sequence, expected_mode):
   return 0.0
 end
 
-def {program}():
-{eoat_block}
+def step5d_strict_rnn_autotune_v4_r003():
+  # EOAT_PROFILE_ID: new-3d-printed-eoat-v4
+  # EOAT_PROFILE_SHA256: 1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4
+  set_target_payload(0.413, [0.001100000, 0.003100000, 0.016300000], [0, 0, 0, 0, 0, 0])
+  set_tcp(p[0.000000000, 0.000000000, 0.087400000, 0.000000000, 0.000000000, 0.000000000])
   local startup_last_heartbeat = read_input_float_register(26)
   local startup_first_increment_s = -1.0
   local startup_elapsed_s = 0.0
@@ -287,16 +258,16 @@ def {program}():
     local force_norm = read_input_float_register(25)
     local search_pose = get_actual_tcp_pose()
     local search_travel = search_start_pose[2] - search_pose[2]
-    if search_reason == 0.0 and (normal_load >= {latch_normal:.9f} or force_norm >= {latch_force:.9f}):
+    if search_reason == 0.0 and (normal_load >= 0.500000000 or force_norm >= 0.700000000):
       search_reason = 11.0
-    elif search_reason == 0.0 and search_travel >= {max_travel:.9f}:
+    elif search_reason == 0.0 and search_travel >= 0.025000000:
       search_reason = 8.0
-    elif search_reason == 0.0 and search_elapsed_s >= {timeout_s:.9f}:
+    elif search_reason == 0.0 and search_elapsed_s >= 90.000000000:
       search_reason = 10.0
     end
     codex_v4_echo(20.0, search_reason, 1.0, search_elapsed_s)
     if search_reason == 0.0:
-      speedl([0.0, 0.0, -{search_speed:.9f}, 0.0, 0.0, 0.0], {search_accel:.9f}, 0.008000000)
+      speedl([0.0, 0.0, -0.000200000, 0.0, 0.0, 0.0], 0.005000000, 0.008000000)
       search_elapsed_s = search_elapsed_s + 0.008000000
     end
   end
@@ -425,8 +396,4 @@ def {program}():
   halt
 end
 
-{program}()
-"""
-
-
-__all__ = ["CONTROLLER_DIR", "render_script"]
+step5d_strict_rnn_autotune_v4_r003()

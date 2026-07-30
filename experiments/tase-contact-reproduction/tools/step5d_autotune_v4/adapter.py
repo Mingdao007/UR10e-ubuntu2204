@@ -50,6 +50,7 @@ class V4RuntimeAdapter:
         policies: V4PolicyBundle | None = None,
         baseline_ledger: BaselineQualificationLedger | None = None,
         attempt_id: str = "offline-attempt",
+        path_requested: bool = False,
     ) -> None:
         self.control = V4ControlPrimitive(
             contract,
@@ -60,6 +61,9 @@ class V4RuntimeAdapter:
         )
         self.contract = contract
         self.candidate = candidate
+        if not isinstance(path_requested, bool):
+            raise TypeError("path_requested must be bool")
+        self.path_requested = path_requested
 
     def tick(self, value: AdapterTick) -> AdapterResult:
         decision = self.control.step(
@@ -79,7 +83,7 @@ class V4RuntimeAdapter:
             mode = CommandMode.HOLD
         elif decision.stop:
             mode = CommandMode.STOP
-        elif decision.full_path_allowed:
+        elif decision.full_path_allowed and self.path_requested:
             mode = CommandMode.PATH
         elif decision.retract_allowed:
             mode = CommandMode.RETRACT

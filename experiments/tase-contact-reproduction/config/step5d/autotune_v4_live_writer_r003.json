@@ -1,0 +1,91 @@
+{
+  "schema": "step5d.autotune-v4/register-live-writer-v1",
+  "artifact_id": "autotune-v4-kunwei-register-live-writer-r003",
+  "program": {
+    "basename": "step5d_strict_rnn_autotune_v4_r003",
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r003.urp"
+  },
+  "endpoints": {
+    "robot_host": "192.168.1.18",
+    "kunwei_host": "192.168.50.25",
+    "kunwei_port": 5152
+  },
+  "timing": {
+    "rtde_hz": 125.0,
+    "publish_period_s": 0.008,
+    "baseline_s": 5.0,
+    "sensor_stale_s": 0.08,
+    "maximum_runtime_s": 240.0,
+    "terminal_exit_timeout_s": 2.0
+  },
+  "force_mapping": {
+    "normal_axis": "fz",
+    "normal_sign": -1.0,
+    "software_baseline_only": true,
+    "hardware_zero_or_tare": false
+  },
+  "hard_guards": {
+    "search": {
+      "absolute_normal_load_n": 3.0,
+      "force_norm_n": 3.0,
+      "torque_norm_nm": 0.2
+    },
+    "baseline_path": {
+      "absolute_normal_load_n": 15.0,
+      "force_norm_n": 20.0,
+      "torque_norm_nm": 1.0
+    }
+  },
+  "eoat_controller_get": {
+    "payload_kg": 0.413,
+    "payload_cog_m": [
+      0.0011,
+      0.0031,
+      0.0163
+    ],
+    "tcp_offset_m_rad": [
+      0.0,
+      0.0,
+      0.0874,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "payload_tolerance_kg": 0.0005,
+    "cog_tolerance_m": 0.00005,
+    "tcp_tolerance_m_rad": 0.00005,
+    "ack_input_register": 29
+  },
+  "lease": {
+    "resource_id": "step5d-bridge-writer",
+    "authority_root": "/run/user/1000/step5d-autotune-v3/resources/step5d-bridge-writer"
+  },
+  "terminal": {
+    "stage_output_register": 35,
+    "reason_output_register": 30,
+    "heartbeat_echo_register": 26,
+    "active_stages": [
+      10,
+      20,
+      21,
+      25
+    ],
+    "terminal_stages": [
+      80,
+      90
+    ]
+  },
+  "v4_release": {
+    "default_path": "config/step5d/autotune_v4_r003.json"
+  },
+  "invariants": [
+    "This process is the sole RTDE input-register live writer for Autotune V4 r003.",
+    "It writes input_double_register_24..47 and input_integer_register_24..25 only.",
+    "It sends only Kunwei START_STREAM and STOP_STREAM; zero, tare, and configuration writes are forbidden.",
+    "It never sends URScript, Dashboard Load/Play/stop, robot motion, TCP, or payload writes.",
+    "It acquires the canonical single-writer lease before opening RTDE inputs.",
+    "Search stage publishes Kunwei sensor only; TP owns contact acquisition motion.",
+    "Baseline and path stages apply 15/20/1 hard guards; search applies 3/3/0.2.",
+    "It exits immediately after a fresh TP terminal echo on stage 80 or 90."
+  ]
+}

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import build_step5d_autotune_v4_offline_closure as closure_builder  # noqa: E402
-import build_step5d_autotune_v4_r002 as tp_builder  # noqa: E402
+import build_step5d_autotune_v4_r003 as tp_builder  # noqa: E402
 import transition_step5d_lineage as lineage_transition  # noqa: E402
 from step5d_autotune_v4 import baseline, bo, contracts, eligibility, entry, replay, runtime  # noqa: E402
 from step5d_autotune_v4.control import RuntimeObservation, V4ControlPrimitive  # noqa: E402
@@ -93,7 +93,7 @@ def test_v4_tp_has_distinct_entry_search_and_post_contact_stop_contracts() -> No
 
 
 def test_v4_triplet_round_trip_and_local_manifest(tmp_path: Path) -> None:
-    stamp = "2026-07-30TTESTHKT_STEP5D_AUTOTUNE_V4_R002"
+    stamp = "2026-07-30TTESTHKT_STEP5D_AUTOTUNE_V4_R003"
     result = tp_builder.write_triplet(tmp_path, stamp)
 
     script = (tmp_path / f"{contracts.PROGRAM}.script").read_text()
@@ -683,7 +683,7 @@ def test_offline_closure_binds_sources_replay_and_unchanged_v3() -> None:
     payload = closure_builder.build_closure()
 
     assert payload["lineage"] == "step5d_strict_rnn_autotune_v4"
-    assert payload["program"] == "step5d_strict_rnn_autotune_v4_r002"
+    assert payload["program"] == contracts.PROGRAM
     assert payload["v3_isolation"]["verified_unchanged"]
     assert not payload["v3_isolation"]["v3_current_pointer_changed"]
     assert payload["replay"]["complete_bins"] == 550

@@ -1,0 +1,29 @@
+{
+  "schema": "step5d.autotune-v4/pre-review-blocked-identity-v1",
+  "program": "step5d_strict_rnn_autotune_v4_r003",
+  "state": "blocked_before_upload",
+  "controller_upload_performed": false,
+  "controller_readback_performed": false,
+  "contract_sha256": "6513dd3c6c2ec8156a363c29f135cbc84b802c69a7e30f1218da7193f9a81cd2",
+  "campaign_fingerprint": "2b43971e348f69fbb283f5134260aba9374780775cc89eb1a49884210dc66606",
+  "offline_closure_sha256": "80827939b7c4af3042e2fa3d989033112f7fe447e6190e30c8c143a0caeda35d",
+  "artifacts": {
+    "script_sha256": "1f0d7967ad8a18a9ad0ea9fcbf7d4923c377ad0b7b8a8cd49dc9401854d1c78a",
+    "txt_sha256": "fbcf7d4610b9725394ba6b21b57b5a10a1d0d195df164252645ce73817f5b5b5",
+    "urp_sha256": "6aa0145ddc0b9214b316ce98611356ae9f209b33f73aa634e52f4487f052c96c"
+  },
+  "review_verdict": "BLOCKED",
+  "blockers": [
+    "baseline outer-loop angular command self-triggered STOP",
+    "qualification admission was not closed before trials",
+    "terminal reason was not bound to attempt kind",
+    "triplet and loaded-program identity were not live admission gates",
+    "path_requested accepted truthy strings",
+    "failed timing could enter GP eligibility",
+    "resume could lose historical incompleteness"
+  ],
+  "claim_boundary": [
+    "This identity never crossed the controller upload/read-back boundary.",
+    "It must never be uploaded, loaded, played, promoted, or used as live evidence."
+  ]
+}

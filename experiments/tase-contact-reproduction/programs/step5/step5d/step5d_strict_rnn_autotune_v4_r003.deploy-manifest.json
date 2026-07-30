@@ -1,0 +1,51 @@
+{
+  "artifacts": [
+    {
+      "filename": "step5d_strict_rnn_autotune_v4_r003.script",
+      "sha256": "b0898df98966a1103f1dff67f0cf0542b57bddfcc26fe47ca04a50edc082fe1d",
+      "source": "step5d_strict_rnn_autotune_v4_r003.script"
+    },
+    {
+      "filename": "step5d_strict_rnn_autotune_v4_r003.txt",
+      "sha256": "6840e2707b8241c08c3028d4f19569f3f507ac9771516708fe615755ab36f819",
+      "source": "step5d_strict_rnn_autotune_v4_r003.txt"
+    },
+    {
+      "filename": "step5d_strict_rnn_autotune_v4_r003.urp",
+      "sha256": "ddfcc945dff17d423a4423fb43a8e4e8fe6ff4782267a13a38029a692221133a",
+      "source": "step5d_strict_rnn_autotune_v4_r003.urp"
+    }
+  ],
+  "basename": "step5d_strict_rnn_autotune_v4_r003",
+  "builder": "tools/build_step5d_autotune_v4_r003.py",
+  "builder_sha256": "6dc755279707b161d4a864192e1fd9d8510d8f243c9751f84f2d404dafc826c1",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r003.urp",
+  "delivery": {
+    "controller_load_or_play": false,
+    "controller_readback": false,
+    "controller_upload": false,
+    "local_urp_internal_content_gate": true,
+    "v3_current_pointer_changed": false,
+    "v4_lineage_selected": false
+  },
+  "immutable": true,
+  "numeric_sanity": {
+    "filename": "step5d_strict_rnn_autotune_v4_r003.numeric-sanity.json",
+    "passed": true,
+    "sha256": "149df1b3f1cd1f74484bb5e993307227b5f994e11af639fa8c64215be4772379"
+  },
+  "schema": "step5d.autotune-v4/local-candidate-v2",
+  "schema_version": 2,
+  "source_stamp": "2026-07-30T1917HKT_STEP5D_AUTOTUNE_V4_R003",
+  "status": "local_candidate_not_uploaded_live_blocked",
+  "v4_binding": {
+    "baseline_qualification_owner": "BaselineQualificationLedger",
+    "campaign_fingerprint": "29b7330d09039ae0fde4903be1873071e91ca62c9bff4f35a94578ad89a8d4dd",
+    "eoat_profile_sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+    "lineage": "step5d_strict_rnn_autotune_v4",
+    "release_contract_sha256": "88b2236818457594dcbd7cb8989191745483a0b6d66c693d3e2794edfebb51b3",
+    "target_force_n": 5.0,
+    "wire_layout": 605
+  }
+}

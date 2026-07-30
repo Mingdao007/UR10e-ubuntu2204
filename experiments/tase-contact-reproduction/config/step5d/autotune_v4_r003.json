@@ -1,0 +1,109 @@
+{
+  "schema": "step5d.autotune-v4/release-contract-v2",
+  "lineage": "step5d_strict_rnn_autotune_v4",
+  "program": "step5d_strict_rnn_autotune_v4_r003",
+  "revision": 3,
+  "status": "offline_candidate_live_blocked",
+  "inherits": {
+    "path": "config/step5d/autotune_v4_r001.json",
+    "sha256": "c8143fb37945cb8f67a8335c99056f63624eba882de9efe28519e0469e1e8def",
+    "scope": [
+      "isolation",
+      "robot_model_binding",
+      "entry",
+      "baseline_5n",
+      "runtime",
+      "bo",
+      "eligibility",
+      "promotion",
+      "live_activation"
+    ]
+  },
+  "fingerprint": {
+    "eoat_contract_path": "config/step5d/eoat_profile_new_v4.json",
+    "eoat_contract_sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+    "target_force_n": 5,
+    "wrench_authority": "kunwei_only",
+    "ur_builtin_force_allowed": false,
+    "normalization_revision": 1,
+    "bounds_revision": 1
+  },
+  "robot_model_binding": {
+    "calibrated_runtime_path": "tools/step5d_autotune_v4/calibrated_runtime.py",
+    "calibrated_runtime_sha256": "811cbdd1a75786ef9dbc071b53179419bc0a839782d83d0358a5a1c4b7bfd4dd",
+    "path_reference_path": "tools/step5_table.py",
+    "path_reference_sha256": "3fae8f76574e9c12e024c04887417ba06160f9e5b1265ddf60943071b3bca56f",
+    "path_table_path": "config/step5_stage_table.json",
+    "path_table_sha256": "0a1372a5dd0220268a4e304f02f3f666bd7df402a9056a566b8048131a10f81c",
+    "strict_rnn_gate_path": "config/step5d_liveprep_solver_gate.json",
+    "strict_rnn_gate_sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555"
+  },
+  "policy_binding": {
+    "schema": "step5d.autotune-v4/policy-bundle-v1",
+    "composition_path": "tools/step5d_autotune_v4/policies.py",
+    "composition_sha256": "9d8ec13dc38fb84e2510f0fab5d63934a22c7f70f1d7192743567dadcdaadd75",
+    "baseline_ledger_path": "tools/step5d_autotune_v4/baseline_ledger.py",
+    "baseline_ledger_sha256": "8fe83778feb03bb11cacc5ebf3ab038f68fd8a072a41553a7ec9bad65c3d28a7",
+    "force_search_core_path": "tools/step5d_force_search_core.py",
+    "force_search_core_sha256": "46ba42254a22102ad0b020f62ed9a261565e3355e8843dc5e74d766ee56b5b72",
+    "eoat_profiles_path": "tools/step5d_eoat_profiles.py",
+    "eoat_profiles_sha256": "e2396db961818929b78f24bd63b270754d6a662dca5978a4ae947a2147b72906",
+    "providers": {
+      "entry": "step5d.v4.entry/default-v1",
+      "force_search": "step5d.force-search/shared-engine-v1",
+      "baseline": "step5d.v4.baseline/default-1to5n-v1",
+      "timing": "step5d.v4.timing/actual-dt-75hz-v1",
+      "qdot_gate": "step5d.v4.qdot-gate/hash-bound-jacobian-v1",
+      "candidate_provider": "step5d.v4.candidate/anchor-v1"
+    },
+    "missing_non_safety_provider_behavior": "zero_qdot_no_motion",
+    "invariant_envelope_replaceable": false
+  },
+  "wire": {
+    "schema": "step5d.autotune-v4/register-wire-v2",
+    "layout_code": 605,
+    "typed_command_mode_integer_register": 25,
+    "baseline_qualification_integer_register": 24,
+    "baseline_qualification_owner": "BaselineQualificationLedger",
+    "baseline_success_terminal_stage": 22
+  },
+  "architecture": {
+    "capability_dag": [
+      "hash_bound_eoat_profile",
+      "shared_force_search_engine",
+      "injected_entry_policy",
+      "injected_timing_policy",
+      "injected_baseline_policy",
+      "single_owner_baseline_ledger",
+      "injected_qdot_gate",
+      "fixed_invariant_envelope",
+      "typed_wire_packet",
+      "attempt_ledger_and_replay",
+      "optional_candidate_provider"
+    ],
+    "runtime_feedback_loop": "fresh Kunwei and robot observation -> injected local policies -> fixed invariant envelope -> typed command packet -> single RTDE writer -> TP guarded execution -> fresh observation",
+    "bo_optional": true,
+    "anchor_provider_without_bo": true
+  },
+  "contact_acquisition": {
+    "search_speed_m_s": 0.0002,
+    "search_acceleration_m_s2": 0.005,
+    "positive_normal_load_n": 0.5,
+    "force_norm_n": 0.7,
+    "max_travel_m": 0.025,
+    "timeout_s": 90.0,
+    "standalone_canary_prerequisite": false,
+    "frame": "base",
+    "axis": "negative_z"
+  },
+  "live_activation": {
+    "current_status": "BLOCKED_R003_OFFLINE_CANDIDATE",
+    "r006_canary_required": false
+  },
+  "supersedes": {
+    "program": "step5d_strict_rnn_autotune_v4_r002",
+    "status": "SUPERSEDED_BY_R003_GENTLE_CONTACT",
+    "path": "config/step5d/autotune_v4_r002.json",
+    "sha256": "2f46e7ff1392e81f295b293a4e10ed9c0cf5098dc11d7ef1a0e585af9218474d"
+  }
+}
