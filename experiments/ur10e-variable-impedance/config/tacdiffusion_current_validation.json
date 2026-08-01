@@ -11,21 +11,6 @@
       "status": "accepted"
     }
   ],
-  "blockers": [
-    "tracking is unsupported and its noise model is null",
-    "internal wrench production conformance is not accepted",
-    "no deterministic formal expert dataset is accepted",
-    "no formal checkpoint is accepted",
-    "no formal model rate is selected",
-    "model active is false",
-    "all live and robot qualification remains external_deferred"
-  ],
-  "claim_state": {
-    "active": false,
-    "formal_checkpoint": false,
-    "model_rate_selected_hz": null,
-    "reproduction_status": "not_claimed"
-  },
   "components": {
     "deterministic_expert_dataset": {
       "accepted": false,
@@ -404,6 +389,11 @@
       }
     }
   },
+  "direct_torque_claim_boundary": {
+    "allowed_claim_class": "live_no_contact_diagnostic",
+    "component": "direct_torque_no_contact_diagnostic",
+    "promotion_targets": []
+  },
   "external_deferred": true,
   "generated_from": {
     "historical_artifacts_rewritten": false,
@@ -421,6 +411,38 @@
     }
   },
   "live_qualification": "external_deferred",
+  "not_accepted_claims": [
+    {
+      "claim_class": "formal_expert_data",
+      "component": "deterministic_expert_dataset",
+      "status": "not_accepted"
+    },
+    {
+      "claim_class": "formal_checkpoint",
+      "component": "formal_checkpoint",
+      "status": "not_accepted"
+    },
+    {
+      "claim_class": "formal_expert_data",
+      "component": "internal_wrench_production_conformance",
+      "status": "not_accepted"
+    },
+    {
+      "claim_class": "model_active",
+      "component": "model_active",
+      "status": "not_accepted"
+    },
+    {
+      "claim_class": "formal_checkpoint",
+      "component": "model_rate_selection",
+      "status": "not_accepted"
+    },
+    {
+      "claim_class": "offline_fixture",
+      "component": "tracking",
+      "status": "unsupported"
+    }
+  ],
   "overall": {
     "active": false,
     "adaptation_scope": "UR10e force-domain TacDiffusion adaptation preparation",
@@ -434,7 +456,6 @@
     "tracking_noise_model": null,
     "tracking_supported": false
   },
-  "readiness_status": "offline_component_truth_validated_not_claimed",
   "review_policy": {
     "effective": true,
     "historical_artifacts_are_not_rewritten": true,
@@ -442,7 +463,7 @@
     "schema": "ur10e_tacdiffusion_review_policy/v3",
     "sha256": "ac924c0a49aeb08135913de731948c433186fd54ca909adf4f9efbe98e4d72df"
   },
-  "schema": "ur10e_tacdiffusion_offline_readiness/v1",
+  "schema": "ur10e_tacdiffusion_current_validation/v1",
   "schema_version": 1,
   "tacdiffusion": {
     "active": false,
@@ -461,7 +482,10 @@
   "validation": {
     "canonical_truth_valid": true,
     "deterministic": true,
+    "legacy_review_policy_v2_effective": false,
     "offline_only": true,
+    "review_policy_v3_effective": true,
     "source_bindings_rehashed": true
-  }
+  },
+  "validation_status": "validated_not_claimed"
 }

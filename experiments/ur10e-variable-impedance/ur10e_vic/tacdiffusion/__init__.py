@@ -220,6 +220,18 @@ from .offline_geometry import (
 from .environment import immutable_environment_fingerprint
 from .checkpoint import CheckpointBinding, validate_checkpoint_binding, write_checkpoint_binding
 from .promotion import OfflineReplayMetrics, ShadowGateResult, ShadowTrace, evaluate_offline_replay, load_shadow_artifact, run_offline_shadow_artifact_gate, run_offline_shadow_gate
+from .truth import (
+    CLAIM_CLASSES,
+    CURRENT_VALIDATION_SCHEMA,
+    OFFLINE_READINESS_SCHEMA,
+    TruthContractError,
+    build_current_validation,
+    build_offline_readiness,
+    check_current_views,
+    generate_current_views,
+    load_truth_source,
+    validate_truth_document,
+)
 
 __all__ = [
     "CONDITION_DIMENSION",
@@ -455,4 +467,14 @@ __all__ = [
     "load_shadow_artifact",
     "run_offline_shadow_artifact_gate",
     "run_offline_shadow_gate",
+    "CLAIM_CLASSES",
+    "CURRENT_VALIDATION_SCHEMA",
+    "OFFLINE_READINESS_SCHEMA",
+    "TruthContractError",
+    "build_current_validation",
+    "build_offline_readiness",
+    "check_current_views",
+    "generate_current_views",
+    "load_truth_source",
+    "validate_truth_document",
 ]

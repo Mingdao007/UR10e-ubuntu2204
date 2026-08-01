@@ -1,31 +1,11 @@
 {
-  "accepted_claims": [
-    {
-      "claim_class": "live_no_contact_diagnostic",
-      "component": "direct_torque_no_contact_diagnostic",
-      "status": "accepted"
-    },
-    {
-      "claim_class": "offline_fixture",
-      "component": "offline_fixture",
-      "status": "accepted"
-    }
+  "claim_classes": [
+    "offline_fixture",
+    "live_no_contact_diagnostic",
+    "formal_expert_data",
+    "formal_checkpoint",
+    "model_active"
   ],
-  "blockers": [
-    "tracking is unsupported and its noise model is null",
-    "internal wrench production conformance is not accepted",
-    "no deterministic formal expert dataset is accepted",
-    "no formal checkpoint is accepted",
-    "no formal model rate is selected",
-    "model active is false",
-    "all live and robot qualification remains external_deferred"
-  ],
-  "claim_state": {
-    "active": false,
-    "formal_checkpoint": false,
-    "model_rate_selected_hz": null,
-    "reproduction_status": "not_claimed"
-  },
   "components": {
     "deterministic_expert_dataset": {
       "accepted": false,
@@ -135,8 +115,8 @@
       "status": "accepted",
       "truth": {
         "evidence_scope": "live_no_contact_diagnostic",
-        "promotes_formal_checkpoint": false,
         "promotes_formal_expert_data": false,
+        "promotes_formal_checkpoint": false,
         "promotes_model_active": false
       }
     },
@@ -404,23 +384,6 @@
       }
     }
   },
-  "external_deferred": true,
-  "generated_from": {
-    "historical_artifacts_rewritten": false,
-    "review_policy": {
-      "effective": true,
-      "historical_artifacts_are_not_rewritten": true,
-      "path": "config/tacdiffusion_review_policy_v3.json",
-      "schema": "ur10e_tacdiffusion_review_policy/v3",
-      "sha256": "ac924c0a49aeb08135913de731948c433186fd54ca909adf4f9efbe98e4d72df"
-    },
-    "truth_source": {
-      "path": "config/tacdiffusion_component_truth_v1.json",
-      "sha256": "c2e2b4a81b6fd2c2f4351dfc0f8a7bee8d7ea9fccc1e3ea6f946f8034708785b",
-      "version": "v1"
-    }
-  },
-  "live_qualification": "external_deferred",
   "overall": {
     "active": false,
     "adaptation_scope": "UR10e force-domain TacDiffusion adaptation preparation",
@@ -434,34 +397,12 @@
     "tracking_noise_model": null,
     "tracking_supported": false
   },
-  "readiness_status": "offline_component_truth_validated_not_claimed",
   "review_policy": {
-    "effective": true,
-    "historical_artifacts_are_not_rewritten": true,
     "path": "config/tacdiffusion_review_policy_v3.json",
     "schema": "ur10e_tacdiffusion_review_policy/v3",
     "sha256": "ac924c0a49aeb08135913de731948c433186fd54ca909adf4f9efbe98e4d72df"
   },
-  "schema": "ur10e_tacdiffusion_offline_readiness/v1",
+  "schema": "ur10e_tacdiffusion_component_truth/v1",
   "schema_version": 1,
-  "tacdiffusion": {
-    "active": false,
-    "adaptation_scope": "UR10e force-domain TacDiffusion adaptation preparation",
-    "deterministic_expert_dataset": false,
-    "formal_checkpoint": false,
-    "internal_wrench_production_conformance": false,
-    "model_active": false,
-    "model_rate_selected_hz": null,
-    "reproduction_boundary": "not Panda 1 kHz paper-exact reproduction",
-    "reproduction_status": "not_claimed",
-    "tracking_noise_model": null,
-    "tracking_supported": false
-  },
-  "truth_version": "v1",
-  "validation": {
-    "canonical_truth_valid": true,
-    "deterministic": true,
-    "offline_only": true,
-    "source_bindings_rehashed": true
-  }
+  "truth_version": "v1"
 }
