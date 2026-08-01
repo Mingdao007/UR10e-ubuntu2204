@@ -21,11 +21,17 @@ import threading
 import time
 from typing import Any, Callable, Mapping, Sequence
 
-from .contracts import CONTROL_RATE_HZ, RAW_WRENCH_RATE_HZ
+from .contracts import CONTROL_RATE_HZ, RAW_WRENCH_RATE_HZ, DynamicsReceipt, DynamicsSample
+from .episode_composition import ActionLabel, ActionLabelContext
 
 
-EPISODE_ARTIFACT_SCHEMA = "ur10e_tacdiffusion_episode_artifact/v2"
-EPISODE_FRAME_SCHEMA = "ur10e_tacdiffusion_episode_frame/v2"
+EPISODE_ARTIFACT_SCHEMA_V2 = "ur10e_tacdiffusion_episode_artifact/v2"
+EPISODE_FRAME_SCHEMA_V2 = "ur10e_tacdiffusion_episode_frame/v2"
+EPISODE_ARTIFACT_SCHEMA = "ur10e_tacdiffusion_episode_artifact/v3"
+EPISODE_FRAME_SCHEMA = "ur10e_tacdiffusion_episode_frame/v3"
+EPISODE_ARTIFACT_SCHEMA_V3 = EPISODE_ARTIFACT_SCHEMA
+EPISODE_FRAME_SCHEMA_V3 = EPISODE_FRAME_SCHEMA
+EPISODE_TAIL_SCHEMA = "ur10e_tacdiffusion_episode_tail/v1"
 DURABILITY_MODE = "batch_fsync_10"
 RECORDER_HEALTH_SCHEMA = "ur10e_tacdiffusion_recorder_health/v1"
 SPOOL_CAPACITY = 8192
@@ -56,6 +62,23 @@ def _line(payload: Mapping[str, Any]) -> bytes:
         json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
         + "\n"
     ).encode("utf-8")
+
+
+def _is_sha256(value: object) -> bool:
+    text = str(value)
+    return len(text) == 64 and all(char in "0123456789abcdef" for char in text)
+
+
+def _semantic_identity_status(metadata: Mapping[str, Any]) -> tuple[bool, str | None]:
+    context = metadata.get("semantic_context")
+    if not isinstance(context, Mapping):
+        return False, None
+    hashes = context.get("hash_identities")
+    if not isinstance(hashes, Mapping) or not hashes:
+        return False, None
+    enabled = all(_is_sha256(value) for value in hashes.values())
+    fingerprint = context.get("semantic_context_fingerprint_sha256")
+    return enabled and _is_sha256(fingerprint), str(fingerprint) if _is_sha256(fingerprint) else None
 
 
 @dataclass(frozen=True)
@@ -210,8 +233,11 @@ class EpisodeFrameV2:
         }
 
     def as_json(self) -> dict[str, Any]:
-        payload = asdict(self)
-        payload["schema"] = EPISODE_FRAME_SCHEMA
+        payload = {
+            field.name: getattr(self, field.name)
+            for field in fields(EpisodeFrameV2)
+        }
+        payload["schema"] = EPISODE_FRAME_SCHEMA_V2
         payload["recorder_validity_flags"] = self.recorder_validity_flags
         payload["semantic_flags"] = {
             "expert_label_available": self.expert_label_available,
@@ -229,6 +255,115 @@ class EpisodeFrameV2:
 # the v1 ``ExpertEpisodeFrame`` reader/writer.
 EpisodeFrame = EpisodeFrameV2
 _EPISODE_FRAME_FIELDS = tuple(field.name for field in fields(EpisodeFrameV2))
+
+
+@dataclass(frozen=True)
+class EpisodeFrameV3(EpisodeFrameV2):
+    """Canonical row with typed dynamics/action receipts and identity binding."""
+
+    dynamics_sample: DynamicsSample | None = None
+    dynamics_receipt: DynamicsReceipt | None = None
+    action_label_context: ActionLabelContext | None = None
+    action_label: ActionLabel | None = None
+    identity_enabled: bool = True
+    semantic_context_fingerprint_sha256: str | None = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.identity_enabled, bool):
+            raise ValueError("v3 identity_enabled must be boolean")
+        if (self.dynamics_sample is None) != (self.dynamics_receipt is None):
+            raise ValueError("v3 dynamics sample and receipt must be paired")
+        if self.dynamics_sample is not None and self.dynamics_receipt is not None:
+            if not isinstance(self.dynamics_sample, DynamicsSample) or not isinstance(self.dynamics_receipt, DynamicsReceipt):
+                raise ValueError("v3 dynamics fields must use typed contracts")
+            self.dynamics_receipt.validate_against(self.dynamics_sample)
+        if (self.action_label_context is None) != (self.action_label is None):
+            raise ValueError("v3 action context and label must be paired")
+        if self.action_label_context is not None and self.action_label is not None:
+            if not isinstance(self.action_label_context, ActionLabelContext) or not isinstance(self.action_label, ActionLabel):
+                raise ValueError("v3 action fields must use typed contracts")
+            if (
+                self.action_label_context.sequence != self.control_sequence
+                or not math.isclose(self.action_label_context.timestamp_s, self.control_time_s, rel_tol=0.0, abs_tol=1e-12)
+                or self.action_label_context.frame_id != self.action_label.frame_id
+                or self.action_label.sequence != self.action_label_context.sequence
+                or not math.isclose(self.action_label.timestamp_s, self.action_label_context.timestamp_s, rel_tol=0.0, abs_tol=1e-12)
+            ):
+                raise ValueError("v3 action context/label identity mismatch")
+            if self.action_label.available and tuple(self.expert_action_12d) != self.action_label.expert_action_12d:
+                raise ValueError("v3 expert action does not match typed action label")
+            if self.semantic_context_fingerprint_sha256 is not None and self.action_label_context.semantic_context_fingerprint_sha256 is not None:
+                if self.action_label_context.semantic_context_fingerprint_sha256 != self.semantic_context_fingerprint_sha256:
+                    raise ValueError("v3 semantic context fingerprint mismatch")
+        if self.semantic_context_fingerprint_sha256 is not None:
+            if len(self.semantic_context_fingerprint_sha256) != 64 or any(
+                char not in "0123456789abcdef" for char in self.semantic_context_fingerprint_sha256
+            ):
+                raise ValueError("v3 semantic context fingerprint is invalid")
+
+    @classmethod
+    def from_v2(cls, frame: EpisodeFrameV2) -> "EpisodeFrameV3":
+        if not isinstance(frame, EpisodeFrameV2):
+            raise TypeError("v3 compatibility conversion requires EpisodeFrameV2")
+        # V2 has already completed the expensive vector validation.  Copying
+        # its frozen fields directly keeps the compatibility adapter out of
+        # the producer's 500 Hz budget; v3 typed rows still validate normally
+        # at construction time.
+        accepted = object.__new__(cls)
+        accepted.__dict__.update(frame.__dict__)
+        accepted.__dict__.update(
+            dynamics_sample=None,
+            dynamics_receipt=None,
+            action_label_context=None,
+            action_label=None,
+            identity_enabled=False,
+            semantic_context_fingerprint_sha256=None,
+        )
+        return accepted
+
+    @property
+    def source_identity_enabled(self) -> bool:
+        return self.identity_enabled
+
+    @property
+    def typed_receipts_valid(self) -> bool:
+        return bool(
+            self.identity_enabled
+            and self.semantic_context_fingerprint_sha256 is not None
+            and self.dynamics_sample is not None
+            and self.dynamics_receipt is not None
+            and self.dynamics_receipt.valid
+            and self.action_label_context is not None
+            and self.action_label is not None
+            and self.action_label.available
+            and not self.action_label.shadow_only
+        )
+
+    @property
+    def row_valid(self) -> bool:
+        return bool(super().row_valid and self.typed_receipts_valid)
+
+    def as_json(self) -> dict[str, Any]:
+        payload = super().as_json()
+        payload["schema"] = EPISODE_FRAME_SCHEMA
+        payload["dynamics_sample"] = None if self.dynamics_sample is None else self.dynamics_sample.as_json()
+        payload["dynamics_receipt"] = None if self.dynamics_receipt is None else self.dynamics_receipt.as_json()
+        payload["action_label_context"] = None if self.action_label_context is None else self.action_label_context.as_json()
+        payload["action_label"] = None if self.action_label is None else self.action_label.as_json()
+        payload["identity_enabled"] = self.identity_enabled
+        payload["semantic_context_fingerprint_sha256"] = self.semantic_context_fingerprint_sha256
+        payload["typed_receipts_valid"] = self.typed_receipts_valid
+        payload["typed_receipts"] = {
+            "dynamics": payload["dynamics_receipt"],
+            "action_label": payload["action_label"],
+        }
+        return payload
+
+
+# The canonical short name follows the current writer version.  Explicit
+# ``EpisodeFrameV2`` remains available for compatibility adapters/readers.
+EpisodeFrame = EpisodeFrameV3
 
 
 def _with_recorder_metadata(
@@ -250,7 +385,8 @@ def _with_recorder_metadata(
 
     if sample_index < 0 or external_held_ticks < 0 or device_age_samples < 0:
         raise ValueError("recorder metadata is invalid")
-    accepted = object.__new__(EpisodeFrameV2)
+    frame_type = type(frame)
+    accepted = object.__new__(frame_type)
     replacements = {
         "sample_index": sample_index,
         "control_time_strict": bool(control_time_strict),
@@ -259,12 +395,8 @@ def _with_recorder_metadata(
         "external_held_ticks": external_held_ticks,
         "device_age_samples": device_age_samples,
     }
-    for name in _EPISODE_FRAME_FIELDS:
-        object.__setattr__(
-            accepted,
-            name,
-            replacements.get(name, getattr(frame, name)),
-        )
+    accepted.__dict__.update(frame.__dict__)
+    accepted.__dict__.update(replacements)
     return accepted
 
 
@@ -429,6 +561,7 @@ class BatchFsync10Sealer:
         self.manifest_path = Path(manifest_path)
         self.episode_id = episode_id
         self.metadata = dict(metadata or {})
+        self.identity_enabled, self.semantic_context_fingerprint_sha256 = _semantic_identity_status(self.metadata)
         self.batch_size = batch_size
         self.stall_timeout_s = float(stall_timeout_s)
         self._clock = clock
@@ -459,12 +592,16 @@ class BatchFsync10Sealer:
             self._handle = self.artifact_path.open("xb")
             header = {
                 "schema": EPISODE_ARTIFACT_SCHEMA,
-                "format_version": 2,
+                "format_version": 3,
+                "frame_schema": EPISODE_FRAME_SCHEMA,
+                "tail_schema": EPISODE_TAIL_SCHEMA,
                 "episode_id": self.episode_id,
                 "durability_mode": DURABILITY_MODE,
                 "spool_capacity": self.spool.capacity,
                 "batch_size": self.batch_size,
                 "max_unsealed_tail": MAX_UNSEALED_TAIL,
+                "identity_enabled": self.identity_enabled,
+                "semantic_context_fingerprint_sha256": self.semantic_context_fingerprint_sha256,
                 "metadata": self.metadata,
             }
             self._handle.write(_line(header))
@@ -498,7 +635,31 @@ class BatchFsync10Sealer:
     def _write_batch(self, batch: Sequence[EpisodeFrameV2]) -> None:
         if not batch:
             return
-        payload = b"".join(_line(frame.as_json()) for frame in batch)
+        canonical_frames: list[EpisodeFrameV3] = []
+        for frame in batch:
+            canonical = frame if isinstance(frame, EpisodeFrameV3) else EpisodeFrameV3.from_v2(frame)
+            if not self.identity_enabled or self.semantic_context_fingerprint_sha256 is None:
+                bound = object.__new__(EpisodeFrameV3)
+                for field in fields(EpisodeFrameV3):
+                    object.__setattr__(bound, field.name, getattr(canonical, field.name))
+                object.__setattr__(bound, "identity_enabled", False)
+                object.__setattr__(bound, "semantic_context_fingerprint_sha256", None)
+                canonical = bound
+            elif canonical.semantic_context_fingerprint_sha256 is None:
+                bound = object.__new__(EpisodeFrameV3)
+                for field in fields(EpisodeFrameV3):
+                    object.__setattr__(bound, field.name, getattr(canonical, field.name))
+                object.__setattr__(bound, "semantic_context_fingerprint_sha256", self.semantic_context_fingerprint_sha256)
+                canonical = bound
+            elif canonical.semantic_context_fingerprint_sha256 != self.semantic_context_fingerprint_sha256:
+                bound = object.__new__(EpisodeFrameV3)
+                for field in fields(EpisodeFrameV3):
+                    object.__setattr__(bound, field.name, getattr(canonical, field.name))
+                object.__setattr__(bound, "identity_enabled", False)
+                canonical = bound
+            canonical_frames.append(canonical)
+        canonical_batch = tuple(canonical_frames)
+        payload = b"".join(_line(frame.as_json()) for frame in canonical_batch)
         written = self._handle.write(payload)
         if written != len(payload):
             raise OSError("episode batch write was incomplete")
@@ -586,6 +747,67 @@ class BatchFsync10Sealer:
         ):
             self._handle.close()
 
+    def _append_v3_tail(self) -> dict[str, Any]:
+        data = self.artifact_path.read_bytes()
+        if not data or not data.endswith(b"\n"):
+            raise RecorderError("episode_artifact_has_incomplete_tail")
+        lines = data.splitlines(keepends=True)
+        if not lines:
+            raise RecorderError("episode_artifact_header_missing")
+        try:
+            header = json.loads(lines[0])
+        except json.JSONDecodeError as exc:
+            raise RecorderError("episode_artifact_header_invalid") from exc
+        if not isinstance(header, dict) or header.get("schema") != EPISODE_ARTIFACT_SCHEMA:
+            raise RecorderError("episode_artifact_schema_mismatch")
+        row_lines = lines[1:]
+        if row_lines:
+            try:
+                last_payload = json.loads(row_lines[-1])
+            except json.JSONDecodeError as exc:
+                raise RecorderError("episode_artifact_tail_is_torn") from exc
+            if isinstance(last_payload, dict) and last_payload.get("schema") == EPISODE_TAIL_SCHEMA:
+                raise RecorderError("episode_artifact_tail_already_present")
+        parsed_rows: list[dict[str, Any]] = []
+        for index, raw in enumerate(row_lines):
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise RecorderError(f"episode_artifact_row_{index}_invalid") from exc
+            if not isinstance(payload, dict) or payload.get("schema") != EPISODE_FRAME_SCHEMA:
+                raise RecorderError(f"episode_artifact_row_{index}_schema_mismatch")
+            parsed_rows.append(payload)
+        if len(parsed_rows) != self.durable_rows:
+            raise RecorderError("episode_artifact_durable_row_count_mismatch")
+        content_bytes = b"".join(row_lines)
+        content_sha256 = hashlib.sha256(content_bytes).hexdigest()
+        last = parsed_rows[-1] if parsed_rows else None
+        tail_unsigned: dict[str, Any] = {
+            "schema": EPISODE_TAIL_SCHEMA,
+            "format_version": 3,
+            "complete_tail": True,
+            "row_count": len(parsed_rows),
+            "last_sample_index": None if last is None else last.get("sample_index"),
+            "last_control_sequence": None if last is None else last.get("control_sequence"),
+            "content_sha256": content_sha256,
+        }
+        tail_sha256 = hashlib.sha256(_line(tail_unsigned)).hexdigest()
+        tail = tail_unsigned | {"tail_sha256": tail_sha256}
+        with self.artifact_path.open("ab") as handle:
+            payload = _line(tail)
+            if handle.write(payload) != len(payload):
+                raise RecorderError("episode_artifact_tail_write_incomplete")
+            handle.flush()
+            os.fsync(handle.fileno())
+        return {
+            "content_sha256": content_sha256,
+            "tail_sha256": tail_sha256,
+            "row_count": len(parsed_rows),
+            "last_sample_index": tail["last_sample_index"],
+            "last_control_sequence": tail["last_control_sequence"],
+            "header_sha256": hashlib.sha256(lines[0]).hexdigest(),
+        }
+
     def seal(self) -> dict[str, Any]:
         self.close()
         fault = self.poll_fault()
@@ -595,10 +817,11 @@ class BatchFsync10Sealer:
             raise RecorderError("writer_has_unsealed_rows")
         if not self.artifact_path.is_file():
             raise RecorderError("episode_artifact_missing")
+        tail = self._append_v3_tail()
         artifact_hash = hashlib.sha256(self.artifact_path.read_bytes()).hexdigest()
         manifest: dict[str, Any] = {
             "schema": EPISODE_ARTIFACT_SCHEMA,
-            "format_version": 2,
+            "format_version": 3,
             "episode_id": self.episode_id,
             "artifact": self.artifact_path.name,
             "artifact_sha256": artifact_hash,
@@ -607,6 +830,16 @@ class BatchFsync10Sealer:
             "spool_capacity": self.spool.capacity,
             "batch_size": self.batch_size,
             "max_unsealed_tail": MAX_UNSEALED_TAIL,
+            "frame_schema": EPISODE_FRAME_SCHEMA,
+            "tail_schema": EPISODE_TAIL_SCHEMA,
+            "header_sha256": tail["header_sha256"],
+            "content_sha256": tail["content_sha256"],
+            "tail_sha256": tail["tail_sha256"],
+            "last_sample_index": tail["last_sample_index"],
+            "last_control_sequence": tail["last_control_sequence"],
+            "complete_tail": True,
+            "identity_enabled": self.identity_enabled,
+            "semantic_context_fingerprint_sha256": self.semantic_context_fingerprint_sha256,
             "metadata": self.metadata,
             "complete_seal": True,
             "tamper_free": True,
@@ -682,21 +915,27 @@ class EpisodeRecorder:
         *,
         episode_id: str,
         metadata: Mapping[str, Any] | None = None,
+        semantic_context: Any | None = None,
         capacity: int = SPOOL_CAPACITY,
         stall_timeout_s: float = 0.250,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.episode_id = episode_id
+        normalized_metadata = dict(metadata or {})
+        if semantic_context is not None:
+            if not hasattr(semantic_context, "as_metadata"):
+                raise TypeError("semantic_context must expose as_metadata()")
+            normalized_metadata["semantic_context"] = semantic_context.as_metadata()
         self.spool = BoundedEpisodeSpool(capacity=capacity)
-        self.artifact_path = self.output_dir / "episode_v2.jsonl"
-        self.manifest_path = self.output_dir / "episode_v2.manifest.json"
+        self.artifact_path = self.output_dir / "episode_v3.jsonl"
+        self.manifest_path = self.output_dir / "episode_v3.manifest.json"
         self.health_path = self.output_dir / "recorder_health.json"
         self.sealer = BatchFsync10Sealer(
             self.spool,
             self.artifact_path,
             self.manifest_path,
             episode_id=episode_id,
-            metadata=metadata,
+            metadata=normalized_metadata,
             stall_timeout_s=stall_timeout_s,
         )
         self._producer_lock = threading.Lock()
@@ -714,6 +953,11 @@ class EpisodeRecorder:
     def start(self) -> None:
         if self.health_path.exists():
             raise FileExistsError("episode recorder health receipt already exists")
+        if (
+            (self.output_dir / "episode_v2.jsonl").exists()
+            or (self.output_dir / "episode_v2.manifest.json").exists()
+        ):
+            raise FileExistsError("legacy episode artifact or manifest already exists")
         self.sealer.start()
         self._started = True
 
@@ -722,6 +966,10 @@ class EpisodeRecorder:
 
         if not self._started:
             raise RuntimeError("episode recorder is not started")
+        if isinstance(frame, EpisodeFrameV2) and not isinstance(frame, EpisodeFrameV3):
+            frame = EpisodeFrameV3.from_v2(frame)
+        if not isinstance(frame, EpisodeFrameV3):
+            raise TypeError("canonical EpisodeRecorder requires EpisodeFrameV3 or an EpisodeFrameV2 adapter")
         with self._producer_lock:
             if not self._accepting:
                 return False
@@ -844,19 +1092,76 @@ def _load_jsonl(path: Path) -> tuple[dict[str, Any], tuple[dict[str, Any], ...]]
     data = path.read_bytes()
     if not data or not data.endswith(b"\n"):
         raise ValueError("episode artifact has an incomplete final line")
-    rows = data.splitlines()
-    parsed = [json.loads(row) for row in rows]
+    lines = data.splitlines(keepends=True)
+    try:
+        parsed = [json.loads(row) for row in lines]
+    except json.JSONDecodeError as exc:
+        raise ValueError("episode artifact contains invalid JSON") from exc
     if not parsed or not isinstance(parsed[0], dict):
         raise ValueError("episode artifact header is invalid")
-    return parsed[0], tuple(row for row in parsed[1:] if isinstance(row, dict))
+    header = parsed[0]
+    if header.get("schema") == EPISODE_ARTIFACT_SCHEMA:
+        if (
+            header.get("format_version") != 3
+            or header.get("frame_schema") != EPISODE_FRAME_SCHEMA
+            or header.get("tail_schema") != EPISODE_TAIL_SCHEMA
+        ):
+            raise ValueError("episode v3 header version/schema mismatch")
+        integrity = _validate_v3_tail_lines(lines, parsed)
+        return header, tuple(integrity["rows"])
+    return header, tuple(row for row in parsed[1:] if isinstance(row, dict))
+
+
+def _validate_v3_tail_lines(
+    lines: Sequence[bytes],
+    parsed: Sequence[object],
+) -> dict[str, Any]:
+    if len(lines) < 2 or len(parsed) < 2:
+        raise ValueError("episode v3 is missing its complete tail")
+    tail = parsed[-1]
+    if not isinstance(tail, dict) or tail.get("schema") != EPISODE_TAIL_SCHEMA:
+        raise ValueError("episode v3 tail is missing or incomplete")
+    rows = parsed[1:-1]
+    if any(not isinstance(row, dict) or row.get("schema") != EPISODE_FRAME_SCHEMA for row in rows):
+        raise ValueError("episode v3 row schema mismatch")
+    row_lines = lines[1:-1]
+    content_sha256 = hashlib.sha256(b"".join(row_lines)).hexdigest()
+    if tail.get("content_sha256") != content_sha256:
+        raise ValueError("episode v3 content identity mismatch")
+    if tail.get("row_count") != len(rows):
+        raise ValueError("episode v3 tail row count mismatch")
+    expected_tail = dict(tail)
+    supplied_tail_hash = expected_tail.pop("tail_sha256", None)
+    if not isinstance(supplied_tail_hash, str) or supplied_tail_hash != hashlib.sha256(_line(expected_tail)).hexdigest():
+        raise ValueError("episode v3 tail identity mismatch")
+    last = rows[-1] if rows else None
+    if tail.get("last_sample_index") != (None if last is None else last.get("sample_index")):
+        raise ValueError("episode v3 tail sample identity mismatch")
+    if tail.get("last_control_sequence") != (None if last is None else last.get("control_sequence")):
+        raise ValueError("episode v3 tail sequence identity mismatch")
+    if tail.get("complete_tail") is not True:
+        raise ValueError("episode v3 tail is not complete")
+    return {
+        "rows": tuple(rows),
+        "tail": tail,
+        "content_sha256": content_sha256,
+        "tail_sha256": supplied_tail_hash,
+        "header_sha256": hashlib.sha256(lines[0]).hexdigest(),
+        "last_sample_index": tail.get("last_sample_index"),
+        "last_control_sequence": tail.get("last_control_sequence"),
+    }
 
 
 def read_episode_artifact(path: str | Path) -> tuple[dict[str, Any], tuple[dict[str, Any], ...]]:
-    """Read v2 writes and expose v1 rows without rewriting the legacy artifact."""
+    """Read v3 writes and expose v1/v2 rows without rewriting legacy artifacts."""
 
     header, rows = _load_jsonl(Path(path))
     schema = header.get("schema")
-    if schema not in {EPISODE_ARTIFACT_SCHEMA, "ur10e_tacdiffusion_expert_episode/v1"}:
+    if schema not in {
+        EPISODE_ARTIFACT_SCHEMA,
+        EPISODE_ARTIFACT_SCHEMA_V2,
+        "ur10e_tacdiffusion_expert_episode/v1",
+    }:
         raise ValueError("unsupported episode artifact schema")
     return header, rows
 
@@ -885,8 +1190,23 @@ def validate_sealed_episode_manifest(
         raise ValueError("episode manifest row count mismatch")
     if not manifest.get("complete_seal") or not manifest.get("tamper_free"):
         raise ValueError("episode manifest is not a complete seal")
-    if header.get("schema") not in {
-        EPISODE_ARTIFACT_SCHEMA,
+    if header.get("schema") == EPISODE_ARTIFACT_SCHEMA:
+        lines = artifact.read_bytes().splitlines(keepends=True)
+        parsed = [json.loads(line) for line in lines]
+        integrity = _validate_v3_tail_lines(lines, parsed)
+        for name in (
+            "header_sha256",
+            "content_sha256",
+            "tail_sha256",
+            "last_sample_index",
+            "last_control_sequence",
+        ):
+            if manifest.get(name) != integrity[name]:
+                raise ValueError(f"episode v3 manifest {name} mismatch")
+        if manifest.get("complete_tail") is not True or manifest.get("format_version") != 3:
+            raise ValueError("episode v3 manifest tail is incomplete")
+    elif header.get("schema") not in {
+        EPISODE_ARTIFACT_SCHEMA_V2,
         "ur10e_tacdiffusion_expert_episode/v1",
     }:
         raise ValueError("episode header schema mismatch")
@@ -899,10 +1219,16 @@ __all__ = [
     "BoundedEpisodeSpool",
     "DURABILITY_MODE",
     "EPISODE_ARTIFACT_SCHEMA",
+    "EPISODE_ARTIFACT_SCHEMA_V2",
+    "EPISODE_ARTIFACT_SCHEMA_V3",
     "EPISODE_FRAME_SCHEMA",
+    "EPISODE_FRAME_SCHEMA_V2",
+    "EPISODE_FRAME_SCHEMA_V3",
+    "EPISODE_TAIL_SCHEMA",
     "RECORDER_HEALTH_SCHEMA",
     "EpisodeFrame",
     "EpisodeFrameV2",
+    "EpisodeFrameV3",
     "EpisodeRecorder",
     "MAX_UNSEALED_TAIL",
     "OBSERVATION_DIMENSION",

@@ -9,14 +9,24 @@ diagnostic rows without turning controller diagnostics into expert labels.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from types import MappingProxyType
+from typing import Any, Callable, Mapping, Protocol, Sequence, runtime_checkable
 
-from .contracts import CONTROL_RATE_HZ, RAW_WRENCH_RATE_HZ
+from .contracts import (
+    CONTROL_RATE_HZ,
+    DYNAMICS_AUTHORITATIVE_TORQUE_SOURCE,
+    DYNAMICS_RECEIPT_SCHEMA,
+    DynamicsConformanceBinding,
+    DynamicsReceipt,
+    DynamicsSample,
+    OFFLINE_FAKE_RTDE_FIXTURE_ID,
+    RAW_WRENCH_RATE_HZ,
+)
 from .expert import DeterministicExpert, ExpertDecision, ExpertInput
 from .expert_episode_artifact import ExpertEpisodeBindings
 from .signals import (
@@ -35,6 +45,8 @@ DIAGNOSTIC_ACTION_SEMANTICS = "diagnostic_command_not_expert_shadow_only_v1"
 DIAGNOSTIC_ACTION_SOURCE = "diagnostic_zero6_fixed_stiffness_shadow"
 DETERMINISTIC_ACTION_SOURCE = "deterministic_expert"
 SHADOW_TRANSITION_SCHEMA = "ur10e_tacdiffusion_shadow_transition/v1"
+ACTION_LABEL_CONTEXT_SCHEMA = "ur10e_tacdiffusion_action_label_context/v1"
+ACTION_LABEL_PROVIDER_SCHEMA = "ur10e_tacdiffusion_action_label_provider/v1"
 REQUIRED_RUNTIME_HASH_IDENTITIES = (
     "receiver_source_sha256",
     "bundle_reference_sha256",
@@ -187,6 +199,30 @@ class EpisodeSemanticContext:
     def training_candidate(self) -> bool:
         return self.bindings_complete and self.expert_label_available and not self.shadow_only
 
+    def canonical_payload(self) -> dict[str, Any]:
+        return {
+            "episode_id": self.episode_id,
+            "expert_policy_id": self.expert_policy_id,
+            "action_label_semantics": self.action_label_semantics,
+            "expert_label_status": self.expert_label_status,
+            "dataset_split": self.dataset_split,
+            "capture_kind": self.capture_kind,
+            "shadow_only": self.shadow_only,
+            "bindings": None if self.bindings is None else asdict(self.bindings),
+            "hash_identities": dict(self.hash_identities),
+        }
+
+    @property
+    def fingerprint_sha256(self) -> str:
+        return hashlib.sha256(
+            json.dumps(
+                self.canonical_payload(),
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+
     def as_metadata(self) -> dict[str, Any]:
         return {
             "schema": SEMANTIC_CONTEXT_SCHEMA,
@@ -206,7 +242,190 @@ class EpisodeSemanticContext:
             ],
             "hash_identities": dict(self.hash_identities),
             "training_candidate": self.training_candidate,
+            "semantic_context_fingerprint_sha256": self.fingerprint_sha256,
         }
+
+
+@dataclass(frozen=True)
+class ActionLabelContext:
+    """One versioned, frame-bound call context for every action provider."""
+
+    sequence: int
+    timestamp_s: float
+    frame_id: str
+    applied_action_12d: tuple[float, ...] | Sequence[float] = (0.0,) * 12
+    echoed_action_12d: tuple[float, ...] | Sequence[float] = (0.0,) * 12
+    expert_input: ExpertInput | None = None
+    previous_action_12d: tuple[float, ...] | Sequence[float] | None = None
+    previous_sequence: int | None = None
+    previous_timestamp_s: float | None = None
+    dt_s: float = 1.0 / CONTROL_RATE_HZ
+    state_id: str | None = None
+    model_identity: str = CANONICAL_EXPERT_POLICY_ID
+    tcp_identity: str = "tool0_tcp"
+    calibration_identity: str = "offline_unbound_calibration"
+    source_hashes: Mapping[str, str] = field(default_factory=dict)
+    dynamics_receipt: DynamicsReceipt | None = None
+    semantic_context_fingerprint_sha256: str | None = None
+    schema_version: str = ACTION_LABEL_CONTEXT_SCHEMA
+
+    def __post_init__(self) -> None:
+        if isinstance(self.sequence, bool) or self.sequence < 0:
+            raise ValueError("action context sequence is invalid")
+        if not math.isfinite(self.timestamp_s) or self.timestamp_s < 0.0:
+            raise ValueError("action context timestamp is invalid")
+        if self.schema_version != ACTION_LABEL_CONTEXT_SCHEMA:
+            raise ValueError("unsupported action-label context schema")
+        for name in ("frame_id", "model_identity", "tcp_identity", "calibration_identity"):
+            value = str(getattr(self, name))
+            if not value.strip() or len(value) > 192 or any(char.isspace() for char in value):
+                raise ValueError(f"action context {name} is invalid")
+            object.__setattr__(self, name, value)
+        object.__setattr__(
+            self,
+            "applied_action_12d",
+            _finite_vector(self.applied_action_12d, 12, "applied_action_12d"),
+        )
+        object.__setattr__(
+            self,
+            "echoed_action_12d",
+            _finite_vector(self.echoed_action_12d, 12, "echoed_action_12d"),
+        )
+        if self.previous_action_12d is not None:
+            object.__setattr__(
+                self,
+                "previous_action_12d",
+                _finite_vector(self.previous_action_12d, 12, "previous_action_12d"),
+            )
+        if not math.isfinite(self.dt_s) or not 0.0 < self.dt_s <= 0.100:
+            raise ValueError("action context dt_s is outside the bounded contract")
+        if self.previous_sequence is not None:
+            if self.previous_sequence < 0 or self.sequence != self.previous_sequence + 1:
+                raise ValueError("action context sequence is nonconsecutive")
+        if self.previous_timestamp_s is not None:
+            if (
+                not math.isfinite(self.previous_timestamp_s)
+                or self.previous_timestamp_s < 0.0
+                or self.timestamp_s <= self.previous_timestamp_s
+                or self.timestamp_s - self.previous_timestamp_s > 0.100 + 1e-12
+            ):
+                raise ValueError("action context timestamp is stale or non-monotonic")
+        if self.state_id is not None and not str(self.state_id).strip():
+            raise ValueError("action context state identity is invalid")
+        if not isinstance(self.source_hashes, Mapping) or len(self.source_hashes) > 16:
+            raise ValueError("action context source hashes are invalid")
+        normalized_hashes: dict[str, str] = {}
+        for key, value in self.source_hashes.items():
+            key_text = str(key)
+            value_text = str(value)
+            if not key_text.strip() or len(key_text) > 192 or not _sha256_text(value_text):
+                raise ValueError("action context source hashes are invalid")
+            normalized_hashes[key_text] = value_text
+        object.__setattr__(self, "source_hashes", MappingProxyType(dict(sorted(normalized_hashes.items()))))
+        if self.semantic_context_fingerprint_sha256 is not None:
+            if not _sha256_text(self.semantic_context_fingerprint_sha256):
+                raise ValueError("action context semantic fingerprint is invalid")
+        if self.dynamics_receipt is not None:
+            if not isinstance(self.dynamics_receipt, DynamicsReceipt):
+                raise ValueError("action context dynamics receipt has the wrong type")
+            if (
+                self.dynamics_receipt.sequence != self.sequence
+                or not math.isclose(self.dynamics_receipt.timestamp_s, self.timestamp_s, abs_tol=1e-12, rel_tol=0.0)
+                or self.dynamics_receipt.frame_id != self.frame_id
+            ):
+                raise ValueError("action context/dynamics receipt identity mismatch")
+
+    @classmethod
+    def diagnostic(
+        cls,
+        *,
+        sequence: int,
+        timestamp_s: float,
+        frame_id: str,
+        applied_action_12d: Sequence[float],
+        echoed_action_12d: Sequence[float],
+        **kwargs: object,
+    ) -> "ActionLabelContext":
+        return cls(
+            sequence=sequence,
+            timestamp_s=timestamp_s,
+            frame_id=frame_id,
+            applied_action_12d=applied_action_12d,
+            echoed_action_12d=echoed_action_12d,
+            **kwargs,
+        )
+
+    @classmethod
+    def expert(
+        cls,
+        *,
+        sequence: int,
+        timestamp_s: float,
+        frame_id: str,
+        expert_input: ExpertInput,
+        previous_action_12d: Sequence[float] | None = None,
+        **kwargs: object,
+    ) -> "ActionLabelContext":
+        return cls(
+            sequence=sequence,
+            timestamp_s=timestamp_s,
+            frame_id=frame_id,
+            expert_input=expert_input,
+            previous_action_12d=previous_action_12d,
+            **kwargs,
+        )
+
+    def canonical_payload(self) -> dict[str, object]:
+        expert_payload: dict[str, object] | None = None
+        if self.expert_input is not None:
+            expert_payload = {
+                "normal_load_n": self.expert_input.normal_load_n,
+                "target_load_n": self.expert_input.target_load_n,
+                "pose_error": list(self.expert_input.pose_error),
+                "twist": list(self.expert_input.twist),
+                "path_progress": self.expert_input.path_progress,
+                "tangential_speed_m_s": self.expert_input.tangential_speed_m_s,
+                "fault": self.expert_input.fault,
+                "desired_twist": list(self.expert_input.desired_twist),
+                "desired_acceleration": list(self.expert_input.desired_acceleration),
+            }
+        return {
+            "schema_version": self.schema_version,
+            "sequence": self.sequence,
+            "timestamp_s": self.timestamp_s,
+            "frame_id": self.frame_id,
+            "applied_action_12d": list(self.applied_action_12d),
+            "echoed_action_12d": list(self.echoed_action_12d),
+            "expert_input": expert_payload,
+            "previous_action_12d": None if self.previous_action_12d is None else list(self.previous_action_12d),
+            "previous_sequence": self.previous_sequence,
+            "previous_timestamp_s": self.previous_timestamp_s,
+            "dt_s": self.dt_s,
+            "state_id": self.state_id,
+            "model_identity": self.model_identity,
+            "tcp_identity": self.tcp_identity,
+            "calibration_identity": self.calibration_identity,
+            "source_hashes": dict(self.source_hashes),
+            "dynamics_receipt": None if self.dynamics_receipt is None else self.dynamics_receipt.as_json(),
+            "semantic_context_fingerprint_sha256": self.semantic_context_fingerprint_sha256,
+        }
+
+    def as_json(self) -> dict[str, object]:
+        payload = self.canonical_payload()
+        payload["context_fingerprint_sha256"] = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        ).hexdigest()
+        return payload
+
+
+@runtime_checkable
+class ActionLabelProvider(Protocol):
+    """Common producer contract; adapters may exist only at legacy edges."""
+
+    schema_version: str
+
+    def produce(self, context: ActionLabelContext) -> "ActionLabel":
+        ...
 
 
 @dataclass(frozen=True)
@@ -219,6 +438,12 @@ class ActionLabel:
     semantics: str
     policy_id: str
     shadow_only: bool = False
+    sequence: int = 0
+    timestamp_s: float = 0.0
+    frame_id: str = "tool0_tcp"
+    state_id: str | None = None
+    context_fingerprint_sha256: str | None = None
+    schema_version: str = ACTION_LABEL_PROVIDER_SCHEMA
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -228,11 +453,57 @@ class ActionLabel:
         )
         if not self.source.strip() or not self.semantics.strip() or not self.policy_id.strip():
             raise ValueError("action label identity is required")
+        if self.schema_version != ACTION_LABEL_PROVIDER_SCHEMA:
+            raise ValueError("unsupported action-label provider schema")
+        if self.sequence < 0 or not math.isfinite(self.timestamp_s) or self.timestamp_s < 0.0:
+            raise ValueError("action label sequence/timestamp is invalid")
+        if not self.frame_id.strip():
+            raise ValueError("action label frame identity is required")
+        if self.available and self.shadow_only:
+            raise ValueError("available expert labels cannot be shadow-only")
+        if self.context_fingerprint_sha256 is not None and not _sha256_text(self.context_fingerprint_sha256):
+            raise ValueError("action label context fingerprint is invalid")
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "expert_action_12d": list(self.expert_action_12d),
+            "available": self.available,
+            "source": self.source,
+            "semantics": self.semantics,
+            "policy_id": self.policy_id,
+            "shadow_only": self.shadow_only,
+            "sequence": self.sequence,
+            "timestamp_s": self.timestamp_s,
+            "frame_id": self.frame_id,
+            "state_id": self.state_id,
+            "context_fingerprint_sha256": self.context_fingerprint_sha256,
+        }
+
+
+def _legacy_diagnostic_context(
+    context: ActionLabelContext | Sequence[float],
+    echoed_action_12d: Sequence[float] | None,
+) -> ActionLabelContext:
+    if isinstance(context, ActionLabelContext):
+        if echoed_action_12d is not None:
+            raise TypeError("ActionLabelContext call cannot carry a legacy echo argument")
+        return context
+    if echoed_action_12d is None:
+        raise TypeError("legacy diagnostic adapter requires applied and echoed actions")
+    return ActionLabelContext.diagnostic(
+        sequence=0,
+        timestamp_s=0.0,
+        frame_id="tool0_tcp",
+        applied_action_12d=context,
+        echoed_action_12d=echoed_action_12d,
+    )
 
 
 class DiagnosticShadowActionProvider:
     """Record the diagnostic command while making expert labels unavailable."""
 
+    schema_version = ACTION_LABEL_PROVIDER_SCHEMA
     policy_id = CANONICAL_EXPERT_POLICY_ID
     label_semantics = DIAGNOSTIC_ACTION_SEMANTICS
     source = DIAGNOSTIC_ACTION_SOURCE
@@ -240,11 +511,14 @@ class DiagnosticShadowActionProvider:
 
     def produce(
         self,
-        applied_action_12d: Sequence[float],
-        echoed_action_12d: Sequence[float],
+        context: ActionLabelContext | Sequence[float],
+        legacy_echoed_action_12d: Sequence[float] | None = None,
     ) -> ActionLabel:
-        _finite_vector(applied_action_12d, 12, "diagnostic applied action")
-        _finite_vector(echoed_action_12d, 12, "diagnostic controller echo")
+        resolved = _legacy_diagnostic_context(context, legacy_echoed_action_12d)
+        if resolved.frame_id != "tool0_tcp":
+            raise ValueError("diagnostic action context frame mismatch")
+        if resolved.model_identity != self.policy_id:
+            raise ValueError("diagnostic action context model identity mismatch")
         return ActionLabel(
             expert_action_12d=(0.0,) * 12,
             available=False,
@@ -252,12 +526,17 @@ class DiagnosticShadowActionProvider:
             semantics=self.label_semantics,
             policy_id=self.policy_id,
             shadow_only=True,
+            sequence=resolved.sequence,
+            timestamp_s=resolved.timestamp_s,
+            frame_id=resolved.frame_id,
+            context_fingerprint_sha256=resolved.as_json()["context_fingerprint_sha256"],
         )
 
 
 class DeterministicExpertActionProvider:
     """Offline/testable seam whose sole label producer is ``DeterministicExpert``."""
 
+    schema_version = ACTION_LABEL_PROVIDER_SCHEMA
     policy_id = CANONICAL_EXPERT_POLICY_ID
     label_semantics = CANONICAL_EXPERT_ACTION_SEMANTICS
     source = DETERMINISTIC_ACTION_SOURCE
@@ -265,9 +544,65 @@ class DeterministicExpertActionProvider:
 
     def __init__(self, expert: DeterministicExpert | None = None) -> None:
         self.expert = expert or DeterministicExpert()
+        self._last_sequence: int | None = None
+        self._last_timestamp_s: float | None = None
+        self._last_action: TacDiffusionAction | None = None
 
-    def produce(self, expert_input: ExpertInput, *, dt_s: float = 0.002) -> ActionLabel:
-        decision: ExpertDecision = self.expert.step(expert_input, dt_s=dt_s)
+    def reset(self) -> None:
+        self.expert.reset()
+        self._last_sequence = None
+        self._last_timestamp_s = None
+        self._last_action = None
+
+    def produce(
+        self,
+        context: ActionLabelContext | ExpertInput,
+        *,
+        dt_s: float | None = None,
+    ) -> ActionLabel:
+        if isinstance(context, ExpertInput):
+            # Narrow compatibility adapter for established offline callers.
+            legacy_dt_s = 0.002 if dt_s is None else dt_s
+            legacy_sequence = 0 if self._last_sequence is None else self._last_sequence + 1
+            legacy_timestamp = 0.0 if self._last_timestamp_s is None else self._last_timestamp_s + legacy_dt_s
+            resolved = ActionLabelContext.expert(
+                sequence=legacy_sequence,
+                timestamp_s=legacy_timestamp,
+                frame_id=self.expert.profile.frame_id,
+                expert_input=context,
+                dt_s=legacy_dt_s,
+            )
+        elif isinstance(context, ActionLabelContext):
+            resolved = context
+            if dt_s is not None and not math.isclose(dt_s, resolved.dt_s, rel_tol=0.0, abs_tol=1e-12):
+                raise ValueError("legacy dt_s does not match ActionLabelContext.dt_s")
+        else:
+            raise TypeError("ActionLabelProvider.produce requires ActionLabelContext")
+        if resolved.expert_input is None:
+            raise ValueError("deterministic expert action context requires explicit expert state")
+        if resolved.frame_id != self.expert.profile.frame_id:
+            raise ValueError("action context frame mismatch")
+        if resolved.model_identity != self.policy_id:
+            raise ValueError("action context model identity mismatch")
+        if self._last_sequence is not None:
+            if resolved.sequence != self._last_sequence + 1:
+                raise ValueError("action context sequence is nonconsecutive or stale")
+            if self._last_timestamp_s is None or resolved.timestamp_s <= self._last_timestamp_s:
+                raise ValueError("action context timestamp is stale or non-monotonic")
+            if resolved.previous_action_12d is not None and self._last_action is not None and tuple(resolved.previous_action_12d) != self._last_action.vector12:
+                raise ValueError("action context previous action mismatch")
+        elif resolved.previous_action_12d is not None:
+            self.expert._previous_action = TacDiffusionAction(
+                resolved.previous_action_12d[:6],
+                resolved.previous_action_12d[6:],
+                resolved.frame_id,
+            )
+        decision: ExpertDecision = self.expert.step(resolved.expert_input, dt_s=resolved.dt_s)
+        if resolved.state_id is not None and resolved.state_id != decision.state.value:
+            raise ValueError("action label semantic state mismatch")
+        self._last_sequence = resolved.sequence
+        self._last_timestamp_s = resolved.timestamp_s
+        self._last_action = decision.action
         return ActionLabel(
             expert_action_12d=decision.action.vector12,
             available=True,
@@ -275,6 +610,11 @@ class DeterministicExpertActionProvider:
             semantics=self.label_semantics,
             policy_id=self.policy_id,
             shadow_only=False,
+            sequence=resolved.sequence,
+            timestamp_s=resolved.timestamp_s,
+            frame_id=resolved.frame_id,
+            state_id=decision.state.value,
+            context_fingerprint_sha256=resolved.as_json()["context_fingerprint_sha256"],
         )
 
 
@@ -400,6 +740,7 @@ class InternalWrenchReceipt:
     valid: bool
     reason: str | None = None
     residual_norm_nm: float | None = None
+    dynamics_receipt: DynamicsReceipt | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -420,7 +761,22 @@ class InternalWrenchReconstructionProvider:
     ) -> None:
         self.input_provider = input_provider
 
-    def reconstruct(self, row: Mapping[str, Any]) -> InternalWrenchReceipt:
+    def reconstruct(
+        self,
+        row: Mapping[str, Any] | DynamicsSample,
+        *,
+        previous_sample: DynamicsSample | None = None,
+        conformance_binding: DynamicsConformanceBinding | None = None,
+    ) -> InternalWrenchReceipt | DynamicsReceipt:
+        if isinstance(row, DynamicsSample):
+            # Typed callers receive the durable receipt contract.  Production
+            # remains invalid without a controller-conformance binding.
+            return DynamicsReceipt.from_sample(
+                row,
+                previous_sample=previous_sample,
+                source_kind="production",
+                conformance_binding=conformance_binding,
+            )
         if self.input_provider is None:
             return InternalWrenchReceipt(
                 (0.0,) * 6,
@@ -447,6 +803,52 @@ class InternalWrenchReconstructionProvider:
             True,
             residual_norm_nm=estimate.residual_norm_nm,
         )
+
+    def produce(
+        self,
+        sample: DynamicsSample,
+        *,
+        previous_sample: DynamicsSample | None = None,
+        conformance_binding: DynamicsConformanceBinding | None = None,
+    ) -> DynamicsReceipt:
+        result = self.reconstruct(
+            sample,
+            previous_sample=previous_sample,
+            conformance_binding=conformance_binding,
+        )
+        assert isinstance(result, DynamicsReceipt)
+        return result
+
+
+class FakeRTDEDynamicsProvider:
+    """Explicit offline-only fixture provider; never represents production conformance."""
+
+    source_kind = "offline_fake_rtde"
+    fixture_identity = OFFLINE_FAKE_RTDE_FIXTURE_ID
+
+    def __init__(self, *, fixture_identity: str = OFFLINE_FAKE_RTDE_FIXTURE_ID) -> None:
+        if fixture_identity != OFFLINE_FAKE_RTDE_FIXTURE_ID:
+            raise ValueError("unknown FakeRTDE fixture identity")
+        self.fixture_identity = fixture_identity
+
+    def produce(
+        self,
+        sample: DynamicsSample,
+        *,
+        previous_sample: DynamicsSample | None = None,
+    ) -> DynamicsReceipt:
+        return DynamicsReceipt.from_sample(
+            sample,
+            previous_sample=previous_sample,
+            source_kind=self.source_kind,
+            fixture_identity=self.fixture_identity,
+        )
+
+    reconstruct = produce
+
+
+SyntheticDynamicsReceiptProvider = FakeRTDEDynamicsProvider
+FakeRTDEDynamicsReceiptProvider = FakeRTDEDynamicsProvider
 
 
 class CausalKunweiAlignmentAdapter:
@@ -644,6 +1046,10 @@ def first_live_shadow_from_receipt(path: str | Path | None) -> bool:
 __all__ = [
     "ActiveTrainingWindow",
     "ActionLabel",
+    "ActionLabelContext",
+    "ActionLabelProvider",
+    "ACTION_LABEL_CONTEXT_SCHEMA",
+    "ACTION_LABEL_PROVIDER_SCHEMA",
     "CANONICAL_EXPERT_ACTION_SEMANTICS",
     "CANONICAL_EXPERT_POLICY_ID",
     "CausalKunweiAlignmentAdapter",
@@ -652,9 +1058,12 @@ __all__ = [
     "DIAGNOSTIC_ACTION_SOURCE",
     "DiagnosticShadowActionProvider",
     "DeterministicExpertActionProvider",
+    "FakeRTDEDynamicsProvider",
+    "FakeRTDEDynamicsReceiptProvider",
     "EpisodeSemanticContext",
     "InternalWrenchReceipt",
     "InternalWrenchReconstructionProvider",
+    "SyntheticDynamicsReceiptProvider",
     "REQUIRED_RUNTIME_HASH_IDENTITIES",
     "SEMANTIC_CONTEXT_SCHEMA",
     "SHADOW_TRANSITION_SCHEMA",

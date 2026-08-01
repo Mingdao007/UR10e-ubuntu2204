@@ -47,6 +47,48 @@ def _vector(row: object, name: str) -> tuple[float, ...] | None:
     return result
 
 
+def _is_v3_row(row: object) -> bool:
+    schema = _value(row, "schema", "")
+    return bool(schema == "ur10e_tacdiffusion_episode_frame/v3" or hasattr(row, "typed_receipts_valid"))
+
+
+def _nested_value(value: object, name: str, default: Any = None) -> Any:
+    if isinstance(value, Mapping):
+        return value.get(name, default)
+    return getattr(value, name, default)
+
+
+def _v3_dynamics_receipt_valid(row: object) -> bool:
+    receipt = _value(row, "dynamics_receipt")
+    return bool(
+        receipt is not None
+        and _nested_value(receipt, "valid", False) is True
+        and _nested_value(receipt, "authoritative_torque_source", "")
+        == "previous_commanded_no_gravity_torque"
+        and _nested_value(receipt, "schema_version", "")
+        == "ur10e_tacdiffusion_dynamics_receipt/v1"
+    )
+
+
+def _v3_action_semantics_valid(
+    row: object,
+    semantic_context: EpisodeSemanticContext | None,
+) -> bool:
+    label = _value(row, "action_label")
+    context = _value(row, "action_label_context")
+    if label is None or context is None or semantic_context is None:
+        return False
+    return bool(
+        _nested_value(label, "available", False) is True
+        and _nested_value(label, "shadow_only", True) is False
+        and _nested_value(label, "source", "") == "deterministic_expert"
+        and _nested_value(label, "semantics", "") == semantic_context.action_label_semantics
+        and _nested_value(label, "policy_id", "") == semantic_context.expert_policy_id
+        and _nested_value(context, "semantic_context_fingerprint_sha256", None)
+        == semantic_context.fingerprint_sha256
+    )
+
+
 @dataclass(frozen=True)
 class EligibilityDecision:
     episode_id: str
@@ -132,6 +174,30 @@ class EligibilityValidator:
         else:
             candidate_rows = tuple(active_window.select(rows))
             active_window_payload = active_window.as_json()
+        v3_rows = tuple(row for row in candidate_rows if _is_v3_row(row))
+        has_v3_rows = bool(v3_rows)
+        dynamics_receipts_valid = bool(
+            not has_v3_rows or all(_v3_dynamics_receipt_valid(row) for row in v3_rows)
+        )
+        identity_enabled = bool(
+            not has_v3_rows
+            or all(bool(_value(row, "identity_enabled", False)) for row in v3_rows)
+        )
+        semantic_consistent = bool(
+            not has_v3_rows
+            or (
+                semantic_context is not None
+                and all(
+                    _value(row, "semantic_context_fingerprint_sha256")
+                    == semantic_context.fingerprint_sha256
+                    for row in v3_rows
+                )
+            )
+        )
+        typed_action_labels_valid = bool(
+            not has_v3_rows
+            or all(_v3_action_semantics_valid(row, semantic_context) for row in v3_rows)
+        )
         reasons: list[str] = []
         control_time_strict = bool(candidate_rows)
         previous_control = -math.inf
@@ -228,7 +294,7 @@ class EligibilityValidator:
             previous_batch_host = host
         internal_wrench_valid = bool(candidate_rows) and all(
             _validity_flag(row, "internal_wrench_valid", False) for row in candidate_rows
-        )
+        ) and dynamics_receipts_valid
         retained_rows_valid = bool(rows) and all(
             _validity_flag(row, "row_valid", False) for row in rows
         )
@@ -310,12 +376,12 @@ class EligibilityValidator:
             and writer_error is None
         )
         if semantic_context is None:
-            semantic_bindings_complete = True
-            expert_policy_authoritative = True
+            semantic_bindings_complete = not has_v3_rows
+            expert_policy_authoritative = not has_v3_rows
             expert_label_available = bool(candidate_rows) and all(
                 bool(_value(row, "expert_label_available", True))
                 for row in candidate_rows
-            )
+            ) and typed_action_labels_valid
             reference_derivatives_valid = bool(candidate_rows) and all(
                 bool(_value(row, "reference_derivatives_valid", True))
                 for row in candidate_rows
@@ -338,6 +404,7 @@ class EligibilityValidator:
                     str(_value(row, "expert_action_source", "")) == "deterministic_expert"
                     for row in candidate_rows
                 )
+                and typed_action_labels_valid
             )
             reference_derivatives_valid = bool(candidate_rows) and all(
                 bool(_value(row, "reference_derivatives_valid", False))
@@ -361,6 +428,10 @@ class EligibilityValidator:
             "coherent_controller_echoes": coherent_echoes,
             "causal_valid_sensor_lineage": causal_sensor_lineage,
             "internal_wrench_valid": internal_wrench_valid,
+            "dynamics_receipts_valid": dynamics_receipts_valid,
+            "identity_enabled": identity_enabled,
+            "semantic_consistent": semantic_consistent,
+            "typed_action_labels_valid": typed_action_labels_valid,
             "retained_rows_valid": retained_rows_valid,
             "candidate_window_rows_valid": candidate_window_rows_valid,
             "active_window_declared": active_window_declared,
@@ -404,6 +475,10 @@ class EligibilityValidator:
             and control_time_strict
             and causal_sensor_lineage
             and internal_wrench_valid
+            and dynamics_receipts_valid
+            and identity_enabled
+            and semantic_consistent
+            and typed_action_labels_valid
             and coherent_echoes
             and candidate_history_primed
             and expert_label_available
