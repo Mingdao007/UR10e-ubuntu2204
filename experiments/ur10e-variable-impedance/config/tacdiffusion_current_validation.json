@@ -215,7 +215,7 @@
           "kind": "source",
           "path": "ur10e_vic/tacdiffusion/episode_composition.py",
           "provenance": "repository",
-          "sha256": "ccdc7ae5039ac03e6076e4b0aa4cd7835416d8ddc569ecb280c7895169f9356a",
+          "sha256": "eae53f26226cf918e5fccc8071433f5a1c6fb84533513a61a530767d0720f401",
           "state": "bound"
         }
       ],
@@ -406,7 +406,7 @@
     },
     "truth_source": {
       "path": "config/tacdiffusion_component_truth_v1.json",
-      "sha256": "c2e2b4a81b6fd2c2f4351dfc0f8a7bee8d7ea9fccc1e3ea6f946f8034708785b",
+      "sha256": "fe08ec7c04f46e7d77755346c0043870b5cefc1c0aae4b50f36320f763497a1b",
       "version": "v1"
     }
   },
