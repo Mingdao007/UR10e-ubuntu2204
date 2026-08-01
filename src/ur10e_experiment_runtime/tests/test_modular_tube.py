@@ -193,6 +193,10 @@ def test_disabled_guard_is_stateless_and_does_not_require_solver_inputs() -> Non
     assert first.state is TubeState.DISABLED
     assert first.stop is False
     assert first.reason is TubeReason.DISABLED_BY_UNQUALIFIED_POLICY
+    assert first.policy_sha256 == policy.sha256
+    assert first.proxy_sha256 is None
+    assert first.reference_sha256 is None
+    assert first.strategy_sha256 is None
     with pytest.raises(ValueError):
         TubePolicyV1(enabled=False, strategy=CircleSdfV1(0.1))
 
@@ -207,7 +211,18 @@ def test_spatial_guard_requires_exact_identity_and_registration() -> None:
         SpatialTubeGuard(policy, geometry, ProxyRegistryV1())
 
     guard = SpatialTubeGuard(policy, geometry, registered(proxy_value))
-    assert guard.evaluate(pose(), proxy_value, reference_value, now_ns=1).state is TubeState.SAFE
+    safe = guard.evaluate(pose(), proxy_value, reference_value, now_ns=1)
+    assert safe.state is TubeState.SAFE
+    assert safe.policy_sha256 == policy.sha256
+    assert safe.proxy_sha256 == proxy_value.sha256
+    assert safe.reference_sha256 == reference_value.sha256
+    assert safe.strategy_sha256 == strategy.sha256
+    assert dict(safe.identity_hashes) == {
+        "policy_sha256": policy.sha256,
+        "proxy_sha256": proxy_value.sha256,
+        "reference_sha256": reference_value.sha256,
+        "strategy_sha256": strategy.sha256,
+    }
     other_proxy = EoatProxyV1(
         source_sha256="2" * 64,
         proxy_id="proxy:other",

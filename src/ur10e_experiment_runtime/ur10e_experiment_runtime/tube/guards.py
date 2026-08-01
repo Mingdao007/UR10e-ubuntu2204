@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 import math
+from types import MappingProxyType
 from typing import Any, Sequence
 
 from .contracts import (
@@ -352,6 +354,10 @@ class TubeDecisionV1:
     sample: SignedFieldSample | None = None
     telemetry_only: bool = False
     motion_command: None = None
+    policy_sha256: str | None = None
+    proxy_sha256: str | None = None
+    reference_sha256: str | None = None
+    strategy_sha256: str | None = None
 
     def __post_init__(self) -> None:
         state = self.state if isinstance(self.state, TubeState) else TubeState(self.state)
@@ -377,6 +383,19 @@ class TubeDecisionV1:
             raise TubeContractError("only WARNING is telemetry-only")
         if self.motion_command is not None:
             raise TubeContractError("tube decisions cannot emit motion commands")
+        for field_name in (
+            "policy_sha256",
+            "proxy_sha256",
+            "reference_sha256",
+            "strategy_sha256",
+        ):
+            value = getattr(self, field_name)
+            if value is not None:
+                object.__setattr__(
+                    self,
+                    field_name,
+                    _sha256(value, name=field_name),
+                )
         object.__setattr__(self, "state", state)
         object.__setattr__(self, "reason", reason)
         object.__setattr__(self, "signed_margin_m", margin)
@@ -393,13 +412,27 @@ class TubeDecisionV1:
     def command(self) -> None:
         return None
 
+    @property
+    def identity_hashes(self) -> Mapping[str, str | None]:
+        return MappingProxyType(
+            {
+                "policy_sha256": self.policy_sha256,
+                "proxy_sha256": self.proxy_sha256,
+                "reference_sha256": self.reference_sha256,
+                "strategy_sha256": self.strategy_sha256,
+            }
+        )
+
 
 class DisabledTubeGuard:
     """Stateless, allocation-free disabled guard."""
 
     __slots__ = ("_decision",)
 
-    def __init__(self) -> None:
+    def __init__(self, policy: TubePolicyV1 | None = None) -> None:
+        selected_policy = TubePolicyV1.disabled() if policy is None else policy
+        if not isinstance(selected_policy, TubePolicyV1) or selected_policy.enabled:
+            raise TubeContractError("DisabledTubeGuard requires a disabled TubePolicyV1")
         self._decision = TubeDecisionV1(
             state=TubeState.DISABLED,
             reason=TubeReason.DISABLED_BY_UNQUALIFIED_POLICY,
@@ -407,6 +440,7 @@ class DisabledTubeGuard:
             signed_margin_m=None,
             sample=None,
             telemetry_only=False,
+            policy_sha256=selected_policy.sha256,
         )
 
     @property
@@ -443,7 +477,7 @@ class SpatialTubeGuard:
     ) -> "SpatialTubeGuard | DisabledTubeGuard":
         del geometry, proxy_registry, registry
         if isinstance(policy, TubePolicyV1) and not policy.enabled:
-            return DisabledTubeGuard()
+            return DisabledTubeGuard(policy)
         return super().__new__(cls)
 
     def __init__(
@@ -488,12 +522,24 @@ class SpatialTubeGuard:
         sample: SignedFieldSample | None = None,
     ) -> TubeDecisionV1:
         self._reset_warning()
-        return TubeDecisionV1(
+        return self._decision(
             state=TubeState.STOP,
             reason=reason,
             stop=True,
             sample=sample,
             signed_margin_m=None if sample is None else sample.signed_distance_m,
+        )
+
+    def _decision(self, **kwargs: Any) -> TubeDecisionV1:
+        strategy_sha256 = (
+            None if self.policy.strategy is None else self.policy.strategy.sha256
+        )
+        return TubeDecisionV1(
+            **kwargs,
+            policy_sha256=self.policy.sha256,
+            proxy_sha256=self.policy.proxy_sha256,
+            reference_sha256=self.policy.reference_sha256,
+            strategy_sha256=strategy_sha256,
         )
 
     def _now_ns(self, value: Any) -> int | None:
@@ -557,13 +603,13 @@ class SpatialTubeGuard:
         if self._warning_active:
             if signed <= clear_boundary:
                 self._reset_warning()
-                return TubeDecisionV1(
+                return self._decision(
                     state=TubeState.SAFE,
                     reason=TubeReason.WARNING_CLEARED,
                     stop=False,
                     sample=sample,
                 )
-            return TubeDecisionV1(
+            return self._decision(
                 state=TubeState.WARNING,
                 reason=TubeReason.WARNING_TELEMETRY_ONLY,
                 stop=False,
@@ -573,7 +619,7 @@ class SpatialTubeGuard:
 
         if signed < -warning_threshold:
             self._warning_started_ns = None
-            return TubeDecisionV1(
+            return self._decision(
                 state=TubeState.SAFE,
                 reason=TubeReason.INSIDE_TUBE,
                 stop=False,
@@ -584,14 +630,14 @@ class SpatialTubeGuard:
             self._warning_started_ns = checked_now
         if checked_now - self._warning_started_ns >= self.policy.warning_dwell_ns:
             self._warning_active = True
-            return TubeDecisionV1(
+            return self._decision(
                 state=TubeState.WARNING,
                 reason=TubeReason.WARNING_TELEMETRY_ONLY,
                 stop=False,
                 sample=sample,
                 telemetry_only=True,
             )
-        return TubeDecisionV1(
+        return self._decision(
             state=TubeState.SAFE,
             reason=TubeReason.WARNING_DWELL_PENDING,
             stop=False,
@@ -609,7 +655,7 @@ def make_tube_guard(
     proxy_registry: ProxyRegistryV1 | None = None,
 ) -> DisabledTubeGuard | SpatialTubeGuard:
     if not policy.enabled:
-        return DisabledTubeGuard()
+        return DisabledTubeGuard(policy)
     return SpatialTubeGuard(
         policy,
         geometry=geometry,
