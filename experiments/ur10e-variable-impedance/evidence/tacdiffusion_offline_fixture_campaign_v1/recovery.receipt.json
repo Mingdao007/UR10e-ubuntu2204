@@ -1,0 +1,13 @@
+{
+  "cycles": 100,
+  "duplicate_eligibility_promotions": 0,
+  "duplicate_enqueue_attempts": 100,
+  "final_pending_count": 0,
+  "idempotent_consume_attempts": 100,
+  "interrupted_cycles": 50,
+  "queue_drained": true,
+  "receipt_sha256": "00fc50b2f9fa2021cc5b6f2eaf90a0f1a3be132ce86ddef2b93fcbf6ac642e1e",
+  "reopen_count": 200,
+  "retried_cycles": 50,
+  "schema": "ur10e_tacdiffusion_offline_recovery_receipt/v1"
+}

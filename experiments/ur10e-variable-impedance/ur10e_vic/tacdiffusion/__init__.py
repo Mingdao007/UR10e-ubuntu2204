@@ -218,6 +218,30 @@ from .offline_geometry import (
     line_out_and_back_4s,
 )
 from .environment import immutable_environment_fingerprint
+from .offline_campaign import (
+    CAMPAIGN_EPISODE_COUNT,
+    CAMPAIGN_FAIL_MODULO,
+    CAMPAIGN_RECOVERY_CYCLES,
+    DeterministicFakeRTDE,
+    DeterministicOfflineEpisodeAssembler,
+    FakeRTDETick,
+    FixtureEpisodeArtifact,
+    FrozenEpisodeSplit,
+    OfflineCampaignContract,
+    OfflineCampaignResult,
+    OfflineComposedEpisode,
+    OfflineControlOutput,
+    OfflineObservationReceipt,
+    OfflineReferenceReceipt,
+    RecoveryReceipt,
+    SyntheticKunweiDriver,
+    build_offline_fixture_dataset,
+    materialize_offline_campaign_bundle,
+    prove_recorder_sidecar_identity,
+    run_persistent_recovery_cycles,
+    validate_offline_campaign_bundle,
+    validate_offline_fixture_dataset,
+)
 from .checkpoint import CheckpointBinding, validate_checkpoint_binding, write_checkpoint_binding
 from .promotion import OfflineReplayMetrics, ShadowGateResult, ShadowTrace, evaluate_offline_replay, load_shadow_artifact, run_offline_shadow_artifact_gate, run_offline_shadow_gate
 from .truth import (

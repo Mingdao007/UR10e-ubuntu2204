@@ -1,0 +1,22 @@
+{
+  "artifact": "episode_v3.jsonl",
+  "artifact_sha256": "72084340757b2dddb8032cb13b34e7c6da90d274ab27cbef943167f8242cc007",
+  "attempt_index": 45,
+  "eligibility": "eligibility.json",
+  "eligibility_sha256": "cd46b368e16179712a5910dd93bf7d1c76c5762e51f79b3f6d442b6770cddda8",
+  "eligibility_training_eligible": true,
+  "episode_id": "offline-episode-045",
+  "failure": null,
+  "failure_reason": null,
+  "family": "lissajous",
+  "fixture_only": true,
+  "health": "recorder_health.json",
+  "manifest": "episode_v3.manifest.json",
+  "manifest_sha256": "6d67a3836a2520ca65c0978059a56519c3a42cc14c8984d03580dc91c57ba7bf",
+  "production_promotion_allowed": false,
+  "receipt_sha256": "d8df8aaf4f559ebc9d160ddb51911d64d555ea36fbd0b3dddb080674b2eaff79",
+  "row_count": 2,
+  "schema": "ur10e_tacdiffusion_offline_episode_receipt/v1",
+  "sealed": true,
+  "status": "completed"
+}

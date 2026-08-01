@@ -1,0 +1,18 @@
+{
+  "descriptions": {
+    "kunwei": "synthetic causal Kunwei source",
+    "receiver": "in-memory FakeRTDE source",
+    "reference": "seven-family deterministic reference generator",
+    "runtime": "offline canonical episode assembler"
+  },
+  "fixture_only": true,
+  "identities": {
+    "bundle_reference_sha256": "d54e1f8abce5ed3081e9bbcc43e4daaabbff68c85a753ab78b2c99115f45e34f",
+    "kunwei_calibration_sha256": "97671b1604757c771af29dad76fdf6ef5c6c0e64e9fd6fe90301d95b76db4ab8",
+    "receiver_source_sha256": "1975855a5e464314ddf9d8bf0511eb8938456855836416e0d68c121e496c9e7a",
+    "runtime_source_sha256": "c133011211e1a93d2ba0f78d860509edd5ccec08faa34b5de52f3d01f3a0f9b4"
+  },
+  "production_promotion_allowed": false,
+  "schema": "ur10e_tacdiffusion_offline_source_identities/v1",
+  "source_receipt_sha256": "c2b16e0da376a33347360864a3ef7d860886b0bcb773e59c43975dbebacad8a4"
+}

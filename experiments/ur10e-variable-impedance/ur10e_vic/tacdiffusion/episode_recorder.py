@@ -267,6 +267,12 @@ class EpisodeFrameV3(EpisodeFrameV2):
     action_label: ActionLabel | None = None
     identity_enabled: bool = True
     semantic_context_fingerprint_sha256: str | None = None
+    # These receipts are optional for compatibility rows, but the canonical
+    # offline campaign fills both fields.  Keeping them on the v3 row makes
+    # the current/previous observation and the sampled reference auditable
+    # without inventing a parallel artifact format.
+    observation_receipt: Mapping[str, Any] | None = None
+    reference_receipt: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -301,6 +307,13 @@ class EpisodeFrameV3(EpisodeFrameV2):
                 char not in "0123456789abcdef" for char in self.semantic_context_fingerprint_sha256
             ):
                 raise ValueError("v3 semantic context fingerprint is invalid")
+        for name in ("observation_receipt", "reference_receipt"):
+            receipt = getattr(self, name)
+            if receipt is not None:
+                if not isinstance(receipt, Mapping):
+                    raise ValueError(f"v3 {name} must be a mapping")
+                if not str(receipt.get("schema", "")).strip():
+                    raise ValueError(f"v3 {name} schema is required")
 
     @classmethod
     def from_v2(cls, frame: EpisodeFrameV2) -> "EpisodeFrameV3":
@@ -353,11 +366,23 @@ class EpisodeFrameV3(EpisodeFrameV2):
         payload["action_label"] = None if self.action_label is None else self.action_label.as_json()
         payload["identity_enabled"] = self.identity_enabled
         payload["semantic_context_fingerprint_sha256"] = self.semantic_context_fingerprint_sha256
+        payload["observation_receipt"] = (
+            None if self.observation_receipt is None else dict(self.observation_receipt)
+        )
+        payload["reference_receipt"] = (
+            None if self.reference_receipt is None else dict(self.reference_receipt)
+        )
         payload["typed_receipts_valid"] = self.typed_receipts_valid
         payload["typed_receipts"] = {
             "dynamics": payload["dynamics_receipt"],
             "action_label": payload["action_label"],
         }
+        # The row seal is calculated only after recorder-owned metadata has
+        # been applied.  It therefore binds the exact serialized v3 row and
+        # remains compatible with the bounded background sealer.
+        payload["row_seal_sha256"] = hashlib.sha256(
+            _line(payload)
+        ).hexdigest()
         return payload
 
 
@@ -1124,6 +1149,19 @@ def _validate_v3_tail_lines(
     rows = parsed[1:-1]
     if any(not isinstance(row, dict) or row.get("schema") != EPISODE_FRAME_SCHEMA for row in rows):
         raise ValueError("episode v3 row schema mismatch")
+    for index, row in enumerate(rows):
+        supplied_row_seal = row.get("row_seal_sha256")
+        if supplied_row_seal is None:
+            # Existing v3 artifacts predate the row-level seal.  They remain
+            # readable, while all new canonical rows carry the seal below.
+            continue
+        if not _is_sha256(supplied_row_seal):
+            raise ValueError(f"episode v3 row {index} seal is invalid")
+        unsigned_row = dict(row)
+        unsigned_row.pop("row_seal_sha256", None)
+        expected_row_seal = hashlib.sha256(_line(unsigned_row)).hexdigest()
+        if supplied_row_seal != expected_row_seal:
+            raise ValueError(f"episode v3 row {index} seal mismatch")
     row_lines = lines[1:-1]
     content_sha256 = hashlib.sha256(b"".join(row_lines)).hexdigest()
     if tail.get("content_sha256") != content_sha256:
