@@ -1,9 +1,9 @@
 {
-  "artifact_sha256": "164fabbd0a2bc7bb3b643f892ed9d18cb270f12cc4a93ea9844f65ce908541e6",
+  "artifact_sha256": "139b70f1b7e55b06d082408b37734d85a167bfe9ff434d7a556ce8bd94d666c8",
   "attempt_index": 49,
   "dataset_membership": false,
   "episode_id": "offline-episode-049",
-  "failure_sha256": "7c3a6475f50425ec70ae90379abe26393a0aeb83b8c07351edcc5466614517af",
+  "failure_sha256": "aa0a1c04d5571315b8a5300422b9273d2d3cb7c55daa83e06ed94703aa41bf2b",
   "injected": true,
   "reason": "injected_fail_modulo_7",
   "schema": "ur10e_tacdiffusion_offline_failure/v1",

@@ -8,7 +8,7 @@ controller transport, a model-active route, or a production promotion path.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from io import BytesIO
 import hashlib
 import json
@@ -40,7 +40,10 @@ from .episode_composition import (
 from .episode_recorder import (
     EpisodeFrameV3,
     EpisodeRecorder,
-    RecorderHealth,
+    ObservationReceipt,
+    ReferenceReceipt,
+    TypedEpisodeReceipt,
+    compute_v3_row_sha256,
     read_episode_artifact,
     read_recorder_health,
     validate_sealed_episode_manifest,
@@ -76,7 +79,7 @@ OFFLINE_FAILURE_SCHEMA = "ur10e_tacdiffusion_offline_failure/v1"
 OFFLINE_OBSERVATION_RECEIPT_SCHEMA = "ur10e_tacdiffusion_offline_observation_receipt/v1"
 OFFLINE_REFERENCE_RECEIPT_SCHEMA = "ur10e_tacdiffusion_offline_reference_receipt/v1"
 OFFLINE_RECOVERY_RECEIPT_SCHEMA = "ur10e_tacdiffusion_offline_recovery_receipt/v1"
-OFFLINE_SOURCE_SCHEMA = "ur10e_tacdiffusion_offline_source_identities/v1"
+OFFLINE_SOURCE_SCHEMA = "ur10e_tacdiffusion_offline_source_receipt/v2"
 OFFLINE_SPLIT_SCHEMA = "ur10e_tacdiffusion_offline_frozen_split/v1"
 OFFLINE_DATASET_SCHEMA = "ur10e_tacdiffusion_offline_fixture_dataset/v1"
 OFFLINE_BUNDLE_SCHEMA = "ur10e_tacdiffusion_offline_fixture_bundle/v1"
@@ -90,6 +93,22 @@ FRAME_ID = "tool0_tcp"
 SENSOR_FRAME_ID = "kunwei_sensor"
 CALIBRATION_SHA256 = hashlib.sha256(b"offline-kunwei-calibration-v1").hexdigest()
 NORMALIZATION_SHA256 = hashlib.sha256(b"offline-fixture-normalization-v1").hexdigest()
+FAKE_CONTROLLER_SCHEMA = "ur10e_tacdiffusion_offline_fake_controller/v1"
+FAKE_CONTROLLER_CALIBRATION_IDENTITY = "offline-fake-controller-calibration-v1"
+SOURCE_RECEIPT_VERSION = "repo_relative_bytes_sha256_v1"
+SOURCE_RECEIPT_PATHS: tuple[str, ...] = (
+    "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/contracts.py",
+    "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/dynamic_filter.py",
+    "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/eligibility.py",
+    "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/episode_composition.py",
+    "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/episode_recorder.py",
+    "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/observation.py",
+    "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/offline_campaign.py",
+    "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/queue.py",
+    "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/trajectory.py",
+    "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/cli.py",
+    "experiments/ur10e-variable-impedance/tools/materialize_tacdiffusion_offline_campaign.py",
+)
 
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
@@ -156,6 +175,118 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def _repository_root() -> Path:
+    # This module lives at <repo>/experiments/ur10e-variable-impedance/
+    # ur10e_vic/tacdiffusion/offline_campaign.py.  Only repo-relative source
+    # paths are persisted; absolute paths never enter a receipt or bundle.
+    return Path(__file__).resolve().parents[4]
+
+
+def _validate_repo_relative_source_path(value: object) -> str:
+    path = str(value)
+    pure = PurePosixPath(path)
+    if (
+        not path
+        or pure.is_absolute()
+        or ".." in pure.parts
+        or pure.as_posix() != path
+        or not path.endswith(".py")
+    ):
+        raise ValueError("source receipt path is not a safe repo-relative Python path")
+    return path
+
+
+def _source_receipt_payload(*, repository_root: Path) -> dict[str, Any]:
+    files: list[dict[str, str]] = []
+    for relative in SOURCE_RECEIPT_PATHS:
+        safe_relative = _validate_repo_relative_source_path(relative)
+        source = repository_root / safe_relative
+        if not source.is_file():
+            raise ValueError(f"source receipt file is missing: {safe_relative}")
+        files.append({"path": safe_relative, "sha256": _file_sha256(source)})
+    return {
+        "schema": OFFLINE_SOURCE_SCHEMA,
+        "version": SOURCE_RECEIPT_VERSION,
+        "files": files,
+        "fixture_only": True,
+        "production_promotion_allowed": False,
+    }
+
+
+def _source_identity_hashes(source_receipt: Mapping[str, Any]) -> dict[str, str]:
+    files = source_receipt.get("files")
+    if not isinstance(files, list):
+        raise ValueError("source receipt files are missing")
+    identities = {"source_receipt_sha256": _sha(source_receipt.get("source_receipt_sha256"), "source_receipt_sha256")}
+    by_path: dict[str, str] = {}
+    for item in files:
+        if not isinstance(item, Mapping):
+            raise ValueError("source receipt file entry is invalid")
+        path = _validate_repo_relative_source_path(item.get("path"))
+        digest = _sha(item.get("sha256"), f"source:{path}")
+        identities[f"source:{path}"] = digest
+        by_path[path] = digest
+    aliases = {
+        "receiver_source_sha256": by_path[
+            "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/episode_composition.py"
+        ],
+        "bundle_reference_sha256": by_path[
+            "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/trajectory.py"
+        ],
+        "kunwei_calibration_sha256": by_path[
+            "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/observation.py"
+        ],
+        "runtime_source_sha256": by_path[
+            "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/offline_campaign.py"
+        ],
+    }
+    identities.update(aliases)
+    return dict(sorted(identities.items()))
+
+
+def _source_receipt(*, repository_root: Path | None = None) -> dict[str, Any]:
+    payload = _source_receipt_payload(repository_root=repository_root or _repository_root())
+    return payload | {"source_receipt_sha256": _payload_sha256(payload)}
+
+
+def _validate_source_receipt(
+    source_receipt: Mapping[str, Any],
+    *,
+    repository_root: Path | None = None,
+) -> dict[str, str]:
+    if not isinstance(source_receipt, Mapping):
+        raise ValueError("source receipt must be an object")
+    if source_receipt.get("schema") != OFFLINE_SOURCE_SCHEMA or source_receipt.get("version") != SOURCE_RECEIPT_VERSION:
+        raise ValueError("source receipt schema/version mismatch")
+    if source_receipt.get("fixture_only") is not True or source_receipt.get("production_promotion_allowed") is not False:
+        raise ValueError("source receipt promotion boundary is invalid")
+    files = source_receipt.get("files")
+    if not isinstance(files, list) or len(files) != len(SOURCE_RECEIPT_PATHS):
+        raise ValueError("source receipt file closure is incomplete")
+    normalized: list[dict[str, str]] = []
+    for item in files:
+        if not isinstance(item, Mapping):
+            raise ValueError("source receipt file entry is invalid")
+        path = _validate_repo_relative_source_path(item.get("path"))
+        normalized.append({"path": path, "sha256": _sha(item.get("sha256"), f"source:{path}")})
+    if [item["path"] for item in normalized] != list(SOURCE_RECEIPT_PATHS):
+        raise ValueError("source receipt file ordering/identity mismatch")
+    unsigned = dict(source_receipt)
+    supplied = unsigned.pop("source_receipt_sha256", None)
+    if _sha(supplied, "source_receipt_sha256") != _payload_sha256(unsigned):
+        raise ValueError("source receipt digest mismatch")
+    current_root = repository_root or _repository_root()
+    for item in normalized:
+        source = current_root / item["path"]
+        if not source.is_file():
+            raise ValueError(f"source receipt file is missing: {item['path']}")
+        if _file_sha256(source) != item["sha256"]:
+            raise ValueError(f"source receipt source drift: {item['path']}")
+    normalized_receipt = dict(unsigned)
+    normalized_receipt["files"] = normalized
+    return _source_identity_hashes(source_receipt)
+
+
 @dataclass(frozen=True)
 class OfflineCampaignContract:
     """Frozen configuration for the exact offline pilot campaign."""
@@ -217,12 +348,185 @@ class OfflineCampaignContract:
         return self.canonical_payload() | {"contract_sha256": self.contract_sha256}
 
 
-SOURCE_IDENTITIES: Mapping[str, str] = {
-    "receiver_source_sha256": _sha256_text("offline-fake-rtde-receiver-v1"),
-    "bundle_reference_sha256": _sha256_text("offline-seven-family-reference-v1"),
-    "kunwei_calibration_sha256": CALIBRATION_SHA256,
-    "runtime_source_sha256": _sha256_text("offline-causal-composition-runtime-v1"),
-}
+_IMPORT_SOURCE_RECEIPT = _source_receipt()
+SOURCE_IDENTITIES: Mapping[str, str] = _source_identity_hashes(_IMPORT_SOURCE_RECEIPT)
+
+
+IDENTITY_JACOBIAN_6X6: tuple[tuple[float, ...], ...] = tuple(
+    tuple(1.0 if row == column else 0.0 for column in range(6))
+    for row in range(6)
+)
+
+
+@dataclass(frozen=True)
+class FakeControllerCalibration:
+    """Typed fixture Jacobian-transpose calibration for the FakeController."""
+
+    jacobian_6x6: tuple[tuple[float, ...], ...] = IDENTITY_JACOBIAN_6X6
+    frame_id: str = FRAME_ID
+    calibration_identity: str = FAKE_CONTROLLER_CALIBRATION_IDENTITY
+    schema: str = f"{FAKE_CONTROLLER_SCHEMA}_calibration"
+
+    def __post_init__(self) -> None:
+        if self.schema != f"{FAKE_CONTROLLER_SCHEMA}_calibration":
+            raise ValueError("unsupported FakeController calibration schema")
+        if not self.frame_id.strip() or not self.calibration_identity.strip():
+            raise ValueError("FakeController calibration identity is required")
+        matrix = tuple(tuple(float(value) for value in row) for row in self.jacobian_6x6)
+        if len(matrix) != 6 or any(len(row) != 6 for row in matrix):
+            raise ValueError("FakeController calibration Jacobian must be 6x6")
+        if not all(math.isfinite(value) for row in matrix for value in row):
+            raise ValueError("FakeController calibration Jacobian must be finite")
+        object.__setattr__(self, "jacobian_6x6", matrix)
+
+    def canonical_payload(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "jacobian_6x6": [list(row) for row in self.jacobian_6x6],
+            "frame_id": self.frame_id,
+            "calibration_identity": self.calibration_identity,
+        }
+
+    @property
+    def calibration_sha256(self) -> str:
+        return _payload_sha256(self.canonical_payload())
+
+    def as_json(self) -> dict[str, Any]:
+        return self.canonical_payload() | {"calibration_sha256": self.calibration_sha256}
+
+
+@dataclass(frozen=True)
+class FakeControllerCommand:
+    """A typed commanded-torque transition, distinct from the 12D action."""
+
+    sequence: int
+    timestamp_s: float
+    frame_id: str
+    calibration_identity: str
+    calibration_sha256: str
+    expert_wrench_6d: tuple[float, ...]
+    stiffness_6d: tuple[float, ...]
+    commanded_no_gravity_torque_6d: tuple[float, ...]
+    echoed_action_12d: tuple[float, ...]
+    schema: str = FAKE_CONTROLLER_SCHEMA
+    command_sha256: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.schema != FAKE_CONTROLLER_SCHEMA:
+            raise ValueError("unsupported FakeController command schema")
+        if isinstance(self.sequence, bool) or self.sequence < 0:
+            raise ValueError("FakeController command sequence is invalid")
+        if not math.isfinite(self.timestamp_s) or self.timestamp_s < 0.0:
+            raise ValueError("FakeController command timestamp is invalid")
+        if not self.frame_id.strip() or not self.calibration_identity.strip():
+            raise ValueError("FakeController command identity is incomplete")
+        _sha(self.calibration_sha256, "FakeController calibration_sha256")
+        for name, length in (
+            ("expert_wrench_6d", 6),
+            ("stiffness_6d", 6),
+            ("commanded_no_gravity_torque_6d", 6),
+            ("echoed_action_12d", ACTION_DIMENSION),
+        ):
+            object.__setattr__(self, name, _finite_vector(getattr(self, name), length, name))
+        if tuple(self.echoed_action_12d[:6]) != tuple(self.expert_wrench_6d) or tuple(self.echoed_action_12d[6:]) != tuple(self.stiffness_6d):
+            raise ValueError("FakeController command action/echo channels are inconsistent")
+        expected = _payload_sha256(self.canonical_payload())
+        if self.command_sha256 is not None and self.command_sha256 != expected:
+            raise ValueError("FakeController command hash mismatch")
+        object.__setattr__(self, "command_sha256", expected)
+
+    def canonical_payload(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "sequence": self.sequence,
+            "timestamp_s": self.timestamp_s,
+            "frame_id": self.frame_id,
+            "calibration_identity": self.calibration_identity,
+            "calibration_sha256": self.calibration_sha256,
+            "expert_wrench_6d": list(self.expert_wrench_6d),
+            "stiffness_6d": list(self.stiffness_6d),
+            "commanded_no_gravity_torque_6d": list(self.commanded_no_gravity_torque_6d),
+            "echoed_action_12d": list(self.echoed_action_12d),
+        }
+
+    @classmethod
+    def from_json(cls, value: Mapping[str, Any]) -> "FakeControllerCommand":
+        if not isinstance(value, Mapping):
+            raise ValueError("FakeController command receipt must be an object")
+        return cls(
+            sequence=int(value["sequence"]),
+            timestamp_s=float(value["timestamp_s"]),
+            frame_id=str(value["frame_id"]),
+            calibration_identity=str(value["calibration_identity"]),
+            calibration_sha256=str(value["calibration_sha256"]),
+            expert_wrench_6d=tuple(value["expert_wrench_6d"]),
+            stiffness_6d=tuple(value["stiffness_6d"]),
+            commanded_no_gravity_torque_6d=tuple(value["commanded_no_gravity_torque_6d"]),
+            echoed_action_12d=tuple(value["echoed_action_12d"]),
+            schema=str(value.get("schema", "")),
+            command_sha256=str(value["command_sha256"]) if value.get("command_sha256") is not None else None,
+        )
+
+    def as_json(self) -> dict[str, Any]:
+        return self.canonical_payload() | {"command_sha256": self.command_sha256}
+
+
+class FakeController:
+    """Deterministic typed controller separating action labels from torque."""
+
+    def __init__(self, *, calibration: FakeControllerCalibration | None = None) -> None:
+        self.calibration = calibration or FakeControllerCalibration()
+        self.reset()
+
+    def reset(self) -> None:
+        self._last_command: FakeControllerCommand | None = None
+        self._previous_commanded_no_gravity_torque_nm = (0.0,) * 6
+
+    @property
+    def previous_commanded_no_gravity_torque_nm(self) -> tuple[float, ...]:
+        return self._previous_commanded_no_gravity_torque_nm
+
+    @property
+    def last_command(self) -> FakeControllerCommand | None:
+        return self._last_command
+
+    def command(
+        self,
+        *,
+        sequence: int,
+        timestamp_s: float,
+        action_12d: Sequence[float],
+        echoed_action_12d: Sequence[float],
+    ) -> FakeControllerCommand:
+        action = _finite_vector(action_12d, ACTION_DIMENSION, "FakeController action")
+        echoed = _finite_vector(echoed_action_12d, ACTION_DIMENSION, "FakeController echo")
+        if action != echoed:
+            raise ValueError("FakeController action echo mismatch")
+        if self._last_command is not None:
+            if sequence != self._last_command.sequence + 1:
+                raise ValueError("FakeController command sequence is nonconsecutive")
+            if not math.isclose(timestamp_s - self._last_command.timestamp_s, CONTROL_DT_S, rel_tol=0.0, abs_tol=1e-12):
+                raise ValueError("FakeController command timestamp is not on the 500 Hz grid")
+        wrench = action[:6]
+        stiffness = action[6:]
+        torque = tuple(
+            sum(self.calibration.jacobian_6x6[row][joint] * wrench[row] for row in range(6))
+            for joint in range(6)
+        )
+        command = FakeControllerCommand(
+            sequence=sequence,
+            timestamp_s=float(timestamp_s),
+            frame_id=self.calibration.frame_id,
+            calibration_identity=self.calibration.calibration_identity,
+            calibration_sha256=self.calibration.calibration_sha256,
+            expert_wrench_6d=wrench,
+            stiffness_6d=stiffness,
+            commanded_no_gravity_torque_6d=torque,
+            echoed_action_12d=echoed,
+        )
+        self._last_command = command
+        self._previous_commanded_no_gravity_torque_nm = command.commanded_no_gravity_torque_6d
+        return command
 
 
 @dataclass(frozen=True)
@@ -241,18 +545,19 @@ class DeterministicFakeRTDE:
     tcp_identity = "offline-tcp-model-v1"
     calibration_identity = "offline-dynamics-calibration-v1"
 
-    def __init__(self, *, seed: int = 42) -> None:
+    def __init__(self, *, seed: int = 42, controller: FakeController | None = None) -> None:
         if seed < 0:
             raise ValueError("FakeRTDE seed must be non-negative")
         self.seed = int(seed)
         self.source_hashes = dict(SOURCE_IDENTITIES)
+        self.controller = controller or FakeController()
         self.reset()
 
     def reset(self) -> None:
         self._last_sequence: int | None = None
         self._last_timestamp_s: float | None = None
-        self._previous_action_12d = (0.0,) * ACTION_DIMENSION
         self._echoed_action_12d = (0.0,) * ACTION_DIMENSION
+        self.controller.reset()
 
     @property
     def echoed_action_12d(self) -> tuple[float, ...]:
@@ -270,13 +575,21 @@ class DeterministicFakeRTDE:
             assert self._last_timestamp_s is not None
             if not math.isclose(timestamp - self._last_timestamp_s, CONTROL_DT_S, rel_tol=0.0, abs_tol=1e-12):
                 raise ValueError("FakeRTDE timestamp is not on the 500 Hz grid")
+        previous_torque = self.controller.previous_commanded_no_gravity_torque_nm
+        if sequence == 0 and self.controller.last_command is not None:
+            raise ValueError("FakeRTDE sequence zero has stale controller state")
+        if sequence > 0 and (
+            self.controller.last_command is None
+            or self.controller.last_command.sequence != sequence - 1
+        ):
+            raise ValueError("FakeRTDE feedback is not causally bound to the previous controller command")
         phase = 0.031 * (self.seed + 1) + 0.17 * sequence
         previous_q = tuple(0.02 * math.sin(phase + axis * 0.13) for axis in range(6))
         previous_qd = tuple(0.01 * math.cos(phase + axis * 0.11) for axis in range(6))
         coriolis = tuple(0.01 * (axis + 1) + 0.0001 * sequence for axis in range(6))
         damping = tuple(0.005 * (axis + 1) for axis in range(6))
         actual_current = tuple(
-            self._previous_action_12d[axis] + 0.01 * math.sin(phase + axis)
+            previous_torque[axis] + 0.01 * math.sin(phase + axis)
             for axis in range(6)
         )
         sample = DynamicsSample(
@@ -284,11 +597,8 @@ class DeterministicFakeRTDE:
             timestamp_s=timestamp,
             previous_q=previous_q,
             previous_qd=previous_qd,
-            previous_commanded_no_gravity_torque_nm=self._previous_action_12d[:6],
-            calibrated_jacobian=tuple(
-                tuple(1.0 if row == column else 0.0 for column in range(6))
-                for row in range(6)
-            ),
+            previous_commanded_no_gravity_torque_nm=previous_torque,
+            calibrated_jacobian=self.controller.calibration.jacobian_6x6,
             coriolis_torque_nm=coriolis,
             joint_damping_torque_nm=damping,
             source_hashes=self.source_hashes,
@@ -312,7 +622,6 @@ class DeterministicFakeRTDE:
         if self._last_sequence != sequence:
             raise ValueError("FakeRTDE action sequence does not match the current tick")
         action = _finite_vector(action_12d, ACTION_DIMENSION, "FakeRTDE action")
-        self._previous_action_12d = action
         self._echoed_action_12d = action
         return action
 
@@ -399,8 +708,8 @@ class OfflineReferenceReceipt:
     target_load_n: float
     preload_n: float
     reference_sample_id: str
+    controller_command_receipt: Mapping[str, Any] | None = None
     schema: str = OFFLINE_REFERENCE_RECEIPT_SCHEMA
-    reference_sha256: str | None = None
 
     def __post_init__(self) -> None:
         if self.schema != OFFLINE_REFERENCE_RECEIPT_SCHEMA:
@@ -415,10 +724,10 @@ class OfflineReferenceReceipt:
             raise ValueError("offline reference load is invalid")
         if not self.reference_sample_id.strip():
             raise ValueError("offline reference sample identity is required")
-        expected = _payload_sha256(self.canonical_payload())
-        if self.reference_sha256 is not None and self.reference_sha256 != expected:
-            raise ValueError("offline reference receipt hash mismatch")
-        object.__setattr__(self, "reference_sha256", expected)
+        if self.controller_command_receipt is not None:
+            command = FakeControllerCommand.from_json(self.controller_command_receipt)
+            if command.sequence != self.sequence or not math.isclose(command.timestamp_s, self.timestamp_s, rel_tol=0.0, abs_tol=1e-12):
+                raise ValueError("offline reference/controller command identity mismatch")
 
     @classmethod
     def for_tick(cls, *, episode_id: str, family: str, seed: int, sequence: int, timestamp_s: float) -> "OfflineReferenceReceipt":
@@ -476,10 +785,14 @@ class OfflineReferenceReceipt:
             "target_load_n": self.target_load_n,
             "preload_n": self.preload_n,
             "reference_sample_id": self.reference_sample_id,
+            "controller_command_receipt": None if self.controller_command_receipt is None else dict(self.controller_command_receipt),
         }
 
+    def as_typed(self) -> ReferenceReceipt:
+        return ReferenceReceipt(schema=self.schema, payload=self.canonical_payload())
+
     def as_json(self) -> dict[str, Any]:
-        return self.canonical_payload() | {"reference_sha256": self.reference_sha256}
+        return self.as_typed().as_json()
 
 
 @dataclass(frozen=True)
@@ -493,7 +806,6 @@ class OfflineObservationReceipt:
     current_observation_42d: tuple[float, ...]
     lineage: Mapping[str, Any]
     schema: str = OFFLINE_OBSERVATION_RECEIPT_SCHEMA
-    observation_sha256: str | None = None
 
     def __post_init__(self) -> None:
         if self.schema != OFFLINE_OBSERVATION_RECEIPT_SCHEMA:
@@ -506,10 +818,6 @@ class OfflineObservationReceipt:
         object.__setattr__(self, "current_observation_42d", _finite_vector(self.current_observation_42d, OBSERVATION_SLICE_DIMENSION, "current_observation_42d"))
         if not isinstance(self.lineage, Mapping) or not str(self.lineage.get("schema", "")).strip():
             raise ValueError("offline observation lineage receipt is invalid")
-        expected = _payload_sha256(self.canonical_payload())
-        if self.observation_sha256 is not None and self.observation_sha256 != expected:
-            raise ValueError("offline observation receipt hash mismatch")
-        object.__setattr__(self, "observation_sha256", expected)
 
     @classmethod
     def from_observation(cls, episode_id: str, observation: TacDiffusionObservation) -> "OfflineObservationReceipt":
@@ -554,8 +862,11 @@ class OfflineObservationReceipt:
             "lineage": dict(self.lineage),
         }
 
+    def as_typed(self) -> ObservationReceipt:
+        return ObservationReceipt(schema=self.schema, payload=self.canonical_payload())
+
     def as_json(self) -> dict[str, Any]:
-        return self.canonical_payload() | {"observation_sha256": self.observation_sha256}
+        return self.as_typed().as_json()
 
 
 @dataclass(frozen=True)
@@ -564,11 +875,20 @@ class OfflineControlOutput:
     expert_action_12d: tuple[float, ...]
     applied_action_12d: tuple[float, ...]
     echoed_action_12d: tuple[float, ...]
+    commanded_no_gravity_torque_6d: tuple[float, ...] = (0.0,) * 6
+    controller_command_sha256: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "observation_84d", _finite_vector(self.observation_84d, OBSERVATION_DIMENSION, "observation_84d"))
         for name in ("expert_action_12d", "applied_action_12d", "echoed_action_12d"):
             object.__setattr__(self, name, _finite_vector(getattr(self, name), ACTION_DIMENSION, name))
+        object.__setattr__(
+            self,
+            "commanded_no_gravity_torque_6d",
+            _finite_vector(self.commanded_no_gravity_torque_6d, 6, "commanded_no_gravity_torque_6d"),
+        )
+        if self.controller_command_sha256:
+            _sha(self.controller_command_sha256, "controller_command_sha256")
 
 
 @dataclass(frozen=True)
@@ -592,7 +912,8 @@ class DeterministicOfflineEpisodeAssembler:
         if not hasattr(self.action_provider, "reset"):
             raise TypeError("offline action provider must expose reset()")
         self.force_filter = force_filter or RateInvariantForceFilter()
-        self.fake_rtde = DeterministicFakeRTDE(seed=self.seed)
+        self.controller = FakeController()
+        self.fake_rtde = DeterministicFakeRTDE(seed=self.seed, controller=self.controller)
         self.synthetic_kunwei = SyntheticKunweiDriver(seed=self.seed)
         self.expert_reset_count = 0
         self.filter_reset_count = 0
@@ -700,7 +1021,18 @@ class DeterministicOfflineEpisodeAssembler:
             )
             label = self.action_provider.produce(action_context)
             self.force_filter.step(label.expert_action_12d[:6], dt_s=CONTROL_DT_S)
-            echoed = self.fake_rtde.echo_action(sequence, label.expert_action_12d)
+            rtde_echo = self.fake_rtde.echo_action(sequence, label.expert_action_12d)
+            command = self.controller.command(
+                sequence=sequence,
+                timestamp_s=control_timestamp,
+                action_12d=label.expert_action_12d,
+                echoed_action_12d=rtde_echo,
+            )
+            reference = replace(
+                reference,
+                controller_command_receipt=command.as_json(),
+            )
+            echoed = command.echoed_action_12d
             current_observation = None
             if previous_slice is not None:
                 current_observation = TacDiffusionObservation(previous_slice, slice_value)
@@ -753,8 +1085,8 @@ class DeterministicOfflineEpisodeAssembler:
                     action_label=label,
                     identity_enabled=True,
                     semantic_context_fingerprint_sha256=semantic_context.fingerprint_sha256,
-                    observation_receipt=observation_receipt.as_json(),
-                    reference_receipt=reference.as_json(),
+                    observation_receipt=observation_receipt.as_typed(),
+                    reference_receipt=reference.as_typed(),
                 )
                 frames.append(frame)
                 outputs.append(
@@ -763,6 +1095,8 @@ class DeterministicOfflineEpisodeAssembler:
                         expert_action_12d=label.expert_action_12d,
                         applied_action_12d=label.expert_action_12d,
                         echoed_action_12d=echoed,
+                        commanded_no_gravity_torque_6d=command.commanded_no_gravity_torque_6d,
+                        controller_command_sha256=str(command.command_sha256),
                     )
                 )
             previous_sample = tick.dynamics_sample
@@ -772,8 +1106,23 @@ class DeterministicOfflineEpisodeAssembler:
         return OfflineComposedEpisode(tuple(frames), tuple(outputs))
 
 
+def _control_output_from_row(row: Mapping[str, Any]) -> OfflineControlOutput:
+    reference = ReferenceReceipt.from_json(row.get("reference_receipt"))
+    payload = reference.payload
+    command_payload = payload.get("controller_command_receipt")
+    command = FakeControllerCommand.from_json(command_payload)
+    return OfflineControlOutput(
+        observation_84d=tuple(row["observation_84d"]),
+        expert_action_12d=tuple(row["expert_action_12d"]),
+        applied_action_12d=tuple(row["applied_action_12d"]),
+        echoed_action_12d=tuple(row["echoed_action_12d"]),
+        commanded_no_gravity_torque_6d=command.commanded_no_gravity_torque_6d,
+        controller_command_sha256=str(command.command_sha256),
+    )
+
+
 def prove_recorder_sidecar_identity(*, seed: int = 42) -> dict[str, Any]:
-    """Prove that recorder/sidecar enablement does not alter control output."""
+    """Exercise the real recorder and prove it is an algebraic control identity."""
 
     episode_id = "offline-identity-proof"
     context = EpisodeSemanticContext.diagnostic(
@@ -795,7 +1144,34 @@ def prove_recorder_sidecar_identity(*, seed: int = 42) -> dict[str, Any]:
         semantic_context=context,
         reset_state=True,
     )
-    enabled_payload = [output.__dict__ for output in enabled.control_outputs]
+
+    with tempfile.TemporaryDirectory(prefix="tacdiffusion-recorder-proof-") as temporary:
+        recorder_directory = Path(temporary) / "enabled"
+        recorder = EpisodeRecorder(
+            recorder_directory,
+            episode_id=episode_id,
+            semantic_context=context,
+            metadata={"fixture_only": True, "production_promotion_allowed": False},
+        )
+        recorder.start()
+        try:
+            for frame in enabled.frames:
+                if not recorder.enqueue(frame):
+                    raise RuntimeError("recorder identity proof enqueue failed")
+            seal = recorder.close(seal=True)
+        except Exception:
+            recorder.close(seal=False)
+            raise
+        if seal is None:
+            raise RuntimeError("recorder identity proof did not seal")
+        validate_sealed_episode_manifest(recorder.artifact_path, recorder.manifest_path)
+        header, rows = read_episode_artifact(recorder.artifact_path)
+        health = read_recorder_health(recorder.health_path)
+        if header.get("schema") != "ur10e_tacdiffusion_episode_artifact/v3" or health["health"].get("sealed") is not True:
+            raise RuntimeError("recorder identity proof did not read a sealed healthy artifact")
+        readback_outputs = tuple(_control_output_from_row(row) for row in rows)
+
+    enabled_payload = [output.__dict__ for output in readback_outputs]
     disabled_payload = [output.__dict__ for output in disabled.control_outputs]
     enabled_digest = _payload_sha256({"outputs": enabled_payload})
     disabled_digest = _payload_sha256({"outputs": disabled_payload})
@@ -803,9 +1179,11 @@ def prove_recorder_sidecar_identity(*, seed: int = 42) -> dict[str, Any]:
         "schema": "ur10e_tacdiffusion_offline_sidecar_identity/v1",
         "recorder_enabled_digest": enabled_digest,
         "recorder_disabled_digest": disabled_digest,
-        "identical": enabled.control_outputs == disabled.control_outputs,
-        "observation_action_rows": len(enabled.control_outputs),
-        "disabled_recorder_is_identity": enabled.control_outputs == disabled.control_outputs,
+        "recorder_readback_digest": _payload_sha256({"outputs": enabled_payload}),
+        "identical": readback_outputs == disabled.control_outputs,
+        "observation_action_rows": len(readback_outputs),
+        "disabled_recorder_is_identity": readback_outputs == disabled.control_outputs,
+        "real_recorder_exercised": True,
     }
 
 
@@ -892,12 +1270,30 @@ class RecoveryReceipt:
     def __post_init__(self) -> None:
         if self.schema != OFFLINE_RECOVERY_RECEIPT_SCHEMA:
             raise ValueError("unsupported recovery receipt schema")
-        if self.cycles != CAMPAIGN_RECOVERY_CYCLES:
-            raise ValueError("recovery receipt must contain exactly 100 cycles")
-        if self.interrupted_cycles != self.retried_cycles or self.reopen_count < self.interrupted_cycles:
-            raise ValueError("recovery interruption/retry counters are inconsistent")
-        if self.duplicate_eligibility_promotions != 0 or self.final_pending_count != 0 or self.queue_drained is not True:
-            raise ValueError("recovery receipt is not drained or promoted exactly once")
+        expected = {
+            "cycles": CAMPAIGN_RECOVERY_CYCLES,
+            "interrupted_cycles": 50,
+            "retried_cycles": 50,
+            "reopen_count": 200,
+            "duplicate_enqueue_attempts": 100,
+            "idempotent_consume_attempts": 100,
+            "duplicate_eligibility_promotions": 0,
+            "final_pending_count": 0,
+            "queue_drained": True,
+        }
+        actual = {
+            "cycles": self.cycles,
+            "interrupted_cycles": self.interrupted_cycles,
+            "retried_cycles": self.retried_cycles,
+            "reopen_count": self.reopen_count,
+            "duplicate_enqueue_attempts": self.duplicate_enqueue_attempts,
+            "idempotent_consume_attempts": self.idempotent_consume_attempts,
+            "duplicate_eligibility_promotions": self.duplicate_eligibility_promotions,
+            "final_pending_count": self.final_pending_count,
+            "queue_drained": self.queue_drained,
+        }
+        if actual != expected:
+            raise ValueError("recovery receipt does not contain the exact executed 100-cycle result")
         expected = _payload_sha256(self.canonical_payload())
         if self.receipt_sha256 is not None and self.receipt_sha256 != expected:
             raise ValueError("recovery receipt hash mismatch")
@@ -1015,6 +1411,8 @@ class FixtureEpisodeArtifact:
         status = str(receipt.get("status", ""))
         if not episode_id.strip() or family not in TRAJECTORY_FAMILIES or status not in {"completed", "failed"}:
             raise ValueError("offline episode receipt identity is invalid")
+        if receipt.get("sealed") is not True or receipt.get("fixture_only") is not True or receipt.get("production_promotion_allowed") is not False:
+            raise ValueError("offline episode receipt boundary/seal is invalid")
         artifact = root / str(receipt.get("artifact", "episode_v3.jsonl"))
         manifest = root / str(receipt.get("manifest", "episode_v3.manifest.json"))
         health = root / str(receipt.get("health", "recorder_health.json"))
@@ -1026,6 +1424,16 @@ class FixtureEpisodeArtifact:
                 raise ValueError(f"offline episode artifact is incomplete: {path}")
         if failure is not None and not failure.is_file():
             raise ValueError("offline failed episode is missing its failure receipt")
+        if status == "failed" and (failure is None or not str(receipt.get("failure_reason", "")).strip()):
+            raise ValueError("failed offline episode receipt is incomplete")
+        if status == "completed" and (failure is not None or receipt.get("failure_reason") is not None):
+            raise ValueError("completed offline episode carries failure evidence")
+        if status == "failed":
+            _validate_failure_receipt(
+                failure,
+                episode_id=episode_id,
+                reason=str(receipt["failure_reason"]),
+            )
         return cls(
             episode_id=episode_id,
             family=family,
@@ -1099,6 +1507,9 @@ def _episode_rows_for_dataset(
     for row in rows:
         if row.get("episode_id") != episode.episode_id or row.get("schema") != "ur10e_tacdiffusion_episode_frame/v3":
             raise ValueError("episode row identity/schema mismatch")
+        row_sha = _sha(row.get("row_sha256"), "row_sha256")
+        if row_sha != compute_v3_row_sha256(row):
+            raise ValueError("canonical v3 row_sha256 mismatch")
         if row.get("identity_enabled") is not True or row.get("typed_receipts_valid") is not True:
             raise ValueError("episode row does not carry valid v3 typed receipts")
         observation = row.get("observation_84d")
@@ -1112,13 +1523,32 @@ def _episode_rows_for_dataset(
         dynamics = row.get("dynamics_receipt")
         if not isinstance(dynamics, Mapping) or dynamics.get("valid") is not True or dynamics.get("source_kind") != "offline_fake_rtde" or dynamics.get("fixture_identity") != OFFLINE_FAKE_RTDE_FIXTURE_ID:
             raise ValueError("offline fixture dynamics receipt is invalid")
-        if not isinstance(row.get("observation_receipt"), Mapping) or not isinstance(row.get("reference_receipt"), Mapping):
+        observation_receipt = ObservationReceipt.from_json(row.get("observation_receipt"))
+        reference_receipt = ReferenceReceipt.from_json(row.get("reference_receipt"))
+        observation_payload = observation_receipt.payload
+        reference_payload = reference_receipt.payload
+        if observation_receipt.schema != OFFLINE_OBSERVATION_RECEIPT_SCHEMA or reference_receipt.schema != OFFLINE_REFERENCE_RECEIPT_SCHEMA:
             raise ValueError("offline fixture row is missing lineage/reference receipts")
-        if not _sha(row.get("row_seal_sha256"), "row_seal_sha256"):
-            raise ValueError("offline fixture row seal is missing")
+        if observation_payload.get("episode_id") != episode.episode_id or reference_payload.get("episode_id") != episode.episode_id:
+            raise ValueError("typed observation/reference receipt episode identity mismatch")
+        if observation_payload.get("current_sequence") != row.get("control_sequence") or not math.isclose(float(observation_payload.get("current_timestamp_s")), float(row.get("control_time_s")), rel_tol=0.0, abs_tol=1e-12):
+            raise ValueError("typed observation receipt sequence/timestamp mismatch")
+        if tuple(observation_payload.get("current_observation_42d", ())) != tuple(observation[:OBSERVATION_SLICE_DIMENSION]) or tuple(observation_payload.get("previous_observation_42d", ())) != tuple(observation[OBSERVATION_SLICE_DIMENSION:]):
+            raise ValueError("typed observation receipt does not bind the 84D row")
+        if reference_payload.get("family") != episode.family or reference_payload.get("sequence") != row.get("control_sequence") or reference_payload.get("reference_sample_id") != row.get("reference_sample_id"):
+            raise ValueError("typed reference receipt does not bind the row")
+        command = FakeControllerCommand.from_json(reference_payload.get("controller_command_receipt"))
+        if command.sequence != row.get("control_sequence") or not math.isclose(command.timestamp_s, float(row.get("control_time_s")), rel_tol=0.0, abs_tol=1e-12):
+            raise ValueError("controller command sequence/timestamp is not row-bound")
+        if tuple(command.echoed_action_12d) != tuple(row.get("echoed_action_12d", ())):
+            raise ValueError("controller command echo is not row-bound")
+        if row.get("controller_echo_12d") != row.get("echoed_action_12d"):
+            raise ValueError("controller echo is not exact")
         action_label = row.get("action_label")
         if not isinstance(action_label, Mapping) or action_label.get("available") is not True:
             raise ValueError("offline fixture expert action label is unavailable")
+        if row.get("sample_index") is None or int(row["sample_index"]) < 0:
+            raise ValueError("offline fixture sample index is invalid")
         if expected_split not in {"train", "validation", "test"}:
             raise ValueError("offline fixture split is invalid")
     return rows, eligibility
@@ -1154,7 +1584,7 @@ def _write_deterministic_npz(path: Path, arrays: Mapping[str, np.ndarray]) -> No
 
 
 OFFLINE_DATASET_FIELDS = frozenset(
-    {"observations", "actions", "episode_ids", "splits", "timestamps_s", "row_seal_sha256", "episode_artifact_sha256"}
+    {"observations", "actions", "episode_ids", "splits", "sample_indices", "timestamps_s", "row_sha256", "episode_artifact_sha256"}
 )
 OFFLINE_DATASET_MANIFEST_FIELDS = frozenset(
     {
@@ -1169,6 +1599,7 @@ OFFLINE_DATASET_MANIFEST_FIELDS = frozenset(
         "episode_count",
         "episode_order",
         "episode_split",
+        "sample_index_shape",
         "split_row_counts",
         "split_episode_counts",
         "split_seed",
@@ -1180,7 +1611,8 @@ OFFLINE_DATASET_MANIFEST_FIELDS = frozenset(
         "production_promotion_allowed",
         "split_frozen_before_training",
         "episode_grouped_split_verified",
-        "row_seals_verified",
+        "row_sha256_verified",
+        "source_receipt_sha256",
         "legacy_dimensions_rejected",
         "manifest_sha256",
     }
@@ -1201,36 +1633,52 @@ def _load_episode_artifacts(episodes: Sequence[FixtureEpisodeArtifact | str | Pa
     return tuple(result)
 
 
-def build_offline_fixture_dataset(
-    dataset_path: str | Path,
-    *,
-    episodes: Sequence[FixtureEpisodeArtifact | str | Path],
-    frozen_split: FrozenEpisodeSplit,
-    source_identities: Mapping[str, str] = SOURCE_IDENTITIES,
-    manifest_path: str | Path | None = None,
-) -> dict[str, Any]:
-    """Build an NPZ only from sealed, eligible v3 episode artifacts."""
+def _validate_retained_failed_episode(episode: FixtureEpisodeArtifact) -> None:
+    if episode.status != "failed":
+        raise ValueError("retained failed episode validator received an eligible episode")
+    if episode.failure_path is None or episode.failure_reason is None:
+        raise ValueError("failed episode evidence is incomplete")
+    if _file_sha256(episode.artifact_path) != episode.artifact_sha256:
+        raise ValueError("failed episode artifact hash mismatch")
+    if _file_sha256(episode.manifest_path) != episode.manifest_sha256:
+        raise ValueError("failed episode manifest hash mismatch")
+    if _file_sha256(episode.eligibility_path) != episode.eligibility_sha256:
+        raise ValueError("failed episode eligibility hash mismatch")
+    validate_sealed_episode_manifest(episode.artifact_path, episode.manifest_path)
+    _validate_eligibility_receipt(episode.eligibility_path, episode_id=episode.episode_id)
+    failure = _validate_failure_receipt(
+        episode.failure_path,
+        episode_id=episode.episode_id,
+        reason=episode.failure_reason,
+    )
+    if failure.get("artifact_sha256") != episode.artifact_sha256 or failure.get("dataset_membership") is not False:
+        raise ValueError("failed episode evidence is not bound to exclusion")
 
-    if not isinstance(frozen_split, FrozenEpisodeSplit):
-        raise TypeError("offline fixture dataset requires a FrozenEpisodeSplit")
-    artifact_values = _load_episode_artifacts(episodes)
-    if set(frozen_split.episode_split) != {episode.episode_id for episode in artifact_values}:
-        raise ValueError("frozen split must cover exactly the eligible episodes")
-    identities = {str(key): _sha(value, f"source_identities[{key}]") for key, value in source_identities.items()}
-    if set(identities) != set(SOURCE_IDENTITIES):
-        raise ValueError("offline fixture source identities are incomplete")
+
+def _expected_dataset_arrays(
+    artifacts: Mapping[str, FixtureEpisodeArtifact],
+    *,
+    episode_order: Sequence[str],
+    episode_split: Mapping[str, str],
+) -> tuple[dict[str, np.ndarray], dict[str, str]]:
     observations: list[list[float]] = []
     actions: list[list[float]] = []
     episode_ids: list[str] = []
     splits: list[str] = []
+    sample_indices: list[int] = []
     timestamps: list[float] = []
-    row_seals: list[str] = []
+    row_shas: list[str] = []
     artifact_hashes: list[str] = []
     source_artifacts: dict[str, str] = {}
-    for episode in artifact_values:
-        sample_split = frozen_split.episode_split[episode.episode_id]
+    for episode_id in episode_order:
+        episode = artifacts.get(episode_id)
+        if episode is None or episode.status != "completed":
+            raise ValueError("dataset source episodes are not exactly the eligible sealed episodes")
+        sample_split = episode_split.get(episode_id)
+        if sample_split is None:
+            raise ValueError("dataset source episode is absent from the frozen split")
         rows, _ = _episode_rows_for_dataset(episode, expected_split=sample_split)
-        source_artifacts[episode.episode_id] = episode.artifact_sha256
+        source_artifacts[episode_id] = episode.artifact_sha256
         previous_timestamp = -math.inf
         for row in rows:
             timestamp = float(row["control_time_s"])
@@ -1239,25 +1687,64 @@ def build_offline_fixture_dataset(
             previous_timestamp = timestamp
             observations.append([float(value) for value in row["observation_84d"]])
             actions.append([float(value) for value in row["expert_action_12d"]])
-            episode_ids.append(episode.episode_id)
+            episode_ids.append(episode_id)
             splits.append(sample_split)
+            sample_indices.append(int(row["sample_index"]))
             timestamps.append(timestamp)
-            row_seals.append(str(row["row_seal_sha256"]))
-            artifact_hashes.append(episode.artifact_sha256)
-    dataset = Path(dataset_path)
-    _write_deterministic_npz(
-        dataset,
+            row_shas.append(_sha(row["row_sha256"], "row_sha256"))
+            artifact_hashes.append(_sha(episode.artifact_sha256, "episode_artifact_sha256"))
+    return (
         {
             "observations": np.asarray(observations, dtype=np.float32),
             "actions": np.asarray(actions, dtype=np.float32),
             "episode_ids": np.asarray(episode_ids, dtype=np.str_),
             "splits": np.asarray(splits, dtype=np.str_),
+            "sample_indices": np.asarray(sample_indices, dtype=np.int64),
             "timestamps_s": np.asarray(timestamps, dtype=np.float64),
-            "row_seal_sha256": np.asarray(row_seals, dtype=np.str_),
+            "row_sha256": np.asarray(row_shas, dtype=np.str_),
             "episode_artifact_sha256": np.asarray(artifact_hashes, dtype=np.str_),
         },
+        source_artifacts,
     )
-    split_row_counts = {name: int(sum(value == name for value in splits)) for name in ("train", "validation", "test")}
+
+
+def build_offline_fixture_dataset(
+    dataset_path: str | Path,
+    *,
+    episodes: Sequence[FixtureEpisodeArtifact | str | Path],
+    frozen_split: FrozenEpisodeSplit,
+    source_receipt: Mapping[str, Any] | None = None,
+    manifest_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """Build an NPZ only from sealed, eligible v3 episode artifacts."""
+
+    if not isinstance(frozen_split, FrozenEpisodeSplit):
+        raise TypeError("offline fixture dataset requires a FrozenEpisodeSplit")
+    artifact_values = _load_episode_artifacts(episodes)
+    failed = tuple(episode for episode in artifact_values if episode.status == "failed")
+    for episode in failed:
+        _validate_retained_failed_episode(episode)
+    eligible = tuple(episode for episode in artifact_values if episode.status == "completed")
+    if failed and set(frozen_split.episode_split).intersection(episode.episode_id for episode in failed):
+        raise ValueError("failed episodes cannot enter the frozen split")
+    if set(frozen_split.episode_split) != {episode.episode_id for episode in eligible}:
+        raise ValueError("frozen split must cover exactly the eligible episodes")
+    source = dict(source_receipt) if source_receipt is not None else _source_receipt()
+    identities = _validate_source_receipt(source)
+    arrays, source_artifacts = _expected_dataset_arrays(
+        {episode.episode_id: episode for episode in eligible},
+        episode_order=[episode.episode_id for episode in eligible],
+        episode_split=frozen_split.episode_split,
+    )
+    dataset = Path(dataset_path)
+    _write_deterministic_npz(dataset, arrays)
+    observations = arrays["observations"]
+    actions = arrays["actions"]
+    episode_ids = arrays["episode_ids"]
+    splits = arrays["splits"]
+    sample_indices = arrays["sample_indices"]
+    timestamps = arrays["timestamps_s"]
+    split_row_counts = {name: int(sum(value == name for value in splits.tolist())) for name in ("train", "validation", "test")}
     split_episode_counts = {
         name: int(sum(value == name for value in frozen_split.episode_split.values()))
         for name in ("train", "validation", "test")
@@ -1272,8 +1759,9 @@ def build_offline_fixture_dataset(
         "observation_shape": [len(observations), OBSERVATION_DIMENSION],
         "action_shape": [len(actions), ACTION_DIMENSION],
         "episode_count": len(frozen_split.episode_split),
-        "episode_order": [episode.episode_id for episode in artifact_values],
+        "episode_order": [episode.episode_id for episode in eligible],
         "episode_split": dict(frozen_split.episode_split),
+        "sample_index_shape": [int(sample_indices.shape[0])],
         "split_row_counts": split_row_counts,
         "split_episode_counts": split_episode_counts,
         "split_seed": frozen_split.seed,
@@ -1285,8 +1773,9 @@ def build_offline_fixture_dataset(
         "production_promotion_allowed": False,
         "split_frozen_before_training": True,
         "episode_grouped_split_verified": True,
-        "row_seals_verified": True,
+        "row_sha256_verified": True,
         "legacy_dimensions_rejected": {"condition_36d_action_6d": True, "accepted": False},
+        "source_receipt_sha256": source["source_receipt_sha256"],
     }
     manifest["manifest_sha256"] = _payload_sha256(manifest)
     target_manifest = Path(manifest_path) if manifest_path is not None else dataset.with_suffix(".manifest.json")
@@ -1299,6 +1788,7 @@ def validate_offline_fixture_dataset(
     manifest_path: str | Path,
     *,
     episodes: Sequence[FixtureEpisodeArtifact | str | Path] | None = None,
+    source_root: str | Path | None = None,
 ) -> dict[str, Any]:
     path = Path(dataset_path)
     manifest = _read_json(Path(manifest_path))
@@ -1310,10 +1800,28 @@ def validate_offline_fixture_dataset(
         raise ValueError("offline fixture dataset cannot be promoted")
     unsigned = dict(manifest)
     supplied_manifest_hash = unsigned.pop("manifest_sha256", None)
-    if supplied_manifest_hash != _payload_sha256(unsigned):
+    if _sha(supplied_manifest_hash, "manifest_sha256") != _payload_sha256(unsigned):
         raise ValueError("offline fixture dataset manifest hash mismatch")
-    if manifest.get("dataset_sha256") != _file_sha256(path):
+    _sha(manifest.get("dataset_sha256"), "dataset_sha256")
+    if manifest.get("dataset_artifact") != path.name or manifest.get("dataset_sha256") != _file_sha256(path):
         raise ValueError("offline fixture dataset artifact hash mismatch")
+    current_source = _source_receipt(repository_root=Path(source_root) if source_root is not None else None)
+    current_identities = _validate_source_receipt(
+        current_source,
+        repository_root=Path(source_root) if source_root is not None else None,
+    )
+    if _sha(manifest.get("source_receipt_sha256"), "source_receipt_sha256") != current_source["source_receipt_sha256"]:
+        raise ValueError("offline fixture dataset source receipt drift")
+    manifest_identities = manifest.get("source_identities")
+    if not isinstance(manifest_identities, Mapping) or dict(manifest_identities) != current_identities:
+        raise ValueError("offline fixture dataset source identities are not current source bytes")
+    source_artifact_manifest = manifest.get("source_episode_artifact_hashes")
+    if not isinstance(source_artifact_manifest, Mapping):
+        raise ValueError("offline fixture dataset source artifact closure is invalid")
+    for key, value in source_artifact_manifest.items():
+        if not str(key).strip():
+            raise ValueError("offline fixture dataset source episode identity is invalid")
+        _sha(value, f"source_episode_artifact_hashes[{key}]")
     with np.load(path, allow_pickle=False) as archive:
         if set(archive.files) != OFFLINE_DATASET_FIELDS:
             raise ValueError("offline fixture dataset fields are missing or extra")
@@ -1321,20 +1829,23 @@ def validate_offline_fixture_dataset(
         actions = archive["actions"]
         episode_ids = archive["episode_ids"]
         splits = archive["splits"]
+        sample_indices = archive["sample_indices"]
         timestamps = archive["timestamps_s"]
-        row_seals = archive["row_seal_sha256"]
+        row_shas = archive["row_sha256"]
         artifact_hashes = archive["episode_artifact_sha256"]
         if observations.dtype != np.float32 or observations.ndim != 2 or observations.shape[1] != OBSERVATION_DIMENSION:
             raise ValueError("offline fixture observations are not [N,84] float32")
         if actions.dtype != np.float32 or actions.ndim != 2 or actions.shape != (observations.shape[0], ACTION_DIMENSION):
             raise ValueError("offline fixture actions are not [N,12] float32")
+        if sample_indices.dtype != np.int64 or sample_indices.shape != (observations.shape[0],):
+            raise ValueError("offline fixture sample indices have the wrong shape/dtype")
         if timestamps.dtype != np.float64 or timestamps.shape != (observations.shape[0],):
             raise ValueError("offline fixture timestamps have the wrong shape/dtype")
-        if episode_ids.shape != (observations.shape[0],) or splits.shape != (observations.shape[0],) or row_seals.shape != (observations.shape[0],) or artifact_hashes.shape != (observations.shape[0],):
+        if episode_ids.shape != (observations.shape[0],) or splits.shape != (observations.shape[0],) or row_shas.shape != (observations.shape[0],) or artifact_hashes.shape != (observations.shape[0],):
             raise ValueError("offline fixture row metadata lengths do not match")
         if not np.isfinite(observations).all() or not np.isfinite(actions).all() or not np.isfinite(timestamps).all():
             raise ValueError("offline fixture dataset contains non-finite values")
-        if np.any(timestamps < 0.0):
+        if np.any(sample_indices < 0) or np.any(timestamps < 0.0):
             raise ValueError("offline fixture timestamps must be non-negative")
         episode_values = [str(value) for value in episode_ids.tolist()]
         split_values = [str(value) for value in splits.tolist()]
@@ -1342,10 +1853,12 @@ def validate_offline_fixture_dataset(
             raise ValueError("offline fixture dataset contains an invalid split")
         episode_split: dict[str, str] = {}
         last_timestamp: dict[str, float] = {}
-        for episode_id, split, timestamp in zip(episode_values, split_values, timestamps.tolist()):
+        for episode_id, split, sample_index, timestamp in zip(episode_values, split_values, sample_indices.tolist(), timestamps.tolist()):
             if episode_id in episode_split and episode_split[episode_id] != split:
                 raise ValueError("offline fixture dataset has episode row leakage")
             episode_split.setdefault(episode_id, split)
+            if sample_index < 0:
+                raise ValueError("offline fixture sample index is invalid")
             if episode_id in last_timestamp and float(timestamp) <= last_timestamp[episode_id]:
                 raise ValueError("offline fixture timestamps must increase within each episode")
             last_timestamp[episode_id] = float(timestamp)
@@ -1355,11 +1868,23 @@ def validate_offline_fixture_dataset(
             raise ValueError("offline fixture frozen split mismatch")
         if manifest.get("episode_order") != list(dict.fromkeys(episode_values)):
             raise ValueError("offline fixture episode ordering mismatch")
+        if manifest.get("sample_index_shape") != [int(sample_indices.shape[0])]:
+            raise ValueError("offline fixture sample index shape mismatch")
         if manifest.get("observation_shape") != [int(value) for value in observations.shape] or manifest.get("action_shape") != [int(value) for value in actions.shape]:
             raise ValueError("offline fixture dataset shape mismatch")
-        if any(not isinstance(value, str) or len(value) != 64 for value in row_seals.tolist()):
-            raise ValueError("offline fixture row seal metadata is invalid")
-        if any(not isinstance(value, str) or len(value) != 64 for value in artifact_hashes.tolist()):
+        for value in row_shas.tolist():
+            _sha(value, "row_sha256")
+        for value in artifact_hashes.tolist():
+            _sha(value, "episode_artifact_sha256")
+        if manifest.get("row_sha256_verified") is not True:
+            raise ValueError("offline fixture row_sha256 verification flag is missing")
+        expected_split_counts = {name: int(sum(value == name for value in split_values)) for name in ("train", "validation", "test")}
+        expected_episode_counts = {name: int(sum(value == name for value in episode_split.values())) for name in ("train", "validation", "test")}
+        if manifest.get("split_row_counts") != expected_split_counts or manifest.get("split_episode_counts") != expected_episode_counts:
+            raise ValueError("offline fixture split counts mismatch")
+        if len(set(episode_split)) != len(episode_split):
+            raise ValueError("offline fixture duplicate episode membership")
+        if set(source_artifact_manifest) != set(episode_split):
             raise ValueError("offline fixture artifact hash metadata is invalid")
     split = FrozenEpisodeSplit(
         seed=int(manifest["split_seed"]),
@@ -1371,27 +1896,24 @@ def validate_offline_fixture_dataset(
         raise ValueError("offline fixture split hash mismatch")
     if episodes is not None:
         artifacts = _load_episode_artifacts(episodes)
-        if {item.episode_id for item in artifacts} != set(episode_split):
+        failed = tuple(item for item in artifacts if item.status == "failed")
+        for item in failed:
+            _validate_retained_failed_episode(item)
+        eligible = tuple(item for item in artifacts if item.status == "completed")
+        if {item.episode_id for item in eligible} != set(episode_split):
             raise ValueError("offline fixture source episodes do not cover dataset membership")
-        for item in artifacts:
-            _episode_rows_for_dataset(item, expected_split=episode_split[item.episode_id])
+        expected_arrays, expected_sources = _expected_dataset_arrays(
+            {item.episode_id: item for item in eligible},
+            episode_order=manifest["episode_order"],
+            episode_split=episode_split,
+        )
+        if dict(source_artifact_manifest) != expected_sources:
+            raise ValueError("offline fixture episode artifact hashes are not cross-bound")
+        with np.load(path, allow_pickle=False) as archive:
+            for name, expected in expected_arrays.items():
+                if not np.array_equal(archive[name], expected):
+                    raise ValueError(f"offline fixture dataset array is not cross-bound to sealed episodes: {name}")
     return manifest
-
-
-def _source_receipt() -> dict[str, Any]:
-    payload = {
-        "schema": OFFLINE_SOURCE_SCHEMA,
-        "fixture_only": True,
-        "production_promotion_allowed": False,
-        "identities": dict(SOURCE_IDENTITIES),
-        "descriptions": {
-            "receiver": "in-memory FakeRTDE source",
-            "kunwei": "synthetic causal Kunwei source",
-            "reference": "seven-family deterministic reference generator",
-            "runtime": "offline canonical episode assembler",
-        },
-    }
-    return payload | {"source_receipt_sha256": _payload_sha256(payload)}
 
 
 class _CountingHomeIdentityLedger(HomeIdentityLedger):
@@ -1433,7 +1955,9 @@ def _episode_context(
         "action_profile_sha256": _sha256_text("offline-action-profile-v1"),
         "filter_profile_sha256": _sha256_text("offline-filter-profile-v1"),
         "controller_identity_sha256": _sha256_text("offline-controller-identity-v1"),
-        "receiver_identity_sha256": SOURCE_IDENTITIES["receiver_source_sha256"],
+        "receiver_identity_sha256": SOURCE_IDENTITIES[
+            "source:experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/episode_composition.py"
+        ],
     }
     return EpisodeSemanticContext.from_training_bindings(
         bindings=ExpertEpisodeBindings(**values),
@@ -1677,14 +2201,16 @@ def _execute_campaign(root: Path, contract: OfflineCampaignContract) -> OfflineC
         if identity_proof["identical"] is not True:
             raise RuntimeError("disabled recorder/sidecar changed deterministic control output")
         ordered_eligible = tuple(evidence_by_id[episode_id] for episode_id in eligible_ids)
+        source_payload = _source_receipt()
+        _validate_source_receipt(source_payload)
         dataset_manifest = build_offline_fixture_dataset(
             root / "dataset.npz",
             episodes=ordered_eligible,
             frozen_split=frozen_split,
+            source_receipt=source_payload,
             manifest_path=root / "dataset.manifest.json",
         )
         _write_json(root / "frozen_split.json", frozen_split.as_json())
-        source_payload = _source_receipt()
         _write_json(root / "source_identities.json", source_payload)
         _write_json(root / "recovery.receipt.json", recovery.as_json())
         family_counts = {
@@ -1754,12 +2280,16 @@ def _execute_campaign(root: Path, contract: OfflineCampaignContract) -> OfflineC
             "counters": counters,
             "episodes": episode_entries,
             "identity_proof": identity_proof,
+            "source_receipt": "source_identities.json",
+            "source_receipt_sha256": source_payload["source_receipt_sha256"],
             "recovery_receipt": "recovery.receipt.json",
             "recovery_receipt_sha256": _file_sha256(root / "recovery.receipt.json"),
             "dataset_manifest": "dataset.manifest.json",
             "dataset_manifest_sha256": _file_sha256(root / "dataset.manifest.json"),
             "fixture_only": True,
             "production_promotion_allowed": False,
+            "reproduction_status": "not_claimed",
+            "active_model_enabled": False,
             "hardware_data": "external_deferred",
             "production_dynamics_conformance": "external_deferred",
             "formal_checkpoint_rate_selection_model_activation": "external_deferred",
@@ -1798,7 +2328,11 @@ def _bundle_files(root: Path) -> dict[str, str]:
     return result
 
 
-def validate_offline_campaign_bundle(root: str | Path) -> dict[str, Any]:
+def validate_offline_campaign_bundle(
+    root: str | Path,
+    *,
+    source_root: str | Path | None = None,
+) -> dict[str, Any]:
     bundle_root = Path(root)
     manifest_path = bundle_root / "bundle.manifest.json"
     if not bundle_root.is_dir() or not manifest_path.is_file():
@@ -1808,7 +2342,7 @@ def validate_offline_campaign_bundle(root: str | Path) -> dict[str, Any]:
         raise ValueError("offline campaign bundle boundary is invalid")
     unsigned = dict(manifest)
     supplied_digest = unsigned.pop("bundle_digest_sha256", None)
-    if supplied_digest != _payload_sha256(unsigned):
+    if _sha(supplied_digest, "bundle_digest_sha256") != _payload_sha256(unsigned):
         raise ValueError("offline campaign bundle digest mismatch")
     file_hashes = manifest.get("file_hashes")
     if not isinstance(file_hashes, dict) or file_hashes != _bundle_files(bundle_root):
@@ -1817,13 +2351,17 @@ def validate_offline_campaign_bundle(root: str | Path) -> dict[str, Any]:
     supplied_campaign = campaign.get("receipt_sha256")
     campaign_unsigned = dict(campaign)
     campaign_unsigned.pop("receipt_sha256", None)
-    if campaign.get("schema") != OFFLINE_CAMPAIGN_RECEIPT_SCHEMA or supplied_campaign != _payload_sha256(campaign_unsigned):
+    if campaign.get("schema") != OFFLINE_CAMPAIGN_RECEIPT_SCHEMA or _sha(supplied_campaign, "campaign receipt_sha256") != _payload_sha256(campaign_unsigned):
         raise ValueError("offline campaign receipt is invalid")
     contract_payload = dict(campaign.get("contract", {}))
     contract_hash = contract_payload.pop("contract_sha256", None)
     campaign_contract = OfflineCampaignContract(**contract_payload)
     if campaign.get("contract_sha256") != campaign_contract.contract_sha256 or contract_hash != campaign_contract.contract_sha256:
         raise ValueError("offline campaign contract hash mismatch")
+    if campaign.get("fixture_only") is not True or campaign.get("production_promotion_allowed") is not False or campaign.get("reproduction_status") != "not_claimed" or campaign.get("active_model_enabled") is not False:
+        raise ValueError("offline campaign promotion/reproduction boundary is invalid")
+    if campaign.get("source_receipt") != "source_identities.json":
+        raise ValueError("offline campaign source receipt binding is missing")
     counters = campaign.get("counters")
     expected_counters = {
         "attempted": 50,
@@ -1860,12 +2398,13 @@ def validate_offline_campaign_bundle(root: str | Path) -> dict[str, Any]:
     supplied_recovery = recovery.get("receipt_sha256")
     recovery_unsigned = dict(recovery)
     recovery_unsigned.pop("receipt_sha256", None)
-    if supplied_recovery != _payload_sha256(recovery_unsigned):
+    if _sha(supplied_recovery, "recovery receipt_sha256") != _payload_sha256(recovery_unsigned):
         raise ValueError("offline recovery receipt is invalid")
     RecoveryReceipt(**recovery_unsigned)
     split_payload = _read_json(bundle_root / "frozen_split.json")
     split_unsigned = dict(split_payload)
     split_hash = split_unsigned.pop("split_sha256", None)
+    _sha(split_hash, "split_sha256")
     frozen_split = FrozenEpisodeSplit(
         seed=int(split_unsigned["seed"]),
         version=str(split_unsigned["version"]),
@@ -1873,16 +2412,31 @@ def validate_offline_campaign_bundle(root: str | Path) -> dict[str, Any]:
         split_sha256=str(split_hash),
     )
     source = _read_json(bundle_root / "source_identities.json")
-    if source.get("schema") != OFFLINE_SOURCE_SCHEMA or source.get("fixture_only") is not True or source.get("production_promotion_allowed") is not False:
-        raise ValueError("offline source identity receipt is invalid")
+    source_identities = _validate_source_receipt(
+        source,
+        repository_root=Path(source_root) if source_root is not None else None,
+    )
+    if _sha(campaign.get("source_receipt_sha256"), "campaign source_receipt_sha256") != source["source_receipt_sha256"]:
+        raise ValueError("offline campaign source receipt digest mismatch")
+    if manifest.get("source_receipt") != "source_identities.json" or _sha(manifest.get("source_receipt_sha256"), "bundle source_receipt_sha256") != source["source_receipt_sha256"]:
+        raise ValueError("offline bundle source receipt binding is missing")
+    if manifest.get("required_dimensions") != {"observation": OBSERVATION_DIMENSION, "action": ACTION_DIMENSION}:
+        raise ValueError("offline bundle dimensions are invalid")
     episodes_root = bundle_root / "episodes"
     episodes = tuple(FixtureEpisodeArtifact.from_directory(path) for path in sorted(episodes_root.iterdir()) if path.is_dir())
     eligible = tuple(item for item in episodes if item.status == "completed")
     validate_offline_fixture_dataset(
         bundle_root / "dataset.npz",
         bundle_root / "dataset.manifest.json",
-        episodes=eligible,
+        episodes=episodes,
+        source_root=source_root,
     )
+    if _sha(campaign.get("dataset_manifest_sha256"), "campaign dataset_manifest_sha256") != _file_sha256(bundle_root / "dataset.manifest.json"):
+        raise ValueError("offline campaign dataset manifest binding mismatch")
+    if _sha(campaign.get("recovery_receipt_sha256"), "campaign recovery_receipt_sha256") != _file_sha256(bundle_root / "recovery.receipt.json"):
+        raise ValueError("offline campaign recovery receipt binding mismatch")
+    if dict(source_identities) != dict(_source_identity_hashes(source)):
+        raise ValueError("offline source identity mapping is not bound to the source receipt")
     if set(item.episode_id for item in eligible) != set(frozen_split.episode_split):
         raise ValueError("bundle dataset membership does not match the frozen split")
     return manifest
@@ -1944,6 +2498,8 @@ def materialize_offline_campaign_bundle(
         "campaign_receipt_sha256": file_hashes["campaign.receipt.json"],
         "dataset_manifest": "dataset.manifest.json",
         "dataset_manifest_sha256": file_hashes["dataset.manifest.json"],
+        "source_receipt": "source_identities.json",
+        "source_receipt_sha256": _read_json(staging / "source_identities.json")["source_receipt_sha256"],
         "file_hashes": file_hashes,
         "required_dimensions": {"observation": OBSERVATION_DIMENSION, "action": ACTION_DIMENSION},
         "fixture_only": True,
