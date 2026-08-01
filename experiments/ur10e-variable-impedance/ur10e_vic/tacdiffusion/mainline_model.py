@@ -288,13 +288,17 @@ def train_mainline_model(
     learning_rate: float = 1e-3,
     seed: int = 42,
     checkpoint_binding: dict[str, object] | None = None,
+    require_cuda: bool = False,
 ) -> dict[str, object]:
     if observations.ndim != 2 or actions.ndim != 2 or observations.shape[1] != 84 or actions.shape[1] != 12 or len(splits) != observations.shape[0]:
         raise ValueError("train_mainline_model requires [N,84], [N,12], and matching splits")
-    if not np.isfinite(observations).all() or not np.isfinite(actions).all() or any(split not in {"train", "validation"} for split in splits):
+    if not np.isfinite(observations).all() or not np.isfinite(actions).all() or any(split not in {"train", "validation", "test"} for split in splits):
         raise ValueError("training data contains non-finite values or unsupported splits")
+    if require_cuda and (torch is None or not torch.cuda.is_available()):
+        raise RuntimeError("CUDA is required for this qualification path")
     train_idx = np.asarray([i for i, split in enumerate(splits) if split == "train"], dtype=np.int64)
     validation_idx = np.asarray([i for i, split in enumerate(splits) if split == "validation"], dtype=np.int64)
+    test_idx = np.asarray([i for i, split in enumerate(splits) if split == "test"], dtype=np.int64)
     if train_idx.size == 0 or validation_idx.size == 0:
         raise ValueError("frozen train/validation split must both be non-empty")
     x_mean, x_std, y_mean, y_std = _normalized_arrays(observations, actions, train_idx)
@@ -308,13 +312,14 @@ def train_mainline_model(
         validation_prediction = model.sample((observations[validation_idx].astype(np.float32) - x_mean) / x_std, seed=seed)
         validation_target = (actions[validation_idx].astype(np.float32) - y_mean) / y_std
         validation_loss = float(np.mean((validation_prediction - validation_target) ** 2))
-        _atomic_numpy_checkpoint(checkpoint, schema="ur10e_tacdiffusion_checkpoint/v3", config=json.dumps(config.__dict__, sort_keys=True), w1=model.w1, b1=model.b1, w2=model.w2, b2=model.b2, observation_mean=x_mean, observation_std=x_std, action_mean=y_mean, action_std=y_std, train_indices=train_idx, validation_indices=validation_idx, losses=np.asarray(losses), validation_loss=validation_loss, checkpoint_binding=json.dumps(checkpoint_binding or {}, sort_keys=True))
-        return {"checkpoint_path": str(checkpoint), "training_loss": losses, "validation_loss": validation_loss, "train_count": int(train_idx.size), "validation_count": int(validation_idx.size), "model_schema": "ur10e_tacdiffusion_checkpoint/v3", "runtime": "numpy_cpu_fallback"}
+        _atomic_numpy_checkpoint(checkpoint, schema="ur10e_tacdiffusion_checkpoint/v3", config=json.dumps(config.__dict__, sort_keys=True), w1=model.w1, b1=model.b1, w2=model.w2, b2=model.b2, observation_mean=x_mean, observation_std=x_std, action_mean=y_mean, action_std=y_std, train_indices=train_idx, validation_indices=validation_idx, test_indices=test_idx, losses=np.asarray(losses), validation_loss=validation_loss, checkpoint_binding=json.dumps(checkpoint_binding or {}, sort_keys=True))
+        return {"checkpoint_path": str(checkpoint), "training_loss": losses, "validation_loss": validation_loss, "train_count": int(train_idx.size), "validation_count": int(validation_idx.size), "test_count": int(test_idx.size), "model_schema": "ur10e_tacdiffusion_checkpoint/v3", "runtime": "numpy_cpu_fallback", "diffusion_steps": config.diffusion_steps}
 
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    use_cuda = require_cuda or torch.cuda.is_available()
+    device = torch.device("cuda", int(torch.cuda.current_device())) if use_cuda else torch.device("cpu")
     model = ConditionalActionModel(config).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     x = torch.from_numpy(observations.astype(np.float32)).to(device)
@@ -357,9 +362,28 @@ def train_mainline_model(
         validation_noisy = torch.sqrt(alpha_bar[validation_timestep, None]) * validation_clean
         validation_prediction = model(validation_noisy, (x[validation_batch] - mean) / std, validation_timestep)
         validation_loss = float(torch.mean((validation_prediction - validation_noise) ** 2).detach().cpu())
-    payload = {"schema": "ur10e_tacdiffusion_checkpoint/v3", "config": config.__dict__, "model_state_dict": model.state_dict(), "normalization": {"observation_mean": mean.detach().cpu(), "observation_std": std.detach().cpu(), "action_mean": action_mean.detach().cpu(), "action_std": action_std.detach().cpu()}, "train_indices": train_idx.tolist(), "validation_indices": validation_idx.tolist(), "losses": losses, "validation_loss": validation_loss, "checkpoint_binding": checkpoint_binding or {}}
+    payload = {
+        "schema": "ur10e_tacdiffusion_checkpoint/v3",
+        "config": config.__dict__,
+        "model_state_dict": model.state_dict(),
+        "normalization": {
+            "observation_mean": mean.detach().cpu(),
+            "observation_std": std.detach().cpu(),
+            "action_mean": action_mean.detach().cpu(),
+            "action_std": action_std.detach().cpu(),
+        },
+        "train_indices": train_idx.tolist(),
+        "validation_indices": validation_idx.tolist(),
+        "test_indices": test_idx.tolist(),
+        "losses": losses,
+        "validation_loss": validation_loss,
+        "checkpoint_binding": checkpoint_binding or {},
+        "optimizer_state_dict": optimizer.state_dict(),
+        "generator_state": generator.get_state(),
+        "epoch_completed": int(epochs),
+    }
     _atomic_torch_checkpoint(checkpoint, payload)
-    return {"checkpoint_path": str(checkpoint), "training_loss": losses, "validation_loss": validation_loss, "train_count": int(train_idx.size), "validation_count": int(validation_idx.size), "model_schema": payload["schema"], "runtime": str(device), "diffusion_steps": config.diffusion_steps}
+    return {"checkpoint_path": str(checkpoint), "training_loss": losses, "validation_loss": validation_loss, "train_count": int(train_idx.size), "validation_count": int(validation_idx.size), "test_count": int(test_idx.size), "model_schema": payload["schema"], "runtime": str(device), "diffusion_steps": config.diffusion_steps}
 
 
 def load_mainline_checkpoint(checkpoint_path: str | Path, *, require_cuda: bool = False) -> dict[str, object]:
@@ -377,12 +401,19 @@ def load_mainline_checkpoint(checkpoint_path: str | Path, *, require_cuda: bool 
             raise ValueError("mainline checkpoint binding metadata is invalid")
         train_indices = payload["train_indices"]
         validation_indices = payload["validation_indices"]
+        test_indices = payload.get("test_indices", [])
         if not isinstance(train_indices, (list, tuple)) or not isinstance(validation_indices, (list, tuple)):
             raise ValueError("mainline checkpoint split indices are invalid")
-        all_indices = (*train_indices, *validation_indices)
+        if not isinstance(test_indices, (list, tuple)):
+            raise ValueError("mainline checkpoint split indices are invalid")
+        all_indices = (*train_indices, *validation_indices, *test_indices)
         if not train_indices or not validation_indices or any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in all_indices):
             raise ValueError("mainline checkpoint split indices are invalid")
-        if set(train_indices) & set(validation_indices):
+        if (
+            set(train_indices) & set(validation_indices)
+            or set(train_indices) & set(test_indices)
+            or set(validation_indices) & set(test_indices)
+        ):
             raise ValueError("mainline checkpoint train/validation split overlaps")
         if sorted(all_indices) != list(range(max(all_indices) + 1)):
             raise ValueError("mainline checkpoint split indices are outside a coherent sample range")
@@ -398,7 +429,9 @@ def load_mainline_checkpoint(checkpoint_path: str | Path, *, require_cuda: bool 
             payload = torch.load(checkpoint, map_location="cuda" if require_cuda else "cpu", weights_only=False)
         except Exception as exc:
             raise ValueError("mainline torch checkpoint is invalid") from exc
-        if not isinstance(payload, dict) or set(payload) != {"schema", "config", "model_state_dict", "normalization", "train_indices", "validation_indices", "losses", "validation_loss", "checkpoint_binding"}:
+        required_fields = {"schema", "config", "model_state_dict", "normalization", "train_indices", "validation_indices", "losses", "validation_loss", "checkpoint_binding"}
+        optional_fields = {"optimizer_state_dict", "generator_state", "epoch_completed", "test_indices"}
+        if not isinstance(payload, dict) or not required_fields <= set(payload) or not set(payload) <= required_fields | optional_fields:
             raise ValueError("mainline checkpoint fields are missing or extra")
         if payload["schema"] != "ur10e_tacdiffusion_checkpoint/v3" or not isinstance(payload["config"], dict) or set(payload["config"]) != expected_config_fields:
             raise ValueError("mainline checkpoint schema/config is invalid")
@@ -407,7 +440,13 @@ def load_mainline_checkpoint(checkpoint_path: str | Path, *, require_cuda: bool 
         except (TypeError, ValueError) as exc:
             raise ValueError("mainline checkpoint config is invalid") from exc
         validate_training_metadata(payload)
-        device = torch.device("cuda" if require_cuda else "cpu")
+        if "epoch_completed" in payload and (
+            isinstance(payload["epoch_completed"], bool)
+            or not isinstance(payload["epoch_completed"], int)
+            or payload["epoch_completed"] < 0
+        ):
+            raise ValueError("mainline checkpoint epoch metadata is invalid")
+        device = torch.device("cuda", int(torch.cuda.current_device())) if require_cuda else torch.device("cpu")
         model = ConditionalActionModel(config).to(device)
         try:
             state_dict = payload["model_state_dict"]
@@ -430,7 +469,9 @@ def load_mainline_checkpoint(checkpoint_path: str | Path, *, require_cuda: bool 
             raise RuntimeError("CUDA is required for this publication benchmark")
         try:
             with np.load(checkpoint, allow_pickle=False) as payload:
-                if set(payload.files) != {"schema", "config", "w1", "b1", "w2", "b2", "observation_mean", "observation_std", "action_mean", "action_std", "train_indices", "validation_indices", "losses", "validation_loss", "checkpoint_binding"}:
+                required_fields = {"schema", "config", "w1", "b1", "w2", "b2", "observation_mean", "observation_std", "action_mean", "action_std", "train_indices", "validation_indices", "losses", "validation_loss", "checkpoint_binding"}
+                optional_fields = {"test_indices"}
+                if not required_fields <= set(payload.files) or not set(payload.files) <= required_fields | optional_fields:
                     raise ValueError("mainline checkpoint fields are missing or extra")
                 if str(payload["schema"]) != "ur10e_tacdiffusion_checkpoint/v3":
                     raise ValueError("mainline checkpoint schema is invalid")
@@ -459,6 +500,7 @@ def load_mainline_checkpoint(checkpoint_path: str | Path, *, require_cuda: bool 
                     "checkpoint_binding": json.loads(str(payload["checkpoint_binding"])),
                     "train_indices": np.asarray(payload["train_indices"]).tolist(),
                     "validation_indices": np.asarray(payload["validation_indices"]).tolist(),
+                    "test_indices": np.asarray(payload["test_indices"]).tolist() if "test_indices" in payload.files else [],
                     "losses": np.asarray(payload["losses"]).tolist(),
                     "validation_loss": float(payload["validation_loss"]),
                 }
@@ -471,7 +513,258 @@ def load_mainline_checkpoint(checkpoint_path: str | Path, *, require_cuda: bool 
     model._mainline_checkpoint_loaded = True
     if torch is not None:
         model.eval()
-    return {"model": model, "config": config, "normalization": normalization, "schema": "ur10e_tacdiffusion_checkpoint/v3", "device": str(device), "checkpoint_path": str(checkpoint)}
+    return {
+        "model": model,
+        "config": config,
+        "normalization": normalization,
+        "schema": "ur10e_tacdiffusion_checkpoint/v3",
+        "device": str(device),
+        "checkpoint_path": str(checkpoint),
+        "epoch_completed": int(payload.get("epoch_completed", len(payload["losses"]))) if isinstance(payload, dict) else 0,
+    }
+
+
+def resume_mainline_model(
+    observations: np.ndarray,
+    actions: np.ndarray,
+    splits: Sequence[str],
+    *,
+    checkpoint_path: str | Path,
+    resumed_checkpoint_path: str | Path,
+    epochs: int = 1,
+    batch_size: int = 64,
+    learning_rate: float = 1e-3,
+    seed: int = 42,
+    checkpoint_binding: dict[str, object] | None = None,
+    require_cuda: bool = False,
+) -> dict[str, object]:
+    """Continue a loaded v3 checkpoint without changing its architecture.
+
+    The qualification lane uses this helper with ``require_cuda=True``.  A
+    checkpoint without the optional optimizer/generator state is still
+    loadable for backwards compatibility, but its receipt reports that the
+    optimizer state was not restored rather than silently claiming a resume.
+    """
+
+    if torch is None:
+        raise RuntimeError("PyTorch is required to resume a mainline checkpoint")
+    if require_cuda and not torch.cuda.is_available():
+        raise RuntimeError("CUDA is required for this qualification path")
+    if epochs <= 0 or batch_size <= 0:
+        raise ValueError("resume epochs and batch_size must be positive")
+    observations = np.asarray(observations, dtype=np.float32)
+    actions = np.asarray(actions, dtype=np.float32)
+    if observations.ndim != 2 or actions.ndim != 2 or observations.shape[1] != 84 or actions.shape[1] != 12 or observations.shape[0] != actions.shape[0] or len(splits) != observations.shape[0]:
+        raise ValueError("resume_mainline_model requires [N,84], [N,12], and matching splits")
+    if not np.isfinite(observations).all() or not np.isfinite(actions).all() or any(split not in {"train", "validation", "test"} for split in splits):
+        raise ValueError("resume data contains non-finite values or unsupported splits")
+    train_idx = np.asarray([i for i, split in enumerate(splits) if split == "train"], dtype=np.int64)
+    validation_idx = np.asarray([i for i, split in enumerate(splits) if split == "validation"], dtype=np.int64)
+    test_idx = np.asarray([i for i, split in enumerate(splits) if split == "test"], dtype=np.int64)
+    if train_idx.size == 0 or validation_idx.size == 0:
+        raise ValueError("resume train/validation split must both be non-empty")
+
+    checkpoint = Path(checkpoint_path)
+    if not checkpoint.is_file():
+        raise ValueError("resume source checkpoint is missing")
+    map_location = "cuda" if require_cuda else "cpu"
+    try:
+        raw_payload = torch.load(checkpoint, map_location=map_location, weights_only=False)
+    except Exception as exc:
+        raise ValueError("resume source checkpoint is invalid") from exc
+    if not isinstance(raw_payload, dict):
+        raise ValueError("resume source checkpoint is invalid")
+    loaded = load_mainline_checkpoint(checkpoint, require_cuda=require_cuda)
+    config = loaded["config"]
+    model = loaded["model"]
+    device = next(model.parameters()).device
+    if checkpoint_binding is not None and raw_payload.get("checkpoint_binding") != checkpoint_binding:
+        raise ValueError("resume source checkpoint binding mismatch")
+
+    saved_train = tuple(int(value) for value in raw_payload["train_indices"])
+    saved_validation = tuple(int(value) for value in raw_payload["validation_indices"])
+    saved_test = tuple(int(value) for value in raw_payload.get("test_indices", []))
+    if (saved_train, saved_validation, saved_test) != (tuple(train_idx.tolist()), tuple(validation_idx.tolist()), tuple(test_idx.tolist())):
+        raise ValueError("resume source checkpoint split mismatch")
+    normalization = loaded["normalization"]
+    mean = normalization["observation_mean"].to(device)
+    std = normalization["observation_std"].to(device)
+    action_mean = normalization["action_mean"].to(device)
+    action_std = normalization["action_std"].to(device)
+    # Fixture arrays may be mmap-backed and read-only.  Materialize writable
+    # float32 copies before exposing their storage to PyTorch.
+    x = torch.from_numpy(np.array(observations, dtype=np.float32, copy=True)).to(device)
+    y = torch.from_numpy(np.array(actions, dtype=np.float32, copy=True)).to(device)
+    train_index_tensor = torch.from_numpy(train_idx).to(device)
+    validation_index_tensor = torch.from_numpy(validation_idx).to(device)
+    beta = torch.linspace(config.beta_start, config.beta_end, config.diffusion_steps, device=device)
+    alpha_bar = torch.cumprod(1.0 - beta, dim=0)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer_state_restored = isinstance(raw_payload.get("optimizer_state_dict"), dict)
+    if optimizer_state_restored:
+        try:
+            optimizer.load_state_dict(raw_payload["optimizer_state_dict"])
+        except (RuntimeError, TypeError, ValueError) as exc:
+            raise ValueError("resume optimizer state is invalid") from exc
+    generator = torch.Generator(device=device)
+    generator_state_restored = isinstance(raw_payload.get("generator_state"), torch.Tensor)
+    if generator_state_restored:
+        try:
+            # ``map_location="cuda"`` moves every tensor in the checkpoint,
+            # while Generator.set_state still requires a CPU ByteTensor.
+            generator.set_state(raw_payload["generator_state"].detach().cpu())
+        except (RuntimeError, TypeError, ValueError) as exc:
+            raise ValueError("resume generator state is invalid") from exc
+    else:
+        generator.manual_seed(seed)
+
+    previous_losses = [float(value) for value in raw_payload["losses"]]
+    losses: list[float] = []
+    model.train()
+    for _ in range(epochs):
+        permutation = train_index_tensor[torch.randperm(train_idx.size, generator=generator, device=device)]
+        epoch_loss = 0.0
+        batches = 0
+        for start in range(0, len(permutation), batch_size):
+            batch = permutation[start : start + batch_size]
+            timestep = torch.randint(0, config.diffusion_steps, (batch.numel(),), generator=generator, device=device)
+            noise = torch.randn((batch.numel(), 12), generator=generator, device=device)
+            clean = (y[batch] - action_mean) / action_std
+            noisy = torch.sqrt(alpha_bar[timestep, None]) * clean + torch.sqrt(1.0 - alpha_bar[timestep, None]) * noise
+            prediction = model(noisy, (x[batch] - mean) / std, timestep)
+            loss = torch.mean((prediction - noise) ** 2)
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()
+            optimizer.step()
+            epoch_loss += float(loss.detach().cpu())
+            batches += 1
+        losses.append(epoch_loss / max(1, batches))
+    model.eval()
+    with torch.no_grad():
+        validation_batch = validation_index_tensor
+        validation_timestep = torch.zeros((validation_batch.numel(),), dtype=torch.long, device=device)
+        validation_noise = torch.zeros((validation_batch.numel(), 12), device=device)
+        validation_clean = (y[validation_batch] - action_mean) / action_std
+        validation_noisy = torch.sqrt(alpha_bar[validation_timestep, None]) * validation_clean
+        validation_prediction = model(validation_noisy, (x[validation_batch] - mean) / std, validation_timestep)
+        validation_loss = float(torch.mean((validation_prediction - validation_noise) ** 2).detach().cpu())
+
+    epoch_completed = int(raw_payload.get("epoch_completed", len(previous_losses))) + epochs
+    payload = {
+        "schema": "ur10e_tacdiffusion_checkpoint/v3",
+        "config": config.__dict__,
+        "model_state_dict": model.state_dict(),
+        "normalization": {
+            "observation_mean": mean.detach().cpu(),
+            "observation_std": std.detach().cpu(),
+            "action_mean": action_mean.detach().cpu(),
+            "action_std": action_std.detach().cpu(),
+        },
+        "train_indices": train_idx.tolist(),
+        "validation_indices": validation_idx.tolist(),
+        "test_indices": test_idx.tolist(),
+        "losses": previous_losses + losses,
+        "validation_loss": validation_loss,
+        "checkpoint_binding": checkpoint_binding if checkpoint_binding is not None else raw_payload.get("checkpoint_binding", {}),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "generator_state": generator.get_state(),
+        "epoch_completed": epoch_completed,
+    }
+    resumed_checkpoint = Path(resumed_checkpoint_path)
+    _atomic_torch_checkpoint(resumed_checkpoint, payload)
+    return {
+        "checkpoint_path": str(resumed_checkpoint),
+        "training_loss": losses,
+        "validation_loss": validation_loss,
+        "train_count": int(train_idx.size),
+        "validation_count": int(validation_idx.size),
+        "test_count": int(test_idx.size),
+        "model_schema": payload["schema"],
+        "runtime": str(device),
+        "diffusion_steps": config.diffusion_steps,
+        "resume": {
+            "resumed": True,
+            "source_checkpoint_path": str(checkpoint),
+            "optimizer_state_restored": optimizer_state_restored,
+            "generator_state_restored": generator_state_restored,
+            "epoch_completed": epoch_completed,
+        },
+    }
+
+
+def evaluate_mainline_checkpoint(
+    checkpoint_path: str | Path,
+    observations: np.ndarray,
+    actions: np.ndarray,
+    splits: Sequence[str],
+    *,
+    split: str = "test",
+    require_cuda: bool = False,
+    checkpoint_binding: dict[str, object] | None = None,
+    seed: int = 42,
+) -> dict[str, object]:
+    """Evaluate a loaded 84D/12D checkpoint and prove its 50-step sampler."""
+
+    if split not in {"train", "validation", "test"}:
+        raise ValueError("evaluation split is invalid")
+    observations = np.asarray(observations, dtype=np.float32)
+    actions = np.asarray(actions, dtype=np.float32)
+    if observations.ndim != 2 or actions.shape != (observations.shape[0], 12) or observations.shape[1] != 84 or len(splits) != observations.shape[0]:
+        raise ValueError("evaluation requires [N,84], [N,12], and matching splits")
+    if any(value not in {"train", "validation", "test"} for value in splits):
+        raise ValueError("evaluation split labels are invalid")
+    indices = np.asarray([index for index, value in enumerate(splits) if value == split], dtype=np.int64)
+    if indices.size == 0:
+        raise ValueError("evaluation split is empty")
+    loaded = load_mainline_checkpoint(checkpoint_path, require_cuda=require_cuda)
+    if checkpoint_binding is not None and loaded["model"].config is not None:
+        loaded_binding = None
+        if torch is not None:
+            payload = torch.load(Path(checkpoint_path), map_location="cuda" if require_cuda else "cpu", weights_only=False)
+            loaded_binding = payload.get("checkpoint_binding") if isinstance(payload, dict) else None
+        if loaded_binding != checkpoint_binding:
+            raise ValueError("evaluation checkpoint binding mismatch")
+    model = loaded["model"]
+    config = loaded["config"]
+    normalization = loaded["normalization"]
+    model_device = next(model.parameters()).device if torch is not None else "cpu"
+    if torch is None:
+        normalized_observations = (observations[indices] - normalization["observation_mean"]) / normalization["observation_std"]
+        normalized_actions = (actions[indices] - normalization["action_mean"]) / normalization["action_std"]
+        predicted, trace = model.sample(normalized_observations, seed=seed, return_trace=True)
+        loss = float(np.mean((predicted - normalized_actions) ** 2))
+    else:
+        observation_tensor = torch.from_numpy(observations[indices]).to(model_device)
+        action_tensor = torch.from_numpy(actions[indices]).to(model_device)
+        mean = normalization["observation_mean"].to(model_device)
+        std = normalization["observation_std"].to(model_device)
+        action_mean = normalization["action_mean"].to(model_device)
+        action_std = normalization["action_std"].to(model_device)
+        with torch.no_grad():
+            prediction, trace = model.sample((observation_tensor - mean) / std, seed=seed, return_trace=True)
+        normalized_actions = (action_tensor - action_mean) / action_std
+        loss = float(torch.mean((prediction - normalized_actions) ** 2).detach().cpu())
+    if tuple(trace) != tuple(range(49, -1, -1)) or len(set(trace)) != 50:
+        raise RuntimeError("mainline evaluation sampler did not execute all 50 distinct reverse steps")
+    return {
+        "schema": "ur10e_tacdiffusion_evaluation/v2",
+        "checkpoint_path": str(checkpoint_path),
+        "split": split,
+        "sample_count": int(indices.size),
+        "diffusion_steps": config.diffusion_steps,
+        "distinct_reverse_steps": len(set(trace)),
+        "reverse_step_trace": list(trace),
+        "normalized_action_mse": loss,
+        "device": str(model_device),
+        "require_cuda": require_cuda,
+        "checkpoint_binding": checkpoint_binding or {},
+        "fixture_only": True,
+        "formal_checkpoint": False,
+        "active_allowed": False,
+        "active": False,
+        "reproduction_status": "not_claimed",
+        "model_rate_selected_hz": None,
+    }
 
 
 def benchmark_runtime(model: "ConditionalActionModel", *, iterations: int = 8, warmup_iterations: int = 2, seed: int = 42, diffusion_steps: int = 50, require_cuda: bool = False) -> dict[str, object]:

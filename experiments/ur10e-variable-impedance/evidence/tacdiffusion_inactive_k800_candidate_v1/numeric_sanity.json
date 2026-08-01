@@ -1,0 +1,34 @@
+{
+  "activation_or_current_promotion": false,
+  "artifact_sha256": "edafc564edaee28b54c32711ce0fa15880387da8d0c2aa0972d7c438f77f4153",
+  "candidate_sha256": "7aca22e0e0e31f122bd5c2aff96ebfebbe22dcdb8a0695d9b18a509f4657e2c9",
+  "candidate_source_sha256": "529e50ba33f36849dd7d2dba38057f905aa9d3db7ced3a318db56df0d795cf9a",
+  "damping_derivation": "2*sqrt(stiffness*virtual_mass)",
+  "finite": true,
+  "guards_limits_path_routing_unchanged": true,
+  "only_allowed_delta": true,
+  "rotational_stiffness": {
+    "units": "Nm/rad",
+    "value": [
+      30.0,
+      30.0,
+      30.0
+    ]
+  },
+  "rotational_stiffness_unchanged": true,
+  "schema": "ur10e_tacdiffusion_inactive_k800_numeric_sanity/v1",
+  "source_sha256": "4c21c13826f25b5b61e44663f80cbf0da2ec5484b1d6209b82d850398fe3f4ec",
+  "translational_stiffness_delta": {
+    "after": [
+      800.0,
+      800.0,
+      800.0
+    ],
+    "before": [
+      600.0,
+      600.0,
+      600.0
+    ],
+    "units": "N/m"
+  }
+}
