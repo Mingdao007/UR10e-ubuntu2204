@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass, fields
 import hashlib
 import json
 import math
+from types import MappingProxyType
 import os
 from pathlib import Path
 import queue
@@ -58,15 +59,19 @@ def _optional_vector(
 
 
 def _line(payload: Mapping[str, Any]) -> bytes:
+    return _canonical_json_bytes(payload) + b"\n"
+
+
+def _canonical_json_bytes(payload: Mapping[str, Any]) -> bytes:
     return (
         json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
-        + "\n"
     ).encode("utf-8")
 
 
 def _is_sha256(value: object) -> bool:
-    text = str(value)
-    return len(text) == 64 and all(char in "0123456789abcdef" for char in text)
+    return isinstance(value, str) and len(value) == 64 and all(
+        char in "0123456789abcdef" for char in value
+    )
 
 
 def _semantic_identity_status(metadata: Mapping[str, Any]) -> tuple[bool, str | None]:
@@ -79,6 +84,161 @@ def _semantic_identity_status(metadata: Mapping[str, Any]) -> tuple[bool, str | 
     enabled = all(_is_sha256(value) for value in hashes.values())
     fingerprint = context.get("semantic_context_fingerprint_sha256")
     return enabled and _is_sha256(fingerprint), str(fingerprint) if _is_sha256(fingerprint) else None
+
+
+_TYPED_RECEIPT_MAX_DEPTH = 8
+_TYPED_RECEIPT_MAX_KEYS = 64
+_TYPED_RECEIPT_MAX_ITEMS = 512
+_TYPED_RECEIPT_MAX_STRING = 4096
+_TYPED_RECEIPT_MAX_BYTES = 64 * 1024
+V3_ROW_SEAL_FIELD = "row_sha256"
+
+
+def _freeze_receipt_value(value: Any, *, depth: int = 0) -> Any:
+    if depth > _TYPED_RECEIPT_MAX_DEPTH:
+        raise ValueError("typed receipt payload is too deeply nested")
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        if abs(value) > 10**18:
+            raise ValueError("typed receipt integer is out of bounds")
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("typed receipt payload contains a nonfinite value")
+        return value
+    if isinstance(value, str):
+        if len(value) > _TYPED_RECEIPT_MAX_STRING:
+            raise ValueError("typed receipt string is out of bounds")
+        return value
+    if isinstance(value, Mapping):
+        if len(value) > _TYPED_RECEIPT_MAX_KEYS:
+            raise ValueError("typed receipt mapping is out of bounds")
+        frozen: dict[str, Any] = {}
+        for key, nested in value.items():
+            if not isinstance(key, str) or not key:
+                raise ValueError("typed receipt keys must be nonempty strings")
+            frozen[key] = _freeze_receipt_value(nested, depth=depth + 1)
+        return MappingProxyType(frozen)
+    if isinstance(value, (list, tuple)):
+        if len(value) > _TYPED_RECEIPT_MAX_ITEMS:
+            raise ValueError("typed receipt sequence is out of bounds")
+        return tuple(_freeze_receipt_value(item, depth=depth + 1) for item in value)
+    raise ValueError("typed receipt payload must contain JSON values only")
+
+
+def _plain_receipt_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _plain_receipt_value(nested) for key, nested in value.items()}
+    if isinstance(value, tuple):
+        return [_plain_receipt_value(item) for item in value]
+    return value
+
+
+@dataclass(frozen=True)
+class TypedEpisodeReceipt:
+    """Bounded immutable schema/payload receipt embedded in a v3 row."""
+
+    schema: str
+    payload: Mapping[str, Any]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.schema, str) or not self.schema.strip():
+            raise ValueError("typed receipt schema is required")
+        if len(self.schema) > _TYPED_RECEIPT_MAX_STRING:
+            raise ValueError("typed receipt schema is out of bounds")
+        if not isinstance(self.payload, Mapping):
+            raise ValueError("typed receipt payload must be a mapping")
+        frozen = _freeze_receipt_value(self.payload)
+        if not isinstance(frozen, Mapping):
+            raise ValueError("typed receipt payload must be a mapping")
+        object.__setattr__(self, "payload", frozen)
+        if len(self.canonical_bytes()) > _TYPED_RECEIPT_MAX_BYTES:
+            raise ValueError("typed receipt serialization is out of bounds")
+
+    @classmethod
+    def from_json(cls, value: Mapping[str, Any]) -> "TypedEpisodeReceipt":
+        if not isinstance(value, Mapping):
+            raise ValueError("typed receipt must be an object")
+        if "schema" not in value or "payload" not in value:
+            raise ValueError("typed receipt schema/payload is incomplete")
+        return cls(schema=value["schema"], payload=value["payload"])
+
+    def as_json(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "payload": _plain_receipt_value(self.payload),
+        }
+
+    def canonical_bytes(self) -> bytes:
+        return _canonical_json_bytes(self.as_json())
+
+
+# Explicit aliases keep the observation/reference role visible to callers
+# while using one bounded typed contract for both optional receipt kinds.
+EpisodeReceipt = TypedEpisodeReceipt
+ObservationReceipt = TypedEpisodeReceipt
+ReferenceReceipt = TypedEpisodeReceipt
+
+
+def compute_v3_row_sha256(payload: Mapping[str, Any]) -> str:
+    """Hash the canonical JSON bytes of a v3 row without its row seal field."""
+
+    if not isinstance(payload, Mapping):
+        raise ValueError("v3 row payload must be a mapping")
+    unsigned = dict(payload)
+    unsigned.pop(V3_ROW_SEAL_FIELD, None)
+    return hashlib.sha256(_canonical_json_bytes(unsigned)).hexdigest()
+
+
+def _validate_v3_optional_receipts(rows: Sequence[object]) -> None:
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            continue
+        for field_name in ("observation_receipt", "reference_receipt"):
+            value = row.get(field_name)
+            if value is not None:
+                try:
+                    TypedEpisodeReceipt.from_json(value)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"episode v3 row {index} {field_name} is invalid"
+                    ) from exc
+        nested = row.get("typed_receipts")
+        if nested is None:
+            continue
+        if not isinstance(nested, Mapping):
+            raise ValueError(f"episode v3 row {index} typed receipts are invalid")
+        for nested_name, field_name in (
+            ("observation", "observation_receipt"),
+            ("reference", "reference_receipt"),
+        ):
+            if nested_name not in nested:
+                continue
+            if field_name not in row or nested[nested_name] != row[field_name]:
+                raise ValueError(
+                    f"episode v3 row {index} {field_name} receipt mismatch"
+                )
+
+
+def _validate_v3_row_seals(
+    rows: Sequence[object],
+    *,
+    require: bool,
+) -> None:
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            raise ValueError(f"episode v3 row {index} is not an object")
+        if V3_ROW_SEAL_FIELD not in row:
+            if require:
+                raise ValueError(f"episode v3 row {index} row seal is missing")
+            continue
+        supplied = row[V3_ROW_SEAL_FIELD]
+        if not _is_sha256(supplied):
+            raise ValueError(f"episode v3 row {index} row seal is malformed")
+        expected = compute_v3_row_sha256(row)
+        if supplied != expected:
+            raise ValueError(f"episode v3 row {index} row seal mismatch")
 
 
 @dataclass(frozen=True)
@@ -265,19 +425,22 @@ class EpisodeFrameV3(EpisodeFrameV2):
     dynamics_receipt: DynamicsReceipt | None = None
     action_label_context: ActionLabelContext | None = None
     action_label: ActionLabel | None = None
+    observation_receipt: TypedEpisodeReceipt | None = None
+    reference_receipt: TypedEpisodeReceipt | None = None
     identity_enabled: bool = True
     semantic_context_fingerprint_sha256: str | None = None
-    # These receipts are optional for compatibility rows, but the canonical
-    # offline campaign fills both fields.  Keeping them on the v3 row makes
-    # the current/previous observation and the sampled reference auditable
-    # without inventing a parallel artifact format.
-    observation_receipt: Mapping[str, Any] | None = None
-    reference_receipt: Mapping[str, Any] | None = None
+    row_sha256: str | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
         if not isinstance(self.identity_enabled, bool):
             raise ValueError("v3 identity_enabled must be boolean")
+        for name in ("observation_receipt", "reference_receipt"):
+            receipt = getattr(self, name)
+            if receipt is not None and not isinstance(receipt, TypedEpisodeReceipt):
+                raise ValueError(f"v3 {name} must use a typed receipt")
+        if self.row_sha256 is not None and not _is_sha256(self.row_sha256):
+            raise ValueError("v3 row seal is malformed")
         if (self.dynamics_sample is None) != (self.dynamics_receipt is None):
             raise ValueError("v3 dynamics sample and receipt must be paired")
         if self.dynamics_sample is not None and self.dynamics_receipt is not None:
@@ -307,13 +470,6 @@ class EpisodeFrameV3(EpisodeFrameV2):
                 char not in "0123456789abcdef" for char in self.semantic_context_fingerprint_sha256
             ):
                 raise ValueError("v3 semantic context fingerprint is invalid")
-        for name in ("observation_receipt", "reference_receipt"):
-            receipt = getattr(self, name)
-            if receipt is not None:
-                if not isinstance(receipt, Mapping):
-                    raise ValueError(f"v3 {name} must be a mapping")
-                if not str(receipt.get("schema", "")).strip():
-                    raise ValueError(f"v3 {name} schema is required")
 
     @classmethod
     def from_v2(cls, frame: EpisodeFrameV2) -> "EpisodeFrameV3":
@@ -353,36 +509,48 @@ class EpisodeFrameV3(EpisodeFrameV2):
             and not self.action_label.shadow_only
         )
 
-    @property
-    def row_valid(self) -> bool:
-        return bool(super().row_valid and self.typed_receipts_valid)
-
-    def as_json(self) -> dict[str, Any]:
+    def _unsigned_json(self) -> dict[str, Any]:
         payload = super().as_json()
         payload["schema"] = EPISODE_FRAME_SCHEMA
         payload["dynamics_sample"] = None if self.dynamics_sample is None else self.dynamics_sample.as_json()
         payload["dynamics_receipt"] = None if self.dynamics_receipt is None else self.dynamics_receipt.as_json()
         payload["action_label_context"] = None if self.action_label_context is None else self.action_label_context.as_json()
         payload["action_label"] = None if self.action_label is None else self.action_label.as_json()
-        payload["identity_enabled"] = self.identity_enabled
-        payload["semantic_context_fingerprint_sha256"] = self.semantic_context_fingerprint_sha256
         payload["observation_receipt"] = (
-            None if self.observation_receipt is None else dict(self.observation_receipt)
+            None if self.observation_receipt is None else self.observation_receipt.as_json()
         )
         payload["reference_receipt"] = (
-            None if self.reference_receipt is None else dict(self.reference_receipt)
+            None if self.reference_receipt is None else self.reference_receipt.as_json()
         )
+        payload["identity_enabled"] = self.identity_enabled
+        payload["semantic_context_fingerprint_sha256"] = self.semantic_context_fingerprint_sha256
         payload["typed_receipts_valid"] = self.typed_receipts_valid
         payload["typed_receipts"] = {
             "dynamics": payload["dynamics_receipt"],
             "action_label": payload["action_label"],
+            "observation": payload["observation_receipt"],
+            "reference": payload["reference_receipt"],
         }
-        # The row seal is calculated only after recorder-owned metadata has
-        # been applied.  It therefore binds the exact serialized v3 row and
-        # remains compatible with the bounded background sealer.
-        payload["row_seal_sha256"] = hashlib.sha256(
-            _line(payload)
-        ).hexdigest()
+        return payload
+
+    @property
+    def row_valid(self) -> bool:
+        return bool(super().row_valid and self.typed_receipts_valid)
+
+    @property
+    def row_seal_valid(self) -> bool:
+        try:
+            payload = self.as_json()
+        except (TypeError, ValueError):
+            return False
+        return payload.get(V3_ROW_SEAL_FIELD) == compute_v3_row_sha256(payload)
+
+    def as_json(self) -> dict[str, Any]:
+        payload = self._unsigned_json()
+        expected = compute_v3_row_sha256(payload)
+        if self.row_sha256 is not None and self.row_sha256 != expected:
+            raise ValueError("v3 row seal mismatch")
+        payload[V3_ROW_SEAL_FIELD] = expected
         return payload
 
 
@@ -802,6 +970,11 @@ class BatchFsync10Sealer:
             if not isinstance(payload, dict) or payload.get("schema") != EPISODE_FRAME_SCHEMA:
                 raise RecorderError(f"episode_artifact_row_{index}_schema_mismatch")
             parsed_rows.append(payload)
+        try:
+            _validate_v3_optional_receipts(parsed_rows)
+            _validate_v3_row_seals(parsed_rows, require=True)
+        except ValueError as exc:
+            raise RecorderError(str(exc)) from exc
         if len(parsed_rows) != self.durable_rows:
             raise RecorderError("episode_artifact_durable_row_count_mismatch")
         content_bytes = b"".join(row_lines)
@@ -1149,19 +1322,10 @@ def _validate_v3_tail_lines(
     rows = parsed[1:-1]
     if any(not isinstance(row, dict) or row.get("schema") != EPISODE_FRAME_SCHEMA for row in rows):
         raise ValueError("episode v3 row schema mismatch")
-    for index, row in enumerate(rows):
-        supplied_row_seal = row.get("row_seal_sha256")
-        if supplied_row_seal is None:
-            # Existing v3 artifacts predate the row-level seal.  They remain
-            # readable, while all new canonical rows carry the seal below.
-            continue
-        if not _is_sha256(supplied_row_seal):
-            raise ValueError(f"episode v3 row {index} seal is invalid")
-        unsigned_row = dict(row)
-        unsigned_row.pop("row_seal_sha256", None)
-        expected_row_seal = hashlib.sha256(_line(unsigned_row)).hexdigest()
-        if supplied_row_seal != expected_row_seal:
-            raise ValueError(f"episode v3 row {index} seal mismatch")
+    _validate_v3_optional_receipts(rows)
+    # Older v3 artifacts predate the row seal and remain readable.  Any seal
+    # that is present, however, is mandatory to validate before tail/content.
+    _validate_v3_row_seals(rows, require=False)
     row_lines = lines[1:-1]
     content_sha256 = hashlib.sha256(b"".join(row_lines)).hexdigest()
     if tail.get("content_sha256") != content_sha256:
@@ -1223,6 +1387,8 @@ def validate_sealed_episode_manifest(
         raise ValueError("episode manifest artifact identity mismatch")
     if manifest.get("artifact_sha256") != hashlib.sha256(artifact.read_bytes()).hexdigest():
         raise ValueError("episode manifest artifact hash mismatch")
+    # The v3 reader checks optional typed receipts and every present row seal
+    # before accepting the row content/tail identities.
     header, rows = read_episode_artifact(artifact)
     if manifest.get("row_count") != len(rows):
         raise ValueError("episode manifest row count mismatch")
@@ -1263,17 +1429,23 @@ __all__ = [
     "EPISODE_FRAME_SCHEMA_V2",
     "EPISODE_FRAME_SCHEMA_V3",
     "EPISODE_TAIL_SCHEMA",
+    "EpisodeReceipt",
     "RECORDER_HEALTH_SCHEMA",
     "EpisodeFrame",
     "EpisodeFrameV2",
     "EpisodeFrameV3",
     "EpisodeRecorder",
+    "ObservationReceipt",
+    "ReferenceReceipt",
     "MAX_UNSEALED_TAIL",
     "OBSERVATION_DIMENSION",
     "RecorderError",
     "RecorderHealth",
     "SPOOL_CAPACITY",
     "BatchFsync10Sealer",
+    "TypedEpisodeReceipt",
+    "V3_ROW_SEAL_FIELD",
+    "compute_v3_row_sha256",
     "read_episode_artifact",
     "read_recorder_health",
     "validate_sealed_episode_manifest",

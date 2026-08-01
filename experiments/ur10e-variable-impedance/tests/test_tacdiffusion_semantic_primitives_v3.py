@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 import json
 from pathlib import Path
 
@@ -31,8 +32,10 @@ from ur10e_vic.tacdiffusion.episode_composition import (
 )
 from ur10e_vic.tacdiffusion.episode_recorder import (
     EPISODE_ARTIFACT_SCHEMA_V2,
+    EpisodeReceipt,
     EpisodeFrameV3,
     EpisodeRecorder,
+    compute_v3_row_sha256,
     read_episode_artifact,
     validate_sealed_episode_manifest,
 )
@@ -296,6 +299,7 @@ def test_v3_seal_tail_tamper_and_eligibility_fail_closed(tmp_path: Path) -> None
     assert len(rows) == 1
     assert rows[0]["observation_84d"] == [0.0] * 84
     assert rows[0]["dynamics_receipt"]["valid"] is True
+    assert rows[0]["row_sha256"] == compute_v3_row_sha256(rows[0])
     assert validate_sealed_episode_manifest(recorder.artifact_path, recorder.manifest_path) == manifest
     decision = EligibilityValidator().evaluate(
         rows,
@@ -322,6 +326,90 @@ def test_v3_seal_tail_tamper_and_eligibility_fail_closed(tmp_path: Path) -> None
     recorder.artifact_path.write_bytes(raw.rsplit(b"\n", 2)[0] + b"\n")
     with pytest.raises(ValueError, match="tail|hash"):
         read_episode_artifact(recorder.artifact_path)
+
+
+def test_v3_receipt_serialization_and_exact_row_seal() -> None:
+    context = _context()
+    frame = replace(
+        _frame(context),
+        observation_receipt=EpisodeReceipt(
+            "observation_fixture/v1",
+            {"z": 2, "a": [1.0, 2.0], "nested": {"ok": True}},
+        ),
+        reference_receipt=EpisodeReceipt(
+            "reference_fixture/v1",
+            {"reference_id": "reference:0", "sequence": 0},
+        ),
+    )
+    observation = frame.observation_receipt
+    assert observation is not None
+    assert observation.as_json() == {
+        "schema": "observation_fixture/v1",
+        "payload": {"a": [1.0, 2.0], "nested": {"ok": True}, "z": 2},
+    }
+    assert observation.canonical_bytes() == json.dumps(
+        observation.as_json(), sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")
+    with pytest.raises(ValueError, match="schema"):
+        EpisodeReceipt("", {})
+    payload = frame.as_json()
+    assert payload["observation_receipt"]["schema"] == "observation_fixture/v1"
+    assert payload["reference_receipt"]["schema"] == "reference_fixture/v1"
+    unsigned = dict(payload)
+    supplied = unsigned.pop("row_sha256")
+    exact = hashlib.sha256(
+        json.dumps(unsigned, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    ).hexdigest()
+    assert supplied == exact == compute_v3_row_sha256(payload)
+    assert frame.row_seal_valid is True
+
+
+def test_v3_row_seal_tamper_rejected_and_old_v3_without_seal_readable(tmp_path: Path) -> None:
+    context = _context()
+    recorder = EpisodeRecorder(tmp_path / "new", episode_id="typed-v3", semantic_context=context)
+    recorder.start()
+    assert recorder.enqueue(_frame(context))
+    recorder.close(seal=True)
+    original_lines = recorder.artifact_path.read_bytes().splitlines(keepends=True)
+
+    valid_row = json.loads(original_lines[1])
+    tampered_row = json.loads(original_lines[1])
+    tampered_row["observation_84d"][0] = 1.0
+    original_lines[1] = (
+        json.dumps(tampered_row, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        + b"\n"
+    )
+    recorder.artifact_path.write_bytes(b"".join(original_lines))
+    with pytest.raises(ValueError, match="row seal mismatch"):
+        read_episode_artifact(recorder.artifact_path)
+
+    # Restore the original row content, then emulate an already-written v3
+    # artifact from before the row-seal field existed.
+    old_row = valid_row
+    old_row.pop("row_sha256", None)
+    old_row_line = (
+        json.dumps(old_row, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        + b"\n"
+    )
+    old_tail = json.loads(original_lines[-1])
+    old_tail["content_sha256"] = hashlib.sha256(old_row_line).hexdigest()
+    old_tail_unsigned = dict(old_tail)
+    old_tail_unsigned.pop("tail_sha256", None)
+    old_tail["tail_sha256"] = hashlib.sha256(
+        (
+            json.dumps(old_tail_unsigned, sort_keys=True, separators=(",", ":"), allow_nan=False)
+            + "\n"
+        ).encode("utf-8")
+    ).hexdigest()
+    legacy = tmp_path / "legacy-v3.jsonl"
+    legacy.write_bytes(original_lines[0] + old_row_line + (
+        json.dumps(old_tail, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        + b"\n"
+    ))
+    header, rows = read_episode_artifact(legacy)
+    assert header["schema"] == "ur10e_tacdiffusion_episode_artifact/v3"
+    assert len(rows) == 1
+    assert "row_sha256" not in rows[0]
 
 
 def test_v1_and_v2_artifacts_remain_readable(tmp_path: Path) -> None:
