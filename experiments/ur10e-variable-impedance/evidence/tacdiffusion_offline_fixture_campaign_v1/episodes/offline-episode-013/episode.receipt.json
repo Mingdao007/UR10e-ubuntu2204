@@ -1,0 +1,22 @@
+{
+  "artifact": "episode_v3.jsonl",
+  "artifact_sha256": "691de7c18f8cb8bf43b7e56b3781f2b1f61bfad4f34cb6844f6fc147bff36ac9",
+  "attempt_index": 13,
+  "eligibility": "eligibility.json",
+  "eligibility_sha256": "42179b37755432217e65e856177117fce4a3698cb7d29ca8fab675f749402f76",
+  "eligibility_training_eligible": true,
+  "episode_id": "offline-episode-013",
+  "failure": null,
+  "failure_reason": null,
+  "family": "seeded_smooth_spline",
+  "fixture_only": true,
+  "health": "recorder_health.json",
+  "manifest": "episode_v3.manifest.json",
+  "manifest_sha256": "8f7b625054d82a255073f8ec1b82a0e06ab92eb2e75f301d37e406b20d160923",
+  "production_promotion_allowed": false,
+  "receipt_sha256": "eaa05663cb14cbf85864ce0a1c49b54b495a10f91c357c1320f9e24336ba3c32",
+  "row_count": 2,
+  "schema": "ur10e_tacdiffusion_offline_episode_receipt/v1",
+  "sealed": true,
+  "status": "completed"
+}

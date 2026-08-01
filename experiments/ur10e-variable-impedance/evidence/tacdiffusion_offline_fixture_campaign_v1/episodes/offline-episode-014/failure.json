@@ -1,0 +1,11 @@
+{
+  "artifact_sha256": "72ee133fd55dc77d0f379d7a9a88707240ed073fb10701822e62569a3b7f7d2c",
+  "attempt_index": 14,
+  "dataset_membership": false,
+  "episode_id": "offline-episode-014",
+  "failure_sha256": "47479c845381806ae4497cab4bcbec37964b99522b970fe3d63dd3adede0174d",
+  "injected": true,
+  "reason": "injected_fail_modulo_7",
+  "schema": "ur10e_tacdiffusion_offline_failure/v1",
+  "sealed_evidence_retained": true
+}

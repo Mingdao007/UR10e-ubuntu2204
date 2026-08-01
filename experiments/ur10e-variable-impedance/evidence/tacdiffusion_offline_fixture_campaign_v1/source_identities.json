@@ -1,0 +1,53 @@
+{
+  "files": [
+    {
+      "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/contracts.py",
+      "sha256": "c0cc42f3cdcfdea130ca30db7eb5ef12458d3632a85726196c9b87285d22d9c8"
+    },
+    {
+      "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/dynamic_filter.py",
+      "sha256": "8c0a07722a7030aae179ebda58a4f47655e24227c7a5b4b05bc28ec7776b7419"
+    },
+    {
+      "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/eligibility.py",
+      "sha256": "36c53d10ad68857e6095bdc4120b15e796f9e0f51b9af205626b781a7a36c5e5"
+    },
+    {
+      "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/episode_composition.py",
+      "sha256": "eae53f26226cf918e5fccc8071433f5a1c6fb84533513a61a530767d0720f401"
+    },
+    {
+      "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/episode_recorder.py",
+      "sha256": "cd6a0cfe998a979f512a20b3c4509cb73fd3e593f68d841c973c448c98df7e79"
+    },
+    {
+      "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/observation.py",
+      "sha256": "30e0908ec0d54466c1d86e598450a56bb566634ed045d8ea615ea9c0761490bc"
+    },
+    {
+      "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/offline_campaign.py",
+      "sha256": "930d06d9e7be3205af6766fbf481cc0bf6e5a3c33d9cbe0be71221f4b2de86b9"
+    },
+    {
+      "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/queue.py",
+      "sha256": "7f65504adcf1b8924ff5bb68e50cab71dd57d5d0c8749fe36ce5acc7cd2099ce"
+    },
+    {
+      "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/trajectory.py",
+      "sha256": "7777179da57b2d38511008df5b3679155ea8fa4efe7210f7a8ecd37a4cd21979"
+    },
+    {
+      "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/cli.py",
+      "sha256": "22062eb0626c8c7be6e854a07d8626d3145b9b941c05973d54c40e7d6d24fad2"
+    },
+    {
+      "path": "experiments/ur10e-variable-impedance/tools/materialize_tacdiffusion_offline_campaign.py",
+      "sha256": "38c4cd06d0b503e11a5c55560e2a9ac169667e624b3ee6b476670b8a748f71f5"
+    }
+  ],
+  "fixture_only": true,
+  "production_promotion_allowed": false,
+  "schema": "ur10e_tacdiffusion_offline_source_receipt/v2",
+  "source_receipt_sha256": "4aa33d04613f0ec7d44e0e0d350a0bda5c623b9973f62325e08a5a5bb2fadc07",
+  "version": "repo_relative_bytes_sha256_v1"
+}

@@ -24,6 +24,17 @@ from .model import (
     train_ddpm,
     validate_checkpoint_manifest,
 )
+from .offline_campaign import (
+    materialize_offline_campaign_bundle,
+    validate_offline_campaign_bundle,
+)
+
+
+DEFAULT_OFFLINE_CAMPAIGN_BUNDLE = (
+    Path(__file__).resolve().parents[2]
+    / "evidence"
+    / "tacdiffusion_offline_fixture_campaign_v1"
+)
 
 
 def _write_json(path: str | Path, payload: object) -> None:
@@ -122,6 +133,16 @@ def build_parser() -> argparse.ArgumentParser:
     validate_benchmark.add_argument("--checkpoint-sha256", required=True)
     validate_benchmark.add_argument("--dataset-sha256", required=True)
     validate_benchmark.add_argument("--output")
+
+    offline_campaign = subparsers.add_parser(
+        "materialize-offline-campaign",
+        help="materialize or verify the deterministic network-free fixture campaign",
+    )
+    offline_campaign.add_argument(
+        "--output",
+        default=str(DEFAULT_OFFLINE_CAMPAIGN_BUNDLE),
+    )
+    offline_campaign.add_argument("--validate-only", action="store_true")
     return parser
 
 
@@ -217,6 +238,28 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         if args.output:
             _write_json(args.output, result)
         return result
+    if args.command == "materialize-offline-campaign":
+        if args.validate_only:
+            manifest = validate_offline_campaign_bundle(args.output)
+            return {
+                "validation_status": "verified",
+                "artifact_root": str(Path(args.output)),
+                "artifact_root_digest": manifest["bundle_digest_sha256"],
+            }
+        result = materialize_offline_campaign_bundle(args.output)
+        return {
+            "validation_status": "materialized_and_verified",
+            "artifact_root": str(result.root),
+            "artifact_root_digest": result.artifact_root_digest,
+            "campaign_counters": result.campaign_receipt["counters"],
+            "dataset_shape": {
+                "observations": result.dataset_manifest["observation_shape"],
+                "actions": result.dataset_manifest["action_shape"],
+            },
+            "split_episode_counts": result.dataset_manifest["split_episode_counts"],
+            "fixture_only": True,
+            "production_promotion_allowed": False,
+        }
     raise ValueError(f"unsupported command: {args.command}")
 
 
