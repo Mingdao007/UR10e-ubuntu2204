@@ -47,50 +47,80 @@
 - The bridge reaches the governed waiting-for-ARM state with zero command.
 - No live acceptance is claimed until an explicitly authorized bench run.
 
-## Staged independent V4 r002
+## Staged independent V4 r004
 
-- V4 is a separate `step5d_strict_rnn_autotune_v4` lineage and does not mutate
-  V3/r034, its observations, GP, incumbent, current pointer, or fixed-2 ms
-  contract.
-- V4 r001 is historical and `SUPERSEDED_ARCHITECTURE_NOT_LOADABLE`; r002 is the
-  only staged architecture candidate.
-- Old and new EOATs are hash-bound typed profiles. Both use the same
-  `apply_and_verify_eoat(profile, controller)` primitive; profile selection is
-  data, while stationary, Safety NORMAL, single writer, and fresh GET match are
-  invariants.
-- Entry, force search, baseline, timing, qdot gate, and candidate provider are
-  replaceable behavior primitives. Provider outputs pass through the fixed
-  V4 invariant envelope before a typed wire packet can be published.
-- Removing a non-safety provider degrades to zero qdot/no motion. Target 5 N,
-  Kunwei-only authority, model hashes, hard guards, physical caps, timing
-  stop conditions, schema, and EOAT readback are not removable.
-- Baseline qualification has one owner:
-  `BaselineQualificationLedger`. Only hash-bound terminal stage-22 receipts
-  change the consecutive-success count; the typed TP command mode is
-  `HOLD/BASELINE/PATH/RETRACT/STOP`.
-- BO is an optional candidate provider. Without BO, the anchor/manual staged
-  provider still produces useful bounded behavior.
+- V4 r004 is a separate `step5d_strict_rnn_autotune_v4` source closure. It
+  leaves V3/r034, its observations/GP/incumbent, `config/current.json`, and
+  every V4/r003 byte untouched. The V4-only pointer is
+  `config/step5d/lineage_selector_v4_r004.json`; it is not the canonical
+  current selector.
+- Script1 is the frozen byte-identical
+  `step5d_autotune_start_hover_r001` package, bound to exact pose
+  `p[0.487834547,0.129337053,0.033,3.120752062,0,0.068626833]`. It runs only
+  initially and after STOP/problem/restart, never before each uninterrupted
+  success. Script2 is the new resident
+  `step5d_strict_rnn_autotune_v4_r004` package.
+- One Script2 Play captures campaign Home pose/q once. Each typed ARM runs one
+  integrated gentle negative-Z acquisition and force attempt, retracts, reaches
+  transfer-floor Z `>=0.062863519 m`, returns to captured Home, and enters
+  `READY_HOME_NEXT`. Abnormal stop or return failure is STOPPED without
+  auto-Home; recovery needs Script1 and a new epoch.
+- The ordered campaign is exactly `3 qualification + Batch A 5 + Batch B 5 +
+  retest 3 = 16` logical attempts. There is no standalone search/canary.
+  The capability DAG and runtime feedback loop are separate contracts:
+  `typed wire -> bounded contact/baseline/return -> durable campaign policy`
+  versus `fresh Kunwei packet -> immutable TP cache -> guarded motion ->
+  output/ledger evidence`.
+- Physical invariants are target `5.0 N`, `D=28`, Kunwei-only wrench, no UR
+  built-in force, and no sensor zero/tare/config command. The layout-606 wire
+  retains doubles 24..47 and maps integer inputs 24..32 to baseline count,
+  CommandMode, sticky 1 N latch, SessionCommand, command sequence, epoch,
+  ordinal, kind, and candidate token. SessionCommand is HOLD=0, ARM=1,
+  COMPLETE=2, STOP=3. Outputs 24..34 echo epoch, ordinal, state, token,
+  reason, consumed sequence, kind, return guard, runtime protocol, and the
+  two-limb runtime identity digest. The digest binds
+  `program+contract_sha256+campaign_fingerprint`; session epoch is echoed as
+  its separate output field.
+- Contact acquisition is negative-Z base motion at `0.0002 m/s`, acceleration
+  `0.005 m/s2`, positive normal-load gate `0.5 N`, force-norm gate `0.7 N`,
+  max travel `0.025 m`, and timeout `90 s`. Baseline/path guards are absolute
+  normal `15 N`, force norm `20 N`, torque norm `1 Nm`, qdot `0.15 rad/s`;
+  entry/return speed is bounded by `0.01 m/s`. Return success additionally
+  requires retract `>=5 mm`, transfer floor, captured Home position `<=1 mm`,
+  orientation `<=0.01 rad`, and joint error `<=0.02 rad`.
+- At TP 500 Hz versus nominal writer 125 Hz, a newer packet updates the
+  immutable cache; an equal sequence is reusable only when all fields are
+  identical. Changed equal payload, sequence regression, or held age `>=80 ms`
+  fails closed with reason 43. The pre-latch and post-latch force timers are
+  separate `<=20 s` budgets; malformed latch/counter or latch regression stops.
+- Controller readback is max age 300 s at Script2 Play and extends only within
+  the same uninterrupted runtime identity/session epoch. Script1 start receipt
+  is max age 120 s and binds exact Script1 SHA, final pose/q, stationary state,
+  Safety NORMAL, and V4 EOAT identity. Stop/load/restart invalidates receipts.
+- The live boundary is a thin r004 adapter over the canonical
+  `tools/step5d_bridge_authority.py` lease and the existing V4
+  `WritableRTDEClient` plus `LiveKunweiTransport` mechanics. r004 uses the same
+  canonical `step5d-bridge-writer` resource as V3/V4, while its route and
+  attempt IDs are explicitly r004-bound. The adapter owns only layout-606
+  recipe/echo checks; it has no Dashboard Load/Play path and no duplicate
+  socket/parser/packing implementation. Cleanup is a safe STOP packet, Kunwei
+  STOP_STREAM, RTDE close, then canonical lease revoke.
+- Every durable campaign row records epoch, immutable attempt execution ID,
+  controller receipt SHA, Script1 receipt SHA, input baseline ledger SHA, and
+  output ledger SHA. Next ARM requires fsync, cold-read, and live
+  `verify_ledger_hash_chain`; interrupted IDs are ineligible for GP. Resume
+  verifies the last completed output seal and retries the same ordinal with a
+  new execution ID, Script1, and epoch.
+- Offline acceptance requires 550 bins, effective rate `>=75 Hz`, p99 packet
+  interval `<=20 ms`, max interval `<80 ms`, and passing safety/contact/return
+  gates. Promotion requires at least 2/3 retests with MAE `<=0.30 N` and
+  candidate median objective `<=0.95 *` frozen anchor median. Otherwise the
+  campaign completes with no promotion and the anchor remains immutable.
 
-### V4 capability DAG
+### V4 r004 offline blockers
 
-`EOAT profile -> shared force search -> injected entry/timing/baseline/qdot
-policies -> fixed invariant envelope -> typed wire -> attempt/replay evidence
--> optional candidate provider`
-
-### V4 runtime feedback loop
-
-`fresh Kunwei + robot observation -> local policies -> invariant envelope ->
-typed command -> single RTDE writer -> guarded TP execution -> fresh
-observation`
-
-### V4 live blockers
-
-- New EOAT physically installed and freshly apply/GET-verified.
-- r006 live success.
-- Three consecutive ledger-owned 5 N baseline receipts.
-- Formal Review v3 and fresh Remote route-owner gates.
-- Canonical lineage transition. Exact r002 triplet upload/read-back is closed
-  by the controller-readback receipt; it did not Load/Play or select V4.
-
-Until all blockers close, V4 remains no-Load/no-Play/no-motion and V3/r034
-remains the active old-EOAT autotune path.
+- No controller upload/read-back, Dashboard, Load, Play, bridge, ARM, contact,
+  motion, sensor write, network, or promotion was performed in this closure.
+- Live EOAT installation/readback, live success, owner route gates, and any
+  canonical lineage transition remain external blockers. V3/r034 remains the
+  active old-EOAT route.

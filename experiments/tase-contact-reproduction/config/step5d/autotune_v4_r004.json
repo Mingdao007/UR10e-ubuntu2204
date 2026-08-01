@@ -1,0 +1,274 @@
+{
+  "schema": "step5d.autotune-v4/release-contract-v3",
+  "lineage": "step5d_strict_rnn_autotune_v4",
+  "program": "step5d_strict_rnn_autotune_v4_r004",
+  "revision": 4,
+  "status": "offline_candidate_live_blocked",
+  "fingerprint": {
+    "eoat_contract": {
+      "path": "config/step5d/eoat_profile_new_v4.json",
+      "sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4"
+    },
+    "target_force_n": 5.0,
+    "damping": 28.0,
+    "wrench_authority": "kunwei_only",
+    "ur_builtin_force_allowed": false,
+    "sensor_zero_tare_or_config_allowed": false,
+    "normalization_revision": 1,
+    "bounds_revision": 1
+  },
+  "script1": {
+    "program": "step5d_autotune_start_hover_r001",
+    "script_path": "programs/step5/step5d/step5d_autotune_start_hover_r001.script",
+    "script_sha256": "79b62fd48d2deeb1b14ec3c3c9c78ea7901aa0ddd716a09742f1ff39c48a36c2",
+    "txt_path": "programs/step5/step5d/step5d_autotune_start_hover_r001.txt",
+    "txt_sha256": "46e542e9236a2c9177a2d880a5daac4e641ced53b5d8989c094371cb5e7b3576",
+    "urp_path": "programs/step5/step5d/step5d_autotune_start_hover_r001.urp",
+    "urp_sha256": "d9eda6a7013de125cacb47c9a16623fd5981bc23ddd94a3ca4e9d751f9ec8642",
+    "target_pose_m_rad": [
+      0.487834547,
+      0.129337053,
+      0.033,
+      3.120752062,
+      0.0,
+      0.068626833
+    ],
+    "run_policy": "initial_and_after_stop_problem_restart_only"
+  },
+  "script2": {
+    "program": "step5d_strict_rnn_autotune_v4_r004",
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r004.urp",
+    "lifecycle": "resident_rolling_arm_loop",
+    "play_captures_home_once": true,
+    "fault_stays_stopped": true,
+    "fault_auto_home": false
+  },
+  "wire": {
+    "schema": "step5d.autotune-v4/register-wire-v3",
+    "layout_tag": 606,
+    "double_registers": {
+      "24": "normal_load_n",
+      "25": "force_norm_n",
+      "26": "heartbeat",
+      "27": "sensor_fresh",
+      "28": "stop_request",
+      "29": "eoat_get_ack",
+      "30": "torque_norm_nm",
+      "31": "wrench_fx_n",
+      "32": "wrench_fy_n",
+      "33": "wrench_fz_n",
+      "34": "wrench_mx_nm",
+      "35": "wrench_my_nm",
+      "36": "wrench_mz_nm",
+      "37": "qdot_0_rad_s",
+      "38": "qdot_1_rad_s",
+      "39": "qdot_2_rad_s",
+      "40": "qdot_3_rad_s",
+      "41": "qdot_4_rad_s",
+      "42": "qdot_5_rad_s",
+      "43": "cmd_valid",
+      "44": "internal_setpoint_n",
+      "45": "filtered_normal_n",
+      "46": "packet_sequence",
+      "47": "layout_tag"
+    },
+    "input_integer_registers": {
+      "24": "baseline_consecutive_successes",
+      "25": "command_mode",
+      "26": "sticky_one_newton_latched",
+      "27": "session_command",
+      "28": "session_command_sequence",
+      "29": "session_epoch",
+      "30": "logical_attempt_ordinal",
+      "31": "attempt_kind",
+      "32": "candidate_token"
+    },
+    "session_commands": {
+      "HOLD": 0,
+      "ARM": 1,
+      "COMPLETE": 2,
+      "STOP": 3
+    },
+    "output_integer_registers": {
+      "24": "epoch",
+      "25": "ordinal",
+      "26": "state",
+      "27": "token",
+      "28": "reason",
+      "29": "consumed_session_command_sequence",
+      "30": "attempt_kind",
+      "31": "return_guard",
+      "32": "runtime_protocol",
+      "33": "runtime_digest_hi",
+      "34": "runtime_digest_lo"
+    },
+    "runtime_identity_digest": {
+      "algorithm": "sha256_first_62_bits_split_into_two_31_bit_limbs",
+      "source": "program+contract_sha256+campaign_fingerprint",
+      "epoch_register_is_separate_identity_component": true,
+      "hi_register": 33,
+      "lo_register": 34,
+      "protocol_register": 32,
+      "protocol_value": 606004
+    }
+  },
+  "architecture": {
+    "capability_dag": [
+      "hash_bound_v4_eoat_identity",
+      "typed_layout_606_packet",
+      "immutable_packet_cache",
+      "bounded_gentle_contact_acquisition",
+      "separate_pre_and_post_latch_timers",
+      "bounded_baseline_force_attempt",
+      "bounded_candidate_feedback_policy",
+      "return_home_guard",
+      "durable_hash_chain_ledger",
+      "resume_and_promotion_policy"
+    ],
+    "runtime_feedback_loop": "fresh_kunwei_packet -> immutable_tp_cache -> typed_session_guard -> bounded_contact_baseline_path -> return_home_receipt -> durable_campaign_row",
+    "capability_dag_is_not_runtime_feedback_loop": true
+  },
+  "timing": {
+    "tp_hz": 500.0,
+    "writer_hz": 125.0,
+    "packet_max_equal_age_s": 0.08,
+    "pre_latch_timeout_s": 20.0,
+    "post_latch_timeout_s": 20.0,
+    "controller_readback_max_age_s": 300.0,
+    "script1_receipt_max_age_s": 120.0
+  },
+  "contact_acquisition": {
+    "axis": "negative_z_base",
+    "speed_m_s": 0.0002,
+    "acceleration_m_s2": 0.005,
+    "positive_normal_load_n": 0.5,
+    "force_norm_n": 0.7,
+    "max_travel_m": 0.025,
+    "timeout_s": 90.0,
+    "standalone_search_or_canary": false
+  },
+  "baseline": {
+    "pre_latch_timeout_s": 20.0,
+    "post_latch_timeout_s": 20.0,
+    "latch_values": [0, 1],
+    "consecutive_success_bounds": [0, 3],
+    "target_force_n": 5.0,
+    "command_mode": "BASELINE",
+    "post_latch_timer_starts_on_first_observed_sticky_latch": true
+  },
+  "runtime": {
+    "tp_hz": 500.0,
+    "writer_hz": 125.0,
+    "packet_equal_sequence_is_reusable": true,
+    "packet_equal_payload_required": true,
+    "packet_sequence_regression_reason": 43,
+    "packet_changed_equal_sequence_reason": 43,
+    "packet_held_age_limit_s": 0.08,
+    "path_runtime_s": 60.0,
+    "qdot_abs_max_rad_s": 0.15,
+    "low_speed_entry_m_s": 0.01,
+    "low_speed_return_m_s": 0.01,
+    "stationary_linear_m_s": 0.0005,
+    "stationary_angular_rad_s": 0.005
+  },
+  "return_home": {
+    "retract_min_m": 0.005,
+    "transfer_floor_z_m": 0.062863519,
+    "home_position_tolerance_m": 0.001,
+    "home_orientation_tolerance_rad": 0.01,
+    "home_joint_tolerance_rad": 0.02,
+    "fault_or_return_failure": "stop_without_auto_home",
+    "success_requires": [
+      "stationary",
+      "positive_z_retract_at_least_5mm",
+      "transfer_floor_z_at_least_0.062863519m",
+      "low_speed_entry_envelope",
+      "low_speed_return_envelope",
+      "captured_home_pose_tolerance",
+      "captured_home_q_tolerance"
+    ]
+  },
+  "campaign": {
+    "total_logical_attempts": 16,
+    "qualification": 3,
+    "batch_a": 5,
+    "batch_b": 5,
+    "retest": 3,
+    "anchor": {
+      "force_p_gain": 0.0003535533906,
+      "force_i_gain": 0.0,
+      "force_damping": 28.0,
+      "normal_filter_tau_s": 0.35,
+      "orientation_ko": 0.1,
+      "motion_kp": 1.5,
+      "target_force_n": 5.0
+    },
+    "batch_probe_step_octave": 0.25,
+    "resume_same_logical_ordinal_new_execution_id": true,
+    "no_standalone_search_or_canary": true
+  },
+  "durable_ledger": {
+    "schema": "step5d.autotune-v4/r004-durable-campaign-ledger-v1",
+    "required_fields": [
+      "session_epoch",
+      "attempt_execution_id",
+      "controller_receipt_sha256",
+      "script1_receipt_sha256",
+      "input_baseline_ledger_sha256",
+      "output_ledger_sha256"
+    ],
+    "next_arm_requires": [
+      "durable_row",
+      "fsynced",
+      "cold_read",
+      "hash_verified"
+    ],
+    "interrupted_execution_gp_eligible": false,
+    "resume_requires_last_completed_output_seal": true,
+    "verifier": "tools/step5d_autotune_v4_r004/ledger.py:verify_ledger_hash_chain"
+  },
+  "identity": {
+    "controller_readback_max_age_s": 300.0,
+    "script1_start_receipt_max_age_s": 120.0,
+    "runtime_identity_extends_only_same_uninterrupted_session": true,
+    "load_play_stop_restart_invalidates_receipt": true,
+    "script1_binds": [
+      "exact_script_sha256",
+      "final_pose",
+      "final_q",
+      "stationary",
+      "safety_normal",
+      "v4_eoat_identity"
+    ]
+  },
+  "authority": {
+    "implementation": "tools/step5d_bridge_authority.py",
+    "resource_id": "step5d-bridge-writer",
+    "same_resource_as_v3_and_v4": true,
+    "r004_attempt_id_and_route_id_required": true,
+    "lifecycle": ["begin", "AuthorityFence.assert_active", "revoke", "AuthorityFence.assert_revoked"]
+  },
+  "acceptance": {
+    "path_coverage_bins": 550,
+    "effective_rate_hz_min": 75,
+    "p99_packet_interval_max_s": 0.02,
+    "max_packet_interval_lt_s": 0.08,
+    "safety_contact_return_all_pass": true,
+    "retest_passes_min": 2,
+    "retest_count": 3,
+    "mae_max_n": 0.3,
+    "candidate_median_objective_ratio_max": 0.95,
+    "anchor_mutable_in_place": false,
+    "no_promotion_disposition": "complete_campaign_without_promotion_anchor_retained"
+  },
+  "delivery": {
+    "controller_upload": false,
+    "controller_readback": false,
+    "load": false,
+    "play": false,
+    "contact": false,
+    "motion": false,
+    "promotion": false,
+    "offline_local_build_only": true
+  }
+}

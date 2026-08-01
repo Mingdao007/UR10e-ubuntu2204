@@ -1,0 +1,22 @@
+{
+  "checks": {
+    "baseline_post_20": true,
+    "baseline_pre_20": true,
+    "contact_accel": true,
+    "contact_speed": true,
+    "contact_timeout": true,
+    "contact_travel": true,
+    "damping_exact_28": true,
+    "layout_exact_606": true,
+    "no_motion_write_primitives": true,
+    "no_sensor_write": true,
+    "no_ur_force": true,
+    "path_runtime_60": true,
+    "retract_5mm": true,
+    "target_exact_5n": true,
+    "transfer_floor": true
+  },
+  "passed": true,
+  "program": "step5d_strict_rnn_autotune_v4_r004",
+  "schema": "step5d.autotune-v4/r004-numeric-sanity-v1"
+}

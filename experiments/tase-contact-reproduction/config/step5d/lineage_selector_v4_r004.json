@@ -1,0 +1,61 @@
+{
+  "schema": "step5d.lineage-selector/v4-source-closure-v1",
+  "status": "offline_candidate_live_blocked",
+  "active_canonical_selector_unchanged": true,
+  "current_v3": {
+    "lineage": "step5d_strict_rnn_autotune_v3",
+    "program": "step5d_strict_rnn_autotune_v3_r034",
+    "current_pointer": "config/step5d/current.json",
+    "current_pointer_sha256": "646edefaf6fbbd76b0cbfe86bc00b5d8ac26b787231f9ac345425256bbc78f5e",
+    "v3_bytes_unchanged": true
+  },
+  "candidate_v4_r004": {
+    "lineage": "step5d_strict_rnn_autotune_v4",
+    "program": "step5d_strict_rnn_autotune_v4_r004",
+    "release_contract": "config/step5d/autotune_v4_r004.json",
+    "release_contract_sha256": "174aa711b498ae37ed7605ffe4d164eecbeac78ab3d3bc017a4ad8257e246c95",
+    "wire_schema": "step5d.autotune-v4/register-wire-v3",
+    "wire_layout": 606,
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r004.urp",
+    "offline_closure": "config/step5d/autotune_v4_r004_offline_closure.json",
+    "offline_closure_sha256": "672f649b3899e8d0841d98583427f0700211529e2fb62dbfdf9f02843552263c",
+    "campaign_fingerprint": "05a0ed75dbe8e67916f6babebf1c266ee951262088179de59f44a157f173c186",
+    "eoat_contract": "config/step5d/eoat_profile_new_v4.json",
+    "script1": "programs/step5/step5d/step5d_autotune_start_hover_r001",
+    "script1_policy": "initial_and_after_stop_problem_restart_only",
+    "script2_lifecycle": "resident_rolling_arm_loop",
+    "campaign": {
+      "qualification": 3,
+      "batch_a": 5,
+      "batch_b": 5,
+      "retest": 3,
+      "total_logical_attempts": 16
+    },
+    "delivery": {
+      "local_triplet_built": true,
+      "controller_upload": false,
+      "controller_readback": false,
+      "load": false,
+      "play": false,
+      "contact": false,
+      "motion": false,
+      "promotion": false
+    }
+  },
+  "activation": {
+    "this_file_is_not_canonical_active_selector": true,
+    "manual_canonical_pointer_mutation": false,
+    "required_live_evidence": [
+      "fresh_v4_eoat_apply_get_receipt",
+      "controller_readback_receipt",
+      "live_runtime_identity_and_session_epoch",
+      "owner_route_and_safety_gates",
+      "live_success_and_promotion_contract"
+    ]
+  },
+  "claim_boundary": [
+    "This pointer records an offline V4-only source closure.",
+    "It does not select V4, upload a controller program, Load, Play, move, contact, or promote.",
+    "V3/r034 and V4/r003 artifacts remain frozen evidence."
+  ]
+}

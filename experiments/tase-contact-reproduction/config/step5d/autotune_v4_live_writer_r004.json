@@ -1,0 +1,83 @@
+{
+  "schema": "step5d.autotune-v4/register-live-writer-v2",
+  "artifact_id": "autotune-v4-kunwei-register-writer-r004",
+  "release_contract": "config/step5d/autotune_v4_r004.json",
+  "program": {
+    "basename": "step5d_strict_rnn_autotune_v4_r004",
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r004.urp"
+  },
+  "transport": {
+    "mode": "explicit_live_ack_only",
+    "controller_endpoint": null,
+    "kunwei_endpoint": null,
+    "endpoint_source": "explicit CLI arguments; no defaults",
+    "network_access_allowed": "only after exact live acknowledgement and receipt gates",
+    "rtde_hardware_access_allowed": "only after exact live acknowledgement and receipt gates",
+    "dashboard_actions": false,
+    "load_or_play": false
+  },
+  "timing": {
+    "tp_hz": 500.0,
+    "writer_hz": 125.0,
+    "publish_period_s": 0.008,
+    "packet_held_age_limit_s": 0.08,
+    "pre_latch_timeout_s": 20.0,
+    "post_latch_timeout_s": 20.0,
+    "path_runtime_s": 60.0
+  },
+  "force_mapping": {
+    "normal_axis": "fz",
+    "normal_sign": -1.0,
+    "target_force_n": 5.0,
+    "damping": 28.0,
+    "software_baseline_only": true,
+    "ur_builtin_force_allowed": false,
+    "sensor_zero_tare_or_config_allowed": false
+  },
+  "hard_guards": {
+    "search": {
+      "absolute_normal_load_n": 3.0,
+      "force_norm_n": 3.0,
+      "torque_norm_nm": 0.2
+    },
+    "baseline_path": {
+      "absolute_normal_load_n": 15.0,
+      "force_norm_n": 20.0,
+      "torque_norm_nm": 1.0
+    }
+  },
+  "wire": {
+    "schema": "step5d.autotune-v4/register-wire-v3",
+    "layout_tag": 606,
+    "input_integer_registers": "24..32",
+    "output_integer_registers": "24..34",
+    "session_commands": {
+      "HOLD": 0,
+      "ARM": 1,
+      "COMPLETE": 2,
+      "STOP": 3
+    },
+    "freshness_failure_reason": 43
+  },
+  "single_owner_boundary": {
+    "writer_is_only_packet_author": true,
+    "tp_is_only_motion_author": true,
+    "authority_resource_id": "step5d-bridge-writer",
+    "authority_implementation": "tools/step5d_bridge_authority.py",
+    "authority_lifecycle": ["begin", "AuthorityFence.assert_active", "revoke", "AuthorityFence.assert_revoked"],
+    "same_canonical_resource_as_v3": true,
+    "route_bound_authority_fence": true,
+    "cleanup": ["STOP/HOLD-safe zero packet", "STOP_STREAM", "close RTDE/socket", "release authority lease"],
+    "script1_required_initial_and_recovery": true,
+    "no_dashboard_load_play_in_writer": true,
+    "runtime_identity_and_epoch_echo_required": true
+  },
+  "delivery": {
+    "controller_upload": false,
+    "controller_readback": false,
+    "load": false,
+    "play": false,
+    "contact": false,
+    "motion": false
+  }
+}

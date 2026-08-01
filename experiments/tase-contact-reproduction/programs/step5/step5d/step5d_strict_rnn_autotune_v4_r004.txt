@@ -1,0 +1,65 @@
+Step5d independent new-EOAT 5 N Autotune V4 r004 resident loop
+
+Controller target:
+  /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r004.urp
+
+Version:
+  2026-08-01T1542HKT_STEP5D_AUTOTUNE_V4_R004
+
+Program-side step table:
+  P1 PLAY: capture campaign Home pose and q exactly once; stay READY_HOME_NEXT.
+  P2 ARM: consume one newer typed SessionCommand ARM and one logical ordinal.
+  P3 CONTACT: integrated negative-Z gentle acquisition, 0.0002 m/s,
+     0.005 m/s2, max 0.025 m or 90 s; no standalone search/canary.
+  P4 BASELINE: wait pre-latch <=20 s, then reset a separate post-latch
+     <=20 s force-acquisition timer after sticky 1 N is first observed.
+  P5 PATH: only after baseline counter >=3 and typed PATH; bounded 60 s.
+  P6 RETURN: successful attempts retract +Z >=5 mm, reach transfer floor
+     z >=0.062863519 m, maintain low-speed envelope, then descend to Home.
+  P7 READY: echo epoch/ordinal/state/token/reason/consumed sequence/kind,
+     return guard, and runtime identity digest; wait for the next ARM.
+  P8 STOPPED: any abnormal stop or return failure stays stopped; no auto-Home.
+
+Register wire:
+  layout_tag=606 (layout-606); doubles 24..47 retain r003 sensor/qdot/setpoint meanings.
+  EXPECTED_PROGRAM: step5d_strict_rnn_autotune_v4_r004; wire identity is layout-606.
+  integer inputs 24..32 = baseline_successes, CommandMode, sticky_latch,
+  SessionCommand, session_sequence, epoch, ordinal, kind, candidate_token.
+  SessionCommand HOLD=0 ARM=1 COMPLETE=2 STOP=3.
+  integer outputs 24..34 = epoch, ordinal, state, token, reason,
+  consumed_sequence, kind, return_guard, runtime_protocol, digest_hi, digest_lo.
+  runtime_protocol=606004; digest material is
+  program+contract_sha256+campaign_fingerprint (SHA-256 first 62 bits split
+  into two non-negative 31-bit limbs); session epoch is a separate output.
+
+Freshness and identity:
+  TP=500 Hz and writer=125 Hz. A newer sequence replaces an immutable packet
+  cache. An equal sequence is reusable only when all 24 doubles and 9 integer
+  fields are byte/field-identical. Changed equal payload, regression, or held
+  age >=80 ms fails closed with reason 43. Script1 receipt max age is 120 s;
+  controller readback receipt max age is 300 s and is session-invalidated by
+  stop/load/restart. Script1 is byte-bound to the exact frozen r001 triplet.
+
+Campaign and ledger:
+  3 qualification + Batch A 5 + Batch B 5 + retest 3 = exactly 16 logical
+  attempts. Each row carries epoch, fresh execution id, controller receipt
+  SHA, Script1 receipt SHA, input baseline ledger SHA, and output ledger SHA.
+  Next ARM requires fsync, cold-read, and live hash-chain verification.
+  Interrupted execution IDs are never GP eligible; resume repeats the same
+  logical ordinal with a new execution id, new epoch, and Script1 receipt.
+
+Acceptance/promotion:
+  550 bins, effective rate >=75 Hz, p99 interval <=20 ms, max interval <80 ms,
+  safety/contact/return gates all pass. Promotion requires >=2/3 retests,
+  MAE <=0.30 N, and candidate median objective <=0.95 anchor median; otherwise
+  complete without promotion and retain the anchor unchanged.
+
+Binding:
+  contract_sha256=174aa711b498ae37ed7605ffe4d164eecbeac78ab3d3bc017a4ad8257e246c95
+  campaign_fingerprint=05a0ed75dbe8e67916f6babebf1c266ee951262088179de59f44a157f173c186
+  eoat_profile_sha256=1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4
+  lineage=step5d_strict_rnn_autotune_v4, target_force_n=5.0, D=28.0
+
+Claim boundary:
+  This is a local source/package build only. Upload, read-back, Load, Play,
+  contact, motion, sensor writes, and promotion are all false/offline.

@@ -1,0 +1,17 @@
+{
+  "schema": "step5d.autotune-v4/r004-baseline-ledger-genesis-v1",
+  "campaign_fingerprint": "05a0ed75dbe8e67916f6babebf1c266ee951262088179de59f44a157f173c186",
+  "eoat_sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+  "target_force_n": 5.0,
+  "damping": 28.0,
+  "consecutive_success_attempt_ids": [],
+  "receipts": [],
+  "frozen": false,
+  "freeze_reason": "",
+  "ledger_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "delivery": {
+    "offline_only": true,
+    "controller": false,
+    "kunwei": false
+  }
+}

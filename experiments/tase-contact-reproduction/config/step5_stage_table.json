@@ -11210,69 +11210,158 @@
       "current_binding": {
         "is_current": false,
         "stage_id": "step5d_strict_rnn_autotune_v4",
-        "program": "step5d_strict_rnn_autotune_v4_r002",
-        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r002.urp",
-        "current_stage_pointer": "config/step5d/lineage_selector.json"
+        "program": "step5d_strict_rnn_autotune_v4_r004",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r004.urp",
+        "current_stage_pointer": "config/step5d/lineage_selector_v4_r004.json"
       },
       "source_binding": {
-        "release_contract": "config/step5d/autotune_v4_r002.json",
+        "release_contract": "config/step5d/autotune_v4_r004.json",
+        "live_writer_contract": "config/step5d/autotune_v4_live_writer_r004.json",
+        "baseline_genesis": "config/step5d/autotune_v4_r004_baseline_ledger_genesis.json",
         "eoat_profile": "config/step5d/eoat_profile_new_v4.json",
-        "wire_contract": "config/step5d/autotune_v4_wire_v2.json",
-        "policy_composition": "tools/step5d_autotune_v4/policies.py",
-        "baseline_qualification_owner": "tools/step5d_autotune_v4/baseline_ledger.py",
-        "force_search_core": "tools/step5d_force_search_core.py"
+        "script1": "programs/step5/step5d/step5d_autotune_start_hover_r001",
+        "script2": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r004",
+        "wire_contract": "tools/step5d_autotune_v4_r004/wire.py",
+        "resident_tp": "tools/step5d_autotune_v4_r004/tp.py",
+        "writer": "tools/step5d_autotune_v4_r004_live_writer.py",
+        "campaign": "tools/run_step5d_autotune_v4_r004_campaign.py",
+        "ledger_verifier": "tools/step5d_autotune_v4_r004/ledger.py:verify_ledger_hash_chain",
+        "offline_closure": "config/step5d/autotune_v4_r004_offline_closure.json",
+        "canonical_authority": "tools/step5d_bridge_authority.py",
+        "canonical_rtde_client": "tools/step5d_autotune_v4_live_writer.py:WritableRTDEClient",
+        "canonical_kunwei_stream": "tools/step5d_autotune_v4_live_writer.py:LiveKunweiTransport",
+        "dashboard_actions_in_writer": false
       },
       "package_delivery": {
-        "state": "controller read-back verified",
-        "receipt": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r002.controller-readback-receipt.json",
-        "script_sha256": "f7d103ff3fb264658789227e8484d0596632e995fa4081e76455fdbcb119fb98",
-        "txt_sha256": "1b390c203605474797e8b6359c906e0a990bb749ced8c85bad9d503197072df5",
-        "urp_sha256": "2e4036b74ecabc3ed1e6beaca3a93d064894a70f1c4295efedf226c5e1900c08",
+        "state": "local triplet built; controller delivery forbidden in this task",
+        "controller_readback_receipt": null,
+        "script_sha256": "102aa8c4619f9ed2c3899ed3e32a7b6034a2d277b6fe4f844bfc8c97814b19f5",
+        "txt_sha256": "13fc2872337c2be16b549eb65c486c0d8c6fb18077589be4b7f04edad3e9b8e6",
+        "urp_sha256": "c1ab24bbd35e39b7708aa2cd2a6b700b19b1d419aef977995ce75366a18cdcaf",
+        "numeric_sanity": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r004.numeric-sanity.json",
+        "deploy_manifest": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r004.deploy-manifest.json",
+        "controller_upload": false,
+        "controller_readback_verified": false,
         "load_or_play_performed": false
       },
       "operator_lifecycle": {
-        "route": "remote_control_only",
-        "autotune_route_fixed": "Remote",
-        "load_or_play_now": false,
+        "route": "offline_source_closure_only",
+        "autotune_route_fixed": "Remote_when_live_gates_are_reopened",
+        "play_captures_home_once": true,
+        "script1_initial_or_recovery_only": true,
+        "resident_rolling_arm_loop": true,
+        "fault_stays_stopped_no_auto_home": true,
         "current_v3_remains_available": true,
-        "v4_r001_status": "SUPERSEDED_ARCHITECTURE_NOT_LOADABLE"
+        "v4_r003_bytes_remain_frozen": true
+      },
+      "wire": {
+        "schema": "step5d.autotune-v4/register-wire-v3",
+        "layout_tag": 606,
+        "input_integer_registers": {
+          "24": "baseline_consecutive_successes",
+          "25": "command_mode",
+          "26": "sticky_one_newton_latched",
+          "27": "session_command",
+          "28": "session_command_sequence",
+          "29": "session_epoch",
+          "30": "logical_attempt_ordinal",
+          "31": "attempt_kind",
+          "32": "candidate_token"
+        },
+        "session_commands": {
+          "HOLD": 0,
+          "ARM": 1,
+          "COMPLETE": 2,
+          "STOP": 3
+        },
+        "output_integer_registers": {
+          "24": "epoch",
+          "25": "ordinal",
+          "26": "state",
+          "27": "token",
+          "28": "reason",
+          "29": "consumed_session_command_sequence",
+          "30": "attempt_kind",
+          "31": "return_guard",
+          "32": "runtime_protocol",
+          "33": "runtime_digest_hi",
+          "34": "runtime_digest_lo"
+        },
+        "runtime_identity_digest": {
+          "source": "program+contract_sha256+campaign_fingerprint",
+          "epoch_is_separate_output_register": true,
+          "protocol_register": 32,
+          "protocol_value": 606004,
+          "hi_register": 33,
+          "lo_register": 34
+        }
       },
       "guards": {
-        "search": {
+        "contact_acquisition": {
           "abs_normal_n": 3,
           "force_norm_n": 3,
-          "torque_norm_nm": 0.2
+          "torque_norm_nm": 0.2,
+          "positive_normal_load_n": 0.5,
+          "force_norm_contact_done_n": 0.7
         },
-        "baseline_and_initial_path": {
+        "baseline_and_path": {
           "abs_normal_n": 15,
           "force_norm_n": 20,
           "torque_norm_nm": 1
         },
-        "later_after_first_ten_eligible": {
-          "abs_normal_n": 25,
-          "force_norm_n": 30,
-          "torque_norm_nm": 1.5
-        }
+        "target_force_n": 5.0,
+        "damping": 28.0,
+        "qdot_abs_max_rad_s": 0.15,
+        "contact_speed_m_s": 0.0002,
+        "contact_acceleration_m_s2": 0.005,
+        "contact_max_travel_m": 0.025,
+        "contact_timeout_s": 90,
+        "return_retract_min_m": 0.005,
+        "return_transfer_floor_z_m": 0.062863519,
+        "low_speed_entry_m_s": 0.01,
+        "low_speed_return_m_s": 0.01,
+        "home_position_tolerance_m": 0.001,
+        "home_orientation_tolerance_rad": 0.01,
+        "home_joint_tolerance_rad": 0.02,
+        "fault_auto_home": false
       },
       "timing": {
+        "tp_hz": 500,
+        "writer_hz": 125,
         "mode": "monotonic_actual_dt",
         "minimum_rate_hz": 75,
         "p99_gap_max_s": 0.02,
         "maximum_gap_exclusive_s": 0.08,
-        "startup_increments": 2,
-        "startup_window_s": 0.25
+        "pre_latch_timeout_s": 20,
+        "post_latch_timeout_s": 20,
+        "controller_readback_max_age_s": 300,
+        "script1_receipt_max_age_s": 120
+      },
+      "campaign": {
+        "qualification": 3,
+        "batch_a": 5,
+        "batch_b": 5,
+        "retest": 3,
+        "total_logical_attempts": 16,
+        "standalone_search_or_canary": false
       },
       "acceptance": {
         "offline_primitive_and_seam_validation_required": true,
         "offline_primitive_and_seam_validation_passed": true,
-        "r006_live_success_required": true,
-        "three_5n_stage22_receipts_required": true,
-        "formal_review_v3_required": true,
-        "fresh_owner_route_gates_required": true,
-        "controller_readback_verified": true,
+        "path_coverage_bins": 550,
+        "effective_rate_hz_min": 75,
+        "p99_packet_interval_max_s": 0.02,
+        "max_packet_interval_lt_s": 0.08,
+        "safety_contact_return_gates_required": true,
+        "retest_passes_min": 2,
+        "retest_count": 3,
+        "mae_max_n": 0.3,
+        "candidate_median_objective_ratio_max": 0.95,
+        "anchor_mutated_in_place": false,
+        "controller_readback_verified": false,
         "live_run_accepted": false
       },
-      "success_condition": "After canonical activation only: exact r002 controller read-back, new EOAT fresh GET match, r006 live success, three ledger-owned 5 N baseline receipts, Review v3, and fresh Remote owner gates."
+      "success_condition": "Offline package and deterministic F1-F5 regressions pass; live success, controller delivery, Load, Play, contact, motion, and promotion remain unclaimed."
     }
   ],
   "startup_gate_profiles": {

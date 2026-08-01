@@ -1,0 +1,727 @@
+# VERSION: 2026-08-01T1542HKT_STEP5D_AUTOTUNE_V4_R004
+# ROLE: isolated V4 r004 resident rolling ARM loop
+# TP_PROGRAM_ID: step5d_strict_rnn_autotune_v4_r004
+# EXPECTED_PROGRAM: step5d_strict_rnn_autotune_v4_r004
+# WIRE_LAYOUT: layout-606
+# V4_CONTRACT_SHA256: 174aa711b498ae37ed7605ffe4d164eecbeac78ab3d3bc017a4ad8257e246c95
+# V4_CAMPAIGN_FINGERPRINT: 05a0ed75dbe8e67916f6babebf1c266ee951262088179de59f44a157f173c186
+# EOAT_PROFILE_SHA256: 1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4
+# SCRIPT1_PROGRAM: step5d_autotune_start_hover_r001
+# SCRIPT1_POLICY: initial and after STOP/problem/restart only; never per attempt
+# TARGET_FORCE_N: 5.0 immutable; D_ANCHOR: 28.0
+# WRENCH_AUTHORITY: Kunwei only; no UR built-in force; no sensor zero/tare/config writes
+# LIFECYCLE: one Play captures campaign Home once; ARM is a rolling resident attempt
+# STATE: READY_HOME_NEXT=78, COMPLETE=80, STOPPED=90; no auto-resume after fault
+# SESSION_COMMAND: SessionCommand HOLD=0 ARM=1 COMPLETE=2 STOP=3
+# FRESHNESS: newer sequence updates immutable cache; equal sequence needs exact payload
+# FRESHNESS_FAILURE: equal changed payload, regression, or held age >= 0.080s => reason 43
+# LATCH_TIMING: pre-latch <= 20.0s, separate post-latch <= 20.0s
+# RETURN: retract >= 0.005m, transfer floor >= 0.062863519m, then captured Home
+# OUTPUT_INT_24_34: epoch, ordinal, state, token, reason, consumed_seq, kind, return_guard, runtime_protocol, digest_hi, digest_lo
+
+global codex_r004_cache_valid = False
+global codex_r004_cache_sequence = -1.0
+global codex_r004_cache_age_s = 0.0
+global codex_r004_attempt_success = False
+global codex_r004_attempt_reason = 0
+global codex_r004_attempt_guard = 0
+
+global codex_r004_cache_d24 = 0.0
+global codex_r004_cache_d25 = 0.0
+global codex_r004_cache_d26 = 0.0
+global codex_r004_cache_d27 = 0.0
+global codex_r004_cache_d28 = 0.0
+global codex_r004_cache_d29 = 0.0
+global codex_r004_cache_d30 = 0.0
+global codex_r004_cache_d31 = 0.0
+global codex_r004_cache_d32 = 0.0
+global codex_r004_cache_d33 = 0.0
+global codex_r004_cache_d34 = 0.0
+global codex_r004_cache_d35 = 0.0
+global codex_r004_cache_d36 = 0.0
+global codex_r004_cache_d37 = 0.0
+global codex_r004_cache_d38 = 0.0
+global codex_r004_cache_d39 = 0.0
+global codex_r004_cache_d40 = 0.0
+global codex_r004_cache_d41 = 0.0
+global codex_r004_cache_d42 = 0.0
+global codex_r004_cache_d43 = 0.0
+global codex_r004_cache_d44 = 0.0
+global codex_r004_cache_d45 = 0.0
+global codex_r004_cache_d46 = 0.0
+global codex_r004_cache_d47 = 0.0
+global codex_r004_cache_i24 = 0
+global codex_r004_cache_i25 = 0
+global codex_r004_cache_i26 = 0
+global codex_r004_cache_i27 = 0
+global codex_r004_cache_i28 = 0
+global codex_r004_cache_i29 = 0
+global codex_r004_cache_i30 = 0
+global codex_r004_cache_i31 = 0
+global codex_r004_cache_i32 = 0
+
+def codex_r004_finite(value, limit):
+  return value == value and value <= limit and value >= -limit
+end
+
+def codex_r004_abs(value):
+  if value < 0.0:
+    return -value
+  end
+  return value
+end
+
+def codex_r004_packet_payload_equal():
+  local same = True
+  if codex_r004_cache_d24 != read_input_float_register(24):
+    same = False
+  end
+  if codex_r004_cache_d25 != read_input_float_register(25):
+    same = False
+  end
+  if codex_r004_cache_d26 != read_input_float_register(26):
+    same = False
+  end
+  if codex_r004_cache_d27 != read_input_float_register(27):
+    same = False
+  end
+  if codex_r004_cache_d28 != read_input_float_register(28):
+    same = False
+  end
+  if codex_r004_cache_d29 != read_input_float_register(29):
+    same = False
+  end
+  if codex_r004_cache_d30 != read_input_float_register(30):
+    same = False
+  end
+  if codex_r004_cache_d31 != read_input_float_register(31):
+    same = False
+  end
+  if codex_r004_cache_d32 != read_input_float_register(32):
+    same = False
+  end
+  if codex_r004_cache_d33 != read_input_float_register(33):
+    same = False
+  end
+  if codex_r004_cache_d34 != read_input_float_register(34):
+    same = False
+  end
+  if codex_r004_cache_d35 != read_input_float_register(35):
+    same = False
+  end
+  if codex_r004_cache_d36 != read_input_float_register(36):
+    same = False
+  end
+  if codex_r004_cache_d37 != read_input_float_register(37):
+    same = False
+  end
+  if codex_r004_cache_d38 != read_input_float_register(38):
+    same = False
+  end
+  if codex_r004_cache_d39 != read_input_float_register(39):
+    same = False
+  end
+  if codex_r004_cache_d40 != read_input_float_register(40):
+    same = False
+  end
+  if codex_r004_cache_d41 != read_input_float_register(41):
+    same = False
+  end
+  if codex_r004_cache_d42 != read_input_float_register(42):
+    same = False
+  end
+  if codex_r004_cache_d43 != read_input_float_register(43):
+    same = False
+  end
+  if codex_r004_cache_d44 != read_input_float_register(44):
+    same = False
+  end
+  if codex_r004_cache_d45 != read_input_float_register(45):
+    same = False
+  end
+  if codex_r004_cache_d46 != read_input_float_register(46):
+    same = False
+  end
+  if codex_r004_cache_d47 != read_input_float_register(47):
+    same = False
+  end
+  if codex_r004_cache_i24 != read_input_integer_register(24):
+    same = False
+  end
+  if codex_r004_cache_i25 != read_input_integer_register(25):
+    same = False
+  end
+  if codex_r004_cache_i26 != read_input_integer_register(26):
+    same = False
+  end
+  if codex_r004_cache_i27 != read_input_integer_register(27):
+    same = False
+  end
+  if codex_r004_cache_i28 != read_input_integer_register(28):
+    same = False
+  end
+  if codex_r004_cache_i29 != read_input_integer_register(29):
+    same = False
+  end
+  if codex_r004_cache_i30 != read_input_integer_register(30):
+    same = False
+  end
+  if codex_r004_cache_i31 != read_input_integer_register(31):
+    same = False
+  end
+  if codex_r004_cache_i32 != read_input_integer_register(32):
+    same = False
+  end
+  return same
+end
+
+def codex_r004_copy_packet():
+  codex_r004_cache_d24 = read_input_float_register(24)
+  codex_r004_cache_d25 = read_input_float_register(25)
+  codex_r004_cache_d26 = read_input_float_register(26)
+  codex_r004_cache_d27 = read_input_float_register(27)
+  codex_r004_cache_d28 = read_input_float_register(28)
+  codex_r004_cache_d29 = read_input_float_register(29)
+  codex_r004_cache_d30 = read_input_float_register(30)
+  codex_r004_cache_d31 = read_input_float_register(31)
+  codex_r004_cache_d32 = read_input_float_register(32)
+  codex_r004_cache_d33 = read_input_float_register(33)
+  codex_r004_cache_d34 = read_input_float_register(34)
+  codex_r004_cache_d35 = read_input_float_register(35)
+  codex_r004_cache_d36 = read_input_float_register(36)
+  codex_r004_cache_d37 = read_input_float_register(37)
+  codex_r004_cache_d38 = read_input_float_register(38)
+  codex_r004_cache_d39 = read_input_float_register(39)
+  codex_r004_cache_d40 = read_input_float_register(40)
+  codex_r004_cache_d41 = read_input_float_register(41)
+  codex_r004_cache_d42 = read_input_float_register(42)
+  codex_r004_cache_d43 = read_input_float_register(43)
+  codex_r004_cache_d44 = read_input_float_register(44)
+  codex_r004_cache_d45 = read_input_float_register(45)
+  codex_r004_cache_d46 = read_input_float_register(46)
+  codex_r004_cache_d47 = read_input_float_register(47)
+  codex_r004_cache_i24 = read_input_integer_register(24)
+  codex_r004_cache_i25 = read_input_integer_register(25)
+  codex_r004_cache_i26 = read_input_integer_register(26)
+  codex_r004_cache_i27 = read_input_integer_register(27)
+  codex_r004_cache_i28 = read_input_integer_register(28)
+  codex_r004_cache_i29 = read_input_integer_register(29)
+  codex_r004_cache_i30 = read_input_integer_register(30)
+  codex_r004_cache_i31 = read_input_integer_register(31)
+  codex_r004_cache_i32 = read_input_integer_register(32)
+  codex_r004_cache_sequence = read_input_float_register(46)
+  codex_r004_cache_age_s = 0.0
+  codex_r004_cache_valid = True
+end
+
+def codex_r004_packet_observe():
+  if not codex_r004_finite(read_input_float_register(24), 1000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(25), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(26), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(27), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(28), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(29), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(30), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(31), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(32), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(33), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(34), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(35), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(36), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(37), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(38), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(39), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(40), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(41), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(42), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(43), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(44), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(45), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(46), 1000000000000.0):
+    return 41
+  end
+  if not codex_r004_finite(read_input_float_register(47), 1000000000000.0):
+    return 41
+  end
+  local sequence = read_input_float_register(46)
+  local layout = read_input_float_register(47)
+  local valid = read_input_float_register(43)
+  if sequence < 0.0 or sequence != floor(sequence):
+    return 41
+  elif layout != 606.0 or valid < 0.5:
+    return 42
+  elif not codex_r004_cache_valid:
+    codex_r004_copy_packet()
+    return 0
+  elif sequence > codex_r004_cache_sequence:
+    codex_r004_copy_packet()
+    return 0
+  elif sequence < codex_r004_cache_sequence:
+    return 43
+  elif not codex_r004_packet_payload_equal():
+    return 43
+  end
+  codex_r004_cache_age_s = codex_r004_cache_age_s + get_steptime()
+  if codex_r004_cache_age_s >= 0.080000000:
+    return 43
+  end
+  return 0
+end
+
+def codex_r004_integer_wire_guard():
+  local baseline_successes = read_input_integer_register(24)
+  local command_mode = read_input_integer_register(25)
+  local latch = read_input_integer_register(26)
+  local session_command = read_input_integer_register(27)
+  local session_sequence = read_input_integer_register(28)
+  local epoch = read_input_integer_register(29)
+  local ordinal = read_input_integer_register(30)
+  local kind = read_input_integer_register(31)
+  local token = read_input_integer_register(32)
+  if baseline_successes < 0 or baseline_successes > 3:
+    return 53
+  elif command_mode < 0 or command_mode > 4:
+    return 54
+  elif latch < 0 or latch > 1:
+    return 52
+  elif session_command < 0 or session_command > 3:
+    return 66
+  elif session_sequence < 0 or epoch < 0 or ordinal < 0 or ordinal > 16 or kind < 0 or kind > 4 or token < 0:
+    return 67
+  end
+  return 0
+end
+
+def codex_r004_qdot_ok():
+  local index = 0
+  while index < 6:
+    local qdot = read_input_float_register(37 + index)
+    if not codex_r004_finite(qdot, 0.150000000):
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
+def codex_r004_packet_guard(packet_reason, abs_normal_limit, force_norm_limit, torque_limit):
+  if packet_reason != 0:
+    return packet_reason
+  elif read_input_float_register(27) < 0.5 or read_input_float_register(29) < 0.5:
+    return 3
+  elif read_input_float_register(28) > 0.5:
+    return 4
+  elif read_input_integer_register(27) == 3:
+    return 4
+  elif read_input_integer_register(27) != 0 and read_input_integer_register(27) != 1:
+    return 66
+  elif codex_r004_abs(read_input_float_register(24)) >= abs_normal_limit:
+    return 5
+  elif read_input_float_register(25) >= force_norm_limit:
+    return 6
+  elif read_input_float_register(30) >= torque_limit:
+    return 7
+  elif read_input_float_register(44) < 1.0 or read_input_float_register(44) > 5.0:
+    return 49
+  elif not codex_r004_qdot_ok():
+    return 45
+  end
+  return 0
+end
+
+def codex_r004_stationary(required_s):
+  local dwell_s = 0.0
+  while dwell_s < required_s:
+    local packet_reason = codex_r004_packet_observe()
+    local guard = codex_r004_packet_guard(packet_reason, 15.0, 20.0, 1.0)
+    local speed = get_actual_tcp_speed()
+    local linear = sqrt(speed[0] * speed[0] + speed[1] * speed[1] + speed[2] * speed[2])
+    local angular = sqrt(speed[3] * speed[3] + speed[4] * speed[4] + speed[5] * speed[5])
+    if guard != 0 or linear > 0.000500000 or angular > 0.005000000:
+      return False
+    end
+    dwell_s = dwell_s + get_steptime()
+    sync()
+  end
+  return True
+end
+
+def codex_r004_pose_close(actual, expected):
+  local position_error = sqrt((actual[0] - expected[0]) * (actual[0] - expected[0]) + (actual[1] - expected[1]) * (actual[1] - expected[1]) + (actual[2] - expected[2]) * (actual[2] - expected[2]))
+  local rotation_error = sqrt((actual[3] - expected[3]) * (actual[3] - expected[3]) + (actual[4] - expected[4]) * (actual[4] - expected[4]) + (actual[5] - expected[5]) * (actual[5] - expected[5]))
+  return position_error <= 0.001000000 and rotation_error <= 0.010000000
+end
+
+def codex_r004_q_close(actual, expected):
+  local index = 0
+  while index < 6:
+    if codex_r004_abs(actual[index] - expected[index]) > 0.020000000:
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
+def codex_r004_echo(epoch, ordinal, state, token, reason, consumed, kind, return_guard, runtime_hi, runtime_lo):
+  write_output_integer_register(24, epoch)
+  write_output_integer_register(25, ordinal)
+  write_output_integer_register(26, state)
+  write_output_integer_register(27, token)
+  write_output_integer_register(28, reason)
+  write_output_integer_register(29, consumed)
+  write_output_integer_register(30, kind)
+  write_output_integer_register(31, return_guard)
+  write_output_integer_register(32, 606004)
+  write_output_integer_register(33, runtime_hi)
+  write_output_integer_register(34, runtime_lo)
+end
+
+def codex_r004_fault(epoch, ordinal, token, kind, consumed, reason, runtime_hi, runtime_lo):
+  stopl(0.250000000)
+  codex_r004_attempt_reason = reason
+  codex_r004_attempt_guard = 0
+  codex_r004_attempt_success = False
+  codex_r004_echo(epoch, ordinal, 90, token, reason, consumed, kind, 0, runtime_hi, runtime_lo)
+  return False
+end
+
+def codex_r004_return_fault(epoch, ordinal, token, kind, consumed, reason, runtime_hi, runtime_lo, return_guard):
+  stopl(0.250000000)
+  codex_r004_attempt_reason = reason
+  codex_r004_attempt_guard = return_guard
+  codex_r004_attempt_success = False
+  codex_r004_echo(epoch, ordinal, 90, token, reason, consumed, kind, return_guard, runtime_hi, runtime_lo)
+  return False
+end
+
+def codex_r004_return_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_hi, runtime_lo, current_guard):
+  local return_guard = current_guard
+  local packet_reason = codex_r004_packet_observe()
+  local guard = codex_r004_packet_guard(packet_reason, 15.0, 20.0, 1.0)
+  if guard != 0 or not codex_r004_stationary(0.250000000):
+    return codex_r004_return_fault(epoch, ordinal, token, kind, consumed, 58, runtime_hi, runtime_lo, return_guard)
+  end
+  return_guard = return_guard + 1
+  local retract_start = get_actual_tcp_pose()
+  local retract_m = 0.0
+  while retract_m < 0.005000000:
+    packet_reason = codex_r004_packet_observe()
+    guard = codex_r004_packet_guard(packet_reason, 15.0, 20.0, 1.0)
+    if guard != 0:
+      return codex_r004_return_fault(epoch, ordinal, token, kind, consumed, guard, runtime_hi, runtime_lo, return_guard)
+    end
+    speedl([0.0, 0.0, 0.000500000, 0.0, 0.0, 0.0], 0.010000000, 0.008000000)
+    local retract_pose = get_actual_tcp_pose()
+    retract_m = retract_pose[2] - retract_start[2]
+    codex_r004_echo(epoch, ordinal, 40, token, 0, consumed, kind, return_guard, runtime_hi, runtime_lo)
+  end
+  stopl(0.010000000)
+  return_guard = return_guard + 2
+  if not codex_r004_stationary(0.250000000):
+    return codex_r004_return_fault(epoch, ordinal, token, kind, consumed, 58, runtime_hi, runtime_lo, return_guard)
+  end
+  local transfer_pose = get_actual_tcp_pose()
+  local transfer_z = transfer_pose[2]
+  if transfer_z < 0.062863519:
+    transfer_z = 0.062863519
+  end
+  movel(p[transfer_pose[0], transfer_pose[1], transfer_z, transfer_pose[3], transfer_pose[4], transfer_pose[5]], a=0.050000000, v=0.010000000, r=0.0)
+  local floor_pose = get_actual_tcp_pose()
+  if not codex_r004_stationary(0.250000000) or floor_pose[2] < 0.062863519:
+    return codex_r004_return_fault(epoch, ordinal, token, kind, consumed, 59, runtime_hi, runtime_lo, return_guard)
+  end
+  return_guard = return_guard + 4 + 8 + 16
+  codex_r004_echo(epoch, ordinal, 40, token, 0, consumed, kind, return_guard, runtime_hi, runtime_lo)
+  movel(home_pose, a=0.050000000, v=0.010000000, r=0.0)
+  if not codex_r004_stationary(0.250000000):
+    return codex_r004_return_fault(epoch, ordinal, token, kind, consumed, 60, runtime_hi, runtime_lo, return_guard)
+  end
+  local final_pose = get_actual_tcp_pose()
+  local final_q = get_actual_q()
+  if not codex_r004_pose_close(final_pose, home_pose) or not codex_r004_q_close(final_q, home_q):
+    return codex_r004_return_fault(epoch, ordinal, token, kind, consumed, 60, runtime_hi, runtime_lo, return_guard)
+  end
+  return_guard = return_guard + 32 + 64
+  codex_r004_attempt_guard = return_guard
+  codex_r004_attempt_reason = 0
+  codex_r004_attempt_success = True
+  codex_r004_echo(epoch, ordinal, 78, token, 0, consumed, kind, return_guard, runtime_hi, runtime_lo)
+  return True
+end
+
+def codex_r004_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_hi, runtime_lo):
+  codex_r004_attempt_success = False
+  codex_r004_attempt_reason = 0
+  codex_r004_attempt_guard = 0
+  local transfer_pose = get_actual_tcp_pose()
+  local transfer_z = transfer_pose[2]
+  if transfer_z < 0.062863519:
+    transfer_z = 0.062863519
+  end
+  local packet_reason = codex_r004_packet_observe()
+  local guard = codex_r004_packet_guard(packet_reason, 3.0, 3.0, 0.2)
+  if guard != 0:
+    return codex_r004_fault(epoch, ordinal, token, kind, consumed, guard, runtime_hi, runtime_lo)
+  end
+  movel(p[transfer_pose[0], transfer_pose[1], transfer_z, transfer_pose[3], transfer_pose[4], transfer_pose[5]], a=0.050000000, v=0.010000000, r=0.0)
+  if not codex_r004_stationary(0.250000000):
+    return codex_r004_fault(epoch, ordinal, token, kind, consumed, 23, runtime_hi, runtime_lo)
+  end
+  local contact_start = get_actual_tcp_pose()
+  local contact_elapsed_s = 0.0
+  local contact_done = False
+  while not contact_done:
+    packet_reason = codex_r004_packet_observe()
+    guard = codex_r004_packet_guard(packet_reason, 3.0, 3.0, 0.2)
+    local contact_pose = get_actual_tcp_pose()
+    local travel = contact_start[2] - contact_pose[2]
+    if guard != 0:
+      return codex_r004_fault(epoch, ordinal, token, kind, consumed, guard, runtime_hi, runtime_lo)
+    elif read_input_float_register(24) >= 0.500000000 or read_input_float_register(25) >= 0.700000000:
+      contact_done = True
+    elif travel >= 0.025000000:
+      return codex_r004_fault(epoch, ordinal, token, kind, consumed, 8, runtime_hi, runtime_lo)
+    elif contact_elapsed_s >= 90.000000000:
+      return codex_r004_fault(epoch, ordinal, token, kind, consumed, 10, runtime_hi, runtime_lo)
+    else:
+      speedl([0.0, 0.0, -0.000200000, 0.0, 0.0, 0.0], 0.005000000, 0.008000000)
+      contact_elapsed_s = contact_elapsed_s + get_steptime()
+      codex_r004_echo(epoch, ordinal, 20, token, 0, consumed, kind, 0, runtime_hi, runtime_lo)
+    end
+  end
+  stopl(0.010000000)
+  if not codex_r004_stationary(0.250000000):
+    return codex_r004_fault(epoch, ordinal, token, kind, consumed, 11, runtime_hi, runtime_lo)
+  end
+
+  local pre_latch_elapsed_s = 0.0
+  local post_latch_elapsed_s = 0.0
+  local latch_seen = False
+  local prior_setpoint = 1.000000000
+  local prior_baseline_successes = read_input_integer_register(24)
+  local baseline_done = False
+  local baseline_mode = 0
+  while not baseline_done:
+    local actual_dt = get_steptime()
+    if actual_dt <= 0.0 or actual_dt >= 0.080000000:
+      return codex_r004_fault(epoch, ordinal, token, kind, consumed, 46, runtime_hi, runtime_lo)
+    end
+    packet_reason = codex_r004_packet_observe()
+    guard = codex_r004_packet_guard(packet_reason, 15.0, 20.0, 1.0)
+    local integer_reason = codex_r004_integer_wire_guard()
+    local latch = read_input_integer_register(26)
+    local baseline_successes = read_input_integer_register(24)
+    baseline_mode = read_input_integer_register(25)
+    local setpoint = read_input_float_register(44)
+    if guard != 0:
+      return codex_r004_fault(epoch, ordinal, token, kind, consumed, guard, runtime_hi, runtime_lo)
+    elif integer_reason != 0:
+      return codex_r004_fault(epoch, ordinal, token, kind, consumed, integer_reason, runtime_hi, runtime_lo)
+    elif baseline_successes < prior_baseline_successes:
+      return codex_r004_fault(epoch, ordinal, token, kind, consumed, 53, runtime_hi, runtime_lo)
+    elif baseline_mode != 1 and baseline_mode != 2 and baseline_mode != 3:
+      return codex_r004_fault(epoch, ordinal, token, kind, consumed, 44, runtime_hi, runtime_lo)
+    elif not latch_seen and latch == 0 and pre_latch_elapsed_s + actual_dt > 20.000000000:
+      return codex_r004_fault(epoch, ordinal, token, kind, consumed, 47, runtime_hi, runtime_lo)
+    elif latch_seen and latch == 0:
+      return codex_r004_fault(epoch, ordinal, token, kind, consumed, 52, runtime_hi, runtime_lo)
+    elif latch == 1 and not latch_seen:
+      latch_seen = True
+      post_latch_elapsed_s = 0.0
+    end
+    if not latch_seen:
+      pre_latch_elapsed_s = pre_latch_elapsed_s + actual_dt
+      codex_r004_echo(epoch, ordinal, 21, token, 0, consumed, kind, 0, runtime_hi, runtime_lo)
+      sync()
+    else:
+      post_latch_elapsed_s = post_latch_elapsed_s + actual_dt
+      if post_latch_elapsed_s > 20.000000000:
+        return codex_r004_fault(epoch, ordinal, token, kind, consumed, 48, runtime_hi, runtime_lo)
+      elif setpoint < 1.0 or setpoint > 5.0 or setpoint - prior_setpoint > 0.5 * actual_dt + 0.010000000 or setpoint < prior_setpoint - 0.010000000:
+        return codex_r004_fault(epoch, ordinal, token, kind, consumed, 49, runtime_hi, runtime_lo)
+      elif baseline_mode == 3:
+        baseline_done = True
+      elif baseline_mode == 2 and baseline_successes < 3:
+        return codex_r004_fault(epoch, ordinal, token, kind, consumed, 50, runtime_hi, runtime_lo)
+      else:
+        local baseline_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
+        if codex_r004_abs(baseline_qdot[0]) > 0.000000001 or codex_r004_abs(baseline_qdot[1]) > 0.000000001 or codex_r004_abs(baseline_qdot[3]) > 0.000000001 or codex_r004_abs(baseline_qdot[4]) > 0.000000001 or codex_r004_abs(baseline_qdot[5]) > 0.000000001:
+          return codex_r004_fault(epoch, ordinal, token, kind, consumed, 51, runtime_hi, runtime_lo)
+        end
+        speedj(baseline_qdot, 2.500000000, actual_dt)
+        prior_setpoint = setpoint
+        prior_baseline_successes = baseline_successes
+        codex_r004_echo(epoch, ordinal, 21, token, 0, consumed, kind, 0, runtime_hi, runtime_lo)
+      end
+    end
+    if baseline_done:
+      break
+    end
+  end
+  stopj(2.500000000)
+  if not codex_r004_stationary(0.250000000):
+    return codex_r004_fault(epoch, ordinal, token, kind, consumed, 58, runtime_hi, runtime_lo)
+  end
+  if kind == 1 or baseline_mode == 3:
+    return codex_r004_return_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_hi, runtime_lo, 0)
+  end
+  if read_input_integer_register(24) < 3 or read_input_integer_register(25) != 2:
+    return codex_r004_fault(epoch, ordinal, token, kind, consumed, 50, runtime_hi, runtime_lo)
+  end
+
+  local path_elapsed_s = 0.0
+  while path_elapsed_s < 60.000000000:
+    local actual_path_dt = get_steptime()
+    if actual_path_dt <= 0.0 or actual_path_dt >= 0.080000000:
+      return codex_r004_fault(epoch, ordinal, token, kind, consumed, 46, runtime_hi, runtime_lo)
+    end
+    packet_reason = codex_r004_packet_observe()
+    guard = codex_r004_packet_guard(packet_reason, 15.0, 20.0, 1.0)
+    if guard != 0:
+      return codex_r004_fault(epoch, ordinal, token, kind, consumed, guard, runtime_hi, runtime_lo)
+    elif read_input_integer_register(25) != 2 or read_input_integer_register(24) < 3:
+      return codex_r004_fault(epoch, ordinal, token, kind, consumed, 50, runtime_hi, runtime_lo)
+    end
+    local path_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
+    speedj(path_qdot, 2.500000000, actual_path_dt)
+    path_elapsed_s = path_elapsed_s + actual_path_dt
+    codex_r004_echo(epoch, ordinal, 25, token, 0, consumed, kind, 0, runtime_hi, runtime_lo)
+  end
+  stopj(2.500000000)
+  if not codex_r004_stationary(0.250000000):
+    return codex_r004_fault(epoch, ordinal, token, kind, consumed, 58, runtime_hi, runtime_lo)
+  end
+  return codex_r004_return_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_hi, runtime_lo, 0)
+end
+
+def step5d_strict_rnn_autotune_v4_r004():
+  # Script1 owns the verified V4 EOAT setup.  This resident Script2 performs no EOAT writes.
+  local campaign_home_pose = get_actual_tcp_pose()
+  local campaign_home_q = get_actual_q()
+  local runtime_hi = 1676142066
+  local runtime_lo = 1775774671
+  local active_epoch = 0
+  local last_failed_epoch = 0
+  local consumed_session_sequence = 0
+  local current_ordinal = 0
+  local current_token = 0
+  local current_kind = 0
+  local state = 78
+  local reason = 0
+  local return_guard = 0
+  local session_active = False
+  local completed = False
+  while True:
+    local packet_reason = codex_r004_packet_observe()
+    local integer_reason = codex_r004_integer_wire_guard()
+    local session_command = read_input_integer_register(27)
+    local session_sequence = read_input_integer_register(28)
+    local input_epoch = read_input_integer_register(29)
+    local input_ordinal = read_input_integer_register(30)
+    local input_kind = read_input_integer_register(31)
+    local input_token = read_input_integer_register(32)
+    if session_command == 3:
+      stopl(0.250000000)
+      session_active = False
+      completed = False
+      last_failed_epoch = input_epoch
+      active_epoch = input_epoch
+      state = 90
+      reason = 4
+      return_guard = 0
+    elif integer_reason != 0 and session_command != 0:
+      stopl(0.250000000)
+      session_active = False
+      last_failed_epoch = input_epoch
+      state = 90
+      reason = integer_reason
+      return_guard = 0
+    elif not session_active and not completed and session_command == 1 and session_sequence > consumed_session_sequence and packet_reason == 0:
+      if input_epoch <= last_failed_epoch or input_epoch <= 0 or input_ordinal < 1 or input_ordinal > 16 or input_kind < 1 or input_kind > 4 or input_token <= 0:
+        state = 90
+        reason = 61
+        last_failed_epoch = input_epoch
+      else:
+        active_epoch = input_epoch
+        current_ordinal = input_ordinal
+        current_kind = input_kind
+        current_token = input_token
+        consumed_session_sequence = session_sequence
+        session_active = True
+        state = 11
+        reason = 0
+        return_guard = 0
+        codex_r004_echo(active_epoch, current_ordinal, state, current_token, reason, consumed_session_sequence, current_kind, return_guard, runtime_hi, runtime_lo)
+        if not codex_r004_execute_attempt(campaign_home_pose, campaign_home_q, active_epoch, current_ordinal, current_token, current_kind, consumed_session_sequence, runtime_hi, runtime_lo):
+          session_active = False
+          state = 90
+          reason = codex_r004_attempt_reason
+          return_guard = codex_r004_attempt_guard
+          last_failed_epoch = active_epoch
+        else:
+          session_active = False
+          state = 78
+          reason = 0
+          return_guard = codex_r004_attempt_guard
+        end
+      end
+    elif session_command == 2 and state == 78 and session_sequence > consumed_session_sequence and input_epoch == active_epoch and input_ordinal == 16:
+      consumed_session_sequence = session_sequence
+      completed = True
+      state = 80
+      reason = 0
+      return_guard = 127
+    elif session_command == 1 and (session_sequence <= consumed_session_sequence or input_epoch != active_epoch) and state == 78:
+      reason = 62
+    end
+    codex_r004_echo(active_epoch, current_ordinal, state, current_token, reason, consumed_session_sequence, current_kind, return_guard, runtime_hi, runtime_lo)
+    sync()
+  end
+end
+
+step5d_strict_rnn_autotune_v4_r004()
