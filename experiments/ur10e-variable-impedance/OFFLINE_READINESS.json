@@ -149,6 +149,15 @@
       "evidence_bindings": [
         {
           "claim_class": "formal_checkpoint",
+          "identity": "evidence/tacdiffusion_offline_model_cuda_qualification_v1/qualification.cuda.json",
+          "kind": "evidence",
+          "path": "evidence/tacdiffusion_offline_model_cuda_qualification_v1/qualification.cuda.json",
+          "provenance": "repository",
+          "sha256": "e9c972d4705b1645eccdd76267c5abe6b8389207cee4f4f1eeb46acfcfd787e5",
+          "state": "bound"
+        },
+        {
+          "claim_class": "formal_checkpoint",
           "identity": "external:formal-tacdiffusion-checkpoint",
           "kind": "evidence",
           "path": null,
@@ -186,6 +195,24 @@
           "path": "ur10e_vic/tacdiffusion/model.py",
           "provenance": "repository",
           "sha256": "44e3f6dd0f1b24ad4b7926fda9291b8f98368aefd0ad1f5822d0ebe4164f4744",
+          "state": "bound"
+        },
+        {
+          "claim_class": "formal_checkpoint",
+          "identity": "ur10e_vic/tacdiffusion/mainline_model.py",
+          "kind": "source",
+          "path": "ur10e_vic/tacdiffusion/mainline_model.py",
+          "provenance": "repository",
+          "sha256": "9a40e1874a99ddae4bbfaa4d53027a8627bd86910e82fca53ababf28248625d4",
+          "state": "bound"
+        },
+        {
+          "claim_class": "formal_checkpoint",
+          "identity": "ur10e_vic/tacdiffusion/offline_model_qualification.py",
+          "kind": "source",
+          "path": "ur10e_vic/tacdiffusion/offline_model_qualification.py",
+          "provenance": "repository",
+          "sha256": "0ed22907ad1598a767d30dba21763e388dc45baea27d8e477b8d62163a1d2be8",
           "state": "bound"
         }
       ],
@@ -248,6 +275,15 @@
       "evidence_bindings": [
         {
           "claim_class": "model_active",
+          "identity": "evidence/tacdiffusion_offline_model_cuda_qualification_v1/qualification.cuda.json",
+          "kind": "evidence",
+          "path": "evidence/tacdiffusion_offline_model_cuda_qualification_v1/qualification.cuda.json",
+          "provenance": "repository",
+          "sha256": "e9c972d4705b1645eccdd76267c5abe6b8389207cee4f4f1eeb46acfcfd787e5",
+          "state": "bound"
+        },
+        {
+          "claim_class": "model_active",
           "identity": "external:model-active-qualification",
           "kind": "evidence",
           "path": null,
@@ -277,6 +313,15 @@
           "provenance": "repository",
           "sha256": "32d0d5947d1a388ceac84dc6e0f5d4cb58d4a093a023a563c97e2176ea3a76ee",
           "state": "bound"
+        },
+        {
+          "claim_class": "model_active",
+          "identity": "ur10e_vic/tacdiffusion/offline_model_qualification.py",
+          "kind": "source",
+          "path": "ur10e_vic/tacdiffusion/offline_model_qualification.py",
+          "provenance": "repository",
+          "sha256": "0ed22907ad1598a767d30dba21763e388dc45baea27d8e477b8d62163a1d2be8",
+          "state": "bound"
         }
       ],
       "status": "not_accepted",
@@ -291,6 +336,15 @@
         "formal_checkpoint"
       ],
       "evidence_bindings": [
+        {
+          "claim_class": "formal_checkpoint",
+          "identity": "evidence/tacdiffusion_offline_model_cuda_qualification_v1/diagnostics.json",
+          "kind": "evidence",
+          "path": "evidence/tacdiffusion_offline_model_cuda_qualification_v1/diagnostics.json",
+          "provenance": "repository",
+          "sha256": "776b54de43a50f0082925aee26d558f690c0bda292864d9f549019d5b2422be7",
+          "state": "bound"
+        },
         {
           "claim_class": "formal_checkpoint",
           "identity": "external:formal-model-rate-selection",
@@ -323,6 +377,15 @@
           "provenance": "repository",
           "sha256": "eabffddbeda2d21ab9898761d9b141aff65adb877bc17c4d170d9894bc9baf47",
           "state": "bound"
+        },
+        {
+          "claim_class": "formal_checkpoint",
+          "identity": "ur10e_vic/tacdiffusion/offline_model_qualification.py",
+          "kind": "source",
+          "path": "ur10e_vic/tacdiffusion/offline_model_qualification.py",
+          "provenance": "repository",
+          "sha256": "0ed22907ad1598a767d30dba21763e388dc45baea27d8e477b8d62163a1d2be8",
+          "state": "bound"
         }
       ],
       "status": "not_accepted",
@@ -345,6 +408,24 @@
           "provenance": "synthetic",
           "sha256": "d6ee71bab5dcf16020babeed96b6dbb158ff1dcc88f74f22db54f52722bee10b",
           "state": "bound"
+        },
+        {
+          "claim_class": "offline_fixture",
+          "identity": "evidence/tacdiffusion_offline_fixture_campaign_v1/bundle.manifest.json",
+          "kind": "evidence",
+          "path": "evidence/tacdiffusion_offline_fixture_campaign_v1/bundle.manifest.json",
+          "provenance": "repository",
+          "sha256": "953092401274d9e8c97b65777ee965d35914fa4a70260ea809a901d146361cf2",
+          "state": "bound"
+        },
+        {
+          "claim_class": "offline_fixture",
+          "identity": "evidence/tacdiffusion_offline_model_cuda_qualification_v1/qualification.cuda.json",
+          "kind": "evidence",
+          "path": "evidence/tacdiffusion_offline_model_cuda_qualification_v1/qualification.cuda.json",
+          "provenance": "repository",
+          "sha256": "e9c972d4705b1645eccdd76267c5abe6b8389207cee4f4f1eeb46acfcfd787e5",
+          "state": "bound"
         }
       ],
       "fixture_only": true,
@@ -357,6 +438,24 @@
           "path": "config/tacdiffusion_experiment_plan.json",
           "provenance": "repository",
           "sha256": "76a34f67b33f5af6518f38ce80e48862d99bbbd23f539777a84a22805d0ed4a3",
+          "state": "bound"
+        },
+        {
+          "claim_class": "offline_fixture",
+          "identity": "ur10e_vic/tacdiffusion/offline_campaign.py",
+          "kind": "source",
+          "path": "ur10e_vic/tacdiffusion/offline_campaign.py",
+          "provenance": "repository",
+          "sha256": "930d06d9e7be3205af6766fbf481cc0bf6e5a3c33d9cbe0be71221f4b2de86b9",
+          "state": "bound"
+        },
+        {
+          "claim_class": "offline_fixture",
+          "identity": "ur10e_vic/tacdiffusion/offline_model_qualification.py",
+          "kind": "source",
+          "path": "ur10e_vic/tacdiffusion/offline_model_qualification.py",
+          "provenance": "repository",
+          "sha256": "0ed22907ad1598a767d30dba21763e388dc45baea27d8e477b8d62163a1d2be8",
           "state": "bound"
         }
       ],
@@ -373,6 +472,15 @@
         "offline_fixture"
       ],
       "evidence_bindings": [
+        {
+          "claim_class": "offline_fixture",
+          "identity": "evidence/tacdiffusion_inactive_k800_candidate_v1/candidate.manifest.json",
+          "kind": "evidence",
+          "path": "evidence/tacdiffusion_inactive_k800_candidate_v1/candidate.manifest.json",
+          "provenance": "repository",
+          "sha256": "5bda4c29e97a3c7cbc3c71760cfb2d0ec1cea42ebbe0a1487c33e6fdf1981900",
+          "state": "bound"
+        },
         {
           "claim_class": "offline_fixture",
           "identity": "external:tracking-diagnostic",
@@ -395,6 +503,15 @@
           "provenance": "repository",
           "sha256": "76a34f67b33f5af6518f38ce80e48862d99bbbd23f539777a84a22805d0ed4a3",
           "state": "bound"
+        },
+        {
+          "claim_class": "offline_fixture",
+          "identity": "ur10e_vic/tacdiffusion/offline_model_qualification.py",
+          "kind": "source",
+          "path": "ur10e_vic/tacdiffusion/offline_model_qualification.py",
+          "provenance": "repository",
+          "sha256": "0ed22907ad1598a767d30dba21763e388dc45baea27d8e477b8d62163a1d2be8",
+          "state": "bound"
         }
       ],
       "status": "unsupported",
@@ -416,7 +533,7 @@
     },
     "truth_source": {
       "path": "config/tacdiffusion_component_truth_v1.json",
-      "sha256": "fe08ec7c04f46e7d77755346c0043870b5cefc1c0aae4b50f36320f763497a1b",
+      "sha256": "893a9d51d2144516c3846884156ec003bafe963b35c719d8938d6aa0a2ca2af0",
       "version": "v1"
     }
   },
