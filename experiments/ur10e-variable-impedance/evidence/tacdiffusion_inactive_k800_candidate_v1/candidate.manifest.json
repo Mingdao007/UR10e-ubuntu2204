@@ -1,0 +1,64 @@
+{
+  "active": false,
+  "active_allowed": false,
+  "artifact_sha256": "8cc7dea38e28030f978bb50b9daffdddb5a5efdd85ea4fbc3117749a2b500e2f",
+  "baseline_stiffness_6d": [
+    600.0,
+    600.0,
+    600.0,
+    30.0,
+    30.0,
+    30.0
+  ],
+  "candidate_id": "direct_torque_k800_inactive_v1",
+  "candidate_sha256": "7aca22e0e0e31f122bd5c2aff96ebfebbe22dcdb8a0695d9b18a509f4657e2c9",
+  "candidate_source": {
+    "path": "candidate-529e50ba33f36849dd7d2dba38057f905aa9d3db7ced3a318db56df0d795cf9a.script",
+    "sha256": "529e50ba33f36849dd7d2dba38057f905aa9d3db7ced3a318db56df0d795cf9a"
+  },
+  "candidate_stiffness_6d": [
+    800.0,
+    800.0,
+    800.0,
+    30.0,
+    30.0,
+    30.0
+  ],
+  "current": false,
+  "current_pointer_touched": false,
+  "damping_derivation": "2*sqrt(stiffness*virtual_mass), source formula unchanged",
+  "deployment_allowed": false,
+  "derived_damping_6d": [
+    80.0,
+    80.0,
+    80.0,
+    4.898979486,
+    4.898979486,
+    4.898979486
+  ],
+  "fixture_only": true,
+  "live_qualified": false,
+  "numeric_sanity_artifact": "numeric_sanity.json",
+  "production_promotion_allowed": false,
+  "real_robot_qualification": "external_deferred",
+  "reproduction_status": "not_claimed",
+  "rotational_stiffness_unchanged": true,
+  "schema": "ur10e_tacdiffusion_inactive_k800_candidate/v1",
+  "semantic_delta": [
+    "translational_stiffness"
+  ],
+  "source_binding": {
+    "content_addressing": "repo_relative_bytes_sha256_v1",
+    "immutable": true,
+    "path": "experiments/tase-contact-reproduction/programs/step5/step5d_tacdiffusion/step5d_tacdiffusion_direct_torque_fixture_shadow_v1.script",
+    "sha256": "4c21c13826f25b5b61e44663f80cbf0da2ec5484b1d6209b82d850398fe3f4ec"
+  },
+  "unchanged_identities": [
+    "friction",
+    "path",
+    "guards",
+    "limits",
+    "routing",
+    "source_identity"
+  ]
+}
