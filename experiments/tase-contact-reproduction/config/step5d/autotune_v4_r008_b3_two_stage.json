@@ -1,0 +1,279 @@
+{
+  "b3_canary": {
+    "campaign_fingerprint": "b02585399f32f1f55d0976235cfd7a4b463ff9f08bd7a8db2428dc55ed833186",
+    "overwrites_mainline_r006": false,
+    "parent_campaign_fingerprint": "1db4f9bf587826e7562dccef7040f627e660e540f847a2e8b92f63879870cc4a",
+    "schema": "step5d.autotune-v4/r008-b3-two-stage-identity-v1"
+  },
+  "completion": {
+    "all_retest_gates_required": true,
+    "application_and_local_pac_both_required": true,
+    "certificate": "finite_region_simultaneous_95_envelope",
+    "certificate_condition": "incumbent_ucb_minus_min_lcb_le_epsilon",
+    "certified_region_recenters_expands": true,
+    "failed_retest_returns_to_bo": true,
+    "global_convergence_claim": false,
+    "median_improvement_ratio": 0.95,
+    "minimum_retest_passes": 2,
+    "retests": 3,
+    "scheduler_before_gap": "q=4",
+    "scheduler_gap_le_2epsilon": "q=1",
+    "threshold_action": "durable_cancel_pending_then_three_retests",
+    "threshold_receipt_required": true,
+    "threshold_receipt_schema": "step5d.autotune-v4/r006-runtime-thresholds-v1",
+    "threshold_receipt_version": "r006-v1"
+  },
+  "lattice": {
+    "axes": [
+      "P",
+      "D",
+      "tau",
+      "I_mode",
+      "I_on_log2",
+      "Ko",
+      "Kp"
+    ],
+    "i_portal": {
+      "i_on_entry_step": -4,
+      "off_to_i_on_entry_log2": -1.0
+    },
+    "step_octave": 0.25,
+    "target_force_excluded": true,
+    "transition": "one_coordinate_at_most_0.25_octave",
+    "traversal": "optimistic_boundary_alternates_deterministic_bfs_frontier",
+    "trust_region": {
+      "modes": [
+        "OFF",
+        "I_ON_-1.0",
+        "I_ON_-0.75",
+        "I_ON_-0.5",
+        "I_ON_-0.25",
+        "I_ON_0.0"
+      ],
+      "radius_octave": 0.5,
+      "shared_axes": [
+        "P",
+        "D",
+        "tau",
+        "Ko",
+        "Kp"
+      ]
+    },
+    "unbounded": true
+  },
+  "lineage_id": "step5d_strict_rnn_autotune_v4_r008_b3_two_stage",
+  "motion": {
+    "doubled_active_path_limits": {
+      "angular_rad_s": 0.5,
+      "host_qdot_slew_rad_s2": 5.0,
+      "normal_linear_m_s": 2.0,
+      "normal_vector_update_rad_s": 200.0,
+      "qdot_rad_s": 5.0,
+      "total_linear_m_s": 2.0,
+      "tp_speedj_accel_rad_s2": 40.0,
+      "xy_tangential_m_s": 0.008
+    },
+    "path_snapshot": {
+      "frame_semantic_sha256": "0a9b800b718c4058340961a4164eb2e5e48b1225b5c5b89f83f6da3a96dbfd82",
+      "stage_id": "step5d_strict_rnn_autotune_v1",
+      "stage_row_semantic_sha256": "3ba6468db434b6c5e5eca7ca387d01ad608d195f507caec27f56f081af40a925"
+    },
+    "r008_b3_two_stage": true,
+    "schema": "step5d.autotune-v4/r006-active-motion-envelope-v2",
+    "source": "frozen_v3_r034_r005_profile_adapter",
+    "unchanged": {
+      "active_lease_s": 0.08,
+      "contact_search_acceleration_m_s2": 0.005,
+      "contact_search_speed_m_s": 0.0005,
+      "force_hard_guard_abs_normal_n": 60.0,
+      "force_hard_guard_norm_n": 100.0,
+      "home_rise_descent_acceleration_m_s2": 0.06,
+      "home_rise_descent_speed_m_s": 0.04,
+      "home_xy_transfer_acceleration_m_s2": 0.135,
+      "home_xy_transfer_speed_m_s": 0.09,
+      "host_hz": 500.0,
+      "minimum_rate_hz": 460.0,
+      "path_amplitude_m": 0.015,
+      "path_duration_s": 60.0,
+      "path_omega_rad_s": 0.1,
+      "r008_b3_contact_search_schedule": {
+        "F_far_n": 0.3,
+        "confirm_force_norm_n": 0.7,
+        "confirm_hold_s": 0.08,
+        "confirm_normal_n": 0.5,
+        "d_near_m": 0.013970689,
+        "d_near_start_travel_m": 0.011029311000000002,
+        "far_acceleration_m_s2": 0.02,
+        "force_fuse_n": 50.0,
+        "force_fuse_reason": 75,
+        "max_travel_m": 0.025,
+        "near_acceleration_m_s2": 0.005,
+        "parent_campaign_fingerprint": "1db4f9bf587826e7562dccef7040f627e660e540f847a2e8b92f63879870cc4a",
+        "program": "step5d_strict_rnn_autotune_v4_r008_b3_two_stage",
+        "schema": "step5d.autotune-v4/r008-contact-search-schedule-v1",
+        "timeout_s": 90.0,
+        "v_far_m_s": 0.002,
+        "v_near_m_s": 0.0005,
+        "version": "b3-geometry-planned-wave3-far-cap-v1"
+      },
+      "torque_hard_guard_norm_nm": 3.0
+    },
+    "version": "v3-r034-parent-v2-doubled-active-path"
+  },
+  "objective": {
+    "bin_width_s": 0.1,
+    "caller_scalar_or_mapping_trainable": false,
+    "cold_read_recompute_required": true,
+    "formal_window_s": [
+      5.0,
+      60.0
+    ],
+    "legacy_r004_shadow_window_s": [
+      0.0,
+      55.0
+    ],
+    "r004_shadow_metric": "legacy_0_55_bin_mean_abs_error",
+    "r005_shadow_metric": "formal_abs_bin_mean_minus_5",
+    "raw_bundle_required": true,
+    "required_bins": 550,
+    "schema": "step5d.force-objective/v3-r006",
+    "semantic_fingerprint": "r006.force-mae-v3|stage=25|formal=[5,60)|legacy-r004-shadow=[0,55)|r005-shadow=abs(bin-mean-5)|bin=0.1s|bins=550|target=5N|target-not-dimension",
+    "statistic": "equal_weight_mean_of_within_bin_mean_abs_force_error",
+    "target_force_n": 5.0,
+    "target_is_optimizer_dimension": false,
+    "version": "r006-sealed-raw-bundle-sufficient-statistics-v1"
+  },
+  "offline_boundary": {
+    "arm": false,
+    "bridge": false,
+    "contact": false,
+    "controller_readback": false,
+    "controller_upload": false,
+    "dashboard": false,
+    "live_evidence": false,
+    "load": false,
+    "motion": false,
+    "network": false,
+    "play": false,
+    "tare": false,
+    "zero": false
+  },
+  "optimizer": {
+    "cuda_required": true,
+    "degraded_fallback": false,
+    "feature_map": [
+      "-log2(P)",
+      "log2(D/P)",
+      "conditional_log2(I/P)",
+      "log2(tau)",
+      "log2(Ko)",
+      "log2(Kp)",
+      "I_mode"
+    ],
+    "fit_groups": 2,
+    "freeze_after_warm_start": true,
+    "managed_runtime_resolver": "step5d_optimizer_runtime.resolve_optimizer_runtime",
+    "production_kernel": "conditional_matern52_shared_same_mode_i_on_only",
+    "qlognei": "qLogNEI",
+    "shadow_command_invariant": true,
+    "shadow_models": [
+      "student_t_variational",
+      "rbf"
+    ],
+    "train_yvar_floor_n2": 0.0001,
+    "x_pending": true
+  },
+  "parent_identity": {
+    "lineage": "step5d_strict_rnn_autotune_v4_r005",
+    "sha256": {
+      "config/step5d/autotune_v4_live_writer_r004.json": "5e3942f63d86cf587048d43e2f4be3025f51f9ca148b56fcae3854f37009d603",
+      "config/step5d/autotune_v4_r004.json": "95e12fd30ec28da80f31ac113cdd9f4baa58a3883f865e4b7027a186742e3fc2",
+      "config/step5d/autotune_v4_r005.json": "4a27c14d8b1c5c5e0a276311e37eb2d5c6d427295b8e8b0a7de08995964ce889",
+      "config/step5d/autotune_v4_r005_offline_closure.json": "2013889ff7c6acc37a23b30bc449ca1021794a9b7f35bb90f8e5631000170c81",
+      "config/step5d/autotune_v4_r005_runtime_manifest.json": "5e36ab0486371ace401b99caac34550c6371c93e4d48a86bddb3145d21240044",
+      "config/step5d/lineage_selector_v4_r004.json": "0fccc6f11b69c0b33380b2ac0e83203575a196eabaa113a2c2ff9b8535867dbc",
+      "config/step5d/lineage_selector_v4_r005.json": "69f300572a80a547da0963d2377fdf946e3543aa84df5aad1a1d3876833efcf0",
+      "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r005.script": "5b0a1ede0416c9f67b10e4520d0685f1ae72c64488c15094522ddba8eefebb64",
+      "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r005.txt": "6fb387fed78f559d4e144c3d985d42ee978596c9abb7f1eab8469260952809fa",
+      "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r005.urp": "db4b6e669cdc7fd80c890635bb88b56c5163b1af76b81b1e286b5f10fe7aca44"
+    }
+  },
+  "program": "step5d_strict_rnn_autotune_v4_r008_b3_two_stage",
+  "revision": 1006,
+  "runtime": {
+    "absolute_deadline_skip_missed_no_burst": true,
+    "active_lease_s": 0.08,
+    "attempt_sequence": "positive_monotonically_increasing_unbounded",
+    "cuda_required": true,
+    "degraded_fallback": false,
+    "equal_sequence_exact_payload_reuse": true,
+    "fresh_frame_advances_packet_sequence_only": true,
+    "home_wait": "unbounded_safe_hold",
+    "host_hz": 500.0,
+    "intertrial_wait": "unbounded_safe_hold",
+    "kunwei_hz": 500.0,
+    "lifecycle": [
+      "HOME_IDLE",
+      "DISPATCH",
+      "ARM",
+      "ACTIVE_60S",
+      "RETURN",
+      "SEAL",
+      "TELL",
+      "REFILL"
+    ],
+    "minimum_rate_hz": 460.0,
+    "path_amplitude_m": 0.015,
+    "path_duration_s": 60.0,
+    "path_omega_rad_s": 0.1,
+    "production_stop_after_ordinal": false,
+    "queue": {
+      "one_inflight_dispatch": true,
+      "pending_max": 2,
+      "physical_inflight_max": 1
+    },
+    "rtde_hz": 500.0,
+    "rtde_request_hz": 500.0,
+    "tp_hz": 500.0
+  },
+  "runtime_manifest": {
+    "path": "config/step5d/autotune_v4_r006_runtime_manifest.json",
+    "sha256": "15f2098b8d2bf8689ff36abbc375ffa40a7e8954ae66fa6e95324c61e12aa802"
+  },
+  "schema": "step5d.autotune-v4/r006-release-contract-v1",
+  "source_closure": {
+    "path": "config/step5d/autotune_v4_r006_offline_closure.json",
+    "sha256": "f92759ad52df0c158c8743f75ea5d7b05535a46fad054a81d50dbf3597690c55"
+  },
+  "warm_start": {
+    "first_group_exact_trials": 25,
+    "freeze_after_second_group": true,
+    "home_wait_requires": [
+      "typed_versioned_pac_epsilon_n",
+      "typed_versioned_application_mae_threshold_n"
+    ],
+    "i_tail_off_center": [
+      "I_ON_-1.0",
+      "I_ON_-0.75",
+      "I_ON_-1.0",
+      "OFF"
+    ],
+    "i_tail_on_center": [
+      "I_center_minus_0.25",
+      "I_center",
+      "I_center_plus_0.25",
+      "I_center"
+    ],
+    "qualification_trials": 3,
+    "route_observations_included": true,
+    "second_center_selection": "lowest_simultaneous_95_percent_ucb_eligible",
+    "second_group_exact_trials": 25,
+    "shared_axis_sequence": "minus_0.25,anchor,plus_0.25,anchor_for_P_D_tau_Ko_Kp",
+    "threshold_input": {
+      "missing_values_arm": false,
+      "schema": "step5d.autotune-v4/r006-runtime-thresholds-v1",
+      "values_are_required_before_arm": true,
+      "version": "r006-v1"
+    }
+  }
+}
