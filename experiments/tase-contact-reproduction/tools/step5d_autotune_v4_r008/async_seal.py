@@ -149,6 +149,23 @@ class AsyncSealPipeline:
             wait_job = targets[0]
             self._wait_job_done(wait_job)
 
+    def join_executing(self) -> float:
+        """Wait for a seal_fn that is already inside ``seal_fn`` (if any).
+
+        Used before HOME so the post-SAFE_RETURN seal drain happens outside
+        the ARM/search-critical freshness window. Does not set
+        ``_search_critical`` (unlike ``begin_search_critical``).
+        Returns seconds spent waiting (0.0 if nothing was executing).
+        """
+
+        with self._cond:
+            executing = self._seal_executing
+        if executing is not None and not executing.future_done.is_set():
+            t0 = time.perf_counter()
+            self._wait_job_done(executing)
+            return time.perf_counter() - t0
+        return 0.0
+
     def begin_search_critical(self) -> float:
         """Defer new seal_fn starts; optionally join any seal_fn already executing.
 
@@ -163,6 +180,9 @@ class AsyncSealPipeline:
         instead of relying on that event's ``blocked`` field (canary "025746":
         both jobs logged ``blocked=0.0`` and it was inconclusive whether the
         join fired).
+
+        Prefer draining via ``join_executing`` before HOME so this returns ~0
+        under the seal-join cut (canary 041810 arm_s≈9.2 hitch).
         """
 
         if not self._search_critical_gates_seals:

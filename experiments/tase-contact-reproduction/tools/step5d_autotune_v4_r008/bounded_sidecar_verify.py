@@ -38,12 +38,25 @@ Default lowered 5→1 (2026-08-05): after PATH60‖seal fork isolation, the pare
 still pays an un-forked ``fresh_process_verify`` inside the PATH60 window; only
 the newly written row needs subprocess cold verify — older tail rows already
 passed cold verify on prior appends and remain hash-chain protected.
+
+Append fast-path (2026-08-05, seal-join cut): ``R006ObjectiveSidecar.append``
+still ends with ``_verify_rows(cold_read=True)``, which — even with
+``tail_rows=1`` — spawns a *second* ``_fresh_verify_artifact`` on the row that
+``append`` just verified. Offline profile on canary 041810's ~18MB /
+~28860-sample raw_bundle: that duplicate subprocess alone is ~2.5–2.9s and is
+the largest single slice of the post-SAFE_RETURN ``seal_overlap_s≈9s`` hitch.
+While the bounded scope is active, ``append`` reuses the in-append fresh
+receipt to extend ``_cached`` (hash-chain row already durably written) instead
+of re-cold-verifying the same artifact.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from contextlib import contextmanager
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Iterator, Mapping
 
@@ -188,6 +201,104 @@ def _enrich(row: Mapping[str, Any], receipt: Any, artifact: Any) -> Mapping[str,
     return MappingProxyType(enriched)
 
 
+def _bounded_append(
+    self: Any,
+    receipt: Any,
+    *,
+    epoch: int,
+    candidate_uid: str,
+    kind: str,
+    point_key: list[Any],
+) -> Mapping[str, Any]:
+    """Like ``R006ObjectiveSidecar.append`` but one fresh-verify, not two.
+
+    Writes the immutable artifact, runs a single ``_fresh_verify_artifact``,
+    appends the hash-chain row, then extends ``_cached`` from that verified
+    receipt. Skips the trailing ``_verify_rows(cold_read=True)`` that would
+    otherwise re-spawn the same subprocess on the brand-new tail row.
+    """
+
+    from step5d_autotune_v4_r006 import sidecar as mod
+
+    if not isinstance(receipt, mod.R006ObjectiveReceipt):
+        raise mod.R006SidecarError("r006 append requires a typed builder receipt")
+    if receipt.verification_state not in {"builder_sealed", "verified_raw_artifact"}:
+        raise mod.R006SidecarError("r006 receipt state is invalid")
+    if receipt.campaign_fingerprint != self.campaign_fingerprint:
+        raise mod.R006SidecarError("r006 receipt campaign differs")
+    if receipt.metadata.get("candidate_uid") != candidate_uid:
+        raise mod.R006SidecarError("r006 receipt candidate binding differs")
+    matches = [
+        row for row in self._cached if row["attempt_sequence"] == receipt.attempt_sequence
+    ]
+    if matches:
+        existing = matches[0]
+        if (
+            existing["execution_id"] == receipt.execution_id
+            and existing["builder_seal_sha256"] == receipt.builder_seal_sha256
+            and existing["candidate_uid"] == candidate_uid
+        ):
+            return existing
+        raise mod.R006SidecarError("r006 attempt sequence already has different evidence")
+    identity = {
+        "campaign_fingerprint": self.campaign_fingerprint,
+        "attempt_sequence": receipt.attempt_sequence,
+        "execution_id": receipt.execution_id,
+        "candidate_uid": candidate_uid,
+        "builder_seal_sha256": receipt.builder_seal_sha256,
+    }
+    artifact_name = mod._sha(mod.canonical_bytes(identity)) + ".json"
+    target = self._artifact_path(artifact_name)
+    encoded = mod.canonical_bytes(receipt.as_dict()) + b"\n"
+    if target.exists():
+        if not target.is_file() or target.read_bytes() != encoded:
+            raise mod.R006SidecarError("r006 immutable artifact identity collision")
+    else:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=".r006-", suffix=".tmp", dir=self.artifact_root
+        )
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(encoded)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, target)
+            mod._fsync_dir(self.artifact_root)
+            mod._fsync_dir(self.path.parent)
+        finally:
+            temporary.unlink(missing_ok=True)
+    verified = mod._fresh_verify_artifact(target, self.campaign_fingerprint)
+    previous = (
+        str(self._cached[-1]["row_sha256"]) if self._cached else mod.GENESIS_SHA256
+    )
+    row: dict[str, Any] = {
+        "schema": mod.SIDECAR_SCHEMA,
+        "record_type": "objective_artifact",
+        "campaign_fingerprint": self.campaign_fingerprint,
+        "epoch": int(epoch),
+        "attempt_sequence": receipt.attempt_sequence,
+        "execution_id": receipt.execution_id,
+        "candidate_uid": candidate_uid,
+        "kind": str(kind),
+        "point_key": list(point_key),
+        "artifact_name": artifact_name,
+        "artifact_sha256": mod._sha(encoded),
+        "artifact_size": len(encoded),
+        "builder_seal_sha256": verified.builder_seal_sha256,
+        "previous_sha256": previous,
+    }
+    row["row_sha256"] = mod._row_sha(row)
+    with self.path.open("ab") as stream:
+        stream.write(mod.canonical_bytes(row) + b"\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    mod._fsync_dir(self.path.parent)
+    enriched = _enrich(row, verified, target)
+    self._cached = tuple(self._cached) + (enriched,)
+    return self._cached[-1]
+
+
 @contextmanager
 def r008_bounded_sidecar_scope(*, tail_rows: int = R008_SIDECAR_TAIL_ROWS) -> Iterator[None]:
     """Process-local patch: bound R006ObjectiveSidecar's per-append cold-read cost."""
@@ -197,12 +308,15 @@ def r008_bounded_sidecar_scope(*, tail_rows: int = R008_SIDECAR_TAIL_ROWS) -> It
     global R008_SIDECAR_TAIL_ROWS
     previous_tail = R008_SIDECAR_TAIL_ROWS
     R008_SIDECAR_TAIL_ROWS = int(tail_rows)
-    original = mod.R006ObjectiveSidecar._verify_rows
+    original_verify = mod.R006ObjectiveSidecar._verify_rows
+    original_append = mod.R006ObjectiveSidecar.append
     try:
         mod.R006ObjectiveSidecar._verify_rows = _bounded_verify_rows  # type: ignore[assignment]
+        mod.R006ObjectiveSidecar.append = _bounded_append  # type: ignore[assignment]
         yield
     finally:
-        mod.R006ObjectiveSidecar._verify_rows = original  # type: ignore[assignment]
+        mod.R006ObjectiveSidecar._verify_rows = original_verify  # type: ignore[assignment]
+        mod.R006ObjectiveSidecar.append = original_append  # type: ignore[assignment]
         R008_SIDECAR_TAIL_ROWS = previous_tail
 
 

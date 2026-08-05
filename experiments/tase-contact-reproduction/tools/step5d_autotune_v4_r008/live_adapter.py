@@ -1276,9 +1276,19 @@ class R008HostLoop(R006HostLoop):
         if self.epoch == 0:
             self.start_epoch()
         try:
-            # Prior seal is held until this attempt's STAGE25 (PATH60 overlap).
+            # Prior seal is held until this attempt's SAFE_RETURN (PATH60 overlap).
             self._async_seal.mark_next_motion_start()
             self._begin_phase_clock()
+            # Drain post-SAFE_RETURN seal work BEFORE HOME so begin_search_critical
+            # at ARM does not pay the ~9s hitch (canaries 040407/041113/041810).
+            # Gating stays on; we only move the join off the search-critical edge.
+            async_seal_pre = getattr(self, "_async_seal", None)
+            if async_seal_pre is not None:
+                prehome_s = async_seal_pre.join_executing()
+                if prehome_s > 0.0:
+                    self.events.append(
+                        f"R008_PREHOME_SEAL_JOIN:waited_s={prehome_s:.3f}"
+                    )
             had_incomplete_inflight = self.queue.inflight is not None
             self.runtime.home()
             self._phase("HOME")

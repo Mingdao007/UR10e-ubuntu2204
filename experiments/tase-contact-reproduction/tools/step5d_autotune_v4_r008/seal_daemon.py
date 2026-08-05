@@ -18,6 +18,7 @@ import os
 import pickle
 import struct
 import sys
+import time
 import traceback
 from pathlib import Path
 from typing import Any, Mapping
@@ -54,6 +55,16 @@ def _canonical_bytes(value: Any) -> bytes:
     )
 
 
+def _log_stage(stages: dict[str, float], name: str, t0: float) -> None:
+    stages[name] = time.perf_counter() - t0
+    # Temporary profiling canary: keep stages loggable on stderr (stdout is IPC).
+    print(
+        f"R008_SEAL_STAGE:{name}={stages[name]:.3f}s",
+        file=sys.stderr,
+        flush=True,
+    )
+
+
 class _SealOwners:
     def __init__(
         self,
@@ -64,20 +75,27 @@ class _SealOwners:
         eoat_sha256: str,
     ) -> None:
         # Local imports keep daemon startup light and avoid host-only deps.
-        from step5d_autotune_v4_r005.observations import ObservationLedger
+        # Wave3-scale ledgers make full ObservationLedger fresh-verify exceed the
+        # stock 15s subprocess budget (2026-08-05 resume: daemon died at init,
+        # host saw "seal daemon closed stdout"). Bounded-tail resume matches the
+        # host cold-open path: hash-chain all rows, cold-recompute only the tail.
         from step5d_autotune_v4_r006.live_adapter import (
             R006ObservationLedger,
             _point_from_candidate,
+        )
+        from step5d_autotune_v4_r008.bounded_resume_ledger import (
+            R008BoundedResumeObservationLedger,
         )
         from step5d_autotune_v4_r008.bounded_sidecar_verify import r008_bounded_sidecar_scope
 
         self._point_from_candidate = _point_from_candidate
         self._scope = r008_bounded_sidecar_scope(tail_rows=1)
         self._scope.__enter__()
-        self.ledger = ObservationLedger(
+        self.ledger = R008BoundedResumeObservationLedger(
             ledger_path,
             campaign_fingerprint=campaign_fingerprint,
             eoat_sha256=eoat_sha256,
+            tail_rows=5,
         )
         # Sidecar path is derived from ledger stem; enforce the caller's path.
         self.r006 = R006ObservationLedger(
@@ -97,7 +115,11 @@ class _SealOwners:
             pass
 
     def seal_pickled_result(self, pickle_path: Path) -> dict[str, Any]:
+        stages: dict[str, float] = {}
+        t_all = time.perf_counter()
+        t0 = time.perf_counter()
         result = pickle.loads(pickle_path.read_bytes())
+        _log_stage(stages, "pickle_load", t0)
         seq = int(result.attempt_sequence)
         kind_s = str(result.kind)
         execution_id = str(result.execution_id)
@@ -108,7 +130,10 @@ class _SealOwners:
             if int(row.attempt_sequence) == seq
             and str((row.metrics or {}).get("execution_id") or "") == execution_id
         ]
-        def _pack(record: Any, *, trainable: bool, receipt_dict: Any, deduped: bool) -> dict[str, Any]:
+
+        def _pack(
+            record: Any, *, trainable: bool, receipt_dict: Any, deduped: bool
+        ) -> dict[str, Any]:
             import copyreg
             from types import MappingProxyType
 
@@ -118,6 +143,7 @@ class _SealOwners:
                 return (dict, (dict(proxy),))
 
             copyreg.pickle(MappingProxyType, _reduce_mappingproxy)
+            t_pack = time.perf_counter()
             record_path.write_bytes(pickle.dumps(record, protocol=pickle.HIGHEST_PROTOCOL))
             # Host extends its in-memory ledger cache from this row (no cold verify).
             row = None
@@ -127,11 +153,22 @@ class _SealOwners:
                 if int(cached_rec.attempt_sequence) == int(record.attempt_sequence):
                     # JSON round-trip drops mappingproxy / non-JSON bits safely.
                     row = json.loads(
-                        json.dumps(dict(cached_row), default=lambda o: dict(o) if isinstance(o, Mapping) else str(o))
+                        json.dumps(
+                            dict(cached_row),
+                            default=lambda o: dict(o) if isinstance(o, Mapping) else str(o),
+                        )
                     )
                     break
             if row is None:
                 raise RuntimeError("seal daemon missing ledger row after append")
+            _log_stage(stages, "pack_response", t_pack)
+            stages["seal_total"] = time.perf_counter() - t_all
+            print(
+                "R008_SEAL_STAGE:summary="
+                + json.dumps({k: round(v, 4) for k, v in stages.items()}, sort_keys=True),
+                file=sys.stderr,
+                flush=True,
+            )
             return {
                 "sealed_seq": int(record.attempt_sequence),
                 "eligible": bool(record.eligible),
@@ -140,6 +177,7 @@ class _SealOwners:
                 "deduped": bool(deduped),
                 "record_pickle_path": str(record_path.resolve()),
                 "ledger_row": row,
+                "stages_s": stages,
             }
 
         if existing:
@@ -147,7 +185,9 @@ class _SealOwners:
             trainable = False
             receipt_dict = None
             if kind_s != "QUALIFICATION":
+                t0 = time.perf_counter()
                 rows = self.r006.sidecar.fresh_process_verify()
+                _log_stage(stages, "dedupe_fresh_verify", t0)
                 matched = [
                     row
                     for row in rows
@@ -160,30 +200,30 @@ class _SealOwners:
                     receipt_dict = dict(receipt) if isinstance(receipt, Mapping) else receipt
             return _pack(record, trainable=trainable, receipt_dict=receipt_dict, deduped=True)
 
+        sidecar_row: Mapping[str, Any] | None = None
         if kind_s != "QUALIFICATION":
-            self.r006.append_attempt_result(
+            t0 = time.perf_counter()
+            sidecar_row = self.r006.append_attempt_result(
                 result,
                 epoch=int(getattr(result, "epoch", 1) or 1),
                 point=self._point_from_candidate(result.candidate),
             )
+            _log_stage(stages, "r006_append", t0)
+        t0 = time.perf_counter()
         sealed = self.ledger.append(result.to_record(self.campaign_fingerprint))
+        _log_stage(stages, "ledger_append", t0)
         trainable = False
         receipt_dict: dict[str, Any] | None = None
         if kind_s != "QUALIFICATION":
-            # Warm sidecar refresh in the sole-writer process (hash chain only;
-            # cold subprocess already ran inside append).
-            rows = self.r006.sidecar._verify_rows(cold_read=False)  # noqa: SLF001
-            self.r006.sidecar._cached = rows  # noqa: SLF001
-            matched = [
-                row
-                for row in rows
-                if row.get("attempt_sequence") == seq
-                and row.get("execution_id") == execution_id
-            ]
-            if len(matched) != 1:
-                raise RuntimeError("r008 seal daemon: sealed attempt lacks one raw sidecar identity")
-            receipt = matched[0].get("receipt")
-            trainable = bool(matched[0].get("trainable"))
+            # Use the append return (already single-fresh-verified under the
+            # r008 bounded scope). Do NOT warm-reparse all ~18MB artifacts:
+            # artifact files store builder_sealed receipts, so a cold=False
+            # re-read would clobber trainable=True → False and re-tax the
+            # post-SAFE_RETURN join path (canary 041810 seal_overlap≈9s).
+            if sidecar_row is None:
+                raise RuntimeError("r008 seal daemon: missing sidecar row after append")
+            receipt = sidecar_row.get("receipt")
+            trainable = bool(sidecar_row.get("trainable"))
             as_dict = getattr(receipt, "as_dict", None) if receipt is not None else None
             if callable(as_dict):
                 receipt_dict = as_dict()

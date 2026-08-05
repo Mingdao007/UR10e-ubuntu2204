@@ -99,9 +99,9 @@ def test_bounded_sidecar_bounds_subprocess_calls_on_append(tmp_path: Path, monke
         _append_n(sidecar, contract, 1, start=11)
         calls_for_eleventh_append = call_count["n"]
 
-    # Appending row 11 into a 10-row sidecar must not re-verify all 10 prior
-    # rows -- only the bounded tail (<=3 here) plus the new row itself.
-    assert calls_for_eleventh_append <= 4
+    # Append fast-path (2026-08-05): one fresh-verify for the new row only —
+    # no trailing _verify_rows(cold_read=True) re-spawn on the same artifact.
+    assert calls_for_eleventh_append == 1
     assert calls_for_eleventh_append < calls_after_ten
 
 
@@ -181,6 +181,35 @@ def test_bounded_sidecar_scope_is_removed_after_exit(tmp_path: Path) -> None:
 
 def test_default_tail_rows_is_one() -> None:
     assert R008_SIDECAR_TAIL_ROWS == 1
+
+
+def test_bounded_append_single_fresh_verify_keeps_trainable(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Append fast-path: one subprocess verify; cache keeps trainable=True."""
+
+    contract = load_contract()
+    call_count = {"n": 0}
+    from step5d_autotune_v4_r006 import sidecar as mod
+
+    original = mod._fresh_verify_artifact
+
+    def counting_fresh_verify(*args, **kwargs):
+        call_count["n"] += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(mod, "_fresh_verify_artifact", counting_fresh_verify)
+
+    with r008_bounded_sidecar_scope(tail_rows=1):
+        sidecar = R006ObjectiveSidecar(
+            tmp_path / "r006-objectives.jsonl",
+            campaign_fingerprint=contract.campaign_fingerprint,
+        )
+        call_count["n"] = 0
+        _append_n(sidecar, contract, 1)
+        assert call_count["n"] == 1
+        assert sidecar.rows[-1]["trainable"] is True
+        assert sidecar.rows[-1]["attempt_sequence"] == 1
 
 
 def test_tail_rows_one_second_cold_verify_only_newest(
