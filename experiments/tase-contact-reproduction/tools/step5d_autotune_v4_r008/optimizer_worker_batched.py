@@ -3,6 +3,10 @@
 Reuses frozen r006 request/attest/fit/kernel helpers and replaces only the
 per-combination acquisition loop with one t-batched forward ``(N, q, 7)``.
 Keeps ``tools/step5d_autotune_v4_r006/optimizer_worker.py`` byte-identical.
+
+Phase A: train/pending/choices/scoring use ``feature_map_r008`` (log2(P/D)
+performance axis) instead of r006 ``_features``. Warm-start noise floor in the
+local initializer matches FixedNoise ``2.5e-5``. Kernel stays Matérn 5/2.
 """
 
 from __future__ import annotations
@@ -10,22 +14,86 @@ from __future__ import annotations
 import itertools
 import os
 import statistics
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 import step5d_autotune_v4_r006.optimizer_worker as _r006_worker
 from step5d_autotune_v4_r006.optimizer_worker import (
     OptimizerWorkerError,
     RESPONSE_SCHEMA,
-    _deterministic_initialization,
-    _features,
     _load_model_state,
     _model_state_payload,
     _point,
     _self_attest,
 )
+from pathlib import Path
+
 from step5d_autotune_v4_r008.bounded_worker_artifact_binding import (
     bounded_artifact_binding as _artifact_binding,
 )
+from step5d_autotune_v4_r008.early_abort_penalty import load_early_abort_penalties
+from step5d_autotune_v4_r008.hard_stop_penalty import (
+    load_penalties,
+    merge_penalties_into_grouped,
+)
+from step5d_autotune_v4_r008.optimizer import feature_map_r008
+
+# Calibrated FixedNoise / warm-start noise floor (σ≈0.005 N).
+FIXED_NOISE_N2 = 2.5e-5
+
+
+def _features(point: Any) -> tuple[float, ...]:
+    """GP feature map for the r008 batched worker (alias of feature_map_r008)."""
+
+    return feature_map_r008(point)
+
+
+def _deterministic_initialization(
+    model: Any,
+    *,
+    points: Sequence[Any],
+    values: Sequence[float],
+    features: Any,
+    torch: Any,
+) -> dict[str, Any]:
+    """r008-local warm-start seed: same probes as r006, noise floor = FIXED_NOISE_N2.
+
+    Leaves frozen r006 ``_deterministic_initialization`` (1e-4 floor) untouched.
+    """
+
+    if not points or len(points) != len(values):
+        raise OptimizerWorkerError("r008 deterministic GP initializer has no observations")
+    by_point: dict[tuple[Any, ...], list[float]] = {}
+    for point, value in zip(points, values, strict=True):
+        by_point.setdefault(tuple(point.key), []).append(float(value))
+    repeat_variances = [
+        statistics.pvariance(row)
+        for row in by_point.values()
+        if len(row) > 1
+    ]
+    floor = float(FIXED_NOISE_N2)
+    repeat_noise_n2 = max(
+        floor, statistics.fmean(repeat_variances) if repeat_variances else floor
+    )
+    signal_scale_n = max(
+        floor,
+        statistics.pstdev(values) if len(values) > 1 else abs(float(values[0])) * 0.1,
+    )
+    matrix = torch.as_tensor(features, dtype=torch.double, device=model.train_inputs[0].device)
+    spans = (matrix.max(dim=0).values - matrix.min(dim=0).values).clamp_min(1.0)
+    base = model.covar_module.base_kernel
+    for component in (base.shared, base.same_mode, base.i_on_only):
+        component.initialize(lengthscale=spans.reshape(1, 1, -1))
+    model.covar_module.initialize(
+        outputscale=torch.tensor(signal_scale_n**2, dtype=torch.double, device=matrix.device)
+    )
+    return {
+        "method": "repeats_plus_minus_probes",
+        "signal_scale_n": float(signal_scale_n),
+        "lengthscales": [float(value) for value in spans.detach().cpu().tolist()],
+        "repeat_noise_n2": float(repeat_noise_n2),
+        "repeat_noise_n2_floor": floor,
+        "repeat_point_count": sum(1 for row in by_point.values() if len(row) > 1),
+    }
 
 # r006._request() validates by calling module-global ``_artifact_binding`` and
 # discards the result; then ``_fit_and_ask`` binds again. Left on the frozen
@@ -181,7 +249,7 @@ def _fit_and_ask(payload: Mapping[str, Any], expected: Mapping[str, Any]) -> dic
     # artifact-binding cost already fixed earlier tonight. Merge exact-
     # duplicate points into one training row (mean objective; noise
     # variance from the empirical between-repeat spread, floored at the
-    # fixed 1e-4 measurement-noise estimate) before building train_x/train_y.
+    # fixed 2.5e-5 measurement-noise estimate) before building train_x/train_y.
     grouped: dict[tuple[Any, ...], list[float]] = {}
     group_order: list[tuple[Any, ...]] = []
     for row in rows:
@@ -190,10 +258,36 @@ def _fit_and_ask(payload: Mapping[str, Any], expected: Mapping[str, Any]) -> dic
             group_order.append(key)
             grouped[key] = []
         grouped[key].append(float(row["receipt"].objective))
+    # Hard-stop penalties (r008-hard-stop-penalty.jsonl): BO-only training
+    # rows with MAE = historical max at stop time. Not raw-path evidence.
+    # Early-abort penalties: only rows with enters_gp_training=True (shadow
+    # rows stay False and must not poison GP labels).
+    sidecar_path = artifact_binding.get("sidecar_path")
+    penalty_count = 0
+    early_abort_penalty_count = 0
+    if isinstance(sidecar_path, str) and sidecar_path:
+        sidecar_dir = Path(sidecar_path).resolve().parent
+        penalty_count = merge_penalties_into_grouped(
+            grouped,
+            group_order,
+            load_penalties(sidecar_dir),
+        )
+        early_abort_rows = [
+            row
+            for row in load_early_abort_penalties(sidecar_dir)
+            if row.get("enters_gp_training") is True
+        ]
+        early_abort_penalty_count = merge_penalties_into_grouped(
+            grouped,
+            group_order,
+            early_abort_rows,
+        )
     train_points = tuple(_point(list(key)) for key in group_order)
     device = torch.device("cuda:0")
     train_x = torch.tensor([_features(point) for point in train_points], dtype=torch.double, device=device)
-    fixed_noise_n2 = 1.0e-4
+    # Calibrated down from 1e-4 (σ≈0.01 N): ANCHOR I-off repeats are ~0.003 N sd;
+    # 2.5e-5 ⇒ σ≈0.005 N keeps a small floor without drowning sealed MAE signal.
+    fixed_noise_n2 = float(FIXED_NOISE_N2)
     train_y_values = [statistics.fmean(grouped[key]) for key in group_order]
     train_yvar_values = [
         max(fixed_noise_n2, statistics.pvariance(grouped[key])) if len(grouped[key]) > 1 else fixed_noise_n2
@@ -208,9 +302,29 @@ def _fit_and_ask(payload: Mapping[str, Any], expected: Mapping[str, Any]) -> dic
 
         def __init__(self) -> None:
             super().__init__(ard_num_dims=7)
-            self.shared = gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=7)
-            self.same_mode = gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=7)
-            self.i_on_only = gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=7)
+            # 2026-08-06: without a lengthscale prior on these three sub-kernels
+            # (or an outputscale prior on the wrapping ScaleKernel below),
+            # botorch.fit's sample_all_priors() retry-diversification is a
+            # no-op -- every one of the 5 default fit attempts starts from the
+            # identical _deterministic_initialization state and runs the
+            # identical scipy L-BFGS-B trajectory, hitting the same
+            # NotPSDError at the same step every time (confirmed live,
+            # reproduced offline against the real failing dataset). These are
+            # botorch's own SingleTaskGP default priors, not new choices.
+            # Each sub-kernel gets its own prior instance -- not shared -- so
+            # there is no cross-module aliasing of prior state.
+            self.shared = gpytorch.kernels.MaternKernel(
+                nu=2.5, ard_num_dims=7,
+                lengthscale_prior=gpytorch.priors.GammaPrior(3.0, 6.0),
+            )
+            self.same_mode = gpytorch.kernels.MaternKernel(
+                nu=2.5, ard_num_dims=7,
+                lengthscale_prior=gpytorch.priors.GammaPrior(3.0, 6.0),
+            )
+            self.i_on_only = gpytorch.kernels.MaternKernel(
+                nu=2.5, ard_num_dims=7,
+                lengthscale_prior=gpytorch.priors.GammaPrior(3.0, 6.0),
+            )
 
         def forward(self, x1, x2, diag=False, **params):
             shared = self.shared(x1, x2, diag=diag, **params)
@@ -229,7 +343,10 @@ def _fit_and_ask(payload: Mapping[str, Any], expected: Mapping[str, Any]) -> dic
         train_Y=train_y,
         train_Yvar=train_yvar,
         likelihood=FixedNoiseGaussianLikelihood(noise=train_yvar.squeeze(-1)),
-        covar_module=gpytorch.kernels.ScaleKernel(ConditionalMatern52Kernel()),
+        covar_module=gpytorch.kernels.ScaleKernel(
+            ConditionalMatern52Kernel(),
+            outputscale_prior=gpytorch.priors.GammaPrior(2.0, 0.15),
+        ),
     ).to(device=device, dtype=torch.double)
     initialization = _deterministic_initialization(
         model,
@@ -260,6 +377,8 @@ def _fit_and_ask(payload: Mapping[str, Any], expected: Mapping[str, Any]) -> dic
         "hyperparameters_frozen": bool(payload["hyperparameters_frozen"]),
         "observation_count": len(train_points),
         "raw_trainable_row_count": len(rows),
+        "hard_stop_penalty_row_count": int(penalty_count),
+        "early_abort_penalty_row_count": int(early_abort_penalty_count),
         "deduplicated_row_count": len(rows) - len(train_points),
         "q": requested_q,
         "initialization": initialization,
@@ -340,8 +459,11 @@ def run(request: Mapping[str, Any]) -> dict[str, Any]:
 
 
 __all__ = [
+    "FIXED_NOISE_N2",
     "RESPONSE_SCHEMA",
     "run",
+    "_features",
+    "_deterministic_initialization",
     "_score_combination_batches",
     "_maybe_compile_acquisition",
     "_COMPILE_ENV",
