@@ -59,6 +59,247 @@ class ExpertState(str, Enum):
     FAILED_RETRACT = "FAILED_RETRACT"
 
 
+def _finite_xyz(values: Sequence[float] | float, name: str) -> tuple[float, float, float]:
+    if isinstance(values, (int, float)):
+        result = (float(values),) * 3
+    else:
+        result = tuple(float(value) for value in values[:3])
+    if len(result) != 3 or not all(math.isfinite(value) for value in result):
+        raise ValueError(f"{name} must contain three finite values")
+    return result
+
+
+def _norm_xyz(values: Sequence[float] | float, name: str) -> float:
+    if isinstance(values, (int, float)):
+        value = float(values)
+        if not math.isfinite(value):
+            raise ValueError(f"{name} must be finite")
+        return abs(value)
+    vector = _finite_xyz(values, name)
+    return math.sqrt(sum(value * value for value in vector))
+
+
+@dataclass(frozen=True)
+class FixedKExpertV1:
+    """Fixed impedance primitive: Kxyz=600 N/m and Krot=30 Nm/rad."""
+
+    schema_version: str = "ur10e_fixed_k_expert/v1"
+    mode: str = "fixed_k"
+    translational_stiffness_n_m: float = 600.0
+    rotational_stiffness_nm_rad: float = 30.0
+    model_output_dimension: int = 6
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "ur10e_fixed_k_expert/v1" or self.mode != "fixed_k":
+            raise ValueError("unsupported FixedKExpertV1 identity")
+        if self.translational_stiffness_n_m != 600.0 or self.rotational_stiffness_nm_rad != 30.0:
+            raise ValueError("FixedKExpertV1 stiffness is frozen at 600/30")
+        if self.model_output_dimension != 6:
+            raise ValueError("FixedKExpertV1 model output must be 6D")
+
+    @property
+    def stiffness_6d(self) -> tuple[float, ...]:
+        return (600.0, 600.0, 600.0, 30.0, 30.0, 30.0)
+
+    def stiffness(self, **_: object) -> tuple[float, ...]:
+        return self.stiffness_6d
+
+    def damping(self, *, profile: ActionProfile = ActionProfile()) -> tuple[float, ...]:
+        return derive_damping(self.stiffness_6d, profile)
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "mode": self.mode,
+            "model_output_dimension": self.model_output_dimension,
+            "stiffness_6d": list(self.stiffness_6d),
+            "active": False,
+            "shadow_only": True,
+        }
+
+
+@dataclass(frozen=True)
+class VariableKExpertV1:
+    """Bounded variable-K primitive and deterministic seventh-output label.
+
+    ``raw_stiffness`` is the deterministic expert target for the seventh
+    learned model output.  At inference/expansion time the learned seventh
+    output is the sole K authority; the observation formula is never run in
+    that path.  The formula remains here so training labels and the learned
+    controller action have one typed, versioned definition.
+    """
+
+    schema_version: str = "ur10e_variable_k_expert/v1"
+    mode: str = "variable_k"
+    base_n_m: float = 600.0
+    error_scale_m: float = 0.010
+    error_gain_n_m: float = 200.0
+    force_deadband_n: float = 8.0
+    force_scale_n: float = 4.0
+    force_gain_n_m: float = 400.0
+    min_n_m: float = 400.0
+    max_n_m: float = 800.0
+    rotational_stiffness_nm_rad: float = 30.0
+    translational_slew_n_m_s: float = 400.0
+    model_output_dimension: int = 7
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "ur10e_variable_k_expert/v1" or self.mode != "variable_k":
+            raise ValueError("unsupported VariableKExpertV1 identity")
+        expected = {
+            "base_n_m": 600.0,
+            "error_scale_m": 0.010,
+            "error_gain_n_m": 200.0,
+            "force_deadband_n": 8.0,
+            "force_scale_n": 4.0,
+            "force_gain_n_m": 400.0,
+            "min_n_m": 400.0,
+            "max_n_m": 800.0,
+            "rotational_stiffness_nm_rad": 30.0,
+            "translational_slew_n_m_s": 400.0,
+        }
+        for name, value in expected.items():
+            if float(getattr(self, name)) != value:
+                raise ValueError(f"VariableKExpertV1 parameter {name} is frozen")
+        if self.model_output_dimension != 7:
+            raise ValueError("VariableKExpertV1 model output must be 7D")
+
+    @staticmethod
+    def _clip(value: float, lower: float, upper: float) -> float:
+        return max(lower, min(upper, value))
+
+    def raw_stiffness(self, tracking_error: Sequence[float] | float, kunwei_force: Sequence[float] | float) -> float:
+        error_norm = _norm_xyz(tracking_error, "tracking_error")
+        force_norm = _norm_xyz(kunwei_force, "kunwei_force")
+        error_term = self._clip(error_norm / self.error_scale_m, 0.0, 1.0)
+        force_term = self._clip((force_norm - self.force_deadband_n) / self.force_scale_n, 0.0, 1.0)
+        return self._clip(
+            self.base_n_m + self.error_gain_n_m * error_term - self.force_gain_n_m * force_term,
+            self.min_n_m,
+            self.max_n_m,
+        )
+
+    def seventh_training_label(
+        self,
+        tracking_error: Sequence[float] | float,
+        kunwei_force: Sequence[float] | float,
+    ) -> float:
+        """Return the bounded seventh model target in N/m.
+
+        This is deliberately a named training-label seam.  It is not called
+        by model-output expansion, which consumes the learned seventh value.
+        """
+
+        return self.raw_stiffness(tracking_error, kunwei_force)
+
+    def training_label(
+        self,
+        tracking_error: Sequence[float] | float,
+        kunwei_force: Sequence[float] | float,
+        *,
+        feedforward_wrench_6d: Sequence[float] = (0.0,) * 6,
+    ) -> tuple[float, ...]:
+        """Compose a typed 7D imitation target ``F_ff[6] + Kxyz``.
+
+        The six force/torque values are supplied by the existing expert label
+        path; only the seventh value is generated by this deterministic
+        Variable-K formula.
+        """
+
+        force_label = tuple(float(value) for value in feedforward_wrench_6d)
+        if len(force_label) != 6 or not all(math.isfinite(value) for value in force_label):
+            raise ValueError("feedforward_wrench_6d must contain six finite values")
+        return force_label + (self.seventh_training_label(tracking_error, kunwei_force),)
+
+    # Explicit alias for dataset builders that name the model target rather
+    # than the imitation label.
+    model_output_label = training_label
+
+    def stiffness_from_model_output(
+        self,
+        translational_k_n_m: float,
+        *,
+        previous_stiffness: Sequence[float] | float | None = None,
+        dt_s: float = 1.0 / 500.0,
+    ) -> tuple[float, ...]:
+        """Expand the learned seventh output into isotropic Kxyz plus Krot.
+
+        Bounding and slew limiting happen after the model output is received.
+        No observation is available or consulted here by design.
+        """
+
+        if not math.isfinite(dt_s) or dt_s <= 0.0:
+            raise ValueError("dt_s must be finite and positive")
+        learned = float(translational_k_n_m)
+        if not math.isfinite(learned):
+            raise ValueError("learned translational K must be finite")
+        applied = self._clip(learned, self.min_n_m, self.max_n_m)
+        if previous_stiffness is not None:
+            previous = _finite_xyz(previous_stiffness, "previous_stiffness")
+            if max(previous) - min(previous) > 1e-9:
+                raise ValueError("previous translational stiffness must be isotropic")
+            maximum_delta = self.translational_slew_n_m_s * dt_s
+            applied = self._clip(applied, previous[0] - maximum_delta, previous[0] + maximum_delta)
+            applied = self._clip(applied, self.min_n_m, self.max_n_m)
+        return (
+            applied,
+            applied,
+            applied,
+            self.rotational_stiffness_nm_rad,
+            self.rotational_stiffness_nm_rad,
+            self.rotational_stiffness_nm_rad,
+        )
+
+    def stiffness(
+        self,
+        tracking_error: Sequence[float] | float,
+        kunwei_force: Sequence[float] | float,
+        *,
+        previous_stiffness: Sequence[float] | float | None = None,
+        dt_s: float = 1.0 / 500.0,
+    ) -> tuple[float, ...]:
+        if not math.isfinite(dt_s) or dt_s <= 0.0:
+            raise ValueError("dt_s must be finite and positive")
+        return self.stiffness_from_model_output(
+            self.seventh_training_label(tracking_error, kunwei_force),
+            previous_stiffness=previous_stiffness,
+            dt_s=dt_s,
+        )
+
+    def damping(
+        self,
+        tracking_error: Sequence[float] | float,
+        kunwei_force: Sequence[float] | float,
+        *,
+        previous_stiffness: Sequence[float] | float | None = None,
+        dt_s: float = 1.0 / 500.0,
+        profile: ActionProfile = ActionProfile(),
+    ) -> tuple[float, ...]:
+        return derive_damping(
+            self.stiffness(
+                tracking_error,
+                kunwei_force,
+                previous_stiffness=previous_stiffness,
+                dt_s=dt_s,
+            ),
+            profile,
+        )
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "mode": self.mode,
+            "model_output_dimension": self.model_output_dimension,
+            "formula": "clip(600 + 200*clip(e/0.010,0,1) - 400*clip((f-8)/4,0,1),400,800)",
+            "seventh_output_semantics": "learned_isotropic_translational_K_n_m",
+            "seventh_output_training_label": "deterministic_formula_above",
+            "rotational_stiffness_nm_rad": 30.0,
+            "translational_slew_n_m_s": 400.0,
+            "active": False,
+            "shadow_only": True,
+        }
+
+
 @dataclass(frozen=True)
 class ExpertInput:
     normal_load_n: float

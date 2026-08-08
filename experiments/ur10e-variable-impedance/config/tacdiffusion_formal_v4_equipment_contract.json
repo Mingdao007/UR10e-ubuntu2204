@@ -1,0 +1,57 @@
+{
+  "schema_version": "ur10e_tacdiffusion_formal_equipment/v1",
+  "lineage": "tacdiffusion_formal_v4",
+  "eoat": {
+    "profile_id": "new-3d-printed-eoat-v4",
+    "payload_kg": 0.413,
+    "payload_cog_m": [0.0011, 0.0031, 0.0163],
+    "tcp_offset_m_rad": [0.0, 0.0, 0.0874, 0.0, 0.0, 0.0]
+  },
+  "kunwei": {
+    "source_identity": "kunwei_kwr75_tcp_raw_stream_v1",
+    "sensor_model": "KWR75",
+    "transport": "tcp_raw",
+    "sensor_origin_tool0_m": [0.0, 0.0, 0.0315],
+    "sensor_origin_to_tcp_sensor_m": [0.0, 0.0, 0.0559],
+    "rotation_tcp_from_sensor_3x3": [
+      [1.0, 0.0, 0.0],
+      [0.0, 1.0, 0.0],
+      [0.0, 0.0, 1.0]
+    ],
+    "wrench_transform_sensor_to_tcp_6x6": [
+      [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+      [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+      [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+      [0.0, 0.0559, 0.0, 1.0, 0.0, 0.0],
+      [-0.0559, 0.0, 0.0, 0.0, 1.0, 0.0],
+      [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    ],
+    "normal_force_axis": "fz",
+    "normal_force_sign": -1.0,
+    "software_baseline_only": true,
+    "zero_behavior": "forbidden",
+    "tare_behavior": "forbidden",
+    "sensor_config_behavior": "forbidden"
+  },
+  "derivation": {
+    "sensor_to_tcp_z_rule": "tcp_offset_z_m - sensor_origin_tool0_z_m",
+    "sensor_to_tcp_z_m": 0.0559,
+    "wrench_rule": "f_tcp=R*f_sensor;tau_tcp=R*(tau_sensor-r_sensor_to_tcp_cross_f_sensor)"
+  },
+  "source_hashes": {
+    "legacy_centered_kwr75_frame_contract": "783dc71a3caba1da24402dec40b54a2e73095fc751ad5605ea2f231c18121a28",
+    "legacy_centered_kwr75_frame_evidence": "370c57b73754b0f14db9e5108cf026249c77c739bd543de480c1e58c7819ebb4",
+    "new_eoat_profile": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+    "new_eoat_calibration": "f6b49c7c1952c9773003fa1293cd417c2808780157e58990a658b5bf353ac925",
+    "new_eoat_controller_readback_at_calibration": "9fe0a697cc501d4387959b9b80df88ce29450f18effc974bb7ad2da84411beca"
+  },
+  "runtime_gates": {
+    "fresh_payload_cog_tcp_readback_before_motion": true,
+    "remote_control_required": true,
+    "safety_normal_required": true,
+    "stationary_required": true,
+    "single_writer_required": true,
+    "kunwei_raw_stream_required": true,
+    "ur_force_fields_forbidden": true
+  }
+}

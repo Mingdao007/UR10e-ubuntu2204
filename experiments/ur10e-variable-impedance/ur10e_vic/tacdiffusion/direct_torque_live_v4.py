@@ -40,12 +40,22 @@ ORIENTATION_INTERPOLATION_POLICIES = (
 )
 FRICTION_PROFILE_ZERO_ISOLATION = "zero_isolation"
 FRICTION_PROFILE_UR_DEFAULT_V2_DIAGNOSTIC = "ur_default_v2_diagnostic"
+FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT = "ur_default_v2_formal_contact"
 FRICTION_PROFILES = {
     FRICTION_PROFILE_ZERO_ISOLATION: (
         (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
     ),
     FRICTION_PROFILE_UR_DEFAULT_V2_DIAGNOSTIC: (
+        (0.9, 0.9, 0.8, 0.9, 0.9, 0.9),
+        (0.8, 0.8, 0.7, 0.8, 0.8, 0.8),
+    ),
+    # Formal contact acquisition needs the controller's bounded friction and
+    # stiction compensation so a 0.5 mm/s free-space search is physically
+    # realised instead of accumulating equilibrium error.  Keep a distinct
+    # typed identity even though the numeric scales match the diagnostic V2
+    # characterization profile.
+    FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT: (
         (0.9, 0.9, 0.8, 0.9, 0.9, 0.9),
         (0.8, 0.8, 0.7, 0.8, 0.8, 0.8),
     ),
@@ -295,6 +305,8 @@ class LiveReceiverContract:
     coulomb_scale: tuple[float, ...]
     source_builder_physical_io_enabled: bool
     controller_runtime_physical_io_enabled: bool
+    guard_force_limit_n: float = 6.0
+    guard_torque_limit_nm: float = 0.5
 
 
 def build_live_receiver_source(
@@ -303,6 +315,8 @@ def build_live_receiver_source(
     heartbeat_timeout_ticks: int = DEFAULT_HEARTBEAT_TIMEOUT_TICKS,
     orientation_interpolation_policy: str = ORIENTATION_POLICY_HOLD_ENTRY,
     friction_profile: str = FRICTION_PROFILE_ZERO_ISOLATION,
+    guard_force_limit_n: float = 6.0,
+    guard_torque_limit_nm: float = 0.5,
 ) -> str:
     """Build one controller-resident 500 Hz program; sending is a separate gate."""
 
@@ -319,6 +333,14 @@ def build_live_receiver_source(
         raise ValueError(
             "friction profile must be one of " + ", ".join(FRICTION_PROFILES)
         )
+    guard_pair = (float(guard_force_limit_n), float(guard_torque_limit_nm))
+    if guard_pair not in ((6.0, 0.5), (20.0, 2.0)):
+        raise ValueError("receiver guard profile must be no-contact 6/0.5 or contact 20/2")
+    if (
+        friction_profile == FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
+        and guard_pair != (20.0, 2.0)
+    ):
+        raise ValueError("formal contact friction profile requires contact 20/2 guard")
     viscous_scale, coulomb_scale = FRICTION_PROFILES[friction_profile]
     center = _urscript_vector(tube.center_base_m)
     anchor = _urscript_vector(tube.anchor_pose_base)
@@ -352,6 +374,8 @@ def build_live_receiver_source(
     wrapped_source = f'''def tacdiffusion_remote_direct_torque_v4_program():
   torque_thread_run = False
   torque_command = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  torque_command_generation = 0
+  torque_thread_last_coherent_command = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   friction_profile = "{friction_profile}"
   viscous_scale = {_urscript_vector(viscous_scale)}
   coulomb_scale = {_urscript_vector(coulomb_scale)}
@@ -373,7 +397,13 @@ def build_live_receiver_source(
         torque_thread_watchdog_fault = True
         torque_thread_run = False
       else:
-        local torque = torque_command
+        local torque_generation_begin = torque_command_generation
+        local torque_candidate = [torque_command[0], torque_command[1], torque_command[2], torque_command[3], torque_command[4], torque_command[5]]
+        local torque_generation_end = torque_command_generation
+        if torque_generation_begin == torque_generation_end and floor(torque_generation_end/2)*2 == torque_generation_end:
+          torque_thread_last_coherent_command = torque_candidate
+        end
+        local torque = torque_thread_last_coherent_command
         direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)
         torque_thread_tick_count = torque_thread_tick_count + 1
       end
@@ -648,7 +678,7 @@ def build_live_receiver_source(
       if force_norm > 20.0 or torque_norm > 2.0:
         packet_ok = False
       end
-      if guard_force_norm > 6.0 or guard_torque_norm > 0.5:
+      if guard_force_norm > {guard_pair[0]:.1f} or guard_torque_norm > {guard_pair[1]:.1f}:
         packet_ok = False
       end
       local actual_pose = get_actual_tcp_pose()
@@ -857,6 +887,12 @@ def build_live_receiver_source(
           local tcp_rotation_base = p[0.0, 0.0, 0.0, actual_pose[3], actual_pose[4], actual_pose[5]]
           local feedforward_base = wrench_trans(tcp_rotation_base, filtered_force)
           local pose_error = pose_sub(p[control_eq[0], control_eq[1], control_eq[2], control_eq[3], control_eq[4], control_eq[5]], actual_pose)
+          # pose_sub translation is expressed in the actual TCP frame.  The
+          # Jacobian and control_wrench below are base-frame quantities, so
+          # translation must be the explicit base-frame coordinate delta.
+          pose_error[0] = control_eq[0] - actual_pose[0]
+          pose_error[1] = control_eq[1] - actual_pose[1]
+          pose_error[2] = control_eq[2] - actual_pose[2]
           local damping = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
           local control_wrench = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
           local tau = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -896,7 +932,13 @@ def build_live_receiver_source(
             exit_reason = 7
             running = False
           else:
-            torque_command = tau
+            torque_command_generation = torque_command_generation + 1
+            axis = 0
+            while axis < 6:
+              torque_command[axis] = tau[axis]
+              axis = axis + 1
+            end
+            torque_command_generation = torque_command_generation + 1
             if not torque_entered:
               torque_thread_run = True
               torque_thread_handle = run torqueThread()
@@ -992,7 +1034,10 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "write_output_float_register(32 + axis, control_k[axis])",
         "write_output_float_register(38 + axis, tau[axis])",
         "thread torqueThread():",
-        "torque = torque_command",
+        "torque_generation_begin = torque_command_generation",
+        "torque_candidate = [torque_command[0]",
+        "torque_generation_end = torque_command_generation",
+        "torque_command[axis] = tau[axis]",
         "direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)",
         "torque_thread_tick_count = torque_thread_tick_count + 1",
         "torque_thread_handle = run torqueThread()",
@@ -1025,7 +1070,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "exit_fault = 14",
         "entry_stable_elapsed_s < entry_stable_duration_s",
         "guard_wrench = [read_input_float_register(36)",
-        "guard_force_norm > 6.0 or guard_torque_norm > 0.5",
+        "guard_force_norm > ",
         "entry_elapsed_s < entry_blend_duration_s",
         "control_k[axis] = last_k[axis]",
         "viscous_scale = [",
@@ -1044,6 +1089,9 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "active_acceleration_violation",
         "get_coriolis_and_centrifugal_torques(q, qd)",
         "get_jacobian(q)",
+        "pose_error[0] = control_eq[0] - actual_pose[0]",
+        "pose_error[1] = control_eq[1] - actual_pose[1]",
+        "pose_error[2] = control_eq[2] - actual_pose[2]",
         "running = False",
     )
     for token in required:
@@ -1109,6 +1157,15 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
     )
     if timeout_match is None:
         raise ValueError("live receiver heartbeat timeout is not parseable")
+    guard_match = re.search(
+        r"guard_force_norm > ([0-9.]+) or guard_torque_norm > ([0-9.]+)",
+        source,
+    )
+    if guard_match is None:
+        raise ValueError("live receiver guard profile is not parseable")
+    guard_pair = (float(guard_match.group(1)), float(guard_match.group(2)))
+    if guard_pair not in ((6.0, 0.5), (20.0, 2.0)):
+        raise ValueError("live receiver guard profile is not accepted")
     orientation_policy_match = re.search(
         r'^\s*(?:local\s+)?orientation_interpolation_policy = "([^"]+)"$',
         source,
@@ -1207,4 +1264,6 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         coulomb_scale=coulomb_scale,
         source_builder_physical_io_enabled=False,
         controller_runtime_physical_io_enabled=True,
+        guard_force_limit_n=guard_pair[0],
+        guard_torque_limit_nm=guard_pair[1],
     )

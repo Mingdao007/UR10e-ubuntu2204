@@ -1,0 +1,69 @@
+{
+  "schema": "step5d_tacdiffusion_sensor_frame_evidence_v1",
+  "recorded_at": "2026-08-08T20:09:14+08:00",
+  "sensor": {
+    "manufacturer": "KunWei",
+    "model": "KWR75B",
+    "mounting": "centered direct stack on the UR10e tool flange"
+  },
+  "derived_geometry": {
+    "derivation": "0.0874 m active TCP - 0.0315 m KWR75 sensor origin = 0.0559 m",
+    "tool0_to_active_tcp_m": [0.0, 0.0, 0.0874],
+    "tool0_to_sensor_origin_m": [0.0, 0.0, 0.0315],
+    "sensor_origin_to_tcp_sensor_m": [0.0, 0.0, 0.0559],
+    "rotation_tcp_from_sensor_3x3": [
+      [1.0, 0.0, 0.0],
+      [0.0, 1.0, 0.0],
+      [0.0, 0.0, 1.0]
+    ]
+  },
+  "normal_load_binding": {
+    "axis": "fz",
+    "sign": -1.0,
+    "rationale": "negative TCP Fz is positive environment-on-tool normal load"
+  },
+  "wrench_transform": {
+    "formula": "f_tcp=R*f_sensor;tau_tcp=R*(tau_sensor-r_sensor_to_tcp_cross_f_sensor)",
+    "matrix_6x6": [
+      [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+      [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+      [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+      [0.0, 0.0559, 0.0, 1.0, 0.0, 0.0],
+      [-0.0559, 0.0, 0.0, 0.0, 1.0, 0.0],
+      [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    ]
+  },
+  "fresh_readback": {
+    "payload_kg": 0.413,
+    "payload_cog_m": [0.0011, 0.0031, 0.0163],
+    "tcp_offset_m_rad": [0.0, 0.0, 0.0874, 0.0, 0.0, 0.0],
+    "remote_control": true,
+    "safety_mode": "NORMAL",
+    "robot_mode": "RUNNING",
+    "program_running": false,
+    "no_ur_force_fields_read": true
+  },
+  "kunwei_raw_probe": {
+    "source_identity": "kunwei_kwr75_tcp_raw_stream_v1",
+    "samples": 1253,
+    "observed_rate_hz": 1020.2093123945389,
+    "parse_errors": 0,
+    "raw_frames_sha256": "8935a6f187a0100d8a86ec7a82ced0b35cd9149c8db0a2c7077b1415a7f10ba3",
+    "zero_or_tare_performed": false,
+    "sensor_config_performed": false,
+    "motion_performed": false
+  },
+  "source_hashes": {
+    "legacy_centered_kwr75_frame_evidence": "370c57b73754b0f14db9e5108cf026249c77c739bd543de480c1e58c7819ebb4",
+    "new_eoat_profile": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+    "new_eoat_calibration": "f6b49c7c1952c9773003fa1293cd417c2808780157e58990a658b5bf353ac925",
+    "formal_equipment_contract": "dd024ec4165c43c5639e9c7957e0e8c8b46c9edeba7e38aa88c34acda3ce4fcd"
+  },
+  "acceptance_boundary": {
+    "calibration_only": true,
+    "motion_performed": false,
+    "sensor_zero_or_tare_allowed": false,
+    "ur_force_authority": false,
+    "kunwei_only_force_authority": true
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "lineage": "tacdiffusion_formal_v4",
+  "schema_version": "ur10e_tacdiffusion_formal_stage_table/v1",
+  "stages": [
+    {
+      "active": false,
+      "guard": {
+        "force_limit_n": 6.0,
+        "torque_limit_nm": 0.5
+      },
+      "id": "formal_v4_no_contact_qualification",
+      "invalidated_qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260808T2240HKT/qualification_summary.json",
+      "invalidated_qualification_summary_sha256": "eae7e0c8fcf52d61851de18f9f76336e1e75e03344c45afa1d64aa189dae7b43",
+      "invalidation_reason": "source_changed_after_contact_acceptance_repair",
+      "motion_class": "no_contact",
+      "qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260808T2250HKT/qualification_summary.json",
+      "qualification_summary_sha256": "71009ee6a096466fd79a3fc30dec6d7efb24839a9dcbc4730a6deecc45dfd45c",
+      "status": "accepted",
+      "successor": "formal_v4_fixed_k_campaign"
+    },
+    {
+      "active": true,
+      "eligible_episode_target": 200,
+      "guard": {
+        "force_limit_n": 20.0,
+        "torque_limit_nm": 2.0
+      },
+      "id": "formal_v4_fixed_k_campaign",
+      "motion_class": "contact",
+      "status": "ready",
+      "successor": "formal_v4_fixed_k_shadow"
+    },
+    {
+      "active": false,
+      "id": "formal_v4_fixed_k_shadow",
+      "model_active": false,
+      "shadow_count": 2,
+      "shadow_duration_s": 45.0,
+      "status": "blocked_on_fixed_k_dataset_and_checkpoint",
+      "successor": "formal_v4_variable_k_campaign"
+    },
+    {
+      "active": false,
+      "eligible_episode_target": 200,
+      "guard": {
+        "force_limit_n": 20.0,
+        "torque_limit_nm": 2.0
+      },
+      "id": "formal_v4_variable_k_campaign",
+      "motion_class": "contact",
+      "status": "blocked_on_fixed_k_qualification",
+      "successor": "formal_v4_variable_k_shadow"
+    },
+    {
+      "active": false,
+      "id": "formal_v4_variable_k_shadow",
+      "model_active": false,
+      "shadow_count": 2,
+      "shadow_duration_s": 45.0,
+      "status": "blocked_on_variable_k_dataset_and_checkpoint",
+      "successor": "formal_v4_complete"
+    },
+    {
+      "active": false,
+      "id": "formal_v4_complete",
+      "status": "blocked_on_all_acceptance_evidence",
+      "terminal": true
+    }
+  ]
+}

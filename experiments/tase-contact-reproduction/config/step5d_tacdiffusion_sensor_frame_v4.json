@@ -1,0 +1,26 @@
+{
+  "schema": "step5d_tacdiffusion_sensor_frame_v1",
+  "status": "verified",
+  "frame_token": 5252001,
+  "rotation_tcp_from_sensor_3x3": [
+    [1.0, 0.0, 0.0],
+    [0.0, 1.0, 0.0],
+    [0.0, 0.0, 1.0]
+  ],
+  "sensor_origin_to_tcp_sensor_m": [0.0, 0.0, 0.0559],
+  "wrench_transform_sensor_to_tcp_6x6": [
+    [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0559, 0.0, 1.0, 0.0, 0.0],
+    [-0.0559, 0.0, 0.0, 0.0, 1.0, 0.0],
+    [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+  ],
+  "normal_force_axis": "fz",
+  "normal_force_sign": -1.0,
+  "evidence": {
+    "path": "../evidence/step5d_tacdiffusion/sensor_frame_calibration_v4_20260808.json",
+    "sha256": "3febbca46724143bd3cb24a2eea1908f3db6f091d6f1004861ccb4f7a69d585c"
+  },
+  "claim_boundary": "Kunwei KWR75B raw TCP is the sole force/contact/guard/training authority. This V4 frame contract performs no zero, tare, filter, sensor configuration, or robot motion."
+}

@@ -12,13 +12,21 @@ import json
 import math
 import re
 from types import MappingProxyType
-from typing import Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 
 CONDITION_DIMENSION = 36
 CONTROL_RATE_HZ = 500
 RAW_WRENCH_RATE_HZ = 1000
 MODEL_RATE_CANDIDATES_HZ = (500, 200, 100, 50)
+# The tuple above is intentionally retained for legacy v2/v3 readers.  V4
+# formal selection has its own immutable candidate set; a caller must opt into
+# the formal validator instead of silently changing the meaning of old
+# benchmark artifacts.
+LEGACY_MODEL_RATE_CANDIDATES_HZ = MODEL_RATE_CANDIDATES_HZ
+FORMAL_MODEL_RATE_CANDIDATES_HZ = (100, 50)
+FORMAL_OBSERVATION_DIMENSION = 84
+FORMAL_SAMPLER_STEPS = 50
 PERMITTED_PROGRAM_CLAIM = "UR10e 500 Hz force-domain diffusion adaptation"
 REQUIRED_EXPERT_CONTROLLER_PROFILE = "polyscope-5.25.2-direct-torque-v2-500hz"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -35,6 +43,49 @@ DYNAMICS_MAX_SEQUENCE = (1 << 63) - 1
 DYNAMICS_MAX_TIME_S = 1.0e12
 DYNAMICS_MAX_INTERVAL_S = 0.100
 DYNAMICS_AUTHORITATIVE_TORQUE_SOURCE = "previous_commanded_no_gravity_torque"
+
+FORCE_AUTHORITY_SCHEMA_V1 = "ur10e_tacdiffusion_force_authority/v1"
+CONTACT_GUARD_PROFILE_SCHEMA_V1 = "ur10e_tacdiffusion_contact_guard_profile/v1"
+FORMAL_EPISODE_MANIFEST_SCHEMA_V1 = "ur10e_tacdiffusion_formal_episode_manifest/v1"
+FORMAL_REVIEW_GOVERNANCE_SCHEMA_V1 = "ur10e_tacdiffusion_review_governance/v1"
+KUNWEI_ONLY_FORCE_SOURCE_ID = "kunwei_kwr75_tcp_raw_stream_v1"
+KUNWEI_ONLY_SENSOR_MODEL = "KWR75"
+KUNWEI_ONLY_TRANSPORT = "tcp_raw"
+KUNWEI_SOFTWARE_BASELINE_SEMANTICS = "software_baseline_only"
+FORMAL_NO_CONTACT_FORCE_LIMIT_N = 6.0
+FORMAL_NO_CONTACT_TORQUE_LIMIT_NM = 0.5
+FORMAL_EXPERT_CONTACT_FORCE_LIMIT_N = 20.0
+FORMAL_EXPERT_CONTACT_TORQUE_LIMIT_NM = 2.0
+
+# These values are rejected only by formal payload/recipe validators.  Legacy
+# reports remain readable and are never rewritten into the V4 lineage.
+FORMAL_FORBIDDEN_FORCE_TOKENS = frozenset(
+    {
+        "actual_tcp_force",
+        "get_tcp_force",
+        "onrobot",
+        "ur_internal_ft",
+        "ur_ft",
+        "ur_force_torque",
+        "alternate_force_source",
+        "simulated_ft",
+        "gazebo_contact",
+        "actual_force",
+    }
+)
+FORMAL_FORCE_SOURCE_KEYS = frozenset(
+    {
+        "force_source",
+        "external_force_source",
+        "contact_source",
+        "guard_source",
+        "training_force_source",
+        "force_authority",
+        "force_authority_receipt",
+        "force_authority_source",
+        "authority",
+    }
+)
 
 
 def _vector(values: Iterable[float], length: int, name: str) -> tuple[float, ...]:
@@ -371,6 +422,265 @@ def _canonical_hash(payload: Mapping[str, object]) -> str:
         allow_nan=False,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _formal_text(value: object) -> str:
+    return str(value).strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _formal_contains_forbidden_token(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = _formal_text(value)
+    for token in FORMAL_FORBIDDEN_FORCE_TOKENS:
+        if token in normalized:
+            return token
+    return None
+
+
+def validate_formal_force_source_payload(
+    payload: object,
+    *,
+    path: str = "formal_payload",
+) -> None:
+    """Reject alternate force identities in a V4 recipe/receipt/manifest.
+
+    This walk is deliberately structural rather than a blacklist over source
+    files: values such as ``actual_current_as_torque`` remain legal shadow
+    telemetry, while a field explicitly declaring an external/contact/guard
+    source must name the Kunwei raw stream authority.
+    """
+
+    def walk(value: object, location: str, force_context: bool = False) -> None:
+        if isinstance(value, Mapping):
+            for key, nested in value.items():
+                if not isinstance(key, str) or not key.strip():
+                    raise ValueError(f"{location} contains an invalid key")
+                key_normalized = _formal_text(key)
+                token = _formal_contains_forbidden_token(key_normalized)
+                if token is not None:
+                    raise ValueError(f"{location}.{key} contains forbidden force token {token}")
+                if force_context and key_normalized in {"source_identity", "source_id"}:
+                    if nested != KUNWEI_ONLY_FORCE_SOURCE_ID:
+                        raise ValueError(
+                            f"{location}.{key} must identify {KUNWEI_ONLY_FORCE_SOURCE_ID}"
+                        )
+                nested_context = force_context or key_normalized in FORMAL_FORCE_SOURCE_KEYS
+                if key_normalized in FORMAL_FORCE_SOURCE_KEYS:
+                    if not isinstance(nested, str):
+                        # A nested typed authority is validated by its own
+                        # contract and is allowed to carry a mapping here.
+                        nested_context = True
+                    elif nested.strip() != KUNWEI_ONLY_FORCE_SOURCE_ID:
+                        raise ValueError(
+                            f"{location}.{key} must identify {KUNWEI_ONLY_FORCE_SOURCE_ID}"
+                        )
+                walk(nested, f"{location}.{key}", nested_context)
+            return
+        if isinstance(value, (list, tuple)):
+            for index, nested in enumerate(value):
+                walk(nested, f"{location}[{index}]", force_context)
+            return
+        token = _formal_contains_forbidden_token(value)
+        if token is not None:
+            raise ValueError(f"{location} contains forbidden force token {token}")
+
+    walk(payload, path)
+
+
+@dataclass(frozen=True)
+class KunweiOnlyForceAuthorityV1:
+    """The sole external force/contact/guard/training authority for V4."""
+
+    source_identity: str = KUNWEI_ONLY_FORCE_SOURCE_ID
+    sensor_model: str = KUNWEI_ONLY_SENSOR_MODEL
+    transport: str = KUNWEI_ONLY_TRANSPORT
+    canonical_tcp_frame_id: str = "tool0_tcp"
+    raw_wrench_units: str = "N,Nm"
+    software_baseline_semantics: str = KUNWEI_SOFTWARE_BASELINE_SEMANTICS
+    external_force_authority: bool = True
+    contact_authority: bool = True
+    guard_authority: bool = True
+    training_authority: bool = True
+    zero_behavior: str = "forbidden"
+    tare_behavior: str = "forbidden"
+    filter_behavior: str = "forbidden"
+    sensor_config_behavior: str = "forbidden"
+    schema_version: str = FORCE_AUTHORITY_SCHEMA_V1
+
+    def __post_init__(self) -> None:
+        if self.schema_version != FORCE_AUTHORITY_SCHEMA_V1:
+            raise ValueError("unsupported Kunwei force authority schema")
+        if self.source_identity != KUNWEI_ONLY_FORCE_SOURCE_ID:
+            raise ValueError("formal force authority must be the Kunwei KWR75 TCP raw stream")
+        if self.sensor_model != KUNWEI_ONLY_SENSOR_MODEL or self.transport != KUNWEI_ONLY_TRANSPORT:
+            raise ValueError("formal force authority must use the KWR75 TCP raw stream")
+        for name in ("canonical_tcp_frame_id", "raw_wrench_units", "software_baseline_semantics"):
+            if not str(getattr(self, name)).strip():
+                raise ValueError(f"{name} must be non-empty")
+        if self.raw_wrench_units != "N,Nm":
+            raise ValueError("formal Kunwei wrench units must be N,Nm")
+        if self.software_baseline_semantics != KUNWEI_SOFTWARE_BASELINE_SEMANTICS:
+            raise ValueError("formal force authority must be software-baseline-only")
+        authority_flags = tuple(
+            getattr(self, name)
+            for name in (
+                "external_force_authority",
+                "contact_authority",
+                "guard_authority",
+                "training_authority",
+            )
+        )
+        if not all(isinstance(value, bool) and value for value in authority_flags):
+            raise ValueError("Kunwei must own every formal external force authority")
+        if any(
+            getattr(self, name) != "forbidden"
+            for name in ("zero_behavior", "tare_behavior", "filter_behavior", "sensor_config_behavior")
+        ):
+            raise ValueError("formal force authority cannot configure zero, tare, filter, or sensor state")
+
+    @property
+    def source_id(self) -> str:
+        return self.source_identity
+
+    def validate_source_identity(self, value: object) -> None:
+        if value != self.source_identity:
+            raise ValueError("force source identity is not Kunwei KWR75 TCP raw stream")
+
+    def as_json(self) -> dict[str, object]:
+        payload = {
+            "schema_version": self.schema_version,
+            "source_identity": self.source_identity,
+            "sensor_model": self.sensor_model,
+            "transport": self.transport,
+            "canonical_tcp_frame_id": self.canonical_tcp_frame_id,
+            "raw_wrench_units": self.raw_wrench_units,
+            "software_baseline_semantics": self.software_baseline_semantics,
+            "external_force_authority": self.external_force_authority,
+            "contact_authority": self.contact_authority,
+            "guard_authority": self.guard_authority,
+            "training_authority": self.training_authority,
+            "zero_behavior": self.zero_behavior,
+            "tare_behavior": self.tare_behavior,
+            "filter_behavior": self.filter_behavior,
+            "sensor_config_behavior": self.sensor_config_behavior,
+        }
+        validate_formal_force_source_payload(payload)
+        return payload
+
+    @property
+    def fingerprint_sha256(self) -> str:
+        return _canonical_hash(self.as_json())
+
+
+@dataclass(frozen=True)
+class ContactGuardProfileV1:
+    """Software-baseline guard thresholds; it never performs sensor config."""
+
+    profile_id: str
+    force_limit_n: float
+    torque_limit_nm: float
+    authority: KunweiOnlyForceAuthorityV1 = field(default_factory=KunweiOnlyForceAuthorityV1)
+    semantics: str = KUNWEI_SOFTWARE_BASELINE_SEMANTICS
+    schema_version: str = CONTACT_GUARD_PROFILE_SCHEMA_V1
+
+    def __post_init__(self) -> None:
+        if self.schema_version != CONTACT_GUARD_PROFILE_SCHEMA_V1:
+            raise ValueError("unsupported contact guard profile schema")
+        if self.profile_id not in {"no_contact", "expert_contact"}:
+            raise ValueError("unsupported formal contact guard profile")
+        expected = {
+            "no_contact": (FORMAL_NO_CONTACT_FORCE_LIMIT_N, FORMAL_NO_CONTACT_TORQUE_LIMIT_NM),
+            "expert_contact": (FORMAL_EXPERT_CONTACT_FORCE_LIMIT_N, FORMAL_EXPERT_CONTACT_TORQUE_LIMIT_NM),
+        }[self.profile_id]
+        if not all(math.isfinite(float(value)) and float(value) > 0.0 for value in (self.force_limit_n, self.torque_limit_nm)):
+            raise ValueError("contact guard limits must be finite and positive")
+        if not math.isclose(self.force_limit_n, expected[0], rel_tol=0.0, abs_tol=1e-12) or not math.isclose(self.torque_limit_nm, expected[1], rel_tol=0.0, abs_tol=1e-12):
+            raise ValueError("contact guard profile thresholds do not match the frozen V4 defaults")
+        if not isinstance(self.authority, KunweiOnlyForceAuthorityV1):
+            raise ValueError("contact guard profile must use KunweiOnlyForceAuthorityV1")
+        if self.semantics != KUNWEI_SOFTWARE_BASELINE_SEMANTICS:
+            raise ValueError("contact guard profile must be software-baseline-only")
+
+    @classmethod
+    def no_contact(cls, *, authority: KunweiOnlyForceAuthorityV1 | None = None) -> "ContactGuardProfileV1":
+        return cls("no_contact", FORMAL_NO_CONTACT_FORCE_LIMIT_N, FORMAL_NO_CONTACT_TORQUE_LIMIT_NM, authority or KunweiOnlyForceAuthorityV1())
+
+    @classmethod
+    def expert_contact(cls, *, authority: KunweiOnlyForceAuthorityV1 | None = None) -> "ContactGuardProfileV1":
+        return cls("expert_contact", FORMAL_EXPERT_CONTACT_FORCE_LIMIT_N, FORMAL_EXPERT_CONTACT_TORQUE_LIMIT_NM, authority or KunweiOnlyForceAuthorityV1())
+
+    @property
+    def force_norm_max_n(self) -> float:
+        return self.force_limit_n
+
+    @property
+    def torque_norm_max_nm(self) -> float:
+        return self.torque_limit_nm
+
+    def as_json(self) -> dict[str, object]:
+        payload = {
+            "schema_version": self.schema_version,
+            "profile_id": self.profile_id,
+            "force_limit_n": self.force_limit_n,
+            "torque_limit_nm": self.torque_limit_nm,
+            "semantics": self.semantics,
+            "authority": self.authority.as_json(),
+        }
+        validate_formal_force_source_payload(payload)
+        return payload
+
+    @property
+    def fingerprint_sha256(self) -> str:
+        return _canonical_hash(self.as_json())
+
+
+def validate_formal_rtde_recipe(
+    recipe: Mapping[str, Any],
+    *,
+    authority: KunweiOnlyForceAuthorityV1 | None = None,
+) -> dict[str, Any]:
+    """Validate a formal RTDE recipe without opening an RTDE connection."""
+
+    if not isinstance(recipe, Mapping):
+        raise ValueError("formal RTDE recipe must be a mapping")
+    resolved_authority = authority or KunweiOnlyForceAuthorityV1()
+    validate_formal_force_source_payload(recipe)
+    raw_fields = recipe.get("output_fields", recipe.get("fields"))
+    if not isinstance(raw_fields, (list, tuple)) or not raw_fields:
+        raise ValueError("formal RTDE recipe output_fields are required")
+    if any(not isinstance(value, str) or not value.strip() for value in raw_fields):
+        raise ValueError("formal RTDE recipe output_fields must be non-empty strings")
+    fields = tuple(raw_fields)
+    for field_name in fields:
+        if _formal_contains_forbidden_token(field_name) is not None:
+            raise ValueError(f"formal RTDE recipe contains forbidden force field: {field_name}")
+    supplied_authority = recipe.get("force_authority")
+    if supplied_authority is not None:
+        if isinstance(supplied_authority, KunweiOnlyForceAuthorityV1):
+            supplied_authority.validate_source_identity(resolved_authority.source_identity)
+        elif isinstance(supplied_authority, Mapping):
+            if supplied_authority.get("source_identity") != resolved_authority.source_identity:
+                raise ValueError("formal RTDE recipe force authority is not Kunwei-only")
+        else:
+            raise ValueError("formal RTDE recipe force authority has the wrong type")
+    else:
+        raise ValueError("formal RTDE recipe must bind KunweiOnlyForceAuthorityV1")
+    for identity_key in ("source_identity", "source_id"):
+        if identity_key in recipe and recipe[identity_key] != resolved_authority.source_identity:
+            raise ValueError("formal RTDE recipe source identity is not Kunwei-only")
+    rates = recipe.get("model_rate_candidates_hz")
+    if rates is not None:
+        if not isinstance(rates, (list, tuple)) or tuple(rates) != FORMAL_MODEL_RATE_CANDIDATES_HZ:
+            raise ValueError("formal RTDE recipe model-rate candidates must be exactly 100 and 50 Hz")
+    if recipe.get("observation_dimension", FORMAL_OBSERVATION_DIMENSION) != FORMAL_OBSERVATION_DIMENSION:
+        raise ValueError("formal RTDE recipe observation dimension must be 84")
+    return {
+        "output_fields": list(fields),
+        "force_authority": resolved_authority.as_json(),
+        "model_rate_candidates_hz": list(FORMAL_MODEL_RATE_CANDIDATES_HZ),
+        "observation_dimension": FORMAL_OBSERVATION_DIMENSION,
+    }
 
 
 @dataclass(frozen=True)
@@ -885,3 +1195,261 @@ class DynamicsReceipt:
 
     def as_json(self) -> dict[str, object]:
         return self.canonical_payload() | {"receipt_fingerprint_sha256": self.receipt_fingerprint_sha256}
+
+
+@dataclass(frozen=True)
+class ForceAuthorityReceiptV1:
+    """Per-row proof that external/contact authority came from Kunwei."""
+
+    sequence: int
+    sample_index: int
+    device_time_s: float
+    host_visible_time_s: float
+    frame_id: str
+    authority: KunweiOnlyForceAuthorityV1 = field(default_factory=KunweiOnlyForceAuthorityV1)
+    source_sample_sha256: str | None = None
+    valid: bool = True
+    schema_version: str = "ur10e_tacdiffusion_force_authority_receipt/v1"
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "ur10e_tacdiffusion_force_authority_receipt/v1":
+            raise ValueError("unsupported force authority receipt schema")
+        if (
+            isinstance(self.sequence, bool)
+            or isinstance(self.sample_index, bool)
+            or self.sequence < 0
+            or self.sample_index < 0
+        ):
+            raise ValueError("force authority receipt identity is invalid")
+        if not all(
+            math.isfinite(float(value))
+            and 0.0 <= float(value) <= DYNAMICS_MAX_TIME_S
+            for value in (self.device_time_s, self.host_visible_time_s)
+        ):
+            raise ValueError("force authority receipt timestamps are invalid")
+        if not str(self.frame_id).strip() or self.frame_id != self.authority.canonical_tcp_frame_id:
+            raise ValueError("force authority receipt frame does not match Kunwei canonical TCP frame")
+        if self.source_sample_sha256 is not None:
+            object.__setattr__(self, "source_sample_sha256", _sha256(self.source_sample_sha256, "source_sample_sha256"))
+        if not isinstance(self.valid, bool) or not self.valid:
+            raise ValueError("formal force authority receipt must be valid")
+
+    @property
+    def source_identity(self) -> str:
+        return self.authority.source_identity
+
+    def as_json(self) -> dict[str, object]:
+        payload = {
+            "schema_version": self.schema_version,
+            "sequence": self.sequence,
+            "sample_index": self.sample_index,
+            "device_time_s": self.device_time_s,
+            "host_visible_time_s": self.host_visible_time_s,
+            "frame_id": self.frame_id,
+            "source_identity": self.source_identity,
+            "source_sample_sha256": self.source_sample_sha256,
+            "valid": self.valid,
+            "authority": self.authority.as_json(),
+        }
+        validate_formal_force_source_payload(payload)
+        return payload
+
+    @property
+    def receipt_fingerprint_sha256(self) -> str:
+        return _canonical_hash(self.as_json())
+
+
+@dataclass(frozen=True)
+class ProductionDynamicsConformanceReceiptV1:
+    """Formal wrapper for the previous-tick production dynamics receipt."""
+
+    dynamics_receipt: DynamicsReceipt
+    schema_version: str = "ur10e_tacdiffusion_production_dynamics_receipt/v1"
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "ur10e_tacdiffusion_production_dynamics_receipt/v1":
+            raise ValueError("unsupported production dynamics receipt schema")
+        if not isinstance(self.dynamics_receipt, DynamicsReceipt):
+            raise ValueError("production dynamics receipt has the wrong type")
+        receipt = self.dynamics_receipt
+        if receipt.source_kind != "production" or not receipt.valid:
+            raise ValueError("formal dynamics receipt requires production conformance")
+        if receipt.conformance_binding is None:
+            raise ValueError("formal dynamics receipt requires a conformance binding")
+        if receipt.authoritative_torque_source != DYNAMICS_AUTHORITATIVE_TORQUE_SOURCE:
+            raise ValueError("formal dynamics receipt torque authority is invalid")
+
+    @property
+    def sequence(self) -> int:
+        return self.dynamics_receipt.sequence
+
+    @property
+    def timestamp_s(self) -> float:
+        return self.dynamics_receipt.timestamp_s
+
+    @property
+    def internal_wrench_tcp_si(self) -> tuple[float, ...]:
+        return self.dynamics_receipt.internal_wrench_tcp_si
+
+    @property
+    def actual_current_shadow_wrench_tcp_si(self) -> tuple[float, ...] | None:
+        return self.dynamics_receipt.actual_current_shadow_wrench_tcp_si
+
+    @property
+    def source_kind(self) -> str:
+        return self.dynamics_receipt.source_kind
+
+    @property
+    def valid(self) -> bool:
+        return self.dynamics_receipt.valid
+
+    @property
+    def previous_tick_only(self) -> bool:
+        return True
+
+    @property
+    def authoritative_torque_source(self) -> str:
+        return self.dynamics_receipt.authoritative_torque_source
+
+    @property
+    def conformance_binding(self) -> DynamicsConformanceBinding | None:
+        return self.dynamics_receipt.conformance_binding
+
+    def as_json(self) -> dict[str, object]:
+        payload = {
+            "schema_version": self.schema_version,
+            "source_kind": "production",
+            "authoritative_torque_source": DYNAMICS_AUTHORITATIVE_TORQUE_SOURCE,
+            "previous_tick_only": True,
+            "dynamics_receipt": self.dynamics_receipt.as_json(),
+        }
+        validate_formal_force_source_payload(payload)
+        return payload
+
+    @property
+    def receipt_fingerprint_sha256(self) -> str:
+        return _canonical_hash(self.as_json())
+
+
+@dataclass(frozen=True)
+class FormalEpisodeManifestV1:
+    """Manifest identity required before a row can enter V4 formal data."""
+
+    manifest_id: str
+    force_authority: KunweiOnlyForceAuthorityV1
+    contact_guard_profile: ContactGuardProfileV1
+    rtde_output_fields: Sequence[str]
+    source_hashes: Mapping[str, str]
+    observation_dimension: int = FORMAL_OBSERVATION_DIMENSION
+    control_rate_hz: int = CONTROL_RATE_HZ
+    model_rate_candidates_hz: tuple[int, ...] = FORMAL_MODEL_RATE_CANDIDATES_HZ
+    sampler_steps: int = FORMAL_SAMPLER_STEPS
+    model_active: bool = False
+    shadow_only: bool = True
+    production_dynamics_required: bool = True
+    review_governance_schema: str = FORMAL_REVIEW_GOVERNANCE_SCHEMA_V1
+    schema_version: str = FORMAL_EPISODE_MANIFEST_SCHEMA_V1
+
+    def __post_init__(self) -> None:
+        if self.schema_version != FORMAL_EPISODE_MANIFEST_SCHEMA_V1:
+            raise ValueError("unsupported formal episode manifest schema")
+        if not _IDENTITY_RE.fullmatch(str(self.manifest_id)):
+            raise ValueError("formal episode manifest id is invalid")
+        if not isinstance(self.force_authority, KunweiOnlyForceAuthorityV1):
+            raise ValueError("formal manifest force authority has the wrong type")
+        if not isinstance(self.contact_guard_profile, ContactGuardProfileV1):
+            raise ValueError("formal manifest contact guard profile has the wrong type")
+        if not isinstance(self.rtde_output_fields, (list, tuple)) or any(
+            not isinstance(value, str) or not value.strip()
+            for value in self.rtde_output_fields
+        ):
+            raise ValueError("formal manifest RTDE output fields must be non-empty strings")
+        fields = tuple(self.rtde_output_fields)
+        if not fields:
+            raise ValueError("formal manifest RTDE output allowlist is empty")
+        if self.observation_dimension != FORMAL_OBSERVATION_DIMENSION or self.control_rate_hz != CONTROL_RATE_HZ:
+            raise ValueError("formal manifest observation/control dimension or rate is invalid")
+        if tuple(self.model_rate_candidates_hz) != FORMAL_MODEL_RATE_CANDIDATES_HZ:
+            raise ValueError("formal manifest model-rate candidates must be exactly 100 and 50 Hz")
+        if self.sampler_steps != FORMAL_SAMPLER_STEPS:
+            raise ValueError("formal manifest sampler must use exactly 50 steps")
+        if self.model_active is not False or self.shadow_only is not True:
+            raise ValueError("formal V4 model remains inactive and shadow-only")
+        if self.production_dynamics_required is not True:
+            raise ValueError("formal manifest must require production dynamics conformance")
+        if self.review_governance_schema != FORMAL_REVIEW_GOVERNANCE_SCHEMA_V1:
+            raise ValueError("formal manifest review governance schema is invalid")
+        object.__setattr__(self, "rtde_output_fields", fields)
+        object.__setattr__(self, "source_hashes", _source_hashes(self.source_hashes, "source_hashes"))
+        validate_formal_rtde_recipe(
+            {
+                "output_fields": list(fields),
+                "force_authority": self.force_authority.as_json(),
+                "model_rate_candidates_hz": list(self.model_rate_candidates_hz),
+                "observation_dimension": self.observation_dimension,
+            },
+            authority=self.force_authority,
+        )
+
+    def as_json(self) -> dict[str, object]:
+        payload = {
+            "schema_version": self.schema_version,
+            "manifest_id": self.manifest_id,
+            "force_authority": self.force_authority.as_json(),
+            "contact_guard_profile": self.contact_guard_profile.as_json(),
+            "rtde_output_fields": list(self.rtde_output_fields),
+            "source_hashes": dict(self.source_hashes),
+            "observation_dimension": self.observation_dimension,
+            "control_rate_hz": self.control_rate_hz,
+            "model_rate_candidates_hz": list(self.model_rate_candidates_hz),
+            "sampler_steps": self.sampler_steps,
+            "model_active": self.model_active,
+            "shadow_only": self.shadow_only,
+            "production_dynamics_required": self.production_dynamics_required,
+            "review_governance_schema": self.review_governance_schema,
+        }
+        validate_formal_force_source_payload(payload)
+        return payload
+
+    @classmethod
+    def from_json(cls, payload: Mapping[str, Any]) -> "FormalEpisodeManifestV1":
+        """Parse one canonical manifest without accepting alternate identities."""
+
+        if not isinstance(payload, Mapping):
+            raise ValueError("formal episode manifest must be a mapping")
+        raw_authority = payload.get("force_authority")
+        raw_profile = payload.get("contact_guard_profile")
+        if not isinstance(raw_authority, Mapping) or not isinstance(raw_profile, Mapping):
+            raise ValueError("formal episode manifest authority/profile are incomplete")
+        authority = KunweiOnlyForceAuthorityV1(**dict(raw_authority))
+        profile_authority = raw_profile.get("authority")
+        if not isinstance(profile_authority, Mapping):
+            raise ValueError("formal contact guard profile authority is missing")
+        if dict(profile_authority) != authority.as_json():
+            raise ValueError("formal contact guard profile authority mismatch")
+        profile_values = dict(raw_profile)
+        profile_values.pop("authority", None)
+        profile = ContactGuardProfileV1(authority=authority, **profile_values)
+        manifest = cls(
+            manifest_id=str(payload.get("manifest_id", "")),
+            force_authority=authority,
+            contact_guard_profile=profile,
+            rtde_output_fields=tuple(payload.get("rtde_output_fields", ())),
+            source_hashes=payload.get("source_hashes", {}),
+            observation_dimension=int(payload.get("observation_dimension", -1)),
+            control_rate_hz=int(payload.get("control_rate_hz", -1)),
+            model_rate_candidates_hz=tuple(payload.get("model_rate_candidates_hz", ())),
+            sampler_steps=int(payload.get("sampler_steps", -1)),
+            model_active=payload.get("model_active", True),
+            shadow_only=payload.get("shadow_only", False),
+            production_dynamics_required=payload.get("production_dynamics_required", False),
+            review_governance_schema=str(payload.get("review_governance_schema", "")),
+            schema_version=str(payload.get("schema_version", "")),
+        )
+        if manifest.as_json() != dict(payload):
+            raise ValueError("formal episode manifest contains non-canonical or extra fields")
+        return manifest
+
+    @property
+    def fingerprint_sha256(self) -> str:
+        return _canonical_hash(self.as_json())

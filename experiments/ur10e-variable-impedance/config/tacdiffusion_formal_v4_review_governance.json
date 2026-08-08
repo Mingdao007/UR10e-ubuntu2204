@@ -1,0 +1,13 @@
+{
+  "schema": "ur10e_tacdiffusion_review_governance/v1",
+  "lineage": "tacdiffusion_formal_v4",
+  "automatic_reviewer_count": 0,
+  "explicit_luna_max_reviewer_max": 1,
+  "explicit_luna_max_only": true,
+  "supersedes_legacy_contracts": [
+    "1+1",
+    "2+1"
+  ],
+  "historical_artifacts_are_not_rewritten": true,
+  "ordinary_offline_review": "0+0 deterministic validation"
+}

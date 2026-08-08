@@ -125,3 +125,147 @@ def guard_action(action: TacDiffusionAction, *, previous: TacDiffusionAction | N
         raise ValueError("guarded action is non-finite")
     derive_damping(result.stiffness, profile)
     return result
+
+
+MODEL_MODE_FIXED_K_V1 = "fixed_k_v1"
+MODEL_MODE_VARIABLE_K_V1 = "variable_k_v1"
+CANONICAL_CONTROLLER_ACTION_DIMENSION = 12
+
+
+@dataclass(frozen=True)
+class TypedModelOutputV1:
+    """Dimension-checked model output before K/action expansion."""
+
+    mode: str
+    values: tuple[float, ...] | Sequence[float]
+    schema_version: str = "ur10e_tacdiffusion_model_output/v1"
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "ur10e_tacdiffusion_model_output/v1":
+            raise ValueError("unsupported typed model output schema")
+        expected = {MODEL_MODE_FIXED_K_V1: 6, MODEL_MODE_VARIABLE_K_V1: 7}.get(self.mode)
+        if expected is None:
+            raise ValueError("unsupported TacDiffusion model mode")
+        try:
+            raw = tuple(float(value) for value in self.values)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("model output must be numeric") from exc
+        if len(raw) != expected or not all(math.isfinite(value) for value in raw):
+            raise ValueError(f"{self.mode} model output must contain {expected} finite values")
+        if self.mode == MODEL_MODE_VARIABLE_K_V1:
+            # Canonicalize an unconstrained network scalar before it can enter
+            # the isotropic K expansion seam.
+            raw = raw[:6] + (max(400.0, min(800.0, raw[6])),)
+        object.__setattr__(self, "values", _six(raw[:6], "model force output") + raw[6:])
+
+
+@dataclass(frozen=True)
+class ExpandedControllerActionV1:
+    """Canonical 12D action plus typed K/D expansion metadata."""
+
+    mode: str
+    model_output: tuple[float, ...]
+    action: TacDiffusionAction
+    damping: tuple[float, ...]
+    variable_k_output_n_m: float | None = None
+    active: bool = False
+    shadow_only: bool = True
+    schema_version: str = "ur10e_tacdiffusion_expanded_action/v1"
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "ur10e_tacdiffusion_expanded_action/v1":
+            raise ValueError("unsupported expanded action schema")
+        if self.mode not in {MODEL_MODE_FIXED_K_V1, MODEL_MODE_VARIABLE_K_V1}:
+            raise ValueError("expanded action mode is invalid")
+        expected = 6 if self.mode == MODEL_MODE_FIXED_K_V1 else 7
+        if len(self.model_output) != expected or not all(math.isfinite(value) for value in self.model_output):
+            raise ValueError("expanded action model output dimension is invalid")
+        if len(self.action.vector12) != CANONICAL_CONTROLLER_ACTION_DIMENSION:
+            raise ValueError("expanded controller action must be 12D")
+        object.__setattr__(self, "damping", _six(self.damping, "damping"))
+        if self.variable_k_output_n_m is not None and not math.isfinite(self.variable_k_output_n_m):
+            raise ValueError("variable-K model K output must be finite")
+        if self.mode == MODEL_MODE_VARIABLE_K_V1:
+            if self.variable_k_output_n_m is None:
+                raise ValueError("variable-K expansion must retain the learned seventh K output")
+            if not 400.0 <= self.variable_k_output_n_m <= 800.0:
+                raise ValueError("variable-K model K output must be bounded to 400..800 N/m")
+            if not math.isclose(self.variable_k_output_n_m, self.model_output[6], rel_tol=0.0, abs_tol=1e-12):
+                raise ValueError("variable-K metadata must bind the learned seventh output")
+        if self.active is not False or self.shadow_only is not True:
+            raise ValueError("formal action expansion remains inactive and shadow-only")
+
+    @property
+    def vector12(self) -> tuple[float, ...]:
+        return self.action.vector12
+
+    @property
+    def stiffness(self) -> tuple[float, ...]:
+        return self.action.stiffness
+
+    @property
+    def raw_f_df(self) -> tuple[float, ...]:
+        return self.action.raw_f_df
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "mode": self.mode,
+            "model_output": list(self.model_output),
+            "action_12d": list(self.vector12),
+            "damping_6d": list(self.damping),
+            "variable_k_output_n_m": self.variable_k_output_n_m,
+            "active": self.active,
+            "shadow_only": self.shadow_only,
+        }
+
+
+def expand_model_output_to_controller_action(
+    model_output: Sequence[float] | TypedModelOutputV1,
+    *,
+    mode: str,
+    previous_stiffness: Sequence[float] | float | None = None,
+    dt_s: float = 1.0 / 500.0,
+    profile: ActionProfile = ActionProfile(),
+) -> ExpandedControllerActionV1:
+    """Expand fixed-6D or variable-7D output into the canonical 12D action.
+
+    Variable-K stiffness is expanded exclusively from the learned seventh
+    model output.  The deterministic observable formula belongs to training
+    label generation and is intentionally absent from this seam.
+    """
+
+    typed = model_output if isinstance(model_output, TypedModelOutputV1) else TypedModelOutputV1(mode, model_output)
+    if typed.mode != mode:
+        raise ValueError("typed model output mode does not match expansion mode")
+    if mode == MODEL_MODE_FIXED_K_V1:
+        from .expert import FixedKExpertV1
+
+        expert = FixedKExpertV1()
+        stiffness = expert.stiffness()
+        model_k = None
+    elif mode == MODEL_MODE_VARIABLE_K_V1:
+        from .expert import VariableKExpertV1
+
+        expert = VariableKExpertV1()
+        model_k = typed.values[6]
+        stiffness = expert.stiffness_from_model_output(
+            model_k,
+            previous_stiffness=previous_stiffness,
+            dt_s=dt_s,
+        )
+    else:
+        raise ValueError("unsupported TacDiffusion model mode")
+    action = TacDiffusionAction(typed.values[:6], stiffness, profile.frame_id)
+    return ExpandedControllerActionV1(
+        mode=mode,
+        model_output=typed.values,
+        action=action,
+        damping=derive_damping(stiffness, profile),
+        variable_k_output_n_m=model_k,
+    )
+
+
+# Short compatibility spelling for callers that already use ``expand_action``
+# in offline tests.  It has exactly one implementation and one authority.
+expand_action = expand_model_output_to_controller_action

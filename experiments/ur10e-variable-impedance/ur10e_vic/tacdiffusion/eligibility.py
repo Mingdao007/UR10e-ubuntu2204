@@ -11,7 +11,20 @@ from pathlib import Path
 import threading
 from typing import Any, Iterable, Mapping, Sequence
 
+from .contracts import (
+    DYNAMICS_AUTHORITATIVE_TORQUE_SOURCE,
+    FORMAL_EPISODE_MANIFEST_SCHEMA_V1,
+    FORMAL_MODEL_RATE_CANDIDATES_HZ,
+    FORMAL_OBSERVATION_DIMENSION,
+    KUNWEI_ONLY_FORCE_SOURCE_ID,
+    FormalEpisodeManifestV1,
+    validate_formal_force_source_payload,
+)
 from .episode_composition import ActiveTrainingWindow, EpisodeSemanticContext
+from .episode_recorder import (
+    EPISODE_FRAME_SCHEMA_V4,
+    compute_v3_row_sha256,
+)
 
 
 ELIGIBILITY_SCHEMA = "ur10e_tacdiffusion_training_eligibility/v2"
@@ -19,6 +32,7 @@ _MISSING = object()
 HOST_BATCH_WATCHDOG_S = 0.080
 MAX_UNSEALED_TAIL = 9
 ACTION_DIMENSION = 12
+FORMAL_ELIGIBILITY_SCHEMA = "ur10e_tacdiffusion_formal_training_eligibility/v1"
 
 
 def _value(row: object, name: str, default: Any = None) -> Any:
@@ -563,6 +577,313 @@ class EligibilityValidator:
         )
         return decision, self.write_receipt(path, decision, recorder_health=recorder_health)
 
+    def evaluate_formal(
+        self,
+        frames: Iterable[object],
+        *,
+        recorder_health: object,
+        formal_manifest: object | None = None,
+        episode_id: str | None = None,
+        first_live_shadow: bool = True,
+    ) -> "FormalEligibilityDecision":
+        """Route V4 verdicts to the sole formal validator."""
+
+        return FormalEligibilityValidator().evaluate(
+            frames,
+            recorder_health=recorder_health,
+            formal_manifest=formal_manifest,
+            episode_id=episode_id,
+            first_live_shadow=first_live_shadow,
+        )
+
+
+@dataclass(frozen=True)
+class FormalEligibilityDecision:
+    """The sole final V4 formal-data eligibility verdict."""
+
+    episode_id: str
+    formal_eligible: bool
+    predicates: Mapping[str, bool]
+    reasons: tuple[str, ...]
+    row_count: int
+    first_live_shadow: bool
+    schema: str = FORMAL_ELIGIBILITY_SCHEMA
+
+    @property
+    def training_eligible(self) -> bool:
+        return self.formal_eligible
+
+    @property
+    def active_enabled(self) -> bool:
+        return False
+
+    def as_json(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "episode_id": self.episode_id,
+            "formal_eligible": self.formal_eligible,
+            "training_eligible": self.training_eligible,
+            "active_enabled": False,
+            "shadow_only": True,
+            "first_live_shadow": self.first_live_shadow,
+            "row_count": self.row_count,
+            "predicates": dict(self.predicates),
+            "reasons": list(self.reasons),
+        }
+
+
+def _formal_row_payload(row: object) -> Mapping[str, Any] | None:
+    if isinstance(row, Mapping):
+        return row
+    as_json = getattr(row, "as_json", None)
+    if callable(as_json):
+        payload = as_json()
+        return payload if isinstance(payload, Mapping) else None
+    return None
+
+
+def _formal_manifest_payload(value: object) -> Mapping[str, Any] | None:
+    if isinstance(value, Mapping):
+        return value
+    as_json = getattr(value, "as_json", None)
+    if callable(as_json):
+        payload = as_json()
+        return payload if isinstance(payload, Mapping) else None
+    return None
+
+
+class FormalEligibilityValidator:
+    """Fail-closed V4 validator and sole formal receipt writer.
+
+    This validator intentionally does not delegate to the compatibility V2/V3
+    validator.  A valid legacy row is useful evidence, but it cannot become a
+    formal V4 row by re-labelling or re-signing it.
+    """
+
+    def __init__(self, *, receipt_schema: str = FORMAL_ELIGIBILITY_SCHEMA) -> None:
+        if receipt_schema != FORMAL_ELIGIBILITY_SCHEMA:
+            raise ValueError("formal eligibility schema is frozen")
+        self.receipt_schema = receipt_schema
+        self._write_lock = threading.Lock()
+
+    @staticmethod
+    def _manifest_ok(payload: Mapping[str, Any]) -> bool:
+        try:
+            manifest = FormalEpisodeManifestV1.from_json(payload)
+            if manifest.force_authority.source_identity != KUNWEI_ONLY_FORCE_SOURCE_ID:
+                return False
+            if manifest.observation_dimension != FORMAL_OBSERVATION_DIMENSION:
+                return False
+            if tuple(manifest.model_rate_candidates_hz) != FORMAL_MODEL_RATE_CANDIDATES_HZ:
+                return False
+            if manifest.sampler_steps != 50 or manifest.control_rate_hz != 500:
+                return False
+            if manifest.model_active is not False or manifest.shadow_only is not True:
+                return False
+            if manifest.production_dynamics_required is not True:
+                return False
+            validate_formal_force_source_payload(payload, path="formal_manifest")
+            return True
+        except (TypeError, ValueError, KeyError):
+            return False
+
+    @staticmethod
+    def _health_ok(health: object) -> bool:
+        return bool(
+            _health_value(health, "sealed", False) is True
+            and _health_value(health, "manifest_written", False) is True
+            and _health_value(health, "tamper_free", False) is True
+            and _health_value(health, "fault", None) is None
+            and _health_value(health, "writer_error", None) is None
+            and _health_value(health, "overflowed", True) is False
+            and _health_value(health, "stalled", True) is False
+            and _int_value(_health_value(health, "queue_depth", -1), -1) == 0
+            and _int_value(_health_value(health, "unsealed_tail", -1), -1) == 0
+            and _int_value(_health_value(health, "enqueued_rows", -1), -1)
+            == _int_value(_health_value(health, "durable_rows", -2), -2)
+        )
+
+    def evaluate(
+        self,
+        frames: Iterable[object],
+        *,
+        recorder_health: object,
+        formal_manifest: object | None = None,
+        episode_id: str | None = None,
+        first_live_shadow: bool = True,
+    ) -> FormalEligibilityDecision:
+        rows = tuple(frames)
+        payloads = tuple(_formal_row_payload(row) for row in rows)
+        resolved_episode_id = episode_id or (
+            str(payloads[0].get("episode_id", "unknown"))
+            if payloads and payloads[0] is not None
+            else "unknown"
+        )
+        manifest_payload = _formal_manifest_payload(formal_manifest)
+        if manifest_payload is None and payloads and payloads[0] is not None:
+            manifest_payload = payloads[0].get("formal_manifest")
+        reasons: list[str] = []
+        predicates: dict[str, bool] = {
+            "non_empty": bool(rows),
+            "all_rows_are_v4": bool(rows) and all(
+                payload is not None and payload.get("schema") == EPISODE_FRAME_SCHEMA_V4
+                for payload in payloads
+            ),
+            "no_legacy_v2_v3_rows": bool(rows) and all(
+                payload is not None and payload.get("schema") not in {
+                    "ur10e_tacdiffusion_episode_frame/v2",
+                    "ur10e_tacdiffusion_episode_frame/v3",
+                }
+                for payload in payloads
+            ),
+            "formal_manifest_valid": manifest_payload is not None and self._manifest_ok(manifest_payload),
+            "formal_seal_fields_present": bool(rows) and all(
+                payload is not None and isinstance(payload.get("row_sha256"), str)
+                and payload.get("row_sha256") == compute_v3_row_sha256(payload)
+                for payload in payloads
+            ),
+            "full_receipts_present": bool(rows) and all(
+                payload is not None
+                and all(
+                    isinstance(payload.get(name), Mapping)
+                    for name in (
+                        "force_authority_receipt",
+                        "production_dynamics_receipt",
+                        "reference_receipt",
+                        "expert_action_receipt",
+                        "tube_decision_receipt",
+                    )
+                )
+                for payload in payloads
+            ),
+            "kunwei_only_force_authority": bool(rows),
+            "production_previous_tick_dynamics": bool(rows),
+            "reference_receipts_valid": bool(rows),
+            "expert_action_receipts_valid": bool(rows),
+            "tube_decisions_valid": bool(rows),
+            "84d_observations": bool(rows),
+            "strict_tick_identity": bool(rows),
+            "row_validity": bool(rows),
+            "recorder_health_complete": self._health_ok(recorder_health),
+            "first_live_shadow_clear": not first_live_shadow,
+            "model_inactive_shadow_only": True,
+        }
+        previous_sequence = -1
+        previous_time = -math.inf
+        for payload in payloads:
+            if payload is None:
+                continue
+            try:
+                validate_formal_force_source_payload(payload, path="formal_episode_row")
+            except ValueError:
+                predicates["kunwei_only_force_authority"] = False
+            authority = payload.get("force_authority_receipt")
+            if not isinstance(authority, Mapping) or authority.get("source_identity") != KUNWEI_ONLY_FORCE_SOURCE_ID or authority.get("valid") is not True:
+                predicates["kunwei_only_force_authority"] = False
+            production = payload.get("production_dynamics_receipt")
+            dynamics = production.get("dynamics_receipt") if isinstance(production, Mapping) else None
+            if not isinstance(production, Mapping) or production.get("source_kind") != "production" or production.get("previous_tick_only") is not True or not isinstance(dynamics, Mapping) or dynamics.get("valid") is not True or dynamics.get("authoritative_torque_source") != DYNAMICS_AUTHORITATIVE_TORQUE_SOURCE or not isinstance(dynamics.get("conformance_binding"), Mapping):
+                predicates["production_previous_tick_dynamics"] = False
+            reference = payload.get("reference_receipt")
+            if not isinstance(reference, Mapping) or not isinstance(reference.get("payload"), Mapping) or reference["payload"].get("valid") is not True or reference["payload"].get("shadow_only", False) is True:
+                predicates["reference_receipts_valid"] = False
+            expert = payload.get("expert_action_receipt")
+            if not isinstance(expert, Mapping) or not isinstance(expert.get("payload"), Mapping) or expert["payload"].get("available") is not True or expert["payload"].get("shadow_only") is not False:
+                predicates["expert_action_receipts_valid"] = False
+            tube = payload.get("tube_decision_receipt")
+            if not isinstance(tube, Mapping) or not isinstance(tube.get("payload"), Mapping) or tube["payload"].get("accepted") is not True or tube["payload"].get("shadow_only", False) is True:
+                predicates["tube_decisions_valid"] = False
+            observation = payload.get("observation_84d")
+            action = payload.get("expert_action_12d")
+            applied = payload.get("applied_action_12d")
+            try:
+                if len(tuple(float(value) for value in observation)) != FORMAL_OBSERVATION_DIMENSION:
+                    predicates["84d_observations"] = False
+                if len(tuple(float(value) for value in action)) != ACTION_DIMENSION or tuple(float(value) for value in action) != tuple(float(value) for value in applied):
+                    predicates["expert_action_receipts_valid"] = False
+            except (TypeError, ValueError):
+                predicates["84d_observations"] = False
+                predicates["expert_action_receipts_valid"] = False
+            if payload.get("formal_receipts_valid") is not True or payload.get("row_valid") is not True:
+                predicates["row_validity"] = False
+            source = str(payload.get("expert_action_source", ""))
+            semantics = str(payload.get("action_label_semantics", ""))
+            if "diagnostic" in source.lower() or "diagnostic" in semantics.lower() or payload.get("shadow_only") is True:
+                predicates["expert_action_receipts_valid"] = False
+            try:
+                sequence = int(payload.get("control_sequence"))
+                timestamp = float(payload.get("control_time_s"))
+                if sequence <= previous_sequence or not math.isfinite(timestamp) or timestamp <= previous_time:
+                    predicates["strict_tick_identity"] = False
+                previous_sequence = sequence
+                previous_time = timestamp
+            except (TypeError, ValueError):
+                predicates["strict_tick_identity"] = False
+        if first_live_shadow:
+            reasons.append("first_live_shadow_forced_ineligible")
+        for name, passed in predicates.items():
+            if not passed:
+                reasons.append(name)
+        eligible = bool(all(predicates.values()))
+        return FormalEligibilityDecision(
+            episode_id=resolved_episode_id,
+            formal_eligible=eligible,
+            predicates=predicates,
+            reasons=tuple(dict.fromkeys(reasons)),
+            row_count=len(rows),
+            first_live_shadow=first_live_shadow,
+        )
+
+    def write_receipt(
+        self,
+        path: str | Path,
+        decision: FormalEligibilityDecision,
+        *,
+        recorder_health: object | None = None,
+    ) -> dict[str, Any]:
+        if not isinstance(decision, FormalEligibilityDecision):
+            raise TypeError("FormalEligibilityValidator is the sole formal receipt writer")
+        payload = decision.as_json()
+        if recorder_health is not None:
+            payload["recorder_health"] = recorder_health.as_json() if hasattr(recorder_health, "as_json") else dict(recorder_health)
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        payload["decision_sha256"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        destination = Path(path)
+        with self._write_lock:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if destination.exists():
+                raise FileExistsError(f"formal eligibility receipt already exists: {destination}")
+            temporary = destination.with_name(f".{destination.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+            try:
+                with temporary.open("x", encoding="utf-8") as handle:
+                    json.dump(payload, handle, sort_keys=True, indent=2, allow_nan=False)
+                    handle.write("\n")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(temporary, destination)
+            finally:
+                temporary.unlink(missing_ok=True)
+        return payload
+
+    def evaluate_and_write(
+        self,
+        path: str | Path,
+        frames: Iterable[object],
+        *,
+        recorder_health: object,
+        formal_manifest: object | None = None,
+        episode_id: str | None = None,
+        first_live_shadow: bool = True,
+    ) -> tuple[FormalEligibilityDecision, dict[str, Any]]:
+        decision = self.evaluate(
+            frames,
+            recorder_health=recorder_health,
+            formal_manifest=formal_manifest,
+            episode_id=episode_id,
+            first_live_shadow=first_live_shadow,
+        )
+        return decision, self.write_receipt(path, decision, recorder_health=recorder_health)
+
 
 def read_eligibility_receipt(path: str | Path) -> dict[str, Any]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -571,9 +892,36 @@ def read_eligibility_receipt(path: str | Path) -> dict[str, Any]:
     return payload
 
 
+def read_formal_eligibility_receipt(path: str | Path) -> dict[str, Any]:
+    """Read the sole V4 verdict receipt and verify its decision hash."""
+
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or payload.get("schema") != FORMAL_ELIGIBILITY_SCHEMA:
+        raise ValueError("formal eligibility receipt schema mismatch")
+    supplied = payload.get("decision_sha256")
+    if not isinstance(supplied, str) or len(supplied) != 64 or any(
+        character not in "0123456789abcdef" for character in supplied
+    ):
+        raise ValueError("formal eligibility decision hash is malformed")
+    unsigned = dict(payload)
+    unsigned.pop("decision_sha256", None)
+    expected = hashlib.sha256(
+        json.dumps(unsigned, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    ).hexdigest()
+    if supplied != expected:
+        raise ValueError("formal eligibility decision hash mismatch")
+    if payload.get("active_enabled") is not False or payload.get("shadow_only") is not True:
+        raise ValueError("formal eligibility receipt must remain inactive and shadow-only")
+    return payload
+
+
 __all__ = [
     "ELIGIBILITY_SCHEMA",
+    "FORMAL_ELIGIBILITY_SCHEMA",
     "EligibilityDecision",
     "EligibilityValidator",
+    "FormalEligibilityDecision",
+    "FormalEligibilityValidator",
+    "read_formal_eligibility_receipt",
     "read_eligibility_receipt",
 ]

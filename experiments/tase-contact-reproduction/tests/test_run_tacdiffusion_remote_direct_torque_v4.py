@@ -36,6 +36,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     AckPacedScheduler,
     CanaryTimeline,
     KunweiSnapshot,
+    KunweiGuardCapture,
     CANARY_STAGE_HOLD,
     CANARY_STAGE_RAMP,
     CANARY_STAGE_REFERENCE,
@@ -47,6 +48,9 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     _LIVE_WRITER_IGNORED_PATTERNS,
     INPUT_FIELDS,
     OUTPUT_FIELDS,
+    FORMAL_CONTACT_GUARD_PROFILES_V1,
+    FORMAL_NO_CONTACT_GUARD_PROFILE_V1,
+    build_formal_runner_contract,
     LIVE_PROTOCOL_TOKEN,
     RUNTIME_PLAYING,
     RUNTIME_STOPPED,
@@ -80,6 +84,8 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     _wait_for_fresh_receiver_waiting,
     _update_compile_probe_markers,
     _update_receiver_handshake_markers,
+    START_STREAM,
+    pop_kunwei_frames_with_command_echo,
     _run_live_locked,
     _recorder_frame,
     _write_json_new,
@@ -94,6 +100,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     runtime_source_binding,
     run_receiver_handshake_probe,
     run_live,
+    select_formal_contact_guard_profile,
     summarize_receiver_handshake_samples,
 )
 from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
@@ -109,6 +116,182 @@ KUNWEI_CALIBRATION = ROOT / "config/step5d_tacdiffusion_sensor_frame_v1.json"
 REFERENCE_10S_SANITY = (
     ROOT / "config/direct_torque_v4_reference_10s_diagnostic_sanity.json"
 )
+
+
+def _kunwei_test_frame(value: float) -> bytes:
+    return b"\x48\xAA" + struct.pack(
+        "<ffffff", value, 0.0, 0.0, 0.0, 0.0, 0.0
+    ) + b"\r\n"
+
+
+def test_kunwei_classifier_counts_one_exact_start_echo_at_frame_boundary() -> None:
+    first = _kunwei_test_frame(1.0)
+    second = _kunwei_test_frame(2.0)
+    buffer = bytearray(first + START_STREAM + second)
+
+    result = pop_kunwei_frames_with_command_echo(buffer, 0x48)
+
+    assert result.frames == (first, second)
+    assert result.command_echo_count == 1
+    assert result.dropped_sync_bytes == 0
+    assert result.at_frame_boundary is True
+    assert buffer == bytearray()
+
+
+def test_kunwei_classifier_preserves_boundary_across_chunks() -> None:
+    first = _kunwei_test_frame(1.0)
+    second = _kunwei_test_frame(2.0)
+    buffer = bytearray(first + START_STREAM[:2])
+
+    first_result = pop_kunwei_frames_with_command_echo(buffer, 0x48)
+    buffer.extend(START_STREAM[2:] + second)
+    second_result = pop_kunwei_frames_with_command_echo(
+        buffer,
+        0x48,
+        command_echo_count=first_result.command_echo_count,
+        at_frame_boundary=first_result.at_frame_boundary,
+    )
+
+    assert first_result.frames == (first,)
+    assert first_result.dropped_sync_bytes == 0
+    assert second_result.frames == (second,)
+    assert second_result.command_echo_count == 1
+    assert second_result.dropped_sync_bytes == 0
+    assert buffer == bytearray()
+
+
+def test_kunwei_classifier_keeps_second_echo_as_dropped_sync_bytes() -> None:
+    first = _kunwei_test_frame(1.0)
+    second = _kunwei_test_frame(2.0)
+    third = bytearray(_kunwei_test_frame(3.0))
+    # Make the bytes that would be mistaken for the candidate tail after a
+    # second echo equal CRLF; the exact echo must still be dropped explicitly.
+    third[22:24] = b"\r\n"
+    buffer = bytearray(first + START_STREAM + second + START_STREAM + third)
+
+    result = pop_kunwei_frames_with_command_echo(buffer, 0x48)
+
+    assert result.frames == (first, second, bytes(third))
+    assert result.command_echo_count == 1
+    assert result.dropped_sync_bytes == len(START_STREAM)
+    assert buffer == bytearray()
+
+
+def test_kunwei_classifier_does_not_promote_non_boundary_echo() -> None:
+    frame = _kunwei_test_frame(1.0)
+    buffer = bytearray(b"\x99" + START_STREAM + frame)
+
+    result = pop_kunwei_frames_with_command_echo(buffer, 0x48)
+
+    assert result.frames == (frame,)
+    assert result.command_echo_count == 0
+    assert result.dropped_sync_bytes == 5
+
+
+def test_kunwei_classifier_requires_boundary_state_for_echo() -> None:
+    frame = _kunwei_test_frame(1.0)
+    buffer = bytearray(START_STREAM + frame)
+
+    result = pop_kunwei_frames_with_command_echo(
+        buffer,
+        0x48,
+        at_frame_boundary=False,
+    )
+
+    assert result.frames == (frame,)
+    assert result.command_echo_count == 0
+    assert result.dropped_sync_bytes == len(START_STREAM)
+
+
+def test_kunwei_classifier_preserves_legitimate_frame_with_echo_prefix() -> None:
+    frame = (
+        bytes.fromhex("48 aa 0d 0a 80 3f")
+        + b"\x00" * 20
+        + b"\r\n"
+    )
+    buffer = bytearray(frame)
+
+    result = pop_kunwei_frames_with_command_echo(buffer, 0x48)
+
+    assert result.frames == (frame,)
+    assert result.command_echo_count == 0
+    assert result.dropped_sync_bytes == 0
+    assert buffer == bytearray()
+
+
+def test_kunwei_classifier_aborts_ambiguous_echo_after_frame_boundary() -> None:
+    ambiguous = (
+        bytes.fromhex("48 aa 0d 0a 80 3f")
+        + b"\x00" * 20
+        + b"\r\n"
+    )
+    with pytest.raises(
+        RuntimeError,
+        match="kunwei_start_echo_ambiguous_with_complete_frame",
+    ):
+        pop_kunwei_frames_with_command_echo(
+            bytearray(ambiguous),
+            0x48,
+            at_frame_boundary=True,
+        )
+
+
+def test_kunwei_classifier_preserves_late_frame_with_echo_prefix() -> None:
+    frame = (
+        bytes.fromhex("48 aa 0d 0a 80 3f")
+        + b"\x00" * 20
+        + b"\r\n"
+    )
+    buffer = bytearray(frame)
+
+    result = pop_kunwei_frames_with_command_echo(
+        buffer,
+        0x48,
+        at_frame_boundary=True,
+        command_echo_window_open=False,
+    )
+
+    assert result.frames == (frame,)
+    assert result.command_echo_count == 0
+    assert result.dropped_sync_bytes == 0
+    assert buffer == bytearray()
+
+
+def test_kunwei_classifier_buffers_late_partial_echo_prefix() -> None:
+    buffer = bytearray(bytes.fromhex("48 aa 0d 0a"))
+
+    result = pop_kunwei_frames_with_command_echo(
+        buffer,
+        0x48,
+        at_frame_boundary=True,
+        command_echo_window_open=False,
+    )
+
+    assert result.frames == ()
+    assert result.command_echo_count == 0
+    assert result.dropped_sync_bytes == 0
+    assert buffer == bytearray(bytes.fromhex("48 aa 0d 0a"))
+
+
+def test_kunwei_capture_summary_reports_command_echo_count(tmp_path: Path) -> None:
+    capture = KunweiGuardCapture(
+        sensor_ip="offline",
+        sensor_port=5152,
+        connect_timeout_s=1.0,
+        output_dir=tmp_path,
+        calibration={
+            "wrench_transform_sensor_to_tcp_6x6": [],
+            "normal_force_axis": "fz",
+            "normal_force_sign": 1.0,
+        },
+        delivery_watchdog_s=0.05,
+    )
+    capture.command_echo_count = 1
+
+    summary = capture.summary()
+
+    assert summary["command_echo_count"] == 1
+    assert summary["dropped_sync_bytes"] == 0
 
 
 def test_recorder_frame_separates_host_applied_action_echo_and_causal_history() -> None:
@@ -311,6 +494,35 @@ class FakeKunweiCapture:
         }
 
 
+def test_kunwei_contact_latch_advances_at_native_frame_cadence(tmp_path: Path) -> None:
+    calibration = {
+        "wrench_transform_sensor_to_tcp_6x6": [
+            [1.0 if row == column else 0.0 for column in range(6)]
+            for row in range(6)
+        ],
+        "normal_force_axis": "fz",
+        "normal_force_sign": -1.0,
+    }
+    capture = KunweiGuardCapture(
+        sensor_ip="127.0.0.1",
+        sensor_port=5152,
+        connect_timeout_s=0.1,
+        output_dir=tmp_path,
+        calibration=calibration,
+        delivery_watchdog_s=0.080,
+        active_force_limit_n=20.0,
+        active_torque_limit_nm=2.0,
+        contact_latch_load_n=1.0,
+        contact_latch_samples=50,
+    )
+    for _ in range(49):
+        capture._update_contact_latch(1.01)
+        assert capture.contact_latched is False
+    capture._update_contact_latch(1.01)
+    assert capture.contact_latched is True
+    assert capture.contact_latch_consecutive_samples == 50
+
+
 def _bundle(tmp_path: Path):
     if not REFERENCE.is_file():
         pytest.skip("fresh passive reference is unavailable")
@@ -438,6 +650,19 @@ def test_direct_torque_output_recipe_retains_motor_diagnostics() -> None:
         "joint_control_output",
         "joint_mode",
     }.issubset(OUTPUT_FIELDS)
+
+
+def test_formal_runner_contact_profile_seam_is_explicit_and_fail_closed() -> None:
+    assert select_formal_contact_guard_profile() is FORMAL_NO_CONTACT_GUARD_PROFILE_V1
+    expert = select_formal_contact_guard_profile("expert_contact")
+    assert expert is FORMAL_CONTACT_GUARD_PROFILES_V1["expert_contact"]
+    assert expert.force_limit_n == 20.0
+    assert build_formal_runner_contract("expert_contact")["model_active"] is False
+    with pytest.raises(RuntimeError, match="model activation"):
+        select_formal_contact_guard_profile("no_contact", model_active=True)
+    with pytest.raises(RuntimeError, match="recorder composition"):
+        build_formal_runner_contract("no_contact", formal_recorder_requested=True)
+    assert not any("force" in field.lower() for field in OUTPUT_FIELDS)
 
 
 def _fake_output_sample(

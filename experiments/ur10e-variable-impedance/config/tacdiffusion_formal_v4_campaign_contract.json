@@ -1,0 +1,85 @@
+{
+  "campaigns": [
+    {
+      "campaign_id": "fixed_k_formal_v4",
+      "kind": "fixed_k",
+      "total_episodes": 200,
+      "pilot_episodes": 50,
+      "trajectory_families": [
+        "circle",
+        "ellipse",
+        "figure_eight",
+        "lissajous",
+        "linear_grid",
+        "rounded_arc",
+        "seeded_smooth_spline"
+      ],
+      "target_loads_n": [
+        3.0,
+        5.0,
+        8.0
+      ],
+      "training_includes_pilot": true,
+      "live_shadows": [
+        {
+          "shadow_id": "fixed_k_formal_v4_shadow_1",
+          "duration_s": 45.0,
+          "model_active": false,
+          "shadow_only": true
+        },
+        {
+          "shadow_id": "fixed_k_formal_v4_shadow_2",
+          "duration_s": 45.0,
+          "model_active": false,
+          "shadow_only": true
+        }
+      ],
+      "starts_after_campaign_id": null,
+      "requires_fixed_k_qualification": false,
+      "model_active": false,
+      "shadow_only": true
+    },
+    {
+      "campaign_id": "variable_k_formal_v4",
+      "kind": "variable_k",
+      "total_episodes": 200,
+      "pilot_episodes": 50,
+      "trajectory_families": [
+        "circle",
+        "ellipse",
+        "figure_eight",
+        "lissajous",
+        "linear_grid",
+        "rounded_arc",
+        "seeded_smooth_spline"
+      ],
+      "target_loads_n": [
+        3.0,
+        5.0,
+        8.0
+      ],
+      "training_includes_pilot": true,
+      "live_shadows": [
+        {
+          "shadow_id": "variable_k_formal_v4_shadow_1",
+          "duration_s": 45.0,
+          "model_active": false,
+          "shadow_only": true
+        },
+        {
+          "shadow_id": "variable_k_formal_v4_shadow_2",
+          "duration_s": 45.0,
+          "model_active": false,
+          "shadow_only": true
+        }
+      ],
+      "starts_after_campaign_id": "fixed_k_formal_v4",
+      "requires_fixed_k_qualification": true,
+      "model_active": false,
+      "shadow_only": true
+    }
+  ],
+  "model_active": false,
+  "schema_version": "ur10e_tacdiffusion_formal_campaign_source/v1",
+  "shadow_only": true
+}

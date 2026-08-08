@@ -22,7 +22,16 @@ import threading
 import time
 from typing import Any, Callable, Mapping, Sequence
 
-from .contracts import CONTROL_RATE_HZ, RAW_WRENCH_RATE_HZ, DynamicsReceipt, DynamicsSample
+from .contracts import (
+    CONTROL_RATE_HZ,
+    RAW_WRENCH_RATE_HZ,
+    DynamicsReceipt,
+    DynamicsSample,
+    ForceAuthorityReceiptV1,
+    FormalEpisodeManifestV1,
+    ProductionDynamicsConformanceReceiptV1,
+    validate_formal_force_source_payload,
+)
 from .episode_composition import ActionLabel, ActionLabelContext
 
 
@@ -32,7 +41,10 @@ EPISODE_ARTIFACT_SCHEMA = "ur10e_tacdiffusion_episode_artifact/v3"
 EPISODE_FRAME_SCHEMA = "ur10e_tacdiffusion_episode_frame/v3"
 EPISODE_ARTIFACT_SCHEMA_V3 = EPISODE_ARTIFACT_SCHEMA
 EPISODE_FRAME_SCHEMA_V3 = EPISODE_FRAME_SCHEMA
+EPISODE_ARTIFACT_SCHEMA_V4 = "ur10e_tacdiffusion_episode_artifact/v4"
+EPISODE_FRAME_SCHEMA_V4 = "ur10e_tacdiffusion_episode_frame/v4"
 EPISODE_TAIL_SCHEMA = "ur10e_tacdiffusion_episode_tail/v1"
+EPISODE_TAIL_SCHEMA_V4 = "ur10e_tacdiffusion_episode_tail/v2"
 DURABILITY_MODE = "batch_fsync_10"
 RECORDER_HEALTH_SCHEMA = "ur10e_tacdiffusion_recorder_health/v1"
 SPOOL_CAPACITY = 8192
@@ -174,6 +186,21 @@ class TypedEpisodeReceipt:
         return _canonical_json_bytes(self.as_json())
 
 
+@dataclass(frozen=True)
+class ReferenceReceiptV1(TypedEpisodeReceipt):
+    """Typed reference/derivative receipt required by formal V4 rows."""
+
+
+@dataclass(frozen=True)
+class ExpertActionReceiptV1(TypedEpisodeReceipt):
+    """Typed expert-action ownership receipt required by formal V4 rows."""
+
+
+@dataclass(frozen=True)
+class TubeDecisionReceiptV1(TypedEpisodeReceipt):
+    """Typed tube decision receipt required by formal V4 rows."""
+
+
 # Explicit aliases keep the observation/reference role visible to callers
 # while using one bounded typed contract for both optional receipt kinds.
 EpisodeReceipt = TypedEpisodeReceipt
@@ -239,6 +266,124 @@ def _validate_v3_row_seals(
         expected = compute_v3_row_sha256(row)
         if supplied != expected:
             raise ValueError(f"episode v3 row {index} row seal mismatch")
+
+
+def _validate_v4_required_receipts(rows: Sequence[object]) -> None:
+    """Validate the serialized shape of every formal V4 receipt set."""
+
+    required = (
+        "force_authority_receipt",
+        "production_dynamics_receipt",
+        "reference_receipt",
+        "expert_action_receipt",
+        "tube_decision_receipt",
+        "formal_manifest",
+    )
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping) or row.get("schema") != EPISODE_FRAME_SCHEMA_V4:
+            raise ValueError(f"episode v4 row {index} schema mismatch")
+        for name in required:
+            value = row.get(name)
+            if not isinstance(value, Mapping):
+                raise ValueError(f"episode v4 row {index} {name} is missing")
+        authority = row["force_authority_receipt"]
+        if authority.get("schema_version") != "ur10e_tacdiffusion_force_authority_receipt/v1":
+            raise ValueError(f"episode v4 row {index} force authority receipt schema mismatch")
+        if authority.get("source_identity") != "kunwei_kwr75_tcp_raw_stream_v1":
+            raise ValueError(f"episode v4 row {index} force authority identity mismatch")
+        if authority.get("valid") is not True:
+            raise ValueError(f"episode v4 row {index} force authority receipt is invalid")
+        production = row["production_dynamics_receipt"]
+        if production.get("schema_version") != "ur10e_tacdiffusion_production_dynamics_receipt/v1":
+            raise ValueError(f"episode v4 row {index} production dynamics receipt schema mismatch")
+        if production.get("source_kind") != "production" or production.get("previous_tick_only") is not True:
+            raise ValueError(f"episode v4 row {index} production dynamics conformance is missing")
+        if production.get("dynamics_receipt") != row.get("dynamics_receipt"):
+            raise ValueError(f"episode v4 row {index} production/base dynamics receipt mismatch")
+        manifest = row["formal_manifest"]
+        if manifest.get("schema_version") != "ur10e_tacdiffusion_formal_episode_manifest/v1":
+            raise ValueError(f"episode v4 row {index} formal manifest schema mismatch")
+        expert = row["expert_action_receipt"]
+        reference = row["reference_receipt"]
+        tube = row["tube_decision_receipt"]
+        for receipt_name, receipt in (
+            ("expert action", expert),
+            ("reference", reference),
+            ("tube decision", tube),
+        ):
+            if not isinstance(receipt.get("payload"), Mapping):
+                raise ValueError(f"episode v4 row {index} {receipt_name} payload is invalid")
+        if expert.get("payload", {}).get("available") is not True or expert.get("payload", {}).get("shadow_only") is not False:
+            raise ValueError(f"episode v4 row {index} expert action receipt is shadow-only")
+        if reference.get("payload", {}).get("valid") is not True:
+            raise ValueError(f"episode v4 row {index} reference receipt is invalid")
+        if tube.get("payload", {}).get("accepted") is not True:
+            raise ValueError(f"episode v4 row {index} tube decision is not accepted")
+        if row.get("formal_receipts_valid") is not True:
+            raise ValueError(f"episode v4 row {index} formal receipts are not valid")
+        if row.get("row_valid") is not True:
+            raise ValueError(f"episode v4 row {index} base row is invalid")
+        nested_receipts = row.get("formal_receipts")
+        if not isinstance(nested_receipts, Mapping):
+            raise ValueError(f"episode v4 row {index} formal receipt index is missing")
+        for nested_name, direct_name in (
+            ("force_authority", "force_authority_receipt"),
+            ("production_dynamics", "production_dynamics_receipt"),
+            ("reference", "reference_receipt"),
+            ("expert_action", "expert_action_receipt"),
+            ("tube_decision", "tube_decision_receipt"),
+        ):
+            if nested_receipts.get(nested_name) != row.get(direct_name):
+                raise ValueError(f"episode v4 row {index} formal receipt index mismatch: {nested_name}")
+        try:
+            observations = tuple(float(value) for value in row.get("observation_84d", ()))
+            actions = tuple(float(value) for value in row.get("expert_action_12d", ()))
+            if len(observations) != OBSERVATION_DIMENSION or not all(math.isfinite(value) for value in observations):
+                raise ValueError(f"episode v4 row {index} observation dimension mismatch")
+            if len(actions) != ACTION_DIMENSION or not all(math.isfinite(value) for value in actions):
+                raise ValueError(f"episode v4 row {index} expert action dimension mismatch")
+        except (TypeError, ValueError) as exc:
+            if isinstance(exc, ValueError) and str(exc).startswith("episode v4 row"):
+                raise
+            raise ValueError(f"episode v4 row {index} numeric action/observation is invalid") from exc
+        validate_formal_force_source_payload(row, path=f"episode_v4_row_{index}")
+
+
+def _validate_v4_tail_lines(lines: Sequence[bytes], parsed: Sequence[object]) -> dict[str, Any]:
+    if len(lines) < 2 or len(parsed) < 2:
+        raise ValueError("episode v4 is missing its complete tail")
+    tail = parsed[-1]
+    if not isinstance(tail, Mapping) or tail.get("schema") != EPISODE_TAIL_SCHEMA_V4:
+        raise ValueError("episode v4 tail is missing or incomplete")
+    rows = parsed[1:-1]
+    _validate_v4_required_receipts(rows)
+    _validate_v3_row_seals(rows, require=True)
+    row_lines = lines[1:-1]
+    content_sha256 = hashlib.sha256(b"".join(row_lines)).hexdigest()
+    if tail.get("content_sha256") != content_sha256:
+        raise ValueError("episode v4 content identity mismatch")
+    if tail.get("row_count") != len(rows):
+        raise ValueError("episode v4 tail row count mismatch")
+    expected_tail = dict(tail)
+    supplied_tail_hash = expected_tail.pop("tail_sha256", None)
+    if not _is_sha256(supplied_tail_hash) or supplied_tail_hash != hashlib.sha256(_line(expected_tail)).hexdigest():
+        raise ValueError("episode v4 tail identity mismatch")
+    last = rows[-1] if rows else None
+    if tail.get("last_sample_index") != (None if last is None else last.get("sample_index")):
+        raise ValueError("episode v4 tail sample identity mismatch")
+    if tail.get("last_control_sequence") != (None if last is None else last.get("control_sequence")):
+        raise ValueError("episode v4 tail sequence identity mismatch")
+    if tail.get("complete_tail") is not True:
+        raise ValueError("episode v4 tail is not complete")
+    return {
+        "rows": tuple(rows),
+        "tail": dict(tail),
+        "content_sha256": content_sha256,
+        "tail_sha256": supplied_tail_hash,
+        "header_sha256": hashlib.sha256(lines[0]).hexdigest(),
+        "last_sample_index": None if last is None else last.get("sample_index"),
+        "last_control_sequence": None if last is None else last.get("control_sequence"),
+    }
 
 
 @dataclass(frozen=True)
@@ -554,6 +699,157 @@ class EpisodeFrameV3(EpisodeFrameV2):
         return payload
 
 
+@dataclass(frozen=True)
+class EpisodeFrameV4(EpisodeFrameV3):
+    """Canonical formal row with all five required typed receipts.
+
+    ``EpisodeFrameV2`` and ``EpisodeFrameV3`` remain valid compatibility
+    readers, but neither can satisfy ``formal_eligible``.  A V4 row is only
+    constructed with a Kunwei authority receipt, a production previous-tick
+    dynamics conformance receipt, reference, expert-action, and tube-decision
+    receipts plus one hash-bound formal manifest.
+    """
+
+    force_authority_receipt: ForceAuthorityReceiptV1 | None = None
+    production_dynamics_receipt: ProductionDynamicsConformanceReceiptV1 | DynamicsReceipt | None = None
+    expert_action_receipt: ExpertActionReceiptV1 | TypedEpisodeReceipt | None = None
+    tube_decision_receipt: TubeDecisionReceiptV1 | TypedEpisodeReceipt | None = None
+    formal_manifest: FormalEpisodeManifestV1 | None = None
+    schema_version_v4: str = EPISODE_FRAME_SCHEMA_V4
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.schema_version_v4 != EPISODE_FRAME_SCHEMA_V4:
+            raise ValueError("unsupported formal EpisodeFrameV4 schema")
+        if not isinstance(self.force_authority_receipt, ForceAuthorityReceiptV1):
+            raise ValueError("formal V4 row requires a typed Kunwei force authority receipt")
+        if isinstance(self.production_dynamics_receipt, DynamicsReceipt):
+            object.__setattr__(
+                self,
+                "production_dynamics_receipt",
+                ProductionDynamicsConformanceReceiptV1(self.production_dynamics_receipt),
+            )
+        if not isinstance(self.production_dynamics_receipt, ProductionDynamicsConformanceReceiptV1):
+            raise ValueError("formal V4 row requires a production dynamics conformance receipt")
+        if not isinstance(self.expert_action_receipt, TypedEpisodeReceipt):
+            raise ValueError("formal V4 row requires a typed expert action receipt")
+        if not isinstance(self.tube_decision_receipt, TypedEpisodeReceipt):
+            raise ValueError("formal V4 row requires a typed tube decision receipt")
+        if not isinstance(self.reference_receipt, TypedEpisodeReceipt):
+            raise ValueError("formal V4 row requires a typed reference receipt")
+        if not isinstance(self.formal_manifest, FormalEpisodeManifestV1):
+            raise ValueError("formal V4 row requires a typed formal episode manifest")
+        production = self.production_dynamics_receipt
+        assert isinstance(production, ProductionDynamicsConformanceReceiptV1)
+        if (
+            not isinstance(self.dynamics_receipt, DynamicsReceipt)
+            or self.dynamics_receipt.receipt_fingerprint_sha256
+            != production.dynamics_receipt.receipt_fingerprint_sha256
+        ):
+            raise ValueError("formal V4 production dynamics receipt is not bound to the base dynamics receipt")
+        if production.sequence != self.control_sequence or not math.isclose(
+            production.timestamp_s,
+            self.control_time_s,
+            rel_tol=0.0,
+            abs_tol=1.0e-9,
+        ):
+            raise ValueError("formal V4 dynamics receipt does not match row tick")
+        if self.force_authority_receipt.sequence != self.control_sequence:
+            raise ValueError("formal V4 force authority receipt does not match row tick")
+        if self.force_authority_receipt.frame_id != self.formal_manifest.force_authority.canonical_tcp_frame_id:
+            raise ValueError("formal V4 force authority frame does not match manifest")
+        if self.formal_manifest.force_authority.fingerprint_sha256 != self.force_authority_receipt.authority.fingerprint_sha256:
+            raise ValueError("formal V4 force authority does not match manifest")
+        if self.formal_manifest.contact_guard_profile.authority.fingerprint_sha256 != self.formal_manifest.force_authority.fingerprint_sha256:
+            raise ValueError("formal V4 guard authority does not match manifest")
+        reference_payload = dict(self.reference_receipt.payload)
+        expert_payload = dict(self.expert_action_receipt.payload)
+        tube_payload = dict(self.tube_decision_receipt.payload)
+        if reference_payload.get("valid") is not True or reference_payload.get("shadow_only", False) is True:
+            raise ValueError("formal V4 reference receipt is not valid")
+        if expert_payload.get("available") is not True or expert_payload.get("shadow_only") is not False:
+            raise ValueError("formal V4 expert action receipt is unavailable or shadow-only")
+        if tube_payload.get("accepted") is not True or tube_payload.get("shadow_only", False) is True:
+            raise ValueError("formal V4 tube decision receipt is not accepted")
+        expert_action = expert_payload.get("expert_action_12d", expert_payload.get("action_12d"))
+        if expert_action is not None and tuple(float(value) for value in expert_action) != tuple(self.expert_action_12d):
+            raise ValueError("formal V4 expert action receipt does not match row action")
+        if self.action_label is None or not self.action_label.available or self.action_label.shadow_only:
+            raise ValueError("formal V4 row requires an available non-shadow typed action label")
+        validate_formal_force_source_payload(
+            {
+                "force_authority_receipt": self.force_authority_receipt.as_json(),
+                "production_dynamics_receipt": production.as_json(),
+                "reference_receipt": self.reference_receipt.as_json(),
+                "expert_action_receipt": self.expert_action_receipt.as_json(),
+                "tube_decision_receipt": self.tube_decision_receipt.as_json(),
+                "formal_manifest": self.formal_manifest.as_json(),
+            },
+            path="episode_frame_v4",
+        )
+
+    @property
+    def formal_receipts_valid(self) -> bool:
+        return bool(
+            isinstance(self.force_authority_receipt, ForceAuthorityReceiptV1)
+            and isinstance(self.production_dynamics_receipt, ProductionDynamicsConformanceReceiptV1)
+            and isinstance(self.reference_receipt, TypedEpisodeReceipt)
+            and isinstance(self.expert_action_receipt, TypedEpisodeReceipt)
+            and isinstance(self.tube_decision_receipt, TypedEpisodeReceipt)
+            and isinstance(self.formal_manifest, FormalEpisodeManifestV1)
+            and self.production_dynamics_receipt.dynamics_receipt.valid
+            and self.action_label is not None
+            and self.action_label.available
+            and not self.action_label.shadow_only
+        )
+
+    @property
+    def formal_eligible(self) -> bool:
+        return bool(super().row_valid and self.formal_receipts_valid and self.formal_manifest is not None)
+
+    def _unsigned_json_v4(self) -> dict[str, Any]:
+        payload = self._unsigned_json()
+        payload["schema"] = EPISODE_FRAME_SCHEMA_V4
+        payload["schema_version_v4"] = self.schema_version_v4
+        production = self.production_dynamics_receipt
+        assert isinstance(production, ProductionDynamicsConformanceReceiptV1)
+        payload["force_authority_receipt"] = self.force_authority_receipt.as_json()
+        payload["production_dynamics_receipt"] = production.as_json()
+        payload["expert_action_receipt"] = self.expert_action_receipt.as_json()
+        payload["tube_decision_receipt"] = self.tube_decision_receipt.as_json()
+        payload["formal_manifest"] = self.formal_manifest.as_json()
+        payload["formal_receipts_valid"] = self.formal_receipts_valid
+        payload["row_valid"] = self.row_valid
+        payload["formal_receipts"] = {
+            "force_authority": payload["force_authority_receipt"],
+            "production_dynamics": payload["production_dynamics_receipt"],
+            "reference": payload["reference_receipt"],
+            "expert_action": payload["expert_action_receipt"],
+            "tube_decision": payload["tube_decision_receipt"],
+        }
+        return payload
+
+    @property
+    def row_valid(self) -> bool:
+        return bool(super().row_valid and self.formal_receipts_valid)
+
+    @property
+    def row_seal_valid(self) -> bool:
+        try:
+            payload = self.as_json()
+        except (TypeError, ValueError):
+            return False
+        return payload.get(V3_ROW_SEAL_FIELD) == compute_v3_row_sha256(payload)
+
+    def as_json(self) -> dict[str, Any]:
+        payload = self._unsigned_json_v4()
+        expected = compute_v3_row_sha256(payload)
+        if self.row_sha256 is not None and self.row_sha256 != expected:
+            raise ValueError("formal V4 row seal mismatch")
+        payload[V3_ROW_SEAL_FIELD] = expected
+        return payload
+
+
 # The canonical short name follows the current writer version.  Explicit
 # ``EpisodeFrameV2`` remains available for compatibility adapters/readers.
 EpisodeFrame = EpisodeFrameV3
@@ -744,6 +1040,7 @@ class BatchFsync10Sealer:
         batch_size: int = BATCH_SIZE,
         stall_timeout_s: float = 0.250,
         clock: Callable[[], float] = time.monotonic,
+        formal_v4: bool = False,
     ) -> None:
         if batch_size != BATCH_SIZE:
             raise ValueError("the frozen sealer batch size is exactly ten")
@@ -754,6 +1051,7 @@ class BatchFsync10Sealer:
         self.manifest_path = Path(manifest_path)
         self.episode_id = episode_id
         self.metadata = dict(metadata or {})
+        self.formal_v4 = bool(formal_v4)
         self.identity_enabled, self.semantic_context_fingerprint_sha256 = _semantic_identity_status(self.metadata)
         self.batch_size = batch_size
         self.stall_timeout_s = float(stall_timeout_s)
@@ -778,16 +1076,21 @@ class BatchFsync10Sealer:
         self.artifact_path.parent.mkdir(parents=True, exist_ok=True)
         if self.artifact_path.exists() or self.manifest_path.exists():
             raise FileExistsError("episode recorder artifact or manifest already exists")
+        if self.formal_v4 and not self.identity_enabled:
+            raise RecorderError("formal_v4_requires_complete_semantic_identity")
         try:
             with self._state_lock:
                 self._last_progress = self._clock()
                 self._work_pending_since = None
             self._handle = self.artifact_path.open("xb")
+            artifact_schema = EPISODE_ARTIFACT_SCHEMA_V4 if self.formal_v4 else EPISODE_ARTIFACT_SCHEMA
+            frame_schema = EPISODE_FRAME_SCHEMA_V4 if self.formal_v4 else EPISODE_FRAME_SCHEMA
+            tail_schema = EPISODE_TAIL_SCHEMA_V4 if self.formal_v4 else EPISODE_TAIL_SCHEMA
             header = {
-                "schema": EPISODE_ARTIFACT_SCHEMA,
-                "format_version": 3,
-                "frame_schema": EPISODE_FRAME_SCHEMA,
-                "tail_schema": EPISODE_TAIL_SCHEMA,
+                "schema": artifact_schema,
+                "format_version": 4 if self.formal_v4 else 3,
+                "frame_schema": frame_schema,
+                "tail_schema": tail_schema,
                 "episode_id": self.episode_id,
                 "durability_mode": DURABILITY_MODE,
                 "spool_capacity": self.spool.capacity,
@@ -796,6 +1099,7 @@ class BatchFsync10Sealer:
                 "identity_enabled": self.identity_enabled,
                 "semantic_context_fingerprint_sha256": self.semantic_context_fingerprint_sha256,
                 "metadata": self.metadata,
+                "formal_v4": self.formal_v4,
             }
             self._handle.write(_line(header))
             self._handle.flush()
@@ -827,6 +1131,29 @@ class BatchFsync10Sealer:
 
     def _write_batch(self, batch: Sequence[EpisodeFrameV2]) -> None:
         if not batch:
+            return
+        if self.formal_v4:
+            if not self.identity_enabled or self.semantic_context_fingerprint_sha256 is None:
+                raise RecorderError("formal_v4_requires_complete_semantic_identity")
+            if any(not isinstance(frame, EpisodeFrameV4) for frame in batch):
+                raise RecorderError("formal_v4_requires_episode_frame_v4")
+            canonical_batch = tuple(frame for frame in batch if isinstance(frame, EpisodeFrameV4))
+            if any(
+                frame.semantic_context_fingerprint_sha256 != self.semantic_context_fingerprint_sha256
+                or not frame.formal_eligible
+                for frame in canonical_batch
+            ):
+                raise RecorderError("formal_v4_row_receipts_or_identity_invalid")
+            payload = b"".join(_line(frame.as_json()) for frame in canonical_batch)
+            written = self._handle.write(payload)
+            if written != len(payload):
+                raise OSError("episode batch write was incomplete")
+            self._handle.flush()
+            os.fsync(self._handle.fileno())
+            with self._state_lock:
+                self._durable_rows += len(canonical_batch)
+                self._last_progress = self._clock()
+                self._work_pending_since = None
             return
         canonical_frames: list[EpisodeFrameV3] = []
         for frame in batch:
@@ -941,6 +1268,8 @@ class BatchFsync10Sealer:
             self._handle.close()
 
     def _append_v3_tail(self) -> dict[str, Any]:
+        if self.formal_v4:
+            return self._append_v4_tail()
         data = self.artifact_path.read_bytes()
         if not data or not data.endswith(b"\n"):
             raise RecorderError("episode_artifact_has_incomplete_tail")
@@ -1006,6 +1335,65 @@ class BatchFsync10Sealer:
             "header_sha256": hashlib.sha256(lines[0]).hexdigest(),
         }
 
+    def _append_v4_tail(self) -> dict[str, Any]:
+        data = self.artifact_path.read_bytes()
+        if not data or not data.endswith(b"\n"):
+            raise RecorderError("episode_artifact_has_incomplete_tail")
+        lines = data.splitlines(keepends=True)
+        if not lines:
+            raise RecorderError("episode_artifact_header_missing")
+        try:
+            header = json.loads(lines[0])
+        except json.JSONDecodeError as exc:
+            raise RecorderError("episode_artifact_header_invalid") from exc
+        if not isinstance(header, Mapping) or header.get("schema") != EPISODE_ARTIFACT_SCHEMA_V4:
+            raise RecorderError("episode_artifact_v4_schema_mismatch")
+        row_lines = lines[1:]
+        parsed_rows: list[dict[str, Any]] = []
+        for index, raw in enumerate(row_lines):
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise RecorderError(f"episode_artifact_row_{index}_invalid") from exc
+            if not isinstance(payload, dict) or payload.get("schema") != EPISODE_FRAME_SCHEMA_V4:
+                raise RecorderError(f"episode_artifact_row_{index}_schema_mismatch")
+            parsed_rows.append(payload)
+        try:
+            _validate_v4_required_receipts(parsed_rows)
+            _validate_v3_row_seals(parsed_rows, require=True)
+        except ValueError as exc:
+            raise RecorderError(str(exc)) from exc
+        if len(parsed_rows) != self.durable_rows:
+            raise RecorderError("episode_artifact_durable_row_count_mismatch")
+        content_bytes = b"".join(row_lines)
+        content_sha256 = hashlib.sha256(content_bytes).hexdigest()
+        last = parsed_rows[-1] if parsed_rows else None
+        tail_unsigned: dict[str, Any] = {
+            "schema": EPISODE_TAIL_SCHEMA_V4,
+            "format_version": 4,
+            "complete_tail": True,
+            "row_count": len(parsed_rows),
+            "last_sample_index": None if last is None else last.get("sample_index"),
+            "last_control_sequence": None if last is None else last.get("control_sequence"),
+            "content_sha256": content_sha256,
+        }
+        tail_sha256 = hashlib.sha256(_line(tail_unsigned)).hexdigest()
+        tail = tail_unsigned | {"tail_sha256": tail_sha256}
+        with self.artifact_path.open("ab") as handle:
+            payload = _line(tail)
+            if handle.write(payload) != len(payload):
+                raise RecorderError("episode_artifact_tail_write_incomplete")
+            handle.flush()
+            os.fsync(handle.fileno())
+        return {
+            "content_sha256": content_sha256,
+            "tail_sha256": tail_sha256,
+            "row_count": len(parsed_rows),
+            "last_sample_index": tail["last_sample_index"],
+            "last_control_sequence": tail["last_control_sequence"],
+            "header_sha256": hashlib.sha256(lines[0]).hexdigest(),
+        }
+
     def seal(self) -> dict[str, Any]:
         self.close()
         fault = self.poll_fault()
@@ -1018,8 +1406,8 @@ class BatchFsync10Sealer:
         tail = self._append_v3_tail()
         artifact_hash = hashlib.sha256(self.artifact_path.read_bytes()).hexdigest()
         manifest: dict[str, Any] = {
-            "schema": EPISODE_ARTIFACT_SCHEMA,
-            "format_version": 3,
+            "schema": EPISODE_ARTIFACT_SCHEMA_V4 if self.formal_v4 else EPISODE_ARTIFACT_SCHEMA,
+            "format_version": 4 if self.formal_v4 else 3,
             "episode_id": self.episode_id,
             "artifact": self.artifact_path.name,
             "artifact_sha256": artifact_hash,
@@ -1028,8 +1416,8 @@ class BatchFsync10Sealer:
             "spool_capacity": self.spool.capacity,
             "batch_size": self.batch_size,
             "max_unsealed_tail": MAX_UNSEALED_TAIL,
-            "frame_schema": EPISODE_FRAME_SCHEMA,
-            "tail_schema": EPISODE_TAIL_SCHEMA,
+            "frame_schema": EPISODE_FRAME_SCHEMA_V4 if self.formal_v4 else EPISODE_FRAME_SCHEMA,
+            "tail_schema": EPISODE_TAIL_SCHEMA_V4 if self.formal_v4 else EPISODE_TAIL_SCHEMA,
             "header_sha256": tail["header_sha256"],
             "content_sha256": tail["content_sha256"],
             "tail_sha256": tail["tail_sha256"],
@@ -1044,6 +1432,7 @@ class BatchFsync10Sealer:
             "overflowed": False,
             "stalled": False,
             "dropped_rows": 0,
+            "formal_v4": self.formal_v4,
         }
         _atomic_create_json(self.manifest_path, manifest)
         self._sealed = True
@@ -1116,17 +1505,25 @@ class EpisodeRecorder:
         semantic_context: Any | None = None,
         capacity: int = SPOOL_CAPACITY,
         stall_timeout_s: float = 0.250,
+        formal_v4: bool = False,
+        formal: bool | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.episode_id = episode_id
+        if formal is not None:
+            if formal_v4 and bool(formal) != formal_v4:
+                raise ValueError("formal and formal_v4 recorder flags disagree")
+            formal_v4 = bool(formal)
+        self.formal_v4 = bool(formal_v4)
         normalized_metadata = dict(metadata or {})
         if semantic_context is not None:
             if not hasattr(semantic_context, "as_metadata"):
                 raise TypeError("semantic_context must expose as_metadata()")
             normalized_metadata["semantic_context"] = semantic_context.as_metadata()
         self.spool = BoundedEpisodeSpool(capacity=capacity)
-        self.artifact_path = self.output_dir / "episode_v3.jsonl"
-        self.manifest_path = self.output_dir / "episode_v3.manifest.json"
+        artifact_stem = "episode_v4" if self.formal_v4 else "episode_v3"
+        self.artifact_path = self.output_dir / f"{artifact_stem}.jsonl"
+        self.manifest_path = self.output_dir / f"{artifact_stem}.manifest.json"
         self.health_path = self.output_dir / "recorder_health.json"
         self.sealer = BatchFsync10Sealer(
             self.spool,
@@ -1135,6 +1532,7 @@ class EpisodeRecorder:
             episode_id=episode_id,
             metadata=normalized_metadata,
             stall_timeout_s=stall_timeout_s,
+            formal_v4=self.formal_v4,
         )
         self._producer_lock = threading.Lock()
         self._started = False
@@ -1154,6 +1552,10 @@ class EpisodeRecorder:
         if (
             (self.output_dir / "episode_v2.jsonl").exists()
             or (self.output_dir / "episode_v2.manifest.json").exists()
+            or (self.output_dir / "episode_v3.jsonl").exists()
+            or (self.output_dir / "episode_v3.manifest.json").exists()
+            or (self.output_dir / "episode_v4.jsonl").exists()
+            or (self.output_dir / "episode_v4.manifest.json").exists()
         ):
             raise FileExistsError("legacy episode artifact or manifest already exists")
         self.sealer.start()
@@ -1164,7 +1566,12 @@ class EpisodeRecorder:
 
         if not self._started:
             raise RuntimeError("episode recorder is not started")
-        if isinstance(frame, EpisodeFrameV2) and not isinstance(frame, EpisodeFrameV3):
+        if self.formal_v4:
+            if not isinstance(frame, EpisodeFrameV4):
+                raise TypeError("formal EpisodeRecorder requires EpisodeFrameV4")
+        elif isinstance(frame, EpisodeFrameV4):
+            raise TypeError("formal EpisodeFrameV4 requires a formal EpisodeRecorder")
+        elif isinstance(frame, EpisodeFrameV2) and not isinstance(frame, EpisodeFrameV3):
             frame = EpisodeFrameV3.from_v2(frame)
         if not isinstance(frame, EpisodeFrameV3):
             raise TypeError("canonical EpisodeRecorder requires EpisodeFrameV3 or an EpisodeFrameV2 adapter")
@@ -1286,6 +1693,13 @@ class EpisodeRecorder:
         self.close(seal=True)
 
 
+class FormalEpisodeRecorder(EpisodeRecorder):
+    """Fail-closed V4 recorder convenience composition."""
+
+    def __init__(self, output_dir: str | Path, *, episode_id: str, **kwargs: Any) -> None:
+        super().__init__(output_dir, episode_id=episode_id, formal_v4=True, **kwargs)
+
+
 def _load_jsonl(path: Path) -> tuple[dict[str, Any], tuple[dict[str, Any], ...]]:
     data = path.read_bytes()
     if not data or not data.endswith(b"\n"):
@@ -1298,6 +1712,15 @@ def _load_jsonl(path: Path) -> tuple[dict[str, Any], tuple[dict[str, Any], ...]]
     if not parsed or not isinstance(parsed[0], dict):
         raise ValueError("episode artifact header is invalid")
     header = parsed[0]
+    if header.get("schema") == EPISODE_ARTIFACT_SCHEMA_V4:
+        if (
+            header.get("format_version") != 4
+            or header.get("frame_schema") != EPISODE_FRAME_SCHEMA_V4
+            or header.get("tail_schema") != EPISODE_TAIL_SCHEMA_V4
+        ):
+            raise ValueError("episode v4 header version/schema mismatch")
+        integrity = _validate_v4_tail_lines(lines, parsed)
+        return header, tuple(integrity["rows"])
     if header.get("schema") == EPISODE_ARTIFACT_SCHEMA:
         if (
             header.get("format_version") != 3
@@ -1361,6 +1784,7 @@ def read_episode_artifact(path: str | Path) -> tuple[dict[str, Any], tuple[dict[
     schema = header.get("schema")
     if schema not in {
         EPISODE_ARTIFACT_SCHEMA,
+        EPISODE_ARTIFACT_SCHEMA_V4,
         EPISODE_ARTIFACT_SCHEMA_V2,
         "ur10e_tacdiffusion_expert_episode/v1",
     }:
@@ -1409,12 +1833,47 @@ def validate_sealed_episode_manifest(
                 raise ValueError(f"episode v3 manifest {name} mismatch")
         if manifest.get("complete_tail") is not True or manifest.get("format_version") != 3:
             raise ValueError("episode v3 manifest tail is incomplete")
+    elif header.get("schema") == EPISODE_ARTIFACT_SCHEMA_V4:
+        lines = artifact.read_bytes().splitlines(keepends=True)
+        parsed = [json.loads(line) for line in lines]
+        integrity = _validate_v4_tail_lines(lines, parsed)
+        for name in (
+            "header_sha256",
+            "content_sha256",
+            "tail_sha256",
+            "last_sample_index",
+            "last_control_sequence",
+        ):
+            if manifest.get(name) != integrity[name]:
+                raise ValueError(f"episode v4 manifest {name} mismatch")
+        if (
+            manifest.get("complete_tail") is not True
+            or manifest.get("format_version") != 4
+            or manifest.get("frame_schema") != EPISODE_FRAME_SCHEMA_V4
+            or manifest.get("tail_schema") != EPISODE_TAIL_SCHEMA_V4
+            or manifest.get("formal_v4") is not True
+        ):
+            raise ValueError("episode v4 manifest is incomplete")
     elif header.get("schema") not in {
         EPISODE_ARTIFACT_SCHEMA_V2,
         "ur10e_tacdiffusion_expert_episode/v1",
     }:
         raise ValueError("episode header schema mismatch")
     return manifest
+
+
+def validate_formal_episode_artifact(
+    artifact_path: str | Path,
+    manifest_path: str | Path,
+) -> tuple[dict[str, Any], tuple[dict[str, Any], ...]]:
+    """Accept only a complete, sealed V4 artifact with full receipt rows."""
+
+    manifest = validate_sealed_episode_manifest(artifact_path, manifest_path)
+    header, rows = read_episode_artifact(artifact_path)
+    if header.get("schema") != EPISODE_ARTIFACT_SCHEMA_V4 or manifest.get("formal_v4") is not True:
+        raise ValueError("formal artifact validator rejects legacy v2/v3 artifacts")
+    _validate_v4_required_receipts(rows)
+    return header, rows
 
 
 __all__ = [
@@ -1425,18 +1884,26 @@ __all__ = [
     "EPISODE_ARTIFACT_SCHEMA",
     "EPISODE_ARTIFACT_SCHEMA_V2",
     "EPISODE_ARTIFACT_SCHEMA_V3",
+    "EPISODE_ARTIFACT_SCHEMA_V4",
     "EPISODE_FRAME_SCHEMA",
     "EPISODE_FRAME_SCHEMA_V2",
     "EPISODE_FRAME_SCHEMA_V3",
+    "EPISODE_FRAME_SCHEMA_V4",
     "EPISODE_TAIL_SCHEMA",
+    "EPISODE_TAIL_SCHEMA_V4",
     "EpisodeReceipt",
     "RECORDER_HEALTH_SCHEMA",
     "EpisodeFrame",
     "EpisodeFrameV2",
     "EpisodeFrameV3",
+    "EpisodeFrameV4",
     "EpisodeRecorder",
+    "FormalEpisodeRecorder",
     "ObservationReceipt",
     "ReferenceReceipt",
+    "ReferenceReceiptV1",
+    "ExpertActionReceiptV1",
+    "TubeDecisionReceiptV1",
     "MAX_UNSEALED_TAIL",
     "OBSERVATION_DIMENSION",
     "RecorderError",
@@ -1449,4 +1916,5 @@ __all__ = [
     "read_episode_artifact",
     "read_recorder_health",
     "validate_sealed_episode_manifest",
+    "validate_formal_episode_artifact",
 ]

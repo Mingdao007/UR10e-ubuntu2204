@@ -27,6 +27,8 @@ import threading
 import time
 from typing import Any, Mapping, Sequence
 
+import numpy as np
+
 
 ROOT = Path(__file__).resolve().parents[1]
 VIC_ROOT = ROOT.parent / "ur10e-variable-impedance"
@@ -64,6 +66,7 @@ from ur10e_parallel import ResourceProfile, writer_lease  # noqa: E402
 from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
     COMPILE_PROBE_PROTOCOL_TOKEN,
     FRICTION_PROFILE_ZERO_ISOLATION,
+    FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT,
     LIVE_PROTOCOL_TOKEN,
     WRENCH_FRAME_TOKEN,
     NO_CONTACT_RELEASE_TOLERANCE_M,
@@ -79,6 +82,11 @@ from ur10e_vic.tacdiffusion.eligibility import (  # noqa: E402
     EligibilityDecision,
     EligibilityValidator,
 )
+from ur10e_vic.tacdiffusion.contracts import (  # noqa: E402
+    ContactGuardProfileV1,
+    KunweiOnlyForceAuthorityV1,
+    validate_formal_rtde_recipe,
+)
 from ur10e_vic.tacdiffusion.episode_composition import (  # noqa: E402
     CausalKunweiAlignmentAdapter,
     DiagnosticShadowActionProvider,
@@ -93,6 +101,15 @@ from ur10e_vic.tacdiffusion.episode_recorder import (  # noqa: E402
     RecorderError,
     read_episode_artifact,
     validate_sealed_episode_manifest,
+)
+from ur10e_vic.tacdiffusion.formal_dynamics import (  # noqa: E402
+    FORMAL_DYNAMICS_PROBE_ACTIVE,
+    FORMAL_DYNAMICS_PROBE_COMPLETE,
+    FORMAL_DYNAMICS_PROBE_TOKEN,
+    FORMAL_TCP_OFFSET_TOOL0_M,
+    FormalDynamicsConformanceV1,
+    build_formal_dynamics_probe_source,
+    validate_formal_dynamics_probe_source,
 )
 
 
@@ -304,6 +321,99 @@ OUTPUT_FIELDS = [
     *[f"output_double_register_{index}" for index in range(24, 48)],
     *[f"output_int_register_{index}" for index in range(24, 36)],
 ]
+
+# Formal V4 keeps this runner's existing diagnostic RTDE telemetry allowlist,
+# but binds it to one offline contract.  In particular, UR force fields are
+# not an implicit fallback: ``actual_current_as_torque`` is permitted only as
+# an explicit shadow cross-check in the recorder/dynamics path.
+FORMAL_FORCE_AUTHORITY_V1 = KunweiOnlyForceAuthorityV1()
+FORMAL_NO_CONTACT_GUARD_PROFILE_V1 = ContactGuardProfileV1.no_contact(
+    authority=FORMAL_FORCE_AUTHORITY_V1
+)
+FORMAL_EXPERT_CONTACT_GUARD_PROFILE_V1 = ContactGuardProfileV1.expert_contact(
+    authority=FORMAL_FORCE_AUTHORITY_V1
+)
+FORMAL_CONTACT_GUARD_PROFILES_V1 = {
+    "no_contact": FORMAL_NO_CONTACT_GUARD_PROFILE_V1,
+    "expert_contact": FORMAL_EXPERT_CONTACT_GUARD_PROFILE_V1,
+}
+FORMAL_RTDE_OUTPUT_ALLOWLIST = tuple(OUTPUT_FIELDS)
+
+
+def select_formal_contact_guard_profile(
+    profile_id: str = "no_contact",
+    *,
+    model_active: bool = False,
+    formal_recorder_requested: bool = False,
+    full_v4_receipts_present: bool = False,
+) -> ContactGuardProfileV1:
+    """Select an offline guard profile while keeping activation fail-closed."""
+
+    if model_active is not False:
+        raise RuntimeError("formal runner model activation is disabled")
+    if formal_recorder_requested:
+        raise RuntimeError("formal V4 recorder composition is not wired into this runner")
+    try:
+        return FORMAL_CONTACT_GUARD_PROFILES_V1[str(profile_id)]
+    except KeyError as exc:
+        raise ValueError("formal contact profile must be no_contact or expert_contact") from exc
+
+
+def build_formal_runner_contract(
+    profile_id: str = "no_contact",
+    *,
+    model_active: bool = False,
+    formal_recorder_requested: bool = False,
+    full_v4_receipts_present: bool = False,
+) -> dict[str, Any]:
+    """Compose the runner recipe without enabling live or formal recording."""
+
+    profile = select_formal_contact_guard_profile(
+        profile_id,
+        model_active=model_active,
+        formal_recorder_requested=formal_recorder_requested,
+        full_v4_receipts_present=full_v4_receipts_present,
+    )
+    recipe = validate_formal_rtde_recipe(
+        {
+            "output_fields": list(FORMAL_RTDE_OUTPUT_ALLOWLIST),
+            "force_authority": FORMAL_FORCE_AUTHORITY_V1.as_json(),
+            "contact_guard_profile": profile.as_json(),
+            "model_rate_candidates_hz": [100, 50],
+            "observation_dimension": 84,
+        },
+        authority=FORMAL_FORCE_AUTHORITY_V1,
+    )
+    return {
+        "recipe": recipe,
+        "contact_guard_profile": profile.as_json(),
+        "model_active": False,
+        "shadow_only": True,
+        "formal_recorder_eligible": False,
+    }
+
+
+def validate_formal_rtde_output_allowlist(
+    output_fields: Sequence[str] = FORMAL_RTDE_OUTPUT_ALLOWLIST,
+    *,
+    profile_id: str = "no_contact",
+) -> dict[str, Any]:
+    """Validate the runner recipe without opening an RTDE connection."""
+
+    profile = select_formal_contact_guard_profile(profile_id)
+    return validate_formal_rtde_recipe(
+        {
+            "output_fields": list(output_fields),
+            "force_authority": FORMAL_FORCE_AUTHORITY_V1.as_json(),
+            "contact_guard_profile": profile.as_json(),
+            "model_rate_candidates_hz": [100, 50],
+            "observation_dimension": 84,
+        },
+        authority=FORMAL_FORCE_AUTHORITY_V1,
+    )
+
+
+FORMAL_RTDE_RECIPE = validate_formal_rtde_output_allowlist()
 
 
 def _maximum_derived_abs_joint_acceleration(
@@ -872,6 +982,144 @@ class KunweiSnapshot:
     normal_load_n: float
     force_norm_n: float
     torque_norm_nm: float
+    contact_latch_consecutive_samples: int = 0
+    contact_latched: bool = False
+
+
+@dataclass(frozen=True)
+class KunweiFrameParseResult:
+    """Bounded result for the V4 Kunwei stream classifier.
+
+    ``command_echo_count`` is cumulative for one stream and is deliberately
+    capped at one.  The ordinary parser's dropped-byte accounting remains
+    independent: only one exact command echo at a confirmed frame boundary
+    can be classified, while every other byte is still a sync drop.
+    """
+
+    frames: tuple[bytes, ...]
+    dropped_sync_bytes: int
+    command_echo_count: int
+    at_frame_boundary: bool
+
+
+def pop_kunwei_frames_with_command_echo(
+    buffer: bytearray,
+    expected_start: int | None,
+    *,
+    command_echo_count: int = 0,
+    at_frame_boundary: bool = False,
+    command_echo_window_open: bool = True,
+) -> KunweiFrameParseResult:
+    """Parse Kunwei frames while classifying one exact START_STREAM echo.
+
+    This is intentionally the V4 runner's local boundary-aware adapter around
+    the accepted Kunwei ``pop_frames`` implementation.  It uses that parser
+    for ordinary frame search and dropped-byte accounting, but feeds it no
+    bytes beyond the first complete frame so an echo after that frame can be
+    classified before the next parser pass.  A stream boundary is established
+    only at startup or after a 28-byte frame with the accepted CRLF terminator
+    has been consumed.  Once the one allowed echo is consumed, later echoes
+    are ordinary unexpected bytes and remain in ``dropped_sync_bytes``.
+    """
+
+    if command_echo_count not in (0, 1):
+        raise ValueError("kunwei_command_echo_count_must_be_zero_or_one")
+
+    frames: list[bytes] = []
+    dropped = 0
+    boundary = bool(at_frame_boundary)
+    while True:
+        starts_with_echo = (
+            bytes(buffer[: len(START_STREAM)]) == START_STREAM
+        )
+        if starts_with_echo:
+            complete_frame_candidate = (
+                len(buffer) >= 28 and buffer[26:28] == b"\r\n"
+            )
+            if (
+                command_echo_window_open
+                and boundary
+                and command_echo_count == 0
+                and (
+                    expected_start is None
+                    or expected_start == START_STREAM[0]
+                )
+            ):
+                if complete_frame_candidate:
+                    raise RuntimeError(
+                        "kunwei_start_echo_ambiguous_with_complete_frame"
+                    )
+                del buffer[: len(START_STREAM)]
+                command_echo_count = 1
+                boundary = True
+                continue
+            if command_echo_window_open:
+                if command_echo_count == 0 and complete_frame_candidate:
+                    # At startup, a complete first measurement can have the
+                    # same prefix.  Without a proved pre-frame boundary it is
+                    # a sensor frame, not an echo.
+                    starts_with_echo = False
+                else:
+                    # A second echo, or an echo without a complete candidate,
+                    # is explicitly unexpected.  Count its four bytes as sync
+                    # loss while the startup classification window is open.
+                    dropped += len(START_STREAM)
+                    del buffer[: len(START_STREAM)]
+                    boundary = False
+                    continue
+            elif complete_frame_candidate:
+                # The first float in a legitimate measurement may begin with
+                # CRLF, making its first four bytes identical to START_STREAM.
+                # Once startup echo classification is closed, preserve the
+                # complete frame irrespective of prior echo history.
+                starts_with_echo = False
+            else:
+                # A late partial measurement can have the same four-byte
+                # prefix.  Keep it buffered until all 28 bytes are available;
+                # deleting the prefix here would silently desynchronise the
+                # raw Kunwei authority stream.
+                break
+
+        first_complete_frame_end: int | None = None
+        for index in range(0, max(0, len(buffer) - 27)):
+            if buffer[index + 1] != 0xAA:
+                continue
+            if buffer[index] not in (0x48, 0x49):
+                continue
+            if expected_start is not None and buffer[index] != expected_start:
+                continue
+            if buffer[index + 26 : index + 28] == b"\r\n":
+                first_complete_frame_end = index + 28
+                break
+
+        if first_complete_frame_end is not None:
+            # Bound the accepted parser to one complete frame.  This leaves a
+            # following exact echo at buffer start for the next iteration.
+            prefix = bytearray(buffer[:first_complete_frame_end])
+            prefix_frames, prefix_dropped = pop_frames(prefix, expected_start)
+            if len(prefix_frames) != 1 or prefix:
+                raise RuntimeError("kunwei_boundary_parser_mismatch")
+            frames.append(prefix_frames[0])
+            dropped += prefix_dropped
+            del buffer[:first_complete_frame_end]
+            boundary = True
+            continue
+
+        parsed, parser_dropped = pop_frames(buffer, expected_start)
+        frames.extend(parsed)
+        dropped += parser_dropped
+        if parsed:
+            boundary = True
+        elif parser_dropped:
+            boundary = False
+        break
+
+    return KunweiFrameParseResult(
+        frames=tuple(frames),
+        dropped_sync_bytes=dropped,
+        command_echo_count=command_echo_count,
+        at_frame_boundary=boundary,
+    )
 
 
 class KunweiGuardCapture:
@@ -886,16 +1134,42 @@ class KunweiGuardCapture:
         output_dir: Path,
         calibration: Mapping[str, Any],
         delivery_watchdog_s: float,
+        active_force_limit_n: float = KUNWEI_ACTIVE_FORCE_N,
+        active_torque_limit_nm: float = KUNWEI_ACTIVE_TORQUE_NM,
+        contact_latch_load_n: float | None = None,
+        contact_latch_samples: int = 0,
     ) -> None:
         self.sensor_ip = sensor_ip
         self.sensor_port = int(sensor_port)
         self.connect_timeout_s = float(connect_timeout_s)
         self.delivery_watchdog_s = float(delivery_watchdog_s)
+        self.active_force_limit_n = float(active_force_limit_n)
+        self.active_torque_limit_nm = float(active_torque_limit_nm)
+        self.contact_latch_load_n = (
+            None
+            if contact_latch_load_n is None
+            else float(contact_latch_load_n)
+        )
+        self.contact_latch_samples = int(contact_latch_samples)
         if (
             not math.isfinite(self.delivery_watchdog_s)
             or not 0.0 < self.delivery_watchdog_s <= 0.5
         ):
             raise ValueError("kunwei_delivery_watchdog_s_invalid")
+        if (
+            (self.active_force_limit_n, self.active_torque_limit_nm)
+            not in ((6.0, 0.5), (20.0, 2.0))
+        ):
+            raise ValueError("kunwei_active_guard_profile_invalid")
+        if self.contact_latch_load_n is None:
+            if self.contact_latch_samples != 0:
+                raise ValueError("kunwei_contact_latch_samples_without_threshold")
+        elif (
+            not math.isfinite(self.contact_latch_load_n)
+            or self.contact_latch_load_n <= 0.0
+            or not 1 <= self.contact_latch_samples <= 1000
+        ):
+            raise ValueError("kunwei_contact_latch_contract_invalid")
         self.output_dir = output_dir
         self.matrix = calibration["wrench_transform_sensor_to_tcp_6x6"]
         self.normal_axis = {"fx": 0, "fy": 1, "fz": 2}[
@@ -915,6 +1189,8 @@ class KunweiGuardCapture:
         self.post_baseline_samples = 0
         self.parse_errors = 0
         self.dropped_sync_bytes = 0
+        self.command_echo_count = 0
+        self._kunwei_at_frame_boundary = False
         self.bytes_received = 0
         self.capture_state = CaptureState()
         self.capture_start_monotonic_s: float | None = None
@@ -924,6 +1200,8 @@ class KunweiGuardCapture:
         self.last_batch_arrival_monotonic_s: float | None = None
         self.max_force_norm_n = 0.0
         self.max_torque_norm_nm = 0.0
+        self.contact_latch_consecutive_samples = 0
+        self.contact_latched = False
         self.csv_path = output_dir / "kunwei_sensor_1khz.csv"
         self.raw_path = output_dir / "kunwei_raw_frames.bin"
 
@@ -948,6 +1226,18 @@ class KunweiGuardCapture:
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
         self.stop()
+
+    def _update_contact_latch(self, normal_load_n: float) -> None:
+        """Advance the latch exactly once per parsed native sensor frame."""
+
+        if self.contact_latch_load_n is None:
+            return
+        if normal_load_n >= self.contact_latch_load_n:
+            self.contact_latch_consecutive_samples += 1
+        else:
+            self.contact_latch_consecutive_samples = 0
+        if self.contact_latch_consecutive_samples >= self.contact_latch_samples:
+            self.contact_latched = True
 
     def _capture_loop(self) -> None:
         assert self.socket is not None
@@ -999,9 +1289,30 @@ class KunweiGuardCapture:
                     self.capture_state.bytes_received += len(chunk)
                     self.capture_state.packets_received += 1
                     buffer.extend(chunk)
-                    frames, dropped = pop_frames(buffer, 0x48)
-                    self.dropped_sync_bytes += dropped
-                    self.capture_state.dropped_sync_bytes += dropped
+                    parse_result = pop_kunwei_frames_with_command_echo(
+                        buffer,
+                        0x48,
+                        command_echo_count=self.command_echo_count,
+                        at_frame_boundary=self._kunwei_at_frame_boundary,
+                        command_echo_window_open=(
+                            self.capture_start_monotonic_s is not None
+                            and time.monotonic()
+                            - self.capture_start_monotonic_s
+                            <= 0.250
+                            and self.samples <= 250
+                        ),
+                    )
+                    self.command_echo_count = parse_result.command_echo_count
+                    self._kunwei_at_frame_boundary = (
+                        parse_result.at_frame_boundary
+                    )
+                    self.dropped_sync_bytes += (
+                        parse_result.dropped_sync_bytes
+                    )
+                    self.capture_state.dropped_sync_bytes += (
+                        parse_result.dropped_sync_bytes
+                    )
+                    frames = parse_result.frames
                     if not frames:
                         continue
                     batch_arrival_monotonic_s = time.monotonic()
@@ -1068,6 +1379,7 @@ class KunweiGuardCapture:
                             normal_load = (
                                 self.normal_sign * wrench_tcp[self.normal_axis]
                             )
+                            self._update_contact_latch(normal_load)
                             self.post_baseline_samples += 1
                             self.max_force_norm_n = max(
                                 self.max_force_norm_n, force_norm
@@ -1085,6 +1397,10 @@ class KunweiGuardCapture:
                                 normal_load_n=normal_load,
                                 force_norm_n=force_norm,
                                 torque_norm_nm=torque_norm,
+                                contact_latch_consecutive_samples=(
+                                    self.contact_latch_consecutive_samples
+                                ),
+                                contact_latched=self.contact_latched,
                             )
                             with self.lock:
                                 self.latest = snapshot
@@ -1171,10 +1487,14 @@ class KunweiGuardCapture:
             raise RuntimeError("kunwei_baseline_not_ready")
         if time.monotonic() - snapshot.t_monotonic_s > max_age_s:
             raise RuntimeError("kunwei_delivery_stale")
-        if snapshot.force_norm_n > KUNWEI_ACTIVE_FORCE_N:
-            raise RuntimeError("kunwei_active_force_over_6n")
-        if snapshot.torque_norm_nm > KUNWEI_ACTIVE_TORQUE_NM:
-            raise RuntimeError("kunwei_active_torque_over_0_5nm")
+        if snapshot.force_norm_n > self.active_force_limit_n:
+            raise RuntimeError(
+                f"kunwei_active_force_over_{self.active_force_limit_n:g}n"
+            )
+        if snapshot.torque_norm_nm > self.active_torque_limit_nm:
+            raise RuntimeError(
+                f"kunwei_active_torque_over_{self.active_torque_limit_nm:g}nm"
+            )
         return snapshot
 
     def stop(self) -> None:
@@ -1218,6 +1538,7 @@ class KunweiGuardCapture:
             ),
             "parse_errors": self.parse_errors,
             "dropped_sync_bytes": self.dropped_sync_bytes,
+            "command_echo_count": self.command_echo_count,
             "bytes_received": self.bytes_received,
             "receive_batches": self.receive_batches,
             "mean_frames_per_batch": batch_sizes.get("mean"),
@@ -1242,6 +1563,12 @@ class KunweiGuardCapture:
             ),
             "max_zeroed_force_norm_n": self.max_force_norm_n,
             "max_zeroed_torque_norm_nm": self.max_torque_norm_nm,
+            "contact_latch_load_n": self.contact_latch_load_n,
+            "contact_latch_required_samples": self.contact_latch_samples,
+            "contact_latch_consecutive_samples": (
+                self.contact_latch_consecutive_samples
+            ),
+            "contact_latched": self.contact_latched,
             "csv": str(self.csv_path),
             "raw_frames": str(self.raw_path),
         }
@@ -1539,6 +1866,8 @@ def _command_packet(
     kunwei_receive_batch_id: int = 0,
     kunwei_nominal_sensor_time_s: float | None = None,
     kunwei_batch_arrival_monotonic_s: float | None = None,
+    stiffness_6d: Sequence[float] = FIXED_STIFFNESS,
+    raw_f_ff_6d: Sequence[float] = ZERO6,
 ) -> CommandPacket:
     desired_pose = _finite6(pose, "desired_pose")
     guard_wrench = _finite6(
@@ -1552,6 +1881,8 @@ def _command_packet(
             lease_id=lease_id,
             episode_identity=episode_identity,
             kunwei_guard_wrench_tcp_si=guard_wrench,
+            stiffness_6d=stiffness_6d,
+            raw_f_ff_6d=raw_f_ff_6d,
         )
     )
     lineage = CommandLineage(
@@ -1758,16 +2089,20 @@ def command_values(
     lease_id: int,
     episode_identity: int,
     kunwei_guard_wrench_tcp_si: Sequence[float] = ZERO6,
+    stiffness_6d: Sequence[float] = FIXED_STIFFNESS,
+    raw_f_ff_6d: Sequence[float] = ZERO6,
 ) -> list[Any]:
     desired_pose = _finite6(pose, "desired_pose")
     guard_wrench = _finite6(
         kunwei_guard_wrench_tcp_si, "kunwei_guard_wrench_tcp_si"
     )
+    stiffness = _finite6(stiffness_6d, "stiffness_6d")
+    raw_f_ff = _finite6(raw_f_ff_6d, "raw_f_ff_6d")
     doubles = [
         *desired_pose,
-        *FIXED_STIFFNESS,
+        *stiffness,
         *guard_wrench,
-        *ZERO6,
+        *raw_f_ff,
     ]
     integers = [
         int(command),
@@ -2959,6 +3294,172 @@ def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
     return json.loads((output_dir / "evidence.json").read_text())
 
 
+def run_formal_dynamics_probe(args: argparse.Namespace) -> dict[str, Any]:
+    """Read back controller dynamics APIs and compare calibrated Pinocchio.
+
+    This probe never reads a force field, writes an RTDE input, calls Direct
+    Torque, or contains a motion API.  It is a production-conformance gate,
+    not an episode or a training-data capture.
+    """
+
+    # Keep the optional ROS/Pinocchio stack out of module import so offline
+    # parser tests remain runnable in the lightweight project environment.
+    import pinocchio as pin
+    import step5c_calibrated_kinematics_audit as step5d_kin
+    from kunwei_rtde_bridge import step5d_tcp_jacobian_base
+
+    if not (args.live and args.send_urscript and args.no_motion):
+        raise RuntimeError("formal_dynamics_probe_live_send_and_no_motion_gates_required")
+    source = build_formal_dynamics_probe_source()
+    validate_formal_dynamics_probe_source(source)
+    source_sha256 = hashlib.sha256(source.encode("utf-8")).hexdigest()
+    status = readonly_status(args.robot_host)
+    validate_compile_probe_preflight(status)
+    _enforce_no_live_writer_conflict()
+    output_dir = _next_available_run_dir(args.output_dir.resolve())
+    rows: list[dict[str, Any]] = []
+    observed_columns: dict[int, Mapping[str, Any]] = {}
+    observed_complete = False
+    start = time.monotonic()
+    with _live_writer_lease():
+        _enforce_no_live_writer_conflict()
+        with LiveRTDE(args.robot_host, timeout=args.connect_timeout_s) as rtde:
+            rtde.negotiate()
+            output_recipe, output_types = rtde.setup_outputs(500.0, OUTPUT_FIELDS)
+            rtde.start()
+            _send_urscript(args.robot_host, source, args.connect_timeout_s)
+            deadline = time.monotonic() + args.probe_timeout_s
+            while time.monotonic() < deadline:
+                batch = _receive_available(
+                    rtde,
+                    output_recipe,
+                    output_types,
+                    OUTPUT_FIELDS,
+                    min(0.01, max(0.0, deadline - time.monotonic())),
+                )
+                for sample in batch:
+                    token = int(sample["output_int_register_32"])
+                    state = int(sample["output_int_register_24"])
+                    column = int(sample["output_int_register_25"])
+                    if token != FORMAL_DYNAMICS_PROBE_TOKEN:
+                        continue
+                    rows.append(
+                        {
+                            "host_elapsed_s": time.monotonic() - start,
+                            "controller_timestamp_s": float(sample["timestamp"]),
+                            "probe_state": state,
+                            "probe_column": column,
+                            **{
+                                f"actual_q_{axis}": float(sample["actual_q"][axis])
+                                for axis in range(6)
+                            },
+                            **{
+                                f"actual_qd_{axis}": float(sample["actual_qd"][axis])
+                                for axis in range(6)
+                            },
+                            **{
+                                f"controller_jacobian_column_{axis}": float(
+                                    sample[f"output_double_register_{26 + axis}"]
+                                )
+                                for axis in range(6)
+                            },
+                            **{
+                                f"controller_coriolis_{axis}": float(
+                                    sample[f"output_double_register_{32 + axis}"]
+                                )
+                                for axis in range(6)
+                            },
+                        }
+                    )
+                    if state == FORMAL_DYNAMICS_PROBE_ACTIVE and 0 <= column < 6:
+                        observed_columns[column] = sample
+                    if state == FORMAL_DYNAMICS_PROBE_COMPLETE and column == 6:
+                        observed_complete = True
+                if observed_complete and len(observed_columns) == 6:
+                    break
+    if not observed_complete or set(observed_columns) != set(range(6)):
+        raise RuntimeError("formal_dynamics_probe_columns_incomplete")
+
+    controller_jacobian = np.column_stack(
+        [
+            [
+                float(observed_columns[column][f"output_double_register_{26 + axis}"])
+                for axis in range(6)
+            ]
+            for column in range(6)
+        ]
+    )
+    reference_sample = observed_columns[0]
+    q = np.asarray(reference_sample["actual_q"], dtype=float)
+    qd = np.asarray(reference_sample["actual_qd"], dtype=float)
+    controller_coriolis = np.asarray(
+        [
+            float(reference_sample[f"output_double_register_{32 + axis}"])
+            for axis in range(6)
+        ],
+        dtype=float,
+    )
+    model_bundle = step5d_kin.build_calibrated_model()
+    host_jacobian = step5d_tcp_jacobian_base(
+        model_bundle,
+        q,
+        np.asarray(FORMAL_TCP_OFFSET_TOOL0_M, dtype=float),
+    )
+    coriolis_matrix = pin.computeCoriolisMatrix(
+        model_bundle.model,
+        model_bundle.data,
+        q,
+        qd,
+    )
+    host_coriolis = np.asarray(coriolis_matrix @ qd, dtype=float)
+    conformance = FormalDynamicsConformanceV1(
+        controller_jacobian_6x6=controller_jacobian,
+        host_jacobian_6x6=host_jacobian,
+        controller_coriolis_nm=controller_coriolis,
+        host_coriolis_nm=host_coriolis,
+        q_rad=q,
+        qd_rad_s=qd,
+        controller_source_sha256=source_sha256,
+        calibrated_model_sha256=hashlib.sha256(
+            model_bundle.urdf_text.encode("utf-8")
+        ).hexdigest(),
+        calibration_identity=model_bundle.calibration_hash,
+    )
+    maximum_joint_speed = float(np.max(np.abs(qd)))
+    evidence = {
+        "schema": "ur10e_tacdiffusion_formal_dynamics_probe_evidence/v1",
+        "claim_class": "live_no_motion_controller_dynamics_conformance",
+        "ok": bool(conformance.accepted and maximum_joint_speed <= 1.0e-3),
+        "robot_host": args.robot_host,
+        "controller_source_sha256": source_sha256,
+        "conformance_receipt": conformance.as_json(),
+        "sample_count": len(rows),
+        "observed_columns": sorted(observed_columns),
+        "observed_complete": observed_complete,
+        "maximum_joint_speed_rad_s": maximum_joint_speed,
+        "program_sent": True,
+        "rtde_inputs_written": False,
+        "direct_torque_called": False,
+        "kunwei_stream_started": False,
+        "ur_force_fields_read": False,
+        "motion_performed": False,
+        "training_dataset": False,
+    }
+    csv_path = output_dir / "formal_dynamics_probe_rtde.csv"
+    evidence_path = output_dir / "evidence.json"
+    _write_csv(csv_path, rows)
+    evidence["data_csv"] = str(csv_path)
+    _write_json_new(evidence_path, evidence)
+    if not evidence["ok"]:
+        raise RuntimeError(
+            "formal_dynamics_conformance_failed:"
+            f"jacobian={conformance.jacobian_max_abs_error:.6g},"
+            f"coriolis={conformance.coriolis_max_abs_error_nm:.6g},"
+            f"joint_speed={maximum_joint_speed:.6g}"
+        )
+    return evidence
+
+
 def build_receiver_handshake_probe_source(receiver_source: str) -> str:
     """Inject one self-terminating WAITING window before the full main loop."""
 
@@ -3331,6 +3832,13 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 "offline_tooling_only": True,
                 "first_live_shadow": first_live_shadow,
                 "motion_enabled_by_recorder": False,
+                "formal_v4_contract": FORMAL_RTDE_RECIPE,
+                "formal_force_authority": FORMAL_FORCE_AUTHORITY_V1.as_json(),
+                "formal_contact_guard_profile": FORMAL_NO_CONTACT_GUARD_PROFILE_V1.as_json(),
+                "formal_recorder_eligible": False,
+                "formal_eligibility_gate": (
+                    "production_previous_tick_dynamics_and_full_receipts"
+                ),
                 "durability_mode": "batch_fsync_10",
                 "canonical_new_write_path": (
                     "EpisodeRecorder(batch_fsync_10)->EligibilityValidator"
@@ -4219,6 +4727,20 @@ def build_parser() -> argparse.ArgumentParser:
     probe.add_argument("--live", action="store_true")
     probe.add_argument("--send-urscript", action="store_true")
     probe.add_argument("--no-motion", action="store_true")
+    dynamics_probe = subparsers.add_parser(
+        "formal-dynamics-probe",
+        help=(
+            "no-motion controller Jacobian/Coriolis read-back and calibrated "
+            "Pinocchio conformance"
+        ),
+    )
+    dynamics_probe.add_argument("--robot-host", default="192.168.1.18")
+    dynamics_probe.add_argument("--output-dir", type=Path, required=True)
+    dynamics_probe.add_argument("--connect-timeout-s", type=float, default=3.0)
+    dynamics_probe.add_argument("--probe-timeout-s", type=float, default=1.0)
+    dynamics_probe.add_argument("--live", action="store_true")
+    dynamics_probe.add_argument("--send-urscript", action="store_true")
+    dynamics_probe.add_argument("--no-motion", action="store_true")
     handshake = subparsers.add_parser(
         "receiver-handshake",
         help="start the exact full receiver without RTDE inputs or Direct Torque",
@@ -4302,6 +4824,8 @@ def main(argv: list[str] | None = None) -> int:
             result = analyze_entry_csv(args.csv.resolve(), args.output)
         elif args.command == "compile-probe":
             result = run_compile_probe(args)
+        elif args.command == "formal-dynamics-probe":
+            result = run_formal_dynamics_probe(args)
         elif args.command == "receiver-handshake":
             bundle = validate_bundle(args.bundle_manifest)
             result = run_receiver_handshake_probe(args, bundle)

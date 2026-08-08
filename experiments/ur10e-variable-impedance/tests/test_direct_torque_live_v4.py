@@ -117,7 +117,9 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     program_start = source.index(f'receiver_schema = "{LIVE_RECEIVER_SCHEMA}"')
     torque_thread_source = source[torque_thread_start:program_start]
     program_source = source[program_start:]
-    assert "local torque = torque_command" in torque_thread_source
+    assert "local torque_generation_begin = torque_command_generation" in torque_thread_source
+    assert "local torque_candidate = [torque_command[0]" in torque_thread_source
+    assert "local torque_generation_end = torque_command_generation" in torque_thread_source
     assert (
         "torque_thread_tick_count = torque_thread_tick_count + 1"
         in torque_thread_source
@@ -128,7 +130,7 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert not re.search(r"(?m)^\s*direct_torque\(", program_source)
     assert source.count("torque_thread_handle = run torqueThread()") == 1
     assert source.count("join torque_thread_handle") == 1
-    assert source.index("torque_command = tau") < source.index(
+    assert source.index("torque_command[axis] = tau[axis]") < source.index(
         "torque_thread_handle = run torqueThread()"
     )
     assert source.index("torque_thread_run = False", program_start) < source.index(
@@ -236,6 +238,26 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "write_output_integer_register(35, episode_latched)" in source
     assert not re.search(r"(?m)^\s*return\b", source)
     assert source.count("sync()") == 4
+
+
+def test_receiver_contact_guard_profile_is_explicit_20n_2nm() -> None:
+    tube = LiveTubeContract(
+        center_base_m=(0.4, 0.1, 0.03),
+        anchor_pose_base=(0.4, 0.1, 0.03, 3.14, 0.0, 0.0),
+        u_axis_base=(1.0, 0.0, 0.0),
+        v_axis_base=(0.0, 1.0, 0.0),
+        safe_u_half_width_m=0.01,
+        safe_v_half_width_m=0.01,
+        normal_half_width_m=0.002,
+        orientation_tolerance_rad=0.05,
+    )
+    source = build_live_receiver_source(
+        tube, guard_force_limit_n=20.0, guard_torque_limit_nm=2.0
+    )
+    contract = parse_live_receiver_source(source)
+    assert "guard_force_norm > 20.0 or guard_torque_norm > 2.0" in source
+    assert contract.guard_force_limit_n == 20.0
+    assert contract.guard_torque_limit_nm == 2.0
 
 
 def test_entry_velocity_filter_rejects_drift_but_accepts_bounded_57hz_noise() -> None:
