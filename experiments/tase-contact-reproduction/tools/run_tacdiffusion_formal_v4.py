@@ -603,6 +603,22 @@ def _run_formal_acquisition_phase(
         robot_running=True,
     )
     rtde.send_inputs(input_recipe, input_types, prepare_packet)
+    # A single RTDE input package can race the first controller tick of a newly
+    # started Secondary program.  Prime the same inert PREPARE identity across
+    # multiple fresh controller ticks so the acquisition program cannot see
+    # the default zero lease/episode on its first read and fail closed before
+    # it has a chance to acknowledge sequence 1.
+    legacy._prime_idle_inputs(
+        rtde,
+        input_recipe,
+        input_types,
+        prepare_packet,
+        output_recipe,
+        output_types,
+        legacy.OUTPUT_FIELDS,
+        timeout_s=0.250,
+        minimum_fresh_ticks=5,
+    )
     barrier = legacy._send_urscript_with_primary_start_barrier(
         args.robot_host,
         acquisition_source,
@@ -610,6 +626,8 @@ def _run_formal_acquisition_phase(
     )
     sequence = 1
     prepare_ack_observed = False
+    prepare_last_sample: Mapping[str, Any] | None = None
+    prepare_observation_started_s = time.monotonic()
     prepare_deadline = time.monotonic() + 0.250
     while time.monotonic() < prepare_deadline and not prepare_ack_observed:
         for sample in legacy._receive_available(
@@ -619,6 +637,15 @@ def _run_formal_acquisition_phase(
             legacy.OUTPUT_FIELDS,
             0.010,
         ):
+            prepare_last_sample = sample
+            acquisition_rows.append(
+                _formal_acquisition_evidence_row(
+                    sample,
+                    elapsed_s=time.monotonic() - prepare_observation_started_s,
+                    attempt_id=attempt_id,
+                    host_sequence=sequence,
+                )
+            )
             if int(sample["robot_mode"]) != legacy.ROBOT_MODE_RUNNING:
                 raise RuntimeError("formal_acquisition_prepare_robotmode_changed")
             if int(sample["safety_mode"]) != legacy.SAFETY_MODE_NORMAL:
@@ -633,7 +660,23 @@ def _run_formal_acquisition_phase(
             ):
                 prepare_ack_observed = True
     if not prepare_ack_observed:
-        raise RuntimeError("formal_acquisition_prepare_ack_timeout")
+        diagnostic = {
+            key: None if prepare_last_sample is None else prepare_last_sample.get(key)
+            for key in (
+                "timestamp",
+                "runtime_state",
+                "robot_mode",
+                "safety_mode",
+                "output_int_register_24",
+                "output_int_register_25",
+                "output_int_register_26",
+                "output_int_register_29",
+            )
+        }
+        raise RuntimeError(
+            "formal_acquisition_prepare_ack_timeout:"
+            + json.dumps(diagnostic, sort_keys=True, separators=(",", ":"))
+        )
     barrier = {
         **barrier,
         "prepare_command": ACQUISITION_COMMAND_PREPARE,

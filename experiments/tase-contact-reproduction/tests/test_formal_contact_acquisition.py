@@ -162,11 +162,12 @@ def test_primary_barrier_is_inert_prepare_then_sequence_two_arms_motion() -> Non
 
     source = inspect.getsource(_run_formal_acquisition_phase)
     prepare = source.index("command=ACQUISITION_COMMAND_PREPARE")
+    prime = source.index("legacy._prime_idle_inputs")
     barrier = source.index("_send_urscript_with_primary_start_barrier")
     cursor = source.index("sensor_cursor = int(")
     host_start = source.index("controller.start(")
     active_start = source.index("command=ACQUISITION_COMMAND_START")
-    assert prepare < barrier < cursor < host_start < active_start
+    assert prepare < prime < barrier < cursor < host_start < active_start
     assert "prepare_ack_observed" in source
     assert "if output_ack > sequence:" in source
     assert "if last_ack_sequence == sequence" in source
@@ -243,6 +244,10 @@ def test_live_acquisition_packet_flow_is_prepare_then_ack_paced_handoff(
             )
 
     monkeypatch.setattr(
+        "run_tacdiffusion_formal_v4.legacy._prime_idle_inputs",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
         "run_tacdiffusion_formal_v4.legacy._send_urscript_with_primary_start_barrier",
         lambda *_args, **_kwargs: {"barrier_hold_s": 0.15},
     )
@@ -274,19 +279,28 @@ def test_live_acquisition_packet_flow_is_prepare_then_ack_paced_handoff(
     assert handoff.anchor_pose_base == pose
     assert barrier["prepare_ack_observed"] is True
     assert barrier["motion_armed_during_barrier"] is False
-    assert len(rows) == 2
+    assert len(rows) == 3
 
 
 def test_acquisition_fault_abort_is_immediate_not_ack_paced(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     prepare_output = {
+        "timestamp": 0.0,
+        "actual_TCP_pose": (0.4, 0.1, 0.03, 3.12, 0.0, 0.0),
+        "actual_TCP_speed": (0.0,) * 6,
+        "actual_qd": (0.0,) * 6,
+        "runtime_state": 2,
         "robot_mode": 7,
         "safety_mode": 1,
         "output_int_register_24": 0,
         "output_int_register_25": 1,
         "output_int_register_26": 0,
+        "output_int_register_27": 0,
+        "output_int_register_28": 0,
         "output_int_register_29": 4004001,
+        "output_int_register_30": 0,
+        "output_int_register_31": 0,
     }
 
     class FakeRTDE:
@@ -303,6 +317,10 @@ def test_acquisition_fault_abort_is_immediate_not_ack_paced(
         def snapshots_since(self, _cursor: int, *, max_age_s: float):
             raise RuntimeError("kunwei_delivery_stale")
 
+    monkeypatch.setattr(
+        "run_tacdiffusion_formal_v4.legacy._prime_idle_inputs",
+        lambda *_args, **_kwargs: None,
+    )
     monkeypatch.setattr(
         "run_tacdiffusion_formal_v4.legacy._send_urscript_with_primary_start_barrier",
         lambda *_args, **_kwargs: {"barrier_hold_s": 0.15},
