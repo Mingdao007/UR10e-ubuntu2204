@@ -21,6 +21,17 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any, Iterable, Mapping, Sequence
 
+from step5d_force_objective import (
+    BIN_WIDTH_S,
+    FORMAL_END_S,
+    FORMAL_START_S,
+    FORCE_OBJECTIVE_SCHEMA,
+    FORCE_OBJECTIVE_SEMANTIC_FINGERPRINT,
+    FORCE_OBJECTIVE_VERSION,
+    REQUIRED_BINS,
+    TARGET_FORCE_N,
+)
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -33,14 +44,16 @@ R009_EXECUTABLE_CONFIG_SCHEMA = "step5d.autotune-v4/r009-executable-behavior-v1"
 R009_OBSERVABILITY_CONFIG_SCHEMA = "step5d.autotune-v4/r009-observability-v1"
 R009_OBSERVABILITY_VERSION = "r009-observability-v1"
 R009_OBSERVABILITY_TTL_FORMULA = "max(3*poll_interval_s,5.0)"
+R009_EARLY_ABORT_CONFIG_SCHEMA = "step5d.autotune-v4/r009-early-abort-v1"
+R009_EARLY_ABORT_VERSION = "r009-early-abort-v1"
+R009_EARLY_ABORT_MODE_ENV = "R009_EARLY_ABORT_MODE"
+R009_EARLY_ABORT_SIDECAR_SCHEMA = "step5d.autotune-v4/r009-early-abort-shadow-v1"
+R009_EARLY_ABORT_AUDIT_SCHEMA = "step5d.autotune-v4/r009-early-abort-audit-v1"
 R009_RELEASE_IDENTITY_SCHEMA = "step5d.autotune-v4/r009-release-identity-v1"
 R009_BEHAVIOR_VERSION = "r009-v1"
 R009_RAW_CODEC = "r009raw_v1"
 R009_RUNTIME_PROTOCOL = 609009
-R009_OBJECTIVE_SEMANTIC_FINGERPRINT = (
-    "r009.force-mae-v1|stage=25|formal=[5,60)|bin=0.1s|target=5N|"
-    "target-not-dimension|raw-bundle-required"
-)
+R009_OBJECTIVE_SEMANTIC_FINGERPRINT = FORCE_OBJECTIVE_SEMANTIC_FINGERPRINT
 
 DEFAULT_CONTROLLER_TRIPLET_SHA256 = {
     "script": "0" * 64,
@@ -110,6 +123,53 @@ DEFAULT_EXECUTABLE_BEHAVIOR_CONFIG: dict[str, Any] = {
             "state20_filename": "r009-state20-observability.jsonl",
             "state25_filename": "r009-state25-observability.jsonl",
             "audit_schema": "step5d.autotune-v4/r009-observability-audit-v1",
+        },
+        "early_abort": {
+            "schema": R009_EARLY_ABORT_CONFIG_SCHEMA,
+            "version": R009_EARLY_ABORT_VERSION,
+            "mode_env": R009_EARLY_ABORT_MODE_ENV,
+            "default_mode": "shadow",
+            "channel": "A",
+            "guard_fraction": 0.10,
+            "kappa_start": 3.0,
+            "kappa_end": 1.3,
+            "kappa_midpoint": 0.5,
+            "kappa_steepness": 10.0,
+            "minimum_complete_bins": 1,
+            "enters_gp_training": False,
+            "enters_raw_ledger": False,
+            "sidecar_schema": R009_EARLY_ABORT_SIDECAR_SCHEMA,
+            "sidecar_filename": "r009-early-abort-shadow.jsonl",
+            "audit_schema": R009_EARLY_ABORT_AUDIT_SCHEMA,
+            "audit_filename": "r009-early-abort-audit.jsonl",
+            "resume_schema": "step5d.autotune-v4/r009-early-abort-resume-v1",
+            "max_sidecar_bytes": 64 * 1024 * 1024,
+            "max_audit_rows": 256,
+            "max_audit_bytes": 64 * 1024,
+            "max_audit_metadata_depth": 4,
+            "max_audit_metadata_items": 64,
+            "max_audit_metadata_string_chars": 256,
+            "channel_c": {
+                "status": "future_deferred",
+                "requires_new_tp": True,
+                "requires_new_fingerprint": True,
+                "requires_new_contract": True,
+                "reuse_hard_stop_channel": False,
+            },
+            "objective": {
+                "schema": FORCE_OBJECTIVE_SCHEMA,
+                "version": FORCE_OBJECTIVE_VERSION,
+                "semantic_fingerprint": FORCE_OBJECTIVE_SEMANTIC_FINGERPRINT,
+                "target_force_n": TARGET_FORCE_N,
+                "formal_start_s": FORMAL_START_S,
+                "formal_end_s": FORMAL_END_S,
+                "bin_width_s": BIN_WIDTH_S,
+                "required_bins": REQUIRED_BINS,
+                "statistic": "mean(abs(mean(force_in_bin)-5N))",
+                "window_semantics": "[start,end)",
+                "partial_open_bin_policy": "exclude_until_bin_end",
+                "partial_denominator": "required_bins",
+            },
         },
     },
 }
@@ -600,6 +660,276 @@ class R009ObservabilityConfig:
 
 
 @dataclass(frozen=True)
+class R009EarlyAbortConfig:
+    """Identity-bound, shadow-only R009 early-abort policy.
+
+    The policy is executable host behavior, so thresholds, schemas, default
+    modes, persistence limits, and the future Channel C boundary all live in
+    this manifest value.  The formal objective fields are checked against the
+    canonical ``step5d_force_objective`` primitive rather than redefined here.
+    """
+
+    raw: Mapping[str, Any]
+
+    def __post_init__(self) -> None:
+        document = _strict_json_copy(self.raw, "R009 early-abort config")
+        if not isinstance(document, dict):
+            raise R009IdentityError("R009 early-abort config must be an object")
+        required = {
+            "schema",
+            "version",
+            "mode_env",
+            "default_mode",
+            "channel",
+            "guard_fraction",
+            "kappa_start",
+            "kappa_end",
+            "kappa_midpoint",
+            "kappa_steepness",
+            "minimum_complete_bins",
+            "enters_gp_training",
+            "enters_raw_ledger",
+            "sidecar_schema",
+            "sidecar_filename",
+            "audit_schema",
+            "audit_filename",
+            "resume_schema",
+            "max_sidecar_bytes",
+            "max_audit_rows",
+            "max_audit_bytes",
+            "max_audit_metadata_depth",
+            "max_audit_metadata_items",
+            "max_audit_metadata_string_chars",
+            "channel_c",
+            "objective",
+        }
+        if set(document) != required:
+            raise R009IdentityError("R009 early-abort config fields differ")
+        if document["schema"] != R009_EARLY_ABORT_CONFIG_SCHEMA:
+            raise R009IdentityError("R009 early-abort config schema differs")
+        if document["version"] != R009_EARLY_ABORT_VERSION:
+            raise R009IdentityError("R009 early-abort config version differs")
+        _nonempty_text(document["mode_env"], "R009 early-abort mode_env")
+        if document["default_mode"] != "shadow":
+            raise R009IdentityError("R009 early-abort default mode must be shadow")
+        if document["channel"] != "A":
+            raise R009IdentityError("R009 early-abort channel must be A")
+
+        def positive_int(value: Any, role: str) -> int:
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise R009IdentityError(f"{role} must be a positive int")
+            return int(value)
+
+        def nonnegative_float(value: Any, role: str) -> float:
+            number = _finite(value, role)
+            if number < 0.0:
+                raise R009IdentityError(f"{role} must be non-negative")
+            return number
+
+        guard = _finite(document["guard_fraction"], "R009 early-abort guard_fraction")
+        if not 0.0 <= guard < 1.0:
+            raise R009IdentityError("R009 early-abort guard_fraction must be in [0,1)")
+        kappa_start = nonnegative_float(
+            document["kappa_start"], "R009 early-abort kappa_start"
+        )
+        kappa_end = nonnegative_float(
+            document["kappa_end"], "R009 early-abort kappa_end"
+        )
+        if kappa_end <= 0.0 or kappa_end > kappa_start or kappa_start <= 0.0:
+            raise R009IdentityError("R009 early-abort kappa range is invalid")
+        midpoint = _finite(document["kappa_midpoint"], "R009 early-abort kappa_midpoint")
+        if not 0.0 <= midpoint <= 1.0:
+            raise R009IdentityError("R009 early-abort kappa_midpoint must be in [0,1]")
+        steepness = _finite(
+            document["kappa_steepness"], "R009 early-abort kappa_steepness"
+        )
+        if steepness <= 0.0:
+            raise R009IdentityError("R009 early-abort kappa_steepness must be positive")
+        minimum_bins = positive_int(
+            document["minimum_complete_bins"],
+            "R009 early-abort minimum_complete_bins",
+        )
+        if minimum_bins > REQUIRED_BINS:
+            raise R009IdentityError("R009 early-abort minimum_complete_bins exceeds formal bins")
+        for field in ("enters_gp_training", "enters_raw_ledger"):
+            if document[field] is not False:
+                raise R009IdentityError(f"R009 early-abort {field} must be false")
+        for field in ("sidecar_schema", "audit_schema", "resume_schema"):
+            _nonempty_text(document[field], f"R009 early-abort {field}")
+        for field in ("sidecar_filename", "audit_filename"):
+            _safe_relative_path(document[field], f"R009 early-abort {field}")
+        for field in (
+            "max_sidecar_bytes",
+            "max_audit_rows",
+            "max_audit_bytes",
+            "max_audit_metadata_depth",
+            "max_audit_metadata_items",
+            "max_audit_metadata_string_chars",
+        ):
+            positive_int(document[field], f"R009 early-abort {field}")
+
+        channel_c = document["channel_c"]
+        if not isinstance(channel_c, dict) or set(channel_c) != {
+            "status",
+            "requires_new_tp",
+            "requires_new_fingerprint",
+            "requires_new_contract",
+            "reuse_hard_stop_channel",
+        }:
+            raise R009IdentityError("R009 Channel C declaration fields differ")
+        if channel_c["status"] != "future_deferred":
+            raise R009IdentityError("R009 Channel C must remain future-deferred")
+        for field in (
+            "requires_new_tp",
+            "requires_new_fingerprint",
+            "requires_new_contract",
+        ):
+            if channel_c[field] is not True:
+                raise R009IdentityError(f"R009 Channel C {field} must be true")
+        if channel_c["reuse_hard_stop_channel"] is not False:
+            raise R009IdentityError("R009 Channel C cannot reuse hard-stop channel")
+
+        objective = document["objective"]
+        if not isinstance(objective, dict) or set(objective) != {
+            "schema",
+            "version",
+            "semantic_fingerprint",
+            "target_force_n",
+            "formal_start_s",
+            "formal_end_s",
+            "bin_width_s",
+            "required_bins",
+            "statistic",
+            "window_semantics",
+            "partial_open_bin_policy",
+            "partial_denominator",
+        }:
+            raise R009IdentityError("R009 early-abort objective declaration fields differ")
+        expected_objective = {
+            "schema": FORCE_OBJECTIVE_SCHEMA,
+            "version": FORCE_OBJECTIVE_VERSION,
+            "semantic_fingerprint": FORCE_OBJECTIVE_SEMANTIC_FINGERPRINT,
+            "target_force_n": TARGET_FORCE_N,
+            "formal_start_s": FORMAL_START_S,
+            "formal_end_s": FORMAL_END_S,
+            "bin_width_s": BIN_WIDTH_S,
+            "required_bins": REQUIRED_BINS,
+            "statistic": "mean(abs(mean(force_in_bin)-5N))",
+            "window_semantics": "[start,end)",
+            "partial_open_bin_policy": "exclude_until_bin_end",
+            "partial_denominator": "required_bins",
+        }
+        if objective != expected_objective:
+            raise R009IdentityError(
+                "R009 early-abort objective declaration differs from canonical formal objective"
+            )
+        object.__setattr__(self, "raw", _freeze_json(document))
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "R009EarlyAbortConfig":
+        return cls(raw=value)
+
+    @property
+    def schema(self) -> str:
+        return str(self.raw["schema"])
+
+    @property
+    def version(self) -> str:
+        return str(self.raw["version"])
+
+    @property
+    def mode_env(self) -> str:
+        return str(self.raw["mode_env"])
+
+    @property
+    def default_mode(self) -> str:
+        return str(self.raw["default_mode"])
+
+    @property
+    def channel(self) -> str:
+        return str(self.raw["channel"])
+
+    @property
+    def guard_fraction(self) -> float:
+        return float(self.raw["guard_fraction"])
+
+    @property
+    def kappa_start(self) -> float:
+        return float(self.raw["kappa_start"])
+
+    @property
+    def kappa_end(self) -> float:
+        return float(self.raw["kappa_end"])
+
+    @property
+    def kappa_midpoint(self) -> float:
+        return float(self.raw["kappa_midpoint"])
+
+    @property
+    def kappa_steepness(self) -> float:
+        return float(self.raw["kappa_steepness"])
+
+    @property
+    def minimum_complete_bins(self) -> int:
+        return int(self.raw["minimum_complete_bins"])
+
+    @property
+    def sidecar_schema(self) -> str:
+        return str(self.raw["sidecar_schema"])
+
+    @property
+    def sidecar_filename(self) -> str:
+        return str(self.raw["sidecar_filename"])
+
+    @property
+    def audit_schema(self) -> str:
+        return str(self.raw["audit_schema"])
+
+    @property
+    def audit_filename(self) -> str:
+        return str(self.raw["audit_filename"])
+
+    @property
+    def resume_schema(self) -> str:
+        return str(self.raw["resume_schema"])
+
+    @property
+    def max_sidecar_bytes(self) -> int:
+        return int(self.raw["max_sidecar_bytes"])
+
+    @property
+    def max_audit_rows(self) -> int:
+        return int(self.raw["max_audit_rows"])
+
+    @property
+    def max_audit_bytes(self) -> int:
+        return int(self.raw["max_audit_bytes"])
+
+    @property
+    def max_audit_metadata_depth(self) -> int:
+        return int(self.raw["max_audit_metadata_depth"])
+
+    @property
+    def max_audit_metadata_items(self) -> int:
+        return int(self.raw["max_audit_metadata_items"])
+
+    @property
+    def max_audit_metadata_string_chars(self) -> int:
+        return int(self.raw["max_audit_metadata_string_chars"])
+
+    @property
+    def objective(self) -> Mapping[str, Any]:
+        return _thaw_json(self.raw["objective"])
+
+    @property
+    def channel_c(self) -> Mapping[str, Any]:
+        return _thaw_json(self.raw["channel_c"])
+
+    def as_dict(self) -> dict[str, Any]:
+        return _thaw_json(self.raw)
+
+
+@dataclass(frozen=True)
 class ExecutableBehaviorConfig:
     """Typed executable behavior configuration bound into the manifest."""
 
@@ -618,7 +948,12 @@ class ExecutableBehaviorConfig:
             raise R009IdentityError(
                 "R009 executable behavior config lacks observability values"
             )
+        if "early_abort" not in document["values"]:
+            raise R009IdentityError(
+                "R009 executable behavior config lacks early-abort values"
+            )
         R009ObservabilityConfig.from_mapping(document["values"]["observability"])
+        R009EarlyAbortConfig.from_mapping(document["values"]["early_abort"])
         object.__setattr__(self, "raw", _freeze_json(document))
 
     @classmethod
@@ -631,6 +966,10 @@ class ExecutableBehaviorConfig:
     @property
     def observability(self) -> R009ObservabilityConfig:
         return R009ObservabilityConfig.from_mapping(self.raw["values"]["observability"])
+
+    @property
+    def early_abort(self) -> R009EarlyAbortConfig:
+        return R009EarlyAbortConfig.from_mapping(self.raw["values"]["early_abort"])
 
 
 @dataclass(frozen=True)
@@ -786,6 +1125,7 @@ def default_source_set(root: Path = ROOT) -> R009SourceSet:
         "tools/step5d_autotune_v4_r009/transport.py",
         "tools/step5d_autotune_v4_r009/fake_rtde.py",
         "tools/step5d_autotune_v4_r009/diagnostics.py",
+        "tools/step5d_autotune_v4_r009/early_abort.py",
         "tools/step5d_autotune_v4_r009/observability.py",
         "tools/step5d_autotune_v4_r009/observer.py",
         "tools/step5d_autotune_v4_r009/tp.py",
@@ -798,9 +1138,11 @@ def default_source_set(root: Path = ROOT) -> R009SourceSet:
         "config/schemas/step5d_autotune_v4_r009_behavior_manifest.schema.json",
         "config/schemas/step5d_autotune_v4_r009_release_identity.schema.json",
         "config/schemas/step5d_autotune_v4_r009_reason43_runtime_protocol.schema.json",
+        "tools/step5d_force_objective.py",
         "tests/test_step5d_autotune_v4_r009_identity_quarantine.py",
         "tests/test_step5d_autotune_v4_r009_reason43_runtime_protocol.py",
         "tests/test_step5d_autotune_v4_r009_observability.py",
+        "tests/test_step5d_autotune_v4_r009_early_abort.py",
     )
     return R009SourceSet.from_files(root, paths)
 
@@ -1081,8 +1423,14 @@ __all__ = [
     "DEFAULT_CONTACT_SEARCH_SCHEDULE",
     "DEFAULT_CONTROLLER_TRIPLET_SHA256",
     "DEFAULT_EXECUTABLE_BEHAVIOR_CONFIG",
+    "R009_EARLY_ABORT_AUDIT_SCHEMA",
+    "R009_EARLY_ABORT_CONFIG_SCHEMA",
+    "R009_EARLY_ABORT_MODE_ENV",
+    "R009_EARLY_ABORT_SIDECAR_SCHEMA",
+    "R009_EARLY_ABORT_VERSION",
     "ExecutableBehaviorConfig",
     "R009ObservabilityConfig",
+    "R009EarlyAbortConfig",
     "R009_OBSERVABILITY_CONFIG_SCHEMA",
     "R009_OBSERVABILITY_TTL_FORMULA",
     "R009_OBSERVABILITY_VERSION",
