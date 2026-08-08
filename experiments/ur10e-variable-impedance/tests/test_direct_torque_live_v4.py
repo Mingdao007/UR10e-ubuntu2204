@@ -86,6 +86,9 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert contract.orientation_interpolation_policy == ORIENTATION_POLICY_HOLD_ENTRY
     assert not contract.source_builder_physical_io_enabled
     assert contract.controller_runtime_physical_io_enabled
+    assert contract.model_inactive_expert_feedforward_allowed is False
+    assert "local model_inactive_expert_feedforward_allowed = False" in source
+    assert "if not model_inactive_expert_feedforward_allowed:" in source
     assert source.rstrip().endswith("end")
     assert source.startswith("def tacdiffusion_remote_direct_torque_v4_program():\n")
     assert len(re.findall(r"(?m)^\s*def\s+", source)) == 1
@@ -264,6 +267,31 @@ def test_receiver_contact_guard_profile_is_explicit_20n_2nm() -> None:
     assert "guard_force_norm > 20.0 or guard_torque_norm > 2.0" in source
     assert contract.guard_force_limit_n == 20.0
     assert contract.guard_torque_limit_nm == 2.0
+    assert contract.model_inactive_expert_feedforward_allowed is False
+    mode_zero = source[source.index("if model_mode == 0:") : source.index("elif model_mode == 1:")]
+    assert "model_sequence != 0 or model_period_us != 0 or model_timestamp_us != 0" in mode_zero
+    assert "if not model_inactive_expert_feedforward_allowed:" in mode_zero
+    assert mode_zero.index("model_sequence != 0") < mode_zero.index(
+        "if not model_inactive_expert_feedforward_allowed:"
+    )
+    with pytest.raises(
+        ValueError,
+        match="model-inactive expert feedforward requires formal handoff",
+    ):
+        build_live_receiver_source(
+            tube,
+            friction_profile="ur_default_v2_formal_contact",
+            guard_force_limit_n=20.0,
+            guard_torque_limit_nm=2.0,
+            model_inactive_expert_feedforward_allowed=True,
+        )
+    tampered = source.replace(
+        "local model_inactive_expert_feedforward_allowed = False",
+        "local model_inactive_expert_feedforward_allowed = True",
+        1,
+    )
+    with pytest.raises(ValueError, match="requires formal contact identity"):
+        parse_live_receiver_source(tampered)
 
 
 def test_entry_velocity_filter_rejects_drift_but_accepts_bounded_57hz_noise() -> None:

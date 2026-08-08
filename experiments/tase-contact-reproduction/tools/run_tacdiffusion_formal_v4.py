@@ -1185,6 +1185,8 @@ def _run_contact_attempt_locked(
                 receiver_contract.guard_force_limit_n != 20.0
                 or receiver_contract.guard_torque_limit_nm != 2.0
                 or receiver_contract.formal_handoff_required is not True
+                or receiver_contract.model_inactive_expert_feedforward_allowed
+                is not True
             ):
                 raise RuntimeError("formal_contact_receiver_handoff_or_guard_mismatch")
             receiver_sha = hashlib.sha256(receiver_source.encode("utf-8")).hexdigest()

@@ -1134,6 +1134,7 @@ def build_formal_direct_torque_tracking_source_after_handoff(
         guard_torque_limit_nm=2.0,
         formal_handoff_anchor_pose_base=handoff.anchor_pose_base,
         formal_handoff_max_mismatch_m=transition.maximum_handoff_mismatch_m,
+        model_inactive_expert_feedforward_allowed=True,
     )
 
 

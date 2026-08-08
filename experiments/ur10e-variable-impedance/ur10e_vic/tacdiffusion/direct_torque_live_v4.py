@@ -309,6 +309,7 @@ class LiveReceiverContract:
     guard_torque_limit_nm: float = 0.5
     formal_handoff_required: bool = False
     formal_handoff_max_mismatch_m: float = 0.0003
+    model_inactive_expert_feedforward_allowed: bool = False
 
 
 def build_live_receiver_source(
@@ -321,6 +322,7 @@ def build_live_receiver_source(
     guard_torque_limit_nm: float = 0.5,
     formal_handoff_anchor_pose_base: Sequence[float] | None = None,
     formal_handoff_max_mismatch_m: float = 0.0003,
+    model_inactive_expert_feedforward_allowed: bool = False,
 ) -> str:
     """Build one controller-resident 500 Hz program; sending is a separate gate."""
 
@@ -346,6 +348,16 @@ def build_live_receiver_source(
     ):
         raise ValueError("formal contact friction profile requires contact 20/2 guard")
     formal_handoff_required = formal_handoff_anchor_pose_base is not None
+    if not isinstance(model_inactive_expert_feedforward_allowed, bool):
+        raise TypeError("model-inactive expert feedforward capability must be boolean")
+    if model_inactive_expert_feedforward_allowed and (
+        not formal_handoff_required
+        or friction_profile != FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
+        or guard_pair != (20.0, 2.0)
+    ):
+        raise ValueError(
+            "model-inactive expert feedforward requires formal handoff and contact guard"
+        )
     formal_handoff_max_mismatch_m = float(formal_handoff_max_mismatch_m)
     if (
         not math.isfinite(formal_handoff_max_mismatch_m)
@@ -473,6 +485,7 @@ def build_live_receiver_source(
   local running = True
   local torque_entered = False
   local formal_handoff_required = {str(formal_handoff_required)}
+  local model_inactive_expert_feedforward_allowed = {str(model_inactive_expert_feedforward_allowed)}
   local formal_handoff_anchor_pose = p{_urscript_vector(formal_handoff_anchor)}
   local formal_handoff_max_mismatch_m = {formal_handoff_max_mismatch_m:.17g}
   local formal_handoff_verified = False
@@ -652,12 +665,14 @@ def build_live_receiver_source(
         if model_sequence != 0 or model_period_us != 0 or model_timestamp_us != 0:
           packet_ok = False
         end
-        local zero_axis = 0
-        while zero_axis < 6:
-          if raw_force[zero_axis] != 0.0:
-            packet_ok = False
+        if not model_inactive_expert_feedforward_allowed:
+          local zero_axis = 0
+          while zero_axis < 6:
+            if raw_force[zero_axis] != 0.0:
+              packet_ok = False
+            end
+            zero_axis = zero_axis + 1
           end
-          zero_axis = zero_axis + 1
         end
       elif model_mode == 1:
         if model_sequence <= 0:
@@ -1087,6 +1102,8 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         f'receiver_schema = "{LIVE_RECEIVER_SCHEMA}"',
         "entry_pose[axis] = actual_pose[axis]",
         "tube_rebased = False",
+        "model_inactive_expert_feedforward_allowed = ",
+        "if not model_inactive_expert_feedforward_allowed:",
         "tube_center_base = [actual_pose[0], actual_pose[1], actual_pose[2]]",
         "tube_anchor_pose_base = p[actual_pose[0], actual_pose[1], actual_pose[2], actual_pose[3], actual_pose[4], actual_pose[5]]",
         "entry_stable_duration_s = 0.05",
@@ -1213,6 +1230,13 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
     )
     if handoff_match is None:
         raise ValueError("formal handoff declaration is not parseable")
+    expert_feedforward_match = re.search(
+        r"^\s*local model_inactive_expert_feedforward_allowed = (True|False)$",
+        source,
+        re.MULTILINE,
+    )
+    if expert_feedforward_match is None:
+        raise ValueError("model-inactive expert feedforward declaration is not parseable")
     handoff_bound_match = re.search(
         r"^\s*local formal_handoff_max_mismatch_m = ([0-9.eE+-]+)$",
         source,
@@ -1296,6 +1320,15 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
     expected_viscous, expected_coulomb = FRICTION_PROFILES[friction_profile]
     if viscous_scale != expected_viscous or coulomb_scale != expected_coulomb:
         raise ValueError("live receiver friction scales do not match declared profile")
+    expert_feedforward_allowed = expert_feedforward_match.group(1) == "True"
+    if expert_feedforward_allowed and (
+        handoff_match.group(1) != "True"
+        or guard_pair != (20.0, 2.0)
+        or friction_profile != FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
+    ):
+        raise ValueError(
+            "model-inactive expert feedforward source requires formal contact identity"
+        )
     if re.search(
         r"(?m)^\s*tacdiffusion_remote_direct_torque_v4_program\(\)\s*$",
         source,
@@ -1322,4 +1355,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         guard_torque_limit_nm=guard_pair[1],
         formal_handoff_required=handoff_match.group(1) == "True",
         formal_handoff_max_mismatch_m=float(handoff_bound_match.group(1)),
+        model_inactive_expert_feedforward_allowed=(
+            expert_feedforward_allowed
+        ),
     )

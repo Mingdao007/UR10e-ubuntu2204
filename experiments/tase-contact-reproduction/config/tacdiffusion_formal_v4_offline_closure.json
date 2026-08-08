@@ -1,7 +1,7 @@
 {
   "content_address": {
     "algorithm": "sha256",
-    "sha256": "5c2d43e8dff859dcdda307320c65f661f1e3acfda6c0cdd53b21314ca071fbb7"
+    "sha256": "1570271e582028dbd1f824055e6067fedf2cb860c024c54bcd3c07f0978cd3f0"
   },
   "controller_readback_applicable": false,
   "files": [
@@ -23,7 +23,7 @@
     },
     {
       "path": "experiments/tase-contact-reproduction/tests/test_formal_contact_acquisition.py",
-      "sha256": "68f199b25c3be874d22ea48d781eb0137fdf9f9b93cff06dd22d7c1ceeba6a85"
+      "sha256": "cdfff50e13c2606e51cb2af01d9c8013a09436a1143e9143307e8b7225d047c9"
     },
     {
       "path": "experiments/tase-contact-reproduction/tests/test_run_tacdiffusion_formal_v4.py",
@@ -39,7 +39,7 @@
     },
     {
       "path": "experiments/tase-contact-reproduction/tools/run_tacdiffusion_formal_v4.py",
-      "sha256": "13f90f39767d9bec10ceb541a622576863713a2a6a49e7974502f6b76553d4ae"
+      "sha256": "0dbc4250695eec072b195d9b1fa71199d11628f7b77473f6e4ecb1b16306892e"
     },
     {
       "path": "experiments/tase-contact-reproduction/tools/run_tacdiffusion_remote_direct_torque_v4.py",
@@ -67,7 +67,7 @@
     },
     {
       "path": "experiments/ur10e-variable-impedance/tests/test_direct_torque_live_v4.py",
-      "sha256": "c8362d3a7bb3e04ac7253a47210724dbb5e348a7c42409a375b059b71a162d4e"
+      "sha256": "59b7370a7a87bc30deb8795c68d93bc6ae88f5aea299f718fe006d6105fa1a00"
     },
     {
       "path": "experiments/ur10e-variable-impedance/tests/test_tacdiffusion_formal_orchestration.py",
@@ -91,7 +91,7 @@
     },
     {
       "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/direct_torque_live_v4.py",
-      "sha256": "9fa34ece76edd7ce196b362ad31228686d2b85b6a1ca248f3a35c99d476b6245"
+      "sha256": "58133dac99af2c3c0b58d1dbfbc91d6e567794983757d125b08e934092888d17"
     },
     {
       "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/eligibility.py",
@@ -119,7 +119,7 @@
     },
     {
       "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/formal_contact_acquisition.py",
-      "sha256": "a9444e5e89260c8d76715f5523eaf79668e1dea0552774e52465a7ddbac6da44"
+      "sha256": "05adc4e9f2a210424493341b76e2d8c0a06cabf0065b0b97d640d4cf4be88417"
     },
     {
       "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/formal_dataset.py",

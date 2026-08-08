@@ -759,7 +759,13 @@ def test_direct_torque_source_is_constructible_only_from_handoff() -> None:
     )
     parsed = parse_live_receiver_source(source)
     assert parsed.formal_handoff_required is True
+    assert parsed.model_inactive_expert_feedforward_allowed is True
     assert parsed.formal_handoff_max_mismatch_m == pytest.approx(0.0003)
+    assert "local model_inactive_expert_feedforward_allowed = True" in source
+    mode_zero = source[source.index("if model_mode == 0:") : source.index("elif model_mode == 1:")]
+    assert "model_sequence != 0 or model_period_us != 0 or model_timestamp_us != 0" in mode_zero
+    assert "if not model_inactive_expert_feedforward_allowed:" in mode_zero
+    assert "guard_force_norm > 20.0 or guard_torque_norm > 2.0" in source
     assert "local formal_handoff_anchor_pose = p[" in source
     assert "0.40000000000000002" in source
     assert "actual_TCP_force" not in source
