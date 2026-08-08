@@ -50,12 +50,12 @@
         "torque_limit_nm": 0.5
       },
       "id": "formal_v4_no_contact_qualification",
-      "invalidated_qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0150HKT_boolfix/qualification_summary.json",
-      "invalidated_qualification_summary_sha256": "0184565d2a9c48cf6d3a028d00db8515d925c34d653f089cdc04211ed3c54389",
+      "invalidated_qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0210HKT_speedlfix/qualification_summary.json",
+      "invalidated_qualification_summary_sha256": "198d6e33f8d5e1fffc06077be497830f809368bc11bd05fc6f24c5b23efa696e",
       "invalidation_reason": "source_changed_after_contact_acceptance_repair",
       "motion_class": "no_contact",
-      "qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0210HKT_speedlfix/qualification_summary.json",
-      "qualification_summary_sha256": "198d6e33f8d5e1fffc06077be497830f809368bc11bd05fc6f24c5b23efa696e",
+      "qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0250HKT_expertff_retry/qualification_summary.json",
+      "qualification_summary_sha256": "a169088a4fb9633ccf90d712869329ca2f90fc48f5d3baea745c899293d5f5db",
       "status": "accepted",
       "successor": "formal_v4_fixed_k_campaign"
     },
