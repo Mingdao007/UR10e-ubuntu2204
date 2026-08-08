@@ -134,6 +134,10 @@ def test_acquisition_urscript_is_bounded_and_has_no_forbidden_force_or_motion_ap
     assert "acquisition_handoff_ack = False" not in source
     assert "acquisition_latched_by_host = True" not in source
     assert "acquisition_handoff_ack = True" not in source
+    assert "local motion_frame_consumed = False" in source
+    assert "motion_frame_consumed = True" in source
+    assert "if not motion_frame_consumed:" in source
+    assert "speedl(t=control_period) already consumes this controller frame" in source
     assert "acquisition_braking_distance_m = 0.0000125000" in source
     assert "acquisition_deceleration_start_distance_m = 0.0249865000" in source
     assert source.count("stopl(a=acquisition_deceleration_m_s2)") >= 9

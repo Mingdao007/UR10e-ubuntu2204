@@ -891,6 +891,7 @@ def build_formal_contact_acquisition_urscript(
     local packet_gap_or_replay = packet_torn or (not packet_new and not packet_held) or (packet_held and not packet_signature_same)
     local packet_heartbeat_timeout = False
     local packet_prepare_timeout = False
+    local motion_frame_consumed = False
     if not packet_torn and packet_new:
       acquisition_last_packet_sequence = packet_sequence
       acquisition_held_ticks = 0
@@ -991,6 +992,10 @@ def build_formal_contact_acquisition_urscript(
       else:
         # The cruise command is exactly 0.5 mm/s in base -Z.
         speedl([0.0, 0.0, -0.0005, 0.0, 0.0, 0.0], a=acquisition_acceleration_m_s2, t=acquisition_control_period_s)
+        # speedl(t=control_period) already consumes this controller frame.
+        # Adding an extra sync here inserts a zero-command gap and repeatedly resets
+        # the 0.010 m/s^2 ramp before it can reach the frozen cruise speed.
+        motion_frame_consumed = True
       end
     elif acquisition_state == 2 or acquisition_state == 3:
       acquisition_state = 3
@@ -1018,7 +1023,9 @@ def build_formal_contact_acquisition_urscript(
     write_output_integer_register(31, acquisition_latched_by_host)
     acquisition_sequence = packet_sequence
     acquisition_last_pose = actual_pose
-    sync()
+    if not motion_frame_consumed:
+      sync()
+    end
   end
   write_output_integer_register(24, acquisition_state)
   write_output_integer_register(25, acquisition_sequence)
@@ -1062,6 +1069,9 @@ def parse_formal_contact_acquisition_urscript(source: str) -> None:
         "acquisition_handoff_ack = 0",
         "acquisition_latched_by_host = 1",
         "acquisition_handoff_ack = 1",
+        "motion_frame_consumed = False",
+        "motion_frame_consumed = True",
+        "if not motion_frame_consumed:",
         "speedl([0.0, 0.0, -0.0005, 0.0, 0.0, 0.0],",
         "speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0],",
         "stopl(a=acquisition_deceleration_m_s2)",
