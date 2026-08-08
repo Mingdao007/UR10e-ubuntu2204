@@ -265,6 +265,60 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert source.count("sync()") == 4
 
 
+def test_receiver_held_payload_seqlock_is_transient_and_timeout_bounded() -> None:
+    source = build_live_receiver_source(
+        LiveTubeContract(
+            center_base_m=(0.4, 0.1, 0.03),
+            anchor_pose_base=(0.4, 0.1, 0.03, 3.14, 0.0, 0.0),
+            u_axis_base=(1.0, 0.0, 0.0),
+            v_axis_base=(0.0, 1.0, 0.0),
+            safe_u_half_width_m=0.01,
+            safe_v_half_width_m=0.01,
+            normal_half_width_m=0.002,
+            orientation_tolerance_rad=0.05,
+        )
+    )
+    parse_live_receiver_source(source)
+    held_start = source.index("      if held_packet:\n")
+    compare_start = source.index("        local compare_axis = 0\n", held_start)
+    compare_end = source.index(
+        "      else:\n        held_age_s = 0.0", compare_start
+    )
+    held_compare = source[compare_start:compare_end]
+    assert source.index("local held_payload_equal = True") < held_start
+    assert "held_payload_equal = False" in held_compare
+    assert "packet_ok = False" not in held_compare
+
+    incoherent_declaration = source.index(
+        "      local held_payload_incoherent = held_packet and not held_payload_equal\n"
+    )
+    reset = source.index(
+        "      if coherent and not held_payload_incoherent:\n",
+        incoherent_declaration,
+    )
+    transient = source.index(
+        "      if not coherent or held_payload_incoherent:\n",
+        reset,
+    )
+    timeout = source.index(
+        "if held_age_s > heartbeat_timeout_s or incoherent_age_s > heartbeat_timeout_s:",
+        transient,
+    )
+    packet_fault = source.index("      elif not packet_ok:\n", transient)
+    accept = source.index("        if new_packet:\n", packet_fault)
+    transient_region = source[transient:packet_fault]
+
+    assert reset < transient < timeout < packet_fault < accept
+    assert "incoherent_age_s = incoherent_age_s + control_dt_s" in transient_region
+    assert "sync()" in transient_region
+    assert "last_eq = eq" not in transient_region
+    assert "last_k = desired_k" not in transient_region
+    assert "last_guard_wrench = guard_wrench" not in transient_region
+    assert "last_raw_force = raw_force" not in transient_region
+    assert "if held_age_s > heartbeat_timeout_s:" in source
+    assert "if not new_packet and not held_packet:" in source
+
+
 def test_receiver_contact_guard_profile_is_explicit_50n_4nm() -> None:
     tube = LiveTubeContract(
         center_base_m=(0.4, 0.1, 0.03),

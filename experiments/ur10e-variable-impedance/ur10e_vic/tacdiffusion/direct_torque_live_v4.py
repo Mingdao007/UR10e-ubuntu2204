@@ -684,6 +684,7 @@ def build_live_receiver_source(
       local coherent = sequence_before == sequence_after and heartbeat == sequence_after
       local new_packet = sequence_after == last_sequence + 1
       local held_packet = last_sequence > 0 and sequence_after == last_sequence
+      local held_payload_equal = True
       local packet_ok = coherent and sequence_after > 0 and packet_lease > 0 and packet_episode > 0 and frame_token == wrench_frame_token
       if lease_id > 0 and packet_lease != lease_id:
         packet_ok = False
@@ -702,34 +703,35 @@ def build_live_receiver_source(
         local compare_axis = 0
         while compare_axis < 6:
           if eq[compare_axis] != last_eq[compare_axis]:
-            packet_ok = False
+            held_payload_equal = False
           end
           if desired_k[compare_axis] != last_k[compare_axis]:
-            packet_ok = False
+            held_payload_equal = False
           end
           if guard_wrench[compare_axis] != last_guard_wrench[compare_axis]:
-            packet_ok = False
+            held_payload_equal = False
           end
           if raw_force[compare_axis] != last_raw_force[compare_axis]:
-            packet_ok = False
+            held_payload_equal = False
           end
           compare_axis = compare_axis + 1
         end
         if model_sequence != last_model_sequence:
-          packet_ok = False
+          held_payload_equal = False
         end
         if model_period_us != last_model_period_us:
-          packet_ok = False
+          held_payload_equal = False
         end
         if model_mode != last_model_mode:
-          packet_ok = False
+          held_payload_equal = False
         end
         if model_timestamp_us != last_model_timestamp_us:
-          packet_ok = False
+          held_payload_equal = False
         end
       else:
         held_age_s = 0.0
       end
+      local held_payload_incoherent = held_packet and not held_payload_equal
       if model_mode == 0:
         if model_sequence != 0 or model_period_us != 0 or model_timestamp_us != 0:
           packet_ok = False
@@ -810,12 +812,12 @@ def build_live_receiver_source(
       if desired_orientation_norm > tube_orientation_tolerance_rad:
         packet_ok = False
       end
-      if coherent:
+      if coherent and not held_payload_incoherent:
         incoherent_age_s = 0.0
       end
-      if not coherent:
+      if not coherent or held_payload_incoherent:
         incoherent_age_s = incoherent_age_s + control_dt_s
-        if incoherent_age_s > heartbeat_timeout_s:
+        if held_age_s > heartbeat_timeout_s or incoherent_age_s > heartbeat_timeout_s:
           exit_fault = 5
           exit_reason = 5
           running = False
