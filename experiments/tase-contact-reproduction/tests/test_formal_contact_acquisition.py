@@ -174,6 +174,19 @@ def test_primary_barrier_is_inert_prepare_then_sequence_two_arms_motion() -> Non
     assert "formal_acquisition_ack_heartbeat_timeout" in source
 
 
+def test_generated_acquisition_closes_search_branch_before_stationary_elif() -> None:
+    source = build_formal_contact_acquisition_urscript(
+        ContactAcquisitionContractV1()
+    )
+    cruise = source.index(
+        "speedl([0.0, 0.0, -0.0005, 0.0, 0.0, 0.0],"
+    )
+    stationary = source.index(
+        "elif acquisition_state == 2 or acquisition_state == 3:"
+    )
+    assert "\n      end\n" in source[cruise:stationary]
+
+
 def test_live_acquisition_packet_flow_is_prepare_then_ack_paced_handoff(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

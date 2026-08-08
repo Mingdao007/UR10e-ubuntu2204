@@ -988,6 +988,7 @@ def build_formal_contact_acquisition_urscript(
       else:
         # The cruise command is exactly 0.5 mm/s in base -Z.
         speedl([0.0, 0.0, -0.0005, 0.0, 0.0, 0.0], a=acquisition_acceleration_m_s2, t=acquisition_control_period_s)
+      end
     elif acquisition_state == 2 or acquisition_state == 3:
       acquisition_state = 3
       local translation_speed = sqrt(actual_speed[0]*actual_speed[0] + actual_speed[1]*actual_speed[1] + actual_speed[2]*actual_speed[2])

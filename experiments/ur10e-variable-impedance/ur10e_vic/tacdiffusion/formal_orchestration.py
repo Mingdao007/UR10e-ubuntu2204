@@ -686,6 +686,11 @@ def classify_fault(error: BaseException | str) -> tuple[str, bool]:
     """Return stable fault class and whether an automatic retract is allowed."""
 
     text = str(error).lower()
+    # Diagnostic field names such as ``safety_mode`` must not turn a bounded
+    # PREPARE/compile timeout into a safety hard fault.  The controller safety
+    # transition paths have their own explicit error identities.
+    if "formal_acquisition_prepare_ack_timeout" in text:
+        return "recoverable_runtime", True
     hard_tokens = {
         "force_guard": (
             "force_guard",

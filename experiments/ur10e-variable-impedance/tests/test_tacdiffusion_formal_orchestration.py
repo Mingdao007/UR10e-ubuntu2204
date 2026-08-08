@@ -163,6 +163,9 @@ def test_campaign_ledger_rejects_tampering_and_hard_fault_latches(tmp_path: Path
 def test_fault_classification_denies_unsafe_auto_return() -> None:
     assert classify_fault("kunwei delivery watchdog expired") == ("sensor_fault", False)
     assert classify_fault("protective stop") == ("protective_stop", False)
+    assert classify_fault(
+        'formal_acquisition_prepare_ack_timeout:{"safety_mode":1}'
+    ) == ("recoverable_runtime", True)
     assert classify_fault("ordinary eligibility mismatch") == (
         "recoverable_runtime",
         True,
