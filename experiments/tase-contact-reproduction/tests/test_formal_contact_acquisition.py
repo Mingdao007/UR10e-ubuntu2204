@@ -725,8 +725,8 @@ def test_independent_resolver_binds_formal_identity_without_legacy_pointer() -> 
     resolved = resolve_formal_current_state(ROOT)
     assert resolved["ok"] is True
     assert resolved["lineage"] == "tacdiffusion_formal_v4"
-    assert resolved["current_stage_id"] == "formal_v4_fixed_k_campaign"
-    assert resolved["state"] == "SOURCE_READY_FIXED_K_LIVE_PREFLIGHT_REQUIRED"
+    assert resolved["current_stage_id"] == "formal_v4_no_contact_qualification"
+    assert resolved["state"] == "OFFLINE_READY_LIVE_QUALIFICATION_PENDING"
     assert resolved["live_ready"] is False
     assert '"config/current_stage.json"' not in inspect.getsource(resolve_formal_current_state)
 

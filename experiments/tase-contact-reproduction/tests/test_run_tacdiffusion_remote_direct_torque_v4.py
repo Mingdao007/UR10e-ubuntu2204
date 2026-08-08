@@ -523,6 +523,40 @@ def test_kunwei_contact_latch_advances_at_native_frame_cadence(tmp_path: Path) -
     assert capture.contact_latch_consecutive_samples == 50
 
 
+def test_kunwei_capture_accepts_exact_formal_50n_4nm_guard(tmp_path: Path) -> None:
+    calibration = {
+        "wrench_transform_sensor_to_tcp_6x6": [
+            [1.0 if row == column else 0.0 for column in range(6)]
+            for row in range(6)
+        ],
+        "normal_force_axis": "fz",
+        "normal_force_sign": -1.0,
+    }
+    capture = KunweiGuardCapture(
+        sensor_ip="127.0.0.1",
+        sensor_port=5152,
+        connect_timeout_s=0.1,
+        output_dir=tmp_path,
+        calibration=calibration,
+        delivery_watchdog_s=0.080,
+        active_force_limit_n=50.0,
+        active_torque_limit_nm=4.0,
+    )
+    assert capture.active_force_limit_n == 50.0
+    assert capture.active_torque_limit_nm == 4.0
+    with pytest.raises(ValueError, match="kunwei_active_guard_profile_invalid"):
+        KunweiGuardCapture(
+            sensor_ip="127.0.0.1",
+            sensor_port=5152,
+            connect_timeout_s=0.1,
+            output_dir=tmp_path,
+            calibration=calibration,
+            delivery_watchdog_s=0.080,
+            active_force_limit_n=49.0,
+            active_torque_limit_nm=4.0,
+        )
+
+
 def _bundle(tmp_path: Path):
     if not REFERENCE.is_file():
         pytest.skip("fresh passive reference is unavailable")

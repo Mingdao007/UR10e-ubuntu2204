@@ -1159,7 +1159,7 @@ class KunweiGuardCapture:
             raise ValueError("kunwei_delivery_watchdog_s_invalid")
         if (
             (self.active_force_limit_n, self.active_torque_limit_nm)
-            not in ((6.0, 0.5), (20.0, 2.0))
+            not in ((6.0, 0.5), (20.0, 2.0), (50.0, 4.0))
         ):
             raise ValueError("kunwei_active_guard_profile_invalid")
         if self.contact_latch_load_n is None:
