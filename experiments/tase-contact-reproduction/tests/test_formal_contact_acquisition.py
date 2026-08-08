@@ -126,6 +126,14 @@ def test_acquisition_urscript_is_bounded_and_has_no_forbidden_force_or_motion_ap
     assert "packet_gap_or_replay" in source
     assert "packet_heartbeat_timeout" in source
     assert "packet_prepare_timeout" in source
+    assert "local acquisition_latched_by_host = 0" in source
+    assert "local acquisition_handoff_ack = 0" in source
+    assert "acquisition_latched_by_host = 1" in source
+    assert "acquisition_handoff_ack = 1" in source
+    assert "acquisition_latched_by_host = False" not in source
+    assert "acquisition_handoff_ack = False" not in source
+    assert "acquisition_latched_by_host = True" not in source
+    assert "acquisition_handoff_ack = True" not in source
     assert "acquisition_braking_distance_m = 0.0000125000" in source
     assert "acquisition_deceleration_start_distance_m = 0.0249865000" in source
     assert source.count("stopl(a=acquisition_deceleration_m_s2)") >= 9
@@ -713,8 +721,8 @@ def test_independent_resolver_binds_formal_identity_without_legacy_pointer() -> 
     resolved = resolve_formal_current_state(ROOT)
     assert resolved["ok"] is True
     assert resolved["lineage"] == "tacdiffusion_formal_v4"
-    assert resolved["current_stage_id"] == "formal_v4_no_contact_qualification"
-    assert resolved["state"] == "OFFLINE_READY_LIVE_QUALIFICATION_PENDING"
+    assert resolved["current_stage_id"] == "formal_v4_fixed_k_campaign"
+    assert resolved["state"] == "SOURCE_READY_FIXED_K_LIVE_PREFLIGHT_REQUIRED"
     assert resolved["live_ready"] is False
     assert '"config/current_stage.json"' not in inspect.getsource(resolve_formal_current_state)
 

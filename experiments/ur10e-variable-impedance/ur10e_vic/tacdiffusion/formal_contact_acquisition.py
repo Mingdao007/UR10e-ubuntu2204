@@ -851,8 +851,11 @@ def build_formal_contact_acquisition_urscript(
   local acquisition_entry_pose = get_actual_tcp_pose()
   local acquisition_last_pose = acquisition_entry_pose
   local acquisition_stationary_elapsed_s = 0.0
-  local acquisition_latched_by_host = False
-  local acquisition_handoff_ack = False
+  # These values are published through output_integer_registers.  UR 5.26
+  # rejects Bool payloads at runtime (type_not_int:Bool), so keep the wire
+  # representation integer-valued for the lifetime of the program.
+  local acquisition_latched_by_host = 0
+  local acquisition_handoff_ack = 0
 
   write_output_integer_register(24, acquisition_state)
   write_output_integer_register(25, acquisition_sequence)
@@ -974,7 +977,7 @@ def build_formal_contact_acquisition_urscript(
       acquisition_running = False
     elif packet_host_latch == 1 and acquisition_state == 1:
       # The host, not this controller, owns the Kunwei 1 N / 50-frame latch.
-      acquisition_latched_by_host = True
+      acquisition_latched_by_host = 1
       acquisition_state = 2
       speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], a=acquisition_deceleration_m_s2, t=acquisition_control_period_s)
       stopl(a=acquisition_deceleration_m_s2)
@@ -998,8 +1001,8 @@ def build_formal_contact_acquisition_urscript(
       else:
         acquisition_stationary_elapsed_s = 0.0
       end
-      if packet_handoff_ack == 1 and acquisition_latched_by_host and acquisition_stationary_elapsed_s >= 0.100:
-        acquisition_handoff_ack = True
+      if packet_handoff_ack == 1 and acquisition_latched_by_host == 1 and acquisition_stationary_elapsed_s >= 0.100:
+        acquisition_handoff_ack = 1
         acquisition_state = 4
         acquisition_last_pose = actual_pose
         acquisition_running = False
@@ -1055,6 +1058,10 @@ def parse_formal_contact_acquisition_urscript(source: str) -> None:
         "packet_heartbeat_timeout",
         "packet_prepare_timeout",
         "packet_host_latch == 1",
+        "acquisition_latched_by_host = 0",
+        "acquisition_handoff_ack = 0",
+        "acquisition_latched_by_host = 1",
+        "acquisition_handoff_ack = 1",
         "speedl([0.0, 0.0, -0.0005, 0.0, 0.0, 0.0],",
         "speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0],",
         "stopl(a=acquisition_deceleration_m_s2)",
