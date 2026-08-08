@@ -219,21 +219,69 @@ def test_kunwei_classifier_preserves_legitimate_frame_with_echo_prefix() -> None
     assert buffer == bytearray()
 
 
-def test_kunwei_classifier_aborts_ambiguous_echo_after_frame_boundary() -> None:
-    ambiguous = (
+def test_kunwei_classifier_uses_bounded_lookahead_for_boundary_frame_prefix() -> None:
+    frame = (
         bytes.fromhex("48 aa 0d 0a 80 3f")
         + b"\x00" * 20
         + b"\r\n"
     )
-    with pytest.raises(
-        RuntimeError,
-        match="kunwei_start_echo_ambiguous_with_complete_frame",
-    ):
-        pop_kunwei_frames_with_command_echo(
-            bytearray(ambiguous),
-            0x48,
-            at_frame_boundary=True,
-        )
+    buffer = bytearray(frame)
+
+    first_result = pop_kunwei_frames_with_command_echo(
+        buffer,
+        0x48,
+        at_frame_boundary=True,
+    )
+    assert first_result.frames == ()
+    assert first_result.command_echo_count == 0
+    assert first_result.dropped_sync_bytes == 0
+    assert first_result.at_frame_boundary is True
+    assert buffer == bytearray(frame)
+
+    buffer.extend(b"\x01\x02\x03")
+    short_lookahead_result = pop_kunwei_frames_with_command_echo(
+        buffer,
+        0x48,
+        command_echo_count=first_result.command_echo_count,
+        at_frame_boundary=first_result.at_frame_boundary,
+    )
+    assert short_lookahead_result.frames == ()
+    assert short_lookahead_result.command_echo_count == 0
+    assert short_lookahead_result.dropped_sync_bytes == 0
+    assert buffer == bytearray(frame + b"\x01\x02\x03")
+
+    buffer.extend(b"\x04")
+    result = pop_kunwei_frames_with_command_echo(
+        buffer,
+        0x48,
+        command_echo_count=short_lookahead_result.command_echo_count,
+        at_frame_boundary=short_lookahead_result.at_frame_boundary,
+    )
+
+    assert result.frames == (frame,)
+    assert result.command_echo_count == 0
+    assert result.dropped_sync_bytes == 0
+    assert result.at_frame_boundary is True
+    assert buffer == bytearray(b"\x01\x02\x03\x04")
+
+
+def test_kunwei_classifier_prefers_offset_four_frame_for_actual_echo() -> None:
+    frame = bytearray(_kunwei_test_frame(2.0))
+    # The combined echo+frame bytes at offset zero must also look framed.
+    frame[22:24] = b"\r\n"
+    buffer = bytearray(START_STREAM + frame)
+
+    result = pop_kunwei_frames_with_command_echo(
+        buffer,
+        0x48,
+        at_frame_boundary=True,
+    )
+
+    assert result.frames == (bytes(frame),)
+    assert result.command_echo_count == 1
+    assert result.dropped_sync_bytes == 0
+    assert result.at_frame_boundary is True
+    assert buffer == bytearray()
 
 
 def test_kunwei_classifier_preserves_late_frame_with_echo_prefix() -> None:

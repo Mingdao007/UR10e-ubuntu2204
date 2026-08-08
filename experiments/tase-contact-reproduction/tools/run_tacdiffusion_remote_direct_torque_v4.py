@@ -1047,13 +1047,35 @@ def pop_kunwei_frames_with_command_echo(
                 )
             ):
                 if complete_frame_candidate:
-                    raise RuntimeError(
-                        "kunwei_start_echo_ambiguous_with_complete_frame"
+                    lookahead_start = len(START_STREAM)
+                    if len(buffer) < lookahead_start + 28:
+                        # A complete frame at offset zero is not enough to
+                        # distinguish a measurement from an echoed command.
+                        # Keep it intact until the bounded offset-four probe
+                        # can inspect one complete candidate.
+                        break
+                    offset_frame_candidate = (
+                        buffer[lookahead_start] in (0x48, 0x49)
+                        and buffer[lookahead_start + 1] == 0xAA
+                        and (
+                            expected_start is None
+                            or buffer[lookahead_start] == expected_start
+                        )
+                        and buffer[
+                            lookahead_start + 26 : lookahead_start + 28
+                        ]
+                        == b"\r\n"
                     )
-                del buffer[: len(START_STREAM)]
-                command_echo_count = 1
-                boundary = True
-                continue
+                    if offset_frame_candidate:
+                        del buffer[:lookahead_start]
+                        command_echo_count = 1
+                        boundary = True
+                        continue
+                else:
+                    del buffer[: len(START_STREAM)]
+                    command_echo_count = 1
+                    boundary = True
+                    continue
             if command_echo_window_open:
                 if command_echo_count == 0 and complete_frame_candidate:
                     # At startup, a complete first measurement can have the
