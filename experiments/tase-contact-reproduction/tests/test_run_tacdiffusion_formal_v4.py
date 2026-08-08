@@ -121,6 +121,59 @@ def test_formal_manifest_source_hashes_are_complete_recorder_identity(
     assert recorder.sealer.semantic_context_fingerprint_sha256 == "a" * 64
 
 
+def test_formal_control_clock_is_bounded_by_arrival_and_host_processing() -> None:
+    selected = [
+        (
+            {
+                "controller_timestamp_s": 10.000,
+                "kunwei_batch_arrival_monotonic_s": 100.010,
+                "host_monotonic_s": 100.020,
+            },
+            None,
+        ),
+        (
+            {
+                "controller_timestamp_s": 10.004,
+                "kunwei_batch_arrival_monotonic_s": 100.012,
+                "host_monotonic_s": 100.024,
+            },
+            None,
+        ),
+    ]
+    clock, evidence = formal._build_formal_control_clock(selected)
+    first, _ = clock.control_time(10.000, 0.0)
+    second, _ = clock.control_time(10.004, 0.004)
+    assert first == pytest.approx(100.020)
+    assert second == pytest.approx(100.024)
+    assert second - first == pytest.approx(0.004)
+    assert evidence["method"] == (
+        "robot_grid_offset_bounded_by_kunwei_arrival_and_host_processing"
+    )
+
+
+def test_formal_control_clock_rejects_nonintersecting_bounds() -> None:
+    selected = [
+        (
+            {
+                "controller_timestamp_s": 10.000,
+                "kunwei_batch_arrival_monotonic_s": 100.010,
+                "host_monotonic_s": 100.011,
+            },
+            None,
+        ),
+        (
+            {
+                "controller_timestamp_s": 10.004,
+                "kunwei_batch_arrival_monotonic_s": 100.016,
+                "host_monotonic_s": 100.017,
+            },
+            None,
+        ),
+    ]
+    with pytest.raises(RuntimeError, match="bounds_do_not_intersect"):
+        formal._build_formal_control_clock(selected)
+
+
 def test_formal_tool_has_exactly_all_seven_families_and_no_model_active_path() -> None:
     source = Path(formal.__file__).read_text(encoding="utf-8")
     assert len(TRAJECTORY_FAMILIES) == 7

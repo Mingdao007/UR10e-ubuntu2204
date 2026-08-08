@@ -14,6 +14,23 @@ from .contracts import CONTROL_RATE_HZ, RAW_WRENCH_RATE_HZ
 HOST_BATCH_WATCHDOG_S = 0.080
 
 
+def _control_grid_gap_ticks(previous_s: float, current_s: float) -> int:
+    """Return the positive 500 Hz tick gap without inventing missing rows."""
+
+    delta = float(current_s) - float(previous_s)
+    if not math.isfinite(delta) or delta <= 0.0:
+        raise ValueError("control timestamps must be strictly monotonic")
+    gap = int(round(delta * CONTROL_RATE_HZ))
+    if gap < 1 or not math.isclose(
+        delta * CONTROL_RATE_HZ,
+        float(gap),
+        rel_tol=0.05,
+        abs_tol=CONTROL_RATE_HZ * 1e-9,
+    ):
+        raise ValueError("control timestamps must lie on a 500 Hz grid")
+    return gap
+
+
 def _array(values: Iterable[float], shape: tuple[int, ...], name: str) -> np.ndarray:
     result = np.asarray(tuple(values), dtype=float)
     if result.shape != shape:
@@ -227,23 +244,15 @@ def causal_sync_wrench_1khz_to_control_500hz(
     ticks = tuple(float(value) for value in control_timestamps_s)
     if not all(math.isfinite(value) and value >= 0.0 for value in ticks):
         raise ValueError("control timestamps must be finite and non-negative")
+    tick_gaps = [1]
     for index in range(1, len(ticks)):
-        delta = ticks[index] - ticks[index - 1]
-        if delta <= 0.0:
-            raise ValueError("control timestamps must be strictly monotonic")
-        if not math.isclose(
-            delta,
-            1.0 / CONTROL_RATE_HZ,
-            rel_tol=0.05,
-            abs_tol=1e-9,
-        ):
-            raise ValueError("control timestamps must describe a 500 Hz grid")
+        tick_gaps.append(_control_grid_gap_ticks(ticks[index - 1], ticks[index]))
 
     result: list[CausalWrenchAlignment] = []
     sample_index = -1
     previous_selected_sample_index: int | None = None
     held_ticks = 0
-    for tick in ticks:
+    for tick_index, tick in enumerate(ticks):
         def host_time(sample: CanonicalWrenchSample) -> float:
             # This fallback is intentionally restricted to the legacy all-v2
             # path.  New rows must carry an explicit host-visible clock.
@@ -262,7 +271,7 @@ def causal_sync_wrench_1khz_to_control_500hz(
             raise ValueError("causally available wrench sample is stale")
         selected_index = sample.sample_index
         external_hold = selected_index == previous_selected_sample_index
-        held_ticks = held_ticks + 1 if external_hold else 0
+        held_ticks = held_ticks + tick_gaps[tick_index] if external_hold else 0
         # A hold is a control-side diagnostic.  It does not infer a future
         # device sample or interpolate between device timestamps.
         device_age_samples = held_ticks * (RAW_WRENCH_RATE_HZ // CONTROL_RATE_HZ)

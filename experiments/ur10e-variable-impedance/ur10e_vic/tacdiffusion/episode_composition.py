@@ -33,6 +33,7 @@ from .signals import (
     CausalWrenchAlignment,
     CanonicalWrenchSample,
     HOST_BATCH_WATCHDOG_S,
+    _control_grid_gap_ticks,
     causal_sync_wrench_1khz_to_control_500hz,
     reconstruct_internal_wrench_from_previous_command,
 )
@@ -912,10 +913,15 @@ class CausalKunweiAlignmentAdapter:
         """
 
         control: float | None = None
+        control_tick_gap = 1
         try:
             control = float(control_timestamp_s)
             if not math.isfinite(control) or control < 0.0:
                 raise ValueError("control timestamp is invalid")
+            if self._last_control_timestamp_s is not None:
+                control_tick_gap = _control_grid_gap_ticks(
+                    self._last_control_timestamp_s, control
+                )
             if sample_index is None or batch_id is None or device_time_s is None or host_visible_time_s is None:
                 raise ValueError("Kunwei source lineage is incomplete")
             sample_value = int(sample_index)
@@ -977,7 +983,9 @@ class CausalKunweiAlignmentAdapter:
                 expected_calibration_sha256=self.calibration_sha256,
                 max_host_age_s=self.max_host_age_s,
             )[-1]
-            self._held_ticks = self._held_ticks + 1 if not new_sample else 0
+            self._held_ticks = (
+                self._held_ticks + control_tick_gap if not new_sample else 0
+            )
             alignment = replace(
                 alignment,
                 external_hold=not new_sample,
@@ -995,18 +1003,13 @@ class CausalKunweiAlignmentAdapter:
             # 500 Hz control tick elapsed. Advancing only a valid next tick
             # lets later rows remain diagnostically aligned while the episode
             # fault above stays latched and prevents a false all-valid claim.
-            if (
-                control is not None
-                and math.isfinite(control)
-                and self._last_control_timestamp_s is not None
-                and math.isclose(
-                    control - self._last_control_timestamp_s,
-                    1.0 / CONTROL_RATE_HZ,
-                    rel_tol=0.05,
-                    abs_tol=1e-9,
-                )
-            ):
-                self._last_control_timestamp_s = control
+            if control is not None and self._last_control_timestamp_s is not None:
+                try:
+                    _control_grid_gap_ticks(self._last_control_timestamp_s, control)
+                except ValueError:
+                    pass
+                else:
+                    self._last_control_timestamp_s = control
             return None
         if new_sample:
             self._sample_count += 1

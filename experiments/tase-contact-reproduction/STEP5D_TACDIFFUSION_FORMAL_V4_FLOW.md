@@ -55,6 +55,12 @@ phases:
    previous applied command for one controller tick; it never becomes a new
    action, and persistent incoherence still faults at the unchanged `80 ms`
    heartbeat deadline.
+   Formal post-run composition retains the robot's real 500 Hz timestamp grid,
+   including integer-tick gaps for explicitly rejected torn rows.  Every kept
+   tick is clock-bounded after its Kunwei batch arrival and at or before that
+   row's captured host-monotonic processing time within a recorded `0.1 ms`
+   clock-fit tolerance; a larger non-intersection or any causal-alignment fault
+   makes the attempt ineligible.
 
 No sensor, guard, protective-stop, Safety, joint, or route fault performs an
 automatic retract or return. A no-contact search exhaustion is a separate

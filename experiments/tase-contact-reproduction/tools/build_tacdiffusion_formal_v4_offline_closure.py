@@ -35,6 +35,8 @@ PINNED_PATHS = (
     "experiments/ur10e-variable-impedance/config/tacdiffusion_formal_v4_equipment_contract.json",
     "experiments/ur10e-variable-impedance/config/tacdiffusion_formal_v4_review_governance.json",
     "experiments/ur10e-variable-impedance/tests/test_direct_torque_live_v4.py",
+    "experiments/ur10e-variable-impedance/tests/test_tacdiffusion_core.py",
+    "experiments/ur10e-variable-impedance/tests/test_tacdiffusion_episode_composition.py",
     "experiments/ur10e-variable-impedance/tests/test_tacdiffusion_formal_orchestration.py",
     "experiments/ur10e-variable-impedance/tests/test_tacdiffusion_formal_v4.py",
     "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/__init__.py",
@@ -43,6 +45,7 @@ PINNED_PATHS = (
     "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/direct_torque_live_v4.py",
     "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/eligibility.py",
     "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/episode_recorder.py",
+    "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/episode_composition.py",
     "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/expert.py",
     "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/formal_artifacts.py",
     "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/formal_benchmark.py",
@@ -59,6 +62,7 @@ PINNED_PATHS = (
     "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/formal_timing.py",
     "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/formal_trajectory.py",
     "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/governance.py",
+    "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/signals.py",
 )
 
 

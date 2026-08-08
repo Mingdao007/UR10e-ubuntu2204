@@ -196,6 +196,32 @@ class TacDiffusionSignalTests(unittest.TestCase):
                 expected_calibration_sha256="a" * 64,
             )
 
+    def test_causal_sync_accepts_only_integer_500hz_tick_gaps(self) -> None:
+        samples = tuple(
+            CanonicalWrenchSample(
+                sequence=index,
+                timestamp_s=index / 1000.0,
+                wrench_tcp_si=(index,) * 6,
+                frame_id="tcp",
+                calibration_sha256="a" * 64,
+            )
+            for index in range(8)
+        )
+        aligned = causal_sync_wrench_1khz_to_control_500hz(
+            samples,
+            (0.0005, 0.0045, 0.0065),
+            expected_frame_id="tcp",
+            expected_calibration_sha256="a" * 64,
+        )
+        self.assertEqual([item.source_sequence for item in aligned], [0, 4, 6])
+        with self.assertRaisesRegex(ValueError, "500 Hz grid"):
+            causal_sync_wrench_1khz_to_control_500hz(
+                samples,
+                (0.0005, 0.0035),
+                expected_frame_id="tcp",
+                expected_calibration_sha256="a" * 64,
+            )
+
     def test_internal_wrench_uses_previous_command_and_dynamics_only(self) -> None:
         target_wrench = np.arange(1.0, 7.0)
         coriolis = np.full(6, 0.2)

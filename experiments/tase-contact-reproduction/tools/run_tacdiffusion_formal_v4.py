@@ -124,6 +124,7 @@ CAMPAIGN_CONTRACT_PATH = (
 FORMAL_ROBOT_HOST = "192.168.1.18"
 FORMAL_SENSOR_IP = "192.168.50.25"
 FORMAL_SENSOR_PORT = 5152
+FORMAL_CONTROL_CLOCK_FIT_TOLERANCE_S = 0.0001
 
 
 def _parse_exact_sensor_delivery_watchdog(value: str) -> float:
@@ -311,6 +312,14 @@ def run_promote_qualification(args: argparse.Namespace) -> dict[str, Any]:
     return {"ok": True, "resolver": resolved}
 
 
+FORMAL_QUALIFICATION_INVALIDATION_REASONS_V1 = frozenset(
+    {
+        "source_changed_after_contact_acceptance_repair",
+        "source_changed_after_bounded_formal_control_clock_repair",
+    }
+)
+
+
 def run_invalidate_qualification(args: argparse.Namespace) -> dict[str, Any]:
     """Return to qualification after an accepted source identity changes."""
 
@@ -319,7 +328,7 @@ def run_invalidate_qualification(args: argparse.Namespace) -> dict[str, Any]:
         raise RuntimeError(f"formal_identity_blocked:{identity.get('blockers')}")
     if identity.get("current_stage_id") != "formal_v4_fixed_k_campaign":
         raise RuntimeError("formal_qualification_invalidation_stage_mismatch")
-    if args.reason != "source_changed_after_contact_acceptance_repair":
+    if args.reason not in FORMAL_QUALIFICATION_INVALIDATION_REASONS_V1:
         raise ValueError("formal_qualification_invalidation_reason_not_accepted")
     current_path = ROOT / "config" / "tacdiffusion_formal_v4_current_stage.json"
     table_path = ROOT / "config" / "tacdiffusion_formal_v4_stage_table.json"
@@ -461,6 +470,58 @@ def _formal_recorder_metadata(
         },
         "raw_rtde_csv": "direct_torque_rtde.csv",
         "row_selection": dict(row_selection),
+    }
+
+
+def _build_formal_control_clock(
+    selected_rows: Sequence[tuple[Mapping[str, Any], Mapping[str, Any] | None]],
+) -> tuple[legacy.RecorderControlClock, dict[str, Any]]:
+    """Bind the robot 500 Hz grid between sensor arrival and host processing."""
+
+    if not selected_rows:
+        raise RuntimeError("formal_control_clock_rows_missing")
+    lower_bounds: list[float] = []
+    upper_bounds: list[float] = []
+    for row, _previous_runtime_row in selected_rows:
+        try:
+            controller = float(row["controller_timestamp_s"])
+            sensor_arrival = float(row["kunwei_batch_arrival_monotonic_s"])
+            host_processing = float(row["host_monotonic_s"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RuntimeError("formal_control_clock_evidence_missing") from exc
+        if not all(
+            math.isfinite(value)
+            for value in (controller, sensor_arrival, host_processing)
+        ):
+            raise RuntimeError("formal_control_clock_evidence_nonfinite")
+        if sensor_arrival > host_processing + 1e-12:
+            raise RuntimeError("formal_control_clock_sensor_arrival_after_host_processing")
+        lower_bounds.append(sensor_arrival - controller)
+        upper_bounds.append(host_processing - controller)
+    lower = max(lower_bounds)
+    upper = min(upper_bounds)
+    fit_tolerance_s = FORMAL_CONTROL_CLOCK_FIT_TOLERANCE_S
+    if lower > upper + fit_tolerance_s:
+        raise RuntimeError("formal_control_clock_bounds_do_not_intersect")
+    # Prefer the latest admissible offset so host-age evidence is
+    # conservative.  When host/controller timestamp quantization leaves a
+    # sub-0.1 ms overlap deficit, keep sensor causality exact and record that
+    # bounded host-processing fit uncertainty explicitly.
+    offset = max(lower, upper)
+    first_controller = float(selected_rows[0][0]["controller_timestamp_s"])
+    clock = legacy.RecorderControlClock(
+        host_anchor_s=first_controller + offset,
+    )
+    return clock, {
+        "schema_version": "ur10e_tacdiffusion_formal_control_clock/v1",
+        "method": "robot_grid_offset_bounded_by_kunwei_arrival_and_host_processing",
+        "offset_lower_bound_s": lower,
+        "offset_upper_bound_s": upper,
+        "selected_offset_s": offset,
+        "bound_width_s": upper - lower,
+        "fit_tolerance_s": fit_tolerance_s,
+        "host_processing_bound_max_excess_s": max(0.0, lower - upper),
+        "row_count": len(selected_rows),
     }
 
 
@@ -1377,12 +1438,14 @@ def _run_contact_attempt_locked(
                     tube.assert_contains_pose(last_actual_pose, role="actual")
                     ack = int(sample["output_int_register_25"])
                     acked = lineages.get(ack)
+                    row_host_monotonic_s = time.monotonic()
                     row = legacy._output_row(
                         sample,
-                        time.monotonic() - start_s,
+                        row_host_monotonic_s - start_s,
                         outgoing=outgoing.lineage,
                         acked=acked,
                     )
+                    row["host_monotonic_s"] = row_host_monotonic_s
                     _annotate_contact_row(row, command_metadata.get(ack))
                     rows.append(row)
                     if state == legacy.STATE_COMPLETE:
@@ -2373,11 +2436,9 @@ def _compose_formal_artifact(
         semantic_context_fingerprint_sha256=semantic_fingerprint_sha256,
         dynamics_runtime=dynamics_runtime,
     )
-    first_host = min(
-        float(row["kunwei_batch_arrival_monotonic_s"])
-        for row, _previous_runtime_row in selected_rows
-    )
-    control_clock = legacy.RecorderControlClock(host_anchor_s=first_host)
+    control_clock, control_clock_evidence = _build_formal_control_clock(selected_rows)
+    row_selection["control_clock"] = control_clock_evidence
+    first_host = control_clock.host_anchor_s
     observation_history = legacy.RecorderObservationHistory()
     alignment = legacy.CausalKunweiAlignmentAdapter(
         expected_frame_id="tool0_tcp",
@@ -2458,6 +2519,8 @@ def _compose_formal_artifact(
             # producer watchdog here misclassifies that active write as a
             # stall.  Enqueue remains bounded/fail-closed, and close(), the
             # cold-read validator, and final recorder health are authoritative.
+        if alignment.fault is not None:
+            raise RuntimeError(f"formal_causal_alignment_fault:{alignment.fault}")
     finally:
         recorder.close(seal=True)
     validate_formal_episode_artifact(recorder.artifact_path, recorder.manifest_path)

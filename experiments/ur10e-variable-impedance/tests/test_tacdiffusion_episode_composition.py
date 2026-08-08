@@ -307,6 +307,46 @@ def test_causal_adapter_reports_repeated_batch_hold_and_real_ages() -> None:
     assert adapter.last_error is None
 
 
+def test_causal_adapter_preserves_sparse_grid_time_and_counts_skipped_ticks() -> None:
+    adapter = CausalKunweiAlignmentAdapter(
+        expected_frame_id="tool0_tcp",
+        calibration_sha256=SHA,
+    )
+    assert adapter.align(
+        control_timestamp_s=100.000,
+        device_time_s=10.000,
+        host_visible_time_s=100.000,
+        batch_id=7,
+        sample_index=0,
+        source_sequence=0,
+        wrench_tcp_si=(0.0,) * 6,
+    ) is not None
+    held = adapter.align(
+        control_timestamp_s=100.004,
+        device_time_s=10.000,
+        host_visible_time_s=100.000,
+        batch_id=7,
+        sample_index=0,
+        source_sequence=0,
+        wrench_tcp_si=(0.0,) * 6,
+    )
+    assert held is not None
+    assert held.control_timestamp_s == pytest.approx(100.004)
+    assert held.external_held_ticks == 2
+    assert held.device_age_samples == 4
+    assert adapter.align(
+        control_timestamp_s=100.007,
+        device_time_s=10.001,
+        host_visible_time_s=100.007,
+        batch_id=8,
+        sample_index=1,
+        source_sequence=1,
+        wrench_tcp_si=(1.0,) * 6,
+    ) is None
+    assert adapter.fault is not None
+    assert "500 Hz grid" in adapter.fault
+
+
 def test_causal_adapter_keeps_the_accepted_join_bounded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
