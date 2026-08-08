@@ -30,6 +30,9 @@ R009_BEHAVIOR_MANIFEST_SCHEMA = "step5d.autotune-v4/r009-behavior-manifest-v1"
 R009_SOURCE_SET_SCHEMA = "step5d.autotune-v4/r009-source-set-v1"
 R009_CONTACT_SEARCH_SCHEMA = "step5d.autotune-v4/r009-contact-search-schedule-v1"
 R009_EXECUTABLE_CONFIG_SCHEMA = "step5d.autotune-v4/r009-executable-behavior-v1"
+R009_OBSERVABILITY_CONFIG_SCHEMA = "step5d.autotune-v4/r009-observability-v1"
+R009_OBSERVABILITY_VERSION = "r009-observability-v1"
+R009_OBSERVABILITY_TTL_FORMULA = "max(3*poll_interval_s,5.0)"
 R009_RELEASE_IDENTITY_SCHEMA = "step5d.autotune-v4/r009-release-identity-v1"
 R009_BEHAVIOR_VERSION = "r009-v1"
 R009_RAW_CODEC = "r009raw_v1"
@@ -88,6 +91,26 @@ DEFAULT_EXECUTABLE_BEHAVIOR_CONFIG: dict[str, Any] = {
         "physical_inflight_max": 1,
         "cuda_required": True,
         "degraded_fallback": False,
+        "observability": {
+            "schema": R009_OBSERVABILITY_CONFIG_SCHEMA,
+            "version": R009_OBSERVABILITY_VERSION,
+            "hot_path_hz": 500,
+            "retention_s": 5.0,
+            "ring_capacity_rows": 2500,
+            "disk_sample_hz": 25,
+            "queue_max_rows": 2048,
+            "batch_max_rows": 128,
+            "batch_max_wait_s": 0.02,
+            "attempt_cap_bytes": 2 * 1024 * 1024,
+            "run_cap_bytes": 512 * 1024 * 1024,
+            "stop_tail_rows": 100,
+            "observer_poll_interval_s": 0.2,
+            "freshness_ttl_formula": R009_OBSERVABILITY_TTL_FORMULA,
+            "stop_states": [90],
+            "state20_filename": "r009-state20-observability.jsonl",
+            "state25_filename": "r009-state25-observability.jsonl",
+            "audit_schema": "step5d.autotune-v4/r009-observability-audit-v1",
+        },
     },
 }
 
@@ -399,6 +422,184 @@ class ContactSearchSchedule:
 
 
 @dataclass(frozen=True)
+class R009ObservabilityConfig:
+    """Typed, bounded R009 observability behavior parameters.
+
+    The values are deliberately part of the executable behavior config rather
+    than module-level runtime knobs.  A session must receive this typed value,
+    so changing a retention, sampling, queue, budget, or freshness default
+    changes the R009 behavior manifest identity.
+    """
+
+    raw: Mapping[str, Any]
+
+    def __post_init__(self) -> None:
+        document = _strict_json_copy(self.raw, "R009 observability config")
+        if not isinstance(document, dict):
+            raise R009IdentityError("R009 observability config must be an object")
+        required = {
+            "schema",
+            "version",
+            "hot_path_hz",
+            "retention_s",
+            "ring_capacity_rows",
+            "disk_sample_hz",
+            "queue_max_rows",
+            "batch_max_rows",
+            "batch_max_wait_s",
+            "attempt_cap_bytes",
+            "run_cap_bytes",
+            "stop_tail_rows",
+            "observer_poll_interval_s",
+            "freshness_ttl_formula",
+            "stop_states",
+            "state20_filename",
+            "state25_filename",
+            "audit_schema",
+        }
+        if set(document) != required:
+            raise R009IdentityError("R009 observability config fields differ")
+        if document.get("schema") != R009_OBSERVABILITY_CONFIG_SCHEMA:
+            raise R009IdentityError("R009 observability config schema differs")
+        if document.get("version") != R009_OBSERVABILITY_VERSION:
+            raise R009IdentityError("R009 observability config version differs")
+        if document.get("freshness_ttl_formula") != R009_OBSERVABILITY_TTL_FORMULA:
+            raise R009IdentityError("R009 freshness TTL formula differs")
+
+        def positive_int(value: Any, role: str) -> int:
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise R009IdentityError(f"{role} must be a positive int")
+            return int(value)
+
+        def positive_float(value: Any, role: str) -> float:
+            number = _finite(value, role)
+            if number <= 0.0:
+                raise R009IdentityError(f"{role} must be positive")
+            return number
+
+        hot_path_hz = positive_int(document["hot_path_hz"], "R009 hot_path_hz")
+        retention_s = positive_float(document["retention_s"], "R009 retention_s")
+        ring_capacity = positive_int(
+            document["ring_capacity_rows"], "R009 ring_capacity_rows"
+        )
+        disk_sample_hz = positive_int(
+            document["disk_sample_hz"], "R009 disk_sample_hz"
+        )
+        if disk_sample_hz > hot_path_hz or hot_path_hz % disk_sample_hz:
+            raise R009IdentityError(
+                "R009 disk_sample_hz must divide hot_path_hz and not exceed it"
+            )
+        queue_max = positive_int(document["queue_max_rows"], "R009 queue_max_rows")
+        batch_max = positive_int(document["batch_max_rows"], "R009 batch_max_rows")
+        positive_float(document["batch_max_wait_s"], "R009 batch_max_wait_s")
+        attempt_cap = positive_int(
+            document["attempt_cap_bytes"], "R009 attempt_cap_bytes"
+        )
+        run_cap = positive_int(document["run_cap_bytes"], "R009 run_cap_bytes")
+        if attempt_cap > run_cap:
+            raise R009IdentityError("R009 attempt cap cannot exceed run cap")
+        positive_int(document["stop_tail_rows"], "R009 stop_tail_rows")
+        positive_float(
+            document["observer_poll_interval_s"], "R009 observer_poll_interval_s"
+        )
+        states = document["stop_states"]
+        if not isinstance(states, list) or not states:
+            raise R009IdentityError("R009 stop_states must be a non-empty list")
+        normalized_states: list[int] = []
+        for state in states:
+            if isinstance(state, bool) or not isinstance(state, int) or state < 0:
+                raise R009IdentityError("R009 stop_states must contain non-negative ints")
+            normalized_states.append(int(state))
+        if len(set(normalized_states)) != len(normalized_states):
+            raise R009IdentityError("R009 stop_states must be unique")
+        for field in ("state20_filename", "state25_filename", "audit_schema"):
+            if field == "audit_schema":
+                _nonempty_text(document[field], f"R009 {field}")
+            else:
+                _safe_relative_path(document[field], f"R009 {field}")
+
+        # Keep the checked values canonical while preserving the exact
+        # user-supplied JSON tree for identity hashing.
+        _ = retention_s, ring_capacity, queue_max, batch_max
+        object.__setattr__(self, "raw", _freeze_json(document))
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "R009ObservabilityConfig":
+        return cls(raw=value)
+
+    @property
+    def schema(self) -> str:
+        return str(self.raw["schema"])
+
+    @property
+    def version(self) -> str:
+        return str(self.raw["version"])
+
+    @property
+    def hot_path_hz(self) -> int:
+        return int(self.raw["hot_path_hz"])
+
+    @property
+    def retention_s(self) -> float:
+        return float(self.raw["retention_s"])
+
+    @property
+    def ring_capacity_rows(self) -> int:
+        return int(self.raw["ring_capacity_rows"])
+
+    @property
+    def disk_sample_hz(self) -> int:
+        return int(self.raw["disk_sample_hz"])
+
+    @property
+    def queue_max_rows(self) -> int:
+        return int(self.raw["queue_max_rows"])
+
+    @property
+    def batch_max_rows(self) -> int:
+        return int(self.raw["batch_max_rows"])
+
+    @property
+    def batch_max_wait_s(self) -> float:
+        return float(self.raw["batch_max_wait_s"])
+
+    @property
+    def attempt_cap_bytes(self) -> int:
+        return int(self.raw["attempt_cap_bytes"])
+
+    @property
+    def run_cap_bytes(self) -> int:
+        return int(self.raw["run_cap_bytes"])
+
+    @property
+    def stop_tail_rows(self) -> int:
+        return int(self.raw["stop_tail_rows"])
+
+    @property
+    def observer_poll_interval_s(self) -> float:
+        return float(self.raw["observer_poll_interval_s"])
+
+    @property
+    def stop_states(self) -> tuple[int, ...]:
+        return tuple(int(value) for value in self.raw["stop_states"])
+
+    @property
+    def state20_filename(self) -> str:
+        return str(self.raw["state20_filename"])
+
+    @property
+    def state25_filename(self) -> str:
+        return str(self.raw["state25_filename"])
+
+    @property
+    def audit_schema(self) -> str:
+        return str(self.raw["audit_schema"])
+
+    def as_dict(self) -> dict[str, Any]:
+        return _thaw_json(self.raw)
+
+
+@dataclass(frozen=True)
 class ExecutableBehaviorConfig:
     """Typed executable behavior configuration bound into the manifest."""
 
@@ -413,6 +614,11 @@ class ExecutableBehaviorConfig:
         _nonempty_text(document.get("version"), "executable behavior version")
         if not isinstance(document.get("values"), dict) or not document["values"]:
             raise R009IdentityError("executable behavior values are missing")
+        if "observability" not in document["values"]:
+            raise R009IdentityError(
+                "R009 executable behavior config lacks observability values"
+            )
+        R009ObservabilityConfig.from_mapping(document["values"]["observability"])
         object.__setattr__(self, "raw", _freeze_json(document))
 
     @classmethod
@@ -421,6 +627,10 @@ class ExecutableBehaviorConfig:
 
     def as_dict(self) -> dict[str, Any]:
         return _thaw_json(self.raw)
+
+    @property
+    def observability(self) -> R009ObservabilityConfig:
+        return R009ObservabilityConfig.from_mapping(self.raw["values"]["observability"])
 
 
 @dataclass(frozen=True)
@@ -576,6 +786,8 @@ def default_source_set(root: Path = ROOT) -> R009SourceSet:
         "tools/step5d_autotune_v4_r009/transport.py",
         "tools/step5d_autotune_v4_r009/fake_rtde.py",
         "tools/step5d_autotune_v4_r009/diagnostics.py",
+        "tools/step5d_autotune_v4_r009/observability.py",
+        "tools/step5d_autotune_v4_r009/observer.py",
         "tools/step5d_autotune_v4_r009/tp.py",
         "tools/build_step5d_autotune_v4_r009.py",
         "tools/run_step5d_autotune_v4_r008.py",
@@ -588,6 +800,7 @@ def default_source_set(root: Path = ROOT) -> R009SourceSet:
         "config/schemas/step5d_autotune_v4_r009_reason43_runtime_protocol.schema.json",
         "tests/test_step5d_autotune_v4_r009_identity_quarantine.py",
         "tests/test_step5d_autotune_v4_r009_reason43_runtime_protocol.py",
+        "tests/test_step5d_autotune_v4_r009_observability.py",
     )
     return R009SourceSet.from_files(root, paths)
 
@@ -869,6 +1082,10 @@ __all__ = [
     "DEFAULT_CONTROLLER_TRIPLET_SHA256",
     "DEFAULT_EXECUTABLE_BEHAVIOR_CONFIG",
     "ExecutableBehaviorConfig",
+    "R009ObservabilityConfig",
+    "R009_OBSERVABILITY_CONFIG_SCHEMA",
+    "R009_OBSERVABILITY_TTL_FORMULA",
+    "R009_OBSERVABILITY_VERSION",
     "R009BehaviorManifest",
     "R009BehaviorManifestError",
     "R009_BEHAVIOR_MANIFEST_SCHEMA",
