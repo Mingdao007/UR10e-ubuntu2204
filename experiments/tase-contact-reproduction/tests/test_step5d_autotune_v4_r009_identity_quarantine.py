@@ -274,7 +274,21 @@ def test_formal_r008_entrypoints_have_no_probe_bypass_and_fail_closed_before_liv
             and isinstance(function.body[0].value, ast.Constant)
             and isinstance(function.body[0].value.value, str)
         ), f"{path} formal entrypoint must start with a docstring"
-        guard_statement = function.body[1]
+        guard_index = next(
+            (
+                index
+                for index, statement in enumerate(function.body[1:], start=1)
+                if (
+                    isinstance(statement, ast.Expr)
+                    and isinstance(statement.value, ast.Call)
+                    and isinstance(statement.value.func, ast.Name)
+                    and statement.value.func.id == "reject_r008_formal_resume"
+                )
+            ),
+            None,
+        )
+        assert guard_index is not None, f"{path} formal entrypoint guard is missing"
+        guard_statement = function.body[guard_index]
         assert (
             isinstance(guard_statement, ast.Expr)
             and isinstance(guard_statement.value, ast.Call)
@@ -301,7 +315,7 @@ def test_formal_r008_entrypoints_have_no_probe_bypass_and_fail_closed_before_liv
                 and node.func.value.id == "os"
                 and node.func.attr in {"environ", "getenv"}
             )
-            for statement in function.body[:1]
+            for statement in function.body[:guard_index]
             for node in ast.walk(statement)
         )
         function_start = source.index(f"def {function_name}(")
@@ -338,6 +352,7 @@ def test_formal_r008_entrypoints_have_no_probe_bypass_and_fail_closed_before_liv
 
 
 def test_v3_current_metadata_is_byte_identical_to_checkpoint() -> None:
+    expected_sha256 = "646edefaf6fbbd76b0cbfe86bc00b5d8ac26b787231f9ac345425256bbc78f5e"
     for relative in ("config/step5d/current.json",):
         path = ROOT / relative
         repo_relative = Path("experiments/tase-contact-reproduction") / relative
@@ -345,3 +360,4 @@ def test_v3_current_metadata_is_byte_identical_to_checkpoint() -> None:
             ["git", "show", f"HEAD:{repo_relative.as_posix()}"], cwd=ROOT.parent.parent
         )
         assert path.read_bytes() == checkpoint
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == expected_sha256

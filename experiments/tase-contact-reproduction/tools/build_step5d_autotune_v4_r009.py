@@ -9,7 +9,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, Sequence
 
 from step5d_autotune_v4_r009.contracts import (
     DEFAULT_CONTRACT_PATH,
@@ -70,6 +70,27 @@ class R009BuilderError(RuntimeError):
     """The offline R009 builder cannot prove a complete identity closure."""
 
 
+class R009RollbackError(R009BuilderError):
+    """A failed commit whose rollback could not restore every target."""
+
+    def __init__(
+        self,
+        original_error: BaseException,
+        failures: Sequence[tuple[Path, OSError]],
+    ) -> None:
+        self.original_error = original_error
+        self.unrecovered_targets = tuple(path for path, _ in failures)
+        details = "; ".join(
+            f"{path}: {str(error)[:160]}" for path, error in failures[:32]
+        )
+        if len(failures) > 32:
+            details += f"; ... {len(failures) - 32} more"
+        super().__init__(
+            "R009 atomic persist commit failed and rollback was incomplete; "
+            f"unrecovered targets: {details}"
+        )
+
+
 def _manifest_from_input(identity_input: Any) -> R009BehaviorManifest:
     if isinstance(identity_input, R009BehaviorManifest):
         return identity_input
@@ -96,6 +117,21 @@ def _absolute_path(path: Path) -> Path:
     return Path(os.path.abspath(path if path.is_absolute() else Path.cwd() / path))
 
 
+def _reject_lexical_symlink_ancestors(path: Path, role: str) -> Path:
+    """Reject symlinks before any resolved-path operation is attempted."""
+
+    absolute = _absolute_path(Path(path))
+    current = absolute
+    while True:
+        if current.is_symlink():
+            raise R009BuilderError(f"R009 {role} has a symlink ancestor: {current}")
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return absolute
+
+
 def _safe_target_path(
     release_root: Path,
     path: Path,
@@ -105,23 +141,20 @@ def _safe_target_path(
 ) -> Path:
     """Return a release-root path after checking every existing ancestor."""
 
-    root = Path(release_root).resolve()
-    if root.is_symlink():
-        raise R009BuilderError(f"R009 {role} release root is a symlink")
+    root = _reject_lexical_symlink_ancestors(
+        Path(release_root), f"{role} release root"
+    )
     candidate = _absolute_path(Path(path))
+    _reject_lexical_symlink_ancestors(candidate, role)
     try:
         relative = candidate.relative_to(root)
     except ValueError as exc:
         raise R009BuilderError(f"R009 {role} path escapes release_root") from exc
 
-    current = root
-    for part in relative.parts:
-        current = current / part
-        if current.is_symlink():
-            raise R009BuilderError(f"R009 {role} path has a symlink ancestor")
+    resolved_root = root.resolve(strict=False)
     resolved = candidate.resolve(strict=False)
     try:
-        resolved.relative_to(root)
+        resolved.relative_to(resolved_root)
     except ValueError as exc:
         raise R009BuilderError(f"R009 {role} path escapes release_root") from exc
     if candidate.exists():
@@ -145,7 +178,7 @@ def _relative_to_root(
         role,
         require_file=require_file,
     )
-    return candidate.relative_to(Path(release_root).resolve()).as_posix()
+    return candidate.relative_to(_absolute_path(Path(release_root))).as_posix()
 
 
 def _safe_existing_file(path: Path, role: str) -> Path:
@@ -526,14 +559,9 @@ def _root_relative(root: Path, value: Any, role: str) -> Path:
 
 
 def _source_closure_path(root: Path, relative: str) -> Path:
-    """Read release-root sources, falling back to the immutable project root."""
+    """Read a source only from the supplied release root."""
 
-    candidate = _root_relative(root, relative, "source")
-    if candidate.is_file():
-        return candidate
-    if Path(root).resolve() != ROOT.resolve():
-        return _root_relative(ROOT, relative, "source")
-    return candidate
+    return _root_relative(root, relative, "source")
 
 
 def validate_closure_document(
@@ -567,7 +595,7 @@ def validate_closure_document(
     }
     if set(document) != required:
         raise R009BuilderError("R009 closure fields differ")
-    root = Path(root).resolve()
+    root = _reject_lexical_symlink_ancestors(Path(root), "closure root")
     manifest_row = document["behavior_manifest"]
     contract_row = document["release_contract"]
     identity_row = document["release_identity"]
@@ -657,7 +685,8 @@ def load_closure(
 ) -> dict[str, Any]:
     """Purely load and validate a persisted R009 closure."""
 
-    path = Path(path)
+    root = _reject_lexical_symlink_ancestors(Path(root), "closure root")
+    path = _safe_target_path(root, Path(path), "closure", require_file=True)
     if path.is_symlink() or not path.is_file():
         raise R009BuilderError(f"R009 closure is missing or unsafe: {path}")
     try:
@@ -774,14 +803,14 @@ def _atomic_file_set(
 
     replaced: list[Path] = []
 
-    def rollback() -> None:
+    def rollback() -> list[tuple[Path, OSError]]:
+        failures: list[tuple[Path, OSError]] = []
         for path in reversed(replaced):
             try:
                 _restore_file_snapshot(path, snapshots[path])
-            except OSError:
-                # Keep trying every explicit target; the original exception is
-                # more useful to the caller than a rollback side exception.
-                pass
+            except OSError as exc:
+                failures.append((path, exc))
+        return failures
 
     try:
         for path, temporary_path in staged.items():
@@ -798,19 +827,36 @@ def _atomic_file_set(
                 os.close(directory_descriptor)
         if after_commit is not None:
             after_commit()
-    except Exception:
-        rollback()
+    except Exception as exc:
+        rollback_failures = rollback()
+        if rollback_failures:
+            raise R009RollbackError(exc, rollback_failures) from exc
         raise
     finally:
         for temporary_path in staged.values():
             temporary_path.unlink(missing_ok=True)
 
 
-def _validate_source_closure(manifest: R009BehaviorManifest) -> None:
+def _read_source_closure_bytes(
+    manifest: R009BehaviorManifest,
+    *,
+    source_root: Path = ROOT,
+) -> dict[str, bytes]:
+    source_root = _reject_lexical_symlink_ancestors(source_root, "source root")
+    source_bytes: dict[str, bytes] = {}
     for relative, expected in manifest.source_set.files.items():
-        path = _source_closure_path(ROOT, relative)
-        if path.is_symlink() or not path.is_file() or sha256_file(path) != expected:
+        path = _source_closure_path(source_root, relative)
+        if path.is_symlink() or not path.is_file():
             raise R009BuilderError(f"R009 source closure byte digest differs: {relative}")
+        encoded = path.read_bytes()
+        if sha256_bytes(encoded) != expected:
+            raise R009BuilderError(f"R009 source closure byte digest differs: {relative}")
+        source_bytes[relative] = encoded
+    return source_bytes
+
+
+def _validate_source_closure(manifest: R009BehaviorManifest) -> None:
+    _read_source_closure_bytes(manifest)
 
 
 def _source_paths_from_result(
@@ -863,7 +909,9 @@ def persist_release(
     behavior_manifest_path = _absolute_path(Path(behavior_manifest_path))
     closure_path = _absolute_path(Path(closure_path))
     identity_alias_path = _absolute_path(Path(identity_alias_path))
-    release_root = Path(release_root).resolve()
+    release_root = _reject_lexical_symlink_ancestors(
+        Path(release_root), "persist release root"
+    )
     for path, role in (
         (output_dir / f"{manifest.program}.script", "triplet"),
         (contract_path, "contract"),
@@ -877,7 +925,7 @@ def persist_release(
         f"{contract_path.stem}.release-identity.json"
     )
     _safe_target_path(release_root, persisted_identity_path, "release identity")
-    _validate_source_closure(manifest)
+    source_closure_bytes = _read_source_closure_bytes(manifest)
     if bundle.behavior_manifest.as_dict() != manifest.as_dict():
         raise R009BuilderError("R009 persist contract behavior manifest differs")
     if result.get("contract_sha256") is not None and result["contract_sha256"] != bundle.sha256:
@@ -935,6 +983,14 @@ def persist_release(
     )
     closure_bytes = canonical_bytes(closure) + b"\n"
     file_bytes: dict[Path, bytes] = {
+        **{
+            _safe_target_path(
+                release_root,
+                release_root / relative,
+                f"source target {relative}",
+            ): encoded
+            for relative, encoded in source_closure_bytes.items()
+        },
         **{target_paths[suffix]: source_bytes[suffix] for suffix in ARTIFACT_SUFFIXES},
         contract_path: contract_encoded,
         persisted_identity_path: identity_encoded,
@@ -1043,6 +1099,7 @@ __all__ = [
     "DEFAULT_IDENTITY_ALIAS_PATH",
     "DEFAULT_OUTPUT",
     "R009BuilderError",
+    "R009RollbackError",
     "R009_CLOSURE_SCHEMA",
     "build",
     "build_closure_document",

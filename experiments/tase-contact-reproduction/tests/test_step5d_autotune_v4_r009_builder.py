@@ -21,6 +21,7 @@ from build_step5d_autotune_v4_r009 import (  # noqa: E402
     DEFAULT_CLOSURE_PATH,
     DEFAULT_CONTRACT_PATH,
     R009BuilderError,
+    R009RollbackError,
     build,
     build_closure_document,
     build_release,
@@ -124,6 +125,72 @@ def test_explicit_persist_is_byte_and_mtime_idempotent(tmp_path: Path) -> None:
 
     assert second["campaign_fingerprint"] == first["campaign_fingerprint"]
     assert after == before
+
+
+def test_out_of_tree_persist_publishes_all_sources_and_cold_read_is_hermetic(
+    tmp_path: Path,
+) -> None:
+    release_root = tmp_path / "release"
+    result = build(tmp_path / "build", behavior_manifest=_manifest())
+    closure_path = release_root / "config/step5d/autotune_v4_r009_offline_closure.json"
+    persist_release(
+        result,
+        output_dir=release_root / "programs/step5/step5d",
+        contract_path=release_root / "config/step5d/autotune_v4_r009.json",
+        behavior_manifest_path=(
+            release_root / "config/step5d/autotune_v4_r009.behavior-manifest.json"
+        ),
+        closure_path=closure_path,
+        identity_alias_path=release_root / "config/step5d/r009_release_identity.json",
+        release_root=release_root,
+    )
+
+    manifest = _manifest()
+    assert manifest.source_set.files
+    for relative in manifest.source_set.files:
+        copied = release_root / relative
+        assert copied.is_file(), relative
+        assert copied.read_bytes() == (ROOT / relative).read_bytes(), relative
+    load_closure(closure_path, root=release_root)
+
+    tampered = release_root / next(iter(manifest.source_set.files))
+    tampered.write_bytes(tampered.read_bytes() + b"\n# cold-read tamper\n")
+    with pytest.raises(R009BuilderError, match="source byte digest differs"):
+        load_closure(closure_path, root=release_root)
+
+    tampered.unlink()
+    with pytest.raises(R009BuilderError, match="source byte digest differs"):
+        load_closure(closure_path, root=release_root)
+
+
+@pytest.mark.parametrize("symlink_kind", ("root", "ancestor"))
+def test_persist_rejects_lexical_release_root_symlink_before_resolve(
+    tmp_path: Path,
+    symlink_kind: str,
+) -> None:
+    result = build(tmp_path / "build", behavior_manifest=_manifest())
+    real_root = tmp_path / "real-root"
+    if symlink_kind == "root":
+        release_root = tmp_path / "release-link"
+        release_root.symlink_to(real_root, target_is_directory=True)
+    else:
+        real_parent = tmp_path / "real-parent"
+        real_parent.mkdir()
+        linked_parent = tmp_path / "linked-parent"
+        linked_parent.symlink_to(real_parent, target_is_directory=True)
+        release_root = linked_parent / "release"
+    with pytest.raises(R009BuilderError, match="symlink ancestor"):
+        persist_release(
+            result,
+            output_dir=release_root / "programs/step5/step5d",
+            contract_path=release_root / "config/step5d/autotune_v4_r009.json",
+            behavior_manifest_path=(
+                release_root / "config/step5d/autotune_v4_r009.behavior-manifest.json"
+            ),
+            closure_path=release_root / "config/step5d/autotune_v4_r009_offline_closure.json",
+            identity_alias_path=release_root / "config/step5d/r009_release_identity.json",
+            release_root=release_root,
+        )
 
 
 def test_closure_requires_exact_artifact_keys_and_triplet_identity(tmp_path: Path) -> None:
@@ -269,6 +336,41 @@ def test_persist_cross_file_replace_failure_rolls_back_all_targets(
     assert not any(path.name.startswith(".") for path in release_root.rglob("*"))
 
 
+def test_persist_commit_and_rollback_failure_is_typed_and_visible(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release_root = tmp_path / "release"
+    release_root.mkdir()
+    first = release_root / "first.txt"
+    second = release_root / "second.txt"
+    first.write_bytes(b"old")
+    real_replace = builder_module.os.replace
+    replace_count = 0
+
+    def fail_commit(source: str | bytes, target: str | bytes) -> None:
+        nonlocal replace_count
+        replace_count += 1
+        if replace_count == 2:
+            raise OSError("injected commit failure")
+        real_replace(source, target)
+
+    def fail_rollback(path: Path, snapshot: object) -> None:
+        raise OSError("injected rollback failure")
+
+    monkeypatch.setattr(builder_module.os, "replace", fail_commit)
+    monkeypatch.setattr(builder_module, "_restore_file_snapshot", fail_rollback)
+    with pytest.raises(R009RollbackError, match="unrecovered targets") as caught:
+        builder_module._atomic_file_set(
+            {first: b"new", second: b"two"},
+            release_root=release_root,
+        )
+    error = caught.value
+    assert error.original_error.args == ("injected commit failure",)
+    assert error.unrecovered_targets == (first,)
+    assert str(first) in str(error)
+
+
 def test_cli_without_persist_is_pure_and_does_not_write_canonical_triplet() -> None:
     canonical_triplet = sorted(
         (ROOT / "programs/step5/step5d").glob("step5d_strict_rnn_autotune_v4_r009.*")
@@ -380,6 +482,9 @@ def test_default_source_set_covers_r009_execution_and_quarantine_surface() -> No
         "tools/launch_step5d_autotune_v4_r008_control.py",
         "tools/run_step5d_autotune_v4_r008.py",
         "tools/run_step5d_autotune_v4_r008_b3_two_stage.py",
+        "tools/step5d_autotune_v4_r008/live_adapter.py",
+        "tools/r008_rtde_seq_probe_inject.py",
+        "tools/prepare_step5d_autotune_launch.py",
     }
     source_set = default_source_set(ROOT)
     assert actual_behavior_paths <= set(source_set.files)

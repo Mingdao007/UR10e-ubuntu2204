@@ -666,6 +666,26 @@ def _binding_digest(value: Any, role: str) -> str:
     return value
 
 
+def _canonical_receiver_plan_path(
+    campaign_root: Path,
+    *,
+    release_manifest_sha256: str,
+) -> Path:
+    """Derive the sole receiver-plan path from the bound launch basis."""
+
+    release_sha = _binding_digest(
+        release_manifest_sha256,
+        "launch-basis release manifest",
+    )
+    return (
+        campaign_root
+        / "control"
+        / "parameter_receiver_bindings"
+        / release_sha
+        / "plan.json"
+    )
+
+
 def _bound_plan_identity(
     value: Any,
     *,
@@ -775,15 +795,22 @@ def _validate_machine_plan_files(
     campaign_id: str,
     plan_path: Path,
     overlay_path: Path,
+    release_manifest_sha256: str,
 ) -> None:
     """Match each bound plan role to its own on-disk namespace."""
 
-    if binding.receiver_plan is not None and binding.schema_version == "step5d_autotune_campaign_binding_v4":
-        receiver_path = (campaign_root / "control/parameter_receiver_plan.json").resolve()
+    if binding.receiver_plan is not None:
+        receiver_path = _canonical_receiver_plan_path(
+            campaign_root,
+            release_manifest_sha256=release_manifest_sha256,
+        )
         if receiver_path.is_symlink() or not receiver_path.is_file():
             raise RuntimeError("machine campaign binding receiver plan is missing")
         receiver_payload = json.loads(receiver_path.read_text(encoding="utf-8"))
-        if not isinstance(receiver_payload, Mapping):
+        if (
+            not isinstance(receiver_payload, Mapping)
+            or receiver_payload.get("campaign_id") != campaign_id
+        ):
             raise RuntimeError("machine campaign binding receiver plan is malformed")
         receiver_identity = _bound_plan_identity(
             {
@@ -1568,6 +1595,8 @@ def run(args: argparse.Namespace) -> int:
             raise RuntimeError(
                 "configured plan closure requires a positive rolling revision"
             )
+    if args.campaign_lease is None:
+        raise RuntimeError("live campaign requires the canonical campaign lease")
     controller_delivery_verified = not rolling_release
     if rolling_release:
         if args.delivery_observation is None:
@@ -1637,8 +1666,6 @@ def run(args: argparse.Namespace) -> int:
         campaign_fingerprint=frozen.composite_fingerprint,
         controller_delivery_verified=controller_delivery_verified,
     )
-    if args.campaign_lease is None:
-        raise RuntimeError("live campaign requires the canonical campaign lease")
     lease_authorization = _campaign_lease_authorization(
         args.campaign_lease.resolve(),
         root=root,
@@ -1655,6 +1682,7 @@ def run(args: argparse.Namespace) -> int:
         campaign_id=campaign.campaign_id,
         plan_path=plan_path,
         overlay_path=overlay_path,
+        release_manifest_sha256=str(basis["release_manifest_sha256"]),
     )
     preflight = backend.preflight(
         offline=False,

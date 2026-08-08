@@ -24,8 +24,8 @@ from step5d_machine_campaign_binding import (  # noqa: E402
     write_machine_campaign_binding,
 )
 from run_step5d_autotune_campaign import (  # noqa: E402
+    NORMAL_FILTER_PROFILES,
     _campaign_binding,
-    _profile,
     _validate_machine_plan_files,
 )
 from step5d_autotune_backend import Step5dV35Backend  # noqa: E402
@@ -57,8 +57,16 @@ def _atomic_json(path: Path, payload: object) -> None:
 
 def _overlay_plan(candidate_plan: Path, path: Path) -> dict[str, object]:
     plan = load_plan(candidate_plan, campaign_id="step5d-native-1")
-    profile = _profile(ROOT)
     launch = load_launch_profile(LAUNCH_PROFILE, expected_tp_program_id=PROGRAM)
+    allowed = launch.trial_overlay_policy["execution_profile_id"]["allowed"]
+    authorized = [
+        profile
+        for profile in NORMAL_FILTER_PROFILES
+        if profile.profile_id in allowed
+    ]
+    if not authorized:
+        raise RuntimeError("launch profile has no authorized execution profile")
+    profile = authorized[0]
     batches = []
     if any(plan.occurrences):
         for batch_id, occurrences in enumerate(plan.occurrences, start=1):
@@ -213,7 +221,16 @@ def test_formal_runner_reaches_canonical_lease_and_fails_closed(
     shutil.copyfile(PLAN_FIXTURE, candidate_plan)
     overlays = campaign_root / "control/v3_trial_overlays.json"
     _overlay_plan(candidate_plan, overlays)
-    receiver_plan = campaign_root / "control/parameter_receiver_plan.json"
+    current_pointer = json.loads(
+        (ROOT / "config/step5d/current.json").read_text(encoding="utf-8")
+    )
+    receiver_plan = (
+        campaign_root
+        / "control"
+        / "parameter_receiver_bindings"
+        / current_pointer["manifest_sha256"]
+        / "plan.json"
+    )
     _atomic_json(
         receiver_plan,
         {
@@ -334,7 +351,16 @@ def test_production_chain_binds_receiver_and_optimizer_plan_identities_separatel
     shutil.copyfile(PLAN_FIXTURE, candidate_plan)
     overlays = campaign_root / "control/v3_trial_overlays.json"
     _overlay_plan(candidate_plan, overlays)
-    receiver_plan = campaign_root / "control/parameter_receiver_plan.json"
+    current_pointer = json.loads(
+        (ROOT / "config/step5d/current.json").read_text(encoding="utf-8")
+    )
+    receiver_plan = (
+        campaign_root
+        / "control"
+        / "parameter_receiver_bindings"
+        / current_pointer["manifest_sha256"]
+        / "plan.json"
+    )
     _atomic_json(
         receiver_plan,
         {
@@ -386,6 +412,7 @@ def test_production_chain_binds_receiver_and_optimizer_plan_identities_separatel
         campaign_id="step5d-native-1",
         plan_path=candidate_plan,
         overlay_path=overlays,
+        release_manifest_sha256=current_pointer["manifest_sha256"],
     )
     receiver_payload = json.loads(receiver_plan.read_text(encoding="utf-8"))
     receiver_payload["revision"] = 2
@@ -397,6 +424,7 @@ def test_production_chain_binds_receiver_and_optimizer_plan_identities_separatel
             campaign_id="step5d-native-1",
             plan_path=candidate_plan,
             overlay_path=overlays,
+            release_manifest_sha256=current_pointer["manifest_sha256"],
         )
     receiver_payload["revision"] = 1
     _atomic_json(receiver_plan, receiver_payload)
@@ -408,6 +436,7 @@ def test_production_chain_binds_receiver_and_optimizer_plan_identities_separatel
             campaign_id="step5d-native-1",
             plan_path=candidate_plan,
             overlay_path=overlays,
+            release_manifest_sha256=current_pointer["manifest_sha256"],
         )
 
     with pytest.raises(

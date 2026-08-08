@@ -4,7 +4,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -28,10 +27,13 @@ from step5d_autotune_r008_policy import initialization_batch, recovery_batch  # 
 from ur10e_experiment_runtime.candidate_identity import ControlCandidateUid  # noqa: E402
 from test_step5d_r006_production_chain import (  # noqa: E402
     LAUNCH_PROFILE,
+    PROGRAM,
+    _fixture_launch_basis,
     _overlay_plan,
     _terminate,
     _wait_file,
 )
+from step5d_autotune_v3.runtime_gate import process_starttime  # noqa: E402
 
 
 def _bind_control(rows):
@@ -50,7 +52,7 @@ def _bind_control(rows):
     )
 
 
-def test_formal_runner_crosses_row5_batch2_and_arm11_with_real_csv_processes(
+def test_production_runner_fails_closed_at_canonical_lease_before_arm(
     tmp_path: Path,
 ) -> None:
     bridge_run = (tmp_path / "bridge").resolve()
@@ -71,6 +73,33 @@ def test_formal_runner_crosses_row5_batch2_and_arm11_with_real_csv_processes(
     )
     overlays = campaign_root / "control/v3_trial_overlays.json"
     _overlay_plan(plan_path, overlays)
+    current_pointer = json.loads(
+        (ROOT / "config/step5d/current.json").read_text(encoding="utf-8")
+    )
+    receiver_plan = (
+        campaign_root
+        / "control"
+        / "parameter_receiver_bindings"
+        / current_pointer["manifest_sha256"]
+        / "plan.json"
+    )
+    receiver_plan.parent.mkdir(parents=True)
+    receiver_plan.write_text(
+        json.dumps(
+            {
+                "schema": "step5d.parameter-receiver/launch-plan-v1",
+                "campaign_id": "step5d-native-1",
+                "revision": 1,
+                "protocol": "v3_full_home_parameter_receiver_v1",
+                "unbounded": True,
+                "one_inflight": True,
+                "optimizer_required": False,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     frozen = Step5dV35Backend(ROOT).freeze_fingerprint()
     binding = (bridge_run / "runtime/campaign_binding.json").resolve()
     write_machine_campaign_binding(
@@ -78,9 +107,19 @@ def test_formal_runner_crosses_row5_batch2_and_arm11_with_real_csv_processes(
         campaign_id="step5d-native-1",
         campaign_epoch=1,
         campaign_fingerprint=frozen.composite_fingerprint,
-        candidate_plan_path=plan_path,
+        receiver_plan_path=receiver_plan,
+        optimizer_plan_path=plan_path,
         trial_overlay_plan_path=overlays,
         binding_source="r008_offline_rolling_production_chain_gate",
+    )
+    owner_pid = os.getpid()
+    owner_starttime = process_starttime(owner_pid)
+    launch_basis_path = bridge_run / "runtime/launch-basis.json"
+    launch_basis = _fixture_launch_basis(
+        launch_basis_path,
+        campaign_fingerprint=frozen.composite_fingerprint,
+        owner_pid=owner_pid,
+        owner_starttime=owner_starttime,
     )
     environment = dict(os.environ)
     environment["PYTHONPATH"] = os.pathsep.join(
@@ -89,14 +128,12 @@ def test_formal_runner_crosses_row5_batch2_and_arm11_with_real_csv_processes(
     environment["STEP5D_CUDA_BOOTSTRAPPED"] = "1"
     transport = subprocess.Popen(
         [
-            sys.executable,
-            str(ROOT / "tests/step5d_r008_rolling_csv_transport.py"),
-            "--bridge-run",
-            str(bridge_run),
-            "--mailbox",
-            str(mailbox),
-            "--trial-count",
-            "15",
+                sys.executable,
+                str(ROOT / "tests/step5d_r006_production_csv_transport.py"),
+                "--bridge-run",
+                str(bridge_run),
+                "--mailbox",
+                str(mailbox),
         ],
         cwd=ROOT,
         env=environment,
@@ -120,6 +157,14 @@ def test_formal_runner_crosses_row5_batch2_and_arm11_with_real_csv_processes(
                 str(mailbox),
                 "--campaign-binding",
                 str(binding),
+                "--launch-basis",
+                str(launch_basis_path),
+                "--launch-basis-sha256",
+                str(launch_basis["basis_sha256"]),
+                "--owner-pid",
+                str(owner_pid),
+                "--owner-starttime",
+                str(owner_starttime),
                 "--selection-policy",
                 "codex_batches",
                 "--candidate-plan",
@@ -128,6 +173,8 @@ def test_formal_runner_crosses_row5_batch2_and_arm11_with_real_csv_processes(
                 str(overlays),
                 "--v3-launch-profile",
                 str(LAUNCH_PROFILE),
+                "--v3-program-id",
+                str(PROGRAM),
                 "--v3-derived-postprocess-root",
                 str(campaign_root / "postprocess"),
                 "--trial-timeout-s",
@@ -136,7 +183,6 @@ def test_formal_runner_crosses_row5_batch2_and_arm11_with_real_csv_processes(
                 "5",
                 "--close-after-plan-revision",
                 "3",
-                "--offline-release-gate",
             ],
             cwd=ROOT,
             env=environment,
@@ -144,41 +190,11 @@ def test_formal_runner_crosses_row5_batch2_and_arm11_with_real_csv_processes(
             text=True,
             timeout=90.0,
         )
-        if runner.returncode != 0:
-            _terminate(transport)
-            pytest.fail(
-                f"runner returncode={runner.returncode}\n"
-                f"runner stdout={runner.stdout}\n"
-                f"runner stderr={runner.stderr}\n"
-                f"transport returncode={transport.returncode}"
-            )
-        result = json.loads(runner.stdout.strip().splitlines()[-1])
-        assert result["batch_completed"] is True
-        assert result["completion_consumed"] is True
-        assert result["trial_completed"] is True
-        deadline = time.monotonic() + 10.0
-        while transport.poll() is None and time.monotonic() < deadline:
-            time.sleep(0.01)
-        stdout, stderr = transport.communicate(timeout=3.0)
-        assert transport.returncode == 0, f"stdout={stdout}\nstderr={stderr}"
-        stats = json.loads((bridge_run / "r008_fake_transport_stats.json").read_text())
-        assert stats["protocol"] == "v3_full_home_rolling_arm_v1"
-        assert stats["arm_sequences"] == list(range(1, 16))
-        assert stats["logical_batch_sequences"][4:6] == [1, 2]
-        assert stats["rows"][4:6] == [5, 1]
-        assert stats["commit_transcripts"] == [
-            [24, 25, 27, 28, 29, 31, 32, 33, 34, 26, 30]
-        ] * 15
-        assert 11 in stats["arm_sequences"]
-        assert stats["complete_command_seq"] == 16
-        assert stats["final_state"] == 77
-        completion = json.loads(
-            (campaign_root / "control/pending_completion.json").read_text()
-        )
-        assert completion["status"] == "consumed"
-        assert completion["packet"]["command"] == 4
-        batch_roots = tuple((campaign_root / "runtime_batches").iterdir())
-        assert len(batch_roots) == 3
-        assert len(tuple((campaign_root / "trial_briefs").glob("*.json"))) == 15
+        combined_output = f"{runner.stdout}\n{runner.stderr}"
+        assert runner.returncode != 0
+        assert "live campaign requires the canonical campaign lease" in combined_output
+        assert not (bridge_run / "r008_fake_transport_stats.json").exists()
+        assert not (bridge_run / "r006_fake_transport_stats.json").exists()
+        assert not (campaign_root / "control/pending_completion.json").exists()
     finally:
         _terminate(transport)

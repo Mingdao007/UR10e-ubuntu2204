@@ -89,17 +89,41 @@ def test_legacy_receiver_binding_never_compares_digest_with_optimizer_plan(
     tmp_path: Path,
 ) -> None:
     campaign = _campaign_spec(ROOT, "a" * 64, 9)
+    release_manifest_sha256 = "d" * 64
+    campaign_root = tmp_path / "campaign"
+    receiver_path = (
+        campaign_root
+        / "control"
+        / "parameter_receiver_bindings"
+        / release_manifest_sha256
+        / "plan.json"
+    )
     overlay_path = tmp_path / "overlay.json"
     optimizer_path = tmp_path / "candidate_plan.json"
+    receiver_path.parent.mkdir(parents=True)
     overlay_path.write_bytes(b"legacy-overlay")
     optimizer_path.write_bytes(b"optimizer-plan-with-a-different-digest")
+    receiver_path.write_text(
+        json.dumps(
+            {
+                "schema": "step5d.parameter-receiver/launch-plan-v1",
+                "campaign_id": campaign.campaign_id,
+                "revision": 1,
+                "protocol": "v3_full_home_parameter_receiver_v1",
+                "unbounded": True,
+                "one_inflight": True,
+                "optimizer_required": False,
+            }
+        ),
+        encoding="utf-8",
+    )
     payload = {
         "schema_version": "step5d_autotune_campaign_binding_v3",
         "campaign_id": campaign.campaign_id,
         "campaign_epoch": campaign.campaign_epoch,
         "campaign_fingerprint": campaign.campaign_fingerprint,
         "candidate_plan_revision": 1,
-        "candidate_plan_sha256": "b" * 64,
+        "candidate_plan_sha256": hashlib.sha256(receiver_path.read_bytes()).hexdigest(),
         "trial_overlay_plan_sha256": hashlib.sha256(overlay_path.read_bytes()).hexdigest(),
         "binding_source": "legacy receiver compatibility",
         "generated_at": "2026-07-20T08:00:00+08:00",
@@ -114,10 +138,20 @@ def test_legacy_receiver_binding_never_compares_digest_with_optimizer_plan(
 
     _validate_machine_plan_files(
         binding,
-        campaign_root=tmp_path / "campaign",
+        campaign_root=campaign_root,
         campaign_id=campaign.campaign_id,
         plan_path=optimizer_path,
         overlay_path=overlay_path,
+        release_manifest_sha256=release_manifest_sha256,
+    )
+    optimizer_path.write_bytes(b"optimizer-plan-mutated")
+    _validate_machine_plan_files(
+        binding,
+        campaign_root=campaign_root,
+        campaign_id=campaign.campaign_id,
+        plan_path=optimizer_path,
+        overlay_path=overlay_path,
+        release_manifest_sha256=release_manifest_sha256,
     )
 
 

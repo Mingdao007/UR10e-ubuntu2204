@@ -197,6 +197,8 @@ _R009_PINNED_QUARANTINE_PATHS = frozenset(
         "tools/launch_step5d_autotune_v4_r008_control.py",
         "tools/run_step5d_autotune_v4_r008.py",
         "tools/run_step5d_autotune_v4_r008_b3_two_stage.py",
+        "tools/step5d_autotune_v4_r008/live_adapter.py",
+        "tools/r008_rtde_seq_probe_inject.py",
     }
 )
 
@@ -1165,6 +1167,9 @@ def default_source_set(root: Path = ROOT) -> R009SourceSet:
         "tools/launch_step5d_autotune_v4_r008_control.py",
         "tools/run_step5d_autotune_v4_r008.py",
         "tools/run_step5d_autotune_v4_r008_b3_two_stage.py",
+        "tools/step5d_autotune_v4_r008/live_adapter.py",
+        "tools/r008_rtde_seq_probe_inject.py",
+        "tools/prepare_step5d_autotune_launch.py",
         "config/schemas/step5d_autotune_v4_r009_behavior_manifest.schema.json",
         "config/schemas/step5d_autotune_v4_r009_release_identity.schema.json",
         "config/schemas/step5d_autotune_v4_r009_reason43_runtime_protocol.schema.json",
