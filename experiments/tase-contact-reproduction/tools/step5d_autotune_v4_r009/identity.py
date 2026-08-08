@@ -96,6 +96,11 @@ _GENERATED_R009_PATHS = frozenset(
         "config/step5d/autotune_v4_r009.json",
         "config/step5d/autotune_v4_r009.release-identity.json",
         "config/step5d/r009_release_identity.json",
+        "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r009.script",
+        "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r009.txt",
+        "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r009.urp",
+        "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r009.numeric-sanity.json",
+        "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r009.deploy-manifest.json",
     }
 )
 
@@ -567,6 +572,12 @@ def default_source_set(root: Path = ROOT) -> R009SourceSet:
         "tools/step5d_autotune_v4_r009/contracts.py",
         "tools/step5d_autotune_v4_r009/ledger.py",
         "tools/step5d_autotune_v4_r009/quarantine.py",
+        "tools/step5d_autotune_v4_r009/freshness.py",
+        "tools/step5d_autotune_v4_r009/transport.py",
+        "tools/step5d_autotune_v4_r009/fake_rtde.py",
+        "tools/step5d_autotune_v4_r009/diagnostics.py",
+        "tools/step5d_autotune_v4_r009/tp.py",
+        "tools/build_step5d_autotune_v4_r009.py",
         "tools/run_step5d_autotune_v4_r008.py",
         "tools/run_step5d_autotune_v4_r008_b3_two_stage.py",
         "tools/launch_step5d_autotune_v4_r008_control.py",
@@ -574,6 +585,9 @@ def default_source_set(root: Path = ROOT) -> R009SourceSet:
         "tools/r008_rtde_seq_probe_inject.py",
         "config/schemas/step5d_autotune_v4_r009_behavior_manifest.schema.json",
         "config/schemas/step5d_autotune_v4_r009_release_identity.schema.json",
+        "config/schemas/step5d_autotune_v4_r009_reason43_runtime_protocol.schema.json",
+        "tests/test_step5d_autotune_v4_r009_identity_quarantine.py",
+        "tests/test_step5d_autotune_v4_r009_reason43_runtime_protocol.py",
     )
     return R009SourceSet.from_files(root, paths)
 

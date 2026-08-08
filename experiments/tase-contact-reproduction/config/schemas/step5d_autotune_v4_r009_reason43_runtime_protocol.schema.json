@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "step5d.autotune-v4/r009-reason43-runtime-protocol-v1",
+  "title": "Step5d Autotune V4 R009 typed reason-43 runtime protocol",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "runtime_protocol", "terminal_reason", "subtypes", "wire"],
+  "properties": {
+    "schema": {"const": "step5d.autotune-v4/r009-reason43-runtime-protocol-v1"},
+    "version": {"const": "r009-v1"},
+    "runtime_protocol": {"const": 609009},
+    "terminal_reason": {"const": 43},
+    "subtypes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["none", "sequence_regression", "equal_sequence_payload_changed", "held_age_timeout"],
+      "properties": {
+        "none": {"const": 0},
+        "sequence_regression": {"const": 1},
+        "equal_sequence_payload_changed": {"const": 2},
+        "held_age_timeout": {"const": 3}
+      }
+    },
+    "wire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["output_double", "output_int"],
+      "properties": {
+        "output_double": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["24", "25", "26", "27"],
+          "properties": {
+            "24": {"const": "consumed_or_cached_packet_sequence"},
+            "25": {"const": "observed_packet_sequence"},
+            "26": {"const": "cached_packet_sequence"},
+            "27": {"const": "cache_age_seconds"}
+          }
+        },
+        "output_int": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["35"],
+          "properties": {
+            "35": {"const": "reason43_subtype"}
+          }
+        }
+      }
+    }
+  }
+}
