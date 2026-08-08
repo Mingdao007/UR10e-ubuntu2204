@@ -23,6 +23,9 @@ from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
     build_live_receiver_source,
     parse_live_receiver_source,
 )
+from ur10e_vic.tacdiffusion.formal_contact_acquisition import (  # noqa: E402
+    AcquisitionHeartbeatV1,
+)
 from ur10e_vic.tacdiffusion.trajectory import TRAJECTORY_FAMILIES  # noqa: E402
 
 
@@ -363,6 +366,14 @@ def test_formal_parser_exposes_resumable_contact_campaign_without_default_live()
         )
 
 
+def test_formal_acquisition_heartbeat_remains_40_ticks_and_080_seconds() -> None:
+    heartbeat = AcquisitionHeartbeatV1()
+
+    assert heartbeat.timeout_ticks == 40
+    assert heartbeat.timeout_s == pytest.approx(0.080)
+    assert formal.FORMAL_SENSOR_DELIVERY_WATCHDOG_S == pytest.approx(0.080)
+
+
 def test_failed_seven_family_run_writes_partial_root_summary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -580,6 +591,8 @@ def test_formal_acquisition_validates_buffered_kunwei_after_handoff(
                 # HANDOFF_READY and must remain under per-frame Kunwei guard
                 # validation without changing the already-sealed handoff.
                 return [kunwei_snapshot(controller.latch_samples + 1)]
+            if cursor == controller.latch_samples + 1:
+                return []
             raise AssertionError(f"unexpected Kunwei cursor: {cursor}")
 
     def output_sample(
@@ -612,12 +625,15 @@ def test_formal_acquisition_validates_buffered_kunwei_after_handoff(
         (
             [output_sample(state=0, sequence=1, timestamp=0.0)],
             [
-                output_sample(state=2, sequence=2, timestamp=0.0),
-                output_sample(state=2, sequence=2, timestamp=0.101),
+                output_sample(state=2, sequence=1, timestamp=0.0),
+                output_sample(state=2, sequence=2, timestamp=0.025),
+                output_sample(state=2, sequence=2, timestamp=0.075),
             ],
             [],
+            [output_sample(state=2, sequence=3, timestamp=0.101)],
             [],
-            [output_sample(state=4, sequence=3, timestamp=0.202, handoff_ack=1)],
+            [],
+            [output_sample(state=4, sequence=4, timestamp=0.202, handoff_ack=1)],
         )
     )
     monkeypatch.setattr(
@@ -634,6 +650,18 @@ def test_formal_acquisition_validates_buffered_kunwei_after_handoff(
         lambda *_args, **_kwargs: {"barrier": "test"},
     )
 
+    events: list[tuple[str, object]] = []
+    observe_stationary = controller.observe_stationary
+
+    def record_observe_stationary(
+        sample: formal.StationaryPoseSample,
+    ) -> formal.AcquisitionHandoffV1 | None:
+        result = observe_stationary(sample)
+        events.append(("stationary_done", sample.sample_time_s))
+        return result
+
+    monkeypatch.setattr(controller, "observe_stationary", record_observe_stationary)
+
     class RTDE:
         def __init__(self) -> None:
             self.packets: list[tuple[object, ...]] = []
@@ -645,6 +673,7 @@ def test_formal_acquisition_validates_buffered_kunwei_after_handoff(
             values: tuple[object, ...],
         ) -> None:
             self.packets.append(values)
+            events.append(("send", int(values[25])))
 
     kunwei = Kunwei()
     rtde = RTDE()
@@ -666,15 +695,23 @@ def test_formal_acquisition_validates_buffered_kunwei_after_handoff(
     )
 
     assert observed_indices == list(range(1, controller.latch_samples + 2))
-    assert kunwei.snapshots_since_calls == [0, controller.latch_samples]
+    assert kunwei.snapshots_since_calls == [
+        0,
+        controller.latch_samples,
+        controller.latch_samples + 1,
+        controller.latch_samples + 1,
+    ]
     assert controller.state == formal.AcquisitionState.HANDOFF_READY
     assert handoff.contact_latch_sample_index == controller.latch_samples
     assert anchor_pose == handoff.anchor_pose_base
     assert anchor_speed == (0.0,) * 6
     assert barrier["prepare_ack_observed"] is True
+    assert [value for kind, value in events if kind == "send"] == [1, 2, 3, 4]
+    assert events.index(("stationary_done", 0.025)) < events.index(("send", 3))
+    assert events.index(("send", 3)) < events.index(("stationary_done", 0.075))
     assert rtde.packets[-1][24:33] == (
         formal.ACQUISITION_COMMAND_START,
-        3,
+        4,
         11,
         22,
         formal.ACQUISITION_ROUTE_TOKEN,

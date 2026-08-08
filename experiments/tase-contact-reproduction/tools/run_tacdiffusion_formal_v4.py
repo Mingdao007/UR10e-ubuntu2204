@@ -1044,6 +1044,15 @@ def _run_formal_acquisition_phase(
                     raise RuntimeError(f"formal_acquisition_{reason}:{exc}") from exc
                 if handoff is not None:
                     handoff_ack_sent = True
+            if output_ack == sequence and not handoff_ack_packet_sent:
+                send_packet(
+                    safety_normal=True,
+                    host_latch=latch_sent,
+                    handoff_ack=handoff_ack_sent,
+                )
+                pending_sequence_started_s = time.monotonic()
+                last_packet_transmit_s = pending_sequence_started_s
+                handoff_ack_packet_sent = handoff_ack_sent
             if handoff_ack_sent:
                 break
         pending = []
@@ -1059,15 +1068,6 @@ def _run_formal_acquisition_phase(
                 raise RuntimeError("formal_contact_not_found")
         if controller.state == AcquisitionState.FAULT:
             raise RuntimeError(f"formal_acquisition_fault:{controller.fault_reason}")
-        if last_ack_sequence == sequence and not handoff_ack_packet_sent:
-            send_packet(
-                safety_normal=True,
-                host_latch=latch_sent,
-                handoff_ack=handoff_ack_sent,
-            )
-            pending_sequence_started_s = time.monotonic()
-            last_packet_transmit_s = pending_sequence_started_s
-            handoff_ack_packet_sent = handoff_ack_sent
         now = time.monotonic()
         if last_ack_sequence != sequence and now - last_packet_transmit_s >= 0.010:
             if last_packet_values is None:
