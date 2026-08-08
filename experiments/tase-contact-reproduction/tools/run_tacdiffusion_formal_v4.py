@@ -532,6 +532,35 @@ def _formal_acquisition_evidence_row(
     return row
 
 
+def _formal_acquisition_receive_available(
+    rtde: Any,
+    output_recipe: int,
+    output_types: list[str],
+    timeout_s: float,
+) -> list[dict[str, Any]]:
+    """Bound acquisition reads so the 500 Hz stream cannot starve host ACKs."""
+
+    bounded = getattr(rtde, "receive_available_bounded", None)
+    if callable(bounded):
+        return list(
+            bounded(
+                output_recipe,
+                output_types,
+                legacy.OUTPUT_FIELDS,
+                timeout_s,
+                max_samples=4,
+                max_wall_s=0.004,
+            )
+        )
+    return legacy._receive_available(
+        rtde,
+        output_recipe,
+        output_types,
+        legacy.OUTPUT_FIELDS,
+        timeout_s,
+    )
+
+
 def _formal_handoff_idle_packet(
     *,
     handoff: AcquisitionHandoffV1,
@@ -631,11 +660,10 @@ def _run_formal_acquisition_phase(
     prepare_observation_started_s = time.monotonic()
     prepare_deadline = time.monotonic() + 0.250
     while time.monotonic() < prepare_deadline and not prepare_ack_observed:
-        for sample in legacy._receive_available(
+        for sample in _formal_acquisition_receive_available(
             rtde,
             output_recipe,
             output_types,
-            legacy.OUTPUT_FIELDS,
             0.010,
         ):
             prepare_last_sample = sample
@@ -799,11 +827,10 @@ def _run_formal_acquisition_phase(
             latch_sent = latch_sent or latched
 
         if not pending:
-            pending = legacy._receive_available(
+            pending = _formal_acquisition_receive_available(
                 rtde,
                 output_recipe,
                 output_types,
-                legacy.OUTPUT_FIELDS,
                 0.005,
             )
             if not pending:
@@ -922,11 +949,10 @@ def _run_formal_acquisition_phase(
             raise RuntimeError("formal_acquisition_ack_heartbeat_timeout")
         if handoff_ack_packet_sent:
             observed_terminal = False
-            for terminal_sample in legacy._receive_available(
+            for terminal_sample in _formal_acquisition_receive_available(
                 rtde,
                 output_recipe,
                 output_types,
-                legacy.OUTPUT_FIELDS,
                 0.005,
             ):
                 if int(terminal_sample["output_int_register_30"]) == 1 and int(

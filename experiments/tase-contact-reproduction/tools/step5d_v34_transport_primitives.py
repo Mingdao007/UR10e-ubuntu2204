@@ -259,6 +259,41 @@ class RTDEBridgeClient(RTDEClient):
             if not ready:
                 return samples
 
+    def receive_available_bounded(
+        self,
+        recipe_id: int,
+        type_names: list[str],
+        fields: list[str],
+        timeout_s: float = 0.0,
+        *,
+        max_samples: int = 4,
+        max_wall_s: float = 0.004,
+    ) -> list[dict[str, Any]]:
+        """Drain a bounded RTDE batch so a hot socket cannot starve writes."""
+
+        if max_samples <= 0 or max_wall_s <= 0.0:
+            raise ValueError("bounded RTDE receive limits must be positive")
+        assert self.sock is not None
+        ready, _, _ = select.select([self.sock], [], [], timeout_s)
+        if not ready:
+            return []
+        deadline = time.monotonic() + max_wall_s
+        samples: list[dict[str, Any]] = []
+        while len(samples) < max_samples and time.monotonic() < deadline:
+            packet_type, payload = self._recv_packet()
+            if (
+                packet_type == ord("U")
+                and payload
+                and payload[0] == recipe_id
+            ):
+                samples.append(
+                    self._decode_output_sample(payload, type_names, fields)
+                )
+            ready, _, _ = select.select([self.sock], [], [], 0.0)
+            if not ready:
+                break
+        return samples
+
     def receive_latest(
         self,
         recipe_id: int,

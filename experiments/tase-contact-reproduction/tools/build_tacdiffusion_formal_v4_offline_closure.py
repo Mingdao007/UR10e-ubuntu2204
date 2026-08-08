@@ -25,6 +25,7 @@ PINNED_PATHS = (
     "experiments/tase-contact-reproduction/tests/test_run_tacdiffusion_formal_v4.py",
     "experiments/tase-contact-reproduction/tests/test_run_tacdiffusion_remote_direct_torque_v4.py",
     "experiments/tase-contact-reproduction/tools/run_tacdiffusion_formal_v4.py",
+    "experiments/tase-contact-reproduction/tools/step5d_v34_transport_primitives.py",
     "experiments/tase-contact-reproduction/tools/build_tacdiffusion_formal_v4_numeric_sanity.py",
     "experiments/tase-contact-reproduction/tools/run_tacdiffusion_remote_direct_torque_v4.py",
     "experiments/tase-contact-reproduction/config/tacdiffusion_formal_v4_numeric_sanity.json",

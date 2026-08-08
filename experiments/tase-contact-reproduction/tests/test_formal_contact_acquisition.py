@@ -10,6 +10,7 @@ import pytest
 from run_tacdiffusion_formal_v4 import (
     _formal_acquisition_evidence_row,
     _formal_acquisition_input_values,
+    _formal_acquisition_receive_available,
     _formal_handoff_idle_packet,
     _require_frozen_live_endpoints,
     _run_formal_acquisition_phase,
@@ -172,9 +173,27 @@ def test_primary_barrier_is_inert_prepare_then_sequence_two_arms_motion() -> Non
     assert "if output_ack > sequence:" in source
     assert "if last_ack_sequence == sequence" in source
     assert "last_packet_values" in source
+    assert "_formal_acquisition_receive_available" in source
     assert "now - last_packet_transmit_s >= 0.010" in source
     assert "now - pending_sequence_started_s" in source
     assert "formal_acquisition_ack_heartbeat_timeout" in source
+
+
+def test_acquisition_receive_uses_bounded_hot_socket_drain() -> None:
+    class FakeRTDE:
+        def __init__(self) -> None:
+            self.call = None
+
+        def receive_available_bounded(self, *args, **kwargs):
+            self.call = (args, kwargs)
+            return [{"timestamp": 1.0}]
+
+    rtde = FakeRTDE()
+    rows = _formal_acquisition_receive_available(rtde, 2, ["DOUBLE"], 0.005)
+    assert rows == [{"timestamp": 1.0}]
+    assert rtde.call is not None
+    assert rtde.call[1]["max_samples"] == 4
+    assert rtde.call[1]["max_wall_s"] == pytest.approx(0.004)
 
 
 def test_generated_acquisition_closes_search_branch_before_stationary_elif() -> None:
