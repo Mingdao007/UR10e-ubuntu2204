@@ -177,6 +177,8 @@ DEFAULT_EXECUTABLE_BEHAVIOR_CONFIG: dict[str, Any] = {
 _GENERATED_R009_PATHS = frozenset(
     {
         "config/step5d/autotune_v4_r009.json",
+        "config/step5d/autotune_v4_r009.behavior-manifest.json",
+        "config/step5d/autotune_v4_r009_offline_closure.json",
         "config/step5d/autotune_v4_r009.release-identity.json",
         "config/step5d/r009_release_identity.json",
         "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r009.script",
@@ -367,6 +369,8 @@ class R009SourceSet:
         if self.schema != R009_SOURCE_SET_SCHEMA:
             raise R009IdentityError("R009 source-set schema differs")
         files = _source_files(self.files, "R009 source set")
+        if any("r008" in path.lower() for path in files):
+            raise R009IdentityError("R009 source set cannot contain historical R008 input")
         if any(path in _GENERATED_R009_PATHS for path in files):
             raise R009IdentityError("R009 source set contains a generated contract")
         object.__setattr__(self, "files", MappingProxyType(files))
@@ -397,21 +401,27 @@ class R009SourceSet:
         for raw_path in paths:
             path = Path(raw_path)
             if path.is_absolute():
-                resolved = path.resolve()
+                candidate = path
+                resolved = candidate.resolve()
                 try:
                     relative = resolved.relative_to(root).as_posix()
                 except ValueError as exc:
                     raise R009IdentityError("R009 source path escapes root") from exc
             else:
                 relative = _safe_relative_path(path.as_posix(), "R009 source path")
-                resolved = (root / relative).resolve()
+                candidate = root / relative
+                resolved = candidate.resolve()
+            if "r008" in relative.lower():
+                raise R009IdentityError(
+                    f"R009 source set cannot absorb historical R008 input: {relative}"
+                )
             if relative in excluded:
                 continue
             if relative in _GENERATED_R009_PATHS:
                 raise R009IdentityError(
                     f"generated R009 contract requires explicit exclusion: {relative}"
                 )
-            if resolved.is_symlink() or not resolved.is_file():
+            if candidate.is_symlink() or not resolved.is_file():
                 raise R009IdentityError(f"R009 source is missing or unsafe: {relative}")
             rows[relative] = sha256_file(resolved)
         return cls(files=rows)
@@ -1130,11 +1140,6 @@ def default_source_set(root: Path = ROOT) -> R009SourceSet:
         "tools/step5d_autotune_v4_r009/observer.py",
         "tools/step5d_autotune_v4_r009/tp.py",
         "tools/build_step5d_autotune_v4_r009.py",
-        "tools/run_step5d_autotune_v4_r008.py",
-        "tools/run_step5d_autotune_v4_r008_b3_two_stage.py",
-        "tools/launch_step5d_autotune_v4_r008_control.py",
-        "tools/step5d_autotune_v4_r008/live_adapter.py",
-        "tools/r008_rtde_seq_probe_inject.py",
         "config/schemas/step5d_autotune_v4_r009_behavior_manifest.schema.json",
         "config/schemas/step5d_autotune_v4_r009_release_identity.schema.json",
         "config/schemas/step5d_autotune_v4_r009_reason43_runtime_protocol.schema.json",
@@ -1143,6 +1148,7 @@ def default_source_set(root: Path = ROOT) -> R009SourceSet:
         "tests/test_step5d_autotune_v4_r009_reason43_runtime_protocol.py",
         "tests/test_step5d_autotune_v4_r009_observability.py",
         "tests/test_step5d_autotune_v4_r009_early_abort.py",
+        "tests/test_step5d_autotune_v4_r009_builder.py",
     )
     return R009SourceSet.from_files(root, paths)
 

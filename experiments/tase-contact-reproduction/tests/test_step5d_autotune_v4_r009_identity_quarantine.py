@@ -236,7 +236,13 @@ def test_historical_r008_ledger_is_readable_only_through_read_only_api(tmp_path:
         R009Ledger.load(historical_path)
 
 
-def test_formal_r008_entrypoints_have_no_probe_bypass_and_fail_closed_before_live_entry() -> None:
+@pytest.mark.parametrize(
+    "allow_value",
+    (None, "", "baseline_ramp_canary", "anything", "b461ed52", "wave5_far_double_canary"),
+)
+def test_formal_r008_entrypoints_have_no_probe_bypass_and_fail_closed_before_live_entry(
+    monkeypatch, allow_value
+) -> None:
     launcher_paths = (
         ROOT / "tools/run_step5d_autotune_v4_r008.py",
         ROOT / "tools/run_step5d_autotune_v4_r008_b3_two_stage.py",
@@ -269,6 +275,11 @@ def test_formal_r008_entrypoints_have_no_probe_bypass_and_fail_closed_before_liv
     assert adapter_source.index("reject_r008_formal_resume(", adapter_function) < adapter_source.index(
         "adapted.open(", adapter_function
     )
+
+    if allow_value is None:
+        monkeypatch.delenv("R008_ALLOW_FORMAL_LIVE", raising=False)
+    else:
+        monkeypatch.setenv("R008_ALLOW_FORMAL_LIVE", allow_value)
 
     with pytest.raises(R008HistoricalLineageDoNotResumeError):
         from step5d_autotune_v4_r009.quarantine import reject_r008_formal_resume

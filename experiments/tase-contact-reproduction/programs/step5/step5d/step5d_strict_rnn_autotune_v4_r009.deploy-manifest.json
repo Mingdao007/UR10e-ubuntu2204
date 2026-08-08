@@ -1,0 +1,18 @@
+{
+  "artifacts": {
+    "script": "df5cb92dd941649a204dead58884912386ae6a82092198f0bc7391a62db0271c",
+    "txt": "39cbc6d097fdc92e4503cb463f38e1ea1ed59bfc6767b13d20eeddc9b88f8257",
+    "urp": "667e639086503216427e084243230134aacd7861eb96e66d95f31a90164394e7"
+  },
+  "behavior_manifest_sha256": "34092a579e4d53a22770f31778699bcc9084d4bbd698ba2fd4c3e52b6d9ef13d",
+  "campaign_fingerprint": "34092a579e4d53a22770f31778699bcc9084d4bbd698ba2fd4c3e52b6d9ef13d",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_readback": false,
+  "controller_upload": false,
+  "live_evidence": false,
+  "program": "step5d_strict_rnn_autotune_v4_r009",
+  "runtime_protocol": 609009,
+  "same_basename_triplet": true,
+  "schema": "step5d.autotune-v4/r009-deploy-manifest-v1",
+  "timestamp": "2026-08-08T1200HKT_STEP5D_AUTOTUNE_V4_R009"
+}
