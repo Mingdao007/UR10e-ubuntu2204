@@ -77,11 +77,28 @@ from ur10e_vic.tacdiffusion.formal_identity import (  # noqa: E402
 )
 from ur10e_vic.tacdiffusion.formal_orchestration import (  # noqa: E402
     ContactAcquisitionContractV1,
+    FORMAL_SENSOR_DELIVERY_WATCHDOG_S,
     FormalAttemptOutcome,
     FormalAttemptPhase,
     FormalAttemptReceiptV1,
     FormalCampaignLedgerV1,
     classify_fault,
+)
+from ur10e_vic.tacdiffusion.formal_contact_acquisition import (  # noqa: E402
+    ACQUISITION_COMMAND_ABORT,
+    ACQUISITION_COMMAND_PREPARE,
+    ACQUISITION_COMMAND_START,
+    ACQUISITION_COMMAND_STOP_NO_CONTACT,
+    ACQUISITION_ROUTE_TOKEN,
+    FORMAL_ROUTE_IDENTITY,
+    AcquisitionHandoffV1,
+    AcquisitionState,
+    FormalContactAcquisitionControllerV1,
+    KunweiAcquisitionSample,
+    StationaryPoseSample,
+    build_formal_contact_acquisition_urscript,
+    build_formal_direct_torque_tracking_source_after_handoff,
+    parse_formal_contact_acquisition_urscript,
 )
 from ur10e_vic.tacdiffusion.formal_trajectory import (  # noqa: E402
     build_formal_trajectory_timeline,
@@ -99,6 +116,38 @@ V_AXIS_BASE = (0.028766656018281198, 0.9995861541165553, 0.0)
 CAMPAIGN_CONTRACT_PATH = (
     VIC_ROOT / "config" / "tacdiffusion_formal_v4_campaign_contract.json"
 )
+FORMAL_ROBOT_HOST = "192.168.1.18"
+FORMAL_SENSOR_IP = "192.168.50.25"
+FORMAL_SENSOR_PORT = 5152
+
+
+def _parse_exact_sensor_delivery_watchdog(value: str) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError(
+            "formal sensor delivery watchdog must be exactly 0.080 s"
+        ) from exc
+    if not math.isfinite(parsed) or parsed != FORMAL_SENSOR_DELIVERY_WATCHDOG_S:
+        raise argparse.ArgumentTypeError(
+            "formal sensor delivery watchdog must be exactly 0.080 s"
+        )
+    return parsed
+
+
+def _require_exact_sensor_delivery_watchdog(args: argparse.Namespace) -> None:
+    value = float(args.sensor_delivery_watchdog_s)
+    if not math.isfinite(value) or value != FORMAL_SENSOR_DELIVERY_WATCHDOG_S:
+        raise RuntimeError(
+            "formal_sensor_delivery_watchdog_must_be_exactly_0.080_s"
+        )
+
+
+def _require_frozen_live_endpoints(args: argparse.Namespace) -> None:
+    if str(args.robot_host) != FORMAL_ROBOT_HOST:
+        raise RuntimeError("formal_controller_endpoint_identity_mismatch")
+    if str(args.sensor_ip) != FORMAL_SENSOR_IP or int(args.sensor_port) != FORMAL_SENSOR_PORT:
+        raise RuntimeError("formal_kunwei_endpoint_identity_mismatch")
 
 
 def _sha256(path: Path) -> str:
@@ -325,6 +374,521 @@ def _annotate_contact_row(
             row[f"{prefix}_{axis}"] = float(value)
 
 
+def _formal_track_state_torque_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[Mapping[str, Any]]:
+    """Select the sole formal training window: TRACK plus STATE_TORQUE."""
+
+    return [
+        row
+        for row in rows
+        if row.get("formal_phase") == FormalAttemptPhase.TRACK.value
+        and int(row.get("receiver_state", -1)) == legacy.STATE_TORQUE
+    ]
+
+
+def _formal_acquisition_input_values(
+    *,
+    command: int,
+    sequence: int,
+    lease_id: int,
+    episode_identity: int,
+    safety_normal: bool,
+    robot_running: bool,
+    host_latch: bool = False,
+    handoff_ack: bool = False,
+) -> tuple[Any, ...]:
+    """Build the separate acquisition register contract.
+
+    The acquisition URScript has a deliberately different integer-register
+    schema from the Direct Torque receiver.  Keeping this packet builder
+    separate prevents a Direct Torque command from accidentally starting or
+    authorizing the velocity phase.
+    """
+
+    if int(command) not in {
+        ACQUISITION_COMMAND_PREPARE,
+        ACQUISITION_COMMAND_START,
+        ACQUISITION_COMMAND_ABORT,
+        ACQUISITION_COMMAND_STOP_NO_CONTACT,
+    }:
+        raise ValueError("formal acquisition command is outside the frozen protocol")
+    if int(sequence) <= 0:
+        raise ValueError("formal acquisition packet sequence must be positive")
+    if int(lease_id) <= 0 or int(episode_identity) <= 0:
+        raise ValueError("formal acquisition packet identity must be positive")
+    integers = (
+        int(command),
+        int(sequence),
+        int(lease_id),
+        int(episode_identity),
+        ACQUISITION_ROUTE_TOKEN,
+        int(bool(safety_normal)),
+        int(bool(robot_running)),
+        int(bool(host_latch)),
+        int(bool(handoff_ack)),
+        0,
+        0,
+        0,
+    )
+    return (0.0,) * 24 + integers
+
+
+def _formal_acquisition_kunwei_sample(
+    snapshot: Any,
+    *,
+    lease_id: int,
+    episode_identity: int,
+) -> KunweiAcquisitionSample:
+    age = max(0.0, time.monotonic() - float(snapshot.t_monotonic_s))
+    return KunweiAcquisitionSample(
+        sample_index=int(snapshot.sample_index),
+        host_age_s=age,
+        normal_load_n=float(snapshot.normal_load_n),
+        force_norm_n=float(snapshot.force_norm_n),
+        torque_norm_nm=float(snapshot.torque_norm_nm),
+        route_identity=FORMAL_ROUTE_IDENTITY,
+        lease_id=int(lease_id),
+        episode_identity=int(episode_identity),
+        safety_mode="NORMAL",
+        robot_mode="RUNNING",
+    )
+
+
+def _formal_acquisition_stationary_sample(
+    sample: Mapping[str, Any],
+    *,
+    lease_id: int,
+    episode_identity: int,
+) -> StationaryPoseSample:
+    timestamp = float(sample["timestamp"])
+    if not math.isfinite(timestamp):
+        raise RuntimeError("formal_acquisition_stationary_timestamp_invalid")
+    return StationaryPoseSample(
+        sample_time_s=timestamp,
+        host_age_s=0.0,
+        actual_pose_base=tuple(float(value) for value in sample["actual_TCP_pose"]),
+        tcp_speed_base=tuple(float(value) for value in sample["actual_TCP_speed"]),
+        joint_speed_rad_s=tuple(float(value) for value in sample["actual_qd"]),
+        route_identity=FORMAL_ROUTE_IDENTITY,
+        lease_id=int(lease_id),
+        episode_identity=int(episode_identity),
+        safety_mode=(
+            "NORMAL"
+            if int(sample["safety_mode"]) == legacy.SAFETY_MODE_NORMAL
+            else "FAULT"
+        ),
+        robot_mode=(
+            "RUNNING"
+            if int(sample["robot_mode"]) == legacy.ROBOT_MODE_RUNNING
+            else "STOPPED"
+        ),
+    )
+
+
+def _formal_acquisition_evidence_row(
+    sample: Mapping[str, Any],
+    *,
+    elapsed_s: float,
+    attempt_id: str,
+    host_sequence: int,
+) -> dict[str, Any]:
+    """Build an acquisition-only row with no Direct Torque register meanings."""
+
+    def _vector(prefix: str, values: object, length: int) -> dict[str, float]:
+        sequence = tuple(float(value) for value in values)  # type: ignore[arg-type]
+        if len(sequence) != length or not all(math.isfinite(value) for value in sequence):
+            raise RuntimeError(f"formal_acquisition_{prefix}_nonfinite")
+        return {f"{prefix}_{index}": value for index, value in enumerate(sequence)}
+
+    row: dict[str, Any] = {
+        "schema_version": "ur10e_tacdiffusion_contact_acquisition_evidence/v1",
+        "acquisition_evidence_only": True,
+        "acquisition_training": False,
+        "formal_training_included": False,
+        "protocol_evidence": False,
+        "capture_phase": FormalAttemptPhase.ACQUISITION.value,
+        "formal_phase": FormalAttemptPhase.ACQUISITION.value,
+        "acquisition_sample_id": f"{attempt_id}:acquisition:{host_sequence}",
+        "host_elapsed_s": float(elapsed_s),
+        "host_packet_sequence": int(host_sequence),
+        "acquisition_output_state": int(sample["output_int_register_24"]),
+        "acquisition_output_fault": int(sample["output_int_register_26"]),
+        "acquisition_lease_echo": int(sample["output_int_register_27"]),
+        "acquisition_episode_echo": int(sample["output_int_register_28"]),
+        "acquisition_route_echo": int(sample["output_int_register_29"]),
+        "acquisition_handoff_ack": int(sample["output_int_register_30"]),
+        "acquisition_host_latch_echo": int(sample["output_int_register_31"]),
+        "controller_timestamp_s": float(sample["timestamp"]),
+        "runtime_state": int(sample["runtime_state"]),
+        "robot_mode": int(sample["robot_mode"]),
+        "safety_mode": int(sample["safety_mode"]),
+        "force_authority": "kunwei_kwr75_tcp_raw_stream_v1",
+    }
+    row.update(_vector("actual_TCP_pose", sample["actual_TCP_pose"], 6))
+    row.update(_vector("actual_TCP_speed", sample["actual_TCP_speed"], 6))
+    row.update(_vector("actual_qd", sample["actual_qd"], 6))
+    return row
+
+
+def _formal_handoff_idle_packet(
+    *,
+    handoff: AcquisitionHandoffV1,
+    guard: Any,
+    lease_id: int,
+    episode_identity: int,
+) -> Any:
+    """Re-prime Direct Torque with a fresh sequence-0 handoff identity."""
+
+    if int(lease_id) != handoff.lease_id or int(episode_identity) != handoff.episode_identity:
+        raise RuntimeError("formal_handoff_idle_identity_mismatch")
+    packet = legacy._command_packet(
+        command=legacy.MODE_IDLE,
+        sequence=0,
+        progress_s=0.0,
+        pose=handoff.anchor_pose_base,
+        lease_id=lease_id,
+        episode_identity=episode_identity,
+        kunwei_guard_wrench_tcp_si=guard.wrench_tcp_si,
+        kunwei_sample_index=guard.sample_index,
+        kunwei_receive_batch_id=guard.receive_batch_id,
+        kunwei_nominal_sensor_time_s=guard.nominal_sensor_time_s,
+        kunwei_batch_arrival_monotonic_s=guard.t_monotonic_s,
+        stiffness_6d=FixedKExpertV1().stiffness_6d,
+        raw_f_ff_6d=(0.0,) * 6,
+    )
+    lineage = packet.lineage
+    if (
+        lineage.command_sequence != 0
+        or lineage.desired_pose != handoff.anchor_pose_base
+        or lineage.commanded_k != FixedKExpertV1().stiffness_6d
+        or lineage.commanded_raw_f_ff != (0.0,) * 6
+        or lineage.kunwei_sample_index != int(guard.sample_index)
+        or lineage.kunwei_receive_batch_id != int(guard.receive_batch_id)
+    ):
+        raise RuntimeError("formal_handoff_idle_packet_not_bumpless")
+    return packet
+
+
+def _run_formal_acquisition_phase(
+    *,
+    args: argparse.Namespace,
+    rtde: Any,
+    input_recipe: int,
+    input_types: list[str],
+    output_recipe: int,
+    output_types: list[str],
+    contract: ContactAcquisitionContractV1,
+    controller: FormalContactAcquisitionControllerV1,
+    kunwei: Any,
+    lease_id: int,
+    episode_identity: int,
+    acquisition_source: str,
+    attempt_id: str,
+    acquisition_rows: list[dict[str, Any]],
+) -> tuple[AcquisitionHandoffV1, tuple[float, ...], tuple[float, ...], dict[str, Any]]:
+    """Run acquisition to a stationary handoff before any Direct Torque source.
+
+    This helper is intentionally the only live seam that sends the acquisition
+    source.  It consumes every bounded native Kunwei frame, keeps the host
+    latch authoritative, and returns only a proven handoff anchor.
+    """
+
+    prepare_packet = _formal_acquisition_input_values(
+        command=ACQUISITION_COMMAND_PREPARE,
+        sequence=1,
+        lease_id=lease_id,
+        episode_identity=episode_identity,
+        safety_normal=True,
+        robot_running=True,
+    )
+    rtde.send_inputs(input_recipe, input_types, prepare_packet)
+    barrier = legacy._send_urscript_with_primary_start_barrier(
+        args.robot_host,
+        acquisition_source,
+        timeout_s=args.connect_timeout_s,
+    )
+    sequence = 1
+    prepare_ack_observed = False
+    prepare_deadline = time.monotonic() + 0.250
+    while time.monotonic() < prepare_deadline and not prepare_ack_observed:
+        for sample in legacy._receive_available(
+            rtde,
+            output_recipe,
+            output_types,
+            legacy.OUTPUT_FIELDS,
+            0.010,
+        ):
+            if int(sample["robot_mode"]) != legacy.ROBOT_MODE_RUNNING:
+                raise RuntimeError("formal_acquisition_prepare_robotmode_changed")
+            if int(sample["safety_mode"]) != legacy.SAFETY_MODE_NORMAL:
+                raise RuntimeError("formal_acquisition_prepare_safety_changed")
+            if int(sample["output_int_register_26"]) != 0:
+                raise RuntimeError("formal_acquisition_prepare_fault")
+            if (
+                int(sample["output_int_register_24"]) == 0
+                and int(sample["output_int_register_25"]) == sequence
+                and int(sample["output_int_register_29"])
+                == ACQUISITION_ROUTE_TOKEN
+            ):
+                prepare_ack_observed = True
+    if not prepare_ack_observed:
+        raise RuntimeError("formal_acquisition_prepare_ack_timeout")
+    barrier = {
+        **barrier,
+        "prepare_command": ACQUISITION_COMMAND_PREPARE,
+        "prepare_sequence": sequence,
+        "prepare_ack_observed": True,
+        "motion_armed_during_barrier": False,
+    }
+    latch_sent = False
+    handoff_ack_sent = False
+    handoff_ack_packet_sent = False
+    last_ack_sequence = sequence
+    pending: list[Mapping[str, Any]] = []
+    last_actual_pose: tuple[float, ...] | None = None
+    last_actual_speed: tuple[float, ...] | None = None
+    handoff: AcquisitionHandoffV1 | None = None
+
+    def send_packet(
+        *,
+        safety_normal: bool,
+        host_latch: bool,
+        handoff_ack: bool,
+        command: int = ACQUISITION_COMMAND_START,
+    ) -> None:
+        nonlocal sequence
+        sequence += 1
+        rtde.send_inputs(
+            input_recipe,
+            input_types,
+            _formal_acquisition_input_values(
+                command=command,
+                sequence=sequence,
+                lease_id=lease_id,
+                episode_identity=episode_identity,
+                safety_normal=safety_normal,
+                robot_running=safety_normal,
+                host_latch=host_latch,
+                handoff_ack=handoff_ack,
+            ),
+        )
+
+    def stop_fault(reason: str) -> None:
+        controller.fail_closed(reason)
+        try:
+            send_packet(
+                safety_normal=False,
+                host_latch=False,
+                handoff_ack=False,
+                command=ACQUISITION_COMMAND_ABORT,
+            )
+        except Exception:
+            pass
+
+    def fault_reason(text: object) -> str:
+        lowered = str(text).lower()
+        for candidate in (
+            "force_guard",
+            "torque_guard",
+            "protective_stop",
+            "safety_changed",
+            "joint_fault",
+            "route_identity_changed",
+            "route_fault",
+        ):
+            if candidate in lowered:
+                return candidate
+        return "sensor_fault"
+
+    # PREPARE is inert for the full 150 ms Primary barrier.  Start both the
+    # host profile and the native-frame cursor only after that barrier closes,
+    # then arm motion with sequence 2.  This preserves the 80 ms watchdog only
+    # for the active-motion phase rather than timing out inside the barrier.
+    sensor_cursor = int(
+        kunwei.snapshot(max_age_s=contract.sensor_delivery_watchdog_s).sample_index
+    )
+    acquisition_started_s = time.monotonic()
+    controller.start(
+        lease_id=lease_id,
+        episode_identity=episode_identity,
+        route_identity=FORMAL_ROUTE_IDENTITY,
+        monotonic_s=acquisition_started_s,
+    )
+    send_packet(
+        safety_normal=True,
+        host_latch=False,
+        handoff_ack=False,
+        command=ACQUISITION_COMMAND_START,
+    )
+    last_sequence_sent_s = time.monotonic()
+    deadline = acquisition_started_s + 65.0
+
+    while time.monotonic() < deadline:
+        now = time.monotonic()
+        try:
+            snapshots = kunwei.snapshots_since(
+                sensor_cursor,
+                max_age_s=contract.sensor_delivery_watchdog_s,
+            )
+        except Exception as exc:
+            reason = fault_reason(exc)
+            stop_fault(reason)
+            raise RuntimeError(f"formal_acquisition_{reason}:{exc}") from exc
+        for snapshot in snapshots:
+            sensor_cursor = int(snapshot.sample_index)
+            try:
+                latched = controller.observe_kunwei(
+                    _formal_acquisition_kunwei_sample(
+                        snapshot,
+                        lease_id=lease_id,
+                        episode_identity=episode_identity,
+                    )
+                )
+            except Exception as exc:
+                reason = fault_reason(exc)
+                stop_fault(reason)
+                raise RuntimeError(f"formal_acquisition_{reason}:{exc}") from exc
+            latch_sent = latch_sent or latched
+
+        if not pending:
+            pending = legacy._receive_available(
+                rtde,
+                output_recipe,
+                output_types,
+                legacy.OUTPUT_FIELDS,
+                0.005,
+            )
+            if not pending:
+                try:
+                    controller.command_at(now)
+                except Exception as exc:
+                    stop_fault("sensor_fault")
+                    raise RuntimeError(f"formal_acquisition_state_fault:{exc}") from exc
+
+        for sample in pending:
+            if int(sample["robot_mode"]) != legacy.ROBOT_MODE_RUNNING:
+                stop_fault("safety_changed")
+                raise RuntimeError("formal_acquisition_safety_changed")
+            if int(sample["safety_mode"]) != legacy.SAFETY_MODE_NORMAL:
+                stop_fault("safety_changed")
+                raise RuntimeError("formal_acquisition_safety_changed")
+            if int(sample["output_int_register_26"]) != 0:
+                stop_fault("route_fault")
+                raise RuntimeError("formal_acquisition_route_fault")
+            output_state = int(sample["output_int_register_24"])
+            output_ack = int(sample["output_int_register_25"])
+            if output_ack > sequence:
+                stop_fault("route_fault")
+                raise RuntimeError("formal_acquisition_ack_ahead_of_host")
+            if output_ack == sequence:
+                last_ack_sequence = output_ack
+            if output_state != 0 and (
+                int(sample["output_int_register_27"]) != lease_id
+                or int(sample["output_int_register_28"]) != episode_identity
+                or int(sample["output_int_register_29"]) != ACQUISITION_ROUTE_TOKEN
+            ):
+                stop_fault("route_fault")
+                raise RuntimeError("formal_acquisition_route_identity_changed")
+            try:
+                joint_modes = tuple(int(value) for value in sample["joint_mode"])
+            except (KeyError, TypeError, ValueError):
+                stop_fault("joint_fault")
+                raise RuntimeError("formal_acquisition_joint_fault")
+            if len(joint_modes) != 6 or any(mode != 253 for mode in joint_modes):
+                stop_fault("joint_fault")
+                raise RuntimeError("formal_acquisition_joint_fault")
+            last_actual_pose = tuple(float(value) for value in sample["actual_TCP_pose"])
+            last_actual_speed = tuple(float(value) for value in sample["actual_TCP_speed"])
+            if not all(
+                math.isfinite(value)
+                for value in last_actual_pose + last_actual_speed
+            ):
+                stop_fault("sensor_fault")
+                raise RuntimeError("formal_acquisition_kinematics_nonfinite")
+            acquisition_rows.append(
+                _formal_acquisition_evidence_row(
+                    sample,
+                    elapsed_s=time.monotonic() - acquisition_started_s,
+                    attempt_id=attempt_id,
+                    host_sequence=sequence,
+                )
+            )
+            if controller.state in {
+                AcquisitionState.STOPPING,
+                AcquisitionState.STATIONARY_DWELL,
+            }:
+                try:
+                    handoff = controller.observe_stationary(
+                        _formal_acquisition_stationary_sample(
+                            sample,
+                            lease_id=lease_id,
+                            episode_identity=episode_identity,
+                        )
+                    )
+                except Exception as exc:
+                    reason = fault_reason(exc)
+                    stop_fault(reason)
+                    raise RuntimeError(f"formal_acquisition_{reason}:{exc}") from exc
+                if handoff is not None:
+                    handoff_ack_sent = True
+            if handoff_ack_sent:
+                break
+        pending = []
+
+        if controller.state == AcquisitionState.SEARCH_EXHAUSTED:
+            if last_ack_sequence == sequence:
+                send_packet(
+                    safety_normal=True,
+                    host_latch=False,
+                    handoff_ack=False,
+                    command=ACQUISITION_COMMAND_STOP_NO_CONTACT,
+                )
+                raise RuntimeError("formal_contact_not_found")
+        if controller.state == AcquisitionState.FAULT:
+            raise RuntimeError(f"formal_acquisition_fault:{controller.fault_reason}")
+        if last_ack_sequence == sequence and not handoff_ack_packet_sent:
+            send_packet(
+                safety_normal=True,
+                host_latch=latch_sent,
+                handoff_ack=handoff_ack_sent,
+            )
+            last_sequence_sent_s = time.monotonic()
+            handoff_ack_packet_sent = handoff_ack_sent
+        if time.monotonic() - last_sequence_sent_s > contract.sensor_delivery_watchdog_s:
+            stop_fault("route_fault")
+            raise RuntimeError("formal_acquisition_ack_heartbeat_timeout")
+        if handoff_ack_packet_sent:
+            observed_terminal = False
+            for terminal_sample in legacy._receive_available(
+                rtde,
+                output_recipe,
+                output_types,
+                legacy.OUTPUT_FIELDS,
+                0.005,
+            ):
+                if int(terminal_sample["output_int_register_30"]) == 1 and int(
+                    terminal_sample["output_int_register_24"]
+                ) == 4:
+                    observed_terminal = True
+                    last_actual_pose = tuple(
+                        float(value) for value in terminal_sample["actual_TCP_pose"]
+                    )
+                    last_actual_speed = tuple(
+                        float(value) for value in terminal_sample["actual_TCP_speed"]
+                    )
+            if observed_terminal:
+                handoff = controller.handoff
+                return (
+                    handoff,
+                    handoff.anchor_pose_base,
+                    (0.0,) * 6,
+                    barrier,
+                )
+    stop_fault("sensor_fault")
+    raise RuntimeError("formal_acquisition_deadline_exceeded")
+
+
 def _run_contact_attempt_locked(
     *,
     args: argparse.Namespace,
@@ -332,36 +896,33 @@ def _run_contact_attempt_locked(
     identity: Mapping[str, Any],
     dynamics_evidence: Mapping[str, Any],
 ) -> dict[str, Any]:
+    _require_exact_sensor_delivery_watchdog(args)
     attempt_ordinal, episode, attempt_dir = ledger.next_attempt(
         verify_artifacts=False
     )
     attempt_dir.mkdir(parents=True, exist_ok=False)
     attempt_id = attempt_dir.name
     contract = ContactAcquisitionContractV1()
+    acquisition_source = build_formal_contact_acquisition_urscript(contract)
+    parse_formal_contact_acquisition_urscript(acquisition_source)
     status = legacy.readonly_status(args.robot_host)
     _validate_common_preflight(status)
     entry_pose = tuple(float(value) for value in status["rtde"]["actual_TCP_pose"])
     tube = _contact_episode_tube(entry_pose, contract)
     receiver_tube = _contact_receiver_tube(entry_pose, contract)
-    receiver_source = build_live_receiver_source(
-        receiver_tube,
-        friction_profile=legacy.FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT,
-        guard_force_limit_n=20.0,
-        guard_torque_limit_nm=2.0,
-    )
-    receiver_contract = parse_live_receiver_source(receiver_source)
-    if (
-        receiver_contract.guard_force_limit_n != 20.0
-        or receiver_contract.guard_torque_limit_nm != 2.0
-    ):
-        raise RuntimeError("formal_contact_receiver_guard_mismatch")
-    receiver_sha = hashlib.sha256(receiver_source.encode("utf-8")).hexdigest()
+    receiver_source: str | None = None
+    receiver_sha: str | None = None
     calibration, calibration_sha = legacy.validate_calibration(
         args.kunwei_calibration.resolve()
     )
     source_hashes = {
         "source_content": str(identity["source_content_sha256"]),
-        "receiver_source": receiver_sha,
+        "acquisition_source": hashlib.sha256(
+            acquisition_source.encode("utf-8")
+        ).hexdigest(),
+        "acquisition_route_identity": hashlib.sha256(
+            FORMAL_ROUTE_IDENTITY.encode("utf-8")
+        ).hexdigest(),
         "dynamics_conformance": str(
             dynamics_evidence["conformance_receipt"]["receipt_sha256"]
         ),
@@ -388,8 +949,8 @@ def _run_contact_attempt_locked(
     lineages: dict[int, legacy.CommandLineage] = {0: idle.lineage}
     command_metadata: dict[int, dict[str, Any]] = {
         0: {
-            "phase": FormalAttemptPhase.CONTACT_SEARCH.value,
-            "reference_sample_id": f"{attempt_id}:search:0",
+            "phase": FormalAttemptPhase.ACQUISITION.value,
+            "reference_sample_id": f"{attempt_id}:acquisition:0",
             "desired_pose_base": entry_pose,
             "desired_twist_base": (0.0,) * 6,
             "desired_acceleration_base": (0.0,) * 6,
@@ -397,9 +958,10 @@ def _run_contact_attempt_locked(
     }
     scheduler = legacy.AckPacedScheduler()
     rows: list[dict[str, Any]] = []
+    acquisition_rows: list[dict[str, Any]] = []
     kunwei_summary: dict[str, Any] = {}
     equipment_receipt: dict[str, Any] | None = None
-    phase = FormalAttemptPhase.CONTACT_SEARCH
+    phase = FormalAttemptPhase.ACQUISITION
     phase_started_s: float | None = None
     torque_started_s: float | None = None
     contact_pose: tuple[float, ...] | None = None
@@ -420,6 +982,7 @@ def _run_contact_attempt_locked(
     auto_return_performed = False
     start_s: float | None = None
     primary_barrier: Mapping[str, Any] | None = None
+    tracking_started = False
     deadline_s: float | None = None
     try:
         with (
@@ -480,11 +1043,117 @@ def _run_contact_attempt_locked(
                 output_types,
                 legacy.OUTPUT_FIELDS,
             )
-            primary_barrier = legacy._send_urscript_with_primary_start_barrier(
+            acquisition_controller = FormalContactAcquisitionControllerV1(contract)
+            (
+                handoff,
+                last_actual_pose,
+                last_actual_speed,
+                acquisition_barrier,
+            ) = _run_formal_acquisition_phase(
+                args=args,
+                rtde=rtde,
+                input_recipe=input_recipe,
+                input_types=input_types,
+                output_recipe=output_recipe,
+                output_types=output_types,
+                contract=contract,
+                controller=acquisition_controller,
+                kunwei=kunwei,
+                lease_id=lease_id,
+                episode_identity=episode_identity,
+                acquisition_source=acquisition_source,
+                attempt_id=attempt_id,
+                acquisition_rows=acquisition_rows,
+            )
+            contact_pose = handoff.anchor_pose_base
+            contact_latch_sample_index = handoff.contact_latch_sample_index
+            handoff_guard = kunwei.snapshot(
+                max_age_s=contract.sensor_delivery_watchdog_s
+            )
+            outgoing = _formal_handoff_idle_packet(
+                handoff=handoff,
+                guard=handoff_guard,
+                lease_id=lease_id,
+                episode_identity=episode_identity,
+            )
+            lineages = {0: outgoing.lineage}
+            command_metadata = {
+                0: {
+                    "phase": FormalAttemptPhase.CONTACT_SETTLE.value,
+                    "reference_sample_id": f"{attempt_id}:handoff_idle:0",
+                    "desired_pose_base": handoff.anchor_pose_base,
+                    "desired_twist_base": (0.0,) * 6,
+                    "desired_acceleration_base": (0.0,) * 6,
+                }
+            }
+            receiver_source = build_formal_direct_torque_tracking_source_after_handoff(
+                receiver_tube,
+                handoff,
+                contract,
+                fresh_actual_pose_base=handoff.anchor_pose_base,
+            )
+            receiver_contract = parse_live_receiver_source(receiver_source)
+            if (
+                receiver_contract.guard_force_limit_n != 20.0
+                or receiver_contract.guard_torque_limit_nm != 2.0
+                or receiver_contract.formal_handoff_required is not True
+            ):
+                raise RuntimeError("formal_contact_receiver_handoff_or_guard_mismatch")
+            receiver_sha = hashlib.sha256(receiver_source.encode("utf-8")).hexdigest()
+            source_hashes["receiver_source"] = receiver_sha
+            source_hashes["handoff_anchor"] = hashlib.sha256(
+                json.dumps(handoff.as_json(), sort_keys=True, separators=(",", ":")).encode(
+                    "utf-8"
+                )
+            ).hexdigest()
+            source_hashes["handoff_guard"] = hashlib.sha256(
+                json.dumps(
+                    {
+                        "sample_index": handoff_guard.sample_index,
+                        "receive_batch_id": handoff_guard.receive_batch_id,
+                        "nominal_sensor_time_s": handoff_guard.nominal_sensor_time_s,
+                        "t_monotonic_s": handoff_guard.t_monotonic_s,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            source_hashes["handoff_idle_lineage"] = hashlib.sha256(
+                json.dumps(
+                    {
+                        "sequence": outgoing.lineage.command_sequence,
+                        "pose": list(outgoing.lineage.desired_pose),
+                        "stiffness": list(outgoing.lineage.commanded_k),
+                        "raw_feedforward": list(outgoing.lineage.commanded_raw_f_ff),
+                        "kunwei_sample_index": outgoing.lineage.kunwei_sample_index,
+                        "kunwei_receive_batch_id": outgoing.lineage.kunwei_receive_batch_id,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            formal_manifest = _formal_manifest_for_attempt(
+                attempt_id=attempt_id, source_hashes=source_hashes
+            )
+            legacy._prime_idle_inputs(
+                rtde,
+                input_recipe,
+                input_types,
+                outgoing.values,
+                output_recipe,
+                output_types,
+                legacy.OUTPUT_FIELDS,
+            )
+            phase = FormalAttemptPhase.CONTACT_SETTLE
+            phase_started_s = None
+            primary_barrier = {"acquisition": acquisition_barrier}
+            tracking_started = True
+            tracking_barrier = legacy._send_urscript_with_primary_start_barrier(
                 args.robot_host,
                 receiver_source,
                 timeout_s=args.connect_timeout_s,
             )
+            primary_barrier["tracking"] = tracking_barrier
             diagnostics: list[dict[str, Any]] = []
             start_s, first = legacy._wait_for_fresh_receiver_waiting(
                 rtde,
@@ -556,22 +1225,7 @@ def _run_contact_attempt_locked(
                 now = time.monotonic()
                 if torque_started_s is not None and phase_started_s is not None:
                     elapsed = now - phase_started_s
-                    if phase == FormalAttemptPhase.CONTACT_SEARCH:
-                        if guard.contact_latched:
-                            contact_pose = last_actual_pose
-                            contact_latch_sample_index = guard.sample_index
-                            phase = FormalAttemptPhase.CONTACT_SETTLE
-                            phase_started_s = now
-                        elif contract.search_displacement_m(elapsed) >= contract.maximum_search_distance_m:
-                            contact_not_found = True
-                            phase = FormalAttemptPhase.HOME_RETURN
-                            phase_started_s = now
-                            home_return_start_pose = last_actual_pose
-                            home_return_duration_s = max(
-                                2.0,
-                                math.dist(last_actual_pose[:3], entry_pose[:3]) / 0.005,
-                            )
-                    elif phase == FormalAttemptPhase.CONTACT_SETTLE and elapsed >= contract.settle_duration_s:
+                    if phase == FormalAttemptPhase.CONTACT_SETTLE and elapsed >= contract.settle_duration_s:
                         assert contact_pose is not None
                         timeline = build_formal_trajectory_timeline(
                             family=episode.trajectory_family,
@@ -630,7 +1284,9 @@ def _run_contact_attempt_locked(
                         int(last_sample["output_int_register_25"])
                     )
                     if next_sequence is not None:
-                        desired_pose = entry_pose
+                        desired_pose = (
+                            contact_pose if contact_pose is not None else entry_pose
+                        )
                         desired_twist = (0.0,) * 6
                         desired_acceleration = (0.0,) * 6
                         reference_sample_id = f"{attempt_id}:{phase.value}:{next_sequence}"
@@ -639,15 +1295,7 @@ def _run_contact_attempt_locked(
                         progress_s = 0.0
                         if torque_started_s is not None and phase_started_s is not None:
                             elapsed = max(0.0, now - phase_started_s)
-                            if phase == FormalAttemptPhase.CONTACT_SEARCH:
-                                desired_pose = contract.search_pose(entry_pose, elapsed)
-                                desired_twist = contract.approach_normal_base + (0.0,) * 3
-                                desired_twist = tuple(
-                                    contract.approach_speed_m_s * value
-                                    for value in desired_twist[:3]
-                                ) + (0.0,) * 3
-                                progress_s = contract.search_displacement_m(elapsed)
-                            elif phase == FormalAttemptPhase.CONTACT_SETTLE:
+                            if phase == FormalAttemptPhase.CONTACT_SETTLE:
                                 assert contact_pose is not None
                                 desired_pose = contact_pose
                                 ramp = _smooth01(elapsed / contract.settle_duration_s)
@@ -723,10 +1371,13 @@ def _run_contact_attempt_locked(
     except Exception as exc:
         failure = f"{type(exc).__name__}: {exc}"
         fault_class, _ = classify_fault(exc)
+        if "formal_contact_not_found" in str(exc):
+            contact_not_found = True
+            fault_class = "recoverable_runtime"
         # Fault exits Direct Torque only. No automatic retract/home is sent
         # from this handler, including sensor/guard/protective/safety faults.
         try:
-            if "rtde" in locals() and outgoing is not None:
+            if tracking_started and "rtde" in locals() and outgoing is not None:
                 abort = legacy._command_packet(
                     command=legacy.MODE_ABORT,
                     sequence=outgoing.lineage.command_sequence,
@@ -752,6 +1403,9 @@ def _run_contact_attempt_locked(
     csv_path = attempt_dir / "direct_torque_rtde.csv"
     if rows:
         _write_csv_new(csv_path, rows)
+    acquisition_csv_path = attempt_dir / "contact_acquisition_rtde.csv"
+    if acquisition_rows:
+        _write_csv_new(acquisition_csv_path, acquisition_rows)
     post_status: Mapping[str, Any] | None = None
     try:
         post_status = legacy.readonly_status(args.robot_host)
@@ -866,6 +1520,12 @@ def _run_contact_attempt_locked(
         "formal_result": formal_result_for_evidence,
         "rtde_row_count": len(rows),
         "raw_rtde_csv": str(csv_path) if rows else None,
+        "acquisition_row_count": len(acquisition_rows),
+        "acquisition_raw_rtde_csv": (
+            str(acquisition_csv_path) if acquisition_rows else None
+        ),
+        "acquisition_training": False,
+        "acquisition_protocol_evidence": False,
         "primary_client_start_barrier": primary_barrier,
         "scheduler": scheduler.summary(),
         "duration_s": None if start_s is None else time.monotonic() - start_s,
@@ -922,6 +1582,8 @@ def _run_contact_attempt_locked(
 
 
 def run_collect_campaign(args: argparse.Namespace) -> dict[str, Any]:
+    _require_exact_sensor_delivery_watchdog(args)
+    _require_frozen_live_endpoints(args)
     if not all(
         (
             args.live,
@@ -1330,7 +1992,7 @@ def _compose_formal_artifact(
     tube: LiveTubeContract,
     semantic_fingerprint_sha256: str,
 ) -> dict[str, Any]:
-    track_rows = [row for row in rows if row.get("formal_phase") == "TRACK"]
+    track_rows = _formal_track_state_torque_rows(rows)
     if len(track_rows) < int(0.9 * 8.0 * 500.0):
         raise RuntimeError("formal_track_rows_insufficient")
     if any(
@@ -1404,7 +2066,7 @@ def _compose_formal_artifact(
                 kunwei_alignment_adapter=alignment,
                 internal_wrench_provider=None,
                 candidate_window=True,
-                capture_phase="formal_candidate",
+                capture_phase="formal_track_state_torque",
                 control_clock=control_clock,
             )
             formal = composer.compose(
@@ -1449,6 +2111,11 @@ def _compose_formal_artifact(
         "recorder_manifest_path": recorder.manifest_path,
         "eligibility_path": eligibility_path,
         "formal_row_count": len(frames),
+        "eligibility_window": {
+            "formal_phase": FormalAttemptPhase.TRACK.value,
+            "receiver_state": legacy.STATE_TORQUE,
+            "acquisition_training": False,
+        },
         "formal_eligible": decision.formal_eligible,
         "eligibility": receipt,
         "recorder_health": health.as_json(),
@@ -1729,6 +2396,8 @@ def _run_no_contact_episode(
 
 
 def run_qualify_seven(args: argparse.Namespace) -> dict[str, Any]:
+    _require_exact_sensor_delivery_watchdog(args)
+    _require_frozen_live_endpoints(args)
     if not all(
         (
             args.live,
@@ -1835,7 +2504,11 @@ def build_parser() -> argparse.ArgumentParser:
     collect.add_argument("--seed", type=int, default=2000)
     collect.add_argument("--connect-timeout-s", type=float, default=3.0)
     collect.add_argument("--receiver-wait-s", type=float, default=2.0)
-    collect.add_argument("--sensor-delivery-watchdog-s", type=float, default=0.080)
+    collect.add_argument(
+        "--sensor-delivery-watchdog-s",
+        type=_parse_exact_sensor_delivery_watchdog,
+        default=FORMAL_SENSOR_DELIVERY_WATCHDOG_S,
+    )
     collect.add_argument("--max-attempts", type=int, default=0)
     collect.add_argument("--live", action="store_true")
     collect.add_argument("--send-urscript", action="store_true")
@@ -1860,7 +2533,9 @@ def build_parser() -> argparse.ArgumentParser:
     qualify.add_argument("--connect-timeout-s", type=float, default=3.0)
     qualify.add_argument("--receiver-wait-s", type=float, default=2.0)
     qualify.add_argument(
-        "--sensor-delivery-watchdog-s", type=float, default=0.080
+        "--sensor-delivery-watchdog-s",
+        type=_parse_exact_sensor_delivery_watchdog,
+        default=FORMAL_SENSOR_DELIVERY_WATCHDOG_S,
     )
     qualify.add_argument("--live", action="store_true")
     qualify.add_argument("--send-urscript", action="store_true")

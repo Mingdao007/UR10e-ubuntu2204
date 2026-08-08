@@ -29,6 +29,7 @@ from .formal_campaign import (
 FORMAL_CONTACT_ACQUISITION_SCHEMA_V1 = (
     "ur10e_tacdiffusion_contact_acquisition/v1"
 )
+FORMAL_SENSOR_DELIVERY_WATCHDOG_S = 0.080
 FORMAL_CAMPAIGN_LEDGER_SCHEMA_V1 = "ur10e_tacdiffusion_campaign_ledger/v1"
 FORMAL_ATTEMPT_RECEIPT_SCHEMA_V1 = "ur10e_tacdiffusion_attempt_receipt/v1"
 ZERO_SHA256 = "0" * 64
@@ -61,6 +62,7 @@ def _require_sha256(value: object, name: str) -> str:
 
 class FormalAttemptPhase(str, Enum):
     BASELINE = "BASELINE"
+    ACQUISITION = "ACQUISITION"
     CONTACT_SEARCH = "CONTACT_SEARCH"
     CONTACT_SETTLE = "CONTACT_SETTLE"
     TRACK = "TRACK"
@@ -93,6 +95,14 @@ class ContactAcquisitionContractV1:
     maximum_search_distance_m: float = 0.025
     contact_latch_load_n: float = 1.0
     contact_latch_duration_s: float = 0.050
+    acquisition_acceleration_m_s2: float = 0.010
+    acquisition_deceleration_m_s2: float = 0.010
+    sensor_delivery_watchdog_s: float = FORMAL_SENSOR_DELIVERY_WATCHDOG_S
+    stationary_dwell_s: float = 0.100
+    stationary_tcp_speed_limit_m_s: float = 0.0001
+    stationary_rotation_speed_limit_rad_s: float = 0.002
+    stationary_joint_speed_limit_rad_s: float = 0.001
+    maximum_handoff_mismatch_m: float = 0.0003
     settle_duration_s: float = 0.500
     track_duration_s: float = 8.0
     retract_distance_m: float = 0.010
@@ -114,6 +124,7 @@ class ContactAcquisitionContractV1:
         "safety_changed",
         "joint_fault",
         "route_identity_changed",
+        "route_fault",
     )
     schema_version: str = FORMAL_CONTACT_ACQUISITION_SCHEMA_V1
 
@@ -127,12 +138,77 @@ class ContactAcquisitionContractV1:
             "maximum_search_distance_m": (self.maximum_search_distance_m, 0.025),
             "contact_latch_load_n": (self.contact_latch_load_n, 1.0),
             "contact_latch_duration_s": (self.contact_latch_duration_s, 0.050),
+            "acquisition_acceleration_m_s2": (
+                self.acquisition_acceleration_m_s2,
+                0.010,
+            ),
+            "acquisition_deceleration_m_s2": (
+                self.acquisition_deceleration_m_s2,
+                0.010,
+            ),
+            "stationary_dwell_s": (self.stationary_dwell_s, 0.100),
+            "stationary_tcp_speed_limit_m_s": (
+                self.stationary_tcp_speed_limit_m_s,
+                0.0001,
+            ),
+            "stationary_rotation_speed_limit_rad_s": (
+                self.stationary_rotation_speed_limit_rad_s,
+                0.002,
+            ),
+            "stationary_joint_speed_limit_rad_s": (
+                self.stationary_joint_speed_limit_rad_s,
+                0.001,
+            ),
+            "maximum_handoff_mismatch_m": (
+                self.maximum_handoff_mismatch_m,
+                0.0003,
+            ),
             "track_duration_s": (self.track_duration_s, 8.0),
             "retract_distance_m": (self.retract_distance_m, 0.010),
         }
         for name, (actual, expected) in frozen.items():
             if not math.isclose(float(actual), expected, rel_tol=0.0, abs_tol=1e-12):
                 raise ValueError(f"contact acquisition {name} is frozen")
+        for name in (
+            "acquisition_acceleration_m_s2",
+            "acquisition_deceleration_m_s2",
+        ):
+            value = float(getattr(self, name))
+            if not math.isfinite(value) or not 0.001 <= value <= 0.1:
+                raise ValueError(f"contact acquisition {name} is outside its bound")
+        bounded_positive = {
+            "sensor_delivery_watchdog_s": (
+                self.sensor_delivery_watchdog_s,
+                FORMAL_SENSOR_DELIVERY_WATCHDOG_S,
+            ),
+            "stationary_dwell_s": (self.stationary_dwell_s, 1.0),
+            "stationary_tcp_speed_limit_m_s": (
+                self.stationary_tcp_speed_limit_m_s,
+                0.01,
+            ),
+            "stationary_rotation_speed_limit_rad_s": (
+                self.stationary_rotation_speed_limit_rad_s,
+                0.02,
+            ),
+            "stationary_joint_speed_limit_rad_s": (
+                self.stationary_joint_speed_limit_rad_s,
+                0.01,
+            ),
+            "maximum_handoff_mismatch_m": (self.maximum_handoff_mismatch_m, 0.001),
+        }
+        for name, (actual, maximum) in bounded_positive.items():
+            value = float(actual)
+            if name == "sensor_delivery_watchdog_s":
+                valid = math.isclose(
+                    value,
+                    FORMAL_SENSOR_DELIVERY_WATCHDOG_S,
+                    rel_tol=0.0,
+                    abs_tol=1.0e-12,
+                )
+            else:
+                valid = math.isfinite(value) and 0.0 < value <= maximum
+            if not valid:
+                raise ValueError(f"contact acquisition {name} is outside its bound")
         if not math.isfinite(self.settle_duration_s) or not 0.25 <= self.settle_duration_s <= 2.0:
             raise ValueError("contact settle duration must be bounded")
         reaction = tuple(float(value) for value in self.reaction_normal_base)
@@ -208,6 +284,17 @@ class ContactAcquisitionContractV1:
             "contact_latch_load_n": self.contact_latch_load_n,
             "contact_latch_duration_s": self.contact_latch_duration_s,
             "contact_latch_samples": self.latch_samples,
+            "acquisition_acceleration_m_s2": self.acquisition_acceleration_m_s2,
+            "acquisition_deceleration_m_s2": self.acquisition_deceleration_m_s2,
+            "sensor_delivery_watchdog_s": self.sensor_delivery_watchdog_s,
+            "sensor_delivery_watchdog_semantics": (
+                "latest_native_batch_delivery_age_only_not_per_frame_host_arrival"
+            ),
+            "stationary_dwell_s": self.stationary_dwell_s,
+            "stationary_tcp_speed_limit_m_s": self.stationary_tcp_speed_limit_m_s,
+            "stationary_rotation_speed_limit_rad_s": self.stationary_rotation_speed_limit_rad_s,
+            "stationary_joint_speed_limit_rad_s": self.stationary_joint_speed_limit_rad_s,
+            "maximum_handoff_mismatch_m": self.maximum_handoff_mismatch_m,
             "settle_duration_s": self.settle_duration_s,
             "track_duration_s": self.track_duration_s,
             "retract_distance_m": self.retract_distance_m,
@@ -616,6 +703,7 @@ def classify_fault(error: BaseException | str) -> tuple[str, bool]:
         "safety_changed": ("safety",),
         "joint_fault": ("joint_fault", "joint mode", "joint acceleration"),
         "route_identity_changed": ("identity", "protocol", "lease_echo", "episode_echo"),
+        "route_fault": ("route_fault", "route identity"),
         "sensor_fault": ("kunwei", "sensor", "delivery", "parse", "baseline"),
     }
     for fault_class, tokens in hard_tokens.items():

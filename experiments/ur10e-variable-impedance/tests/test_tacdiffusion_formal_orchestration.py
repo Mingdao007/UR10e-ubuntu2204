@@ -30,6 +30,10 @@ def test_contact_acquisition_is_frozen_signed_and_bounded() -> None:
     contract = ContactAcquisitionContractV1()
     assert contract.baseline_samples == 1000
     assert contract.latch_samples == 50
+    assert contract.sensor_delivery_watchdog_s == pytest.approx(0.080)
+    assert contract.as_json()["sensor_delivery_watchdog_semantics"] == (
+        "latest_native_batch_delivery_age_only_not_per_frame_host_arrival"
+    )
     assert contract.search_displacement_m(2.0) == pytest.approx(0.001)
     assert contract.search_displacement_m(1000.0) == pytest.approx(0.025)
     entry = (0.48, 0.13, 0.033, 3.12, 0.0, 0.068)

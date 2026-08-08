@@ -174,3 +174,19 @@ def test_formal_parser_exposes_resumable_contact_campaign_without_default_live()
     assert parsed.live is False
     assert parsed.allow_contact is False
     assert parsed.max_attempts == 0
+    assert parsed.sensor_delivery_watchdog_s == 0.080
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "collect-campaign",
+                "--kind",
+                "fixed_k",
+                "--campaign-root",
+                "/tmp/formal-fixed",
+                "--dynamics-evidence",
+                "/tmp/dynamics.json",
+                "--sensor-delivery-watchdog-s",
+                "0.010",
+            ]
+        )

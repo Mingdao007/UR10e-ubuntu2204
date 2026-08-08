@@ -1,0 +1,84 @@
+{
+  "bounded_profile": {
+    "acceleration_distance_m": 1.2500000000000002e-05,
+    "acceleration_m_s2": 0.01,
+    "acceleration_time_s": 0.05,
+    "bounded_overshoot_m": 0.0,
+    "braking_distance_m_v2_over_2a": 1.2499999999999999e-05,
+    "braking_formula": "v^2/(2a) = 0.0005^2/(2*0.01) = 0.0000125 m = 12.5 micrometres",
+    "braking_formula_matches_profile": true,
+    "commanded_stop_distance_m": 0.024999,
+    "cruise_distance_m": 0.024974000000000003,
+    "deceleration_distance_m": 1.25e-05,
+    "deceleration_m_s2": 0.01,
+    "deceleration_start_distance_m": 0.024986500000000002,
+    "deceleration_time_s": 0.05,
+    "discrete_stop_bound_m": 1e-06,
+    "maximum_bounded_distance_m": 0.025,
+    "maximum_search_distance_m": 0.025,
+    "physical_worst_case_distance_m": 0.025,
+    "profile_distance_m": 0.024999,
+    "profile_does_not_overshoot": true,
+    "stop_fits_inside_maximum": true
+  },
+  "distance_proof": {
+    "assertion": "0.0005 m/s * 50 s = 0.025 m = 25 mm",
+    "distance_m": 0.025,
+    "distance_mm": 25.0,
+    "duration_s": 50.0,
+    "exact_25mm": true,
+    "speed_m_s": 0.0005
+  },
+  "fixed_k_mapping": {
+    "initial_desired_pose_is_fresh_actual": true,
+    "initial_feedforward_wrench_6d": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "maximum_handoff_force_mismatch_n": 0.18,
+    "maximum_handoff_mismatch_m": 0.0003,
+    "one_mm_error_m": 0.001,
+    "one_mm_force_n": 0.6,
+    "stiffness_6d": [
+      600.0,
+      600.0,
+      600.0,
+      30.0,
+      30.0,
+      30.0
+    ]
+  },
+  "guards": {
+    "authority": "kunwei_kwr75_tcp_raw_stream_v1",
+    "force_limit_n": 20.0,
+    "heartbeat_timeout_s": 0.08,
+    "heartbeat_timeout_ticks": 40,
+    "latch_consecutive_native_samples": 50,
+    "latch_load_n": 1.0,
+    "native_sensor_rate_hz": 1000,
+    "prepare_timeout_s": 0.4,
+    "prepare_timeout_ticks": 200,
+    "sensor_delivery_semantics": "latest_native_batch_delivery_age_only_not_per_frame_host_arrival",
+    "sensor_delivery_watchdog_s": 0.08,
+    "torque_limit_nm": 2.0
+  },
+  "lineage": "tacdiffusion_formal_v4",
+  "offline_only": true,
+  "schema_version": "ur10e_tacdiffusion_formal_v4_numeric_sanity/v1",
+  "transition_invariants": {
+    "acquisition_training": false,
+    "dwell_to_handoff": "fresh_stationary_dwell_complete",
+    "fault_policy": "fail_closed_no_automatic_return",
+    "formal_training_window": "TRACK_plus_STATE_TORQUE_only",
+    "handoff_to_direct_torque": "successful_identity_bound_handoff_only",
+    "search_stop_distance": "decelerate_at_25mm_minus_12.5um_minus_one_control_tick",
+    "search_to_stopping": "host_latch_1N_for_50_consecutive_native_samples",
+    "stationary_tcp_speed_limit_m_s": 0.0001,
+    "stationary_threshold_below_search_speed": true,
+    "stopping_to_dwell": "velocity_command_zero_and_fresh_kinematic_sample"
+  }
+}

@@ -68,6 +68,14 @@ def load_formal_source_closure(
     closure = _load_object(closure_file)
     if closure.get("schema_version") != FORMAL_SOURCE_CLOSURE_SCHEMA_V1:
         raise ValueError("unsupported formal source closure schema")
+    if closure.get("lineage") != "tacdiffusion_formal_v4":
+        raise ValueError("formal source closure lineage mismatch")
+    if closure.get("route") != "remote_secondary_client_direct_torque":
+        raise ValueError("formal source closure route mismatch")
+    if closure.get("controller_readback_applicable") is not False:
+        raise ValueError("formal source closure controller-readback boundary is invalid")
+    if closure.get("kunwei_only") is not True or closure.get("ur_internal_ft_used") is not False:
+        raise ValueError("formal source closure force-authority boundary is invalid")
     files = closure.get("files")
     if not isinstance(files, list) or not files:
         raise ValueError("formal source closure file list is missing")
@@ -116,6 +124,14 @@ def resolve_formal_current_state(experiment_root: str | Path) -> dict[str, Any]:
         blockers.append("route_mismatch")
     if current.get("controller_target") != "secondary_client://192.168.1.18:30002":
         blockers.append("controller_target_mismatch")
+    if current.get("sensor_target") != "tcp_raw://192.168.50.25:5152":
+        blockers.append("sensor_target_mismatch")
+    if table.get("route") != current.get("route"):
+        blockers.append("stage_table_route_mismatch")
+    if table.get("controller_target") != current.get("controller_target"):
+        blockers.append("stage_table_controller_target_mismatch")
+    if table.get("sensor_target") != current.get("sensor_target"):
+        blockers.append("stage_table_sensor_target_mismatch")
     if (
         current.get("tp_package_applicable") is not False
         or current.get("controller_upload_applicable") is not False
@@ -132,10 +148,96 @@ def resolve_formal_current_state(experiment_root: str | Path) -> dict[str, Any]:
     if not isinstance(stages, list):
         blockers.append("stage_table_rows_missing")
         stages = []
+    stage_ids = [
+        str(row.get("id"))
+        for row in stages
+        if isinstance(row, Mapping) and isinstance(row.get("id"), str)
+    ]
+    if len(stage_ids) != len(set(stage_ids)):
+        blockers.append("stage_table_duplicate_ids")
     current_id = current.get("current_stage_id")
+    if current_id not in stage_ids:
+        blockers.append("current_stage_unknown")
     active = [row for row in stages if isinstance(row, Mapping) and row.get("active") is True]
     if len(active) != 1 or active[0].get("id") != current_id:
         blockers.append("stage_table_active_identity_mismatch")
+    if table.get("contact_acquisition") != current.get("contact_acquisition"):
+        blockers.append("stage_table_contact_acquisition_mismatch")
+    if table.get("formal_eligibility_window") != current.get("formal_eligibility_window"):
+        blockers.append("stage_table_eligibility_window_mismatch")
+    acquisition = current.get("contact_acquisition")
+    if not isinstance(acquisition, Mapping):
+        blockers.append("contact_acquisition_identity_missing")
+    else:
+        if acquisition.get("route_identity") != "remote_secondary_client_direct_torque":
+            blockers.append("contact_acquisition_route_mismatch")
+        if acquisition.get("force_authority") != "kunwei_kwr75_tcp_raw_stream_v1":
+            blockers.append("contact_acquisition_authority_mismatch")
+        if acquisition.get("route_token") != 4004001:
+            blockers.append("contact_acquisition_route_token_mismatch")
+        if acquisition.get("native_sensor_rate_hz") != 1000:
+            blockers.append("contact_acquisition_sensor_rate_mismatch")
+        if acquisition.get("approach_speed_m_s") != 0.0005:
+            blockers.append("contact_acquisition_speed_mismatch")
+        if acquisition.get("maximum_search_distance_m") != 0.025:
+            blockers.append("contact_acquisition_distance_mismatch")
+        if acquisition.get("latch_load_n") != 1.0 or acquisition.get("latch_samples") != 50:
+            blockers.append("contact_acquisition_latch_mismatch")
+        if (
+            acquisition.get("acquisition_acceleration_m_s2") != 0.01
+            or acquisition.get("acquisition_deceleration_m_s2") != 0.01
+        ):
+            blockers.append("contact_acquisition_accel_decel_mismatch")
+        if acquisition.get("sensor_delivery_watchdog_s") != 0.08:
+            blockers.append("contact_acquisition_delivery_watchdog_mismatch")
+        if acquisition.get("sensor_delivery_watchdog_semantics") != (
+            "latest_native_batch_delivery_age_only_not_per_frame_host_arrival"
+        ):
+            blockers.append("contact_acquisition_delivery_watchdog_semantics_invalid")
+        if acquisition.get("control_period_s") != 0.002:
+            blockers.append("contact_acquisition_control_period_mismatch")
+        if acquisition.get("heartbeat_timeout_s") != 0.08:
+            blockers.append("contact_acquisition_heartbeat_timeout_mismatch")
+        if acquisition.get("heartbeat_timeout_ticks") != 40:
+            blockers.append("contact_acquisition_heartbeat_ticks_mismatch")
+        if acquisition.get("prepare_timeout_s") != 0.4:
+            blockers.append("contact_acquisition_prepare_timeout_mismatch")
+        if acquisition.get("prepare_timeout_ticks") != 200:
+            blockers.append("contact_acquisition_prepare_timeout_ticks_mismatch")
+        if acquisition.get("command_prepare") != 0:
+            blockers.append("contact_acquisition_prepare_command_mismatch")
+        if acquisition.get("command_abort") != 2:
+            blockers.append("contact_acquisition_abort_command_mismatch")
+        if acquisition.get("braking_distance_m") != 0.0000125:
+            blockers.append("contact_acquisition_braking_distance_mismatch")
+        if acquisition.get("deceleration_start_distance_m") != 0.0249865:
+            blockers.append("contact_acquisition_deceleration_start_mismatch")
+        if acquisition.get("stationary_dwell_s") != 0.1:
+            blockers.append("contact_acquisition_stationary_dwell_mismatch")
+        if acquisition.get("stationary_tcp_speed_limit_m_s") != 0.0001:
+            blockers.append("contact_acquisition_stationary_tcp_speed_mismatch")
+        if acquisition.get("stationary_rotation_speed_limit_rad_s") != 0.002:
+            blockers.append("contact_acquisition_stationary_rotation_speed_mismatch")
+        if acquisition.get("stationary_joint_speed_limit_rad_s") != 0.001:
+            blockers.append("contact_acquisition_stationary_joint_speed_mismatch")
+        if (
+            acquisition.get("hard_guard_force_n") != 20.0
+            or acquisition.get("hard_guard_torque_nm") != 2.0
+        ):
+            blockers.append("contact_acquisition_guard_mismatch")
+        if acquisition.get("handoff_max_mismatch_m") != 0.0003:
+            blockers.append("contact_acquisition_handoff_mismatch")
+        if acquisition.get("training_evidence") is not False:
+            blockers.append("contact_acquisition_training_boundary_invalid")
+    eligibility_window = current.get("formal_eligibility_window")
+    if not isinstance(eligibility_window, Mapping):
+        blockers.append("formal_eligibility_window_missing")
+    elif (
+        eligibility_window.get("phase") != "TRACK"
+        or eligibility_window.get("receiver_state") != "STATE_TORQUE"
+        or eligibility_window.get("acquisition_included") is not False
+    ):
+        blockers.append("formal_eligibility_window_invalid")
     closure_result: dict[str, Any] | None = None
     try:
         closure_relative = current.get("source_closure_path")

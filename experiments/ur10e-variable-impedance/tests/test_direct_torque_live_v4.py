@@ -162,6 +162,12 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
         in source
     )
     assert (
+        "if not torque_entered:\n"
+        "          entry_ready = True\n"
+        "          local entry_velocity_alpha = "
+        "control_dt_s/(entry_velocity_filter_tau_s + control_dt_s)"
+    ) in source
+    assert (
         "filtered_entry_joint_speed[axis] > entry_joint_speed_limit_rad_s"
         in source
     )

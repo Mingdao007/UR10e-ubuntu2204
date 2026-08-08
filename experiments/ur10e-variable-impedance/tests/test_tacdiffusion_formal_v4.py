@@ -216,7 +216,8 @@ def _formal_row() -> tuple[EpisodeFrameV4, FormalEpisodeManifestV1]:
         expert_action_source="deterministic_expert",
         action_label_semantics="deterministic_expert_guarded_action_12d_v1",
         candidate_window=True,
-        capture_phase="formal_candidate",
+        capture_phase="formal_track_state_torque",
+        receiver_state=2,
     )
     return row, manifest
 

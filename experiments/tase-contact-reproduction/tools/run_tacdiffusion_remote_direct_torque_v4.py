@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
@@ -1183,6 +1184,7 @@ class KunweiGuardCapture:
         self.ready_event = threading.Event()
         self.error: BaseException | None = None
         self.latest: KunweiSnapshot | None = None
+        self.snapshot_history: deque[KunweiSnapshot] = deque(maxlen=4096)
         self.bias_sum = [0.0] * 6
         self.bias: tuple[float, ...] | None = None
         self.samples = 0
@@ -1404,6 +1406,7 @@ class KunweiGuardCapture:
                             )
                             with self.lock:
                                 self.latest = snapshot
+                                self.snapshot_history.append(snapshot)
                             if self.post_baseline_samples >= 50:
                                 self.ready_event.set()
                         else:
@@ -1496,6 +1499,48 @@ class KunweiGuardCapture:
                 f"kunwei_active_torque_over_{self.active_torque_limit_nm:g}nm"
             )
         return snapshot
+
+    def snapshots_since(
+        self,
+        sample_index: int,
+        *,
+        max_age_s: float,
+    ) -> tuple[KunweiSnapshot, ...]:
+        """Return every post-baseline native frame after ``sample_index``.
+
+        The formal host latch must advance once per native Kunwei frame.  A
+        latest-only read would silently skip frames when a TCP batch contains
+        more than one sample, so the acquisition phase consumes this bounded
+        history instead.
+        """
+
+        if int(sample_index) < 0:
+            raise ValueError("kunwei_snapshot_history_index_invalid")
+        with self.lock:
+            error = self.error
+            latest = self.latest
+            history = tuple(self.snapshot_history)
+        if error is not None:
+            raise RuntimeError(
+                f"kunwei_capture_failed:{type(error).__name__}:{error}"
+            ) from error
+        if latest is None:
+            raise RuntimeError("kunwei_baseline_not_ready")
+        if time.monotonic() - latest.t_monotonic_s > max_age_s:
+            raise RuntimeError("kunwei_delivery_stale")
+        if latest.force_norm_n > self.active_force_limit_n:
+            raise RuntimeError(
+                f"kunwei_active_force_over_{self.active_force_limit_n:g}n"
+            )
+        if latest.torque_norm_nm > self.active_torque_limit_nm:
+            raise RuntimeError(
+                f"kunwei_active_torque_over_{self.active_torque_limit_nm:g}nm"
+            )
+        if history and int(sample_index) < history[0].sample_index - 1:
+            raise RuntimeError("kunwei_snapshot_history_gap")
+        return tuple(
+            snapshot for snapshot in history if snapshot.sample_index > sample_index
+        )
 
     def stop(self) -> None:
         if self.thread is None:
@@ -2922,6 +2967,7 @@ def _recorder_frame(
         reference_sample_id=reference_sample_id,
         candidate_window=candidate_window,
         capture_phase=capture_phase,
+        receiver_state=receiver_state,
     )
 
 

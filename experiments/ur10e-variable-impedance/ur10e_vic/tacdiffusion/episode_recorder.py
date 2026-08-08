@@ -434,6 +434,7 @@ class EpisodeFrameV2:
     reference_sample_id: str | None = None
     candidate_window: bool = False
     capture_phase: str = "unknown"
+    receiver_state: int | None = None
 
     def __post_init__(self) -> None:
         if not self.episode_id.strip() or self.sample_index < 0 or self.control_sequence < 0:
@@ -509,6 +510,8 @@ class EpisodeFrameV2:
             raise ValueError("observation/reference validity flags must be boolean")
         if not isinstance(self.candidate_window, bool) or not self.capture_phase.strip():
             raise ValueError("capture window/phase metadata is invalid")
+        if self.receiver_state is not None and int(self.receiver_state) < 0:
+            raise ValueError("receiver state metadata is invalid")
 
     @property
     def row_valid(self) -> bool:

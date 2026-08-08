@@ -307,6 +307,8 @@ class LiveReceiverContract:
     controller_runtime_physical_io_enabled: bool
     guard_force_limit_n: float = 6.0
     guard_torque_limit_nm: float = 0.5
+    formal_handoff_required: bool = False
+    formal_handoff_max_mismatch_m: float = 0.0003
 
 
 def build_live_receiver_source(
@@ -317,6 +319,8 @@ def build_live_receiver_source(
     friction_profile: str = FRICTION_PROFILE_ZERO_ISOLATION,
     guard_force_limit_n: float = 6.0,
     guard_torque_limit_nm: float = 0.5,
+    formal_handoff_anchor_pose_base: Sequence[float] | None = None,
+    formal_handoff_max_mismatch_m: float = 0.0003,
 ) -> str:
     """Build one controller-resident 500 Hz program; sending is a separate gate."""
 
@@ -341,6 +345,18 @@ def build_live_receiver_source(
         and guard_pair != (20.0, 2.0)
     ):
         raise ValueError("formal contact friction profile requires contact 20/2 guard")
+    formal_handoff_required = formal_handoff_anchor_pose_base is not None
+    formal_handoff_max_mismatch_m = float(formal_handoff_max_mismatch_m)
+    if (
+        not math.isfinite(formal_handoff_max_mismatch_m)
+        or not 0.0 < formal_handoff_max_mismatch_m <= 0.001
+    ):
+        raise ValueError("formal handoff mismatch bound is invalid")
+    formal_handoff_anchor = (
+        (0.0,) * 6
+        if formal_handoff_anchor_pose_base is None
+        else _finite(formal_handoff_anchor_pose_base, 6, "formal handoff anchor")
+    )
     viscous_scale, coulomb_scale = FRICTION_PROFILES[friction_profile]
     center = _urscript_vector(tube.center_base_m)
     anchor = _urscript_vector(tube.anchor_pose_base)
@@ -456,6 +472,10 @@ def build_live_receiver_source(
   local command_abort = 3
   local running = True
   local torque_entered = False
+  local formal_handoff_required = {str(formal_handoff_required)}
+  local formal_handoff_anchor_pose = p{_urscript_vector(formal_handoff_anchor)}
+  local formal_handoff_max_mismatch_m = {formal_handoff_max_mismatch_m:.17g}
+  local formal_handoff_verified = False
   local tube_rebased = False
   local entry_elapsed_s = 0.0
   local entry_stable_elapsed_s = 0.0
@@ -801,6 +821,26 @@ def build_live_receiver_source(
           local release_translation = sqrt(release_error[0]*release_error[0] + release_error[1]*release_error[1] + release_error[2]*release_error[2])
           if release_translation > release_ready_tolerance_m:
             control_ok = False
+          end
+          if formal_handoff_required:
+            local handoff_error = pose_sub(formal_handoff_anchor_pose, actual_pose)
+            local handoff_translation = sqrt(handoff_error[0]*handoff_error[0] + handoff_error[1]*handoff_error[1] + handoff_error[2]*handoff_error[2])
+            if handoff_translation > formal_handoff_max_mismatch_m:
+              control_ok = False
+            else:
+              formal_handoff_verified = True
+            end
+            local desired_handoff_error = pose_sub(formal_handoff_anchor_pose, p[eq[0], eq[1], eq[2], eq[3], eq[4], eq[5]])
+            local handoff_axis = 0
+            while handoff_axis < 6:
+              if desired_handoff_error[handoff_axis] > 0.000000000001 or desired_handoff_error[handoff_axis] < -0.000000000001:
+                control_ok = False
+              end
+              if raw_force[handoff_axis] != 0.0:
+                control_ok = False
+              end
+              handoff_axis = handoff_axis + 1
+            end
           end
           actual_translation_speed = sqrt(filtered_entry_tcp_speed[0]*filtered_entry_tcp_speed[0] + filtered_entry_tcp_speed[1]*filtered_entry_tcp_speed[1] + filtered_entry_tcp_speed[2]*filtered_entry_tcp_speed[2])
           actual_rotation_speed = sqrt(filtered_entry_tcp_speed[3]*filtered_entry_tcp_speed[3] + filtered_entry_tcp_speed[4]*filtered_entry_tcp_speed[4] + filtered_entry_tcp_speed[5]*filtered_entry_tcp_speed[5])
@@ -1166,6 +1206,20 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
     guard_pair = (float(guard_match.group(1)), float(guard_match.group(2)))
     if guard_pair not in ((6.0, 0.5), (20.0, 2.0)):
         raise ValueError("live receiver guard profile is not accepted")
+    handoff_match = re.search(
+        r"^\s*local formal_handoff_required = (True|False)$",
+        source,
+        re.MULTILINE,
+    )
+    if handoff_match is None:
+        raise ValueError("formal handoff declaration is not parseable")
+    handoff_bound_match = re.search(
+        r"^\s*local formal_handoff_max_mismatch_m = ([0-9.eE+-]+)$",
+        source,
+        re.MULTILINE,
+    )
+    if handoff_bound_match is None:
+        raise ValueError("formal handoff mismatch bound is not parseable")
     orientation_policy_match = re.search(
         r'^\s*(?:local\s+)?orientation_interpolation_policy = "([^"]+)"$',
         source,
@@ -1266,4 +1320,6 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         controller_runtime_physical_io_enabled=True,
         guard_force_limit_n=guard_pair[0],
         guard_torque_limit_nm=guard_pair[1],
+        formal_handoff_required=handoff_match.group(1) == "True",
+        formal_handoff_max_mismatch_m=float(handoff_bound_match.group(1)),
     )

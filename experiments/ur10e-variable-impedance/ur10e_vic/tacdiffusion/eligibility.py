@@ -767,6 +767,15 @@ class FormalEligibilityValidator:
             "recorder_health_complete": self._health_ok(recorder_health),
             "first_live_shadow_clear": not first_live_shadow,
             "model_inactive_shadow_only": True,
+            "track_state_torque_window": bool(rows) and all(
+                (
+                    payload is not None
+                    and str(payload.get("capture_phase", ""))
+                    == "formal_track_state_torque"
+                    and payload.get("receiver_state") in (2, "2")
+                )
+                for payload in payloads
+            ),
         }
         previous_sequence = -1
         previous_time = -math.inf
