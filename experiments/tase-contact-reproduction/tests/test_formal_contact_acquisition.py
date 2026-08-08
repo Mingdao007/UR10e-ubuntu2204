@@ -38,6 +38,7 @@ from ur10e_vic.tacdiffusion.formal_contact_acquisition import (
     AcquisitionState,
     BumplessDirectTorqueTransitionV1,
     FIXED_TRACKING_STIFFNESS,
+    FORMAL_CONTACT_HEARTBEAT_TIMEOUT_TICKS_V1,
     FORMAL_ROUTE_IDENTITY,
     FormalContactAcquisitionControllerV1,
     KunweiAcquisitionSample,
@@ -47,7 +48,9 @@ from ur10e_vic.tacdiffusion.formal_contact_acquisition import (
     parse_formal_contact_acquisition_urscript,
 )
 from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (
+    DEFAULT_HEARTBEAT_TIMEOUT_TICKS,
     LiveTubeContract,
+    build_live_receiver_source,
     parse_live_receiver_source,
 )
 from ur10e_vic.tacdiffusion.eligibility import FormalEligibilityValidator
@@ -782,6 +785,11 @@ def test_direct_torque_source_is_constructible_only_from_handoff() -> None:
         fresh_actual_pose_base=anchor,
     )
     parsed = parse_live_receiver_source(source)
+    assert parsed.heartbeat_timeout_ticks == FORMAL_CONTACT_HEARTBEAT_TIMEOUT_TICKS_V1 == 40
+    assert parsed.control_rate_hz == 500
+    assert parsed.heartbeat_timeout_ticks / parsed.control_rate_hz == pytest.approx(0.080)
+    generic = parse_live_receiver_source(build_live_receiver_source(tube))
+    assert generic.heartbeat_timeout_ticks == DEFAULT_HEARTBEAT_TIMEOUT_TICKS == 10
     assert parsed.formal_handoff_required is True
     assert parsed.model_inactive_expert_feedforward_allowed is True
     assert parsed.formal_handoff_max_mismatch_m == pytest.approx(0.0003)

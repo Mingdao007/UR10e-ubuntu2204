@@ -29,6 +29,7 @@ ACQUISITION_ACCELERATION_M_S2 = 0.010
 ACQUISITION_DECELERATION_M_S2 = 0.010
 ACQUISITION_SENSOR_DELIVERY_WATCHDOG_S = 0.080
 ACQUISITION_HEARTBEAT_TIMEOUT_TICKS = 40
+FORMAL_CONTACT_HEARTBEAT_TIMEOUT_TICKS_V1 = 40
 ACQUISITION_PREPARE_TIMEOUT_TICKS = 200
 ACQUISITION_COMMAND_PREPARE = 0
 ACQUISITION_COMMAND_START = 1
@@ -1130,6 +1131,7 @@ def build_formal_direct_torque_tracking_source_after_handoff(
 
     return build_live_receiver_source(
         tube,
+        heartbeat_timeout_ticks=FORMAL_CONTACT_HEARTBEAT_TIMEOUT_TICKS_V1,
         friction_profile="ur_default_v2_formal_contact",
         guard_force_limit_n=50.0,
         guard_torque_limit_nm=4.0,
@@ -1174,6 +1176,7 @@ __all__ = [
     "DirectTorqueTransitionCommand",
     "FIXED_TRACKING_STIFFNESS",
     "FORMAL_CONTACT_ACQUISITION_SCHEMA_V2",
+    "FORMAL_CONTACT_HEARTBEAT_TIMEOUT_TICKS_V1",
     "FORMAL_ROUTE_IDENTITY",
     "FormalContactAcquisitionControllerV1",
     "KUNWEI_RAW_AUTHORITY_IDENTITY",

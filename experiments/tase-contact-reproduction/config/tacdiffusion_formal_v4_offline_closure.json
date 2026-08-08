@@ -1,7 +1,7 @@
 {
   "content_address": {
     "algorithm": "sha256",
-    "sha256": "a0d59cc13f8b7de133c70b2f2a032f518d6ad1a966f250b877e44f3e08ba2823"
+    "sha256": "10186d8f863e4616ca83d03293beedeb7c083fe434a224f4e9467c4aac87eb6f"
   },
   "controller_readback_applicable": false,
   "files": [
@@ -23,7 +23,7 @@
     },
     {
       "path": "experiments/tase-contact-reproduction/tests/test_formal_contact_acquisition.py",
-      "sha256": "043d1f9dfe88e3a8047554429a5e13bb6bdb809784573a280a404e1561fdad73"
+      "sha256": "674bb39045fbb6b97b5b042e8abbc1932d121eec94f25f430d64dbeb6385b682"
     },
     {
       "path": "experiments/tase-contact-reproduction/tests/test_run_tacdiffusion_formal_v4.py",
@@ -131,7 +131,7 @@
     },
     {
       "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/formal_contact_acquisition.py",
-      "sha256": "c4bb8c5332b0560bde7eadf3a17c8773addaf6565df7e737fdc04e0669abb9a9"
+      "sha256": "eb3a683ba3218a016a212d880c7b7bf4f11c087ad69a9000924e7f5521aa48eb"
     },
     {
       "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/formal_dataset.py",
