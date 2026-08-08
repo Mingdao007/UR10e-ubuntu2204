@@ -9,7 +9,7 @@
 # TP_PROGRAM_ID: step5d_strict_rnn_autotune_v4_r006
 # EXPECTED_PROGRAM: step5d_strict_rnn_autotune_v4_r006
 # WIRE_LAYOUT: layout-606
-# V4_CONTRACT_SHA256: 7c2997f278f354901e60bf20b967378b437565045fd94506042e00d3532f2e5a
+# V4_CONTRACT_SHA256: 148433581a07710dd33cedb842f6fe5ced55dc4d61d70fbaa482633b81018551
 # V4_CAMPAIGN_FINGERPRINT: 1db4f9bf587826e7562dccef7040f627e660e540f847a2e8b92f63879870cc4a
 # EOAT_PROFILE_SHA256: 1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4
 # SCRIPT1_PROGRAM: step5d_autotune_start_hover_r001
@@ -720,8 +720,8 @@ def step5d_strict_rnn_autotune_v4_r006():
   local fixed_home_pose = p[0.487834547, 0.129337053, 0.033000000, 3.120752062, 0.000000000, 0.068626833]
   local locked_home_q = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local locked_home_q_valid = False
-  local runtime_hi = 657100332
-  local runtime_lo = 52686591
+  local runtime_hi = 1023624197
+  local runtime_lo = 330645513
   local active_epoch = 0
   local last_failed_epoch = 0
   # Fence any ARM image left in RTDE input registers across a TP restart.  The

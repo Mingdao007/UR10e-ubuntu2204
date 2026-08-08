@@ -310,6 +310,7 @@ def _activate_fake_r006_control_injection(monkeypatch):
             *,
             attempt_id,
             release_contract,
+            force_integral_limit_n_s=1.0,
             path_requested=False,
             motion_profile=None,
             canonical_runtime_only=False,
@@ -318,6 +319,7 @@ def _activate_fake_r006_control_injection(monkeypatch):
             self.candidate = candidate
             self.attempt_id = attempt_id
             self.release_contract = release_contract
+            self.force_integral_limit_n_s = force_integral_limit_n_s
             self.path_requested = path_requested
             self.motion_profile = motion_profile
             self.canonical_runtime_only = canonical_runtime_only

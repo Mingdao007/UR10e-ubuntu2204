@@ -9,6 +9,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
@@ -20,20 +22,23 @@ sys.path.insert(0, str(RUNTIME_SRC))
 from prepare_step5d_autotune_launch import (  # noqa: E402
     write_machine_campaign_binding,
 )
+from run_step5d_autotune_campaign import _profile  # noqa: E402
 from step5d_autotune_backend import Step5dV35Backend  # noqa: E402
 from step5d_autotune_batch_plan import load_plan  # noqa: E402
 from step5d_autotune_v3.runtime_profile import load_launch_profile  # noqa: E402
 from step5d_autotune_v3.runtime_profile import normalized_overlay_sha256  # noqa: E402
+from step5d_autotune_v3.launch_basis import (  # noqa: E402
+    make_launch_basis,
+    write_launch_basis,
+)
 from step5d_v3_fake_bridge_harness import exact_trial_overlay  # noqa: E402
-from run_step5d_autotune_campaign import _profile  # noqa: E402
 
 
 PLAN_FIXTURE = ROOT / "tests/fixtures/step5d_r005_exact_candidate_plan.json"
 PLAN_SHA256 = "bed54b7482fa596fcc6bf34fa4c4aabbeecfe9c86903b123aa68f4edeaec5935"
+RECEIVER_PLAN_SCHEMA = "step5d.parameter-receiver/launch-plan-v1"
 LAUNCH_PROFILE = ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
-PROGRAM = json.loads(LAUNCH_PROFILE.read_text(encoding="utf-8"))[
-    "tp_program_id"
-]
+PROGRAM = json.loads(LAUNCH_PROFILE.read_text(encoding="utf-8"))["tp_program_id"]
 
 
 def _atomic_json(path: Path, payload: object) -> None:
@@ -47,9 +52,7 @@ def _atomic_json(path: Path, payload: object) -> None:
 def _overlay_plan(candidate_plan: Path, path: Path) -> dict[str, object]:
     plan = load_plan(candidate_plan, campaign_id="step5d-native-1")
     profile = _profile(ROOT)
-    launch = load_launch_profile(
-        LAUNCH_PROFILE, expected_tp_program_id=PROGRAM
-    )
+    launch = load_launch_profile(LAUNCH_PROFILE, expected_tp_program_id=PROGRAM)
     batches = []
     if any(plan.occurrences):
         for batch_id, occurrences in enumerate(plan.occurrences, start=1):
@@ -140,6 +143,35 @@ def _terminate(process: subprocess.Popen[str]) -> None:
             process.wait(timeout=3.0)
 
 
+def _fixture_launch_basis(
+    path: Path,
+    *,
+    campaign_fingerprint: str,
+    owner_pid: int,
+    owner_starttime: int,
+) -> dict[str, object]:
+    now_ns = time.time_ns()
+    payload = make_launch_basis(
+        release_manifest_sha256="0" * 64,
+        runtime_identity_sha256="1" * 64,
+        campaign_fingerprint=campaign_fingerprint,
+        delivery_observation_sha256="2" * 64,
+        owner_pid=owner_pid,
+        owner_starttime=owner_starttime,
+        authority_epoch=1,
+        launch_nonce="a" * 32,
+        argv_sha256="3" * 64,
+        effective_config_sha256="4" * 64,
+        worktree_root=str(ROOT.resolve()),
+        repository_head=subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip(),
+        issued_at_unix_ns=now_ns - 1_000_000,
+        expires_at_unix_ns=now_ns + 3_600_000_000_000,
+    )
+    return write_launch_basis(path, payload)
+
+
 def test_formal_runner_follows_growing_production_csv_to_real_arm2(
     tmp_path: Path,
 ) -> None:
@@ -154,6 +186,19 @@ def test_formal_runner_follows_growing_production_csv_to_real_arm2(
     shutil.copyfile(PLAN_FIXTURE, candidate_plan)
     overlays = campaign_root / "control/v3_trial_overlays.json"
     _overlay_plan(candidate_plan, overlays)
+    receiver_plan = campaign_root / "control/parameter_receiver_plan.json"
+    _atomic_json(
+        receiver_plan,
+        {
+            "schema": RECEIVER_PLAN_SCHEMA,
+            "campaign_id": "step5d-native-1",
+            "revision": 1,
+            "protocol": "v3_full_home_parameter_receiver_v1",
+            "unbounded": True,
+            "one_inflight": True,
+            "optimizer_required": False,
+        },
+    )
     frozen = Step5dV35Backend(ROOT).freeze_fingerprint()
     binding = (bridge_run / "runtime/campaign_binding.json").resolve()
     write_machine_campaign_binding(
@@ -161,9 +206,18 @@ def test_formal_runner_follows_growing_production_csv_to_real_arm2(
         campaign_id="step5d-native-1",
         campaign_epoch=1,
         campaign_fingerprint=frozen.composite_fingerprint,
-        candidate_plan_path=candidate_plan,
+        candidate_plan_path=receiver_plan,
         trial_overlay_plan_path=overlays,
         binding_source="r006_offline_production_chain_gate",
+    )
+    owner_pid = os.getpid()
+    owner_starttime = 1
+    launch_basis_path = bridge_run / "runtime/launch-basis.json"
+    launch_basis = _fixture_launch_basis(
+        launch_basis_path,
+        campaign_fingerprint=frozen.composite_fingerprint,
+        owner_pid=owner_pid,
+        owner_starttime=owner_starttime,
     )
 
     environment = dict(os.environ)
@@ -202,6 +256,14 @@ def test_formal_runner_follows_growing_production_csv_to_real_arm2(
                 str(mailbox),
                 "--campaign-binding",
                 str(binding),
+                "--launch-basis",
+                str(launch_basis_path),
+                "--launch-basis-sha256",
+                str(launch_basis["basis_sha256"]),
+                "--owner-pid",
+                str(owner_pid),
+                "--owner-starttime",
+                str(owner_starttime),
                 "--selection-policy",
                 "codex_batches",
                 "--candidate-plan",
@@ -216,7 +278,6 @@ def test_formal_runner_follows_growing_production_csv_to_real_arm2(
                 "15",
                 "--plan-wait-timeout-s",
                 "5",
-                "--offline-release-gate",
             ],
             cwd=ROOT,
             env=environment,
@@ -272,3 +333,60 @@ def test_formal_runner_follows_growing_production_csv_to_real_arm2(
         assert brief["protocol"] == "v3_direct_arm_v1"
     finally:
         _terminate(transport)
+
+
+def test_production_chain_binds_receiver_plan_without_relaxing_optimizer_contract(
+    tmp_path: Path,
+) -> None:
+    """The strict machine writer accepts a receiver plan, not an optimizer plan."""
+
+    assert hashlib.sha256(PLAN_FIXTURE.read_bytes()).hexdigest() == PLAN_SHA256
+    campaign_root = (tmp_path / "campaign").resolve()
+    bridge_run = (tmp_path / "bridge").resolve()
+    candidate_plan = campaign_root / "control/candidate_plan.json"
+    candidate_plan.parent.mkdir(parents=True)
+    shutil.copyfile(PLAN_FIXTURE, candidate_plan)
+    overlays = campaign_root / "control/v3_trial_overlays.json"
+    _overlay_plan(candidate_plan, overlays)
+    receiver_plan = campaign_root / "control/parameter_receiver_plan.json"
+    _atomic_json(
+        receiver_plan,
+        {
+            "schema": RECEIVER_PLAN_SCHEMA,
+            "campaign_id": "step5d-native-1",
+            "revision": 1,
+            "protocol": "v3_full_home_parameter_receiver_v1",
+            "unbounded": True,
+            "one_inflight": True,
+            "optimizer_required": False,
+        },
+    )
+    frozen = Step5dV35Backend(ROOT).freeze_fingerprint()
+    binding = bridge_run / "runtime/receiver_campaign_binding.json"
+    payload = write_machine_campaign_binding(
+        binding,
+        campaign_id="step5d-native-1",
+        campaign_epoch=1,
+        campaign_fingerprint=frozen.composite_fingerprint,
+        candidate_plan_path=receiver_plan,
+        trial_overlay_plan_path=overlays,
+        binding_source="r006_offline_production_chain_gate",
+    )
+    assert payload["candidate_plan_revision"] == 1
+    assert payload["candidate_plan_sha256"] == hashlib.sha256(
+        receiver_plan.read_bytes()
+    ).hexdigest()
+    assert json.loads(binding.read_text(encoding="utf-8")) == payload
+
+    with pytest.raises(
+        RuntimeError, match="machine campaign binding requires exact receiver plans"
+    ):
+        write_machine_campaign_binding(
+            bridge_run / "runtime/rejected_optimizer_binding.json",
+            campaign_id="step5d-native-1",
+            campaign_epoch=1,
+            campaign_fingerprint=frozen.composite_fingerprint,
+            candidate_plan_path=candidate_plan,
+            trial_overlay_plan_path=overlays,
+            binding_source="r006_offline_production_chain_gate",
+        )

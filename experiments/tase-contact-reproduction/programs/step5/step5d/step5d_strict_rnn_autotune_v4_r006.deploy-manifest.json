@@ -6,7 +6,7 @@
     },
     "script": {
       "path": "step5d_strict_rnn_autotune_v4_r006.script",
-      "sha256": "dea6c6124e0d28c4ef09a265d02f40082802a9902b923b5f0090df77d38f9367"
+      "sha256": "98da2e3819b5fe04ffb11623803336c2e61d61c0a3344432adf54fcd21ea59eb"
     },
     "txt": {
       "path": "step5d_strict_rnn_autotune_v4_r006.txt",
@@ -14,7 +14,7 @@
     },
     "urp": {
       "path": "step5d_strict_rnn_autotune_v4_r006.urp",
-      "sha256": "cc9a987e05dfe22ffcef69ad882d1a3fa822f55213308ce14ea05f27e01d1843"
+      "sha256": "07a52916eb8fd7ccba3adefa2f1abe4b2711249be2e768695ae920461c836cc8"
     }
   },
   "campaign_fingerprint": "1db4f9bf587826e7562dccef7040f627e660e540f847a2e8b92f63879870cc4a",
