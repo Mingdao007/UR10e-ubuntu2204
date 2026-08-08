@@ -61,6 +61,66 @@ def _qualification_row(*, timestamp_s: float) -> dict[str, float | int]:
     return row
 
 
+def test_formal_artifact_row_selection_excludes_torn_and_unbound_rows() -> None:
+    first = _qualification_row(timestamp_s=0.0)
+    first["formal_phase"] = formal.FormalAttemptPhase.TRACK.value
+    torn = _qualification_row(timestamp_s=0.002)
+    torn["formal_phase"] = formal.FormalAttemptPhase.TRACK.value
+    torn["action_echo_coherent"] = "False"
+    bound = _qualification_row(timestamp_s=0.004)
+    bound["formal_phase"] = formal.FormalAttemptPhase.TRACK.value
+    unbound = _qualification_row(timestamp_s=0.006)
+    unbound["formal_phase"] = formal.FormalAttemptPhase.TRACK.value
+    unbound["ack_command_lineage_missing"] = 1
+
+    raw, selected, evidence = formal._select_formal_artifact_rows(
+        [first, torn, bound, unbound]
+    )
+
+    assert raw == [first, torn, bound, unbound]
+    assert [row for row, _previous in selected] == [first, bound]
+    assert selected[0][1] is None
+    assert selected[1][1] is torn
+    assert evidence["raw_track_state_torque_row_count"] == 4
+    assert evidence["selected_coherent_lineage_bound_row_count"] == 2
+    assert evidence["rejected_row_count"] == 2
+    assert evidence["rejected_torn_row_count"] == 1
+    assert evidence["rejected_unbound_row_count"] == 1
+
+
+def test_formal_artifact_row_selection_fails_closed_when_all_rows_rejected() -> None:
+    torn = _qualification_row(timestamp_s=0.0)
+    torn["formal_phase"] = formal.FormalAttemptPhase.TRACK.value
+    torn["action_echo_coherent"] = "False"
+    unbound = _qualification_row(timestamp_s=0.002)
+    unbound["formal_phase"] = formal.FormalAttemptPhase.TRACK.value
+    unbound["ack_command_lineage_missing"] = 1
+
+    with pytest.raises(
+        RuntimeError, match="formal_track_no_coherent_lineage_bound_rows"
+    ):
+        formal._select_formal_artifact_rows([torn, unbound])
+
+
+def test_formal_manifest_source_hashes_are_complete_recorder_identity(
+    tmp_path: Path,
+) -> None:
+    manifest = formal._formal_manifest_for_attempt(
+        attempt_id="attempt_0000_eligible_000",
+        source_hashes={"source_content": "a" * 64, "receiver_source": "b" * 64},
+    )
+    metadata = formal._formal_recorder_metadata(
+        formal_manifest=manifest,
+        semantic_fingerprint_sha256="a" * 64,
+        row_selection={"schema_version": "test/v1"},
+    )
+    recorder = formal.FormalEpisodeRecorder(
+        tmp_path, episode_id=manifest.manifest_id, metadata=metadata
+    )
+    assert recorder.sealer.identity_enabled is True
+    assert recorder.sealer.semantic_context_fingerprint_sha256 == "a" * 64
+
+
 def test_formal_tool_has_exactly_all_seven_families_and_no_model_active_path() -> None:
     source = Path(formal.__file__).read_text(encoding="utf-8")
     assert len(TRAJECTORY_FAMILIES) == 7

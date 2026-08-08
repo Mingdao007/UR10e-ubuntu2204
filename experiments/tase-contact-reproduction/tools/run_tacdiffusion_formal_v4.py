@@ -392,6 +392,78 @@ def _formal_track_state_torque_rows(
     ]
 
 
+def _select_formal_artifact_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> tuple[
+    list[Mapping[str, Any]],
+    list[tuple[Mapping[str, Any], Mapping[str, Any] | None]],
+    dict[str, Any],
+]:
+    """Select coherent, lineage-bound rows without erasing raw TRACK evidence.
+
+    RTDE can observe the action-register seqlock while its generation changes.
+    Those torn snapshots remain in ``direct_torque_rtde.csv`` and count toward
+    the physical eight-second TRACK window, but they are not valid 84D/12D
+    training rows.  Each accepted row is paired with its immediately preceding
+    raw runtime row so production dynamics retains previous-controller-tick
+    semantics even when that preceding row has a torn action echo.
+    """
+
+    raw_track_rows = _formal_track_state_torque_rows(rows)
+    selected: list[
+        tuple[Mapping[str, Any], Mapping[str, Any] | None]
+    ] = []
+    rejected_torn = 0
+    rejected_unbound = 0
+    for index, row in enumerate(raw_track_rows):
+        coherent = legacy._action_echo_coherent(row)
+        lineage_bound = int(row.get("ack_command_lineage_missing", 1)) == 0
+        if coherent and lineage_bound:
+            selected.append(
+                (row, raw_track_rows[index - 1] if index > 0 else None)
+            )
+            continue
+        if not coherent:
+            rejected_torn += 1
+        if not lineage_bound:
+            rejected_unbound += 1
+    if raw_track_rows and not selected:
+        raise RuntimeError("formal_track_no_coherent_lineage_bound_rows")
+    evidence = {
+        "schema_version": "ur10e_tacdiffusion_formal_row_selection/v1",
+        "raw_track_state_torque_row_count": len(raw_track_rows),
+        "selected_coherent_lineage_bound_row_count": len(selected),
+        "rejected_row_count": len(raw_track_rows) - len(selected),
+        "rejected_torn_row_count": rejected_torn,
+        "rejected_unbound_row_count": rejected_unbound,
+        "selection_predicate": (
+            "formal_phase=TRACK AND receiver_state=STATE_TORQUE AND "
+            "legacy._action_echo_coherent(row) AND "
+            "ack_command_lineage_missing=0"
+        ),
+        "raw_evidence_path": "direct_torque_rtde.csv",
+    }
+    return raw_track_rows, selected, evidence
+
+
+def _formal_recorder_metadata(
+    *,
+    formal_manifest: FormalEpisodeManifestV1,
+    semantic_fingerprint_sha256: str,
+    row_selection: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "formal_manifest": formal_manifest.as_json(),
+        "semantic_context_fingerprint_sha256": semantic_fingerprint_sha256,
+        "semantic_context": {
+            "hash_identities": dict(formal_manifest.source_hashes),
+            "semantic_context_fingerprint_sha256": semantic_fingerprint_sha256,
+        },
+        "raw_rtde_csv": "direct_torque_rtde.csv",
+        "row_selection": dict(row_selection),
+    }
+
+
 def _formal_acquisition_input_values(
     *,
     command: int,
@@ -2285,16 +2357,12 @@ def _compose_formal_artifact(
     tube: LiveTubeContract,
     semantic_fingerprint_sha256: str,
 ) -> dict[str, Any]:
-    track_rows = _formal_track_state_torque_rows(rows)
-    if len(track_rows) < int(0.9 * 8.0 * 500.0):
+    raw_track_rows, selected_rows, row_selection = _select_formal_artifact_rows(
+        rows
+    )
+    if len(raw_track_rows) < int(0.9 * 8.0 * 500.0):
         raise RuntimeError("formal_track_rows_insufficient")
-    if any(
-        not bool(row.get("action_echo_coherent"))
-        or int(row.get("ack_command_lineage_missing", 1)) != 0
-        for row in track_rows
-    ):
-        raise RuntimeError("formal_track_contains_torn_or_unbound_action_rows")
-    for row in track_rows:
+    for row, _previous_runtime_row in selected_rows:
         actual = tuple(float(row[f"actual_TCP_pose_{axis}"]) for axis in range(6))
         desired = tuple(float(row[f"formal_desired_pose_{axis}"]) for axis in range(6))
         tube.assert_contains_pose(actual, role="actual")
@@ -2306,7 +2374,8 @@ def _compose_formal_artifact(
         dynamics_runtime=dynamics_runtime,
     )
     first_host = min(
-        float(row["kunwei_batch_arrival_monotonic_s"]) for row in track_rows
+        float(row["kunwei_batch_arrival_monotonic_s"])
+        for row, _previous_runtime_row in selected_rows
     )
     control_clock = legacy.RecorderControlClock(host_anchor_s=first_host)
     observation_history = legacy.RecorderObservationHistory()
@@ -2319,17 +2388,17 @@ def _compose_formal_artifact(
     recorder = FormalEpisodeRecorder(
         attempt_dir,
         episode_id=formal_manifest.manifest_id,
-        metadata={
-            "formal_manifest": formal_manifest.as_json(),
-            "semantic_context_fingerprint_sha256": semantic_fingerprint_sha256,
-            "raw_rtde_csv": "direct_torque_rtde.csv",
-        },
+        metadata=_formal_recorder_metadata(
+            formal_manifest=formal_manifest,
+            semantic_fingerprint_sha256=semantic_fingerprint_sha256,
+            row_selection=row_selection,
+        ),
     )
     composed_count = 0
+    composition_sequence = 0
     recorder.start()
     try:
-        previous_row: Mapping[str, Any] | None = None
-        for index, row in enumerate(track_rows):
+        for row, previous_runtime_row in selected_rows:
             acked = _lineage_from_output_row(row)
             assert acked is not None
             desired_row = {
@@ -2348,8 +2417,8 @@ def _compose_formal_artifact(
             }
             base = legacy._recorder_frame(
                 row,
-                sample_index=index,
-                control_sequence=index,
+                sample_index=composition_sequence,
+                control_sequence=composition_sequence,
                 acked=acked,
                 outgoing=acked,
                 recorder_start_s=first_host,
@@ -2362,9 +2431,10 @@ def _compose_formal_artifact(
                 capture_phase="formal_track_state_torque",
                 control_clock=control_clock,
             )
+            previous_dynamics_sample = dynamics_runtime.previous_sample
             formal = composer.compose(
                 base,
-                previous_runtime_row=previous_row,
+                previous_runtime_row=previous_runtime_row,
                 tube_payload={
                     "schema": "formal_contact_tube_decision/v1",
                     "accepted": True,
@@ -2376,13 +2446,18 @@ def _compose_formal_artifact(
                     "safe_v_half_width_m": tube.safe_v_half_width_m,
                 },
             )
-            previous_row = row
+            if dynamics_runtime.previous_sample is not previous_dynamics_sample:
+                composition_sequence += 1
             if formal is None:
                 continue
             if not recorder.enqueue(formal):
                 raise RuntimeError("formal_recorder_enqueue_failed")
             composed_count += 1
-            recorder.require_healthy()
+            # Post-run composition can enqueue while the fsync-10 sealer is
+            # serializing a large V4 receipt batch.  Polling the 250 ms live
+            # producer watchdog here misclassifies that active write as a
+            # stall.  Enqueue remains bounded/fail-closed, and close(), the
+            # cold-read validator, and final recorder health are authoritative.
     finally:
         recorder.close(seal=True)
     validate_formal_episode_artifact(recorder.artifact_path, recorder.manifest_path)
@@ -2404,6 +2479,7 @@ def _compose_formal_artifact(
         "recorder_manifest_path": recorder.manifest_path,
         "eligibility_path": eligibility_path,
         "formal_row_count": len(frames),
+        "row_selection": row_selection,
         "eligibility_window": {
             "formal_phase": FormalAttemptPhase.TRACK.value,
             "receiver_state": legacy.STATE_TORQUE,

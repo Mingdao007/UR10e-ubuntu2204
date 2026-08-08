@@ -1,7 +1,7 @@
 {
   "content_address": {
     "algorithm": "sha256",
-    "sha256": "b501bcda97b841ae838e24b03aee74d1b4d86cc4030399bdf7cb5e5f71c3c810"
+    "sha256": "fa1875010dc2cf0065784935a59060dcde7c59e83daaf2928298c32d9d17e2f7"
   },
   "controller_readback_applicable": false,
   "files": [
@@ -27,7 +27,7 @@
     },
     {
       "path": "experiments/tase-contact-reproduction/tests/test_run_tacdiffusion_formal_v4.py",
-      "sha256": "2fab035e3cad23fdc52e488f594eb876ed1304e81eafcac63b1eb97f918e00c9"
+      "sha256": "502ad28814c96896aaadff9ed894513922b84e6219479f5231df75720dc3cd87"
     },
     {
       "path": "experiments/tase-contact-reproduction/tests/test_run_tacdiffusion_remote_direct_torque_v4.py",
@@ -39,7 +39,7 @@
     },
     {
       "path": "experiments/tase-contact-reproduction/tools/run_tacdiffusion_formal_v4.py",
-      "sha256": "3926e033a60a789c5bb6ad48447cd769541799043175c0e4c6a7fa9ca166133b"
+      "sha256": "f742d2c089781be3887222ef1cc670a50172dbec00e385f54b77449806b0cd1c"
     },
     {
       "path": "experiments/tase-contact-reproduction/tools/run_tacdiffusion_remote_direct_torque_v4.py",
