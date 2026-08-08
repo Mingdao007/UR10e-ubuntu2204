@@ -36,7 +36,7 @@
   "controller_readback_claimed": false,
   "controller_target": "secondary_client://192.168.1.18:30002",
   "controller_upload_applicable": false,
-  "current_stage_id": "formal_v4_no_contact_qualification",
+  "current_stage_id": "formal_v4_fixed_k_campaign",
   "formal_eligibility_window": {
     "acquisition_included": false,
     "phase": "TRACK",
@@ -49,6 +49,8 @@
   "loaded_tp_executed": false,
   "model_active": false,
   "qualification_invalidation_reason": "source_changed_after_contact_acceptance_repair",
+  "qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0520HKT_a0d59c/qualification_summary.json",
+  "qualification_summary_sha256": "a5f1e934890d5d2a5632b73f24d5d674cb61fac5de7e2847994fcee3740a2604",
   "route": "remote_secondary_client_direct_torque",
   "schema_version": "ur10e_tacdiffusion_formal_current_stage/v1",
   "sensor_target": "tcp_raw://192.168.50.25:5152",
