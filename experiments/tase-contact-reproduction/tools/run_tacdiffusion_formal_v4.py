@@ -125,6 +125,7 @@ FORMAL_ROBOT_HOST = "192.168.1.18"
 FORMAL_SENSOR_IP = "192.168.50.25"
 FORMAL_SENSOR_PORT = 5152
 FORMAL_CONTROL_CLOCK_FIT_TOLERANCE_S = 0.0001
+FORMAL_POSTRUN_RECORDER_STALL_TIMEOUT_S = 5.0
 
 
 def _parse_exact_sensor_delivery_watchdog(value: str) -> float:
@@ -2454,6 +2455,9 @@ def _compose_formal_artifact(
             semantic_fingerprint_sha256=semantic_fingerprint_sha256,
             row_selection=row_selection,
         ),
+        # This producer runs only after motion and serializes large receipt
+        # batches.  Seal, cold-read, and tamper validation remain authoritative.
+        stall_timeout_s=FORMAL_POSTRUN_RECORDER_STALL_TIMEOUT_S,
     )
     composed_count = 0
     composition_sequence = 0

@@ -76,23 +76,21 @@
   "sensor_target": "tcp_raw://192.168.50.25:5152",
   "stages": [
     {
-      "active": false,
+      "active": true,
       "guard": {
         "force_limit_n": 6.0,
         "torque_limit_nm": 0.5
       },
       "id": "formal_v4_no_contact_qualification",
-      "invalidated_qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0552HKT_7b2602/qualification_summary.json",
-      "invalidated_qualification_summary_sha256": "99ecd8e37f6491ec4f5b6dcb7ee04253f37c2ba6e87b8674f69c933ef71a9b7b",
-      "invalidation_reason": "source_changed_after_bounded_formal_control_clock_repair",
+      "invalidated_qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0635HKT_b71fc0/qualification_summary.json",
+      "invalidated_qualification_summary_sha256": "2de205ed04c854032b0817b9831e4bc49cccbf5c03a0dc486fd125cf88045b7a",
+      "invalidation_reason": "source_changed_after_contact_acceptance_repair",
       "motion_class": "no_contact",
-      "qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0635HKT_b71fc0/qualification_summary.json",
-      "qualification_summary_sha256": "2de205ed04c854032b0817b9831e4bc49cccbf5c03a0dc486fd125cf88045b7a",
-      "status": "accepted",
+      "status": "invalidated_by_source_change",
       "successor": "formal_v4_fixed_k_campaign"
     },
     {
-      "active": true,
+      "active": false,
       "eligible_episode_target": 200,
       "guard": {
         "force_limit_n": 50.0,
@@ -100,7 +98,7 @@
       },
       "id": "formal_v4_fixed_k_campaign",
       "motion_class": "contact",
-      "status": "ready",
+      "status": "blocked_on_requalification",
       "successor": "formal_v4_fixed_k_shadow"
     },
     {

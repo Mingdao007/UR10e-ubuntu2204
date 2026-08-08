@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import nullcontext
+import inspect
 import json
 from pathlib import Path
 import sys
@@ -372,6 +373,14 @@ def test_formal_acquisition_heartbeat_remains_40_ticks_and_080_seconds() -> None
     assert heartbeat.timeout_ticks == 40
     assert heartbeat.timeout_s == pytest.approx(0.080)
     assert formal.FORMAL_SENSOR_DELIVERY_WATCHDOG_S == pytest.approx(0.080)
+
+
+def test_formal_postrun_recorder_has_bounded_bulk_serialization_timeout() -> None:
+    assert formal.FORMAL_POSTRUN_RECORDER_STALL_TIMEOUT_S == 5.0
+    source = inspect.getsource(formal._compose_formal_artifact)
+    assert source.count(
+        "stall_timeout_s=FORMAL_POSTRUN_RECORDER_STALL_TIMEOUT_S"
+    ) == 1
 
 
 def test_failed_seven_family_run_writes_partial_root_summary(
