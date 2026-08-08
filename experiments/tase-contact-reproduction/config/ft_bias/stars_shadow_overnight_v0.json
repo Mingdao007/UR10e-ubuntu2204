@@ -1,0 +1,53 @@
+{
+  "schema": "stars_ft_bias_shadow/overnight_v0",
+  "policy_version": "stars_ft_bias_shadow/hardened_v1",
+  "science_not_promoted": true,
+  "wrench_authority": "kunwei_only",
+  "sensor_zero_tare_or_config_allowed": false,
+  "source_coverage": {
+    "allow_missing_state25": true
+  },
+  "estimator": {
+    "kind": "gated_ema",
+    "ema_tau_s": 30.0,
+    "rate_finite_diff_min_dt_s": 1.0
+  },
+  "gates": {
+    "normal_load_threshold_n": 0.75,
+    "force_norm_threshold_n": 2.0,
+    "torque_norm_threshold_nm": 0.5,
+    "tcp_linear_max_m_s": 0.005,
+    "tcp_angular_max_rad_s": 0.05,
+    "require_sensor_fresh": true,
+    "known_tp_states": [5, 20, 25],
+    "update_tp_states": [5, 20],
+    "freeze_tp_states": [25],
+    "search_tp_states": [20]
+  },
+  "limits": {
+    "max_contiguous_dt_s": 1.0,
+    "min_input_age_s": 1.0,
+    "max_input_file_bytes": 67108864,
+    "max_total_input_bytes": 67108864,
+    "max_output_rows": 1000000,
+    "max_output_file_bytes": 268435456
+  },
+  "outputs": {
+    "bias_est_fields": [
+      "bias_est_fx_n",
+      "bias_est_fy_n",
+      "bias_est_fz_n",
+      "bias_est_mx_nm",
+      "bias_est_my_nm",
+      "bias_est_mz_nm"
+    ],
+    "bias_rate_est_fields": [
+      "bias_rate_est_fx_n_per_s",
+      "bias_rate_est_fy_n_per_s",
+      "bias_rate_est_fz_n_per_s",
+      "bias_rate_est_mx_nm_per_s",
+      "bias_rate_est_my_nm_per_s",
+      "bias_rate_est_mz_nm_per_s"
+    ]
+  }
+}
