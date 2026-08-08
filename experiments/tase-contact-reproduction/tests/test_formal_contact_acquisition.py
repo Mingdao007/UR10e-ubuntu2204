@@ -579,6 +579,30 @@ def test_latch_stops_velocity_then_requires_fresh_stationary_dwell_for_handoff()
         _ = controller.handoff
 
 
+def test_handoff_ready_keeps_per_frame_kunwei_guard_active() -> None:
+    controller = _controller()
+    controller.start(
+        lease_id=11,
+        episode_identity=22,
+        route_identity=FORMAL_ROUTE_IDENTITY,
+        monotonic_s=0.0,
+    )
+    for index in range(ACQUISITION_LATCH_SAMPLES):
+        controller.observe_kunwei(_kunwei(index, normal_load_n=1.1))
+    controller.observe_stationary(_stationary(0.0))
+    assert controller.observe_stationary(_stationary(0.101)) is not None
+    assert controller.state == AcquisitionState.HANDOFF_READY
+
+    assert controller.observe_kunwei(
+        _kunwei(ACQUISITION_LATCH_SAMPLES, force_norm_n=49.0)
+    ) is False
+    with pytest.raises(AcquisitionError, match="force_guard"):
+        controller.observe_kunwei(
+            _kunwei(ACQUISITION_LATCH_SAMPLES + 1, force_norm_n=50.001)
+        )
+    assert controller.state == AcquisitionState.FAULT
+
+
 def test_bumpless_transition_starts_at_actual_pose_zero_feedforward_and_k600() -> None:
     controller = _controller()
     controller.start(

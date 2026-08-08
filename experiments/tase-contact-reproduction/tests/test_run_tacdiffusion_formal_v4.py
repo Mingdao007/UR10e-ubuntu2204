@@ -5,6 +5,7 @@ from contextlib import nullcontext
 import json
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -532,3 +533,153 @@ def test_monitored_formal_position_return_requires_stopped_at_entry(
     assert result["maximum_kunwei_torque_nm"] == 0.05
     assert result["safety_normal"] is True
     assert result["ur_internal_ft_used"] is False
+
+
+def test_formal_acquisition_validates_buffered_kunwei_after_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    contract = formal.ContactAcquisitionContractV1()
+    controller = formal.FormalContactAcquisitionControllerV1(contract)
+    observed_indices: list[int] = []
+    observe_kunwei = controller.observe_kunwei
+    monkeypatch.setattr(formal.time, "monotonic", lambda: 0.0)
+
+    def record_observe_kunwei(sample: formal.KunweiAcquisitionSample) -> bool:
+        observed_indices.append(sample.sample_index)
+        return observe_kunwei(sample)
+
+    monkeypatch.setattr(controller, "observe_kunwei", record_observe_kunwei)
+
+    def kunwei_snapshot(index: int) -> SimpleNamespace:
+        return SimpleNamespace(
+            sample_index=index,
+            t_monotonic_s=formal.time.monotonic(),
+            normal_load_n=1.1,
+            force_norm_n=0.0,
+            torque_norm_nm=0.0,
+        )
+
+    class Kunwei:
+        def __init__(self) -> None:
+            self.snapshots_since_calls: list[int] = []
+
+        def snapshot(self, **_kwargs: object) -> SimpleNamespace:
+            return kunwei_snapshot(0)
+
+        def snapshots_since(
+            self, cursor: int, **_kwargs: object
+        ) -> list[SimpleNamespace]:
+            self.snapshots_since_calls.append(int(cursor))
+            if cursor == 0:
+                return [
+                    kunwei_snapshot(index)
+                    for index in range(1, controller.latch_samples + 1)
+                ]
+            if cursor == controller.latch_samples:
+                # This frame was buffered while the controller transitioned to
+                # HANDOFF_READY and must remain under per-frame Kunwei guard
+                # validation without changing the already-sealed handoff.
+                return [kunwei_snapshot(controller.latch_samples + 1)]
+            raise AssertionError(f"unexpected Kunwei cursor: {cursor}")
+
+    def output_sample(
+        *,
+        state: int,
+        sequence: int,
+        timestamp: float,
+        handoff_ack: int = 0,
+    ) -> dict[str, object]:
+        return {
+            "robot_mode": legacy.ROBOT_MODE_RUNNING,
+            "safety_mode": legacy.SAFETY_MODE_NORMAL,
+            "runtime_state": legacy.RUNTIME_PLAYING,
+            "output_int_register_24": state,
+            "output_int_register_25": sequence,
+            "output_int_register_26": 0,
+            "output_int_register_27": 11,
+            "output_int_register_28": 22,
+            "output_int_register_29": formal.ACQUISITION_ROUTE_TOKEN,
+            "output_int_register_30": handoff_ack,
+            "output_int_register_31": 1,
+            "joint_mode": (253,) * 6,
+            "actual_TCP_pose": (0.4, 0.1, 0.03, 3.12, 0.0, 0.0),
+            "actual_TCP_speed": (0.0,) * 6,
+            "actual_qd": (0.0,) * 6,
+            "timestamp": timestamp,
+        }
+
+    output_batches = iter(
+        (
+            [output_sample(state=0, sequence=1, timestamp=0.0)],
+            [
+                output_sample(state=2, sequence=2, timestamp=0.0),
+                output_sample(state=2, sequence=2, timestamp=0.101),
+            ],
+            [],
+            [],
+            [output_sample(state=4, sequence=3, timestamp=0.202, handoff_ack=1)],
+        )
+    )
+    monkeypatch.setattr(
+        formal,
+        "_formal_acquisition_receive_available",
+        lambda *_args, **_kwargs: next(output_batches),
+    )
+    monkeypatch.setattr(
+        formal.legacy, "_prime_idle_inputs", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        formal.legacy,
+        "_send_urscript_with_primary_start_barrier",
+        lambda *_args, **_kwargs: {"barrier": "test"},
+    )
+
+    class RTDE:
+        def __init__(self) -> None:
+            self.packets: list[tuple[object, ...]] = []
+
+        def send_inputs(
+            self,
+            _input_recipe: int,
+            _input_types: list[str],
+            values: tuple[object, ...],
+        ) -> None:
+            self.packets.append(values)
+
+    kunwei = Kunwei()
+    rtde = RTDE()
+    handoff, anchor_pose, anchor_speed, barrier = formal._run_formal_acquisition_phase(
+        args=argparse.Namespace(robot_host="192.0.2.1", connect_timeout_s=3.0),
+        rtde=rtde,
+        input_recipe=1,
+        input_types=[],
+        output_recipe=2,
+        output_types=[],
+        contract=contract,
+        controller=controller,
+        kunwei=kunwei,
+        lease_id=11,
+        episode_identity=22,
+        acquisition_source="test-source",
+        attempt_id="attempt_test",
+        acquisition_rows=[],
+    )
+
+    assert observed_indices == list(range(1, controller.latch_samples + 2))
+    assert kunwei.snapshots_since_calls == [0, controller.latch_samples]
+    assert controller.state == formal.AcquisitionState.HANDOFF_READY
+    assert handoff.contact_latch_sample_index == controller.latch_samples
+    assert anchor_pose == handoff.anchor_pose_base
+    assert anchor_speed == (0.0,) * 6
+    assert barrier["prepare_ack_observed"] is True
+    assert rtde.packets[-1][24:33] == (
+        formal.ACQUISITION_COMMAND_START,
+        3,
+        11,
+        22,
+        formal.ACQUISITION_ROUTE_TOKEN,
+        1,
+        1,
+        1,
+        1,
+    )

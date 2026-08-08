@@ -616,6 +616,7 @@ class FormalContactAcquisitionControllerV1:
             AcquisitionState.VELOCITY_SEARCH,
             AcquisitionState.STOPPING,
             AcquisitionState.STATIONARY_DWELL,
+            AcquisitionState.HANDOFF_READY,
         }:
             raise AcquisitionError("formal_acquisition_sensor_state_invalid")
         typed = KunweiAcquisitionSample.from_value(sample)
