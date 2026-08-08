@@ -53,9 +53,9 @@
   "schema_version": "ur10e_tacdiffusion_formal_current_stage/v1",
   "sensor_target": "tcp_raw://192.168.50.25:5152",
   "shadow_only": true,
-  "source_closure_file_sha256": "3c4c17518226911992c489423d640f869e17ae94526589955d3220b14df89944",
+  "source_closure_file_sha256": "166270a5f75315939222445c07ddbec2bda117df1b916d093ebb61f1c82a94fe",
   "source_closure_path": "experiments/tase-contact-reproduction/config/tacdiffusion_formal_v4_offline_closure.json",
-  "source_content_sha256": "ab96361ed13e3381b2498cefe457c750f5d614bb6bb840fc6477f49938d363fd",
+  "source_content_sha256": "2e2c593eafe4c12f12ac0bac927fc194088c1d933fd51b9a8e6664750051d948",
   "tp_package_applicable": false,
   "ur_internal_ft_used": false
 }

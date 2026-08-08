@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import argparse
+from contextlib import nullcontext
+import json
 from pathlib import Path
 import sys
 
@@ -190,3 +193,58 @@ def test_formal_parser_exposes_resumable_contact_campaign_without_default_live()
                 "0.010",
             ]
         )
+
+
+def test_failed_seven_family_run_writes_partial_root_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dynamics = tmp_path / "dynamics.json"
+    dynamics.write_text("{}\n", encoding="utf-8")
+    output = tmp_path / "qualification"
+    monkeypatch.setattr(
+        formal,
+        "resolve_formal_current_state",
+        lambda _root: {
+            "ok": True,
+            "current_stage_id": "formal_v4_no_contact_qualification",
+            "source_content_sha256": "a" * 64,
+        },
+    )
+    monkeypatch.setattr(
+        formal,
+        "_load_dynamics_receipt",
+        lambda _path: {"conformance_receipt": {"receipt_sha256": "b" * 64}},
+    )
+    monkeypatch.setattr(formal.legacy, "_live_writer_lease", lambda: nullcontext())
+    monkeypatch.setattr(formal.legacy, "_enforce_no_live_writer_conflict", lambda: None)
+    monkeypatch.setattr(
+        formal,
+        "_run_no_contact_episode",
+        lambda **_kwargs: {
+            "ok": False,
+            "trajectory_family": "circle",
+            "failure": "RuntimeError: formal_qualification_receiver_fault:12",
+        },
+    )
+    args = argparse.Namespace(
+        sensor_delivery_watchdog_s=0.080,
+        robot_host="192.168.1.18",
+        sensor_ip="192.168.50.25",
+        sensor_port=5152,
+        live=True,
+        send_urscript=True,
+        write_rtde_inputs=True,
+        allow_direct_torque=True,
+        allow_motion=True,
+        no_contact=True,
+        allow_kunwei_stream_command=True,
+        dynamics_evidence=dynamics,
+        output_dir=output,
+        seed=1000,
+    )
+    with pytest.raises(RuntimeError, match="formal_qualification_failed:circle"):
+        formal.run_qualify_seven(args)
+    summary = json.loads((output / "qualification_summary.json").read_text())
+    assert summary["ok"] is False
+    assert len(summary["episodes"]) == 1
+    assert summary["episodes"][0]["failure"].endswith("receiver_fault:12")

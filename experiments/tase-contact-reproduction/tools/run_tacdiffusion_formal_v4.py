@@ -2220,6 +2220,7 @@ def _run_no_contact_episode(
     rows: list[dict[str, Any]] = []
     complete = False
     torque_start: float | None = None
+    failure: str | None = None
     output_dir.mkdir(parents=True, exist_ok=False)
     with (
         legacy.KunweiGuardCapture(
@@ -2340,7 +2341,8 @@ def _run_no_contact_episode(
                         rtde.send_inputs(input_recipe, input_types, outgoing.values)
                         legacy._register_command_lineage(lineages, outgoing)
                 pending = []
-        except Exception:
+        except Exception as exc:
+            failure = f"{type(exc).__name__}: {exc}"
             try:
                 abort = legacy._command_packet(
                     command=legacy.MODE_ABORT,
@@ -2352,13 +2354,14 @@ def _run_no_contact_episode(
                     kunwei_guard_wrench_tcp_si=outgoing.lineage.kunwei_guard_wrench_tcp_si,
                 )
                 rtde.send_inputs(input_recipe, input_types, abort.values)
-            finally:
-                raise
+            except Exception as abort_exc:
+                failure += f"; abort_failed:{type(abort_exc).__name__}:{abort_exc}"
         finally:
             kunwei.stop()
             kunwei_summary = kunwei.summary()
     csv_path = output_dir / "direct_torque_rtde.csv"
-    _write_csv_new(csv_path, rows)
+    if rows:
+        _write_csv_new(csv_path, rows)
     gate = _strict_episode_gate(
         rows=rows,
         kunwei=kunwei_summary,
@@ -2368,7 +2371,8 @@ def _run_no_contact_episode(
     evidence = {
         "schema": FORMAL_QUALIFICATION_SCHEMA_V1,
         "claim_class": "live_no_contact_seven_family_qualification",
-        "ok": gate["ok"],
+        "ok": gate["ok"] and failure is None,
+        "failure": failure,
         "trajectory_family": family,
         "trajectory_seed": seed,
         "duration_s": timeline.duration_s,
@@ -2386,12 +2390,10 @@ def _run_no_contact_episode(
         "contact_authorized": False,
         "training_dataset": False,
         "ur_internal_ft_used": False,
-        "data_csv": str(csv_path),
+        "data_csv": str(csv_path) if rows else None,
     }
     evidence_path = output_dir / "evidence.json"
     _write_json_new(evidence_path, evidence)
-    if not evidence["ok"]:
-        raise RuntimeError(f"formal_qualification_gate_failed:{family}")
     return evidence
 
 
@@ -2422,14 +2424,15 @@ def run_qualify_seven(args: argparse.Namespace) -> dict[str, Any]:
     with legacy._live_writer_lease():
         legacy._enforce_no_live_writer_conflict()
         for index, family in enumerate(TRAJECTORY_FAMILIES):
-            results.append(
-                _run_no_contact_episode(
-                    family=family,
-                    seed=args.seed + index,
-                    args=args,
-                    output_dir=root / f"{index:02d}_{family}",
-                )
+            result = _run_no_contact_episode(
+                family=family,
+                seed=args.seed + index,
+                args=args,
+                output_dir=root / f"{index:02d}_{family}",
             )
+            results.append(result)
+            if result.get("ok") is not True:
+                break
     summary = {
         "schema": FORMAL_TOOL_SCHEMA_V1,
         "claim_class": "live_no_contact_all_seven_trajectories_qualified",
@@ -2445,6 +2448,14 @@ def run_qualify_seven(args: argparse.Namespace) -> dict[str, Any]:
         "ur_internal_ft_used": False,
     }
     _write_json_new(root / "qualification_summary.json", summary)
+    if not summary["ok"]:
+        failed = results[-1] if results else {}
+        raise RuntimeError(
+            "formal_qualification_failed:"
+            f"{failed.get('trajectory_family', 'none')}:"
+            f"{failed.get('failure', 'strict_gate_failed')}:"
+            f"{root / 'qualification_summary.json'}"
+        )
     return summary
 
 
