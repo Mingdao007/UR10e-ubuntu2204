@@ -171,6 +171,9 @@ def test_primary_barrier_is_inert_prepare_then_sequence_two_arms_motion() -> Non
     assert "prepare_ack_observed" in source
     assert "if output_ack > sequence:" in source
     assert "if last_ack_sequence == sequence" in source
+    assert "last_packet_values" in source
+    assert "now - last_packet_transmit_s >= 0.010" in source
+    assert "now - pending_sequence_started_s" in source
     assert "formal_acquisition_ack_heartbeat_timeout" in source
 
 
@@ -217,9 +220,14 @@ def test_live_acquisition_packet_flow_is_prepare_then_ack_paced_handoff(
     receive_batches = iter(
         (
             [output_sample(state=0, ack=1, timestamp=0.0)],
+            # The first START transmission is not observed by the controller;
+            # it continues to ACK PREPARE until the identical sequence-2
+            # packet is resent.
+            [output_sample(state=0, ack=1, timestamp=0.5)],
             [output_sample(state=1, ack=2, timestamp=1.0)],
             [output_sample(state=2, ack=3, timestamp=1.101)],
-            [output_sample(state=4, ack=4, timestamp=1.103, handoff=1)],
+            [output_sample(state=3, ack=4, timestamp=1.203)],
+            [output_sample(state=4, ack=5, timestamp=1.205, handoff=1)],
         )
     )
 
@@ -232,7 +240,7 @@ def test_live_acquisition_packet_flow_is_prepare_then_ack_paced_handoff(
 
     class FakeKunwei:
         def __init__(self) -> None:
-            self.delivered = False
+            self.calls = 0
 
         def snapshot(self, *, max_age_s: float):
             assert max_age_s == pytest.approx(0.080)
@@ -240,15 +248,18 @@ def test_live_acquisition_packet_flow_is_prepare_then_ack_paced_handoff(
 
         def snapshots_since(self, cursor: int, *, max_age_s: float):
             assert max_age_s == pytest.approx(0.080)
-            if self.delivered:
+            self.calls += 1
+            if self.calls < 3:
+                return ()
+            if self.calls > 3:
+                assert cursor == 150
                 return ()
             assert cursor == 100
-            self.delivered = True
             now = __import__("time").monotonic()
             return tuple(
                 SimpleNamespace(
                     sample_index=index,
-                    t_monotonic_s=now,
+                    t_monotonic_s=now + (index - 100) * 0.006,
                     normal_load_n=1.1,
                     force_norm_n=1.1,
                     torque_norm_nm=0.0,
@@ -267,6 +278,15 @@ def test_live_acquisition_packet_flow_is_prepare_then_ack_paced_handoff(
     monkeypatch.setattr(
         "run_tacdiffusion_formal_v4.legacy._receive_available",
         lambda *_args, **_kwargs: next(receive_batches),
+    )
+    clock = {"now": 0.0}
+
+    def advancing_monotonic() -> float:
+        clock["now"] += 0.006
+        return clock["now"]
+
+    monkeypatch.setattr(
+        "run_tacdiffusion_formal_v4.time.monotonic", advancing_monotonic
     )
     rtde = FakeRTDE()
     rows: list[dict[str, object]] = []
@@ -288,11 +308,18 @@ def test_live_acquisition_packet_flow_is_prepare_then_ack_paced_handoff(
         attempt_id="attempt",
         acquisition_rows=rows,
     )
-    assert rtde.sent == [(0, 1), (1, 2), (1, 3), (1, 4)]
+    assert rtde.sent[0] == (0, 1)
+    assert rtde.sent.count((1, 2)) >= 2
+    assert (1, 3) in rtde.sent
+    assert (1, 4) in rtde.sent
+    assert (1, 5) in rtde.sent
+    assert [sequence for _, sequence in rtde.sent] == sorted(
+        sequence for _, sequence in rtde.sent
+    )
     assert handoff.anchor_pose_base == pose
     assert barrier["prepare_ack_observed"] is True
     assert barrier["motion_armed_during_barrier"] is False
-    assert len(rows) == 3
+    assert len(rows) == 5
 
 
 def test_acquisition_fault_abort_is_immediate_not_ack_paced(
@@ -592,6 +619,7 @@ def test_acquisition_evidence_row_is_non_training_and_not_direct_torque_protocol
         "robot_mode": 7,
         "safety_mode": 1,
         "output_int_register_24": 1,
+        "output_int_register_25": 3,
         "output_int_register_26": 0,
         "output_int_register_27": 11,
         "output_int_register_28": 22,

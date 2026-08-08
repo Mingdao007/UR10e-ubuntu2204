@@ -513,6 +513,7 @@ def _formal_acquisition_evidence_row(
         "host_elapsed_s": float(elapsed_s),
         "host_packet_sequence": int(host_sequence),
         "acquisition_output_state": int(sample["output_int_register_24"]),
+        "acquisition_output_sequence": int(sample["output_int_register_25"]),
         "acquisition_output_fault": int(sample["output_int_register_26"]),
         "acquisition_lease_echo": int(sample["output_int_register_27"]),
         "acquisition_episode_echo": int(sample["output_int_register_28"]),
@@ -688,6 +689,7 @@ def _run_formal_acquisition_phase(
     handoff_ack_sent = False
     handoff_ack_packet_sent = False
     last_ack_sequence = sequence
+    last_packet_values: tuple[Any, ...] | None = None
     pending: list[Mapping[str, Any]] = []
     last_actual_pose: tuple[float, ...] | None = None
     last_actual_speed: tuple[float, ...] | None = None
@@ -700,21 +702,22 @@ def _run_formal_acquisition_phase(
         handoff_ack: bool,
         command: int = ACQUISITION_COMMAND_START,
     ) -> None:
-        nonlocal sequence
+        nonlocal sequence, last_packet_values
         sequence += 1
+        last_packet_values = _formal_acquisition_input_values(
+            command=command,
+            sequence=sequence,
+            lease_id=lease_id,
+            episode_identity=episode_identity,
+            safety_normal=safety_normal,
+            robot_running=safety_normal,
+            host_latch=host_latch,
+            handoff_ack=handoff_ack,
+        )
         rtde.send_inputs(
             input_recipe,
             input_types,
-            _formal_acquisition_input_values(
-                command=command,
-                sequence=sequence,
-                lease_id=lease_id,
-                episode_identity=episode_identity,
-                safety_normal=safety_normal,
-                robot_running=safety_normal,
-                host_latch=host_latch,
-                handoff_ack=handoff_ack,
-            ),
+            last_packet_values,
         )
 
     def stop_fault(reason: str) -> None:
@@ -764,7 +767,8 @@ def _run_formal_acquisition_phase(
         handoff_ack=False,
         command=ACQUISITION_COMMAND_START,
     )
-    last_sequence_sent_s = time.monotonic()
+    pending_sequence_started_s = time.monotonic()
+    last_packet_transmit_s = pending_sequence_started_s
     deadline = acquisition_started_s + 65.0
 
     while time.monotonic() < deadline:
@@ -896,9 +900,24 @@ def _run_formal_acquisition_phase(
                 host_latch=latch_sent,
                 handoff_ack=handoff_ack_sent,
             )
-            last_sequence_sent_s = time.monotonic()
+            pending_sequence_started_s = time.monotonic()
+            last_packet_transmit_s = pending_sequence_started_s
             handoff_ack_packet_sent = handoff_ack_sent
-        if time.monotonic() - last_sequence_sent_s > contract.sensor_delivery_watchdog_s:
+        now = time.monotonic()
+        if last_ack_sequence != sequence and now - last_packet_transmit_s >= 0.010:
+            if last_packet_values is None:
+                stop_fault("route_fault")
+                raise RuntimeError("formal_acquisition_pending_packet_missing")
+            # Resend the identical pending packet; never mint a new sequence
+            # until the controller ACK catches up.  The total 80 ms ACK bound
+            # remains anchored to the first transmission.
+            rtde.send_inputs(input_recipe, input_types, last_packet_values)
+            last_packet_transmit_s = now
+        if (
+            last_ack_sequence != sequence
+            and now - pending_sequence_started_s
+            > contract.sensor_delivery_watchdog_s
+        ):
             stop_fault("route_fault")
             raise RuntimeError("formal_acquisition_ack_heartbeat_timeout")
         if handoff_ack_packet_sent:
