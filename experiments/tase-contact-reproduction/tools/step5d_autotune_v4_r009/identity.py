@@ -189,6 +189,17 @@ _GENERATED_R009_PATHS = frozenset(
     }
 )
 
+# These historical-looking entrypoints are part of R009's active
+# quarantine/execution boundary.  Other R008 inputs remain excluded so a
+# release cannot absorb an arbitrary historical source tree by name.
+_R009_PINNED_QUARANTINE_PATHS = frozenset(
+    {
+        "tools/launch_step5d_autotune_v4_r008_control.py",
+        "tools/run_step5d_autotune_v4_r008.py",
+        "tools/run_step5d_autotune_v4_r008_b3_two_stage.py",
+    }
+)
+
 
 class R009IdentityError(ValueError):
     """A typed R009 behavior or release identity is invalid."""
@@ -369,7 +380,10 @@ class R009SourceSet:
         if self.schema != R009_SOURCE_SET_SCHEMA:
             raise R009IdentityError("R009 source-set schema differs")
         files = _source_files(self.files, "R009 source set")
-        if any("r008" in path.lower() for path in files):
+        if any(
+            "r008" in path.lower() and path not in _R009_PINNED_QUARANTINE_PATHS
+            for path in files
+        ):
             raise R009IdentityError("R009 source set cannot contain historical R008 input")
         if any(path in _GENERATED_R009_PATHS for path in files):
             raise R009IdentityError("R009 source set contains a generated contract")
@@ -411,7 +425,10 @@ class R009SourceSet:
                 relative = _safe_relative_path(path.as_posix(), "R009 source path")
                 candidate = root / relative
                 resolved = candidate.resolve()
-            if "r008" in relative.lower():
+            if (
+                "r008" in relative.lower()
+                and relative not in _R009_PINNED_QUARANTINE_PATHS
+            ):
                 raise R009IdentityError(
                     f"R009 source set cannot absorb historical R008 input: {relative}"
                 )
@@ -1140,6 +1157,14 @@ def default_source_set(root: Path = ROOT) -> R009SourceSet:
         "tools/step5d_autotune_v4_r009/observer.py",
         "tools/step5d_autotune_v4_r009/tp.py",
         "tools/build_step5d_autotune_v4_r009.py",
+        # R009's actual production/quarantine execution seam.  These are
+        # intentionally separate from the pinned V3 prepare/runner and from
+        # generated release/run/doc artifacts.
+        "tools/run_step5d_autotune_campaign.py",
+        "tools/step5d_machine_campaign_binding.py",
+        "tools/launch_step5d_autotune_v4_r008_control.py",
+        "tools/run_step5d_autotune_v4_r008.py",
+        "tools/run_step5d_autotune_v4_r008_b3_two_stage.py",
         "config/schemas/step5d_autotune_v4_r009_behavior_manifest.schema.json",
         "config/schemas/step5d_autotune_v4_r009_release_identity.schema.json",
         "config/schemas/step5d_autotune_v4_r009_reason43_runtime_protocol.schema.json",

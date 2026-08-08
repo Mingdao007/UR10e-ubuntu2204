@@ -18,12 +18,14 @@ MANIFEST_PATH = ROOT / "config/step5d/autotune_v4_r008_runtime_manifest.json"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Historical R008 control launch is permanently quarantined."""
+
+    reject_r008_formal_resume("launch_step5d_autotune_v4_r008_control")
     arguments = tuple(sys.argv[1:] if argv is None else argv)
     if not arguments:
         raise SystemExit(
             "usage: launch_step5d_autotune_v4_r008_control.py <manifest route> [args ...]"
         )
-    reject_r008_formal_resume("launch_step5d_autotune_v4_r008_control")
     try:
         return launch_manifest_route(MANIFEST_PATH, arguments)
     except ManagedRuntimeError as exc:

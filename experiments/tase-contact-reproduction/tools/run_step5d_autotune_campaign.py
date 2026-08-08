@@ -77,6 +77,11 @@ from step5d_autotune_batch_plan import (
     CandidateBatchPlan,
     PlanLifecycle,
     ROLLING_LIFECYCLE_SCHEMAS,
+    SCHEMA_VERSION,
+    SCHEMA_VERSION_R008,
+    SCHEMA_VERSION_ROLLING,
+    SCHEMA_VERSION_ROLLING_V2,
+    SCHEMA_VERSION_V2,
     RuntimePlanRow,
     assert_append_only,
     close_rolling_plan,
@@ -556,12 +561,23 @@ def profile_from_epoch(layout: CampaignEpochLayout) -> ExecutionProfile:
 
 
 @dataclass(frozen=True)
+class BoundPlanIdentity:
+    """Digest namespace for one typed plan role."""
+
+    role: str
+    schema: str
+    revision: int
+    sha256: str
+
+
+@dataclass(frozen=True)
 class MachineCampaignBinding:
+    schema_version: str
     campaign_id: str
     campaign_epoch: int
     campaign_fingerprint: str
-    candidate_plan_revision: int
-    candidate_plan_sha256: str
+    receiver_plan: BoundPlanIdentity | None
+    optimizer_plan: BoundPlanIdentity | None
     trial_overlay_plan_sha256: str
     binding_ref_sha256: str
 
@@ -628,40 +644,110 @@ def _campaign_lease_authorization(
     )
 
 
+_OPTIMIZER_PLAN_SCHEMAS = frozenset(
+    {
+        SCHEMA_VERSION,
+        SCHEMA_VERSION_V2,
+        SCHEMA_VERSION_R008,
+        SCHEMA_VERSION_ROLLING,
+        SCHEMA_VERSION_ROLLING_V2,
+        *ROLLING_LIFECYCLE_SCHEMAS,
+    }
+)
+
+
+def _binding_digest(value: Any, role: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise RuntimeError(f"campaign binding {role} digest differs")
+    return value
+
+
+def _bound_plan_identity(
+    value: Any,
+    *,
+    role: str,
+) -> BoundPlanIdentity | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping) or set(value) != {"schema", "revision", "sha256"}:
+        raise RuntimeError(f"campaign binding {role} descriptor fields differ")
+    schema = value["schema"]
+    revision = value["revision"]
+    if (
+        not isinstance(schema, str)
+        or isinstance(revision, bool)
+        or not isinstance(revision, int)
+        or revision < 1
+    ):
+        raise RuntimeError(f"campaign binding {role} descriptor is malformed")
+    if role == "receiver" and schema != "step5d.parameter-receiver/launch-plan-v1":
+        raise RuntimeError("campaign binding receiver schema differs")
+    if role == "optimizer" and schema not in _OPTIMIZER_PLAN_SCHEMAS:
+        raise RuntimeError("campaign binding optimizer schema differs")
+    return BoundPlanIdentity(
+        role=role,
+        schema=schema,
+        revision=revision,
+        sha256=_binding_digest(value["sha256"], f"{role} plan"),
+    )
+
+
 def _campaign_binding(
     path: Path,
     *,
     campaign: CampaignSpec,
     campaign_fingerprint: str,
 ) -> MachineCampaignBinding:
-    """Load the machine-generated V3 epoch/fingerprint binding (not user auth)."""
+    """Load a typed receiver/optimizer binding (not user authorization)."""
 
     if not path.is_absolute() or path.is_symlink() or not path.is_file():
         raise RuntimeError("campaign binding must be an absolute regular file")
     payload = json.loads(path.read_text(encoding="utf-8"))
-    required = {
+    if not isinstance(payload, dict):
+        raise RuntimeError("campaign binding must be a JSON object")
+    common = {
         "schema_version",
         "campaign_id",
         "campaign_epoch",
         "campaign_fingerprint",
-        "candidate_plan_revision",
-        "candidate_plan_sha256",
         "trial_overlay_plan_sha256",
         "binding_source",
         "generated_at",
     }
-    if not isinstance(payload, dict) or set(payload) != required:
-        raise RuntimeError("campaign binding fields differ from V3 contract")
-    if payload["schema_version"] != "step5d_autotune_campaign_binding_v3":
-        raise RuntimeError("campaign binding schema mismatch")
+    if payload.get("schema_version") == "step5d_autotune_campaign_binding_v3":
+        legacy_required = common | {"candidate_plan_revision", "candidate_plan_sha256"}
+        if set(payload) != legacy_required:
+            raise RuntimeError("legacy campaign binding fields differ")
+        if (
+            not isinstance(payload["candidate_plan_revision"], int)
+            or isinstance(payload["candidate_plan_revision"], bool)
+            or payload["candidate_plan_revision"] < 1
+        ):
+            raise RuntimeError("legacy campaign binding receiver revision differs")
+        receiver_plan = BoundPlanIdentity(
+            role="receiver",
+            schema="step5d.parameter-receiver/launch-plan-v1",
+            revision=payload["candidate_plan_revision"],
+            sha256=_binding_digest(payload["candidate_plan_sha256"], "receiver plan"),
+        )
+        optimizer_plan = None
+    else:
+        required = common | {"receiver_plan", "optimizer_plan"}
+        if set(payload) != required:
+            raise RuntimeError("campaign binding fields differ from typed v4 contract")
+        if payload["schema_version"] != "step5d_autotune_campaign_binding_v4":
+            raise RuntimeError("campaign binding schema mismatch")
+        receiver_plan = _bound_plan_identity(payload["receiver_plan"], role="receiver")
+        optimizer_plan = _bound_plan_identity(payload["optimizer_plan"], role="optimizer")
     if any(
         (
             payload["campaign_id"] != campaign.campaign_id,
             payload["campaign_epoch"] != campaign.campaign_epoch,
             payload["campaign_fingerprint"] != campaign_fingerprint,
-            isinstance(payload["candidate_plan_revision"], bool),
-            not isinstance(payload["candidate_plan_revision"], int),
-            payload["candidate_plan_revision"] < 1,
             not isinstance(payload["binding_source"], str),
             not payload["binding_source"].strip(),
             not isinstance(payload["generated_at"], str),
@@ -669,23 +755,70 @@ def _campaign_binding(
         )
     ):
         raise RuntimeError("campaign binding is not bound to this exact epoch/fingerprint")
-    for name in ("candidate_plan_sha256", "trial_overlay_plan_sha256"):
-        value = payload[name]
-        if (
-            not isinstance(value, str)
-            or len(value) != 64
-            or any(character not in "0123456789abcdef" for character in value)
-        ):
-            raise RuntimeError("campaign binding plan digest differs")
+    _binding_digest(payload["trial_overlay_plan_sha256"], "trial overlay plan")
     return MachineCampaignBinding(
+        schema_version=str(payload["schema_version"]),
         campaign_id=campaign.campaign_id,
         campaign_epoch=campaign.campaign_epoch,
         campaign_fingerprint=campaign_fingerprint,
-        candidate_plan_revision=payload["candidate_plan_revision"],
-        candidate_plan_sha256=payload["candidate_plan_sha256"],
+        receiver_plan=receiver_plan,
+        optimizer_plan=optimizer_plan,
         trial_overlay_plan_sha256=payload["trial_overlay_plan_sha256"],
         binding_ref_sha256=sha256_json(payload),
     )
+
+
+def _validate_machine_plan_files(
+    binding: MachineCampaignBinding,
+    *,
+    campaign_root: Path,
+    campaign_id: str,
+    plan_path: Path,
+    overlay_path: Path,
+) -> None:
+    """Match each bound plan role to its own on-disk namespace."""
+
+    if binding.receiver_plan is not None and binding.schema_version == "step5d_autotune_campaign_binding_v4":
+        receiver_path = (campaign_root / "control/parameter_receiver_plan.json").resolve()
+        if receiver_path.is_symlink() or not receiver_path.is_file():
+            raise RuntimeError("machine campaign binding receiver plan is missing")
+        receiver_payload = json.loads(receiver_path.read_text(encoding="utf-8"))
+        if not isinstance(receiver_payload, Mapping):
+            raise RuntimeError("machine campaign binding receiver plan is malformed")
+        receiver_identity = _bound_plan_identity(
+            {
+                "schema": receiver_payload.get("schema"),
+                "revision": receiver_payload.get("revision"),
+                "sha256": _sha256_path(receiver_path),
+            },
+            role="receiver",
+        )
+        if receiver_identity != binding.receiver_plan:
+            raise RuntimeError("machine campaign binding receiver identity differs")
+    if binding.schema_version == "step5d_autotune_campaign_binding_v3":
+        # The pinned V3 schema names its receiver plan `candidate_plan_*` and
+        # has no optimizer descriptor.  Preserve that legacy namespace without
+        # ever comparing its receiver digest with the optimizer candidate plan.
+        if binding.optimizer_plan is not None:
+            raise RuntimeError("legacy campaign binding unexpectedly has optimizer identity")
+        if binding.trial_overlay_plan_sha256 != _sha256_path(overlay_path):
+            raise RuntimeError("machine campaign binding trial overlay identity differs")
+        return
+    if binding.optimizer_plan is None:
+        raise RuntimeError("machine campaign binding lacks optimizer-plan identity")
+    optimizer = load_plan(plan_path, campaign_id=campaign_id)
+    optimizer_identity = _bound_plan_identity(
+        {
+            "schema": optimizer.payload["schema_version"],
+            "revision": optimizer.revision,
+            "sha256": _sha256_path(plan_path),
+        },
+        role="optimizer",
+    )
+    if optimizer_identity != binding.optimizer_plan:
+        raise RuntimeError("machine campaign binding optimizer identity differs")
+    if binding.trial_overlay_plan_sha256 != _sha256_path(overlay_path):
+        raise RuntimeError("machine campaign binding trial overlay identity differs")
 
 
 def _event(path: Path, event: str, **payload: Any) -> None:
@@ -1516,14 +1649,13 @@ def run(args: argparse.Namespace) -> int:
     if plan_path is None or args.v3_trial_overlays is None:
         raise RuntimeError("V3 campaign binding requires exact candidate/overlay plans")
     overlay_path = args.v3_trial_overlays.resolve()
-    if (
-        machine_binding.candidate_plan_revision
-        != load_plan(plan_path, campaign_id=campaign.campaign_id).revision
-        or machine_binding.candidate_plan_sha256 != _sha256_path(plan_path)
-        or machine_binding.trial_overlay_plan_sha256
-        != _sha256_path(overlay_path)
-    ):
-        raise RuntimeError("machine campaign binding plan identity differs")
+    _validate_machine_plan_files(
+        machine_binding,
+        campaign_root=campaign_root,
+        campaign_id=campaign.campaign_id,
+        plan_path=plan_path,
+        overlay_path=overlay_path,
+    )
     preflight = backend.preflight(
         offline=False,
         execution_context=execution_context,

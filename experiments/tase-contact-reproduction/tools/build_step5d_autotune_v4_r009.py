@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import tempfile
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -18,7 +19,6 @@ from step5d_autotune_v4_r009.contracts import (
     contract_bytes,
     identity_bytes,
     load_contract,
-    persist_contract,
     validate_contract,
 )
 from step5d_autotune_v4_r009.identity import (
@@ -36,7 +36,14 @@ from step5d_autotune_v4_r009.ledger import (
     HEADER_RECORD_TYPE,
     LEDGER_SCHEMA,
 )
-from step5d_autotune_v4_r009.tp import R009_STAMP, build_triplet
+from step5d_autotune_v4_r009.tp import (
+    CONTROLLER_DIRECTORY,
+    R009_STAMP,
+    R009TPError,
+    build_triplet,
+    numeric_sanity,
+    validate_triplet,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +53,17 @@ DEFAULT_CLOSURE_PATH = ROOT / "config/step5d/autotune_v4_r009_offline_closure.js
 DEFAULT_IDENTITY_ALIAS_PATH = ROOT / "config/step5d/r009_release_identity.json"
 R009_CLOSURE_SCHEMA = "step5d.autotune-v4/r009-offline-closure-v1"
 R009_OBSERVATION_BINDING_SCHEMA = "step5d.autotune-v4/r009-observation-release-binding-v1"
+ARTIFACT_SUFFIXES = (
+    ".script",
+    ".txt",
+    ".urp",
+    ".numeric-sanity.json",
+    ".deploy-manifest.json",
+)
+ARTIFACT_KEYS = tuple(
+    suffix.lstrip(".").replace(".", "_") for suffix in ARTIFACT_SUFFIXES
+)
+TRIPLET_SUFFIXES = (".script", ".txt", ".urp")
 
 
 class R009BuilderError(RuntimeError):
@@ -71,12 +89,142 @@ def _triplet_hashes(paths: Mapping[str, Path]) -> dict[str, str]:
         raise R009BuilderError("R009 builder did not produce the controller triplet") from exc
 
 
-def _relative_or_string(path: Path) -> str:
+def _absolute_path(path: Path) -> Path:
+    """Normalize a path lexically without silently following symlinks."""
+
     path = Path(path)
+    return Path(os.path.abspath(path if path.is_absolute() else Path.cwd() / path))
+
+
+def _safe_target_path(
+    release_root: Path,
+    path: Path,
+    role: str,
+    *,
+    require_file: bool = False,
+) -> Path:
+    """Return a release-root path after checking every existing ancestor."""
+
+    root = Path(release_root).resolve()
+    if root.is_symlink():
+        raise R009BuilderError(f"R009 {role} release root is a symlink")
+    candidate = _absolute_path(Path(path))
     try:
-        return path.resolve().relative_to(ROOT.resolve()).as_posix()
-    except ValueError:
-        return str(path)
+        relative = candidate.relative_to(root)
+    except ValueError as exc:
+        raise R009BuilderError(f"R009 {role} path escapes release_root") from exc
+
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise R009BuilderError(f"R009 {role} path has a symlink ancestor")
+    resolved = candidate.resolve(strict=False)
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise R009BuilderError(f"R009 {role} path escapes release_root") from exc
+    if candidate.exists():
+        if candidate.is_symlink() or not candidate.is_file():
+            raise R009BuilderError(f"R009 {role} target is not a regular file")
+    elif require_file:
+        raise R009BuilderError(f"R009 {role} target is missing")
+    return candidate
+
+
+def _relative_to_root(
+    release_root: Path,
+    path: Path,
+    role: str,
+    *,
+    require_file: bool = False,
+) -> str:
+    candidate = _safe_target_path(
+        release_root,
+        path,
+        role,
+        require_file=require_file,
+    )
+    return candidate.relative_to(Path(release_root).resolve()).as_posix()
+
+
+def _safe_existing_file(path: Path, role: str) -> Path:
+    path = Path(path)
+    if path.is_symlink() or not path.is_file():
+        raise R009BuilderError(f"R009 {role} must be a regular file: {path}")
+    ancestor = path.parent
+    while ancestor != ancestor.parent:
+        if ancestor.is_symlink():
+            raise R009BuilderError(f"R009 {role} has a symlink ancestor: {path}")
+        ancestor = ancestor.parent
+    return path
+
+
+def _read_source_artifacts(
+    source_paths: Mapping[str, Path],
+) -> dict[str, bytes]:
+    if set(source_paths) != set(ARTIFACT_SUFFIXES):
+        raise R009BuilderError("R009 persist requires exactly five source artifacts")
+    return {
+        suffix: _safe_existing_file(path, f"source artifact {suffix}").read_bytes()
+        for suffix, path in source_paths.items()
+    }
+
+
+def _validate_source_artifacts(
+    source_bytes: Mapping[str, bytes],
+    *,
+    manifest: R009BehaviorManifest,
+    identity: R009ReleaseIdentity,
+    stamp: str,
+) -> dict[str, str]:
+    if set(source_bytes) != set(ARTIFACT_SUFFIXES):
+        raise R009BuilderError("R009 source artifact set differs")
+    try:
+        script = source_bytes[".script"].decode("utf-8")
+        txt = source_bytes[".txt"].decode("utf-8")
+        triplet_checks = validate_triplet(
+            script,
+            txt,
+            source_bytes[".urp"],
+            stamp,
+            manifest,
+        )
+        expected_sanity = {
+            **numeric_sanity(script),
+            "triplet_checks": triplet_checks,
+        }
+        sanity = json.loads(source_bytes[".numeric-sanity.json"].decode("utf-8"))
+        if sanity != expected_sanity:
+            raise R009BuilderError("R009 numeric-sanity artifact semantics differ")
+        triplet = {
+            suffix.lstrip("."): sha256_bytes(source_bytes[suffix])
+            for suffix in TRIPLET_SUFFIXES
+        }
+        deploy = json.loads(source_bytes[".deploy-manifest.json"].decode("utf-8"))
+        expected_deploy = {
+            "schema": "step5d.autotune-v4/r009-deploy-manifest-v1",
+            "program": manifest.program,
+            "controller_directory": CONTROLLER_DIRECTORY,
+            "campaign_fingerprint": manifest.campaign_fingerprint,
+            "behavior_manifest_sha256": manifest.behavior_manifest_sha256,
+            "runtime_protocol": manifest.runtime_protocol,
+            "same_basename_triplet": True,
+            "timestamp": stamp,
+            "artifacts": triplet,
+            "controller_upload": False,
+            "controller_readback": False,
+            "live_evidence": False,
+        }
+        if deploy != expected_deploy:
+            raise R009BuilderError("R009 deploy-manifest artifact semantics differ")
+    except (R009TPError, UnicodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        if isinstance(exc, R009BuilderError):
+            raise
+        raise R009BuilderError("R009 source artifact semantics differ") from exc
+    if triplet != dict(identity.controller_triplet_sha256):
+        raise R009BuilderError("R009 source triplet differs from release identity")
+    return triplet
 
 
 def _runtime_protocol_summary(manifest: R009BehaviorManifest) -> dict[str, Any]:
@@ -189,7 +337,7 @@ def _build_triplet_idempotent(
 
 
 def build(
-    output_dir: Path = DEFAULT_OUTPUT,
+    output_dir: Path,
     *,
     behavior_manifest: R009BehaviorManifest | None = None,
     manifest: R009BehaviorManifest | None = None,
@@ -275,8 +423,10 @@ def build_closure_document(
     contract_path: Path = DEFAULT_CONTRACT_PATH,
     behavior_manifest_path: Path = DEFAULT_BEHAVIOR_MANIFEST_PATH,
     identity_path: Path | None = None,
+    release_root: Path = ROOT,
+    artifact_bytes: Mapping[str, bytes] | None = None,
 ) -> dict[str, Any]:
-    """Purely derive the canonical R009 closure document from a build result."""
+    """Purely derive an R009 closure with paths relative to ``release_root``."""
 
     identity = validate_release_identity(result["release_identity"])
     manifest = validate_behavior_manifest(result["behavior_manifest"])
@@ -287,14 +437,27 @@ def build_closure_document(
         if not isinstance(raw_paths, Mapping):
             raise R009BuilderError("R009 closure requires artifact paths")
         paths = {key: Path(value) for key, value in raw_paths.items()}
+    if set(paths) != set(ARTIFACT_SUFFIXES):
+        raise R009BuilderError("R009 closure requires exactly five artifact paths")
+    if artifact_bytes is not None and set(artifact_bytes) != set(ARTIFACT_SUFFIXES):
+        raise R009BuilderError("R009 closure artifact bytes differ")
     artifacts: dict[str, dict[str, object]] = {}
-    for suffix in (".script", ".txt", ".urp", ".numeric-sanity.json", ".deploy-manifest.json"):
+    for suffix in ARTIFACT_SUFFIXES:
         path = Path(paths[suffix])
-        if path.is_symlink() or not path.is_file():
-            raise R009BuilderError(f"R009 closure artifact is missing or unsafe: {path}")
+        relative = _relative_to_root(
+            release_root,
+            path,
+            f"artifact {suffix}",
+            require_file=artifact_bytes is None,
+        )
+        encoded = (
+            artifact_bytes[suffix]
+            if artifact_bytes is not None
+            else _safe_existing_file(path, f"artifact {suffix}").read_bytes()
+        )
         artifacts[suffix.lstrip(".").replace(".", "_")] = {
-            "path": _relative_or_string(path),
-            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "path": relative,
+            "sha256": sha256_bytes(encoded),
         }
     identity_file_digest = sha256_bytes(identity_bytes(identity))
     identity_document_path = (
@@ -313,15 +476,23 @@ def build_closure_document(
         "source_closure_sha256": manifest.source_set.sha256,
         "source_closure": manifest.source_set.as_dict(),
         "behavior_manifest": {
-            "path": _relative_or_string(Path(behavior_manifest_path)),
+            "path": _relative_to_root(
+                release_root,
+                Path(behavior_manifest_path),
+                "behavior manifest",
+            ),
             "sha256": manifest.behavior_manifest_sha256,
         },
         "release_contract": {
-            "path": _relative_or_string(Path(contract_path)),
+            "path": _relative_to_root(release_root, Path(contract_path), "contract"),
             "sha256": bundle.sha256,
         },
         "release_identity": {
-            "path": _relative_or_string(identity_document_path),
+            "path": _relative_to_root(
+                release_root,
+                identity_document_path,
+                "release identity",
+            ),
             "file_sha256": identity_file_digest,
             "release_identity_sha256": identity.release_identity_sha256,
             "value": identity.as_dict(),
@@ -351,15 +522,18 @@ def build_closure_document(
 def _root_relative(root: Path, value: Any, role: str) -> Path:
     if not isinstance(value, str) or not value or Path(value).is_absolute():
         raise R009BuilderError(f"R009 closure {role} path is not relative")
-    candidate = Path(root).resolve() / value
-    if candidate.is_symlink():
-        raise R009BuilderError(f"R009 closure {role} path is a symlink")
-    path = candidate.resolve()
-    try:
-        path.relative_to(Path(root).resolve())
-    except ValueError as exc:
-        raise R009BuilderError(f"R009 closure {role} path escapes root") from exc
-    return path
+    return _safe_target_path(Path(root), Path(root) / value, role)
+
+
+def _source_closure_path(root: Path, relative: str) -> Path:
+    """Read release-root sources, falling back to the immutable project root."""
+
+    candidate = _root_relative(root, relative, "source")
+    if candidate.is_file():
+        return candidate
+    if Path(root).resolve() != ROOT.resolve():
+        return _root_relative(ROOT, relative, "source")
+    return candidate
 
 
 def validate_closure_document(
@@ -418,7 +592,7 @@ def validate_closure_document(
     if source_set.sha256 != document["source_closure_sha256"]:
         raise R009BuilderError("R009 closure source digest differs")
     for relative, expected in source_set.files.items():
-        path = _root_relative(root, relative, "source")
+        path = _source_closure_path(root, relative)
         if path.is_symlink() or not path.is_file() or sha256_file(path) != expected:
             raise R009BuilderError(f"R009 closure source byte digest differs: {relative}")
     try:
@@ -445,14 +619,22 @@ def validate_closure_document(
     if document["observation_binding"] != _observation_binding(identity):
         raise R009BuilderError("R009 closure observation binding differs")
     artifacts = document["artifacts"]
-    if not isinstance(artifacts, Mapping):
-        raise R009BuilderError("R009 closure artifacts are missing")
-    for row in artifacts.values():
+    if not isinstance(artifacts, Mapping) or set(artifacts) != set(ARTIFACT_KEYS):
+        raise R009BuilderError("R009 closure artifact key set differs")
+    for key in ARTIFACT_KEYS:
+        row = artifacts[key]
         if not isinstance(row, Mapping):
             raise R009BuilderError("R009 closure artifact row is malformed")
-        path = _root_relative(root, row.get("path"), "artifact")
-        if path.is_symlink() or not path.is_file() or sha256_file(path) != row.get("sha256"):
+        if set(row) != {"path", "sha256"}:
+            raise R009BuilderError("R009 closure artifact row fields differ")
+        path = _root_relative(root, row.get("path"), f"artifact {key}")
+        observed = sha256_file(path) if path.is_file() else None
+        if observed != row.get("sha256"):
             raise R009BuilderError("R009 closure artifact digest differs")
+        if key in {"script", "txt", "urp"} and row.get("sha256") != identity.controller_triplet_sha256[key]:
+            raise R009BuilderError(
+                f"R009 closure artifact {key} is not bound to controller triplet"
+            )
     content_address = document["content_address"]
     if not isinstance(content_address, Mapping):
         raise R009BuilderError("R009 closure content address is missing")
@@ -492,103 +674,289 @@ def _write_explicit(path: Path, encoded: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_file() and path.read_bytes() == encoded:
         return
-    path.write_bytes(encoded)
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary_path = Path(temporary)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+        directory_descriptor = os.open(
+            path.parent,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def _restore_file_snapshot(
+    path: Path,
+    snapshot: tuple[bytes, int, int] | None,
+) -> None:
+    if snapshot is None:
+        if path.exists() or path.is_symlink():
+            path.unlink()
+        return
+    encoded, atime_ns, mtime_ns = snapshot
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.rollback.", dir=path.parent)
+    temporary_path = Path(temporary)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            os.replace(temporary_path, path)
+        except OSError:
+            # A fault injected into os.replace must not prevent byte rollback.
+            path.write_bytes(encoded)
+        os.utime(path, ns=(atime_ns, mtime_ns))
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def _atomic_file_set(
+    file_bytes: Mapping[Path, bytes],
+    *,
+    release_root: Path,
+    after_commit: Any | None = None,
+) -> None:
+    """Commit an explicit file set and restore every prior target on failure."""
+
+    normalized: dict[Path, bytes] = {}
+    for raw_path, encoded in file_bytes.items():
+        path = _safe_target_path(release_root, Path(raw_path), "persist target")
+        if not isinstance(encoded, bytes):
+            raise R009BuilderError(f"R009 persist bytes are not bytes: {path}")
+        previous = normalized.get(path)
+        if previous is not None and previous != encoded:
+            raise R009BuilderError(f"R009 persist maps one target to different bytes: {path}")
+        normalized[path] = encoded
+
+    snapshots: dict[Path, tuple[bytes, int, int] | None] = {}
+    staged: dict[Path, Path] = {}
+    try:
+        for path, encoded in normalized.items():
+            if path.exists():
+                if path.is_symlink() or not path.is_file():
+                    raise R009BuilderError(f"R009 persist target is unsafe: {path}")
+                stat_result = path.stat()
+                snapshot = (path.read_bytes(), stat_result.st_atime_ns, stat_result.st_mtime_ns)
+            else:
+                snapshot = None
+            snapshots[path] = snapshot
+            if snapshot is not None and snapshot[0] == encoded:
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            descriptor, temporary = tempfile.mkstemp(
+                prefix=f".{path.name}.",
+                dir=path.parent,
+            )
+            temporary_path = Path(temporary)
+            try:
+                with os.fdopen(descriptor, "wb") as handle:
+                    handle.write(encoded)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            except Exception:
+                temporary_path.unlink(missing_ok=True)
+                raise
+            staged[path] = temporary_path
+    except Exception:
+        for temporary_path in staged.values():
+            temporary_path.unlink(missing_ok=True)
+        raise
+
+    replaced: list[Path] = []
+
+    def rollback() -> None:
+        for path in reversed(replaced):
+            try:
+                _restore_file_snapshot(path, snapshots[path])
+            except OSError:
+                # Keep trying every explicit target; the original exception is
+                # more useful to the caller than a rollback side exception.
+                pass
+
+    try:
+        for path, temporary_path in staged.items():
+            _safe_target_path(release_root, path, "persist target")
+            os.replace(temporary_path, path)
+            replaced.append(path)
+            directory_descriptor = os.open(
+                path.parent,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+            )
+            try:
+                os.fsync(directory_descriptor)
+            finally:
+                os.close(directory_descriptor)
+        if after_commit is not None:
+            after_commit()
+    except Exception:
+        rollback()
+        raise
+    finally:
+        for temporary_path in staged.values():
+            temporary_path.unlink(missing_ok=True)
+
+
+def _validate_source_closure(manifest: R009BehaviorManifest) -> None:
+    for relative, expected in manifest.source_set.files.items():
+        path = _source_closure_path(ROOT, relative)
+        if path.is_symlink() or not path.is_file() or sha256_file(path) != expected:
+            raise R009BuilderError(f"R009 source closure byte digest differs: {relative}")
+
+
+def _source_paths_from_result(
+    result: Mapping[str, Any],
+    *,
+    manifest: R009BehaviorManifest,
+    temporary_source: tempfile.TemporaryDirectory[str] | None,
+) -> tuple[dict[str, Path], tempfile.TemporaryDirectory[str] | None]:
+    raw_artifacts = result.get("artifacts")
+    if not isinstance(raw_artifacts, Mapping):
+        raise R009BuilderError("R009 persist requires build artifact paths")
+    if set(raw_artifacts) == set(ARTIFACT_SUFFIXES):
+        if not all(isinstance(raw_artifacts[key], (str, Path)) for key in ARTIFACT_SUFFIXES):
+            raise R009BuilderError("R009 persist artifact paths are malformed")
+        return (
+            {key: Path(raw_artifacts[key]) for key in ARTIFACT_SUFFIXES},
+            temporary_source,
+        )
+    if set(raw_artifacts) != set(result.get("controller_triplet_sha256", {})):
+        raise R009BuilderError("R009 persist artifact summary is malformed")
+    temporary_source = tempfile.TemporaryDirectory(prefix="step5d-r009-persist-source-")
+    rebuilt = build(
+        Path(temporary_source.name),
+        behavior_manifest=manifest,
+        stamp=str(result.get("stamp", R009_STAMP)),
+    )
+    return (
+        {key: Path(rebuilt["artifacts"][key]) for key in ARTIFACT_SUFFIXES},
+        temporary_source,
+    )
 
 
 def persist_release(
     result: Mapping[str, Any],
     *,
-    output_dir: Path = DEFAULT_OUTPUT,
+    output_dir: Path,
     contract_path: Path = DEFAULT_CONTRACT_PATH,
     behavior_manifest_path: Path = DEFAULT_BEHAVIOR_MANIFEST_PATH,
     closure_path: Path = DEFAULT_CLOSURE_PATH,
     identity_alias_path: Path = DEFAULT_IDENTITY_ALIAS_PATH,
+    release_root: Path = ROOT,
 ) -> dict[str, object]:
     """Explicitly persist a previously built R009 closure and its triplet."""
 
     manifest = validate_behavior_manifest(result["behavior_manifest"])
     identity = validate_release_identity(result["release_identity"])
     bundle = validate_contract(result["contract"], release_identity=identity)
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    raw_artifacts = result.get("artifacts")
-    if not isinstance(raw_artifacts, Mapping):
-        raise R009BuilderError("R009 persist requires build artifact paths")
-    source_paths = {
-        suffix: Path(raw_artifacts[suffix])
-        for suffix in (".script", ".txt", ".urp", ".numeric-sanity.json", ".deploy-manifest.json")
-        if suffix in raw_artifacts and isinstance(raw_artifacts[suffix], (str, Path))
-    }
-    if len(source_paths) != 5 or any(not path.is_file() for path in source_paths.values()):
-        rebuilt = build(
-            output_dir,
-            behavior_manifest=manifest,
-            stamp=str(result.get("stamp", R009_STAMP)),
-        )
-        source_paths = {
-            suffix: Path(rebuilt["artifacts"][suffix])
-            for suffix in (".script", ".txt", ".urp", ".numeric-sanity.json", ".deploy-manifest.json")
-        }
-    target_paths: dict[str, Path] = {}
-    for suffix, source in source_paths.items():
-        target = output_dir / f"step5d_strict_rnn_autotune_v4_r009{suffix}"
-        if source.resolve() != target.resolve():
-            _write_explicit(target, source.read_bytes())
-        target_paths[suffix] = target
-    actual_triplet = _triplet_hashes(target_paths)
-    if actual_triplet != dict(identity.controller_triplet_sha256):
-        raise R009BuilderError("persisted R009 triplet differs from release identity")
+    output_dir = _absolute_path(Path(output_dir))
+    contract_path = _absolute_path(Path(contract_path))
+    behavior_manifest_path = _absolute_path(Path(behavior_manifest_path))
+    closure_path = _absolute_path(Path(closure_path))
+    identity_alias_path = _absolute_path(Path(identity_alias_path))
+    release_root = Path(release_root).resolve()
+    for path, role in (
+        (output_dir / f"{manifest.program}.script", "triplet"),
+        (contract_path, "contract"),
+        (behavior_manifest_path, "behavior manifest"),
+        (closure_path, "closure"),
+        (identity_alias_path, "identity alias"),
+    ):
+        _safe_target_path(release_root, path, role)
 
-    contract_path = Path(contract_path)
     persisted_identity_path = contract_path.with_name(
         f"{contract_path.stem}.release-identity.json"
     )
+    _safe_target_path(release_root, persisted_identity_path, "release identity")
+    _validate_source_closure(manifest)
+    if bundle.behavior_manifest.as_dict() != manifest.as_dict():
+        raise R009BuilderError("R009 persist contract behavior manifest differs")
+    if result.get("contract_sha256") is not None and result["contract_sha256"] != bundle.sha256:
+        raise R009BuilderError("R009 persist contract digest differs")
     if (
-        contract_path.is_file()
-        and not contract_path.is_symlink()
-        and persisted_identity_path.is_file()
-        and not persisted_identity_path.is_symlink()
-        and contract_path.read_bytes() == contract_bytes(bundle.raw)
-        and persisted_identity_path.read_bytes() == identity_bytes(bundle.release_identity)
+        result.get("release_identity_sha256") is not None
+        and result["release_identity_sha256"] != identity.release_identity_sha256
     ):
-        persisted = load_contract(
-            contract_path,
-            identity_path=persisted_identity_path,
+        raise R009BuilderError("R009 persist release identity digest differs")
+    if dict(result.get("controller_triplet_sha256", {})) != dict(identity.controller_triplet_sha256):
+        raise R009BuilderError("R009 persist result triplet identity differs")
+
+    temporary_source: tempfile.TemporaryDirectory[str] | None = None
+    try:
+        source_paths, temporary_source = _source_paths_from_result(
+            result,
+            manifest=manifest,
+            temporary_source=temporary_source,
         )
-    else:
-        persisted = persist_contract(
-            bundle,
-            contract_path,
-            identity_path=persisted_identity_path,
+        source_bytes = _read_source_artifacts(source_paths)
+        stamp = str(result.get("stamp", R009_STAMP))
+        _validate_source_artifacts(
+            source_bytes,
+            manifest=manifest,
+            identity=identity,
+            stamp=stamp,
         )
-    _write_explicit(
-        Path(behavior_manifest_path),
-        canonical_bytes(manifest.as_dict()) + b"\n",
-    )
-    identity_bytes_value = identity_bytes(persisted.release_identity)
-    _write_explicit(Path(identity_alias_path), identity_bytes_value)
+    except Exception:
+        if temporary_source is not None:
+            temporary_source.cleanup()
+        raise
+
+    target_paths = {
+        suffix: output_dir / f"{manifest.program}{suffix}"
+        for suffix in ARTIFACT_SUFFIXES
+    }
+    for path in target_paths.values():
+        _safe_target_path(release_root, path, "triplet target")
+    contract_encoded = contract_bytes(bundle.raw)
+    identity_encoded = identity_bytes(identity)
+    behavior_encoded = canonical_bytes(manifest.as_dict()) + b"\n"
     closure = build_closure_document(
         {
             **dict(result),
             "artifacts": {key: str(value) for key, value in target_paths.items()},
-            "contract": persisted.contract_document,
-            "release_identity": persisted.release_identity.as_dict(),
+            "contract": bundle.contract_document,
+            "release_identity": identity.as_dict(),
         },
         artifact_paths=target_paths,
         contract_path=contract_path,
-        behavior_manifest_path=Path(behavior_manifest_path),
-        identity_path=persisted.identity_path,
+        behavior_manifest_path=behavior_manifest_path,
+        identity_path=persisted_identity_path,
+        release_root=release_root,
+        artifact_bytes=source_bytes,
     )
     closure_bytes = canonical_bytes(closure) + b"\n"
-    _write_explicit(Path(closure_path), closure_bytes)
+    file_bytes: dict[Path, bytes] = {
+        **{target_paths[suffix]: source_bytes[suffix] for suffix in ARTIFACT_SUFFIXES},
+        contract_path: contract_encoded,
+        persisted_identity_path: identity_encoded,
+        behavior_manifest_path: behavior_encoded,
+        identity_alias_path: identity_encoded,
+        closure_path: closure_bytes,
+    }
+
+    def cold_read() -> None:
+        persisted = load_contract(
+            contract_path,
+            identity_path=persisted_identity_path,
+        )
+        if persisted.release_identity.as_dict() != identity.as_dict():
+            raise R009BuilderError("R009 persisted identity cold-read differs")
+        load_closure(closure_path, root=release_root)
+
     try:
-        root_relative_contract = Path(contract_path).resolve().relative_to(ROOT.resolve())
-        root_relative_closure = Path(closure_path).resolve().relative_to(ROOT.resolve())
-    except ValueError:
-        root_relative_contract = None
-        root_relative_closure = None
-    if root_relative_contract is not None and root_relative_closure is not None:
-        load_closure(Path(closure_path), root=ROOT)
+        _atomic_file_set(file_bytes, release_root=release_root, after_commit=cold_read)
+    finally:
+        if temporary_source is not None:
+            temporary_source.cleanup()
     result_copy = dict(result)
     result_copy.update(
         {
@@ -597,7 +965,7 @@ def persist_release(
             "persisted": {
                 "contract": str(contract_path),
                 "behavior_manifest": str(behavior_manifest_path),
-                "release_identity": str(persisted.identity_path),
+                "release_identity": str(persisted_identity_path),
                 "release_identity_alias": str(identity_alias_path),
                 "closure": str(closure_path),
                 "closure_sha256": hashlib.sha256(closure_bytes).hexdigest(),
@@ -615,8 +983,14 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=DEFAULT_OUTPUT,
-        help="explicit offline output directory",
+        default=None,
+        help="explicit offline output directory; omitted means pure build_release",
+    )
+    parser.add_argument(
+        "--release-root",
+        type=Path,
+        default=None,
+        help="root containing all persisted release targets",
     )
     parser.add_argument(
         "--persist",
@@ -624,9 +998,36 @@ def main(argv: Iterable[str] | None = None) -> int:
         help="explicitly persist the R009 contract, manifest, identity, and closure",
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
-    result = build(args.output_dir)
+    if args.persist and args.output_dir is None:
+        parser.error("--persist requires an explicit --output-dir")
     if args.persist:
-        result = persist_release(result, output_dir=args.output_dir)
+        result = build_release()
+    elif args.output_dir is None:
+        result = build_release()
+    else:
+        result = build(args.output_dir)
+    if args.persist:
+        output_dir = _absolute_path(args.output_dir)
+        release_root = (
+            Path(args.release_root).resolve()
+            if args.release_root is not None
+            else ROOT
+            if output_dir == DEFAULT_OUTPUT.resolve()
+            else None
+        )
+        if release_root is None:
+            parser.error("out-of-tree --persist requires --release-root")
+        result = persist_release(
+            result,
+            output_dir=output_dir,
+            contract_path=release_root / "config/step5d/autotune_v4_r009.json",
+            behavior_manifest_path=(
+                release_root / "config/step5d/autotune_v4_r009.behavior-manifest.json"
+            ),
+            closure_path=release_root / "config/step5d/autotune_v4_r009_offline_closure.json",
+            identity_alias_path=release_root / "config/step5d/r009_release_identity.json",
+            release_root=release_root,
+        )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 

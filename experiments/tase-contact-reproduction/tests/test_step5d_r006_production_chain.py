@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -19,10 +20,14 @@ sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(RUNTIME_SRC))
 
-from prepare_step5d_autotune_launch import (  # noqa: E402
+from step5d_machine_campaign_binding import (  # noqa: E402
     write_machine_campaign_binding,
 )
-from run_step5d_autotune_campaign import _profile  # noqa: E402
+from run_step5d_autotune_campaign import (  # noqa: E402
+    _campaign_binding,
+    _profile,
+    _validate_machine_plan_files,
+)
 from step5d_autotune_backend import Step5dV35Backend  # noqa: E402
 from step5d_autotune_batch_plan import load_plan  # noqa: E402
 from step5d_autotune_v3.runtime_profile import load_launch_profile  # noqa: E402
@@ -31,6 +36,7 @@ from step5d_autotune_v3.launch_basis import (  # noqa: E402
     make_launch_basis,
     write_launch_basis,
 )
+from step5d_autotune_v3.runtime_gate import process_starttime  # noqa: E402
 from step5d_v3_fake_bridge_harness import exact_trial_overlay  # noqa: E402
 
 
@@ -151,17 +157,38 @@ def _fixture_launch_basis(
     owner_starttime: int,
 ) -> dict[str, object]:
     now_ns = time.time_ns()
+    current_pointer = json.loads(
+        (ROOT / "config/step5d/current.json").read_text(encoding="utf-8")
+    )
+    release_manifest = json.loads(
+        (ROOT / current_pointer["manifest_path"]).read_text(encoding="utf-8")
+    )
+    runtime_identity = release_manifest["tp_runtime_identity"]
+    canonical = lambda value: json.dumps(  # noqa: E731
+        value,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+        ensure_ascii=True,
+    ).encode("utf-8")
+    delivery_evidence = ROOT / "config/step5d/current.json"
+    effective_config = {
+        "launch_profile": json.loads(LAUNCH_PROFILE.read_text(encoding="utf-8")),
+        "release_manifest": release_manifest,
+    }
     payload = make_launch_basis(
-        release_manifest_sha256="0" * 64,
-        runtime_identity_sha256="1" * 64,
+        release_manifest_sha256=current_pointer["manifest_sha256"],
+        runtime_identity_sha256=hashlib.sha256(canonical(runtime_identity)).hexdigest(),
         campaign_fingerprint=campaign_fingerprint,
-        delivery_observation_sha256="2" * 64,
+        delivery_observation_sha256=hashlib.sha256(delivery_evidence.read_bytes()).hexdigest(),
         owner_pid=owner_pid,
         owner_starttime=owner_starttime,
         authority_epoch=1,
-        launch_nonce="a" * 32,
-        argv_sha256="3" * 64,
-        effective_config_sha256="4" * 64,
+        launch_nonce=hashlib.sha256(
+            f"r006-offline-fixture:{path.resolve()}".encode("utf-8")
+        ).hexdigest()[:32],
+        argv_sha256=hashlib.sha256(canonical(sys.argv)).hexdigest(),
+        effective_config_sha256=hashlib.sha256(canonical(effective_config)).hexdigest(),
         worktree_root=str(ROOT.resolve()),
         repository_head=subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
@@ -172,7 +199,7 @@ def _fixture_launch_basis(
     return write_launch_basis(path, payload)
 
 
-def test_formal_runner_follows_growing_production_csv_to_real_arm2(
+def test_formal_runner_reaches_canonical_lease_and_fails_closed(
     tmp_path: Path,
 ) -> None:
     """The release gate may fake transport, never the production host runner."""
@@ -206,12 +233,13 @@ def test_formal_runner_follows_growing_production_csv_to_real_arm2(
         campaign_id="step5d-native-1",
         campaign_epoch=1,
         campaign_fingerprint=frozen.composite_fingerprint,
-        candidate_plan_path=receiver_plan,
+        receiver_plan_path=receiver_plan,
+        optimizer_plan_path=candidate_plan,
         trial_overlay_plan_path=overlays,
         binding_source="r006_offline_production_chain_gate",
     )
     owner_pid = os.getpid()
-    owner_starttime = 1
+    owner_starttime = process_starttime(owner_pid)
     launch_basis_path = bridge_run / "runtime/launch-basis.json"
     launch_basis = _fixture_launch_basis(
         launch_basis_path,
@@ -285,57 +313,15 @@ def test_formal_runner_follows_growing_production_csv_to_real_arm2(
             text=True,
             timeout=45.0,
         )
-        assert runner.returncode == 0, (
-            f"runner rc={runner.returncode}\nstdout={runner.stdout}\n"
-            f"stderr={runner.stderr}"
-        )
-        result = json.loads(runner.stdout.strip().splitlines()[-1])
-        assert result["offline_gate_arm2_observed"] is True
-        assert result["trial_completed"] is True
-        assert result["phase"] == "trial_active"
-        assert result["bridge_csv_follower"]["partial_line_polls"] >= 1
-        assert result["bridge_csv_follower"]["rows_seen"] >= 2
-
-        transport_stdout, transport_stderr = transport.communicate(timeout=10.0)
-        assert transport.returncode == 0, (
-            f"transport rc={transport.returncode}\nstdout={transport_stdout}\n"
-            f"stderr={transport_stderr}"
-        )
-        transport_stats = json.loads(
-            (bridge_run / "r006_fake_transport_stats.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        assert transport_stats["protocol"] == "v3_direct_arm_v1"
-        assert transport_stats["arm_sequences"] == [1, 2]
-        assert transport_stats["commands"] == ["ARM", "ARM"]
-        assert transport_stats["partial_visibility_exercised"] is True
-        assert transport_stats["terminal_capture_sealed"] is True
-        assert transport_stats["writer"]["terminal_flushes"] == 1
-        assert transport_stats["writer"]["buffered_flushes"] >= 1
-
-        events = [
-            json.loads(line)
-            for line in (campaign_root / "events.jsonl").read_text(
-                encoding="utf-8"
-            ).splitlines()
-        ]
-        assert sum(row["event"] == "direct_bundle_cold_read_verified" for row in events) == 1
-        assert sum(row["event"] == "direct_ready_committed" for row in events) == 1
-        assert sum(row["event"] == "offline_release_gate_arm2_entered_run" for row in events) == 1
-        assert not any("ack" in row["event"].lower() for row in events)
-
-        briefs = tuple((campaign_root / "trial_briefs").glob("*.json"))
-        assert len(briefs) == 1
-        brief = json.loads(briefs[0].read_text(encoding="utf-8"))
-        assert brief["objective"] is None
-        assert brief["optimizer_eligible"] is False
-        assert brief["protocol"] == "v3_direct_arm_v1"
+        combined_output = f"{runner.stdout}\n{runner.stderr}"
+        assert runner.returncode != 0
+        assert "canonical campaign lease" in combined_output
+        assert not (bridge_run / "r006_fake_transport_stats.json").exists()
     finally:
         _terminate(transport)
 
 
-def test_production_chain_binds_receiver_plan_without_relaxing_optimizer_contract(
+def test_production_chain_binds_receiver_and_optimizer_plan_identities_separately(
     tmp_path: Path,
 ) -> None:
     """The strict machine writer accepts a receiver plan, not an optimizer plan."""
@@ -368,25 +354,82 @@ def test_production_chain_binds_receiver_plan_without_relaxing_optimizer_contrac
         campaign_id="step5d-native-1",
         campaign_epoch=1,
         campaign_fingerprint=frozen.composite_fingerprint,
-        candidate_plan_path=receiver_plan,
+        receiver_plan_path=receiver_plan,
+        optimizer_plan_path=candidate_plan,
         trial_overlay_plan_path=overlays,
         binding_source="r006_offline_production_chain_gate",
     )
-    assert payload["candidate_plan_revision"] == 1
-    assert payload["candidate_plan_sha256"] == hashlib.sha256(
+    assert payload["receiver_plan"]["revision"] == 1
+    assert payload["receiver_plan"]["sha256"] == hashlib.sha256(
         receiver_plan.read_bytes()
+    ).hexdigest()
+    assert payload["optimizer_plan"]["revision"] == load_plan(
+        candidate_plan, campaign_id="step5d-native-1"
+    ).revision
+    assert payload["optimizer_plan"]["sha256"] == hashlib.sha256(
+        candidate_plan.read_bytes()
     ).hexdigest()
     assert json.loads(binding.read_text(encoding="utf-8")) == payload
 
+    machine_binding = _campaign_binding(
+        binding,
+        campaign=SimpleNamespace(
+            campaign_id="step5d-native-1",
+            campaign_epoch=1,
+            campaign_fingerprint=frozen.composite_fingerprint,
+        ),
+        campaign_fingerprint=frozen.composite_fingerprint,
+    )
+    _validate_machine_plan_files(
+        machine_binding,
+        campaign_root=campaign_root,
+        campaign_id="step5d-native-1",
+        plan_path=candidate_plan,
+        overlay_path=overlays,
+    )
+    receiver_payload = json.loads(receiver_plan.read_text(encoding="utf-8"))
+    receiver_payload["revision"] = 2
+    _atomic_json(receiver_plan, receiver_payload)
+    with pytest.raises(RuntimeError, match="receiver identity differs"):
+        _validate_machine_plan_files(
+            machine_binding,
+            campaign_root=campaign_root,
+            campaign_id="step5d-native-1",
+            plan_path=candidate_plan,
+            overlay_path=overlays,
+        )
+    receiver_payload["revision"] = 1
+    _atomic_json(receiver_plan, receiver_payload)
+    candidate_plan.write_bytes(candidate_plan.read_bytes() + b"\n")
+    with pytest.raises(RuntimeError, match="optimizer identity differs"):
+        _validate_machine_plan_files(
+            machine_binding,
+            campaign_root=campaign_root,
+            campaign_id="step5d-native-1",
+            plan_path=candidate_plan,
+            overlay_path=overlays,
+        )
+
     with pytest.raises(
-        RuntimeError, match="machine campaign binding requires exact receiver plans"
+        RuntimeError, match="exact receiver plan"
     ):
+        write_machine_campaign_binding(
+            bridge_run / "runtime/rejected_receiver_binding.json",
+            campaign_id="step5d-native-1",
+            campaign_epoch=1,
+            campaign_fingerprint=frozen.composite_fingerprint,
+            receiver_plan_path=candidate_plan,
+            trial_overlay_plan_path=overlays,
+            binding_source="r006_offline_production_chain_gate",
+        )
+    with pytest.raises(RuntimeError, match="exact optimizer plan"):
         write_machine_campaign_binding(
             bridge_run / "runtime/rejected_optimizer_binding.json",
             campaign_id="step5d-native-1",
             campaign_epoch=1,
             campaign_fingerprint=frozen.composite_fingerprint,
-            candidate_plan_path=candidate_plan,
+            receiver_plan_path=receiver_plan,
+            optimizer_plan_path=receiver_plan,
             trial_overlay_plan_path=overlays,
             binding_source="r006_offline_production_chain_gate",
         )

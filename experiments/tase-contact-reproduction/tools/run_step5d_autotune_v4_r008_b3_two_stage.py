@@ -47,6 +47,8 @@ class R008B3HostError(R006LiveAdapterError):
 
 
 def run_live(args: argparse.Namespace) -> int:
+    """Historical R008 B3 formal resume is permanently quarantined."""
+
     reject_r008_formal_resume("run_step5d_autotune_v4_r008_b3_two_stage.live")
     try:
         contract = load_b3_contract()

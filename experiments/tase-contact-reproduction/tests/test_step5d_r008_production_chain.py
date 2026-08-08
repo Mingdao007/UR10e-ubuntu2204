@@ -23,7 +23,7 @@ from step5d_autotune_batch_plan import (  # noqa: E402
     initialize_rolling_plan,
     mark_rolling_plan_open_empty,
 )
-from prepare_step5d_autotune_launch import write_machine_campaign_binding  # noqa: E402
+from step5d_machine_campaign_binding import write_machine_campaign_binding  # noqa: E402
 from step5d_autotune_r008_policy import initialization_batch, recovery_batch  # noqa: E402
 from ur10e_experiment_runtime.candidate_identity import ControlCandidateUid  # noqa: E402
 from test_step5d_r006_production_chain import (  # noqa: E402

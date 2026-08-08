@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import subprocess
 import sys
@@ -23,6 +24,7 @@ from run_step5d_autotune_campaign import (  # noqa: E402
     _campaign_spec,
     _observe_pending_identity_commit,
     _publish_runner_ready,
+    _validate_machine_plan_files,
     _zero_identity_preplay_row,
     _v3_stop_requested,
     _wait_for_codex_candidate,
@@ -75,9 +77,48 @@ def test_machine_campaign_binding_is_plan_identity_not_authorization(
         campaign_fingerprint=campaign.campaign_fingerprint,
     )
 
-    assert binding.candidate_plan_revision == 1
+    assert binding.receiver_plan is not None
+    assert binding.receiver_plan.revision == 1
+    assert binding.optimizer_plan is None
+    assert binding.schema_version == "step5d_autotune_campaign_binding_v3"
     assert not hasattr(binding, "live_authorized")
     assert not hasattr(binding, "authorization_ref_sha256")
+
+
+def test_legacy_receiver_binding_never_compares_digest_with_optimizer_plan(
+    tmp_path: Path,
+) -> None:
+    campaign = _campaign_spec(ROOT, "a" * 64, 9)
+    overlay_path = tmp_path / "overlay.json"
+    optimizer_path = tmp_path / "candidate_plan.json"
+    overlay_path.write_bytes(b"legacy-overlay")
+    optimizer_path.write_bytes(b"optimizer-plan-with-a-different-digest")
+    payload = {
+        "schema_version": "step5d_autotune_campaign_binding_v3",
+        "campaign_id": campaign.campaign_id,
+        "campaign_epoch": campaign.campaign_epoch,
+        "campaign_fingerprint": campaign.campaign_fingerprint,
+        "candidate_plan_revision": 1,
+        "candidate_plan_sha256": "b" * 64,
+        "trial_overlay_plan_sha256": hashlib.sha256(overlay_path.read_bytes()).hexdigest(),
+        "binding_source": "legacy receiver compatibility",
+        "generated_at": "2026-07-20T08:00:00+08:00",
+    }
+    binding_path = tmp_path / "machine-binding.json"
+    binding_path.write_text(json.dumps(payload), encoding="utf-8")
+    binding = _campaign_binding(
+        binding_path.resolve(),
+        campaign=campaign,
+        campaign_fingerprint=campaign.campaign_fingerprint,
+    )
+
+    _validate_machine_plan_files(
+        binding,
+        campaign_root=tmp_path / "campaign",
+        campaign_id=campaign.campaign_id,
+        plan_path=optimizer_path,
+        overlay_path=overlay_path,
+    )
 
 
 def test_campaign_epoch_discovery_selects_every_epoch_in_order() -> None:

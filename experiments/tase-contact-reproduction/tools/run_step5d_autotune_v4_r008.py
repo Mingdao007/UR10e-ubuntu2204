@@ -94,6 +94,8 @@ def load_r008_activation(path: Path = R008_CONTRACT_PATH) -> Mapping[str, Any]:
 
 
 def run_live(args: argparse.Namespace) -> int:
+    """Historical R008 formal resume is permanently quarantined."""
+
     reject_r008_formal_resume("run_step5d_autotune_v4_r008.live")
     activation: Mapping[str, Any] = {}
     try:

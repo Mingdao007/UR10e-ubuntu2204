@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import subprocess
@@ -262,6 +263,47 @@ def test_formal_r008_entrypoints_have_no_probe_bypass_and_fail_closed_before_liv
         launcher_paths[:3], ("run_live", "run_live", "main"), strict=True
     ):
         source = path.read_text(encoding="utf-8")
+        function = next(
+            node
+            for node in ast.parse(source).body
+            if isinstance(node, ast.FunctionDef) and node.name == function_name
+        )
+        assert function.body, f"{path} formal entrypoint has no body"
+        assert (
+            isinstance(function.body[0], ast.Expr)
+            and isinstance(function.body[0].value, ast.Constant)
+            and isinstance(function.body[0].value.value, str)
+        ), f"{path} formal entrypoint must start with a docstring"
+        guard_statement = function.body[1]
+        assert (
+            isinstance(guard_statement, ast.Expr)
+            and isinstance(guard_statement.value, ast.Call)
+            and isinstance(guard_statement.value.func, ast.Name)
+            and guard_statement.value.func.id == "reject_r008_formal_resume"
+        ), f"{path} formal entrypoint guard is not docstring-first"
+        assert not any(
+            isinstance(node, (ast.If, ast.Return))
+            or (
+                isinstance(node, ast.Attribute)
+                and isinstance(node.value, ast.Name)
+                and node.value.id == "os"
+                and node.attr in {"environ", "getenv"}
+            )
+            or (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "getenv"
+            )
+            or (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "os"
+                and node.func.attr in {"environ", "getenv"}
+            )
+            for statement in function.body[:1]
+            for node in ast.walk(statement)
+        )
         function_start = source.index(f"def {function_name}(")
         guard = source.index("reject_r008_formal_resume(", function_start)
         live_dispatch = source.find("launch_manifest_route(", function_start)
