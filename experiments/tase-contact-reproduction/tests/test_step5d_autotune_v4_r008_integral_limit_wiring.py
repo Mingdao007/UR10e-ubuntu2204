@@ -13,22 +13,24 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT.parents[1] / "src" / "ur10e_experiment_runtime"))
 
-from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime  # noqa: E402
 from step5d_autotune_v4_r008.controller_seam import IntegralLimitCoordinate  # noqa: E402
-from step5d_autotune_v4_r008.greybox.reconstruct import FORCE_INTEGRAL_LIMIT_N_S  # noqa: E402
 
 
-def test_integral_limit_coordinate_default_is_five() -> None:
-    assert IntegralLimitCoordinate().force_integral_limit_n_s == pytest.approx(5.0)
+def test_integral_limit_coordinate_default_is_one_fifty() -> None:
+    assert IntegralLimitCoordinate().force_integral_limit_n_s == pytest.approx(150.0)
 
 
 def test_greybox_default_matches_integral_limit_coordinate() -> None:
+    from step5d_autotune_v4_r008.greybox.reconstruct import FORCE_INTEGRAL_LIMIT_N_S
+
     assert FORCE_INTEGRAL_LIMIT_N_S == pytest.approx(
         IntegralLimitCoordinate().force_integral_limit_n_s
     )
 
 
 def test_calibrated_runtime_desired_twist_source_has_no_literal_one() -> None:
+    pytest.importorskip("pinocchio")
+    from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime
     import textwrap
 
     source = textwrap.dedent(inspect.getsource(V4CalibratedRuntime.desired_twist))
@@ -45,23 +47,9 @@ def test_calibrated_runtime_desired_twist_source_has_no_literal_one() -> None:
 
 
 def test_calibrated_runtime_stores_injected_limit() -> None:
-    # Lightweight stub: only exercise __init__ validation + stored attribute.
-    class _Contract:
-        pass
+    pytest.importorskip("pinocchio")
+    from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime
 
-    class _Candidate:
-        motion_kp = 1.0
-        orientation_ko = 1.0
-        force_p_gain = 1.0
-        force_i_gain = 1.0
-        force_damping = 1.0
-        target_force_n = 5.0
-        i_off = 0.0
-        normal_filter_tau_s = 0.01
-
-    # Avoid full model/solver build by constructing via __new__ then calling
-    # only the limit validation fragment would be fragile; instead import and
-    # check signature + reject invalid limits via a minimal fake.
     sig = inspect.signature(V4CalibratedRuntime.__init__)
     assert "force_integral_limit_n_s" in sig.parameters
     assert sig.parameters["force_integral_limit_n_s"].default == 1.0

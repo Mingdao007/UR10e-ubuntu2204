@@ -24,7 +24,11 @@ from step5d_autotune_v4_r008.lattice import (  # noqa: E402
     default_box,
     r006_anchor_point,
 )
-from step5d_autotune_v4_r008.live_adapter import R008HostLoop, _narrow_box_around_pd  # noqa: E402
+from step5d_autotune_v4_r008.live_adapter import (  # noqa: E402
+    R008HostLoop,
+    _clamp_log2_pd_center,
+    _narrow_box_around_pd,
+)
 
 
 def test_r006_anchor_point_matches_frozen_r006_constants() -> None:
@@ -55,11 +59,27 @@ def test_narrow_box_around_pd_clips_to_original_bounds() -> None:
     assert narrowed.log2_d_max == box.log2_d_max
 
 
-def test_narrow_box_around_pd_falls_back_when_out_of_range() -> None:
+def test_narrow_box_around_pd_clamps_out_of_range_center_to_real_subbox() -> None:
+    """170124-style: center above box max must narrow, not silently full-box."""
     box = default_box()
-    # A center far outside the box, with a huge half-width, would otherwise
-    # produce an inverted (empty) range; must fall back to the original box.
-    narrowed = _narrow_box_around_pd(box, box.log2_pd_max + 100.0, half_width=0.01)
+    hw = 1.5
+    # Historical bad center from live_20260806_170124 (above Stage-B max).
+    raw_center = -9.287712379549449
+    clamped, was = _clamp_log2_pd_center(box, raw_center, half_width=hw)
+    assert was is True
+    assert clamped == pytest.approx(box.log2_pd_max - hw)
+    narrowed = _narrow_box_around_pd(box, raw_center, half_width=hw)
+    assert narrowed.log2_pd_max == pytest.approx(box.log2_pd_max)
+    assert narrowed.log2_pd_min == pytest.approx(box.log2_pd_max - 2.0 * hw)
+    # Must be a strict sub-box (not the silent full-box fallback).
+    assert narrowed.log2_pd_min > box.log2_pd_min
+
+
+def test_narrow_box_around_pd_falls_back_when_box_too_narrow_for_half_width() -> None:
+    box = default_box()
+    # half_width larger than half the Stage-B span → cannot place ±hw window.
+    span = box.log2_pd_max - box.log2_pd_min
+    narrowed = _narrow_box_around_pd(box, (box.log2_pd_min + box.log2_pd_max) / 2.0, half_width=span)
     assert narrowed.log2_pd_min == box.log2_pd_min
     assert narrowed.log2_pd_max == box.log2_pd_max
 

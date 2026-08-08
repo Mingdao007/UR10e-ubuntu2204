@@ -21,10 +21,11 @@ from .contact_search_schedule import (
     ContactSearchSchedule,
     load_schedule,
 )
-
 ROOT = Path(__file__).resolve().parents[2]
 B3_CONTRACT_PATH = ROOT / "config/step5d/autotune_v4_r008_b3_two_stage.json"
 B3_IDENTITY_SCHEMA = "step5d.autotune-v4/r008-b3-two-stage-identity-v1"
+# Phase 5: binary-native seal codec enters B3 fingerprint material → new FP.
+B3_RAW_CODEC = "r008raw_v2"
 
 
 class B3IdentityError(RuntimeError):
@@ -44,6 +45,7 @@ def compute_b3_campaign_fingerprint(
         "program": program,
         "parent_campaign_fingerprint": parent_fingerprint,
         "schedule": schedule.as_dict(),
+        "raw_codec": B3_RAW_CODEC,
     }
     fingerprint = sha256_bytes(canonical_bytes(material))
     if fingerprint == MAINLINE_FINGERPRINT:
@@ -75,6 +77,7 @@ def build_b3_contract_document(
         "parent_campaign_fingerprint": schedule.parent_campaign_fingerprint,
         "campaign_fingerprint": campaign_fingerprint,
         "overwrites_mainline_r006": False,
+        "raw_codec": B3_RAW_CODEC,
     }
     return document
 

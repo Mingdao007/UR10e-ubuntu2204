@@ -107,7 +107,7 @@ def test_plan_derives_d_near_start_before_contact() -> None:
     assert planned.schedule.d_near_start_travel_m == pytest.approx(expected_start)
     assert planned.d_near_start_travel_m < delta_z
     assert planned.schedule.v_far_m_s > planned.schedule.v_near_m_s
-    assert planned.schedule.v_far_m_s <= 0.002
+    assert planned.schedule.v_far_m_s <= 0.006
     assert planned.schedule.force_fuse_n == pytest.approx(50.0)
     # NEAR engages before expected touch
     assert planned.delta_z_m - planned.d_near_start_travel_m == pytest.approx(NEAR_MARGIN_M)
@@ -143,13 +143,13 @@ def test_wave1_archive_still_pinned() -> None:
         validate_schedule(raw)
 
 
-def test_default_schedule_is_wave3_far_cap() -> None:
-    from step5d_autotune_v4_r008.schedule_planner import WAVE3_V_FAR_M_S
+def test_default_schedule_is_wave4_far005() -> None:
+    from step5d_autotune_v4_r008.schedule_planner import WAVE4_V_FAR_M_S
 
     schedule = load_schedule()
-    assert schedule.version.startswith("b3-geometry-planned-wave3")
-    assert schedule.v_far_m_s == pytest.approx(WAVE3_V_FAR_M_S)
-    assert schedule.v_far_m_s == pytest.approx(0.002)
+    assert schedule.version.startswith("b3-geometry-planned-wave4-far005")
+    assert schedule.v_far_m_s == pytest.approx(WAVE4_V_FAR_M_S)
+    assert schedule.v_far_m_s == pytest.approx(0.005)
     assert schedule.v_near_m_s == pytest.approx(0.0005)
     assert schedule.d_near_start_travel_m > 0.01
 

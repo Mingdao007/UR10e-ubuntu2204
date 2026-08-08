@@ -1,0 +1,53 @@
+{
+  "schema": "step5d.managed-runtime/manifest-v1",
+  "lineage_id": "step5d_strict_rnn_autotune_v4_r005",
+  "launcher_path": "tools/launch_step5d_autotune_v4_r005_control.py",
+  "release_contract": {
+    "path": "config/step5d/autotune_v4_r005.json",
+    "schema": "step5d.autotune-v4/r005-release-contract-v1",
+    "program": "step5d_strict_rnn_autotune_v4_r005",
+    "revision": 5
+  },
+  "routes": {
+    "prepare": {
+      "module": "prepare_step5d_autotune_v4_r005_live"
+    },
+    "host": {
+      "module": "run_step5d_autotune_v4_r005"
+    }
+  },
+  "control": {
+    "profile": "control",
+    "verification_mode": "full_audit",
+    "required_imports": [
+      "pinocchio"
+    ],
+    "required_ros_packages": [
+      "ros-humble-pinocchio"
+    ],
+    "required_ros_pythonpath": [
+      "/opt/ros/humble/lib/python3.10/site-packages",
+      "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
+  },
+  "optimizer": {
+    "profile": "optimizer",
+    "resolver": "step5d_optimizer_runtime.resolve_optimizer_runtime",
+    "worker_module": "step5d_autotune_v4_r005.optimizer_worker"
+  },
+  "no_system_install": true,
+  "source_closure": [
+    "config/step5d/autotune_v4_r005.json",
+    "tools/launch_step5d_managed_runtime.py",
+    "tools/launch_step5d_autotune_v4_r005_control.py",
+    "tools/run_step5d_autotune_v4_r005.py",
+    "tools/step5d_managed_runtime.py",
+    "tools/step5d_optimizer_runtime.py",
+    "tools/step5d_autotune_v3/runtime_environment.py",
+    "tools/step5d_autotune_v3/runtime_installation.py",
+    "tools/step5d_autotune_v4_r005/contracts.py",
+    "tools/step5d_autotune_v4_r005/control_runtime.py",
+    "tools/step5d_autotune_v4_r005/optimizer.py",
+    "tools/step5d_autotune_v4_r005/optimizer_worker.py"
+  ]
+}

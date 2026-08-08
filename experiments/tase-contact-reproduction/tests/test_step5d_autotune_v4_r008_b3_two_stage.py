@@ -20,7 +20,7 @@ from step5d_autotune_v4_r008.contact_search_schedule import (
     load_schedule,
     validate_planned_schedule,
 )
-from step5d_autotune_v4_r008.schedule_planner import WAVE3_V_FAR_M_S
+from step5d_autotune_v4_r008.schedule_planner import WAVE4_V_FAR_M_S
 from step5d_autotune_v4_r008.tp_two_stage_search import (
     build_b3_triplet,
     load_r006_published_script,
@@ -34,6 +34,9 @@ WAVE1_SCHEDULE = (
 )
 WAVE2_SCHEDULE = (
     ROOT / "config/step5d/autotune_v4_r008_contact_search_schedule_wave2_far_x2.json"
+)
+WAVE3_SCHEDULE = (
+    ROOT / "config/step5d/autotune_v4_r008_contact_search_schedule_wave3_far_cap.json"
 )
 
 
@@ -50,9 +53,9 @@ def _published_b3_identity() -> tuple[str, str, dict]:
 def test_load_default_schedule_values() -> None:
     schedule = load_schedule()
     assert schedule.program == PROGRAM_B3
-    assert schedule.version.startswith("b3-geometry-planned-wave3")
-    assert schedule.v_far_m_s == pytest.approx(WAVE3_V_FAR_M_S)
-    assert schedule.v_far_m_s == pytest.approx(0.002)
+    assert schedule.version.startswith("b3-geometry-planned-wave4-far005")
+    assert schedule.v_far_m_s == pytest.approx(WAVE4_V_FAR_M_S)
+    assert schedule.v_far_m_s == pytest.approx(0.005)
     assert schedule.v_near_m_s == pytest.approx(0.0005)
     assert schedule.d_near_start_travel_m == pytest.approx(0.011029311)
     assert schedule.F_far_n == pytest.approx(0.3)
@@ -63,7 +66,7 @@ def test_load_default_schedule_values() -> None:
 
 def test_schedule_rejects_near_field_bump() -> None:
     raw = dict(load_schedule().raw)
-    raw["v_near_m_s"] = 0.0025
+    raw["v_near_m_s"] = 0.0008
     with pytest.raises(ContactSearchScheduleError, match="v_near_m_s"):
         validate_planned_schedule(raw)
 
@@ -75,10 +78,11 @@ def test_schedule_rejects_high_fuse() -> None:
         validate_planned_schedule(raw)
 
 
-def test_wave1_archive_fingerprint_differs_from_wave3() -> None:
+def test_wave_archive_fingerprints_differ() -> None:
     wave1 = load_schedule(WAVE1_SCHEDULE)
     wave2 = load_schedule(WAVE2_SCHEDULE)
-    wave3 = load_schedule()
+    wave3 = load_schedule(WAVE3_SCHEDULE)
+    wave4 = load_schedule()
     fp1 = compute_b3_campaign_fingerprint(
         parent_fingerprint=MAINLINE_FINGERPRINT, schedule=wave1
     )
@@ -88,10 +92,14 @@ def test_wave1_archive_fingerprint_differs_from_wave3() -> None:
     fp3 = compute_b3_campaign_fingerprint(
         parent_fingerprint=MAINLINE_FINGERPRINT, schedule=wave3
     )
-    assert fp1 != fp2 != fp3
-    assert fp1.startswith("8decbec3")
-    assert fp2.startswith("f7788828")
-    assert fp3.startswith("b0258539")
+    fp4 = compute_b3_campaign_fingerprint(
+        parent_fingerprint=MAINLINE_FINGERPRINT, schedule=wave4
+    )
+    assert len({fp1, fp2, fp3, fp4}) == 4
+    assert fp1.startswith("9ff05f73")
+    assert fp2.startswith("b4936dec")
+    assert fp3.startswith("7671acae")
+    assert not fp4.startswith("7671acae")
 
 
 def test_b3_fingerprint_differs_from_mainline() -> None:
@@ -103,8 +111,8 @@ def test_b3_fingerprint_differs_from_mainline() -> None:
     assert fp != MAINLINE_FINGERPRINT
     assert not fp.startswith("eb48e895")
     assert not fp.startswith("1db4f9bf")
-    assert not fp.startswith("8decbec3")  # Wave-1 observation
-    assert not fp.startswith("f7788828")  # Wave-2
+    assert not fp.startswith("9ff05f73")  # Wave-1 observation
+    assert not fp.startswith("b4936dec")  # Wave-2
     assert len(fp) == 64
     published_fp, published_sha, raw = _published_b3_identity()
     assert published_fp == fp
@@ -128,7 +136,7 @@ def test_transform_script_has_two_stage_and_fuse(tmp_path: Path) -> None:
         contract_sha256=contract_sha256,
         campaign_fingerprint=campaign_fingerprint,
     )
-    assert "local v_far_m_s = 0.002000000" in script
+    assert "local v_far_m_s = 0.005000000" in script
     assert "local v_near_m_s = 0.000500000" in script
     assert "local d_near_start_travel_m = 0.011029311" in script
     assert "force_fuse_n = 50.000000000" in script

@@ -1,4 +1,4 @@
-"""500 Hz TP versus 125 Hz writer packet freshness primitive."""
+"""500 Hz TP/writer packet freshness primitive for r004."""
 
 from __future__ import annotations
 

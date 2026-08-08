@@ -48,6 +48,17 @@ the largest single slice of the post-SAFE_RETURN ``seal_overlap_s≈9s`` hitch.
 While the bounded scope is active, ``append`` reuses the in-append fresh
 receipt to extend ``_cached`` (hash-chain row already durably written) instead
 of re-cold-verifying the same artifact.
+
+Binary raw Phase 1 (2026-08-07): under this scope, formal PATH artifacts write
+samples to a companion ``.r008raw`` (R008RAW1) and keep a slim JSON stub.
+``_fresh_verify_artifact`` is patched to hydrate + in-process
+``cold_read_verify`` (no 18MB JSON parse). Legacy full-JSON artifacts still
+verify. Falls back to full JSON when samples are not R008RAW1-compatible
+(e.g. unit-test fixtures without kunwei/rtde/tp/writer + qdots).
+
+Phase 4 (2026-08-07): hot ``append`` binds stub+``.r008raw`` bytes and
+columnar-verifies from the in-memory builder receipt (no decode /
+``from_mapping``). Cold-tail still hydrates from disk.
 """
 
 from __future__ import annotations
@@ -60,7 +71,84 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Iterator, Mapping
 
+from step5d_autotune_v4_r008.binary_seal import (
+    is_binary_seal_receipt,
+    pop_pending_raw2,
+    r008_binary_seal_scope,
+)
+from step5d_autotune_v4_r008.raw_force_binary import (
+    load_receipt_mapping,
+    load_receipt_mapping_from_bytes,
+    prepare_slim_receipt,
+    write_raw_sidecar_bytes,
+)
+from step5d_autotune_v4_r008.raw_force_binary_v2 import seal_sha256_of
+from step5d_autotune_v4_r008.raw_force_columnar_verify import (
+    columnar_verify_hot_append,
+    columnar_verify_receipt,
+)
+
 R008_SIDECAR_TAIL_ROWS = 1
+
+
+def _r008_fresh_verify_artifact(path: Path, campaign_fingerprint: str) -> Any:
+    """Hydrate R008RAW1 (if present) then columnar- or cold-verify in-process.
+
+    Phase-5 binary receipts keep empty seal samples; bind sibling R008RAW2 via
+    ``cold_read_verify(..., artifact_raw_bytes=...)``.
+    """
+
+    from step5d_autotune_v4_r006 import objective as obj_mod
+    from step5d_autotune_v4_r006.sidecar import R006SidecarError
+
+    try:
+        artifact = Path(path)
+        payload = load_receipt_mapping(artifact)
+        # Late attribute lookup so r008_binary_seal_scope patches apply.
+        receipt = obj_mod.R006ObjectiveReceipt.from_mapping(payload)
+        sibling = artifact.with_suffix(".r008raw")
+        has_raw = sibling.is_file() and not sibling.is_symlink()
+        cold_read_verify = obj_mod.cold_read_verify
+        if is_binary_seal_receipt(receipt):
+            if not has_raw:
+                raise R006SidecarError("r008 binary seal artifact missing .r008raw")
+            verified = cold_read_verify(
+                receipt,
+                expected_campaign_fingerprint=campaign_fingerprint,
+                artifact_raw_bytes=sibling.read_bytes(),
+            )
+        else:
+            samples = (
+                receipt.raw_bundle.get("samples")
+                if isinstance(receipt.raw_bundle, Mapping)
+                else None
+            )
+            if has_raw or (isinstance(samples, list) and samples):
+                try:
+                    verified = columnar_verify_receipt(
+                        receipt, expected_campaign_fingerprint=campaign_fingerprint
+                    )
+                except Exception:
+                    # Fail closed to stock rebuild when columnar disagrees/errors.
+                    verified = cold_read_verify(
+                        receipt, expected_campaign_fingerprint=campaign_fingerprint
+                    )
+            else:
+                verified = cold_read_verify(
+                    receipt, expected_campaign_fingerprint=campaign_fingerprint
+                )
+    except Exception as exc:  # noqa: BLE001 -- mirror sidecar fail-closed
+        raise R006SidecarError(f"r006 fresh artifact verification failed: {exc}") from exc
+    if not verified.trainable:
+        raise R006SidecarError("r006 fresh verifier did not grant trainable capability")
+    return verified
+
+
+def _receipt_from_artifact_bytes(encoded: bytes, artifact: Path) -> Any:
+    from step5d_autotune_v4_r006.objective import R006ObjectiveReceipt
+
+    payload = load_receipt_mapping_from_bytes(encoded, artifact_path=Path(artifact))
+    return R006ObjectiveReceipt.from_mapping(payload)
 
 
 def _bounded_verify_rows(self: Any, *, cold_read: bool) -> tuple[Mapping[str, Any], ...]:
@@ -87,7 +175,7 @@ def _bounded_verify_rows(self: Any, *, cold_read: bool) -> tuple[Mapping[str, An
             _check_row_shape(mod, row, self.campaign_fingerprint, number, previous, seen)
             artifact = self._artifact_path(str(row.get("artifact_name", "")))
             encoded = artifact.read_bytes()
-            receipt = mod.R006ObjectiveReceipt.from_mapping(__import__("json").loads(encoded))
+            receipt = _receipt_from_artifact_bytes(encoded, artifact)
             verified_rows.append(_enrich(row, receipt, artifact))
             previous = str(row["row_sha256"])
         return tuple(verified_rows)
@@ -144,7 +232,8 @@ def _bounded_verify_rows(self: Any, *, cold_read: bool) -> tuple[Mapping[str, An
             # parsing the stored sufficient-statistics receipt in-process
             # (no raw-sample recompute, no subprocess) is the same trust
             # tier bounded_resume_ledger.py already uses for old ledger rows.
-            receipt = mod.R006ObjectiveReceipt.from_mapping(json.loads(encoded))
+            # Hydrate R008RAW1 when the JSON stub has empty samples.
+            receipt = _receipt_from_artifact_bytes(encoded, artifact)
             verified_rows.append(_bound_and_enrich(mod, row, receipt, artifact, identity, number))
         previous = str(row["row_sha256"])
 
@@ -249,11 +338,19 @@ def _bounded_append(
     }
     artifact_name = mod._sha(mod.canonical_bytes(identity)) + ".json"
     target = self._artifact_path(artifact_name)
-    encoded = mod.canonical_bytes(receipt.as_dict()) + b"\n"
+    receipt_dict = receipt.as_dict()
+    # Phase 5: finalize already produced slim receipt + pending R008RAW2 bytes.
+    raw_payload = pop_pending_raw2(receipt.attempt_sequence, receipt.execution_id)
+    if raw_payload is None:
+        # Prefer R008RAW1/legacy slim for pre-Phase-5 receipts.
+        raw_payload = prepare_slim_receipt(receipt_dict, artifact_json_path=target)
+    encoded = mod.canonical_bytes(receipt_dict) + b"\n"
     if target.exists():
         if not target.is_file() or target.read_bytes() != encoded:
             raise mod.R006SidecarError("r006 immutable artifact identity collision")
     else:
+        if raw_payload is not None:
+            write_raw_sidecar_bytes(target.with_suffix(".r008raw"), raw_payload)
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=".r006-", suffix=".tmp", dir=self.artifact_root
         )
@@ -268,7 +365,34 @@ def _bounded_append(
             mod._fsync_dir(self.path.parent)
         finally:
             temporary.unlink(missing_ok=True)
-    verified = mod._fresh_verify_artifact(target, self.campaign_fingerprint)
+    # Phase 4/5: bind disk bytes + columnar bins. Phase-5 binary receipts bind
+    # seal-block SHA (already in raw_bundle_digest) instead of JSON bundle SHA.
+    if raw_payload is not None and is_binary_seal_receipt(receipt):
+        if seal_sha256_of(raw_payload) != receipt.raw_bundle_digest:
+            raise mod.R006SidecarError("r008raw seal-block digest differs from receipt")
+        if target.read_bytes() != encoded:
+            raise mod.R006SidecarError("artifact stub bytes differ from local write")
+        if target.with_suffix(".r008raw").read_bytes() != raw_payload:
+            raise mod.R006SidecarError("r008raw bytes differ from local encode")
+        # Bins already sealed in finalize; mark verified without re-SHA fat bundle.
+        from dataclasses import replace
+
+        verified = replace(receipt, verification_state="verified_raw_artifact")
+    elif raw_payload is not None:
+        try:
+            verified = columnar_verify_hot_append(
+                receipt,
+                expected_campaign_fingerprint=self.campaign_fingerprint,
+                artifact_path=target,
+                encoded_stub=encoded,
+                raw_payload=raw_payload,
+            )
+        except Exception:
+            verified = _r008_fresh_verify_artifact(target, self.campaign_fingerprint)
+    elif target.with_suffix(".r008raw").is_file():
+        verified = _r008_fresh_verify_artifact(target, self.campaign_fingerprint)
+    else:
+        verified = mod._fresh_verify_artifact(target, self.campaign_fingerprint)
     previous = (
         str(self._cached[-1]["row_sha256"]) if self._cached else mod.GENESIS_SHA256
     )
@@ -310,13 +434,17 @@ def r008_bounded_sidecar_scope(*, tail_rows: int = R008_SIDECAR_TAIL_ROWS) -> It
     R008_SIDECAR_TAIL_ROWS = int(tail_rows)
     original_verify = mod.R006ObjectiveSidecar._verify_rows
     original_append = mod.R006ObjectiveSidecar.append
+    original_fresh = mod._fresh_verify_artifact
     try:
         mod.R006ObjectiveSidecar._verify_rows = _bounded_verify_rows  # type: ignore[assignment]
         mod.R006ObjectiveSidecar.append = _bounded_append  # type: ignore[assignment]
-        yield
+        mod._fresh_verify_artifact = _r008_fresh_verify_artifact  # type: ignore[assignment]
+        with r008_binary_seal_scope():
+            yield
     finally:
         mod.R006ObjectiveSidecar._verify_rows = original_verify  # type: ignore[assignment]
         mod.R006ObjectiveSidecar.append = original_append  # type: ignore[assignment]
+        mod._fresh_verify_artifact = original_fresh  # type: ignore[assignment]
         R008_SIDECAR_TAIL_ROWS = previous_tail
 
 

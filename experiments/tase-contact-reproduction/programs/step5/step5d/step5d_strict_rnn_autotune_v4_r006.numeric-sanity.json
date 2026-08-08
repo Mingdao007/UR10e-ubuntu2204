@@ -1,0 +1,43 @@
+{
+  "active_caps": {
+    "angular_rad_s": 0.5,
+    "host_qdot_slew_rad_s2": 5.0,
+    "normal_linear_m_s": 2.0,
+    "normal_vector_update_rad_s": 200.0,
+    "qdot_rad_s": 5.0,
+    "total_linear_m_s": 2.0,
+    "tp_speedj_accel_rad_s2": 40.0,
+    "xy_tangential_m_s": 0.008
+  },
+  "checks": {
+    "home_direct_search_derived": true,
+    "no_fake_loop": true,
+    "no_live_stop_ordinal": true,
+    "no_parent_identity": true,
+    "path_60s": true,
+    "positive_unbounded_attempt": true,
+    "rate_500_each_layer": true,
+    "resident_loop": true,
+    "stop_reason_not_masked_by_cmd_valid": true,
+    "target_exact_5n": true,
+    "target_not_dimension": true
+  },
+  "live_evidence": false,
+  "passed": true,
+  "program": "step5d_strict_rnn_autotune_v4_r006",
+  "schema": "step5d.autotune-v4/r006-numeric-sanity-v2",
+  "target_force_n": 5.0,
+  "triplet_checks": {
+    "cached_contents_exact": true,
+    "contract_binding": true,
+    "controller_directory": true,
+    "home_direct_search": true,
+    "no_plain_xml": true,
+    "package_text": true,
+    "positive_unbounded": true,
+    "program_name": true,
+    "resident_loop": true,
+    "script_node_path": true,
+    "version_stamp": true
+  }
+}

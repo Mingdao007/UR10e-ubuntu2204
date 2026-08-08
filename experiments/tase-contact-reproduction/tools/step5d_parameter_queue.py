@@ -984,6 +984,59 @@ def list_pending(root: Path) -> tuple[dict[str, Any], ...]:
     return _pending(root, load_state(root))
 
 
+def cancel_pending_requests(
+    root: Path,
+    *,
+    request_uids: Sequence[str],
+    reason: str,
+) -> tuple[dict[str, Any], ...]:
+    """Write durable non-physical tombstones for pending request rows.
+
+    A cancelled row is excluded by ``_pending`` before the receiver allocates
+    a dispatch identity.  This is intentionally separate from
+    ``finish_dispatch``: cancellation must never create a physical dispatch
+    or a fabricated READY_HOME receipt.
+    """
+
+    if not isinstance(reason, str) or not reason or "\n" in reason:
+        raise ParameterQueueError("pending cancellation reason must be one line")
+    requested = tuple(dict.fromkeys(str(uid) for uid in request_uids))
+    if any(not uid or "\n" in uid for uid in requested):
+        raise ParameterQueueError("pending cancellation request UID is invalid")
+    with _lock(root):
+        state = load_state(root)
+        inflight_uid = (
+            None if state["inflight"] is None else str(state["inflight"]["request_uid"])
+        )
+        if inflight_uid is not None and inflight_uid in requested:
+            raise ParameterQueueError("cannot cancel the physical inflight request")
+        visible = {
+            str(row["request_uid"]): row for row in _visible_requests(root, state)
+        }
+        rows: list[dict[str, Any]] = []
+        for request_uid in requested:
+            request = visible.get(request_uid)
+            if request is None:
+                raise ParameterQueueError("pending cancellation request is unknown")
+            if _receipt_path(root, request_uid).exists():
+                raise ParameterQueueError("pending cancellation request already has a receipt")
+            if _policy_rejection_path(root, request_uid).exists():
+                continue
+            candidate = _request_candidate(request)
+            record = {
+                "schema": POLICY_REJECTION_SCHEMA,
+                "request_uid": request_uid,
+                "enqueue_sequence": request["enqueue_sequence"],
+                "reason": reason,
+                "force_damping": candidate.force_damping,
+                "damping_acceptance": "finite_positive_no_policy_bound",
+                "physical_attempt": False,
+            }
+            _write_once(_policy_rejection_path(root, request_uid), record)
+            rows.append(record)
+        return tuple(rows)
+
+
 def list_requests(root: Path) -> tuple[dict[str, Any], ...]:
     return tuple(_visible_requests(root, load_state(root)))
 

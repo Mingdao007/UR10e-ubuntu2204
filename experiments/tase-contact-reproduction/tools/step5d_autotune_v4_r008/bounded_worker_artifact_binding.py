@@ -62,13 +62,23 @@ from collections import OrderedDict
 from dataclasses import replace
 from typing import Any, Mapping
 
-from step5d_autotune_v4_r006.objective import R006ObjectiveReceipt, cold_read_verify
+from step5d_autotune_v4_r006 import objective as obj_mod
 from step5d_autotune_v4_r006.optimizer_worker import (
     OptimizerWorkerError,
     _digest,
     _regular_file,
     _row_hash,
 )
+from step5d_autotune_v4_r008.binary_seal import (
+    R008_RAW_BUNDLE_SCHEMA,
+    R008_RAW_CODEC,
+    is_binary_seal_receipt,
+    r008_binary_seal_scope,
+)
+from step5d_autotune_v4_r008.raw_force_binary import load_receipt_mapping_from_bytes
+from step5d_autotune_v4_r008.raw_force_binary_v2 import SAMPLES_FORMAT_V2
+
+R006ObjectiveReceipt = obj_mod.R006ObjectiveReceipt
 
 R008_ARTIFACT_BINDING_TAIL_ROWS = 5
 
@@ -107,10 +117,35 @@ def _slim_cached_receipt(receipt: R006ObjectiveReceipt) -> R006ObjectiveReceipt:
     must only slim *after* seal / cold_read verification. Downstream
     ``.trainable`` / ``.objective`` depend only on verification_state,
     formal bin counts, and objective_mae_n -- not on the raw samples.
+
+    Phase-5 binary receipts keep a schema-valid empty stub (not ``{}``):
+    ``r008_binary_seal_scope`` post_init rejects a bare empty mapping.
     """
 
     if not receipt.raw_bundle:
         return receipt
+    if is_binary_seal_receipt(receipt):
+        bundle = (
+            dict(receipt.raw_bundle) if isinstance(receipt.raw_bundle, Mapping) else {}
+        )
+        slim_bundle = {
+            "schema": bundle.get("schema", R008_RAW_BUNDLE_SCHEMA),
+            "attempt_sequence": int(receipt.attempt_sequence),
+            "execution_id": str(receipt.execution_id),
+            "campaign_fingerprint": str(receipt.campaign_fingerprint),
+            "candidate_uid": str(bundle.get("candidate_uid", "")),
+            "semantic_fingerprint": str(
+                bundle.get("semantic_fingerprint", receipt.semantic_fingerprint)
+            ),
+            "samples": [],
+            "samples_format": bundle.get("samples_format", SAMPLES_FORMAT_V2),
+            "raw_codec": bundle.get("raw_codec", R008_RAW_CODEC),
+            "sample_count": int(receipt.sample_count),
+            "seal_block_sha256": str(
+                bundle.get("seal_block_sha256", receipt.raw_bundle_digest)
+            ),
+        }
+        return replace(receipt, raw_bundle=slim_bundle)
     return replace(receipt, raw_bundle={})
 
 
@@ -156,21 +191,46 @@ def _artifact_digest_and_bytes(path: Any) -> tuple[str, bytes | None]:
 def bounded_artifact_binding(
     value: Any, *, tail_rows: int = R008_ARTIFACT_BINDING_TAIL_ROWS
 ) -> dict[str, Any]:
-    required = {"sidecar_path", "sidecar_sha256", "campaign_fingerprint", "rows"}
+    # Phase-5 receipts need module-level patches (version + cold_read_binary).
+    # Never bind ``from objective import cold_read_verify`` at import time —
+    # that freezes the stock function and breaks empty-sample RAW2 stubs.
+    with r008_binary_seal_scope():
+        return _bounded_artifact_binding_impl(value, tail_rows=tail_rows)
+
+
+def _bounded_artifact_binding_impl(
+    value: Any, *, tail_rows: int
+) -> dict[str, Any]:
+    required = {
+        "sidecar_path",
+        "sidecar_sha256",
+        "sidecar_prefix_bytes",
+        "campaign_fingerprint",
+        "rows",
+    }
     if not isinstance(value, Mapping) or set(value) != required:
         raise OptimizerWorkerError("r006 artifact binding fields differ")
     sidecar = _regular_file(value["sidecar_path"], "r006 artifact sidecar")
     sidecar_sha = _digest(value["sidecar_sha256"], "r006 artifact sidecar digest")
     campaign = _digest(value["campaign_fingerprint"], "r006 artifact campaign")
-    if hashlib.sha256(sidecar.read_bytes()).hexdigest() != sidecar_sha:
+    prefix_bytes = value["sidecar_prefix_bytes"]
+    if not isinstance(prefix_bytes, int) or isinstance(prefix_bytes, bool) or prefix_bytes < 0:
+        raise OptimizerWorkerError("r006 artifact sidecar prefix is invalid")
+    # 2026-08-07: hash/parse only the byte prefix the requested rows live in
+    # (append-only file, so this prefix never changes once written) instead
+    # of the whole file -- an unrelated concurrent append past this prefix
+    # used to race the host's snapshot and fail-close the whole host.
+    data = sidecar.read_bytes()
+    prefix = data[:prefix_bytes]
+    if hashlib.sha256(prefix).hexdigest() != sidecar_sha:
         raise OptimizerWorkerError("r006 artifact sidecar bytes differ")
     try:
         lines = [
             json.loads(line)
-            for line in sidecar.read_text(encoding="utf-8").splitlines()
+            for line in prefix.decode("utf-8").splitlines()
             if line.strip()
         ]
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    except (UnicodeError, json.JSONDecodeError) as exc:
         raise OptimizerWorkerError("r006 artifact sidecar is not strict JSONL") from exc
     if (
         not lines
@@ -238,12 +298,24 @@ def bounded_artifact_binding(
                             stat.st_size,
                             artifact_sha,
                         )
-                    receipt_payload = json.loads(encoded.decode("utf-8"))
+                    # Hydrate R008RAW1 companion when JSON stub has empty samples.
+                    # Phase-5 stubs stay empty; cold_read_binary binds .r008raw.
+                    receipt_payload = load_receipt_mapping_from_bytes(
+                        encoded, artifact_path=artifact
+                    )
+                    parsed = R006ObjectiveReceipt.from_mapping(receipt_payload)
                     if in_tail:
-                        receipt = cold_read_verify(
-                            R006ObjectiveReceipt.from_mapping(receipt_payload),
-                            expected_campaign_fingerprint=campaign,
-                        )
+                        verify_kwargs: dict[str, Any] = {
+                            "expected_campaign_fingerprint": campaign,
+                        }
+                        sibling = artifact.with_suffix(".r008raw")
+                        if (
+                            is_binary_seal_receipt(parsed)
+                            and sibling.is_file()
+                            and not sibling.is_symlink()
+                        ):
+                            verify_kwargs["artifact_raw_bytes"] = sibling.read_bytes()
+                        receipt = obj_mod.cold_read_verify(parsed, **verify_kwargs)
                     else:
                         # Hash chain (above) already reconfirmed this row's own
                         # stored fields are unchanged since it was last verified
@@ -265,7 +337,7 @@ def bounded_artifact_binding(
                         # re-confirms the receipt's own internal hash still
                         # matches, which is cheap (no raw-sample I/O).
                         receipt = replace(
-                            R006ObjectiveReceipt.from_mapping(receipt_payload),
+                            parsed,
                             verification_state="verified_raw_artifact",
                         )
                         receipt.validate_seal()

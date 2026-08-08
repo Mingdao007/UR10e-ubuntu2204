@@ -32,18 +32,33 @@ This bounds the expensive per-row recomputation to the newest ``tail_rows``
 fields. It changes only r008's cold-resume/construction path; the hot
 per-append verify path (``ObservationLedger.append``) is untouched and still
 fresh-verifies every new row exactly once, as before.
+
+Phase 3 (2026-08-07): ``_write_artifact`` writes slim JSON + ``.r008raw`` when
+samples are R008RAW1-compatible; append/cold-tail verify uses in-process
+hydrate + ForceObjective columnar (via ``r008_fresh_verify_scope``).
 """
 
 from __future__ import annotations
 
-from typing import Any
+from contextlib import contextmanager
+from dataclasses import replace
+from typing import Any, Iterator
 
 from step5d_autotune_v4_r005.observations import (
     ObservationError,
+    ObservationRecord,
     verify_hash_chain,
 )
 
 from step5d_autotune_v4_r007.native_ledger import R007NativeObservationLedger
+
+
+@contextmanager
+def _r008_ledger_fresh_scope() -> Iterator[None]:
+    from step5d_autotune_v4_r008.fresh_verify import r008_fresh_verify_scope
+
+    with r008_fresh_verify_scope():
+        yield
 
 
 class R008BoundedResumeObservationLedger(R007NativeObservationLedger):
@@ -55,8 +70,30 @@ class R008BoundedResumeObservationLedger(R007NativeObservationLedger):
         self._bounded_tail_rows = int(tail_rows)
         super().__init__(*args, **kwargs)
 
+    def _write_artifact(self, record: ObservationRecord, execution_id: str) -> tuple[str, bytes, str, int]:
+        from step5d_autotune_v4_r008.ledger_raw_artifact import write_ledger_artifact_bytes
+
+        return write_ledger_artifact_bytes(self, record, execution_id)
+
+    def append(self, record: ObservationRecord) -> ObservationRecord:
+        # Host AttemptResult carries advisory ForceObjective from
+        # ForceObjectiveBuilder (per-sample payload_digest chain). Phase-5
+        # ledger fresh-verify rebuilds from raw_path_samples + R008RAW2 and
+        # binds raw_evidence_digest to the seal-block SHA instead — same MAE/
+        # bins, different digest authority. Skip the advisory equality gate so
+        # append can install the RAW2-bound objective (QUAL already passes None).
+        if (
+            record.kind != "QUALIFICATION"
+            and record.force_objective is not None
+            and record.raw_path_samples
+        ):
+            record = replace(record, force_objective=None)
+        with _r008_ledger_fresh_scope():
+            return super().append(record)
+
     def _fresh_audit_and_cache(self) -> dict[str, Any]:
         from step5d_autotune_v4_r005 import observations as obs
+        from step5d_autotune_v4_r008.ledger_raw_artifact import verify_ledger_artifact_fresh
 
         rows = verify_hash_chain(self.path)
         non_qual_positions = [
@@ -74,7 +111,11 @@ class R008BoundedResumeObservationLedger(R007NativeObservationLedger):
                 raise ObservationError("r008 bounded resume: row lacks raw artifact binding")
             if index in tail:
                 artifact_path = self._artifact_path(raw_artifact["relative_path"])
-                info = obs._run_fresh("artifact", artifact_path)
+                # Prefer Phase-3 in-process path; fall back to patched _run_fresh.
+                try:
+                    info = verify_ledger_artifact_fresh(artifact_path)
+                except ObservationError:
+                    info = obs._run_fresh("artifact", artifact_path)
                 fresh_objective = info.get("objective")
                 if fresh_objective != row.get("force_objective"):
                     raise ObservationError(

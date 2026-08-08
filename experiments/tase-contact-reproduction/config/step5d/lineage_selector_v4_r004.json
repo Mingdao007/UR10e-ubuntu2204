@@ -13,13 +13,13 @@
     "lineage": "step5d_strict_rnn_autotune_v4",
     "program": "step5d_strict_rnn_autotune_v4_r004",
     "release_contract": "config/step5d/autotune_v4_r004.json",
-    "release_contract_sha256": "174aa711b498ae37ed7605ffe4d164eecbeac78ab3d3bc017a4ad8257e246c95",
+    "release_contract_sha256": "41f23b2cd1b4a9c815449804f3418fbd2675ff3197d6b7b2556609d2aeff01f6",
     "wire_schema": "step5d.autotune-v4/register-wire-v3",
     "wire_layout": 606,
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r004.urp",
     "offline_closure": "config/step5d/autotune_v4_r004_offline_closure.json",
-    "offline_closure_sha256": "672f649b3899e8d0841d98583427f0700211529e2fb62dbfdf9f02843552263c",
-    "campaign_fingerprint": "05a0ed75dbe8e67916f6babebf1c266ee951262088179de59f44a157f173c186",
+    "offline_closure_sha256": "9b40b7d4641fd7e408f7fe02dad472e98ee7e98e482b72dd9424a8b2cc53d07c",
+    "campaign_fingerprint": "ea1dcb429af9824fb46ca47e9aa6dced5993b4e84d1a968a4c8d8b37ff33480b",
     "eoat_contract": "config/step5d/eoat_profile_new_v4.json",
     "script1": "programs/step5/step5d/step5d_autotune_start_hover_r001",
     "script1_policy": "initial_and_after_stop_problem_restart_only",
@@ -30,6 +30,21 @@
       "batch_b": 5,
       "retest": 3,
       "total_logical_attempts": 16
+    },
+    "live_scope": {
+      "mode": "full_campaign",
+      "allowed_logical_ordinals": "1_through_16_in_plan_order",
+      "allowed_attempt_kinds": [
+        "QUALIFICATION",
+        "BATCH_A",
+        "BATCH_B",
+        "RETEST"
+      ],
+      "ordinal_4_and_later_requires_three_durable_qualifications": true,
+      "full_campaign_enabled": true,
+      "candidate_path_enabled": true,
+      "retest_enabled": true,
+      "promotion_enabled": false
     },
     "delivery": {
       "local_triplet_built": true,

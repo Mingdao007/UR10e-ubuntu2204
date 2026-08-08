@@ -13,23 +13,42 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import replace
-from typing import Any, Iterator
+from typing import Any, Iterator, Mapping
 
 from step5d_autotune_v4_r007.timing import (
     R007TimingDecision,
+    R007TimingError,
     evaluate_r007_timing,
     r007_timing_scope,
 )
 
 LEGACY_MIN_RATE_HZ = 460.0
 TP_RATIO_FAILURE = "tp_consumption_ratio_below_0p98"
+INCOMPLETE_FAILURE = "timing_evidence_incomplete"
 R008_TIMING_NOTE = "r008_tp_ratio_rescued_when_layers_ge_460hz"
 
 
 def evaluate_r008_timing(evidence: Any) -> R007TimingDecision:
-    """r007 decision with an additive TP-ratio rescue for healthy ~480 Hz echoes."""
+    """r007 decision with an additive TP-ratio rescue for healthy ~480 Hz echoes.
 
-    decision = evaluate_r007_timing(evidence)
+    Incomplete evidence (duration<=0 / zero distinct counts) fails closed as
+    ``timing_evidence_incomplete`` instead of raising through ``.successful``
+    while ``r008_timing_scope`` is active. That lets QUAL seal
+    SAFE_NONTRAINABLE with ``timing_gate=False`` rather than crashing the host.
+    """
+
+    try:
+        decision = evaluate_r007_timing(evidence)
+    except R007TimingError as exc:
+        return R007TimingDecision(
+            eligible=False,
+            failures=(INCOMPLETE_FAILURE,),
+            cadence_failures=(),
+            telemetry={
+                "r008_incomplete_reason": str(exc),
+                "duration_s": getattr(evidence, "duration_s", None),
+            },
+        )
     if TP_RATIO_FAILURE not in decision.failures:
         return decision
 
@@ -56,6 +75,52 @@ def evaluate_r008_timing(evidence: Any) -> R007TimingDecision:
         cadence_failures=cadence_failures,
         telemetry=telemetry,
     )
+
+
+def qualification_timing_metrics(evidence: Any) -> dict[str, Any]:
+    """Bounded QUAL metrics: keep layered TimingEvidence visible on the ledger.
+
+    Frozen r005 QUAL conversion only stored ``mature_evidence_sha256``, which
+    hid why ``timing_gate`` failed on near-bump canaries.
+    """
+
+    metrics: dict[str, Any] = {
+        "mature_evidence_sha256": getattr(evidence, "evidence_sha256", None),
+    }
+    raw_metrics = getattr(evidence, "metrics", None)
+    if isinstance(raw_metrics, Mapping):
+        # Packet-interval gate inside QualificationEvidenceCollector (not the
+        # layered TimingEvidence gate mirrored on ObservationRecord.timing_gate).
+        if "timing_gate_passed" in raw_metrics:
+            metrics["qualification_packet_timing_gate"] = bool(
+                raw_metrics["timing_gate_passed"]
+            )
+        if "baseline_samples" in raw_metrics:
+            metrics["qualification_baseline_samples"] = raw_metrics["baseline_samples"]
+        for key in (
+            "saw_baseline",
+            "saw_retract",
+            "saw_latch",
+            "setpoint_min_n",
+            "setpoint_max_n",
+        ):
+            if key in raw_metrics:
+                metrics[key] = raw_metrics[key]
+    timing = getattr(evidence, "timing_evidence", None)
+    if timing is not None:
+        as_dict = getattr(timing, "as_dict", None)
+        metrics["timing_evidence"] = as_dict() if callable(as_dict) else dict(timing)
+        decision = evaluate_r008_timing(timing)
+        metrics["r008_timing_decision"] = decision.as_dict()
+    else:
+        metrics["timing_evidence"] = None
+        metrics["r008_timing_decision"] = {
+            "eligible": False,
+            "failures": [INCOMPLETE_FAILURE],
+            "cadence_failures": [],
+            "telemetry": {"r008_incomplete_reason": "timing_evidence_missing"},
+        }
+    return metrics
 
 
 @contextmanager
@@ -91,8 +156,10 @@ _parent_scope = r007_timing_scope
 
 
 __all__ = [
+    "INCOMPLETE_FAILURE",
     "LEGACY_MIN_RATE_HZ",
     "TP_RATIO_FAILURE",
     "evaluate_r008_timing",
+    "qualification_timing_metrics",
     "r008_timing_scope",
 ]

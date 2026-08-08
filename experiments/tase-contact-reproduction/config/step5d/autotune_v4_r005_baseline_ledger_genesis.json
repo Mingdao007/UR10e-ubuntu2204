@@ -1,0 +1,24 @@
+{
+  "bootstrap_anchor": {
+    "force_damping": 28.0,
+    "force_i_gain": 0.0,
+    "force_p_gain": 0.0003535533906,
+    "motion_kp": 1.5,
+    "normal_filter_tau_s": 0.35,
+    "orientation_ko": 0.1,
+    "target_force_n": 5.0
+  },
+  "campaign_fingerprint": "72122a8c756a13bd445e9ac05c38e03ffe179f294e38b8a40b0ecfb737ea5b08",
+  "epoch_policy": "fresh_epoch_starts_at_first_r005_host_process",
+  "genesis_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "ledger_schema": "step5d.autotune-v4/r005-sealed-observations-v1",
+  "live_evidence": false,
+  "old_r004_qualifications": "audit_only_not_imported",
+  "release_contract_sha256": "4a27c14d8b1c5c5e0a276311e37eb2d5c6d427295b8e8b0a7de08995964ce889",
+  "rows": [],
+  "runtime_identity": {
+    "hi": 697537607,
+    "lo": 1310972227
+  },
+  "schema": "step5d.autotune-v4/r005-baseline-ledger-genesis-v1"
+}

@@ -1,0 +1,47 @@
+{
+  "schema": "step5d.lineage-selector/v4-r005-source-closure-v1",
+  "status": "offline_candidate_live_blocked",
+  "active_canonical_selector_unchanged": true,
+  "current_v3": {
+    "lineage": "step5d_strict_rnn_autotune_v3",
+    "pointer_unchanged": true,
+    "active_pointer": "config/step5d/current.json"
+  },
+  "parent_v4_r004": {
+    "program": "step5d_strict_rnn_autotune_v4_r004",
+    "release_contract": "config/step5d/autotune_v4_r004.json",
+    "identity_preserved": true
+  },
+  "candidate_v4_r005": {
+    "lineage": "step5d_strict_rnn_autotune_v4",
+    "program": "step5d_strict_rnn_autotune_v4_r005",
+    "release_contract": "config/step5d/autotune_v4_r005.json",
+    "release_contract_sha256": "797b682b16cfaabf875e430f6e7bd68ea78d3a3e703f7ed88cb70b680e7f2de3",
+    "campaign_fingerprint": "6bacb0371901b932e7724be925d5e4f2de8a792275a523f5e17bb2ffe4cf38e0",
+    "wire_layout": 606,
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r005.urp",
+    "offline_closure": "config/step5d/autotune_v4_r005_offline_closure.json",
+    "offline_closure_sha256": "e6f086db189fee99abb08ee39b4c68a448190fa3e6369567a989bc90d4fadc4c",
+    "script2_lifecycle": "resident_rolling_arm_loop",
+    "attempt_sequence": "positive_monotonic_unbounded",
+    "optimizer": "cuda_qLogNEI_v4_adapter_with_X_pending",
+    "completion": "two_of_three_retests_and_five_percent_median_improvement",
+    "live_enabled": false
+  },
+  "activation": {
+    "this_file_is_not_canonical_active_selector": true,
+    "manual_canonical_pointer_mutation": false,
+    "required_live_evidence": [
+      "fresh_r005_eoat_apply_get_receipt",
+      "controller_readback_receipt",
+      "live_runtime_identity_and_session_epoch",
+      "owner_route_and_safety_gates",
+      "live_success_and_promotion_contract"
+    ]
+  },
+  "claim_boundary": [
+    "This records an offline r005 source closure only.",
+    "It does not select r005, upload, read back, Load, Play, ARM, move, contact, or promote.",
+    "r004 identity and qualifications are preserved as audit-only parent evidence."
+  ]
+}

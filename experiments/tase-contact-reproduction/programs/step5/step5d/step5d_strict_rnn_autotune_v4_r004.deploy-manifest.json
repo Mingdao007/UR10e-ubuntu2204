@@ -2,51 +2,21 @@
   "artifacts": [
     {
       "filename": "step5d_strict_rnn_autotune_v4_r004.script",
-      "sha256": "102aa8c4619f9ed2c3899ed3e32a7b6034a2d277b6fe4f844bfc8c97814b19f5"
+      "sha256": "17bbc5c8a2292aa07407e956a241e37955b648b991a52b0deb1e04bef8bae88d",
+      "source": "step5d_strict_rnn_autotune_v4_r004.script"
     },
     {
       "filename": "step5d_strict_rnn_autotune_v4_r004.txt",
-      "sha256": "13fc2872337c2be16b549eb65c486c0d8c6fb18077589be4b7f04edad3e9b8e6"
+      "sha256": "46388fa581276e94c12b46afbf9654e59673568859ea146a25236f3945ff5e50",
+      "source": "step5d_strict_rnn_autotune_v4_r004.txt"
     },
     {
       "filename": "step5d_strict_rnn_autotune_v4_r004.urp",
-      "sha256": "c1ab24bbd35e39b7708aa2cd2a6b700b19b1d419aef977995ce75366a18cdcaf"
+      "sha256": "9878160a503c69a8c7a0aad3bd0aa686b668263672afe5c7de23ed6b3110ec56",
+      "source": "step5d_strict_rnn_autotune_v4_r004.urp"
     }
   ],
   "basename": "step5d_strict_rnn_autotune_v4_r004",
-  "builder": "tools/build_step5d_autotune_v4_r004.py",
-  "builder_sha256": "b78588a200f657d73cad067c8c8ec7b55a321de7522bda739be294c451c92bf7",
   "controller_directory": "/programs/andyl/kunwei/step5",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r004.urp",
-  "delivery": {
-    "contact_or_motion": false,
-    "controller_load_or_play": false,
-    "controller_readback": false,
-    "controller_upload": false,
-    "local_urp_internal_content_gate": true,
-    "promotion": false,
-    "v3_current_pointer_changed": false,
-    "v4_lineage_selected": false
-  },
-  "immutable": true,
-  "numeric_sanity": {
-    "filename": "step5d_strict_rnn_autotune_v4_r004.numeric-sanity.json",
-    "passed": true,
-    "sha256": "57b320f1e7a7d8e1e0d7cf54ccbad7bcaf9b6f1c536cbc9ef8c8d080aa052f0f"
-  },
-  "schema": "step5d.autotune-v4/r004-local-candidate-v1",
-  "schema_version": 1,
-  "source_stamp": "2026-08-01T1542HKT_STEP5D_AUTOTUNE_V4_R004",
-  "status": "local_candidate_not_uploaded_live_blocked",
-  "v4_binding": {
-    "campaign_fingerprint": "05a0ed75dbe8e67916f6babebf1c266ee951262088179de59f44a157f173c186",
-    "damping": 28.0,
-    "eoat_profile_sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
-    "lineage": "step5d_strict_rnn_autotune_v4",
-    "release_contract_sha256": "174aa711b498ae37ed7605ffe4d164eecbeac78ab3d3bc017a4ad8257e246c95",
-    "runtime_protocol": 606004,
-    "target_force_n": 5.0,
-    "total_logical_attempts": 16,
-    "wire_layout": 606
-  }
+  "schema_version": 1
 }

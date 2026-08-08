@@ -1,0 +1,34 @@
+{
+  "contact_pose_m_rad": [
+    0.4878557124432249,
+    0.12934528580566798,
+    0.019470689192936375,
+    3.1207859255147326,
+    -2.4202387152396184e-05,
+    0.06867216266583794
+  ],
+  "delta_z_m": 0.013529310807,
+  "eoat_sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+  "home_pose_m_rad": [
+    0.487834547,
+    0.129337053,
+    0.033,
+    3.120752062,
+    0.0,
+    0.068626833
+  ],
+  "home_profile_id": "step5d.autotune-v4/r004-fixed-home-v1",
+  "notes": {
+    "home_source": "r004 FIXED_HOME_POSE / Script1 target",
+    "n_contact_samples": 17,
+    "return_home_note": "TP return_home rise+descend is not a second contact search",
+    "source_run": "live_20260804_135849_b3_wave1",
+    "source_sidecar": "r008-state20-search-trace.jsonl",
+    "status": "sealed from Wave1 state20 last-frame median (ord>=4, travel 12-15mm)"
+  },
+  "provenance": "wave1_state20_sealed",
+  "schema": "step5d.autotune-v4/r008-geometry-calibration-v1",
+  "seal_sha256": "f6f11ef8bacd88db1698a5c3b8966869f33dfe8b092fb24a88c2b925e8180369",
+  "version": "r008-geometry-v1",
+  "xy_tolerance_m": 0.001
+}

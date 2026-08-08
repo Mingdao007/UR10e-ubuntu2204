@@ -53,6 +53,30 @@ def plant_from_receipt(receipt_path: Path) -> tuple[PlantParameters, Mapping[str
     return plant, receipt.document
 
 
+def _phase_at_omega(
+    *,
+    omega_c: float,
+    damping: float,
+    tau_eff_s: float,
+    td_s: float,
+    kf: float | None,
+) -> float:
+    """Phase of L(jω) in degrees (without the constant gain).
+
+    ``kf is None`` means saturated / frozen integral: no ``(s+kf)`` zero.
+    ``kf == 0`` means I-off unsaturated: ``(s+0)/s^2`` collapses to a single free
+    integrator (numerator contributes +90°).
+    """
+
+    phase = -180.0  # 1/s^2 from plant position + (unsaturated) integral channel
+    if kf is not None:
+        phase += math.degrees(math.atan2(omega_c, max(float(kf), 1e-9)))  # (s+kf)
+    phase -= math.degrees(math.atan2(omega_c, max(damping, 1e-9)))  # 1/(s+D)
+    phase -= math.degrees(math.atan2(omega_c * tau_eff_s, 1.0))  # 1/(τs+1)
+    phase -= math.degrees(omega_c * float(td_s))  # e^{-sTd}
+    return float(phase)
+
+
 def phase_margin_deg(
     *,
     stiffness: float,
@@ -62,19 +86,95 @@ def phase_margin_deg(
     kf: float,
     td_s: float = TD_S,
 ) -> float:
-    """Approximate PM of L(s)=k P (s+kf)/(s^2 (s+D) (τs+1)) e^{-s Td} at gain crossover."""
+    """Approximate PM of the contact force loop at gain crossover.
 
-    p_gain = float(pd_ratio) * float(damping)
-    # Gain crossover estimate from ω_c ≈ k * P/D for the dominant double integrator.
-    omega_c = max(1e-3, float(stiffness) * float(pd_ratio))
-    # Phase of each factor at ω_c.
-    phase = -180.0  # 1/s^2
-    phase += math.degrees(math.atan2(omega_c, max(kf, 1e-9)))  # (s+kf)
-    phase -= math.degrees(math.atan2(omega_c, max(damping, 1e-9)))  # 1/(s+D)
-    phase -= math.degrees(math.atan2(omega_c * tau_eff_s, 1.0))  # 1/(τs+1)
-    phase -= math.degrees(omega_c * float(td_s))  # e^{-sTd}
-    # Ignore the constant gain for PM (phase-only); report PM = 180 + angle(L).
-    return float(phase + 180.0)
+    Unsaturated PI (``kf > 0``):
+      L(s)=k P (s+kf)/(s^2 (s+D) (τs+1)) e^{-s Td}
+    with mid-band crossover ``ω_c ≈ k·(P/D)`` (the PI zero cancels one free
+    integrator, so |L|~1/ω).
+
+    I-off (``kf == 0``): same formula; ``(s+0)/s^2`` → single free integrator.
+
+    When ``kf > 0`` the discrete integral can freeze on its rail (B3 default
+    50 N·s). Local linearization then loses the ``(s+kf)`` zero:
+      L_sat(s)=k P /(s^2 (s+D) (τs+1)) e^{-s Td}
+    with ``ω_c ≈ sqrt(k·P/D)``. Live PATH blow-ups (far005 BO disp42,
+    limit50 STAIRCASE attempt10) entered PATH with |I|≈I_lim; the veto uses
+    ``min(PM_unsat, PM_sat)`` so that rail-saturated I-on points are not
+    misclassified as safe by the unsaturated PI linearization alone.
+    """
+
+    stiff = float(stiffness)
+    pd = float(pd_ratio)
+    damp = float(damping)
+    tau_eff = float(tau_eff_s)
+    kf_v = float(kf)
+    delay = float(td_s)
+
+    # Unsaturated (or I-off) crossover: ω_c ≈ k * P/D when kf << ω_c << D.
+    omega_unsat = max(1e-3, stiff * pd)
+    pm_unsat = _phase_at_omega(
+        omega_c=omega_unsat,
+        damping=damp,
+        tau_eff_s=tau_eff,
+        td_s=delay,
+        kf=kf_v,
+    ) + 180.0
+    if kf_v <= 0.0:
+        return float(pm_unsat)
+
+    # Saturated / frozen-integral worst case.
+    omega_sat = max(1e-3, math.sqrt(max(stiff * pd, 0.0)))
+    pm_sat = _phase_at_omega(
+        omega_c=omega_sat,
+        damping=damp,
+        tau_eff_s=tau_eff,
+        td_s=delay,
+        kf=None,
+    ) + 180.0
+    return float(min(pm_unsat, pm_sat))
+
+
+def live_phase_margin_unstable(
+    *,
+    force_p_gain: float,
+    force_damping: float,
+    force_i_gain: float,
+    normal_filter_tau_s: float,
+    stiffness_n_per_m: float,
+    rho: float,
+    pm_min_deg: float = PM_MIN_DEG,
+) -> bool:
+    """True when predicted phase margin is below the STAIRCASE live threshold.
+
+    Same threshold / formula as ``R008HostLoop`` STAIRCASE preemptive veto
+    (``phase_margin_deg`` vs ``PM_MIN_DEG``). Used by BO ask choice filtering so
+    GP never sees PM-unstable points.
+    """
+
+    p_gain = float(force_p_gain)
+    damping = float(force_damping)
+    i_gain = float(force_i_gain)
+    tau = float(normal_filter_tau_s)
+    stiffness = float(stiffness_n_per_m)
+    rho_v = float(rho)
+    values = (p_gain, damping, i_gain, tau, stiffness, rho_v)
+    if any(not math.isfinite(v) for v in values):
+        return True
+    if p_gain <= 0.0 or damping <= 0.0 or tau <= 0.0 or stiffness <= 0.0 or rho_v <= 0.0:
+        return True
+    if i_gain < 0.0:
+        return True
+    pd_ratio = p_gain / damping
+    kf = 0.0 if i_gain <= 0.0 else i_gain / p_gain
+    predicted = phase_margin_deg(
+        stiffness=stiffness,
+        pd_ratio=pd_ratio,
+        damping=damping,
+        tau_eff_s=tau * rho_v,
+        kf=kf,
+    )
+    return float(predicted) < float(pm_min_deg)
 
 
 def _synthetic_trace_for_point(point: R008Point, template: BundleTrace) -> BundleTrace:

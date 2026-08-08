@@ -146,7 +146,7 @@ class OuterLoopStateReset:
 class IntegralLimitCoordinate:
     """B3: searchable integral limit instead of the hard-coded 1.0 N·s."""
 
-    force_integral_limit_n_s: float = 5.0
+    force_integral_limit_n_s: float = 150.0
 
     def __post_init__(self) -> None:
         value = float(self.force_integral_limit_n_s)

@@ -1,0 +1,122 @@
+{
+  "schema": "step5d.managed-runtime/manifest-v1",
+  "lineage_id": "step5d_strict_rnn_autotune_v4_r008",
+  "launcher_path": "tools/launch_step5d_autotune_v4_r008_control.py",
+  "release_contract": {
+    "path": "config/step5d/autotune_v4_r006.json",
+    "schema": "step5d.autotune-v4/r006-release-contract-v1",
+    "program": "step5d_strict_rnn_autotune_v4_r006",
+    "revision": 6
+  },
+  "routes": {
+    "prepare": {
+      "module": "prepare_step5d_autotune_v4_r006"
+    },
+    "host": {
+      "module": "run_step5d_autotune_v4_r008"
+    }
+  },
+  "control": {
+    "profile": "control",
+    "verification_mode": "full_audit",
+    "required_imports": [
+      "numpy"
+    ],
+    "required_ros_packages": [
+      "ros-humble-pinocchio"
+    ],
+    "required_ros_pythonpath": [
+      "/opt/ros/humble/lib/python3.10/site-packages",
+      "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
+  },
+  "optimizer": {
+    "profile": "optimizer",
+    "resolver": "step5d_optimizer_runtime.resolve_optimizer_runtime",
+    "worker_module": "step5d_autotune_v4_r006.optimizer_worker"
+  },
+  "no_system_install": true,
+  "source_closure": [
+    "tools/launch_step5d_autotune_v4_r006_control.py",
+    "tools/prepare_step5d_autotune_v4_r006.py",
+    "tools/prepare_step5d_autotune_v4_r005_live.py",
+    "tools/run_step5d_autotune_v4_r006.py",
+    "tools/build_step5d_autotune_v4_r006.py",
+    "tools/build_step5d_autotune_v4_r006_offline_closure.py",
+    "tools/step5d_managed_runtime.py",
+    "tools/step5d_optimizer_runtime.py",
+    "tools/step5d_force_objective.py",
+    "tools/step5d_remote_startup.py",
+    "tools/build_step4e_line_programs.py",
+    "tools/build_step4e_p0p1_programs.py",
+    "tools/step5d_autotune_v3/runtime_environment.py",
+    "tools/step5d_autotune_v3/runtime_installation.py",
+    "tools/step5d_autotune_v4_r004/contracts.py",
+    "tools/step5d_autotune_v4_r004/campaign.py",
+    "tools/step5d_autotune_v4_r004/evidence.py",
+    "tools/step5d_autotune_v4_r004/identity.py",
+    "tools/step5d_autotune_v4_r004/prerequisites.py",
+    "tools/step5d_autotune_v4_r004/session.py",
+    "tools/step5d_autotune_v4_r004/timing.py",
+    "tools/step5d_autotune_v4_r004/transport.py",
+    "tools/step5d_autotune_v4_r004/wire.py",
+    "tools/step5d_autotune_v4_r004/qualification.py",
+    "tools/step5d_autotune_v4_r004/calibrated_runtime.py",
+    "tools/step5d_autotune_v4_r004/motion_profile.py",
+    "tools/step5d_autotune_v4_r004/path_reference.py",
+    "tools/step5d_autotune_v4_r004_live_writer.py",
+    "tools/step5d_autotune_v4_r005/packet_pacing.py",
+    "tools/step5d_autotune_v4_r005/timing.py",
+    "tools/step5d_autotune_v4_r005/queue.py",
+    "tools/step5d_autotune_v4_r005/contracts.py",
+    "tools/step5d_autotune_v4_r005/live_adapter.py",
+    "tools/step5d_autotune_v4_r005/observations.py",
+    "tools/step5d_autotune_v4_r005/optimizer.py",
+    "tools/step5d_autotune_v4_r005/runtime.py",
+    "tools/step5d_autotune_v4_r005/tp.py",
+    "tools/step5d_autotune_v4_r006/__init__.py",
+    "tools/step5d_autotune_v4_r006/contracts.py",
+    "tools/step5d_autotune_v4_r006/parent.py",
+    "tools/step5d_autotune_v4_r006/live_adapter.py",
+    "tools/step5d_autotune_v4_r006/motion_profile.py",
+    "tools/step5d_autotune_v4_r006/objective.py",
+    "tools/step5d_autotune_v4_r006/lattice.py",
+    "tools/step5d_autotune_v4_r006/queue.py",
+    "tools/step5d_autotune_v4_r006/fake_rtde.py",
+    "tools/step5d_autotune_v4_r006/optimizer.py",
+    "tools/step5d_autotune_v4_r006/thresholds.py",
+    "tools/step5d_autotune_v4_r006/qualification.py",
+    "tools/step5d_autotune_v4_r006/managed.py",
+    "tools/step5d_autotune_v4_r006/optimizer_worker.py",
+    "tools/step5d_autotune_v4_r006/runtime.py",
+    "tools/step5d_autotune_v4_r006/sidecar.py",
+    "tools/step5d_autotune_v4_r006/tp.py",
+    "config/step5/step5d_autotune_v4_r006_launch_profile.json",
+    "tools/launch_step5d_autotune_v4_r007_control.py",
+    "tools/run_step5d_autotune_v4_r007.py",
+    "tools/step5d_autotune_v4_r007/__init__.py",
+    "tools/step5d_autotune_v4_r007/native_ledger.py",
+    "tools/step5d_autotune_v4_r007/timing.py",
+    "tools/step5d_runtime_codec.py",
+    "tools/launch_step5d_autotune_v4_r008_control.py",
+    "tools/run_step5d_autotune_v4_r008.py",
+    "tools/step5d_autotune_v4_r008/__init__.py",
+    "tools/step5d_autotune_v4_r008/lattice.py",
+    "tools/step5d_autotune_v4_r008/design.py",
+    "tools/step5d_autotune_v4_r008/design_binding.py",
+    "tools/step5d_autotune_v4_r008/controller_seam.py",
+    "tools/step5d_autotune_v4_r008/staircase.py",
+    "tools/step5d_autotune_v4_r008/optimizer.py",
+    "tools/step5d_autotune_v4_r008/optimizer_keepalive.py",
+    "tools/step5d_autotune_v4_r008/optimizer_timeout.py",
+    "tools/step5d_autotune_v4_r008/optimizer_worker_loop.py",
+    "tools/step5d_autotune_v4_r008/optimizer_worker_batched.py",
+    "tools/step5d_autotune_v4_r008/qlognei_compile.py",
+    "tools/step5d_autotune_v4_r008/bench_batched_qlognei.py",
+    "tools/step5d_autotune_v4_r008/live_adapter.py",
+    "tools/step5d_autotune_v4_r008/queue.py",
+    "config/step5d/autotune_v4_r008.json",
+    "config/step5d/autotune_v4_r008_domain.json",
+    "config/step5d/autotune_v4_r008_runtime_manifest.json"
+  ]
+}

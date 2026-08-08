@@ -7,15 +7,17 @@ Version:
   2026-08-01T1542HKT_STEP5D_AUTOTUNE_V4_R004
 
 Program-side step table:
-  P1 PLAY: capture campaign Home pose and q exactly once; stay READY_HOME_NEXT.
-  P2 ARM: consume one newer typed SessionCommand ARM and one logical ordinal.
-  P3 CONTACT: integrated negative-Z gentle acquisition, 0.0002 m/s,
-     0.005 m/s2, max 0.025 m or 90 s; no standalone search/canary.
+  P1 PLAY: bind the EOAT-specific fixed Home pose; stay READY_HOME_NEXT.
+  P2 ARM: consume one newer typed SessionCommand ARM and one logical ordinal,
+     then verify fixed Home position <=1 mm, orientation <=0.01 rad, and the
+     locked IK branch q <=0.02 rad. Failure reason 69 stops without auto-Home.
+  P3 CONTACT: integrated negative-Z acquisition at V3 near-field speed,
+     0.0002 m/s, 0.005 m/s2, max 0.025 m or 90 s; no standalone search/canary.
   P4 BASELINE: wait pre-latch <=20 s, then reset a separate post-latch
-     <=20 s force-acquisition timer after sticky 1 N is first observed.
+     <=30 s force-acquisition timer after sticky 1 N is first observed.
   P5 PATH: only after baseline counter >=3 and typed PATH; bounded 60 s.
-  P6 RETURN: successful attempts retract +Z >=5 mm, reach transfer floor
-     z >=0.062863519 m, maintain low-speed envelope, then descend to Home.
+  P6 RETURN: successful attempts retract +Z >=5 mm, transfer XY at the clear
+     height using V3 dynamics, then descend directly to the same fixed Home.
   P7 READY: echo epoch/ordinal/state/token/reason/consumed sequence/kind,
      return guard, and runtime identity digest; wait for the next ARM.
   P8 STOPPED: any abnormal stop or return failure stays stopped; no auto-Home.
@@ -33,30 +35,34 @@ Register wire:
   into two non-negative 31-bit limbs); session epoch is a separate output.
 
 Freshness and identity:
-  TP=500 Hz and writer=125 Hz. A newer sequence replaces an immutable packet
+  TP=500 Hz and writer uses a 500 Hz absolute-deadline scheduler. A newer sequence replaces an immutable packet
   cache. An equal sequence is reusable only when all 24 doubles and 9 integer
   fields are byte/field-identical. Changed equal payload, regression, or held
   age >=80 ms fails closed with reason 43. Script1 receipt max age is 120 s;
   controller readback receipt max age is 300 s and is session-invalidated by
   stop/load/restart. Script1 is byte-bound to the exact frozen r001 triplet.
 
-Campaign and ledger:
-  3 qualification + Batch A 5 + Batch B 5 + retest 3 = exactly 16 logical
-  attempts. Each row carries epoch, fresh execution id, controller receipt
-  SHA, Script1 receipt SHA, input baseline ledger SHA, and output ledger SHA.
-  Next ARM requires fsync, cold-read, and live hash-chain verification.
-  Interrupted execution IDs are never GP eligible; resume repeats the same
-  logical ordinal with a new execution id, new epoch, and Script1 receipt.
+Qualification-bound first PATH trial and ledger:
+  Only logical ordinal 4 with kind BATCH_A is live-enabled. It requires the
+  same durable ledger to contain contiguous successful qualification ordinals
+  1..3 with fsync, cold-read, and hash-chain verification. Ordinal 5 and later
+  are blocked by the host before RTDE write and by this TP package.
+  The ordinal-4 row carries epoch, fresh execution id, controller receipt SHA,
+  Script1 receipt SHA, qualification-ledger binding, and output ledger SHA.
+  PATH evidence requires genuine state 25, exactly 550 observed 100 ms bins,
+  four distinct writer/RTDE/Kunwei/TP rates each >=460 Hz, feedback age p99
+  <=10 ms, fresh gap <20 ms, Safety NORMAL, motion proof, contact, and guarded
+  return to Home.
 
-Acceptance/promotion:
-  550 bins, effective rate >=75 Hz, p99 interval <=20 ms, max interval <80 ms,
-  safety/contact/return gates all pass. Promotion requires >=2/3 retests,
-  MAE <=0.30 N, and candidate median objective <=0.95 anchor median; otherwise
-  complete without promotion and retain the anchor unchanged.
+Deferred later campaign:
+  The offline plan still specifies 3 qualification + Batch A 5 + Batch B 5 +
+  retest 3. This release enables only the first anchor PATH trial; ordinal 5+,
+  retest, and promotion remain disabled. No full-campaign readiness or
+  promotion is claimed by this package.
 
 Binding:
-  contract_sha256=174aa711b498ae37ed7605ffe4d164eecbeac78ab3d3bc017a4ad8257e246c95
-  campaign_fingerprint=05a0ed75dbe8e67916f6babebf1c266ee951262088179de59f44a157f173c186
+  contract_sha256=95e12fd30ec28da80f31ac113cdd9f4baa58a3883f865e4b7027a186742e3fc2
+  campaign_fingerprint=ea1dcb429af9824fb46ca47e9aa6dced5993b4e84d1a968a4c8d8b37ff33480b
   eoat_profile_sha256=1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4
   lineage=step5d_strict_rnn_autotune_v4, target_force_n=5.0, D=28.0
 

@@ -1,0 +1,52 @@
+{
+  "activation": {
+    "bug_register": [
+      "B1",
+      "B2",
+      "B3",
+      "B6"
+    ],
+    "default_route": "r006_unchanged",
+    "explicit_only": true,
+    "live_activation": true,
+    "live_route": {
+      "campaign_identity": "r006_unchanged",
+      "controller_package_reason": "r008 changes host-side domain/search/seams only; TP triplet bytes stay r006",
+      "controller_package_rotation": false,
+      "host_module": "run_step5d_autotune_v4_r008",
+      "launcher": "tools/launch_step5d_autotune_v4_r008_control.py",
+      "prepare_module": "prepare_step5d_autotune_v4_r006",
+      "r006_host_module_untouched": "run_step5d_autotune_v4_r006",
+      "release_contract": "config/step5d/autotune_v4_r006.json",
+      "requires_fresh_epoch": true,
+      "runtime_manifest": "config/step5d/autotune_v4_r008_runtime_manifest.json"
+    },
+    "path_controller_note": "B5: PATH mode discards path_controller normal_speed; force law is compute_step5d_outer_loop"
+  },
+  "domain_binding": {
+    "application_mae_threshold_n": 0.35,
+    "artifact_sha256": "7883e47f255af1ca02979936eb98dde78136d60017a5f7dbcaec2e57cb09aac0",
+    "path": "config/step5d/autotune_v4_r008_domain.json"
+  },
+  "lineage_id": "step5d_strict_rnn_autotune_v4_r008",
+  "parent_hashes": {
+    "config/step5d/autotune_v4_r006.json": "b16e692207c965d5cd0498bc615538dcc8de55e3949e69eb3561125cbeae6e93",
+    "config/step5d/autotune_v4_r007.json": "f2db519185c9612712f8b8c77e3e5b0ba9b0cec72d3309071053a8efd97b14c6",
+    "tools/step5d_autotune_v4_r004/calibrated_runtime.py": "666b27cbca447fb708e267192da8ed4a7af45d843498d95f771c84b1c7863571",
+    "tools/step5d_autotune_v4_r004/path_controller.py": "4f0c474d20affd61ebce2ae1f51ba6da5887dd525bc5da85c3d8d82452388ba5",
+    "tools/step5d_autotune_v4_r006/contracts.py": "72a78d212a8bd09db3b7ee0a101bcf569416b7e560af88e506c85aa79e20cb3d",
+    "tools/step5d_autotune_v4_r006/lattice.py": "d7a6a10f0f2ce6076b29248e06b0d047d62d040a65ff04ef391aa783924c13d3",
+    "tools/step5d_autotune_v4_r006/live_adapter.py": "981997fdaf6863fe4d74d919a053105e900e879003f066ce1ebf21b983612f0e",
+    "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08"
+  },
+  "parent_identity": {
+    "binding": "offline_read_only_parent",
+    "contract": "config/step5d/autotune_v4_r006.json",
+    "lineage": "step5d_strict_rnn_autotune_v4_r006",
+    "repair_parent": "config/step5d/autotune_v4_r007.json"
+  },
+  "r006_mutation": false,
+  "revision": 8,
+  "schema": "step5d.autotune-v4/r008-domain-repair-v1",
+  "version": "r008-domain-repair-v1"
+}

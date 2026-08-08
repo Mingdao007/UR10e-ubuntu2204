@@ -38,13 +38,15 @@ from .geometry_calibration import (
 NEAR_MARGIN_M = 0.0025
 MIN_D_NEAR_START_TRAVEL_M = 0.002
 V_NEAR_DEFAULT_M_S = 0.0005
-V_FAR_MULTIPLIER = 4.0
+# Allow v_far up to 10×v_near (0.005 with default near); still capped by v_far_cap / PLANNED_V_FAR_MAX.
+V_FAR_MULTIPLIER = 10.0
 WAVE1_V_FAR_REF_M_S = 0.0008
 WAVE1_FAR_ACCEL_REF_M_S2 = 0.05
 SPEED_EFFICIENCY = 0.8  # Wave1 reissue/ramp tax
-PLANNED_VERSION = "b3-geometry-planned-wave3-far-cap-v1"
+PLANNED_VERSION = "b3-geometry-planned-wave4-far005-v1"
 WAVE2_V_FAR_M_S = 0.0016  # Wave-2 observation FAR (archived)
-WAVE3_V_FAR_M_S = 0.002  # planner hard cap (PLANNED_V_FAR_MAX_M_S)
+WAVE3_V_FAR_M_S = 0.002  # Wave-3 archive FAR cap
+WAVE4_V_FAR_M_S = 0.005  # Wave4 FAR step (NEAR back to Wave3 0.0005; max still 0.006)
 MAX_FORCE_FUSE_N = 50.0
 DEFAULT_TIMEOUT_S = 90.0
 
@@ -100,7 +102,7 @@ def plan_contact_search_schedule(
     v_near_m_s: float = V_NEAR_DEFAULT_M_S,
     near_margin_m: float = NEAR_MARGIN_M,
     max_travel_m: float = MAX_TRAVEL_M,
-    v_far_cap_m_s: float = WAVE3_V_FAR_M_S,
+    v_far_cap_m_s: float = WAVE4_V_FAR_M_S,
 ) -> PlannedContactSearch:
     """Map sealed calibration Δz → FAR/NEAR schedule (speed-opt path)."""
 
@@ -177,8 +179,8 @@ def plan_contact_search_schedule(
         "confirm_hold_s": PLANNED_CONFIRM_HOLD_S,
         "notes": {
             "wave": (
-                "B3 Wave 3 — geometry-planned FAR at planner cap "
-                f"(v_far={v_far}), NEAR frozen at Wave1"
+                "B3 Wave 4 — geometry-planned FAR/NEAR "
+                f"(v_far={v_far}, v_near={v_near_m_s})"
             ),
             "d_near_start_travel_m": d_near_start,
             "delta_z_m": delta_z,
@@ -186,8 +188,8 @@ def plan_contact_search_schedule(
             "calibration_seal_sha256": calibration.seal_sha256,
             "calibration_provenance": calibration.provenance,
             "v_far_policy": (
-                f"capped at {v_far_cap_m_s} (Wave3 default {WAVE3_V_FAR_M_S}; "
-                f"Wave2 archive {WAVE2_V_FAR_M_S})"
+                f"capped at {v_far_cap_m_s} (Wave4 default {WAVE4_V_FAR_M_S}; "
+                f"Wave3 archive {WAVE3_V_FAR_M_S}; Wave2 archive {WAVE2_V_FAR_M_S})"
             ),
             "host_abs_normal_n_frozen": 60.0,
             "mainline_forbidden": "never resume into live_20260803_1113_stage_d / 1db4f9bf",
@@ -217,7 +219,8 @@ def plan_demo_from_delta_z(
     delta_z_m: float,
     *,
     provenance: str = "operator_sealed",
-    v_far_cap_m_s: float = WAVE3_V_FAR_M_S,
+    v_far_cap_m_s: float = WAVE4_V_FAR_M_S,
+    v_near_m_s: float = V_NEAR_DEFAULT_M_S,
 ) -> PlannedContactSearch:
     """Demo helper: seal a synthetic contact at home_z - delta_z (not disk-sealed)."""
 
@@ -253,7 +256,9 @@ def plan_demo_from_delta_z(
     except GeometryCalibrationError as exc:
         raise SchedulePlannerError(str(exc)) from exc
     return plan_contact_search_schedule(
-        calibration, v_far_cap_m_s=v_far_cap_m_s
+        calibration,
+        v_far_cap_m_s=v_far_cap_m_s,
+        v_near_m_s=v_near_m_s,
     )
 
 
@@ -266,6 +271,7 @@ __all__ = [
     "V_NEAR_DEFAULT_M_S",
     "WAVE2_V_FAR_M_S",
     "WAVE3_V_FAR_M_S",
+    "WAVE4_V_FAR_M_S",
     "plan_contact_search_schedule",
     "plan_demo_from_delta_z",
 ]

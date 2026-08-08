@@ -116,7 +116,13 @@ class ResidentSession:
     def observe_runtime(self, evidence: RuntimeIdentityEvidence) -> bool:
         return self.identity.observe_runtime(evidence)
 
-    def arm(self, request: ArmRequest, *, ledger_ready: bool) -> SessionOutput:
+    def arm(
+        self,
+        request: ArmRequest,
+        *,
+        ledger_ready: bool,
+        allow_unbounded: bool = False,
+    ) -> SessionOutput:
         if self.phase is not SessionPhase.READY_HOME_NEXT:
             raise SessionProtocolError("ARM is only accepted in READY_HOME_NEXT")
         if request.command is not SessionCommand.ARM:
@@ -125,8 +131,16 @@ class ResidentSession:
             raise SessionProtocolError("session command sequence is not strictly newer")
         if request.session_epoch != self.epoch:
             raise SessionProtocolError("ARM session epoch differs")
-        if not 1 <= request.logical_attempt_ordinal <= MAX_ATTEMPTS:
-            raise SessionProtocolError("ARM ordinal is outside the 16-attempt plan")
+        if not isinstance(allow_unbounded, bool):
+            raise SessionProtocolError("unbounded ARM policy is not typed")
+        if request.logical_attempt_ordinal <= 0 or (
+            not allow_unbounded and request.logical_attempt_ordinal > MAX_ATTEMPTS
+        ):
+            raise SessionProtocolError(
+                "ARM ordinal is invalid"
+                if allow_unbounded
+                else "ARM ordinal is outside the 16-attempt plan"
+            )
         if request.candidate_token <= 0:
             raise SessionProtocolError("ARM candidate token is invalid")
         if not ledger_ready:

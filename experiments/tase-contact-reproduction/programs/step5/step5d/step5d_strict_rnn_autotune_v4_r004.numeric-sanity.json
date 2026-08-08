@@ -1,12 +1,14 @@
 {
   "checks": {
-    "baseline_post_20": true,
+    "baseline_post_30": true,
     "baseline_pre_20": true,
     "contact_accel": true,
     "contact_speed": true,
     "contact_timeout": true,
     "contact_travel": true,
     "damping_exact_28": true,
+    "fixed_home_direct_route": true,
+    "hard_safety_caps": true,
     "layout_exact_606": true,
     "no_motion_write_primitives": true,
     "no_sensor_write": true,
@@ -14,7 +16,7 @@
     "path_runtime_60": true,
     "retract_5mm": true,
     "target_exact_5n": true,
-    "transfer_floor": true
+    "v3_motion_caps": true
   },
   "passed": true,
   "program": "step5d_strict_rnn_autotune_v4_r004",

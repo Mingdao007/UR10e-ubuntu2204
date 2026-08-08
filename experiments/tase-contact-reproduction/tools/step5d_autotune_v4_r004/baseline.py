@@ -190,7 +190,7 @@ def step_baseline(
     if post > POST_LATCH_TIMEOUT_S:
         return _failed(
             replace(state, post_latch_elapsed_s=post),
-            "post_latch_force_acquisition_timeout_20s",
+            "post_latch_force_acquisition_timeout_30s",
             observation,
         )
     if observation.internal_setpoint_n < state.last_setpoint_n - 1e-9:

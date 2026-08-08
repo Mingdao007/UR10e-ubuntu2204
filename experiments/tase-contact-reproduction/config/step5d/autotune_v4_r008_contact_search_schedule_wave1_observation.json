@@ -1,0 +1,25 @@
+{
+  "schema": "step5d.autotune-v4/r008-contact-search-schedule-v1",
+  "version": "b3-wave1-observation-v1",
+  "program": "step5d_strict_rnn_autotune_v4_r008_b3_two_stage",
+  "parent_campaign_fingerprint": "1db4f9bf587826e7562dccef7040f627e660e540f847a2e8b92f63879870cc4a",
+  "max_travel_m": 0.025,
+  "timeout_s": 90.0,
+  "v_far_m_s": 0.0008,
+  "v_near_m_s": 0.0005,
+  "far_acceleration_m_s2": 0.05,
+  "near_acceleration_m_s2": 0.005,
+  "d_near_m": 0.0215,
+  "F_far_n": 0.3,
+  "force_fuse_n": 50.0,
+  "force_fuse_reason": 75,
+  "confirm_normal_n": 0.5,
+  "confirm_force_norm_n": 0.7,
+  "confirm_hold_s": 0.08,
+  "notes": {
+    "wave": "B3 Wave 1 — conservative placeholder / observation wave (NOT speed-optimization)",
+    "d_near_start_travel_m": "0.0035 (= max_travel_m - d_near_m = 0.025 - 0.0215)",
+    "prior_failed_canary": "eb48e895… (v_far=0.005) hard_abs_normal_60n at CONTACT_SEARCH_START",
+    "mainline_forbidden": "never resume into live_20260803_1113_stage_d / 1db4f9bf"
+  }
+}

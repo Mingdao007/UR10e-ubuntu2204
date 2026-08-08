@@ -20,7 +20,9 @@ from .contracts import (
     assert_target,
     load_contract,
 )
+from .evidence import AttemptEvidence
 from .ledger import DurableCampaignLedger, LedgerError, sha256_mapping, verify_ledger_hash_chain
+from .timing import MIN_SUCCESS_RATE_HZ, TimingError, TimingEvidence
 from .wire import AttemptKind
 
 
@@ -60,13 +62,22 @@ class AttemptOutcome:
     contact_gate_passed: bool = True
     return_gate_passed: bool = True
     complete_bins: int = 550
-    effective_rate_hz: float = 100.0
-    p99_packet_interval_s: float = 0.010
-    max_packet_interval_s: float = 0.020
+    effective_rate_hz: float = 500.0
+    p99_packet_interval_s: float = 0.002
+    max_packet_interval_s: float = 0.010
     mae_n: float | None = None
     objective: float | None = None
     reason: str = ""
     metrics: Mapping[str, Any] = field(default_factory=dict)
+    motion_gate_passed: bool = False
+    timing_evidence: TimingEvidence | Mapping[str, Any] | None = None
+    path_duration_s: float | None = None
+    path_phase: int | None = None
+    xy_error_p95_m: float | None = None
+    xy_error_max_m: float | None = None
+    endpoint_error_max_m: float | None = None
+    qd_correlation: float | None = None
+    qd_lag_s: float | None = None
 
     def __post_init__(self) -> None:
         if self.status not in {"completed", "interrupted", "failed"}:
@@ -84,6 +95,22 @@ class AttemptOutcome:
             raise CampaignError("outcome MAE is invalid")
         if self.objective is not None and (not math.isfinite(float(self.objective)) or self.objective < 0.0):
             raise CampaignError("outcome objective is invalid")
+        if not isinstance(self.motion_gate_passed, bool):
+            raise CampaignError("outcome motion gate must be bool")
+        for role, value in (
+            ("path_duration_s", self.path_duration_s),
+            ("xy_error_p95_m", self.xy_error_p95_m),
+            ("xy_error_max_m", self.xy_error_max_m),
+            ("endpoint_error_max_m", self.endpoint_error_max_m),
+            ("qd_correlation", self.qd_correlation),
+            ("qd_lag_s", self.qd_lag_s),
+        ):
+            if value is not None and (not math.isfinite(float(value)) or float(value) < 0.0):
+                raise CampaignError(f"outcome {role} is invalid")
+        if self.qd_correlation is not None and self.qd_correlation > 1.0:
+            raise CampaignError("outcome qd correlation is invalid")
+        if self.timing_evidence is not None and not isinstance(self.timing_evidence, (TimingEvidence, Mapping)):
+            raise CampaignError("outcome timing evidence is not typed")
 
     def completion_sha256(self, attempt: Attempt) -> str:
         return sha256_mapping(
@@ -159,6 +186,45 @@ def _valid_attempt_evidence(row: Mapping[str, Any]) -> bool:
         max_packet_interval_s = float(row.get("max_packet_interval_s", 1.0))
     except (TypeError, ValueError, OverflowError):
         return False
+    raw_timing = row.get("timing_evidence")
+    if raw_timing is None and isinstance(row.get("metrics"), Mapping):
+        raw_timing = row["metrics"].get("timing_evidence")
+    if isinstance(raw_timing, TimingEvidence):
+        timing_passed = raw_timing.successful
+    elif isinstance(raw_timing, Mapping):
+        try:
+            timing_passed = TimingEvidence.from_mapping(raw_timing).successful
+        except (TimingError, TypeError, ValueError):
+            timing_passed = False
+    else:
+        timing_passed = False
+    motion_passed = row.get("motion_gate_passed") is True
+    path_values = {
+        "path_duration_s": row.get("path_duration_s"),
+        "path_phase": row.get("path_phase"),
+        "xy_error_p95_m": row.get("xy_error_p95_m"),
+        "xy_error_max_m": row.get("xy_error_max_m"),
+        "endpoint_error_max_m": row.get("endpoint_error_max_m"),
+        "qd_correlation": row.get("qd_correlation"),
+        "qd_lag_s": row.get("qd_lag_s"),
+    }
+    if isinstance(row.get("metrics"), Mapping):
+        path_values = {
+            key: value if value is not None else row["metrics"].get(key)
+            for key, value in path_values.items()
+        }
+    try:
+        path_passed = bool(
+            float(path_values["path_duration_s"]) >= 60.0
+            and path_values["path_phase"] == 6
+            and float(path_values["xy_error_p95_m"]) <= 0.0005
+            and float(path_values["xy_error_max_m"]) <= 0.001
+            and float(path_values["endpoint_error_max_m"]) <= 0.001
+            and float(path_values["qd_correlation"]) >= 0.9
+            and float(path_values["qd_lag_s"]) <= 0.020
+        )
+    except (TypeError, ValueError, OverflowError):
+        path_passed = False
     return bool(
         row.get("completed") is True
         and row.get("status", "completed") == "completed"
@@ -166,12 +232,15 @@ def _valid_attempt_evidence(row: Mapping[str, Any]) -> bool:
         and math.isfinite(effective_rate_hz)
         and math.isfinite(p99_packet_interval_s)
         and math.isfinite(max_packet_interval_s)
-        and effective_rate_hz >= 75.0
+        and effective_rate_hz >= MIN_SUCCESS_RATE_HZ
         and p99_packet_interval_s <= 0.020
         and max_packet_interval_s < 0.080
         and row.get("safety_gate_passed") is True
         and row.get("contact_gate_passed") is True
         and row.get("return_gate_passed") is True
+        and motion_passed
+        and path_passed
+        and timing_passed
         and row.get("gp_eligible") is True
     )
 
@@ -257,6 +326,15 @@ class CampaignRunner:
                     "safety_gate_passed": outcome.safety_gate_passed,
                     "contact_gate_passed": outcome.contact_gate_passed,
                     "return_gate_passed": outcome.return_gate_passed,
+                    "motion_gate_passed": outcome.motion_gate_passed,
+                    "timing_evidence": outcome.timing_evidence,
+                    "path_duration_s": outcome.path_duration_s,
+                    "path_phase": outcome.path_phase,
+                    "xy_error_p95_m": outcome.xy_error_p95_m,
+                    "xy_error_max_m": outcome.xy_error_max_m,
+                    "endpoint_error_max_m": outcome.endpoint_error_max_m,
+                    "qd_correlation": outcome.qd_correlation,
+                    "qd_lag_s": outcome.qd_lag_s,
                     "gp_eligible": True,
                 }
             )
@@ -292,11 +370,25 @@ class CampaignRunner:
                 "mae_n": outcome.mae_n,
                 "objective": outcome.objective,
                 "reason": outcome.reason,
+                "motion_gate_passed": outcome.motion_gate_passed,
+                "path_duration_s": outcome.path_duration_s,
+                "path_phase": outcome.path_phase,
+                "xy_error_p95_m": outcome.xy_error_p95_m,
+                "xy_error_max_m": outcome.xy_error_max_m,
+                "endpoint_error_max_m": outcome.endpoint_error_max_m,
+                "qd_correlation": outcome.qd_correlation,
+                "qd_lag_s": outcome.qd_lag_s,
+                "timing_evidence": (
+                    outcome.timing_evidence.as_dict()
+                    if isinstance(outcome.timing_evidence, TimingEvidence)
+                    else outcome.timing_evidence
+                ),
                 "gp_eligible": bool(attempt.phase != "QUALIFICATION" and completed_evidence and outcome.status == "completed" and not outcome.reason),
                 "output_seal": {"completion_sha256": outcome.completion_sha256(attempt)},
-                "durable_row": True,
-                "durability": {"fsynced": True, "cold_read": True, "hash_verified": True},
+                "metrics": dict(outcome.metrics),
             }
+            if isinstance(outcome.timing_evidence, TimingEvidence):
+                row["metrics"]["timing_evidence"] = outcome.timing_evidence.as_dict()
             receipt = self.ledger.append_attempt(row)
             if not receipt.ready_for_next_arm:
                 raise CampaignError("durability receipt is not ready for next ARM")

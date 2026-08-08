@@ -1,0 +1,52 @@
+Step5d independent new-EOAT 5 N Autotune V4 r005 resident host/TP loop
+
+Controller target:
+  /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r005.urp
+
+Version:
+  2026-08-02T1200HKT_STEP5D_AUTOTUNE_V4_R005
+
+Campaign lifecycle:
+  HOME -> dispatch -> ARM -> bounded 60 s attempt -> safe return -> durable
+  sealed observation/tell -> sequential refill -> next ARM.  TP remains
+  resident at READY_HOME_NEXT and accepts positive monotonically increasing
+  attempt sequences without a 1..16 bound.
+
+Campaign bootstrap:
+  Start a fresh r005 epoch, pass three fresh qualifications, then run the
+  existing ten-row P/D bootstrap.  The immutable target is 5 N and D=28 is
+  only the incumbent anchor.  After bootstrap the full named domain is
+  P,D,tau,I_on_log2,I_off,Ko,Kp on a bounded 0.25-octave lattice.
+
+Optimizer and queue:
+  V4 maps named coordinates through the V3 durable queue and CUDA qLogNEI
+  adapter.  One physical dispatch is inflight; at most two rows are pending.
+  X_pending includes both pending rows, observed/pending duplicate candidates
+  are excluded, and no degraded/local optimizer fallback exists.  Every
+  proposal changes at most one physical coordinate by at most 0.25 octave.
+
+Evidence and timing:
+  Safe returned but nontrainable rows are sealed and durably excluded while
+  the loop continues.  Binding, sequence, alignment, safety, or return faults
+  stop and revoke authority. qdot and actual_qd share packet sequence, RTDE
+  sequence, and timestamp binding. Absolute-deadline pacing is 500 Hz and the
+  writer/RTDE/Kunwei/TP gates are distinct and each >=460 Hz.
+
+Completion:
+  An eligible MAE <=0.20 N cancels queued pending rows durably and starts
+  three incumbent retests. Completion requires >=2/3 retests <=0.20 N, all
+  motion/timing/contact/return/identity gates, and a retest median at least 5%
+  better than the bootstrap anchor median. Failed retests return to BO; there
+  is no trial-count limit. Domain exhaustion, operator stop, or hard fault is
+  incomplete.
+
+Resume and claim boundary:
+  Resume performs fresh-process cold-read hash-chain verification. r004
+  qualifications are audit-only and never imported. This is an offline source
+  and package build: no upload, read-back, Load, Play, ARM, bridge, motion,
+  contact, zero, tare, sensor write, network, or live evidence is present.
+
+Binding:
+  contract_sha256=4a27c14d8b1c5c5e0a276311e37eb2d5c6d427295b8e8b0a7de08995964ce889
+  campaign_fingerprint=72122a8c756a13bd445e9ac05c38e03ffe179f294e38b8a40b0ecfb737ea5b08
+  target_force_n=5.0; anchor_D=28.0

@@ -115,12 +115,17 @@ class CandidateTickLog:
 
 @dataclass
 class V4PathController:
-    """Consumes every tunable and produces proposed qdot for the Jacobian gate."""
+    """Consumes every tunable and produces proposed qdot for the Jacobian gate.
+
+    Normal damping matches greybox velocity form.  Live PATH publishes paper
+    outer-loop ``Bd`` via calibrated_runtime (not this proposed_qdot).
+    """
 
     candidate: V4Candidate
     filtered_normal_n: float = 0.0
     integral_error_n_s: float = 0.0
     _initialized: bool = False
+    _normal_velocity_m_s: float = 0.0
     last_log: CandidateTickLog | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -172,21 +177,22 @@ class V4PathController:
             )
         terms = derive_force_terms(self.candidate)
         force_error = float(setpoint_n) - self.filtered_normal_n
-        self.integral_error_n_s += force_error * float(actual_dt_s) * (
+        dt = float(actual_dt_s)
+        self.integral_error_n_s += force_error * dt * (
             0.0 if self.candidate.force_i_gain == 0.0 else 1.0
         )
         # Positive force error means pressing farther into a horizontal surface.
-        # The integrated search establishes contact by moving base -Z, so the
-        # same sign convention must be retained by the baseline/path controller.
-        normal_speed = (
-            self.candidate.force_p_gain * force_error
-            + self.candidate.force_i_gain * self.integral_error_n_s
-        )
-        # Damping enters through Bd = D/P as a velocity penalty once filtered.
-        normal_speed -= (terms["Bd"] * terms["P"]) * 0.0  # Bd consumed via terms
+        # Greybox/reconstruct velocity damping (D = force_damping = Bd·P).
+        if mode in {"hold", "retract", "stop"}:
+            self._normal_velocity_m_s = 0.0
+            normal_speed = 0.0
+        else:
+            drive = force_error + terms["kf"] * self.integral_error_n_s
+            self._normal_velocity_m_s = self._normal_velocity_m_s * (
+                1.0 - dt * float(self.candidate.force_damping)
+            ) + dt * float(self.candidate.force_p_gain) * drive
+            normal_speed = float(self._normal_velocity_m_s)
         normal_speed = max(-0.0005, min(0.0005, normal_speed))
-        # Explicit Bd consumption in the logged derived terms and in path mode
-        # velocity shaping below keeps the field from being transport-only.
         if mode == "baseline":
             # Pure-normal qdot proposal; XY/angular remain identically zero.
             proposed = (0.0, 0.0, -normal_speed, 0.0, 0.0, 0.0)
@@ -197,15 +203,10 @@ class V4PathController:
             wx = self.candidate.orientation_ko * float(orientation_error_rad[0])
             wy = self.candidate.orientation_ko * float(orientation_error_rad[1])
             wz = self.candidate.orientation_ko * float(orientation_error_rad[2])
-            # Bd damps the normal channel in path mode.
-            damped_normal = normal_speed - math.copysign(
-                min(abs(normal_speed) * (terms["Bd"] / max(terms["Md"], 1.0)) * 1e-6, abs(normal_speed)),
-                normal_speed,
-            ) if abs(normal_speed) > 0.0 else 0.0
             proposed = (
                 max(-0.00035, min(0.00035, tx)),
                 max(-0.00035, min(0.00035, ty)),
-                max(-0.00035, min(0.00035, -damped_normal)),
+                max(-0.00035, min(0.00035, -normal_speed)),
                 max(-0.05, min(0.05, wx)),
                 max(-0.05, min(0.05, wy)),
                 max(-0.05, min(0.05, wz)),

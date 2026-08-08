@@ -1,0 +1,32 @@
+{
+  "artifacts": {
+    "numeric-sanity.json": {
+      "path": "step5d_strict_rnn_autotune_v4_r008_b3_two_stage.numeric-sanity.json",
+      "sha256": "96e2f3cf5ea655ab98844953176bb4fba635722509c36a957133cda125b33f72"
+    },
+    "script": {
+      "path": "step5d_strict_rnn_autotune_v4_r008_b3_two_stage.script",
+      "sha256": "17be0b240132e7dbcf93649684f897f42848e489737322d8feb7fdeeb77dbaf8"
+    },
+    "txt": {
+      "path": "step5d_strict_rnn_autotune_v4_r008_b3_two_stage.txt",
+      "sha256": "d979097d188fd8e192e10800c96c0ffc3865f382f793bfc5e2810f7d33a29618"
+    },
+    "urp": {
+      "path": "step5d_strict_rnn_autotune_v4_r008_b3_two_stage.urp",
+      "sha256": "61659550bc507599ada28a97f62a21158ba290305128091ed548d8b81d41eefb"
+    }
+  },
+  "campaign_fingerprint": "b461ed52f69d2ab11c41a252898e88122b5c1dcacc21ba102222e1a9e7250f8b",
+  "contract_sha256": "89d75ea389018015feb71ec66258e66d8a2abbbc003f4765e2fba3fe315cb4f7",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_readback": false,
+  "controller_upload": false,
+  "live_evidence": false,
+  "overwrites_mainline_r006": false,
+  "parent_mainline_fingerprint": "1db4f9bf587826e7562dccef7040f627e660e540f847a2e8b92f63879870cc4a",
+  "program": "step5d_strict_rnn_autotune_v4_r008_b3_two_stage",
+  "same_basename_triplet": true,
+  "schema": "step5d.autotune-v4/r008-b3-two-stage-deploy-manifest-v1",
+  "timestamp": "2026-08-07T0152HKT_STEP5D_AUTOTUNE_V4_R008_B3_TWO_STAGE"
+}

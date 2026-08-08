@@ -59,8 +59,16 @@ def propose_candidates(
     *,
     count: int = CANDIDATE_SOBOL,
     seed: int = 8,
+    include_kf_off_fraction: float = 0.15,
+    pin_tau: bool = True,
 ) -> tuple[ParameterPoint, ...]:
-    points = scrambled_sobol(box, count=count, seed=seed)
+    points = scrambled_sobol(
+        box,
+        count=count,
+        seed=seed,
+        include_kf_off_fraction=include_kf_off_fraction,
+        pin_tau=pin_tau,
+    )
     return tuple(point.to_parameter_point() for point in points)
 
 

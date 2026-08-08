@@ -1,9 +1,9 @@
-"""Robot body truth — EE/TP kinematics vs host/dashboard claims.
+"""Robot body truth — EE/TP kinematics vs host/dashboard claims (teller machine).
 
 Bottom-up primitive: sample + classify whether the arm is actually moving.
-Does **not** drive motion, seal, or canary policy. Prefer ``--run-dir`` while
-a live writer owns RTDE; ``sample_direct`` opens a second recipe and can fight
-the host.
+Cashier/finance roles: see ``cashier_finance.py``. Does **not** drive motion,
+seal, or canary policy. Prefer ``--run-dir`` while a live writer owns RTDE;
+``sample_direct`` opens a second recipe and can fight the host.
 
 Agent contract: never treat Dashboard PLAYING / host phase marks alone as
 proof of motion.
@@ -459,27 +459,29 @@ def _host_claim_from_run_dir(run_dir: Path) -> tuple[str | None, int | None]:
                 last_phase = str(marks)
             elif row.get("attempt_kind"):
                 last_phase = str(row.get("attempt_kind"))
-    # Peek host.log tail; pick the chronologically last known phase token.
+    # Peek host.log tail; pick the chronologically last known phase mark.
+    # Match "PHASE:t+" / "_START" forms so "R008_ASYNC_SEAL:..." does not steal SEAL.
     host_log = run_dir / "host.log"
     if host_log.is_file():
         text = host_log.read_text(encoding="utf-8", errors="replace")[-8000:]
-        tokens = (
-            "CONTACT_SEARCH",
-            "STAGE25",
-            "SAFE_RETURN",
-            "DISPATCH",
-            "ARM",
-            "HOME",
-            "QUEUE_COMPLETE",
-            "SEAL",
+        needles = (
+            ("CONTACT_SEARCH", ("CONTACT_SEARCH_START", "CONTACT_SEARCH:t+")),
+            ("STAGE25", ("STAGE25_START", "STAGE25:t+")),
+            ("SAFE_RETURN", ("SAFE_RETURN:t+", "SAFE_RETURN")),
+            ("DISPATCH", ("DISPATCH:t+",)),
+            ("ARM", ("ARM:t+",)),
+            ("HOME", ("HOME:t+",)),
+            ("QUEUE_COMPLETE", ("QUEUE_COMPLETE:t+", "QUEUE_COMPLETE")),
+            ("SEAL", ("SEAL:t+",)),
         )
         best_idx = -1
         best_token: str | None = None
-        for token in tokens:
-            idx = text.rfind(token)
-            if idx > best_idx:
-                best_idx = idx
-                best_token = token
+        for token, forms in needles:
+            for form in forms:
+                idx = text.rfind(form)
+                if idx > best_idx:
+                    best_idx = idx
+                    best_token = token
         if best_token is not None:
             last_phase = best_token
     return last_phase, path_rows if path_rows else None

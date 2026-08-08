@@ -129,6 +129,15 @@ def production_runtime_environment(
     contract = load_runtime_contract()
     profile_row = pointer["profiles"][profile]
     profile_root = Path(profile_row["root"])
+    abi = ".".join(str(contract["python"]["version"]).split(".")[:2])
+    profile_site = profile_root / "lib" / f"python{abi}" / "site-packages"
+    profile_python_paths = _python_paths(profile, contract)
+    # The promoted runtime may expose its managed interpreter as a symlink to
+    # the host ABI while keeping the immutable wheel tree under the promoted
+    # profile root.  Bind that tree explicitly; never rely on user-site or a
+    # system installation to satisfy CUDA dependencies.
+    if profile_site.is_dir() and not profile_site.is_symlink():
+        profile_python_paths.insert(0, profile_site)
     environment = {
         name: source[name]
         for name in PASSTHROUGH_KEYS
@@ -143,7 +152,7 @@ def production_runtime_environment(
             "CUDA_VISIBLE_DEVICES": contract["gpu"]["uuid"],
             "PATH": f"{profile_root / 'bin'}:/usr/bin:/bin",
             "PYTHONPATH": os.pathsep.join(
-                str(path) for path in _python_paths(profile, contract)
+                str(path) for path in profile_python_paths
             ),
             "STEP5D_V3_CONTROL_ENVIRONMENT_ID": pointer["profiles"]["control"][
                 "environment_id"

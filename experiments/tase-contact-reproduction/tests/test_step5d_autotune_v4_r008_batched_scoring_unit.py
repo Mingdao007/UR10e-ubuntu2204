@@ -40,7 +40,7 @@ def _build_acquisition(n_train: int = 12, n_choices: int = 16, seed: int = 7):
     from botorch.models import SingleTaskGP
     from gpytorch.likelihoods import FixedNoiseGaussianLikelihood
 
-    from step5d_autotune_v4_r006.optimizer_worker import _features
+    from step5d_autotune_v4_r008.optimizer import feature_map_r008 as _features
 
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -49,7 +49,7 @@ def _build_acquisition(n_train: int = 12, n_choices: int = 16, seed: int = 7):
     choices = tuple(_point(i) for i in range(100, 100 + n_choices))
     train_x = torch.tensor([_features(p) for p in train_points], dtype=torch.double, device=device)
     train_y = torch.linspace(0.5, 2.0, n_train, dtype=torch.double, device=device).unsqueeze(-1)
-    train_yvar = torch.full_like(train_y, 1.0e-4)
+    train_yvar = torch.full_like(train_y, 2.5e-5)
 
     class ConditionalMatern52Kernel(gpytorch.kernels.Kernel):
         has_lengthscale = True
@@ -92,7 +92,7 @@ def _build_acquisition(n_train: int = 12, n_choices: int = 16, seed: int = 7):
 
 
 def _score_sequential(acquisition, choices, q: int, device, torch_mod):
-    from step5d_autotune_v4_r006.optimizer_worker import _features
+    from step5d_autotune_v4_r008.optimizer import feature_map_r008 as _features
 
     scored = []
     with torch_mod.no_grad():

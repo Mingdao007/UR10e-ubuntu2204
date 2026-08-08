@@ -17,6 +17,9 @@ QUALIFICATION releases the gate immediately (no PATH / no STAGE25).
 Ledger appends remain strictly ordered by attempt_sequence (FIFO worker).
 
 Do not widen PACKET_STALE_S (80 ms) to hide seal cost — that would need ~15–35 s.
+
+Full async contract (authority, ask no-join, joins, closed non-goals):
+``docs/r008_async_seal_contract.md``.
 """
 
 from __future__ import annotations
@@ -39,6 +42,7 @@ _PATH60_HOLD_KINDS = frozenset(
         "STAIRCASE",
         "SPACEFILL",
         "BO",
+        "BO_TRIAL",  # live enqueue/submit kind (≠ phase synonym "BO")
         "RETEST",
     }
 )

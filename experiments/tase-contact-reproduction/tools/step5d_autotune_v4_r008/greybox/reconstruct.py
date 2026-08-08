@@ -27,6 +27,7 @@ import numpy as np
 
 from step5d_force_objective import ForceObjectiveError, ForcePathSample
 from step5d_autotune_v4_r004.path_controller import derive_force_terms
+from step5d_autotune_v4_r008.controller_seam import IntegralLimitCoordinate
 from step5d_paper_outer_loop import (
     Step5dOuterLoopConfig,
     Step5dOuterLoopInputs,
@@ -42,8 +43,9 @@ class GreyboxError(ValueError):
 
 #: r004 hard-wires this reaction normal in ``calibrated_runtime.desired_twist``.
 REACTION_NORMAL_BASE: tuple[float, float, float] = (0.0, 0.0, 1.0)
-#: ``calibrated_runtime`` passes this literal to the outer loop on every tick.
-FORCE_INTEGRAL_LIMIT_N_S = 1.0
+#: Live r008 wires ``IntegralLimitCoordinate`` into desired_twist; keep greybox
+#: reconstruct/plant defaults aligned with that production seam (default 5.0).
+FORCE_INTEGRAL_LIMIT_N_S = float(IntegralLimitCoordinate().force_integral_limit_n_s)
 #: A representative in-contact pose from the r006 post-stop preflight.  Only
 #: the rotation matters here, and only to exercise the production projectors;
 #: the normal channel is invariant to it (see the verification below).

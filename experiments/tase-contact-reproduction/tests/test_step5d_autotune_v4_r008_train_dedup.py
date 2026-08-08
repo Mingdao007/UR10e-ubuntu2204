@@ -13,7 +13,7 @@ same night.
 
 This bounds the GP's actual training set to one row per unique feature
 vector (mean objective across repeats; noise variance from the empirical
-between-repeat spread, floored at the fixed 1e-4 measurement-noise
+between-repeat spread, floored at the fixed 2.5e-5 measurement-noise
 estimate) before constructing train_x/train_y/train_yvar. It only touches
 ``tools/step5d_autotune_v4_r008/optimizer_worker_batched.py`` (r008-owned);
 the frozen r006 oracle worker is untouched and still trains on raw
@@ -126,9 +126,11 @@ def _binding_with_repeats(tmp_path: Path) -> tuple[dict[str, Any], list[tuple[Pa
             receipt, epoch=1, candidate_uid=point.uid, kind="ANCHOR", point_key=list(point.key)
         )
     rows = sidecar.sidecar.fresh_process_verify()
+    sidecar_data = sidecar.sidecar.path.read_bytes()
     binding = {
         "sidecar_path": str(sidecar.sidecar.path.resolve(strict=True)),
-        "sidecar_sha256": hashlib.sha256(sidecar.sidecar.path.read_bytes()).hexdigest(),
+        "sidecar_sha256": hashlib.sha256(sidecar_data).hexdigest(),
+        "sidecar_prefix_bytes": len(sidecar_data),
         "campaign_fingerprint": contract.campaign_fingerprint,
         "rows": [
             {"attempt_sequence": int(r["attempt_sequence"]), "execution_id": str(r["execution_id"])}

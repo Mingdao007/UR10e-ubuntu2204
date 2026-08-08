@@ -25,7 +25,9 @@
       "step5d_strict_rnn_no_contact_p0_v7",
       "step5d_strict_rnn_ablation_v34",
       "step5d_strict_rnn_ablation_v35",
-      "step5d_strict_rnn_autotune_v3"
+      "step5d_strict_rnn_autotune_v3",
+      "step5d_strict_rnn_autotune_v4_r005",
+      "step5d_strict_rnn_autotune_v4_r006"
     ],
     "cache_policy": {
       "fingerprint_fields": [
@@ -11210,158 +11212,295 @@
       "current_binding": {
         "is_current": false,
         "stage_id": "step5d_strict_rnn_autotune_v4",
-        "program": "step5d_strict_rnn_autotune_v4_r004",
-        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r004.urp",
-        "current_stage_pointer": "config/step5d/lineage_selector_v4_r004.json"
+        "program": "step5d_strict_rnn_autotune_v4_r002",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r002.urp",
+        "current_stage_pointer": "config/step5d/lineage_selector.json"
       },
       "source_binding": {
-        "release_contract": "config/step5d/autotune_v4_r004.json",
-        "live_writer_contract": "config/step5d/autotune_v4_live_writer_r004.json",
-        "baseline_genesis": "config/step5d/autotune_v4_r004_baseline_ledger_genesis.json",
+        "release_contract": "config/step5d/autotune_v4_r002.json",
         "eoat_profile": "config/step5d/eoat_profile_new_v4.json",
-        "script1": "programs/step5/step5d/step5d_autotune_start_hover_r001",
-        "script2": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r004",
-        "wire_contract": "tools/step5d_autotune_v4_r004/wire.py",
-        "resident_tp": "tools/step5d_autotune_v4_r004/tp.py",
-        "writer": "tools/step5d_autotune_v4_r004_live_writer.py",
-        "campaign": "tools/run_step5d_autotune_v4_r004_campaign.py",
-        "ledger_verifier": "tools/step5d_autotune_v4_r004/ledger.py:verify_ledger_hash_chain",
-        "offline_closure": "config/step5d/autotune_v4_r004_offline_closure.json",
-        "canonical_authority": "tools/step5d_bridge_authority.py",
-        "canonical_rtde_client": "tools/step5d_autotune_v4_live_writer.py:WritableRTDEClient",
-        "canonical_kunwei_stream": "tools/step5d_autotune_v4_live_writer.py:LiveKunweiTransport",
-        "dashboard_actions_in_writer": false
+        "wire_contract": "config/step5d/autotune_v4_wire_v2.json",
+        "policy_composition": "tools/step5d_autotune_v4/policies.py",
+        "baseline_qualification_owner": "tools/step5d_autotune_v4/baseline_ledger.py",
+        "force_search_core": "tools/step5d_force_search_core.py"
       },
       "package_delivery": {
-        "state": "local triplet built; controller delivery forbidden in this task",
-        "controller_readback_receipt": null,
-        "script_sha256": "102aa8c4619f9ed2c3899ed3e32a7b6034a2d277b6fe4f844bfc8c97814b19f5",
-        "txt_sha256": "13fc2872337c2be16b549eb65c486c0d8c6fb18077589be4b7f04edad3e9b8e6",
-        "urp_sha256": "c1ab24bbd35e39b7708aa2cd2a6b700b19b1d419aef977995ce75366a18cdcaf",
-        "numeric_sanity": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r004.numeric-sanity.json",
-        "deploy_manifest": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r004.deploy-manifest.json",
-        "controller_upload": false,
-        "controller_readback_verified": false,
+        "state": "controller read-back verified",
+        "receipt": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r002.controller-readback-receipt.json",
+        "script_sha256": "f7d103ff3fb264658789227e8484d0596632e995fa4081e76455fdbcb119fb98",
+        "txt_sha256": "1b390c203605474797e8b6359c906e0a990bb749ced8c85bad9d503197072df5",
+        "urp_sha256": "2e4036b74ecabc3ed1e6beaca3a93d064894a70f1c4295efedf226c5e1900c08",
         "load_or_play_performed": false
       },
       "operator_lifecycle": {
-        "route": "offline_source_closure_only",
-        "autotune_route_fixed": "Remote_when_live_gates_are_reopened",
-        "play_captures_home_once": true,
-        "script1_initial_or_recovery_only": true,
-        "resident_rolling_arm_loop": true,
-        "fault_stays_stopped_no_auto_home": true,
+        "route": "remote_control_only",
+        "autotune_route_fixed": "Remote",
+        "load_or_play_now": false,
         "current_v3_remains_available": true,
-        "v4_r003_bytes_remain_frozen": true
-      },
-      "wire": {
-        "schema": "step5d.autotune-v4/register-wire-v3",
-        "layout_tag": 606,
-        "input_integer_registers": {
-          "24": "baseline_consecutive_successes",
-          "25": "command_mode",
-          "26": "sticky_one_newton_latched",
-          "27": "session_command",
-          "28": "session_command_sequence",
-          "29": "session_epoch",
-          "30": "logical_attempt_ordinal",
-          "31": "attempt_kind",
-          "32": "candidate_token"
-        },
-        "session_commands": {
-          "HOLD": 0,
-          "ARM": 1,
-          "COMPLETE": 2,
-          "STOP": 3
-        },
-        "output_integer_registers": {
-          "24": "epoch",
-          "25": "ordinal",
-          "26": "state",
-          "27": "token",
-          "28": "reason",
-          "29": "consumed_session_command_sequence",
-          "30": "attempt_kind",
-          "31": "return_guard",
-          "32": "runtime_protocol",
-          "33": "runtime_digest_hi",
-          "34": "runtime_digest_lo"
-        },
-        "runtime_identity_digest": {
-          "source": "program+contract_sha256+campaign_fingerprint",
-          "epoch_is_separate_output_register": true,
-          "protocol_register": 32,
-          "protocol_value": 606004,
-          "hi_register": 33,
-          "lo_register": 34
-        }
+        "v4_r001_status": "SUPERSEDED_ARCHITECTURE_NOT_LOADABLE"
       },
       "guards": {
-        "contact_acquisition": {
+        "search": {
           "abs_normal_n": 3,
           "force_norm_n": 3,
-          "torque_norm_nm": 0.2,
-          "positive_normal_load_n": 0.5,
-          "force_norm_contact_done_n": 0.7
+          "torque_norm_nm": 0.2
         },
-        "baseline_and_path": {
+        "baseline_and_initial_path": {
           "abs_normal_n": 15,
           "force_norm_n": 20,
           "torque_norm_nm": 1
         },
-        "target_force_n": 5.0,
-        "damping": 28.0,
-        "qdot_abs_max_rad_s": 0.15,
-        "contact_speed_m_s": 0.0002,
-        "contact_acceleration_m_s2": 0.005,
-        "contact_max_travel_m": 0.025,
-        "contact_timeout_s": 90,
-        "return_retract_min_m": 0.005,
-        "return_transfer_floor_z_m": 0.062863519,
-        "low_speed_entry_m_s": 0.01,
-        "low_speed_return_m_s": 0.01,
-        "home_position_tolerance_m": 0.001,
-        "home_orientation_tolerance_rad": 0.01,
-        "home_joint_tolerance_rad": 0.02,
-        "fault_auto_home": false
+        "later_after_first_ten_eligible": {
+          "abs_normal_n": 25,
+          "force_norm_n": 30,
+          "torque_norm_nm": 1.5
+        }
       },
       "timing": {
-        "tp_hz": 500,
-        "writer_hz": 125,
         "mode": "monotonic_actual_dt",
         "minimum_rate_hz": 75,
         "p99_gap_max_s": 0.02,
         "maximum_gap_exclusive_s": 0.08,
-        "pre_latch_timeout_s": 20,
-        "post_latch_timeout_s": 20,
-        "controller_readback_max_age_s": 300,
-        "script1_receipt_max_age_s": 120
-      },
-      "campaign": {
-        "qualification": 3,
-        "batch_a": 5,
-        "batch_b": 5,
-        "retest": 3,
-        "total_logical_attempts": 16,
-        "standalone_search_or_canary": false
+        "startup_increments": 2,
+        "startup_window_s": 0.25
       },
       "acceptance": {
         "offline_primitive_and_seam_validation_required": true,
         "offline_primitive_and_seam_validation_passed": true,
-        "path_coverage_bins": 550,
-        "effective_rate_hz_min": 75,
-        "p99_packet_interval_max_s": 0.02,
-        "max_packet_interval_lt_s": 0.08,
-        "safety_contact_return_gates_required": true,
-        "retest_passes_min": 2,
-        "retest_count": 3,
-        "mae_max_n": 0.3,
-        "candidate_median_objective_ratio_max": 0.95,
-        "anchor_mutated_in_place": false,
-        "controller_readback_verified": false,
+        "r006_live_success_required": true,
+        "three_5n_stage22_receipts_required": true,
+        "formal_review_v3_required": true,
+        "fresh_owner_route_gates_required": true,
+        "controller_readback_verified": true,
         "live_run_accepted": false
       },
-      "success_condition": "Offline package and deterministic F1-F5 regressions pass; live success, controller delivery, Load, Play, contact, motion, and promotion remain unclaimed."
+      "success_condition": "After canonical activation only: exact r002 controller read-back, new EOAT fresh GET match, r006 live success, three ledger-owned 5 N baseline receipts, Review v3, and fresh Remote owner gates."
+    },
+    {
+      "id": "step5d_strict_rnn_autotune_v4_r005",
+      "stage": "Step5d",
+      "owner": "contact_control_staged",
+      "active": false,
+      "blocked": true,
+      "complete": false,
+      "shape": "host_home_dispatch_arm_60s_return_seal_tell_refill",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "strict_rnn": true,
+      "duration_s": 60,
+      "current_binding": {
+        "is_current": false,
+        "stage_id": "step5d_strict_rnn_autotune_v4_r005",
+        "program": "step5d_strict_rnn_autotune_v4_r005",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r005.urp",
+        "current_stage_pointer": "config/step5d/lineage_selector_v4_r005.json"
+      },
+      "source_binding": {
+        "release_contract": "config/step5d/autotune_v4_r005.json",
+        "live_writer_contract": "config/step5d/autotune_v4_live_writer_r005.json",
+        "offline_closure": "config/step5d/autotune_v4_r005_offline_closure.json",
+        "offline_closure_builder": "tools/build_step5d_autotune_v4_r005_offline_closure.py",
+        "tp_renderer": "tools/step5d_autotune_v4_r005/tp.py",
+        "host_loop": "tools/step5d_autotune_v4_r005/runtime.py",
+        "v3_queue_adapter": "tools/step5d_autotune_v4_r005/queue.py",
+        "cuda_qlognei_adapter": "tools/step5d_autotune_v4_r005/optimizer.py",
+        "x_pending_primitive": "tools/step5d_x_pending.py",
+        "force_objective_primitive": "tools/step5d_force_objective.py",
+        "optimizer_runtime_resolver": "tools/step5d_optimizer_runtime.py",
+        "optimizer_worker": "tools/step5d_autotune_v4_r005/optimizer_worker.py",
+        "v3_runtime_installation": "tools/step5d_autotune_v3/runtime_installation.py",
+        "v3_runtime_environment": "tools/step5d_autotune_v3/runtime_environment.py",
+        "live_adapter": "tools/step5d_autotune_v4_r005/live_adapter.py",
+        "mature_r004_writer_extension": "tools/step5d_autotune_v4_r004_live_writer.py",
+        "production_cli": "tools/run_step5d_autotune_v4_r005.py",
+        "alignment_gate": "tools/step5d_autotune_v4_r005/alignment.py",
+        "timing_gate": "tools/step5d_autotune_v4_r005/timing.py"
+      },
+      "campaign": {
+        "fresh_qualifications": 3,
+        "pd_bootstrap": 10,
+        "named_7d": ["P", "D", "tau", "I_on_log2", "I_off", "Ko", "Kp"],
+        "target_force_n": 5.0,
+        "anchor_damping": 28.0,
+        "pending_max": 2,
+        "physical_inflight_max": 1,
+        "attempt_sequence": "positive_monotonic_unbounded",
+        "target_force_immutable": true,
+        "formal_force_objective": {
+          "schema": "step5d.force-objective/v2",
+          "version": "force_mae_v2",
+          "target_force_n": 5.0,
+          "target_is_optimizer_dimension": false,
+          "path_stage": 25,
+          "window_half_open_s": [5.0, 60.0],
+          "legacy_shadow_window_half_open_s": [0.0, 55.0],
+          "bin_width_s": 0.1,
+          "required_complete_bins": 550,
+          "bin_statistic": "mean_filtered_normal_then_absolute_error",
+          "legacy_shadow_audit_only": true,
+          "missing_bin_is_not_trainable": true,
+          "raw_path_evidence_required": true
+        },
+        "dispatch_transition": "one_physical_coordinate_at_most_0.25_octave",
+        "outcome_enum": ["OBJECTIVE", "SAFE_NONTRAINABLE", "CODE_OR_EVIDENCE_BUG", "SAFETY_OR_RETURN_FAILURE"],
+        "no_trial_count_limit": true
+      },
+      "timing": {
+        "nominal_hz": 500.0,
+        "minimum_rate_hz": 460.0,
+        "independent_gates": ["writer", "rtde", "kunwei", "tp"],
+        "absolute_deadline": true
+      },
+      "acceptance": {
+        "eligible_mae_threshold_n": 0.2,
+        "retests": 3,
+        "minimum_retest_passes": 2,
+        "all_retest_motion_timing_contact_return_identity_gates": true,
+        "median_improvement_ratio": 0.95,
+        "failed_retest_returns_to_bo": true,
+        "safe_nontrainable_continues": true,
+        "raw_path_objective_only": true,
+        "legacy_shadow_cannot_train_or_complete": true,
+        "production_cli_has_no_stop_after_ordinal": true,
+        "safety_failure_revokes_before_safe_return": true,
+        "queued_pending_cancelled_durably": true,
+        "optimizer_runtime_attestation_fail_closed_while_home": true,
+        "crash_resume_same_logical_identity_new_execution_id": true,
+        "domain_exhaustion_is_incomplete": true
+      },
+      "package_delivery": {
+        "state": "local offline source and package only",
+        "script": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r005.script",
+        "txt": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r005.txt",
+        "urp": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r005.urp",
+        "controller_upload": false,
+        "controller_readback": false,
+        "load": false,
+        "play": false,
+        "arm": false,
+        "motion": false,
+        "contact": false,
+        "live_evidence": false
+      },
+      "success_condition": "Formal live COMPLETE only: fresh r005 force_mae_v2 over [5.0,60.0) at 5.0 N must trigger three incumbent retests; at least two retests must be <=0.20 N, all three must pass motion/timing/contact/return/identity gates, and their median must improve at least 5 percent over the bootstrap anchor median.",
+      "formal_live_success_condition": "Only a fresh live r005 session may reach COMPLETE: an eligible force_mae_v2 <=0.20 N cancels pending rows, three incumbent retests run, at least two pass <=0.20 N, all three pass motion/timing/contact/return/identity gates, and the retest median improves at least 5 percent over the bootstrap anchor median."
+    },
+    {
+      "id": "step5d_strict_rnn_autotune_v4_r006",
+      "stage": "Step5d",
+      "owner": "contact_control_staged",
+      "active": false,
+      "blocked": true,
+      "complete": false,
+      "shape": "resident_home_idle_dispatch_arm_active_60s_return_seal_tell_refill",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "strict_rnn": true,
+      "policy_refs": {
+        "bridge_startup_policy": "bridge_startup_policy"
+      },
+      "duration_s": 60,
+      "current_binding": {
+        "is_current": false,
+        "stage_id": "step5d_strict_rnn_autotune_v4_r006",
+        "program": "step5d_strict_rnn_autotune_v4_r006",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r006.urp",
+        "current_stage_pointer": "config/step5d/lineage_selector_v4_r006.json"
+      },
+      "source_binding": {
+        "release_contract": "config/step5d/autotune_v4_r006.json",
+        "runtime_manifest": "config/step5d/autotune_v4_r006_runtime_manifest.json",
+        "offline_closure": "config/step5d/autotune_v4_r006_offline_closure.json",
+        "stage_metadata": "config/step5d/autotune_v4_r006_stage_metadata.json",
+        "production_cli": "tools/run_step5d_autotune_v4_r006.py",
+        "host_runtime": "tools/step5d_autotune_v4_r006/runtime.py",
+        "objective_receipt": "tools/step5d_autotune_v4_r006/objective.py",
+        "lattice": "tools/step5d_autotune_v4_r006/lattice.py",
+        "optimizer": "tools/step5d_autotune_v4_r006/optimizer.py",
+        "managed_runtime": "tools/step5d_autotune_v4_r006/managed.py",
+        "v3_absolute_deadline_adapter": "tools/step5d_autotune_v4_r005/timing.py",
+        "v3_fresh_frame_adapter": "tools/step5d_autotune_v4_r005/packet_pacing.py",
+        "v3_queue_parent": "tools/step5d_autotune_v4_r005/queue.py",
+        "remote_startup_parent": "tools/step5d_remote_startup.py",
+        "tp_renderer": "tools/step5d_autotune_v4_r006/tp.py"
+      },
+      "campaign": {
+        "fresh_qualifications": 3,
+        "first_warm_start_exact_trials": 25,
+        "second_warm_start_exact_trials": 25,
+        "named_axes": ["P", "D", "tau", "I_mode", "I_on_log2", "Ko", "Kp"],
+        "target_force_n": 5.0,
+        "target_force_is_optimizer_dimension": false,
+        "unbounded_quarter_octave_graph": true,
+        "trust_region_radius_octave": 0.5,
+        "pending_max": 2,
+        "physical_inflight_max": 1,
+        "attempt_sequence": "positive_monotonic_unbounded",
+        "outcome_enum": ["OBJECTIVE", "SAFE_NONTRAINABLE", "CODE_OR_EVIDENCE_BUG", "SAFETY_OR_RETURN_FAILURE"],
+        "objective": {
+          "schema": "step5d.force-objective/v3-r006",
+          "path_stage": 25,
+          "formal_window_half_open_s": [5.0, 60.0],
+          "legacy_r004_shadow_window_half_open_s": [0.0, 55.0],
+          "bin_width_s": 0.1,
+          "required_complete_bins": 550,
+          "raw_bundle_cold_read": true,
+          "caller_scalar_trainable": false
+        }
+      },
+      "timing": {
+        "host_hz": 500.0,
+        "rtde_hz": 500.0,
+        "rtde_request_hz": 500.0,
+        "kunwei_hz": 500.0,
+        "tp_hz": 500.0,
+        "minimum_rate_hz": 460.0,
+        "absolute_deadline": true,
+        "active_lease_s": 0.08,
+        "source_stall_stop_s": 0.08,
+        "independent_gates": ["writer", "rtde", "kunwei", "tp"]
+      },
+      "acceptance": {
+        "offline_source_closure_required": true,
+        "offline_fake_rtde_qualification_required": true,
+        "threshold_receipt_required": true,
+        "threshold_receipt_schema": "step5d.autotune-v4/r006-runtime-thresholds-v1",
+        "threshold_receipt_version": "r006-v1",
+        "retests": 3,
+        "minimum_retest_passes": 2,
+        "median_improvement_ratio": 0.95,
+        "application_and_local_pac_required": true,
+        "global_convergence_claim": false,
+        "controller_upload": false,
+        "controller_readback": false,
+        "live_run_accepted": false
+      },
+      "package_delivery": {
+        "state": "local offline source and package only",
+        "script": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r006.script",
+        "txt": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r006.txt",
+        "urp": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r006.urp",
+        "numeric_sanity": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r006.numeric-sanity.json",
+        "deploy_manifest": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r006.deploy-manifest.json",
+        "controller_upload": false,
+        "controller_readback": false,
+        "load": false,
+        "play": false,
+        "arm": false,
+        "motion": false,
+        "contact": false,
+        "live_evidence": false
+      },
+      "operator_lifecycle": {
+        "route": "Remote_when_live_gates_are_reopened",
+        "home_wait": "unbounded_safe_hold",
+        "intertrial_wait": "unbounded_safe_hold",
+        "production_cli_stop_after_ordinal": false,
+        "safety_or_return_failure": "immediate_stop_no_auto_home"
+      },
+      "success_condition": "Offline proof only here; formal COMPLETE requires fresh live application acceptance plus finite-region simultaneous-95-percent local epsilon-PAC. Global convergence is never claimed."
     }
   ],
   "startup_gate_profiles": {

@@ -69,7 +69,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--resume-new-epoch", type=int)
     parser.add_argument("--resume-script1-receipt-sha256")
+    parser.add_argument("--stop-after-ordinal", type=int, default=16)
     parser.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER)
+    parser.add_argument("--supersedes-ledger", type=Path)
     parser.add_argument("--session-epoch", type=int)
     parser.add_argument("--controller-receipt-sha256", default="1" * 64)
     parser.add_argument("--script1-receipt-sha256", default="2" * 64)
@@ -154,17 +156,48 @@ def main(argv: list[str] | None = None) -> int:
         )
         try:
             writer.open(live_ack=args.live_ack)
-            runner = LiveCampaignRunner(contract, DurableCampaignLedger(args.ledger), writer)
+            ledger = (
+                DurableCampaignLedger(args.ledger)
+                if args.ledger.exists()
+                else DurableCampaignLedger.create_new(
+                    args.ledger,
+                    supersedes=args.supersedes_ledger,
+                    reason=(
+                        "supersede false-positive r004 ordinal-4 evidence after fixed-Home, "
+                        "500 Hz layered timing, and physical XY proof restoration"
+                        if args.supersedes_ledger is not None
+                        else "new r004 campaign ledger"
+                    ),
+                )
+            )
+            runner = LiveCampaignRunner(contract, ledger, writer)
             if args.resume:
                 if args.resume_new_epoch is None or args.resume_script1_receipt_sha256 is None:
                     parser.error("--resume requires --resume-new-epoch and --resume-script1-receipt-sha256")
                 result = runner.resume(
                     new_epoch=args.resume_new_epoch,
                     new_script1_receipt_sha256=args.resume_script1_receipt_sha256,
+                    stop_after_ordinal=args.stop_after_ordinal,
                 )
             else:
-                result = runner.run()
-            print(json.dumps({"live": True, "rows": len(result.rows), "promotion": result.promotion, "resumed": result.resumed, "dashboard_actions": False, "delivery": {"upload": False, "load": False, "play": False}}, indent=2, sort_keys=True))
+                result = runner.run(stop_after_ordinal=args.stop_after_ordinal)
+            print(
+                json.dumps(
+                    {
+                        "live": True,
+                        "rows": len(result.rows),
+                        "qualification_only": result.qualification_only,
+                        "qualification_complete": result.qualification_complete,
+                        "full_campaign_blocked": result.full_campaign_blocked,
+                        "promotion": result.promotion,
+                        "resumed": result.resumed,
+                        "dashboard_actions": False,
+                        "delivery": {"upload": False, "load": False, "play": False},
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
         finally:
             writer.close()
     return 0

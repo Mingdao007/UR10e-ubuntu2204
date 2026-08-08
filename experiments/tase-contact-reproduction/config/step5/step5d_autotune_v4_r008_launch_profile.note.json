@@ -1,0 +1,7 @@
+{
+  "schema": "step5d.autotune-v4/r008-launch-profile-note-v1",
+  "uses_launch_profile": "config/step5/step5d_autotune_v4_r006_launch_profile.json",
+  "reason": "V3 loader rejects non-mutable launch_overrides; r008 domain is host-side only",
+  "application_mae_threshold_n": 1.0,
+  "active_motion_envelope_normal_cap_m_s": 0.005
+}

@@ -56,11 +56,6 @@ R002_INHERIT_SCOPE = (
     "promotion",
     "live_activation",
 )
-# The canonical stage table is intentionally updated for the isolated r004
-# source closure.  Keep the legacy r003 contract readable without rewriting
-# its frozen config/artifact bytes when the only table change is the staged,
-# inactive V4 addendum.
-LEGACY_R003_STAGE_TABLE_SHA256 = "0a1372a5dd0220268a4e304f02f3f666bd7df402a9056a566b8048131a10f81c"
 
 
 class V4ContractError(RuntimeError):
@@ -106,54 +101,9 @@ def _require_hash(
     expected = _digest(digest, f"{role} digest")
     if local_only and EXPERIMENT_ROOT not in path.parents:
         raise V4ContractError(f"{role} source must remain inside the experiment root")
-    actual = None if path.is_symlink() or not path.is_file() else _sha256(path)
-    if actual != expected and not (
-        role == "path_table"
-        and expected == LEGACY_R003_STAGE_TABLE_SHA256
-        and _is_isolated_r004_stage_table_addendum(path)
-    ):
+    if path.is_symlink() or not path.is_file() or _sha256(path) != expected:
         raise V4ContractError(f"{role} source binding differs")
     return path
-
-
-def _is_isolated_r004_stage_table_addendum(path: Path) -> bool:
-    """Allow only the bounded staged-row replacement required by r004 docs."""
-
-    if path.is_symlink() or not path.is_file() or path.name != "step5_stage_table.json":
-        return False
-    try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return False
-    stages = document.get("stages")
-    if not isinstance(stages, list):
-        return False
-    by_id = {
-        item.get("id"): item
-        for item in stages
-        if isinstance(item, dict) and isinstance(item.get("id"), str)
-    }
-    v3 = by_id.get("step5d_strict_rnn_autotune_v3")
-    v4 = by_id.get("step5d_strict_rnn_autotune_v4")
-    if not isinstance(v3, dict) or not isinstance(v4, dict):
-        return False
-    v3_binding = v3.get("current_binding", {})
-    v4_binding = v4.get("current_binding", {})
-    v4_source = v4.get("source_binding", {})
-    return (
-        v3.get("active") is True
-        and v3_binding.get("is_current") is True
-        and v3_binding.get("program") == "step5d_strict_rnn_autotune_v3"
-        and v3_binding.get("current_stage_pointer") == "config/current_stage.json"
-        and v4.get("active") is False
-        and v4.get("blocked") is True
-        and v4_binding.get("is_current") is False
-        and v4_binding.get("program") == "step5d_strict_rnn_autotune_v4_r004"
-        and v4_binding.get("current_stage_pointer")
-        == "config/step5d/lineage_selector_v4_r004.json"
-        and v4_source.get("release_contract")
-        == "config/step5d/autotune_v4_r004.json"
-    )
 
 
 def _close(actual: float, expected: float, role: str, tolerance: float = 1e-12) -> None:
@@ -278,7 +228,11 @@ def _merge(base: Mapping[str, Any], overlay: Mapping[str, Any]) -> dict[str, Any
     return result
 
 
-def load_contract(path: Path = DEFAULT_CONTRACT) -> V4Contract:
+def load_contract(
+    path: Path = DEFAULT_CONTRACT, *, runtime_only: bool = False
+) -> V4Contract:
+    if not isinstance(runtime_only, bool):
+        raise V4ContractError("V4 runtime-only binding policy must be typed")
     if path.is_symlink() or not path.is_file():
         raise V4ContractError(f"V4 contract must be a regular file: {path}")
     try:
@@ -435,6 +389,13 @@ def load_contract(path: Path = DEFAULT_CONTRACT) -> V4Contract:
             )
         )
     for prefix in model_roles:
+        # The mutable stage table is a campaign-routing artifact.  It is not
+        # consumed by the calibrated Jacobian, strict-RNN, or path-reference
+        # runtime.  r005 owns an independent campaign identity and may request
+        # this narrower capability view; the default full contract remains
+        # strict and continues to bind the stage table.
+        if runtime_only and prefix == "path_table":
+            continue
         _require_hash(
             binding.get(f"{prefix}_path"),
             binding.get(f"{prefix}_sha256"),

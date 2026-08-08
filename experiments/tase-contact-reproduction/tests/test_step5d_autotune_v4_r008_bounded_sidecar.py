@@ -81,15 +81,15 @@ def test_bounded_sidecar_bounds_subprocess_calls_on_append(tmp_path: Path, monke
 
     from step5d_autotune_v4_r006 import sidecar as mod
 
-    original = mod._fresh_verify_artifact
-
-    def counting_fresh_verify(*args, **kwargs):
-        call_count["n"] += 1
-        return original(*args, **kwargs)
-
-    monkeypatch.setattr(mod, "_fresh_verify_artifact", counting_fresh_verify)
-
     with r008_bounded_sidecar_scope(tail_rows=3):
+        # Patch after scope installs the r008 fresh-verify (in-process / binary).
+        original = mod._fresh_verify_artifact
+
+        def counting_fresh_verify(*args, **kwargs):
+            call_count["n"] += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(mod, "_fresh_verify_artifact", counting_fresh_verify)
         sidecar = R006ObjectiveSidecar(
             tmp_path / "r006-objectives.jsonl", campaign_fingerprint=contract.campaign_fingerprint,
         )
@@ -118,16 +118,15 @@ def test_bounded_sidecar_bounds_subprocess_calls_on_cold_construction(
 
     from step5d_autotune_v4_r006 import sidecar as mod
 
-    original = mod._fresh_verify_artifact
-
-    def counting_fresh_verify(*args, **kwargs):
-        call_count["n"] += 1
-        return original(*args, **kwargs)
-
-    monkeypatch.setattr(mod, "_fresh_verify_artifact", counting_fresh_verify)
-
     path = tmp_path / "r006-objectives.jsonl"
     with r008_bounded_sidecar_scope(tail_rows=3):
+        original = mod._fresh_verify_artifact
+
+        def counting_fresh_verify(*args, **kwargs):
+            call_count["n"] += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(mod, "_fresh_verify_artifact", counting_fresh_verify)
         warm_sidecar = R006ObjectiveSidecar(path, campaign_fingerprint=contract.campaign_fingerprint)
         _append_n(warm_sidecar, contract, 10)
 
@@ -192,15 +191,14 @@ def test_bounded_append_single_fresh_verify_keeps_trainable(
     call_count = {"n": 0}
     from step5d_autotune_v4_r006 import sidecar as mod
 
-    original = mod._fresh_verify_artifact
-
-    def counting_fresh_verify(*args, **kwargs):
-        call_count["n"] += 1
-        return original(*args, **kwargs)
-
-    monkeypatch.setattr(mod, "_fresh_verify_artifact", counting_fresh_verify)
-
     with r008_bounded_sidecar_scope(tail_rows=1):
+        original = mod._fresh_verify_artifact
+
+        def counting_fresh_verify(*args, **kwargs):
+            call_count["n"] += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(mod, "_fresh_verify_artifact", counting_fresh_verify)
         sidecar = R006ObjectiveSidecar(
             tmp_path / "r006-objectives.jsonl",
             campaign_fingerprint=contract.campaign_fingerprint,
@@ -222,15 +220,14 @@ def test_tail_rows_one_second_cold_verify_only_newest(
     call_count = {"n": 0}
     from step5d_autotune_v4_r006 import sidecar as mod
 
-    original = mod._fresh_verify_artifact
-
-    def counting_fresh_verify(*args, **kwargs):
-        call_count["n"] += 1
-        return original(*args, **kwargs)
-
-    monkeypatch.setattr(mod, "_fresh_verify_artifact", counting_fresh_verify)
-
     with r008_bounded_sidecar_scope(tail_rows=1):
+        original = mod._fresh_verify_artifact
+
+        def counting_fresh_verify(*args, **kwargs):
+            call_count["n"] += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(mod, "_fresh_verify_artifact", counting_fresh_verify)
         sidecar = R006ObjectiveSidecar(
             tmp_path / "r006-objectives.jsonl",
             campaign_fingerprint=contract.campaign_fingerprint,

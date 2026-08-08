@@ -1,0 +1,19 @@
+Step5d r008 B3 two-stage contact-search canary (FAR/NEAR)
+
+Program:
+  step5d_strict_rnn_autotune_v4_r008_b3_two_stage
+
+Controller target:
+  /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r008_b3_two_stage.urp
+
+Version:
+  2026-08-07T0152HKT_STEP5D_AUTOTUNE_V4_R008_B3_TWO_STAGE
+
+Boundary:
+  Independent canary triplet. Does not overwrite mainline r006.
+  Near-field speed is 0.0005 m/s; force fuse <= 50 N during search.
+  Never resume into campaign fingerprint 1db4f9bf / live_20260803_1113_stage_d.
+
+Binding:
+  # VERSION: 2026-08-07T0152HKT_STEP5D_AUTOTUNE_V4_R008_B3_TWO_STAGE
+  # R006_RATE_CONTRACT: host=500.0Hz rtde_request=500.0Hz kunwei=500.0Hz tp=500.0Hz minimum_each_layer=460.0Hz absolute_deadline

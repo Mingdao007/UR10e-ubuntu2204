@@ -116,6 +116,11 @@ def test_seal_daemon_two_seals_hash_chain(tmp_path: Path) -> None:
         p2 = client.seal_result(_attempt(contract, 2, force_n=5.2))
         assert int(p1["sealed_seq"]) == 1
         assert int(p2["sealed_seq"]) == 2
+        # Append-return path must preserve fresh-verify trainable (not clobber
+        # via warm re-parse of builder_sealed artifact bytes).
+        assert p1["trainable"] is True
+        assert p2["trainable"] is True
+        assert "stages_s" in p1 and "r006_append" in p1["stages_s"]
         cold = R006ObjectiveSidecar(
             r006.raw_sidecar_path, campaign_fingerprint=contract.campaign_fingerprint
         )

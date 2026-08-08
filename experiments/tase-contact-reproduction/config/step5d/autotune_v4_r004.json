@@ -39,7 +39,16 @@
     "program": "step5d_strict_rnn_autotune_v4_r004",
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r004.urp",
     "lifecycle": "resident_rolling_arm_loop",
-    "play_captures_home_once": true,
+    "home_source": "eoat_profile_fixed_pose_plus_verified_actual_q",
+    "play_captures_home_once": false,
+    "fixed_home_pose_m_rad": [
+      0.487834547,
+      0.129337053,
+      0.033,
+      3.120752062,
+      0.0,
+      0.068626833
+    ],
     "fault_stays_stopped": true,
     "fault_auto_home": false
   },
@@ -102,6 +111,9 @@
       "33": "runtime_digest_hi",
       "34": "runtime_digest_lo"
     },
+    "output_double_registers": {
+      "24": "consumed_packet_sequence"
+    },
     "runtime_identity_digest": {
       "algorithm": "sha256_first_62_bits_split_into_two_31_bit_limbs",
       "source": "program+contract_sha256+campaign_fingerprint",
@@ -130,10 +142,11 @@
   },
   "timing": {
     "tp_hz": 500.0,
-    "writer_hz": 125.0,
+    "writer_hz": 500.0,
+    "scheduler": "v3_absolute_deadline_skip_missed_no_burst",
     "packet_max_equal_age_s": 0.08,
     "pre_latch_timeout_s": 20.0,
-    "post_latch_timeout_s": 20.0,
+    "post_latch_timeout_s": 30.0,
     "controller_readback_max_age_s": 300.0,
     "script1_receipt_max_age_s": 120.0
   },
@@ -149,31 +162,60 @@
   },
   "baseline": {
     "pre_latch_timeout_s": 20.0,
-    "post_latch_timeout_s": 20.0,
-    "latch_values": [0, 1],
-    "consecutive_success_bounds": [0, 3],
+    "post_latch_timeout_s": 30.0,
+    "latch_values": [
+      0,
+      1
+    ],
+    "consecutive_success_bounds": [
+      0,
+      3
+    ],
     "target_force_n": 5.0,
     "command_mode": "BASELINE",
     "post_latch_timer_starts_on_first_observed_sticky_latch": true
   },
   "runtime": {
     "tp_hz": 500.0,
-    "writer_hz": 125.0,
+    "writer_hz": 500.0,
     "packet_equal_sequence_is_reusable": true,
     "packet_equal_payload_required": true,
     "packet_sequence_regression_reason": 43,
     "packet_changed_equal_sequence_reason": 43,
     "packet_held_age_limit_s": 0.08,
     "path_runtime_s": 60.0,
-    "qdot_abs_max_rad_s": 0.15,
-    "low_speed_entry_m_s": 0.01,
-    "low_speed_return_m_s": 0.01,
+    "motion_profile_schema": "step5d.autotune-v4/r004-motion-profile-v1",
+    "motion_profile_version": "v3-r034-effective-caps-v1",
+    "motion_profile_source": "frozen_v3_r034",
+    "motion_profile_id": "nf100000-slew250-a2000",
+    "path_xy_speed_max_m_s": 0.004,
+    "total_linear_speed_max_m_s": 1.0,
+    "normal_linear_speed_max_m_s": 1.0,
+    "angular_speed_max_rad_s": 0.25,
+    "qdot_abs_max_rad_s": 2.5,
+    "host_qdot_slew_max_rad_s2": 2.5,
+    "tp_speedj_acceleration_rad_s2": 20.0,
+    "normal_update_max_rad_s": 100.0,
     "stationary_linear_m_s": 0.0005,
     "stationary_angular_rad_s": 0.005
   },
   "return_home": {
     "retract_min_m": 0.005,
-    "transfer_floor_z_m": 0.062863519,
+    "fixed_home_pose_m_rad": [
+      0.487834547,
+      0.129337053,
+      0.033,
+      3.120752062,
+      0.0,
+      0.068626833
+    ],
+    "script2_auto_home": false,
+    "attempt_entry_failure_reason": 69,
+    "direct_descent_from_verified_home": true,
+    "rise_descent_acceleration_m_s2": 0.06,
+    "rise_descent_speed_m_s": 0.04,
+    "xy_transfer_acceleration_m_s2": 0.135,
+    "xy_transfer_speed_m_s": 0.09,
     "home_position_tolerance_m": 0.001,
     "home_orientation_tolerance_rad": 0.01,
     "home_joint_tolerance_rad": 0.02,
@@ -181,11 +223,10 @@
     "success_requires": [
       "stationary",
       "positive_z_retract_at_least_5mm",
-      "transfer_floor_z_at_least_0.062863519m",
-      "low_speed_entry_envelope",
-      "low_speed_return_envelope",
-      "captured_home_pose_tolerance",
-      "captured_home_q_tolerance"
+      "fixed_home_route_without_upward_transfer_detour",
+      "v3_return_motion_envelope",
+      "fixed_home_pose_tolerance",
+      "verified_home_q_branch_tolerance"
     ]
   },
   "campaign": {
@@ -206,6 +247,61 @@
     "batch_probe_step_octave": 0.25,
     "resume_same_logical_ordinal_new_execution_id": true,
     "no_standalone_search_or_canary": true
+  },
+  "live_boundary": {
+    "mode": "full_campaign",
+    "allowed_logical_ordinals": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "allowed_attempt_kinds": [
+      "QUALIFICATION",
+      "BATCH_A",
+      "BATCH_B",
+      "RETEST"
+    ],
+    "ordinal_5_and_later_blocked_before_rtde_write": false,
+    "full_campaign_enabled": true,
+    "candidate_path_enabled": true,
+    "retest_enabled": true,
+    "promotion_requires_separate_release_gate": true,
+    "qualification_source_requires": {
+      "completed_ordinals": [
+        1,
+        2,
+        3
+      ],
+      "same_durable_ledger_hash_chain": true,
+      "fsync_cold_read_hash_verified": true
+    },
+    "qualified_path_trial_hold_s": 0.1,
+    "qualification_evidence_requires": [
+      "contact_states_20_and_21",
+      "canonical_v4_baseline_success",
+      "fresh_sensor_timing",
+      "safety_normal",
+      "safe_return_home",
+      "durable_fsync_cold_read_hash_verification"
+    ],
+    "canonical_calibrated_numeric_residual_policy": {
+      "action": "zero_qdot_baseline_hold_until_converged",
+      "tangential_m_s_max": 2e-06,
+      "angular_rad_s_max": 2e-06
+    }
   },
   "durable_ledger": {
     "schema": "step5d.autotune-v4/r004-durable-campaign-ledger-v1",
@@ -246,13 +342,41 @@
     "resource_id": "step5d-bridge-writer",
     "same_resource_as_v3_and_v4": true,
     "r004_attempt_id_and_route_id_required": true,
-    "lifecycle": ["begin", "AuthorityFence.assert_active", "revoke", "AuthorityFence.assert_revoked"]
+    "lifecycle": [
+      "begin",
+      "AuthorityFence.assert_active",
+      "revoke",
+      "AuthorityFence.assert_revoked"
+    ]
   },
   "acceptance": {
     "path_coverage_bins": 550,
-    "effective_rate_hz_min": 75,
-    "p99_packet_interval_max_s": 0.02,
-    "max_packet_interval_lt_s": 0.08,
+    "nominal_rate_hz": 500.0,
+    "fresh_rate_hz_min": {
+      "writer_publish": 460.0,
+      "rtde_distinct": 460.0,
+      "kunwei_distinct": 460.0,
+      "tp_consumed_distinct": 460.0
+    },
+    "feedback_age_p99_max_s": 0.01,
+    "fresh_frame_gap_lt_s": 0.02,
+    "runtime_stale_stop_s": 0.08,
+    "duplicates_and_cached_frames_count_as_fresh": false,
+    "motion_proof": {
+      "path_duration_s": 60.0,
+      "phase_count": 6,
+      "xy_error_p95_max_m": 0.0005,
+      "xy_error_max_m": 0.001,
+      "endpoint_error_max_m": 0.001,
+      "qd_correlation_min": 0.9,
+      "qd_lag_max_s": 0.02,
+      "force_bins_alone_are_sufficient": false
+    },
+    "hard_guards_all_phases": {
+      "absolute_normal_load_n": 60.0,
+      "force_norm_n": 100.0,
+      "torque_norm_nm": 3.0
+    },
     "safety_contact_return_all_pass": true,
     "retest_passes_min": 2,
     "retest_count": 3,

@@ -57,6 +57,14 @@ def snap_to_quarter(value: float, anchor: float) -> float:
     return float(anchor * (2.0 ** (step * STEP_OCTAVE)))
 
 
+# BO/SPACEFILL/STAIRCASE pin: keep tau in feature_map as a constant column
+# (same pattern as I-off sentinels). User-facing "0.05" snaps to nearest
+# legal quarter-octave under TAU_ANCHOR (exact 0.05 is off-lattice).
+PIN_TAU_S = snap_to_quarter(0.05, TAU_ANCHOR)
+PIN_LOG2_TAU = math.log2(PIN_TAU_S)
+PIN_TAU_STEP = _quarter_steps_from_value(PIN_TAU_S, TAU_ANCHOR)
+
+
 @dataclass(frozen=True)
 class BoxRegion:
     """Axis-aligned box in the reparameterized coordinates."""
@@ -293,9 +301,60 @@ def live_acquisition_unstable(*, force_damping: float, normal_filter_tau_s: floa
         return True
     if damping < 10.0:
         return True
-    if damping < 14.0 and tau > 0.30:
+    # Inclusive on D=14: live disp24 (D=14, τ≈0.59) slipped past `< 14.0` and
+    # died on five_newton_acquisition_timeout (overshoot ~10 N, never held 4–6 N).
+    if damping <= 14.0 and tau > 0.30:
         return True
     return False
+
+
+#: Exact lattice Ki (I_ON i_step=30) that hard-stopped PATH ≥60 N twice with
+#: independent (P, D) — far005 BO_TRIAL disp42 and limit50 STAIRCASE attempt10.
+#: ``phase_margin_deg`` misses this pocket (disp42 PM≈55° ≫ PM_MIN); do not rely
+#: on PM alone. Radius is ±1 quarter-octave (one I lattice step).
+CONFIRMED_DANGEROUS_KI = 0.001810193359837562
+CONFIRMED_DANGEROUS_KI_RADIUS_LOG2 = STEP_OCTAVE  # 0.25 = one quarter-octave
+
+
+def confirmed_dangerous_ki(*, force_i_gain: float) -> bool:
+    """True when ``force_i_gain`` sits in the confirmed-dangerous Ki neighborhood.
+
+    I_OFF / non-positive Ki are never banned here (separate from this PATH pocket).
+    On-lattice Ki uses integer I-step distance (exact ±1 quarter-octave).
+    Off-lattice continuous Ki falls back to ``|log2(Ki / Ki*)| ≤ RADIUS_LOG2``.
+    """
+
+    ki = float(force_i_gain)
+    if not math.isfinite(ki) or ki <= 0.0:
+        return False
+    center_step = int(
+        round(math.log2(CONFIRMED_DANGEROUS_KI / I_ON_ANCHOR) / STEP_OCTAVE)
+    )
+    max_steps = int(round(float(CONFIRMED_DANGEROUS_KI_RADIUS_LOG2) / STEP_OCTAVE))
+    scaled = math.log2(ki / I_ON_ANCHOR) / STEP_OCTAVE
+    step = int(round(scaled))
+    on_lattice = math.isclose(scaled, float(step), rel_tol=0.0, abs_tol=1e-9)
+    if on_lattice:
+        return abs(step - center_step) <= max_steps
+    return abs(math.log2(ki / CONFIRMED_DANGEROUS_KI)) <= float(
+        CONFIRMED_DANGEROUS_KI_RADIUS_LOG2
+    )
+
+
+def pin_parameter_point_tau(point: ParameterPoint) -> ParameterPoint:
+    """Rewrite a typed point onto the pinned tau lattice step (feature dim kept)."""
+
+    if int(point.tau_step) == int(PIN_TAU_STEP):
+        return point
+    return ParameterPoint(
+        point.p_step,
+        point.d_step,
+        int(PIN_TAU_STEP),
+        point.i_mode,
+        point.i_step,
+        point.ko_step,
+        point.kp_step,
+    )
 
 
 def scrambled_sobol(
@@ -304,15 +363,20 @@ def scrambled_sobol(
     count: int,
     seed: int = 8,
     include_kf_off_fraction: float = 0.15,
+    pin_tau: bool = True,
     apply_live_acquisition_veto: bool = True,
+    apply_confirmed_dangerous_ki_veto: bool = True,
 ) -> tuple[R008Point, ...]:
     """Scrambled Sobol samples in the box, snapped to the r006 lattice and deduped."""
 
     if count <= 0:
         raise R008LatticeError("sobol count must be positive")
-    # Oversample when the live acquisition veto is on so SPACEFILL still fills.
-    draw = int(count) * (4 if apply_live_acquisition_veto else 1)
+    # Oversample when live vetoes are on so SPACEFILL still fills.
+    veto_oversample = apply_live_acquisition_veto or apply_confirmed_dangerous_ki_veto
+    draw = int(count) * (4 if veto_oversample else 1)
     # Continuous axes: pd, d, tau, kf, ko, kp.  kf_off is a Bernoulli draw.
+    # When pin_tau=True (default), row[2] is ignored and tau is fixed at
+    # PIN_TAU_S — same "dimension present, value frozen" pattern as I-off.
     try:
         from scipy.stats import qmc
 
@@ -331,7 +395,10 @@ def scrambled_sobol(
     for row in raw:
         log2_pd = box.log2_pd_min + float(row[0]) * (box.log2_pd_max - box.log2_pd_min)
         log2_d = box.log2_d_min + float(row[1]) * (box.log2_d_max - box.log2_d_min)
-        log2_tau = box.log2_tau_min + float(row[2]) * (box.log2_tau_max - box.log2_tau_min)
+        if pin_tau:
+            log2_tau = float(PIN_LOG2_TAU)
+        else:
+            log2_tau = box.log2_tau_min + float(row[2]) * (box.log2_tau_max - box.log2_tau_min)
         log2_kf = box.log2_kf_min + float(row[3]) * (box.log2_kf_max - box.log2_kf_min)
         log2_ko = box.log2_ko_min + float(row[4]) * (box.log2_ko_max - box.log2_ko_min)
         log2_kp = box.log2_kp_min + float(row[5]) * (box.log2_kp_max - box.log2_kp_min)
@@ -356,6 +423,10 @@ def scrambled_sobol(
             normal_filter_tau_s=typed.tau_s,
         ):
             continue
+        if apply_confirmed_dangerous_ki_veto and confirmed_dangerous_ki(
+            force_i_gain=float(typed.i_gain),
+        ):
+            continue
         if key in seen:
             continue
         seen.add(key)
@@ -364,7 +435,7 @@ def scrambled_sobol(
             break
     if len(points) < int(count):
         raise R008LatticeError(
-            f"live acquisition veto left only {len(points)}/{count} Sobol points"
+            f"live acquisition/Ki veto left only {len(points)}/{count} Sobol points"
         )
     return tuple(points)
 
@@ -386,19 +457,26 @@ def assert_r006_accepts(points: Sequence[R008Point]) -> None:
 
 
 __all__ = [
+    "CONFIRMED_DANGEROUS_KI",
+    "CONFIRMED_DANGEROUS_KI_RADIUS_LOG2",
     "DEFAULT_D",
     "DEFAULT_KF",
     "DEFAULT_KO",
     "DEFAULT_KP",
     "DEFAULT_PD_RATIO",
     "DEFAULT_TAU",
+    "PIN_LOG2_TAU",
+    "PIN_TAU_S",
+    "PIN_TAU_STEP",
     "BoxRegion",
     "R008LatticeError",
     "R008Point",
     "assert_r006_accepts",
+    "confirmed_dangerous_ki",
     "default_anchor",
     "default_box",
     "live_acquisition_unstable",
+    "pin_parameter_point_tau",
     "point_from_physical",
     "scrambled_sobol",
     "snap_to_quarter",

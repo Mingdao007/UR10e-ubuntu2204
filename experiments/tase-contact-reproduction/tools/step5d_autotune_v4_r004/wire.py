@@ -5,9 +5,19 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import IntEnum, IntFlag
-from typing import Mapping, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
 
-from .contracts import Candidate, R004Contract, R004ContractError, TARGET_FORCE_N, assert_target
+from .contracts import (
+    Candidate,
+    R004Contract,
+    R004ContractError,
+    TARGET_FORCE_N,
+    V3_R034_SAFETY_ENVELOPE,
+    assert_target,
+)
+
+if TYPE_CHECKING:
+    from .motion_profile import V4MotionProfile
 
 
 LAYOUT_TAG = 606.0
@@ -16,6 +26,7 @@ WRENCH_AUTHORITY = "kunwei_only"
 DOUBLE_REGISTERS = tuple(range(24, 48))
 INPUT_INTEGER_REGISTERS = tuple(range(24, 33))
 OUTPUT_INTEGER_REGISTERS = tuple(range(24, 35))
+OUTPUT_DOUBLE_REGISTERS = (24,)
 
 DOUBLE_FIELDS: Mapping[int, str] = {
     24: "normal_load_n",
@@ -67,6 +78,7 @@ OUTPUT_INTEGER_FIELDS: Mapping[int, str] = {
     33: "runtime_digest_hi",
     34: "runtime_digest_lo",
 }
+OUTPUT_DOUBLE_FIELDS: Mapping[int, str] = {24: "consumed_packet_sequence"}
 
 
 class CommandMode(IntEnum):
@@ -107,7 +119,7 @@ class ReturnGuard(IntFlag):
     NONE = 0
     STATIONARY = 1
     RETRACT_5MM = 2
-    TRANSFER_FLOOR = 4
+    FIXED_HOME_ROUTE = 4
     ENTRY_ENVELOPE = 8
     RETURN_ENVELOPE = 16
     HOME_POSE = 32
@@ -241,12 +253,31 @@ class WirePacket:
         return PacketPayload(self.double_values, self.integer_values)
 
 
-def _finite_qdot(values: Sequence[float]) -> tuple[float, ...]:
+def _finite_qdot(
+    values: Sequence[float],
+    *,
+    max_abs_rad_s: float | None = None,
+    motion_profile: V4MotionProfile | None = None,
+) -> tuple[float, ...]:
     if len(values) != 6:
         raise ValueError("qdot must have six values")
     result = tuple(float(value) for value in values)
-    if not all(math.isfinite(value) and abs(value) <= 0.15 + 1e-12 for value in result):
-        raise ValueError("qdot exceeds the fixed 0.15 rad/s envelope")
+    if motion_profile is not None:
+        from .motion_profile import V4MotionProfile
+
+        if not isinstance(motion_profile, V4MotionProfile):
+            raise TypeError("motion_profile must be a typed V4MotionProfile")
+        cap = motion_profile.qdot_cap_rad_s
+    elif max_abs_rad_s is not None:
+        cap = float(max_abs_rad_s)
+    else:
+        from .motion_profile import R004_MOTION_PROFILE
+
+        cap = R004_MOTION_PROFILE.qdot_cap_rad_s
+    if not math.isfinite(cap) or cap <= 0.0:
+        raise ValueError("qdot envelope must be finite and positive")
+    if not all(math.isfinite(value) and abs(value) <= cap + 1e-12 for value in result):
+        raise ValueError(f"qdot exceeds the typed {cap:g} rad/s envelope")
     return result
 
 
@@ -260,6 +291,7 @@ def build_wire_packet(
     packet_sequence: int,
     session: SessionInput,
     structural_stop: bool = False,
+    motion_profile: V4MotionProfile | None = None,
 ) -> WirePacket:
     """Build one bounded packet; the TP and FakeRTDE consume the same image."""
 
@@ -271,11 +303,17 @@ def build_wire_packet(
         raise ValueError("packet_sequence must be a non-negative integer")
     if not math.isfinite(float(internal_setpoint_n)) or not 1.0 <= float(internal_setpoint_n) <= TARGET_FORCE_N:
         raise ValueError("internal setpoint must remain in [1, 5] N")
-    qdot = _finite_qdot(proposed_qdot)
+    qdot = _finite_qdot(proposed_qdot, motion_profile=motion_profile)
     stop_reason = 0
     reason = ""
     if not sensor.sensor_fresh:
         stop_reason, reason = 3, "sensor_stale"
+    elif abs(sensor.normal_load_n) >= V3_R034_SAFETY_ENVELOPE.max_abs_normal_n:
+        stop_reason, reason = 61, "hard_abs_normal_60n"
+    elif sensor.force_norm_n >= V3_R034_SAFETY_ENVELOPE.max_force_norm_n:
+        stop_reason, reason = 62, "hard_force_norm_100n"
+    elif sensor.torque_norm_nm >= V3_R034_SAFETY_ENVELOPE.max_torque_norm_nm:
+        stop_reason, reason = 63, "hard_torque_norm_3nm"
     elif sensor.stop_request:
         stop_reason, reason = 4, "external_stop"
     elif structural_stop:
@@ -286,8 +324,6 @@ def build_wire_packet(
         stop_reason, reason = 42, "hold_mode_requires_zero_qdot"
     elif session.command_mode is CommandMode.PATH and session.baseline_consecutive_successes < 3:
         stop_reason, reason = 50, "baseline_qualification_missing"
-    elif session.command_mode is CommandMode.BASELINE and any(abs(value) > 1e-12 for value in (qdot[0], qdot[1], qdot[3], qdot[4], qdot[5])):
-        stop_reason, reason = 51, "baseline_forbids_tangential_or_angular_motion"
     stop = bool(stop_reason)
     mode = CommandMode.STOP if stop else session.command_mode
     values = {
@@ -334,6 +370,8 @@ def validate_register_mappings() -> None:
         raise R004ContractError("input integer register mapping collision or omission")
     if set(OUTPUT_INTEGER_FIELDS) != set(OUTPUT_INTEGER_REGISTERS):
         raise R004ContractError("output integer register mapping collision or omission")
+    if set(OUTPUT_DOUBLE_FIELDS) != set(OUTPUT_DOUBLE_REGISTERS):
+        raise R004ContractError("output double register mapping collision or omission")
     if len(set(DOUBLE_FIELDS.values())) != len(DOUBLE_FIELDS):
         raise R004ContractError("double field name collision")
     if len(set(INTEGER_FIELDS.values())) != len(INTEGER_FIELDS):
@@ -356,6 +394,8 @@ __all__ = [
     "LAYOUT_TAG",
     "OUTPUT_INTEGER_FIELDS",
     "OUTPUT_INTEGER_REGISTERS",
+    "OUTPUT_DOUBLE_FIELDS",
+    "OUTPUT_DOUBLE_REGISTERS",
     "PacketPayload",
     "ReturnGuard",
     "SensorPacket",

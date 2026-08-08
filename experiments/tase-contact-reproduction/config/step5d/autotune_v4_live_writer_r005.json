@@ -1,0 +1,131 @@
+{
+  "artifact_id": "autotune-v4-kunwei-register-writer-r005",
+  "campaign_scope": {
+    "anchor_damping": 28.0,
+    "epoch": "fresh_r005_only",
+    "mode": "full_campaign",
+    "named_domain": [
+      "P",
+      "D",
+      "tau",
+      "I_on_log2",
+      "I_off",
+      "Ko",
+      "Kp"
+    ],
+    "pd_bootstrap_count": 10,
+    "pending_max": 2,
+    "physical_inflight_max": 1,
+    "qualification_count": 3,
+    "target_force_n": 5.0,
+    "trial_count_limit": false
+  },
+  "delivery": {
+    "arm": false,
+    "contact": false,
+    "controller_readback": false,
+    "controller_upload": false,
+    "live_evidence": false,
+    "load": false,
+    "motion": false,
+    "play": false
+  },
+  "evidence": {
+    "binding_or_safety_failure": "stop_and_revoke_authority",
+    "cold_read_fresh_process": true,
+    "force_objective": {
+      "bin_statistic": "first_mean_each_bin_then_equal_weight_abs_error_mean",
+      "bin_width_s": 0.1,
+      "formal_window_s": [
+        5.0,
+        60.0
+      ],
+      "legacy_shadow_audit_only": true,
+      "legacy_shadow_window_s": [
+        0.0,
+        55.0
+      ],
+      "legacy_trainable": false,
+      "missing_bin": "no_objective",
+      "raw_path_required": true,
+      "required_complete_bins": 550,
+      "schema": "step5d.force-objective/v2",
+      "target_force_n": 5.0,
+      "target_is_optimizer_dimension": false,
+      "version": "force_mae_v2"
+    },
+    "ledger_schema": "step5d.autotune-v4/r005-sealed-observations-v1",
+    "old_r004_qualifications": "audit_only_not_imported",
+    "qdot_actual_qd_binding": [
+      "packet_sequence",
+      "rtde_sequence",
+      "timestamp"
+    ],
+    "safe_nontrainable": "sealed_excluded_loop_continues"
+  },
+  "force_mapping": {
+    "anchor_damping": 28.0,
+    "normal_axis": "fz",
+    "normal_sign": -1.0,
+    "sensor_zero_tare_or_config_allowed": false,
+    "target_force_n": 5.0,
+    "ur_builtin_force_allowed": false
+  },
+  "optimizer_runtime": {
+    "canonical_v3_profile": "optimizer",
+    "canonical_v3_runtime_environment": "tools/step5d_autotune_v3/runtime_environment.py",
+    "canonical_v3_runtime_installation": "tools/step5d_autotune_v3/runtime_installation.py",
+    "child_self_attestation_required": true,
+    "cuda_and_expected_gpu_uuid_required": true,
+    "missing_stale_tampered_pointer": "fail_closed_while_home",
+    "production_control_host_separate": true,
+    "resolver": "step5d_optimizer_runtime.resolve_optimizer_runtime",
+    "resolver_source": "tools/step5d_optimizer_runtime.py",
+    "runtime_manifest": "config/step5d/autotune_v4_r005_runtime_manifest.json",
+    "torch_botorch_gpytorch_exact_versions": true,
+    "worker": "tools/step5d_autotune_v4_r005/optimizer_worker.py"
+  },
+  "program": {
+    "basename": "step5d_strict_rnn_autotune_v4_r005",
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r005.urp"
+  },
+  "release_binding": {
+    "campaign_fingerprint": "72122a8c756a13bd445e9ac05c38e03ffe179f294e38b8a40b0ecfb737ea5b08",
+    "contract_sha256": "4a27c14d8b1c5c5e0a276311e37eb2d5c6d427295b8e8b0a7de08995964ce889",
+    "runtime_identity": {
+      "hi": 697537607,
+      "lo": 1310972227
+    }
+  },
+  "release_contract": "config/step5d/autotune_v4_r005.json",
+  "schema": "step5d.autotune-v4/register-live-writer-v3",
+  "timing": {
+    "attempt_duration_s": 60.0,
+    "layers": [
+      "writer",
+      "rtde",
+      "kunwei",
+      "tp"
+    ],
+    "minimum_hz_inclusive": 460.0,
+    "nominal_hz": 500.0,
+    "scheduler": "absolute_deadline_skip_missed_no_burst"
+  },
+  "transport": {
+    "controller_endpoint": null,
+    "dashboard_actions": false,
+    "kunwei_endpoint": null,
+    "load_or_play": false,
+    "mature_extension_seam": "tools/step5d_autotune_v4_r004_live_writer.py:arm_unbounded+path_sample_sink",
+    "mature_stack": "r004_verified_RTDE_Kunwei_controller_primitives",
+    "mature_writer_bridge": "tools/step5d_autotune_v4_r005/live_adapter.py:R005MatureWriter",
+    "mode": "owner_gated_production_adapter_over_mature_r004_stack",
+    "network_access_allowed": false,
+    "production_adapter": "tools/step5d_autotune_v4_r005/live_adapter.py",
+    "production_cli": "tools/run_step5d_autotune_v4_r005.py",
+    "production_live_stop_after_ordinal": false,
+    "production_writer_factory": "tools/step5d_autotune_v4_r005/live_adapter.py:build_verified_mature_r005_writer",
+    "rtde_hardware_access_allowed": false,
+    "writer_ownership": "exactly_one_R005MatureWriter_over_one_LiveR004Writer"
+  }
+}

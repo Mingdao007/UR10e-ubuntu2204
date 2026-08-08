@@ -18,7 +18,12 @@ from typing import Any, Mapping, Protocol, Sequence
 from step5d_eoat_profiles import load_new_eoat_profile
 
 from .contracts import PROGRAM, RUNTIME_PROTOCOL, R004Contract, runtime_identity_limbs
-from .wire import DOUBLE_REGISTERS, INPUT_INTEGER_REGISTERS, OUTPUT_INTEGER_FIELDS
+from .wire import (
+    DOUBLE_REGISTERS,
+    INPUT_INTEGER_REGISTERS,
+    OUTPUT_DOUBLE_FIELDS,
+    OUTPUT_INTEGER_FIELDS,
+)
 
 
 INPUT_DOUBLE_FIELDS = tuple(
@@ -29,6 +34,9 @@ INPUT_INTEGER_FIELDS = tuple(
 )
 OUTPUT_INTEGER_FIELDS_ORDERED = tuple(
     f"output_int_register_{register}" for register in OUTPUT_INTEGER_FIELDS
+)
+OUTPUT_DOUBLE_FIELDS_ORDERED = tuple(
+    f"output_double_register_{register}" for register in OUTPUT_DOUBLE_FIELDS
 )
 OUTPUT_FIELDS = (
     "timestamp",
@@ -42,6 +50,7 @@ OUTPUT_FIELDS = (
     "safety_mode",
     "robot_mode",
     "runtime_state",
+    *OUTPUT_DOUBLE_FIELDS_ORDERED,
     *OUTPUT_INTEGER_FIELDS_ORDERED,
 )
 
@@ -64,6 +73,7 @@ class R004OutputSnapshot:
     safety_mode: Any
     robot_mode: Any
     runtime_state: Any
+    consumed_packet_sequence: int
     integer_echoes: Mapping[int, int]
 
     @staticmethod
@@ -91,9 +101,17 @@ class R004OutputSnapshot:
                 echoes[register] = raw
             timestamp = float(value["timestamp"])
             payload = float(value["payload"])
+            consumed_packet_sequence_raw = float(value["output_double_register_24"])
         except (KeyError, TypeError, ValueError, OverflowError) as exc:
             raise TransportError("RTDE r004 output omits a required field") from exc
-        if not math.isfinite(timestamp) or not math.isfinite(payload) or payload <= 0.0:
+        if (
+            not math.isfinite(timestamp)
+            or not math.isfinite(payload)
+            or payload <= 0.0
+            or not math.isfinite(consumed_packet_sequence_raw)
+            or consumed_packet_sequence_raw < -1.0
+            or not consumed_packet_sequence_raw.is_integer()
+        ):
             raise TransportError("RTDE payload or sample timestamp is invalid")
         return cls(
             observed_at_s=observed,
@@ -108,6 +126,7 @@ class R004OutputSnapshot:
             safety_mode=value["safety_mode"],
             robot_mode=value["robot_mode"],
             runtime_state=value["runtime_state"],
+            consumed_packet_sequence=int(consumed_packet_sequence_raw),
             integer_echoes=echoes,
         )
 
@@ -122,6 +141,13 @@ class R004OutputSnapshot:
             and math.sqrt(sum(value * value for value in self.tcp_speed_m_s_rad_s[3:])) <= 0.005
         )
 
+    @property
+    def program_running(self) -> bool:
+        return self.runtime_state == 2 or str(self.runtime_state).upper() in {
+            "PLAYING",
+            "RUNNING",
+        }
+
 
 class R004RTDETransport(Protocol):
     def open(self) -> None: ...
@@ -131,6 +157,9 @@ class R004RTDETransport(Protocol):
 
 
 class R004KunweiTransport(Protocol):
+    distinct_frame_sequence: int
+    latest_batch_count: int
+
     def open(self) -> None: ...
     def close(self) -> None: ...
     def poll(self) -> tuple[tuple[float, float, float, float, float, float] | None, float | None]: ...
@@ -178,7 +207,9 @@ def _validate_output_recipe(type_names: Sequence[str]) -> None:
         raise TransportError("r004 output pose/EOAT recipe types differ")
     for index, name in enumerate(type_names[8:11], start=8):
         _integer_recipe_type(name, f"r004 output runtime field {index}")
-    for register, name in zip(OUTPUT_INTEGER_FIELDS, type_names[11:], strict=True):
+    if type_names[11] != "DOUBLE":
+        raise TransportError("r004 consumed packet echo is not DOUBLE")
+    for register, name in zip(OUTPUT_INTEGER_FIELDS, type_names[12:], strict=True):
         _integer_recipe_type(name, f"r004 output integer register {register}")
 
 
@@ -201,6 +232,7 @@ class LiveR004RTDETransport:
         self.output_recipe = 0
         self.output_types: list[str] = []
         self.latest: R004OutputSnapshot | None = None
+        self._last_controller_timestamp: float | None = None
 
     def open(self) -> None:
         if self.client is not None:
@@ -227,6 +259,8 @@ class LiveR004RTDETransport:
         self.client = None
         if client is not None:
             client.__exit__(None, None, None)
+        self.latest = None
+        self._last_controller_timestamp = None
 
     def send_packet(self, double_values: Sequence[float], integer_values: Sequence[int]) -> None:
         client = self.client
@@ -263,8 +297,16 @@ class LiveR004RTDETransport:
             raise TransportError("r004 RTDE transport is not open")
         try:
             raw = client.recv_latest_sample(self.output_recipe, self.output_types, OUTPUT_FIELDS)
-            if raw is not None:
-                self.latest = R004OutputSnapshot.from_mapping(time.time(), raw)
+            if raw is None:
+                return None
+            candidate = R004OutputSnapshot.from_mapping(time.time(), raw)
+            if (
+                self._last_controller_timestamp is not None
+                and candidate.timestamp <= self._last_controller_timestamp
+            ):
+                return None
+            self._last_controller_timestamp = candidate.timestamp
+            self.latest = candidate
         except Exception as exc:
             raise TransportError(f"canonical r004 RTDE output read failed: {exc}") from exc
         return self.latest
@@ -291,6 +333,11 @@ class LiveR004KunweiTransport:
         self.timeout_s = float(timeout_s)
         self._delegate: Any = None
         self.latest: KunweiSample | None = None
+        # The canonical socket parser can return many physical sensor frames in
+        # one nonblocking TCP poll.  Keep the real frame count instead of
+        # collapsing a batch into one host-loop observation.
+        self.distinct_frame_sequence = 0
+        self.latest_batch_count = 0
 
     def open(self) -> None:
         if self._delegate is None:
@@ -315,8 +362,14 @@ class LiveR004KunweiTransport:
         if self._delegate is None:
             raise TransportError("r004 Kunwei transport is not open")
         try:
-            frames, _count = self._delegate.poll()
+            frames, count = self._delegate.poll()
+            if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+                raise TransportError("canonical Kunwei frame count is invalid")
+            if count != len(frames):
+                raise TransportError("canonical Kunwei frame count disagrees with parsed frames")
+            self.latest_batch_count = count
             if frames:
+                self.distinct_frame_sequence += count
                 canonical_v4 = _canonical_v4()
                 converted = canonical_v4.zeroed_wrench(frames[-1], (0.0,) * 6)
                 observed = self._delegate.latest_mono

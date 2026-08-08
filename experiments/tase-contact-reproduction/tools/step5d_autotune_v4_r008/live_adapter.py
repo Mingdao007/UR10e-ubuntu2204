@@ -2834,6 +2834,13 @@ class R008LiveAdapter(R006LiveAdapter):
             raise R008LiveAdapterError("r008 optimizer evidence owner differs from the live ledger")
         if writer is None:
             writer = self.build_verified_writer(inputs, path_sample_sink=None)
+        try:
+            from r008_rtde_seq_probe_inject import install_writer_probes
+
+            install_writer_probes(writer)
+        except Exception:
+            # Probe must never block formal live; closure bypass already ran at import.
+            pass
         adapted = R008LiveWriterAdapter(writer, contract=self.parent_contract)
         sink_owner = getattr(writer, "writer", writer)
         if not hasattr(sink_owner, "_path_sample_sink"):

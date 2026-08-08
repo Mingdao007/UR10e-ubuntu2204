@@ -6,6 +6,13 @@
     "basename": "step5d_strict_rnn_autotune_v4_r004",
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r004.urp"
   },
+  "live_scope": {
+    "mode": "full_campaign",
+    "allowed_ordinals": "1_through_16_in_plan_order",
+    "ordinal_5_and_later": "qualification_and_durability_gated",
+    "full_campaign_enabled": true,
+    "promotion_enabled": false
+  },
   "transport": {
     "mode": "explicit_live_ack_only",
     "controller_endpoint": null,
@@ -18,11 +25,11 @@
   },
   "timing": {
     "tp_hz": 500.0,
-    "writer_hz": 125.0,
-    "publish_period_s": 0.008,
+    "writer_hz": 500.0,
+    "publish_period_s": 0.002,
     "packet_held_age_limit_s": 0.08,
     "pre_latch_timeout_s": 20.0,
-    "post_latch_timeout_s": 20.0,
+    "post_latch_timeout_s": 30.0,
     "path_runtime_s": 60.0
   },
   "force_mapping": {
@@ -35,22 +42,39 @@
     "sensor_zero_tare_or_config_allowed": false
   },
   "hard_guards": {
-    "search": {
-      "absolute_normal_load_n": 3.0,
-      "force_norm_n": 3.0,
-      "torque_norm_nm": 0.2
-    },
-    "baseline_path": {
-      "absolute_normal_load_n": 15.0,
-      "force_norm_n": 20.0,
-      "torque_norm_nm": 1.0
-    }
+    "scope": "all_phases_including_entry_search_baseline_path_return",
+    "absolute_normal_load_n": 60.0,
+    "force_norm_n": 100.0,
+    "torque_norm_nm": 3.0
+  },
+  "motion_profile": {
+    "schema": "step5d.autotune-v4/r004-motion-profile-v1",
+    "version": "v3-r034-effective-caps-v1",
+    "source": "frozen_v3_r034",
+    "profile_id": "nf100000-slew250-a2000",
+    "path_xy_speed_max_m_s": 0.004,
+    "total_linear_speed_max_m_s": 1.0,
+    "normal_linear_speed_max_m_s": 1.0,
+    "angular_speed_max_rad_s": 0.25,
+    "qdot_abs_max_rad_s": 2.5,
+    "host_qdot_slew_max_rad_s2": 2.5,
+    "tp_speedj_acceleration_rad_s2": 20.0,
+    "normal_update_max_rad_s": 100.0
+  },
+  "timing_acceptance": {
+    "nominal_hz": 500.0,
+    "minimum_hz_inclusive": 460.0,
+    "layers": ["writer_publish", "rtde_distinct", "kunwei_distinct", "tp_consumed_distinct"],
+    "feedback_age_p99_max_s": 0.01,
+    "fresh_frame_gap_lt_s": 0.02,
+    "cached_or_duplicate_counts_as_fresh": false
   },
   "wire": {
     "schema": "step5d.autotune-v4/register-wire-v3",
     "layout_tag": 606,
     "input_integer_registers": "24..32",
     "output_integer_registers": "24..34",
+    "output_double_register_24": "consumed_packet_sequence",
     "session_commands": {
       "HOLD": 0,
       "ARM": 1,

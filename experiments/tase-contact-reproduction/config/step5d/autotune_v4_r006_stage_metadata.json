@@ -1,0 +1,17 @@
+{
+  "schema": "step5d.stage-metadata/r006-offline-v1",
+  "stage_id": "step5d_strict_rnn_autotune_v4_r006",
+  "program": "step5d_strict_rnn_autotune_v4_r006",
+  "lineage_selector": "config/step5d/lineage_selector_v4_r006.json",
+  "release_contract": "config/step5d/autotune_v4_r006.json",
+  "current": false,
+  "blocked": true,
+  "offline_only": true,
+  "controller_upload": false,
+  "controller_readback": false,
+  "live_acceptance": false,
+  "owner_route": "ur10e-contact-control-prep",
+  "resident_lifecycle": ["HOME_IDLE", "DISPATCH", "ARM", "ACTIVE_60S", "RETURN", "SEAL", "TELL", "REFILL"],
+  "formal_success": "application acceptance plus local finite-region epsilon-PAC; never global convergence",
+  "remaining_external_gates": ["fresh EOAT/controller read-back", "Remote live route", "live qualification", "application evidence"]
+}

@@ -1,0 +1,41 @@
+{
+  "schema": "step5d.lineage-selector/v4-r006-source-closure-v1",
+  "status": "offline_candidate_live_blocked",
+  "active_canonical_selector_unchanged": true,
+  "parent": {
+    "lineage": "step5d_strict_rnn_autotune_v4_r005",
+    "release_contract": "config/step5d/autotune_v4_r005.json",
+    "identity_preserved": true,
+    "qualifications_imported": false
+  },
+  "candidate_v4_r006": {
+    "lineage": "step5d_strict_rnn_autotune_v4_r006",
+    "program": "step5d_strict_rnn_autotune_v4_r006",
+    "revision": 6,
+    "release_contract": "config/step5d/autotune_v4_r006.json",
+    "runtime_manifest": "config/step5d/autotune_v4_r006_runtime_manifest.json",
+    "offline_closure": "config/step5d/autotune_v4_r006_offline_closure.json",
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r006.urp",
+    "script2_lifecycle": "resident_home_idle_dispatch_arm_active_60s_return_seal_tell_refill",
+    "attempt_sequence": "positive_monotonic_unbounded",
+    "optimizer": "managed_cuda_conditional_matern52_qLogNEI_with_X_pending",
+    "formal_objective": "raw_bundle_cold_read_force_mae_v3",
+    "live_enabled": false
+  },
+  "activation": {
+    "this_file_is_not_canonical_active_selector": true,
+    "manual_canonical_pointer_mutation": false,
+    "required_live_evidence": [
+      "fresh_r006_eoat_apply_get_receipt",
+      "exact_r006_controller_readback_receipt",
+      "live_runtime_identity_and_session_epoch",
+      "Remote_owner_route_and_safety_gates",
+      "application_acceptance_and_local_epsilon_pac"
+    ]
+  },
+  "claim_boundary": [
+    "This records an offline r006 source closure only.",
+    "It does not select r006, upload, read back, Load, Play, ARM, move, contact, or promote.",
+    "r004 and r005 identities remain immutable audit-only parents."
+  ]
+}

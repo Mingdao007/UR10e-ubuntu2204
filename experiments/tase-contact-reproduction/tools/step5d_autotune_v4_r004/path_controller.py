@@ -136,12 +136,22 @@ def _path_caps(
 
 @dataclass
 class V4PathController:
-    """Consume every tunable and produce a profile-bounded qdot proposal."""
+    """Consume every tunable and produce a profile-bounded qdot proposal.
+
+    Normal-channel damping matches greybox/reconstruct velocity form
+    ``u ← (1 − dt·D)·u + dt·P·(e + kf·I)``.  Live PATH normal force does **not**
+    publish this ``proposed_qdot``: qualification overwrites it with
+    ``V4CalibratedRuntime.desired_twist`` → ``compute_step5d_outer_loop``
+    (``Bd_scalar = D/P`` via ``contact_semantics.force_motion_acceleration_base``).
+    Keep Bd only here for standalone/offline path_controller use — do not also
+    subtract Bd from the paper outer-loop twist (double-count).
+    """
 
     candidate: V4Candidate
     filtered_normal_n: float = 0.0
     integral_error_n_s: float = 0.0
     _initialized: bool = False
+    _normal_velocity_m_s: float = 0.0
     motion_profile: V4MotionProfile | None = None
     last_log: CandidateTickLog | None = field(default=None, init=False, repr=False)
 
@@ -198,16 +208,20 @@ class V4PathController:
             )
         terms = derive_force_terms(self.candidate)
         force_error = float(setpoint_n) - self.filtered_normal_n
-        self.integral_error_n_s += force_error * float(actual_dt_s) * (
+        dt = float(actual_dt_s)
+        self.integral_error_n_s += force_error * dt * (
             0.0 if self.candidate.force_i_gain == 0.0 else 1.0
         )
-        normal_speed = (
-            self.candidate.force_p_gain * force_error
-            + self.candidate.force_i_gain * self.integral_error_n_s
-        )
-        # Damping is consumed through the typed force terms; the calibrated
-        # outer loop owns the actual velocity damping contribution.
-        normal_speed -= (terms["Bd"] * terms["P"]) * 0.0
+        # Greybox/reconstruct normal velocity (D = force_damping = Bd/Md = Bd·P).
+        if mode in {"hold", "retract", "stop"}:
+            self._normal_velocity_m_s = 0.0
+            normal_speed = 0.0
+        else:
+            drive = force_error + terms["kf"] * self.integral_error_n_s
+            self._normal_velocity_m_s = self._normal_velocity_m_s * (
+                1.0 - dt * float(self.candidate.force_damping)
+            ) + dt * float(self.candidate.force_p_gain) * drive
+            normal_speed = float(self._normal_velocity_m_s)
         total_cap, normal_cap, tangential_cap, angular_cap = _path_caps(
             self.motion_profile
         )
@@ -226,19 +240,10 @@ class V4PathController:
             wx = self.candidate.orientation_ko * float(orientation_error_rad[0])
             wy = self.candidate.orientation_ko * float(orientation_error_rad[1])
             wz = self.candidate.orientation_ko * float(orientation_error_rad[2])
-            damped_normal = normal_speed - math.copysign(
-                min(
-                    abs(normal_speed)
-                    * (terms["Bd"] / max(terms["Md"], 1.0))
-                    * 1e-6,
-                    abs(normal_speed),
-                ),
-                normal_speed,
-            ) if abs(normal_speed) > 0.0 else 0.0
             linear = [
                 max(-tangential_cap, min(tangential_cap, tx)),
                 max(-tangential_cap, min(tangential_cap, ty)),
-                max(-normal_cap, min(normal_cap, -damped_normal)),
+                max(-normal_cap, min(normal_cap, -normal_speed)),
             ]
             linear_norm = math.sqrt(sum(value * value for value in linear))
             if linear_norm > total_cap:

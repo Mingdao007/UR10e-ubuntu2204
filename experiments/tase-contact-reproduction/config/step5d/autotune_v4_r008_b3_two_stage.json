@@ -1,8 +1,9 @@
 {
   "b3_canary": {
-    "campaign_fingerprint": "b02585399f32f1f55d0976235cfd7a4b463ff9f08bd7a8db2428dc55ed833186",
+    "campaign_fingerprint": "b461ed52f69d2ab11c41a252898e88122b5c1dcacc21ba102222e1a9e7250f8b",
     "overwrites_mainline_r006": false,
     "parent_campaign_fingerprint": "1db4f9bf587826e7562dccef7040f627e660e540f847a2e8b92f63879870cc4a",
+    "raw_codec": "r008raw_v2",
     "schema": "step5d.autotune-v4/r008-b3-two-stage-identity-v1"
   },
   "completion": {
@@ -103,7 +104,7 @@
         "confirm_normal_n": 0.5,
         "d_near_m": 0.013970689,
         "d_near_start_travel_m": 0.011029311000000002,
-        "far_acceleration_m_s2": 0.02,
+        "far_acceleration_m_s2": 0.01,
         "force_fuse_n": 50.0,
         "force_fuse_reason": 75,
         "max_travel_m": 0.025,
@@ -112,9 +113,9 @@
         "program": "step5d_strict_rnn_autotune_v4_r008_b3_two_stage",
         "schema": "step5d.autotune-v4/r008-contact-search-schedule-v1",
         "timeout_s": 90.0,
-        "v_far_m_s": 0.002,
+        "v_far_m_s": 0.005,
         "v_near_m_s": 0.0005,
-        "version": "b3-geometry-planned-wave3-far-cap-v1"
+        "version": "b3-geometry-planned-wave4-far005-limit150-pathring-bo-fix-v2"
       },
       "torque_hard_guard_norm_nm": 3.0
     },
@@ -243,7 +244,7 @@
   "schema": "step5d.autotune-v4/r006-release-contract-v1",
   "source_closure": {
     "path": "config/step5d/autotune_v4_r006_offline_closure.json",
-    "sha256": "f92759ad52df0c158c8743f75ea5d7b05535a46fad054a81d50dbf3597690c55"
+    "sha256": "213a16cd9e463a54b44185bc4a8dda091ccd97d97e188965b82440e57ebffac7"
   },
   "warm_start": {
     "first_group_exact_trials": 25,

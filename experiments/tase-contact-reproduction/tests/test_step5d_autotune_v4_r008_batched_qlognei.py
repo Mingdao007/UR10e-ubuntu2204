@@ -135,9 +135,11 @@ def _synthetic_binding(tmp_path: Path) -> tuple[dict[str, Any], ParameterPoint]:
             point_key=list(point.key),
         )
     raw_rows = sidecar.sidecar.fresh_process_verify()
+    sidecar_data = sidecar.sidecar.path.read_bytes()
     binding = {
         "sidecar_path": str(sidecar.sidecar.path.resolve(strict=True)),
-        "sidecar_sha256": hashlib.sha256(sidecar.sidecar.path.read_bytes()).hexdigest(),
+        "sidecar_sha256": hashlib.sha256(sidecar_data).hexdigest(),
+        "sidecar_prefix_bytes": len(sidecar_data),
         "campaign_fingerprint": contract.campaign_fingerprint,
         "rows": [
             {

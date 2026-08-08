@@ -1,0 +1,27 @@
+Step5d independent new-EOAT 5 N Autotune V4 r006 resident host/TP loop
+
+Program:
+  step5d_strict_rnn_autotune_v4_r006
+
+Controller target:
+  /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r006.urp
+
+Version:
+  2026-08-02T1200HKT_STEP5D_AUTOTUNE_V4_R006
+
+Resident lifecycle:
+  HOME_IDLE -> dispatch -> fresh ARM -> ACTIVE 60 s -> safe return -> seal/tell/refill.
+  Home and intertrial waits are unbounded safe HOLD; the 80 ms lease is active-only.
+  Attempt sequences are positive, monotonically increasing, and unbounded.
+
+Package boundary:
+  This local triplet is content-addressed and has not been uploaded or read back.
+  The host route never performs Dashboard Load or Play.
+
+Optimizer boundary:
+  Production resolves the managed CUDA qLogNEI worker with X_pending; no degraded
+  fallback is permitted.  The target force is exactly 5.0 N and is not a coordinate.
+
+Binding:
+  # VERSION: 2026-08-02T1200HKT_STEP5D_AUTOTUNE_V4_R006
+  # R006_RATE_CONTRACT: host=500.0Hz rtde_request=500.0Hz kunwei=500.0Hz tp=500.0Hz minimum_each_layer=460.0Hz absolute_deadline

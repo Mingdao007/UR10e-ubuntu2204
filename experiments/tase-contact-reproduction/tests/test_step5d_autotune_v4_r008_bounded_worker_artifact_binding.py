@@ -91,9 +91,11 @@ def _build_sidecar(tmp_path: Path, n: int) -> tuple[R006ObjectiveSidecar, object
 def _binding_value(sidecar: R006ObjectiveSidecar, contract, n: int) -> dict:
     import hashlib
 
+    data = sidecar.path.read_bytes()
     return {
         "sidecar_path": str(sidecar.path),
-        "sidecar_sha256": hashlib.sha256(sidecar.path.read_bytes()).hexdigest(),
+        "sidecar_sha256": hashlib.sha256(data).hexdigest(),
+        "sidecar_prefix_bytes": len(data),
         "campaign_fingerprint": contract.campaign_fingerprint,
         "rows": [
             {"attempt_sequence": sequence, "execution_id": f"r008-bound-test-{sequence}"}
@@ -114,7 +116,11 @@ def test_bounded_matches_oracle_selection_and_trainability(tmp_path: Path, monke
     value = _binding_value(sidecar, contract, 8)
 
     bounded = bounded_artifact_binding(value, tail_rows=3)
-    oracle = oracle_artifact_binding(value)
+    # The frozen oracle (step5d_autotune_v4_r006.optimizer_worker) still
+    # expects the pre-2026-08-07 4-key shape (whole-file hash, no prefix) --
+    # it is never touched by the r008 prefix-hash overlay.
+    oracle_value = {k: v for k, v in value.items() if k != "sidecar_prefix_bytes"}
+    oracle = oracle_artifact_binding(oracle_value)
 
     assert len(bounded["rows"]) == len(oracle["rows"]) == 8
     # Regression pin for the 2026-08-04 bug: oracle_artifact_binding always
@@ -147,16 +153,18 @@ def test_bounded_bounds_cold_read_verify_calls(tmp_path: Path, monkeypatch) -> N
     sidecar, contract = _build_sidecar(tmp_path, 10)
     value = _binding_value(sidecar, contract, 10)
 
-    from step5d_autotune_v4_r008 import bounded_worker_artifact_binding as mod
+    # Under r008_binary_seal_scope, obj_mod.cold_read_verify is the binary
+    # dispatcher; legacy fat receipts fall through to stock_cold_read_verify.
+    import step5d_autotune_v4_r008.binary_seal as binary_seal
 
     call_count = {"n": 0}
-    original = mod.cold_read_verify
+    original = binary_seal.stock_cold_read_verify
 
     def counting_cold_read_verify(*args, **kwargs):
         call_count["n"] += 1
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(mod, "cold_read_verify", counting_cold_read_verify)
+    monkeypatch.setattr(binary_seal, "stock_cold_read_verify", counting_cold_read_verify)
 
     bounded_artifact_binding(value, tail_rows=3)
 
@@ -180,7 +188,9 @@ def test_bounded_still_catches_hash_chain_tampering(tmp_path: Path) -> None:
     tampered_value = dict(value)
     import hashlib
 
-    tampered_value["sidecar_sha256"] = hashlib.sha256(sidecar.path.read_bytes()).hexdigest()
+    tampered_data = sidecar.path.read_bytes()
+    tampered_value["sidecar_sha256"] = hashlib.sha256(tampered_data).hexdigest()
+    tampered_value["sidecar_prefix_bytes"] = len(tampered_data)
 
     with pytest.raises(OptimizerWorkerError, match="hash chain differs"):
         bounded_artifact_binding(tampered_value, tail_rows=2)
@@ -230,13 +240,15 @@ def test_receipt_cache_skips_json_loads_for_non_tail_on_repeat(tmp_path: Path, m
 
     loads_on_artifacts["n"] = 0
     cold_reads = {"n": 0}
-    original_cold = mod.cold_read_verify
+    import step5d_autotune_v4_r008.binary_seal as binary_seal
+
+    original_cold = binary_seal.stock_cold_read_verify
 
     def counting_cold(*args, **kwargs):
         cold_reads["n"] += 1
         return original_cold(*args, **kwargs)
 
-    monkeypatch.setattr(mod, "cold_read_verify", counting_cold)
+    monkeypatch.setattr(binary_seal, "stock_cold_read_verify", counting_cold)
 
     second = bounded_artifact_binding(value, tail_rows=3)
     # Unchanged artifacts: no re-parse and no re-cold_read on repeat.
@@ -262,13 +274,15 @@ def test_r006_request_uses_bounded_binder_via_batched_worker_patch(tmp_path: Pat
     assert r006._artifact_binding is mod.bounded_artifact_binding
 
     call_count = {"n": 0}
-    original = mod.cold_read_verify
+    import step5d_autotune_v4_r008.binary_seal as binary_seal
+
+    original = binary_seal.stock_cold_read_verify
 
     def counting_cold_read_verify(*args, **kwargs):
         call_count["n"] += 1
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(mod, "cold_read_verify", counting_cold_read_verify)
+    monkeypatch.setattr(binary_seal, "stock_cold_read_verify", counting_cold_read_verify)
 
     # Shape-validation pass inside r006._request (result discarded).
     request = {

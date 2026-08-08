@@ -20,9 +20,17 @@ from .contracts import (
     PROGRAM,
     SCRIPT1_PROGRAM,
     TARGET_FORCE_N,
-    TRANSFER_FLOOR_Z_M,
     load_contract,
     runtime_identity_limbs,
+)
+from .home_profile import (
+    ATTEMPT_ENTRY_NOT_CAPTURED_HOME,
+    RETURN_RISE_ACCEL_M_S2,
+    RETURN_RISE_SPEED_M_S,
+    RETURN_TRANSFER_ACCEL_M_S2,
+    RETURN_TRANSFER_SPEED_M_S,
+    FixedHomeProfile,
+    load_fixed_home_profile,
 )
 
 from .wire import (
@@ -97,10 +105,11 @@ def _finite_payload_lines() -> str:
     return "\n".join(lines)
 
 
-def _script_body(contract: Any) -> str:
+def _script_body(contract: Any, home_profile: FixedHomeProfile) -> str:
     raw = contract.raw
     contact = raw["contact_acquisition"]
     runtime = raw["runtime"]
+    motion_runtime = contract.motion_runtime
     baseline = raw["baseline"]
     return_home = raw["return_home"]
     runtime_hi, runtime_lo = _runtime_limbs(
@@ -108,12 +117,18 @@ def _script_body(contract: Any) -> str:
     )
     anchor_damping = float(raw["fingerprint"]["damping"])
     path_runtime = float(runtime["path_runtime_s"])
-    qdot_limit = float(runtime["qdot_abs_max_rad_s"])
-    transfer_floor = float(return_home["transfer_floor_z_m"])
+    qdot_limit = motion_runtime.qdot_abs_rad_s
+    tp_acceleration = motion_runtime.tp_speedj_acceleration_rad_s2
     retract_min = float(return_home["retract_min_m"])
-    home_pos_tol = float(return_home["home_position_tolerance_m"])
-    home_rot_tol = float(return_home["home_orientation_tolerance_rad"])
-    home_q_tol = float(return_home["home_joint_tolerance_rad"])
+    home_pos_tol = home_profile.position_tolerance_m
+    home_rot_tol = home_profile.orientation_tolerance_rad
+    home_q_tol = home_profile.joint_tolerance_rad
+    fixed_home_pose = ", ".join(f"{value:.9f}" for value in home_profile.pose)
+    return_rise_accel = f"{RETURN_RISE_ACCEL_M_S2:.3f}"
+    return_rise_speed = f"{RETURN_RISE_SPEED_M_S:.3f}"
+    return_transfer_accel = f"{RETURN_TRANSFER_ACCEL_M_S2:.3f}"
+    return_transfer_speed = f"{RETURN_TRANSFER_SPEED_M_S:.3f}"
+    tp_acceleration_literal = f"{tp_acceleration:.9f}"
 
     copy_payload = _copy_payload_lines()
     compare_payload = _compare_payload_lines()
@@ -130,14 +145,20 @@ def _script_body(contract: Any) -> str:
 # SCRIPT1_POLICY: initial and after STOP/problem/restart only; never per attempt
 # TARGET_FORCE_N: {TARGET_FORCE_N:.1f} immutable; D_ANCHOR: {anchor_damping:.1f}
 # WRENCH_AUTHORITY: Kunwei only; no UR built-in force; no sensor zero/tare/config writes
-# LIFECYCLE: one Play captures campaign Home once; ARM is a rolling resident attempt
+# LIFECYCLE: fixed EOAT-bound Home; every ARM verifies pose and q branch before motion
 # STATE: READY_HOME_NEXT=78, COMPLETE=80, STOPPED=90; no auto-resume after fault
 # SESSION_COMMAND: SessionCommand HOLD=0 ARM=1 COMPLETE=2 STOP=3
 # FRESHNESS: newer sequence updates immutable cache; equal sequence needs exact payload
 # FRESHNESS_FAILURE: equal changed payload, regression, or held age >= {PACKET_STALE_S:.3f}s => reason 43
 # LATCH_TIMING: pre-latch <= {PRE_LATCH_TIMEOUT_S:.1f}s, separate post-latch <= {POST_LATCH_TIMEOUT_S:.1f}s
-# RETURN: retract >= {retract_min:.3f}m, transfer floor >= {transfer_floor:.9f}m, then captured Home
-# OUTPUT_INT_24_34: epoch, ordinal, state, token, reason, consumed_seq, kind, return_guard, runtime_protocol, digest_hi, digest_lo
+# FIXED_HOME_PROFILE: {home_profile.home_profile_id}
+# FIXED_HOME_POSE: p[{fixed_home_pose}]
+# HOME_ENTRY: position <= {home_pos_tol:.3f}m, orientation <= {home_rot_tol:.3f}rad, q <= {home_q_tol:.3f}rad
+# HOME_ENTRY_FAILURE: {ATTEMPT_ENTRY_NOT_CAPTURED_HOME} ATTEMPT_ENTRY_NOT_CAPTURED_HOME; stop without Script2 auto-home
+# RETURN: V3 rise/descent a={return_rise_accel} v={return_rise_speed}; XY transfer a={return_transfer_accel} v={return_transfer_speed}; fixed Home
+# CONTACT_SEARCH: downward V4 speed={float(contact["speed_m_s"]):.7f}m/s, accel={float(contact["acceleration_m_s2"]):.3f}m/s^2, max={float(contact["max_travel_m"]):.3f}m, timeout={float(contact["timeout_s"]):.1f}s
+# OUTPUT_INT_24_34: epoch, ordinal, state, token, reason, consumed_session_seq, kind, return_guard, runtime_protocol, digest_hi, digest_lo
+# OUTPUT_DOUBLE_24: latest packet_sequence actually consumed by the TP loop
 
 global codex_r004_cache_valid = False
 global codex_r004_cache_sequence = -1.0
@@ -264,19 +285,28 @@ end
 
 def codex_r004_stationary(required_s):
   local dwell_s = 0.0
-  while dwell_s < required_s:
+  local elapsed_s = 0.0
+  # A blocking move may expose one deceleration sample after it returns.
+  # Keep the existing speed thresholds and require the full dwell, but allow
+  # at most four dwell-windows for that residual motion to settle.  With the
+  # fixed 250 ms call sites this is a 1.0 s settle plus 250 ms full dwell.
+  while dwell_s < required_s and elapsed_s < required_s * 5.0:
     local packet_reason = codex_r004_packet_observe()
-    local guard = codex_r004_packet_guard(packet_reason, 15.0, 20.0, 1.0)
+    local guard = codex_r004_packet_guard(packet_reason, 60.0, 100.0, 3.0)
     local speed = get_actual_tcp_speed()
     local linear = sqrt(speed[0] * speed[0] + speed[1] * speed[1] + speed[2] * speed[2])
     local angular = sqrt(speed[3] * speed[3] + speed[4] * speed[4] + speed[5] * speed[5])
-    if guard != 0 or linear > {float(runtime["stationary_linear_m_s"]):.9f} or angular > {float(runtime["stationary_angular_rad_s"]):.9f}:
+    if guard != 0:
       return False
+    elif linear > {float(runtime["stationary_linear_m_s"]):.9f} or angular > {float(runtime["stationary_angular_rad_s"]):.9f}:
+      dwell_s = 0.0
+    else:
+      dwell_s = dwell_s + get_steptime()
     end
-    dwell_s = dwell_s + get_steptime()
+    elapsed_s = elapsed_s + get_steptime()
     sync()
   end
-  return True
+  return dwell_s >= required_s
 end
 
 def codex_r004_pose_close(actual, expected):
@@ -288,7 +318,9 @@ end
 def codex_r004_q_close(actual, expected):
   local index = 0
   while index < 6:
-    if codex_r004_abs(actual[index] - expected[index]) > {home_q_tol:.9f}:
+    if not codex_r004_finite(actual[index], 1000000.0) or not codex_r004_finite(expected[index], 1000000.0):
+      return False
+    elif codex_r004_abs(actual[index] - expected[index]) > {home_q_tol:.9f}:
       return False
     end
     index = index + 1
@@ -296,7 +328,36 @@ def codex_r004_q_close(actual, expected):
   return True
 end
 
+def codex_r004_home_close(expected_pose, expected_q):
+  local actual_pose = get_actual_tcp_pose()
+  if not codex_r004_pose_close(actual_pose, expected_pose):
+    return False
+  end
+  local actual_q = get_actual_joint_positions()
+  if not codex_r004_q_close(actual_q, expected_q):
+    return False
+  end
+  return True
+end
+
+def codex_r004_entry_home_verified(expected_pose, locked_q, locked_q_valid):
+  # The Cartesian check is authoritative.  Only after it passes may the
+  # current q establish or be compared with the resident IK branch.
+  local actual_pose = get_actual_tcp_pose()
+  if not codex_r004_pose_close(actual_pose, expected_pose):
+    return False
+  end
+  local actual_q = get_actual_joint_positions()
+  if not codex_r004_q_close(actual_q, actual_q):
+    return False
+  elif locked_q_valid and not codex_r004_q_close(actual_q, locked_q):
+    return False
+  end
+  return True
+end
+
 def codex_r004_echo(epoch, ordinal, state, token, reason, consumed, kind, return_guard, runtime_hi, runtime_lo):
+  write_output_float_register(24, codex_r004_cache_sequence)
   write_output_integer_register(24, epoch)
   write_output_integer_register(25, ordinal)
   write_output_integer_register(26, state)
@@ -331,48 +392,41 @@ end
 def codex_r004_return_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_hi, runtime_lo, current_guard):
   local return_guard = current_guard
   local packet_reason = codex_r004_packet_observe()
-  local guard = codex_r004_packet_guard(packet_reason, 15.0, 20.0, 1.0)
+  local guard = codex_r004_packet_guard(packet_reason, 60.0, 100.0, 3.0)
   if guard != 0 or not codex_r004_stationary(0.250000000):
     return codex_r004_return_fault(epoch, ordinal, token, kind, consumed, 58, runtime_hi, runtime_lo, return_guard)
   end
-  return_guard = return_guard + 1
-  local retract_start = get_actual_tcp_pose()
-  local retract_m = 0.0
-  while retract_m < {retract_min:.9f}:
-    packet_reason = codex_r004_packet_observe()
-    guard = codex_r004_packet_guard(packet_reason, 15.0, 20.0, 1.0)
-    if guard != 0:
-      return codex_r004_return_fault(epoch, ordinal, token, kind, consumed, guard, runtime_hi, runtime_lo, return_guard)
-    end
-    speedl([0.0, 0.0, 0.000500000, 0.0, 0.0, 0.0], 0.010000000, 0.008000000)
-    local retract_pose = get_actual_tcp_pose()
-    retract_m = retract_pose[2] - retract_start[2]
-    codex_r004_echo(epoch, ordinal, 40, token, 0, consumed, kind, return_guard, runtime_hi, runtime_lo)
+  # Keep the V3 sequential route: rise clear of the fixed Home, transfer XY
+  # at the clear height, then descend to the fixed Home.  There is no legacy
+  # legacy upward transfer floor in this V4 route.
+  local current_pose = get_actual_tcp_pose()
+  local safe_z = home_pose[2] + {retract_min:.9f}
+  if current_pose[2] + {retract_min:.9f} > safe_z:
+    safe_z = current_pose[2] + {retract_min:.9f}
   end
-  stopl(0.010000000)
-  return_guard = return_guard + 2
+  local rise_pose = p[current_pose[0], current_pose[1], safe_z, current_pose[3], current_pose[4], current_pose[5]]
+  local transfer_pose = p[home_pose[0], home_pose[1], safe_z, home_pose[3], home_pose[4], home_pose[5]]
+  movel(rise_pose, a={return_rise_accel}, v={return_rise_speed}, r=0.0)
+  stopl(0.1)
   if not codex_r004_stationary(0.250000000):
-    return codex_r004_return_fault(epoch, ordinal, token, kind, consumed, 58, runtime_hi, runtime_lo, return_guard)
-  end
-  local transfer_pose = get_actual_tcp_pose()
-  local transfer_z = transfer_pose[2]
-  if transfer_z < {transfer_floor:.9f}:
-    transfer_z = {transfer_floor:.9f}
-  end
-  movel(p[transfer_pose[0], transfer_pose[1], transfer_z, transfer_pose[3], transfer_pose[4], transfer_pose[5]], a=0.050000000, v={float(runtime["low_speed_return_m_s"]):.9f}, r=0.0)
-  local floor_pose = get_actual_tcp_pose()
-  if not codex_r004_stationary(0.250000000) or floor_pose[2] < {transfer_floor:.9f}:
     return codex_r004_return_fault(epoch, ordinal, token, kind, consumed, 59, runtime_hi, runtime_lo, return_guard)
   end
-  return_guard = return_guard + 4 + 8 + 16
+  return_guard = return_guard + 1 + 2 + 8
   codex_r004_echo(epoch, ordinal, 40, token, 0, consumed, kind, return_guard, runtime_hi, runtime_lo)
-  movel(home_pose, a=0.050000000, v={float(runtime["low_speed_return_m_s"]):.9f}, r=0.0)
+  movel(transfer_pose, a={return_transfer_accel}, v={return_transfer_speed}, r=0.0)
+  stopl(0.1)
+  if not codex_r004_stationary(0.250000000):
+    return codex_r004_return_fault(epoch, ordinal, token, kind, consumed, 59, runtime_hi, runtime_lo, return_guard)
+  end
+  return_guard = return_guard + 16
+  codex_r004_echo(epoch, ordinal, 40, token, 0, consumed, kind, return_guard, runtime_hi, runtime_lo)
+  movel(home_pose, a={return_rise_accel}, v={return_rise_speed}, r=0.0)
+  stopl(0.1)
   if not codex_r004_stationary(0.250000000):
     return codex_r004_return_fault(epoch, ordinal, token, kind, consumed, 60, runtime_hi, runtime_lo, return_guard)
   end
-  local final_pose = get_actual_tcp_pose()
-  local final_q = get_actual_q()
-  if not codex_r004_pose_close(final_pose, home_pose) or not codex_r004_q_close(final_q, home_q):
+  codex_r004_echo(epoch, ordinal, 40, token, 0, consumed, kind, return_guard, runtime_hi, runtime_lo)
+  if not codex_r004_home_close(home_pose, home_q):
     return codex_r004_return_fault(epoch, ordinal, token, kind, consumed, 60, runtime_hi, runtime_lo, return_guard)
   end
   return_guard = return_guard + 32 + 64
@@ -387,40 +441,45 @@ def codex_r004_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
   codex_r004_attempt_success = False
   codex_r004_attempt_reason = 0
   codex_r004_attempt_guard = 0
-  local transfer_pose = get_actual_tcp_pose()
-  local transfer_z = transfer_pose[2]
-  if transfer_z < {transfer_floor:.9f}:
-    transfer_z = {transfer_floor:.9f}
-  end
   local packet_reason = codex_r004_packet_observe()
-  local guard = codex_r004_packet_guard(packet_reason, 3.0, 3.0, 0.2)
+  local guard = codex_r004_packet_guard(packet_reason, 60.0, 100.0, 3.0)
   if guard != 0:
     return codex_r004_fault(epoch, ordinal, token, kind, consumed, guard, runtime_hi, runtime_lo)
   end
-  movel(p[transfer_pose[0], transfer_pose[1], transfer_z, transfer_pose[3], transfer_pose[4], transfer_pose[5]], a=0.050000000, v={float(runtime["low_speed_entry_m_s"]):.9f}, r=0.0)
   if not codex_r004_stationary(0.250000000):
     return codex_r004_fault(epoch, ordinal, token, kind, consumed, 23, runtime_hi, runtime_lo)
   end
+  # ARM entry has already verified the fixed Home.  Start the existing V4
+  # bounded negative-Z search directly from that stationary pose.
   local contact_start = get_actual_tcp_pose()
   local contact_elapsed_s = 0.0
+  local contact_confirm_s = 0.0
   local contact_done = False
   while not contact_done:
     packet_reason = codex_r004_packet_observe()
-    guard = codex_r004_packet_guard(packet_reason, 3.0, 3.0, 0.2)
+    guard = codex_r004_packet_guard(packet_reason, 60.0, 100.0, 3.0)
     local contact_pose = get_actual_tcp_pose()
     local travel = contact_start[2] - contact_pose[2]
     if guard != 0:
       return codex_r004_fault(epoch, ordinal, token, kind, consumed, guard, runtime_hi, runtime_lo)
-    elif read_input_float_register(24) >= 0.500000000 or read_input_float_register(25) >= 0.700000000:
-      contact_done = True
     elif travel >= {float(contact["max_travel_m"]):.9f}:
       return codex_r004_fault(epoch, ordinal, token, kind, consumed, 8, runtime_hi, runtime_lo)
     elif contact_elapsed_s >= {float(contact["timeout_s"]):.9f}:
       return codex_r004_fault(epoch, ordinal, token, kind, consumed, 10, runtime_hi, runtime_lo)
     else:
-      speedl([0.0, 0.0, -{float(contact["speed_m_s"]):.9f}, 0.0, 0.0, 0.0], {float(contact["acceleration_m_s2"]):.9f}, 0.008000000)
-      contact_elapsed_s = contact_elapsed_s + get_steptime()
-      codex_r004_echo(epoch, ordinal, 20, token, 0, consumed, kind, 0, runtime_hi, runtime_lo)
+      local contact_dt = get_steptime()
+      if read_input_float_register(24) >= 0.500000000 or read_input_float_register(25) >= 0.700000000:
+        contact_confirm_s = contact_confirm_s + contact_dt
+      else:
+        contact_confirm_s = 0.0
+      end
+      if contact_confirm_s >= {PACKET_STALE_S:.9f}:
+        contact_done = True
+      else:
+        speedl([0.0, 0.0, -{float(contact["speed_m_s"]):.9f}, 0.0, 0.0, 0.0], {float(contact["acceleration_m_s2"]):.9f}, contact_dt)
+        contact_elapsed_s = contact_elapsed_s + contact_dt
+        codex_r004_echo(epoch, ordinal, 20, token, 0, consumed, kind, 0, runtime_hi, runtime_lo)
+      end
     end
   end
   stopl(0.010000000)
@@ -435,13 +494,23 @@ def codex_r004_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
   local prior_baseline_successes = read_input_integer_register(24)
   local baseline_done = False
   local baseline_mode = 0
+  # Publish the baseline state before requiring its host command.  The host
+  # deliberately keeps HOLD through contact acquisition and can only switch
+  # to BASELINE after observing state 21.  Bound that transition by the same
+  # 80 ms packet-age invariant; the main loop retains reason 44 on timeout.
+  local baseline_entry_elapsed_s = 0.0
+  while read_input_integer_register(25) == 0 and baseline_entry_elapsed_s < {PACKET_STALE_S:.9f}:
+    codex_r004_echo(epoch, ordinal, 21, token, 0, consumed, kind, 0, runtime_hi, runtime_lo)
+    baseline_entry_elapsed_s = baseline_entry_elapsed_s + get_steptime()
+    sync()
+  end
   while not baseline_done:
     local actual_dt = get_steptime()
     if actual_dt <= 0.0 or actual_dt >= {PACKET_STALE_S:.9f}:
       return codex_r004_fault(epoch, ordinal, token, kind, consumed, 46, runtime_hi, runtime_lo)
     end
     packet_reason = codex_r004_packet_observe()
-    guard = codex_r004_packet_guard(packet_reason, 15.0, 20.0, 1.0)
+    guard = codex_r004_packet_guard(packet_reason, 60.0, 100.0, 3.0)
     local integer_reason = codex_r004_integer_wire_guard()
     local latch = read_input_integer_register(26)
     local baseline_successes = read_input_integer_register(24)
@@ -463,26 +532,41 @@ def codex_r004_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       latch_seen = True
       post_latch_elapsed_s = 0.0
     end
+    local baseline_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
     if not latch_seen:
       pre_latch_elapsed_s = pre_latch_elapsed_s + actual_dt
+      # Canonical V4 WAIT_ONE_NEWTON publishes a guarded approach command.
+      # Execute it so contact can progress from the lower acquisition
+      # threshold to the sticky 1 N latch.
+      speedj(baseline_qdot, {tp_acceleration_literal}, actual_dt)
       codex_r004_echo(epoch, ordinal, 21, token, 0, consumed, kind, 0, runtime_hi, runtime_lo)
       sync()
     else:
       post_latch_elapsed_s = post_latch_elapsed_s + actual_dt
       if post_latch_elapsed_s > {float(baseline["post_latch_timeout_s"]):.9f}:
         return codex_r004_fault(epoch, ordinal, token, kind, consumed, 48, runtime_hi, runtime_lo)
-      elif setpoint < 1.0 or setpoint > {TARGET_FORCE_N:.1f} or setpoint - prior_setpoint > 0.5 * actual_dt + 0.010000000 or setpoint < prior_setpoint - 0.010000000:
-        return codex_r004_fault(epoch, ordinal, token, kind, consumed, 49, runtime_hi, runtime_lo)
+      # Packet freshness bounds host dt below 80 ms; validate the 0.5 N/s
+      # ramp against that same worst-case interval.
+      elif setpoint < 1.0:
+        return codex_r004_fault(epoch, ordinal, token, kind, consumed, 71, runtime_hi, runtime_lo)
+      elif setpoint > {TARGET_FORCE_N:.1f}:
+        return codex_r004_fault(epoch, ordinal, token, kind, consumed, 72, runtime_hi, runtime_lo)
+      elif setpoint - prior_setpoint > 0.5 * {PACKET_STALE_S:.9f} + 0.010000000:
+        return codex_r004_fault(epoch, ordinal, token, kind, consumed, 73, runtime_hi, runtime_lo)
+      elif setpoint < prior_setpoint - 0.010000000:
+        return codex_r004_fault(epoch, ordinal, token, kind, consumed, 74, runtime_hi, runtime_lo)
       elif baseline_mode == 3:
         baseline_done = True
-      elif baseline_mode == 2 and baseline_successes < 3:
-        return codex_r004_fault(epoch, ordinal, token, kind, consumed, 50, runtime_hi, runtime_lo)
-      else:
-        local baseline_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
-        if codex_r004_abs(baseline_qdot[0]) > 0.000000001 or codex_r004_abs(baseline_qdot[1]) > 0.000000001 or codex_r004_abs(baseline_qdot[3]) > 0.000000001 or codex_r004_abs(baseline_qdot[4]) > 0.000000001 or codex_r004_abs(baseline_qdot[5]) > 0.000000001:
-          return codex_r004_fault(epoch, ordinal, token, kind, consumed, 51, runtime_hi, runtime_lo)
+      elif baseline_mode == 2:
+        if baseline_successes < 3:
+          return codex_r004_fault(epoch, ordinal, token, kind, consumed, 50, runtime_hi, runtime_lo)
         end
-        speedj(baseline_qdot, 2.500000000, actual_dt)
+        baseline_done = True
+      else:
+        # Joint components are not Cartesian axes.  The host's canonical V4
+        # calibrated Jacobian gate proves pure-normal baseline motion before
+        # the single writer publishes this bounded six-joint command.
+        speedj(baseline_qdot, {tp_acceleration_literal}, actual_dt)
         prior_setpoint = setpoint
         prior_baseline_successes = baseline_successes
         codex_r004_echo(epoch, ordinal, 21, token, 0, consumed, kind, 0, runtime_hi, runtime_lo)
@@ -492,7 +576,7 @@ def codex_r004_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       break
     end
   end
-  stopj(2.500000000)
+  stopj({tp_acceleration_literal})
   if not codex_r004_stationary(0.250000000):
     return codex_r004_fault(epoch, ordinal, token, kind, consumed, 58, runtime_hi, runtime_lo)
   end
@@ -510,18 +594,18 @@ def codex_r004_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       return codex_r004_fault(epoch, ordinal, token, kind, consumed, 46, runtime_hi, runtime_lo)
     end
     packet_reason = codex_r004_packet_observe()
-    guard = codex_r004_packet_guard(packet_reason, 15.0, 20.0, 1.0)
+    guard = codex_r004_packet_guard(packet_reason, 60.0, 100.0, 3.0)
     if guard != 0:
       return codex_r004_fault(epoch, ordinal, token, kind, consumed, guard, runtime_hi, runtime_lo)
     elif read_input_integer_register(25) != 2 or read_input_integer_register(24) < 3:
       return codex_r004_fault(epoch, ordinal, token, kind, consumed, 50, runtime_hi, runtime_lo)
     end
     local path_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
-    speedj(path_qdot, 2.500000000, actual_path_dt)
+    speedj(path_qdot, {tp_acceleration_literal}, actual_path_dt)
     path_elapsed_s = path_elapsed_s + actual_path_dt
     codex_r004_echo(epoch, ordinal, 25, token, 0, consumed, kind, 0, runtime_hi, runtime_lo)
   end
-  stopj(2.500000000)
+  stopj({tp_acceleration_literal})
   if not codex_r004_stationary(0.250000000):
     return codex_r004_fault(epoch, ordinal, token, kind, consumed, 58, runtime_hi, runtime_lo)
   end
@@ -530,13 +614,17 @@ end
 
 def {PROGRAM}():
   # Script1 owns the verified V4 EOAT setup.  This resident Script2 performs no EOAT writes.
-  local campaign_home_pose = get_actual_tcp_pose()
-  local campaign_home_q = get_actual_q()
+  # Cartesian Home is fixed by the EOAT-bound profile; it is never captured at Play.
+  local fixed_home_pose = p[{fixed_home_pose}]
+  local locked_home_q = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local locked_home_q_valid = False
   local runtime_hi = {runtime_hi}
   local runtime_lo = {runtime_lo}
   local active_epoch = 0
   local last_failed_epoch = 0
-  local consumed_session_sequence = 0
+  # Fence any ARM image left in RTDE input registers across a TP restart.  The
+  # host must publish a strictly newer sequence after this Play.
+  local consumed_session_sequence = read_input_integer_register(28)
   local current_ordinal = 0
   local current_token = 0
   local current_kind = 0
@@ -554,7 +642,7 @@ def {PROGRAM}():
     local input_ordinal = read_input_integer_register(30)
     local input_kind = read_input_integer_register(31)
     local input_token = read_input_integer_register(32)
-    if session_command == 3:
+    if session_command == 3 and session_sequence > consumed_session_sequence:
       stopl(0.250000000)
       session_active = False
       completed = False
@@ -575,28 +663,48 @@ def {PROGRAM}():
         state = 90
         reason = 61
         last_failed_epoch = input_epoch
+      elif (input_ordinal <= 3 and input_kind != 1) or (input_ordinal >= 4 and input_ordinal <= 8 and input_kind != 2) or (input_ordinal >= 9 and input_ordinal <= 13 and input_kind != 3) or (input_ordinal >= 14 and input_kind != 4):
+        state = 90
+        reason = 68
+        last_failed_epoch = input_epoch
       else:
         active_epoch = input_epoch
         current_ordinal = input_ordinal
         current_kind = input_kind
         current_token = input_token
         consumed_session_sequence = session_sequence
-        session_active = True
-        state = 11
-        reason = 0
-        return_guard = 0
-        codex_r004_echo(active_epoch, current_ordinal, state, current_token, reason, consumed_session_sequence, current_kind, return_guard, runtime_hi, runtime_lo)
-        if not codex_r004_execute_attempt(campaign_home_pose, campaign_home_q, active_epoch, current_ordinal, current_token, current_kind, consumed_session_sequence, runtime_hi, runtime_lo):
+        # No Script2 auto-home is permitted.  A bad fixed-Home entry is a
+        # terminal typed failure before ARM state or any contact motion.
+        if not codex_r004_entry_home_verified(fixed_home_pose, locked_home_q, locked_home_q_valid):
+          stopl(0.250000000)
           session_active = False
           state = 90
-          reason = codex_r004_attempt_reason
-          return_guard = codex_r004_attempt_guard
-          last_failed_epoch = active_epoch
+          reason = {ATTEMPT_ENTRY_NOT_CAPTURED_HOME}
+          return_guard = 0
+          last_failed_epoch = input_epoch
         else:
-          session_active = False
-          state = 78
+          # The fixed Cartesian pose gates this q read; it may establish the
+          # current IK branch for this and subsequent rolling ARM attempts.
+          local arm_home_q = get_actual_joint_positions()
+          locked_home_q = arm_home_q
+          locked_home_q_valid = True
+          session_active = True
+          state = 11
           reason = 0
-          return_guard = codex_r004_attempt_guard
+          return_guard = 0
+          codex_r004_echo(active_epoch, current_ordinal, state, current_token, reason, consumed_session_sequence, current_kind, return_guard, runtime_hi, runtime_lo)
+          if not codex_r004_execute_attempt(fixed_home_pose, arm_home_q, active_epoch, current_ordinal, current_token, current_kind, consumed_session_sequence, runtime_hi, runtime_lo):
+            session_active = False
+            state = 90
+            reason = codex_r004_attempt_reason
+            return_guard = codex_r004_attempt_guard
+            last_failed_epoch = active_epoch
+          else:
+            session_active = False
+            state = 78
+            reason = 0
+            return_guard = codex_r004_attempt_guard
+          end
         end
       end
     elif session_command == 2 and state == 78 and session_sequence > consumed_session_sequence and input_epoch == active_epoch and input_ordinal == 16:
@@ -604,7 +712,7 @@ def {PROGRAM}():
       completed = True
       state = 80
       reason = 0
-      return_guard = 127
+      return_guard = 123
     elif session_command == 1 and (session_sequence <= consumed_session_sequence or input_epoch != active_epoch) and state == 78:
       reason = 62
     end
@@ -624,7 +732,8 @@ def render_script(contract_path=None) -> str:
     profile = load_new_eoat_profile()
     if profile.profile_sha256 != contract.eoat_sha256:
         raise ValueError("r004 TP EOAT binding differs from the contract")
-    return _script_body(contract)
+    home_profile = load_fixed_home_profile(profile)
+    return _script_body(contract, home_profile)
 
 
 __all__ = ["CONTROLLER_DIR", "RUNTIME_PROTOCOL", "render_script"]

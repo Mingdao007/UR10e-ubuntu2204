@@ -221,8 +221,8 @@ def load_schedule(path: Path | None = None) -> ContactSearchSchedule:
 # Bounds for geometry-planned (speed-opt) schedules. Wave-1 `validate_schedule`
 # remains pinned to the observation constants above.
 PLANNED_V_NEAR_MIN_M_S = 0.0002
-PLANNED_V_NEAR_MAX_M_S = 0.0005
-PLANNED_V_FAR_MAX_M_S = 0.002
+PLANNED_V_NEAR_MAX_M_S = 0.0007
+PLANNED_V_FAR_MAX_M_S = 0.006
 PLANNED_NEAR_ACCEL_M_S2 = 0.005
 PLANNED_FAR_ACCEL_MAX_M_S2 = 0.05
 PLANNED_CONFIRM_NORMAL_N = 0.5

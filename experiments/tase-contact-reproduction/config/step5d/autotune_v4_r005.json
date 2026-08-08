@@ -1,0 +1,247 @@
+{
+  "schema": "step5d.autotune-v4/r005-release-contract-v1",
+  "lineage": "step5d_strict_rnn_autotune_v4",
+  "program": "step5d_strict_rnn_autotune_v4_r005",
+  "revision": 5,
+  "status": "offline_candidate_live_blocked",
+  "invariants": {
+    "target_force_n": 5.0,
+    "anchor_damping": 28.0,
+    "anchor_p_gain": 0.0003535533906,
+    "eoat_profile": {
+      "path": "config/step5d/eoat_profile_new_v4.json",
+      "sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4"
+    },
+    "wrench_authority": "kunwei_only",
+    "ur_builtin_force_allowed": false,
+    "sensor_zero_tare_or_config_allowed": false,
+    "old_r004_qualifications_imported": false,
+    "safe_return_required_before_seal": true,
+    "code_evidence_binding_failure_revokes_authority": true
+  },
+  "bootstrap": {
+    "qualification_count": 3,
+    "qualification_policy": "fresh_r005_epoch_three_passing_sealed_rows",
+    "pd_row_count": 10,
+    "pd_sequence": [
+      "anchor",
+      "anchor",
+      "anchor",
+      "P_minus_0.25_octave",
+      "anchor",
+      "P_plus_0.25_octave",
+      "anchor",
+      "D_minus_0.25_octave",
+      "anchor",
+      "D_plus_0.25_octave"
+    ],
+    "anchor_only": {
+      "target_force_n": 5.0,
+      "force_damping": 28.0,
+      "force_i_gain": 0.0,
+      "normal_filter_tau_s": 0.35,
+      "orientation_ko": 0.1,
+      "motion_kp": 1.5
+    }
+  },
+  "named_7d_domain": {
+    "dimensions": [
+      "P",
+      "D",
+      "tau",
+      "I_on_log2",
+      "I_off",
+      "Ko",
+      "Kp"
+    ],
+    "lattice_octave": 0.25,
+    "P_log2_range": [
+      -0.5,
+      0.75
+    ],
+    "D_log2_range": [
+      -0.5,
+      0.5
+    ],
+    "tau_log2_range": [
+      -0.5,
+      0.5
+    ],
+    "I_on_log2_grid": [
+      -1.0,
+      -0.75,
+      -0.5,
+      -0.25,
+      0.0
+    ],
+    "I_off_values": [
+      0.0,
+      1.0
+    ],
+    "Ko_log2_range": [
+      0.0,
+      1.0
+    ],
+    "Kp_log2_range": [
+      0.0,
+      1.0
+    ],
+    "target_force_is_not_a_coordinate": true,
+    "dispatched_transition": {
+      "max_physical_coordinates": 1,
+      "max_octave_delta": 0.25,
+      "i_off_on_first_positive_log2": -1.0
+    }
+  },
+  "runtime": {
+    "host_hz": 500.0,
+    "tp_hz": 500.0,
+    "writer_hz": 500.0,
+    "rtde_hz": 500.0,
+    "kunwei_hz": 500.0,
+    "minimum_rate_hz": 460.0,
+    "pacing": "absolute_deadline_skip_missed_no_burst",
+    "attempt_duration_s": 60.0,
+    "resident_tp": true,
+    "attempt_sequence": "positive_monotonically_increasing_unbounded",
+    "queue": {
+      "pending_max": 2,
+      "physical_inflight_max": 1,
+      "one_inflight_dispatch": true
+    },
+    "qdot_actual_qd_binding": {
+      "common_packet_sequence": true,
+      "common_rtde_sequence": true,
+      "timestamp_bound_s": 0.001
+    },
+    "force_objective": {
+      "schema": "step5d.force-objective/v2",
+      "version": "force_mae_v2",
+      "target_force_n": 5.0,
+      "target_is_optimizer_dimension": false,
+      "path_stage": 25,
+      "formal_window_s": [
+        5.0,
+        60.0
+      ],
+      "legacy_shadow_version": "r004_legacy_shadow_v1",
+      "legacy_window_s": [
+        0.0,
+        55.0
+      ],
+      "bin_width_s": 0.1,
+      "required_bins": 550,
+      "bin_statistic": "mean_filtered_normal_then_absolute_error",
+      "semantic_fingerprint": "r005.force-mae-v2|stage=25|formal=[5,60)|legacy-shadow=[0,55)|bin=0.1s|bins=550|stat=mean(abs(mean(force_in_bin)-5N))|legacy=shadow-only",
+      "receipt_version": "r005-sealed-sufficient-statistics-v1",
+      "receipt_requires_raw_evidence_digest": true,
+      "receipt_requires_sufficient_statistics_digest": true,
+      "receipt_requires_builder_seal": true,
+      "persist_raw_sample_arrays": true,
+      "persist_raw_sample_identity_ids": false,
+      "missing_bin": "no_objective",
+      "identity_binding": [
+        "source_sequences",
+        "source_ages_s",
+        "sample_identity_digest"
+      ],
+      "legacy_is_audit_only": true
+    },
+    "path_reference": {
+      "module": "tools/step5d_autotune_v4_r004/path_reference.py",
+      "stage_id": "step5d_strict_rnn_autotune_v1",
+      "stage_row_semantic_sha256": "3ba6468db434b6c5e5eca7ca387d01ad608d195f507caec27f56f081af40a925",
+      "frame_semantic_sha256": "0a9b800b718c4058340961a4164eb2e5e48b1225b5c5b89f83f6da3a96dbfd82"
+    },
+    "optimizer": {
+      "adapter": "v4_named7d_over_v3_cuda_qLogNEI",
+      "optimizer_profile": {
+        "resolver": "step5d_optimizer_runtime.resolve_optimizer_runtime",
+        "canonical_v3_profile": "optimizer",
+        "stale_after_s": 2592000.0,
+        "child_attestation": [
+          "environment_id",
+          "environment_hash",
+          "torch_version",
+          "botorch_version",
+          "gpytorch_version",
+          "cuda_available",
+          "gpu_name",
+          "gpu_uuid"
+        ]
+      },
+      "x_pending": true,
+      "cuda_required": true,
+      "local_or_degraded_fallback": false
+    },
+    "host_cycle": [
+      "HOME",
+      "DISPATCH",
+      "ARM",
+      "RUN_60S",
+      "SAFE_RETURN",
+      "SEAL",
+      "TELL",
+      "REFILL",
+      "NEXT_ARM"
+    ]
+  },
+  "runtime_manifest": {
+    "path": "config/step5d/autotune_v4_r005_runtime_manifest.json",
+    "sha256": "5e36ab0486371ace401b99caac34550c6371c93e4d48a86bddb3145d21240044"
+  },
+  "completion": {
+    "mae_threshold_n": 0.2,
+    "eligible_mae_threshold_n": 0.2,
+    "retest_count": 3,
+    "minimum_retest_passes": 2,
+    "retest_all_motion_timing_contact_return_identity_gates": true,
+    "bootstrap_anchor_median_improvement_ratio": 0.95,
+    "queued_pending_cancelled_durably_before_retests": true,
+    "failed_retest_returns_to_bo": true,
+    "no_trial_count_limit": true,
+    "incomplete_on_domain_exhaustion_operator_stop_or_hard_fault": true
+  },
+  "resume": {
+    "fresh_process_cold_read_hash_chain": true,
+    "r005_ledger_only": true,
+    "old_r004_qualifications": "audit_only_not_imported",
+    "unresolved_physical_inflight": "stop_and_revoke_authority"
+  },
+  "cli": {
+    "production_live_stop_after_ordinal": false,
+    "offline_fake_rtde_diagnostic_stop_after_ordinal": true,
+    "live_network_or_controller_actions": false
+  },
+  "derived_from_r004": {
+    "config/step5d/autotune_v4_r004.json": "95e12fd30ec28da80f31ac113cdd9f4baa58a3883f865e4b7027a186742e3fc2",
+    "config/step5d/autotune_v4_live_writer_r004.json": "5e3942f63d86cf587048d43e2f4be3025f51f9ca148b56fcae3854f37009d603",
+    "config/step5d/lineage_selector_v4_r004.json": "0fccc6f11b69c0b33380b2ac0e83203575a196eabaa113a2c2ff9b8535867dbc",
+    "tools/step5d_autotune_v4_r004/contracts.py": "5ad0a48b29695a54b09c4b28ad3a3ba0ccb90cbb287c35ac19b6bc8392797dbb",
+    "tools/step5d_autotune_v4_r004/motion_profile.py": "de6cb1a6814bbc29d9f55796e90fbfa18b97a6ae09a3e95926f835471da226c5",
+    "tools/step5d_autotune_v4_r004/path_controller.py": "4f0c474d20affd61ebce2ae1f51ba6da5887dd525bc5da85c3d8d82452388ba5",
+    "tools/step5d_autotune_v4_r004/policies.py": "d0630f6b912e46f3bc5598941c8102c90124762c1ef0b795131f9aa065c6661b",
+    "tools/step5d_autotune_v4_r004/runtime.py": "b039cea22b98976c5025f7ae1ff80eed207e32870bbad6182f861623f157cccf",
+    "tools/step5d_autotune_v4_r004/calibrated_runtime.py": "0cc7924671bfd997eeb6f1e1703ebcae534390ecccde2610b733b334b2722ea8",
+    "tools/step5d_autotune_v4_r004/path_reference.py": "e12679d291b3ae069ff1c61add49364a7df094901f838079a7271cbe59abb7bf",
+    "tools/step5d_autotune_v4_r004/campaign.py": "245fb5c6ea01df554755eb0c1ee76b632f938cf216d9c063b01d2453d1c849ea",
+    "tools/step5d_autotune_v4_r004/evidence.py": "3decd4b01d1887c919743b2d3b36b35cbfb48bb5bf4b4dddf4b713f12c168f18",
+    "tools/step5d_autotune_v4_r004/tp.py": "1a3719d606e6e5f8020eb602e99086658e00fd75ee1c2f3f89fc8eff3666233a",
+    "tools/step5d_autotune_v4_r004/ledger.py": "a9f3289ed413b7aa78fdc1f0be3c9c0df436ff614f34d7eccb939a0934387d70",
+    "tools/step5d_autotune_v4_r004/fake_rtde.py": "0720655c56a2afc82a54c9fbc5a719f8a011b0686eba804ec3a9afb2799d41e0",
+    "tools/step5d_autotune_v4_r004/identity.py": "0c203b61b241aa1559db7dc69fa14c8fa25747a1284f4ee5f0728d3a67f4b27a",
+    "tools/step5d_autotune_v4_r004/prerequisites.py": "0bd04c21509e5ea4eec496ba6c23dbbe9ae37ff0b83a613f842fef2239881571",
+    "tools/step5d_autotune_v4_r004/session.py": "45331978f5f0ce063b936db83873ba35f935cef03dd6c61957439073b7bd7923",
+    "tools/step5d_autotune_v4_r004/transport.py": "f7774923ac1081883925240c7cf3e19a0cae04efb217bbb3f0c8d08b87ba41b7",
+    "tools/step5d_autotune_v4_r004/wire.py": "59acaf204884840f17c667d1e047d03fee0aa7c8d4f09798ec018b2a05904270",
+    "tools/step5d_autotune_v4_r004/home.py": "03229190c2ec898a7b1d8b01a4df167d97931bedbf61efeca77fdbac9f404fc0",
+    "tools/step5d_autotune_v4_r004/home_profile.py": "7b9e7ab2b92347c00673704725baf2b5b530ebd2f8e88d6d7fc167de6ffe263d",
+    "tools/step5d_autotune_v4_r004/timing.py": "536323942321375b95d717c7be208e5fc2668cedbb8b9a6ea494f34fd847f491",
+    "tools/step5d_autotune_v4_r004/qualification.py": "24f7e2a398358a4eeb1b3986d7f20a2b0bfc2ae4efd9ac1c0ff1e608a05c1534",
+    "tools/step5d_autotune_v4_r004_live_writer.py": "db26937f5a322d95788db416d5c371e3bcae010779bc85114193c2fcd0a09a43",
+    "config/step5d/eoat_profile_new_v4.json": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r004.script": "17bbc5c8a2292aa07407e956a241e37955b648b991a52b0deb1e04bef8bae88d",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r004.txt": "46388fa581276e94c12b46afbf9654e59673568859ea146a25236f3945ff5e50",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r004.urp": "9878160a503c69a8c7a0aad3bd0aa686b668263672afe5c7de23ed6b3110ec56"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "schema": "step5d.autotune-v4/r004-baseline-ledger-genesis-v1",
-  "campaign_fingerprint": "05a0ed75dbe8e67916f6babebf1c266ee951262088179de59f44a157f173c186",
+  "campaign_fingerprint": "c98b1bb197a5b7b8f832db3cdd7e69b45fdbf5b8ac45788d34394d2856cc1980",
   "eoat_sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
   "target_force_n": 5.0,
   "damping": 28.0,

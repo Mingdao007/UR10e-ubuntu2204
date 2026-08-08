@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from collections import deque
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from step5d_eoat_profiles import load_new_eoat_profile
 
@@ -24,7 +24,7 @@ class FakeRegisterSnapshot:
 class FakeRTDE:
     """No write-count stage advancement; registers and cadence are explicit."""
 
-    def __init__(self, *, tp_hz: float = 500.0, writer_hz: float = 125.0) -> None:
+    def __init__(self, *, tp_hz: float = 500.0, writer_hz: float = 500.0) -> None:
         if tp_hz <= 0.0 or writer_hz <= 0.0 or tp_hz < writer_hz:
             raise ValueError("FakeRTDE cadence must be positive with TP >= writer")
         self.tp_period_s = 1.0 / tp_hz
@@ -95,12 +95,14 @@ class FakeLiveRTDETransport:
         self.opened = False
         self.closed = False
         self.sent_packets: list[tuple[tuple[float, ...], tuple[int, ...]]] = []
+        self.sent_from_states: list[int] = []
         self._queue = deque(dict(item) for item in output_queue)
         self._input_doubles = [0.0] * 24
         self._input_integers = [0] * 9
         self._state = 78
         self._reason = 0
         self._return_guard = 127
+        self._consumed_session_sequence = 0
         self._latest: R004OutputSnapshot | None = None
         self.events = events
 
@@ -132,11 +134,19 @@ class FakeLiveRTDETransport:
             "tcp_offset": list(profile.controller_tcp_m_rad),
             "actual_TCP_speed": [0.0] * 6,
             "actual_TCP_pose": [0.487834547, 0.129337053, 0.033, 3.120752062, 0.0, 0.068626833],
-            "actual_q": [0.0] * 6,
+            "actual_q": [
+                0.6282875537872314,
+                -1.8318835697569789,
+                -2.546542167663574,
+                -0.3096270126155396,
+                1.530116319656372,
+                -0.9408276716815394,
+            ],
             "actual_qd": [0.0] * 6,
             "safety_mode": "NORMAL",
             "robot_mode": "RUNNING",
             "runtime_state": "RUNNING",
+            "output_double_register_24": self._input_doubles[22],
             "output_int_register_24": self._input_integers[5],
             "output_int_register_25": self._input_integers[6],
             "output_int_register_26": self._state,
@@ -158,18 +168,30 @@ class FakeLiveRTDETransport:
         self._input_doubles = [float(value) for value in double_values]
         self._input_integers = [int(value) for value in integer_values]
         self.sent_packets.append((tuple(self._input_doubles), tuple(self._input_integers)))
+        self.sent_from_states.append(self._state)
         if self.events is not None:
             self.events.append("rtde.send")
         command = self._input_integers[3]
-        if command == 1:
-            self._state = 25
-            self._return_guard = 0
-        elif command == 2:
-            self._state = 80
-        elif command == 3 or self._input_doubles[4] >= 0.5:
+        session_sequence = self._input_integers[4]
+        command_mode = self._input_integers[1]
+        if command == 3 or self._input_doubles[4] >= 0.5:
             self._state = 90
             self._reason = 4
-        elif command == 0 and self._state == 25:
+        elif command == 1 and session_sequence > self._consumed_session_sequence:
+            self._consumed_session_sequence = session_sequence
+            self._state = 20
+            self._return_guard = 0
+            self._reason = 0
+        elif command == 2:
+            self._state = 80
+        elif self._state == 20 and (
+            self._input_doubles[0] >= 0.5 or self._input_doubles[1] >= 0.7
+        ):
+            self._state = 21
+        elif self._state == 21 and command_mode == 0:
+            self._state = 90
+            self._reason = 44
+        elif self._state == 21 and command_mode == 3:
             self._state = 78
             self._return_guard = 127
 
@@ -191,6 +213,7 @@ class FakeLiveKunweiTransport:
         *,
         wrench_n_nm: Sequence[float] = (0.0, 0.0, -5.0, 0.0, 0.0, 0.0),
         events: list[str] | None = None,
+        observed_clock: Callable[[], float] | None = None,
     ) -> None:
         if len(wrench_n_nm) != 6:
             raise ValueError("Fake Kunwei wrench must have six values")
@@ -200,6 +223,10 @@ class FakeLiveKunweiTransport:
         self.stop_stream_sent = False
         self.now_s = 0.0
         self.events = events
+        self.observed_clock = observed_clock
+        self.writer_period_s = 1.0 / 500.0
+        self.distinct_frame_sequence = 0
+        self.latest_batch_count = 0
 
     def open(self) -> None:
         self.opened = True
@@ -216,7 +243,12 @@ class FakeLiveKunweiTransport:
     def poll(self) -> tuple[tuple[float, float, float, float, float, float], float]:
         if not self.opened:
             raise RuntimeError("Fake Kunwei is not open")
-        self.now_s += 0.008
+        if self.observed_clock is None:
+            self.now_s += self.writer_period_s
+        else:
+            self.now_s = float(self.observed_clock())
+        self.distinct_frame_sequence += 1
+        self.latest_batch_count = 1
         return self.wrench_n_nm, self.now_s
 
 

@@ -46,7 +46,11 @@ def test_kind_holds_seal_until_path60_path_vs_qual() -> None:
     assert kind_holds_seal_until_path60("SPACEFILL") is True
     assert kind_holds_seal_until_path60("ANCHOR") is True
     assert kind_holds_seal_until_path60("STAIRCASE") is True
+    assert kind_holds_seal_until_path60("BO") is True
+    assert kind_holds_seal_until_path60("BO_TRIAL") is True
+    assert kind_holds_seal_until_path60("RETEST") is True
     assert kind_holds_seal_until_path60("QUALIFICATION") is False
+    assert kind_holds_seal_until_path60("RE_TEST") is False
 
 
 def test_dispatch_s_hides_seal_wall_detects_serial_barrier() -> None:
@@ -83,6 +87,42 @@ def test_daemon_mode_does_not_disable_search_critical_gating() -> None:
     src_run_one = inspect.getsource(R008HostLoop.run_one)
     assert "_seal_daemon" not in src_run_one
     assert "hold_until_path60 = kind_holds_seal_until_path60(kind_s)" in src_run_one
+    # Seal-join cut: drain executing seal before HOME so ARM join is ~0.
+    assert "join_executing()" in src_run_one
+    assert src_run_one.index("join_executing()") < src_run_one.index('self._phase("HOME")')
+
+
+def test_join_executing_waits_without_setting_search_critical() -> None:
+    started = threading.Event()
+    release = threading.Event()
+    joined_s = {"v": -1.0}
+
+    def seal_fn(result: _Result) -> _Result:
+        started.set()
+        release.wait(timeout=5.0)
+        return result
+
+    pipe = AsyncSealPipeline(seal_fn=seal_fn, advance_fn=lambda r: None)
+    try:
+        job = pipe.submit(_Result(1), ticket=None, needs_sync=False, hold_until_path60=False)
+        assert started.wait(timeout=2.0)
+        assert pipe._search_critical is False  # noqa: SLF001
+
+        def _wait() -> None:
+            joined_s["v"] = pipe.join_executing()
+
+        waiter = threading.Thread(target=_wait)
+        waiter.start()
+        time.sleep(0.05)
+        assert pipe._search_critical is False  # noqa: SLF001
+        assert waiter.is_alive()
+        release.set()
+        waiter.join(timeout=2.0)
+        assert joined_s["v"] >= 0.0
+        job.future_done.wait(timeout=2.0)
+    finally:
+        release.set()
+        pipe.close_and_join(timeout_s=2.0)
 
 
 def test_record_and_tell_refreshes_parent_r006_cache_after_fork() -> None:

@@ -1,0 +1,108 @@
+{
+  "activation": {
+    "default_route": "r006_unchanged",
+    "explicit_only": true,
+    "live_activation": true,
+    "live_route": {
+      "campaign_identity": "r006_unchanged",
+      "controller_package_reason": "r007 repairs host-side reconstruction and eligibility only; the TP triplet bytes r006 read back stay valid",
+      "controller_package_rotation": false,
+      "host_module": "run_step5d_autotune_v4_r007",
+      "launcher": "tools/launch_step5d_autotune_v4_r007_control.py",
+      "prepare_module": "prepare_step5d_autotune_v4_r006",
+      "r006_host_module_untouched": "run_step5d_autotune_v4_r006",
+      "release_contract": "config/step5d/autotune_v4_r006.json",
+      "requires_fresh_epoch": true,
+      "runtime_manifest": "config/step5d/autotune_v4_r007_runtime_manifest.json"
+    },
+    "native_ledger": "step5d_autotune_v4_r007.native_ledger.R007NativeObservationLedger",
+    "optimizer_owner": "step5d_autotune_v4_r006.live_adapter.R006ProductionOptimizer",
+    "ordinary_imports": "r006_unchanged",
+    "refill_owner": "step5d_autotune_v4_r006.live_adapter.R006HostLoop",
+    "sidecar_owner": "step5d_autotune_v4_r006.live_adapter.R006ObservationLedger",
+    "timing_scope": "step5d_autotune_v4_r007.timing"
+  },
+  "cadence": {
+    "codec": "step5d_runtime_codec.cadence_eligible",
+    "exact_distinct_identity_owner": "r006_wire_and_sidecar_identity_gates",
+    "fresh_feedback_ratio_min": 0.98,
+    "kunwei_identity": "retained_as_independent_telemetry",
+    "row_gap_over_20ms_count": 0,
+    "tp_consumption_ratio_min": 0.98
+  },
+  "candidate": {
+    "caller_scalar_shortcuts": false,
+    "canonical_decoder": "step5d_autotune_v4_r006.live_adapter.R006Candidate.from_canonical",
+    "domain_validation": "r006_unchanged_and_fail_closed",
+    "native_semantics": "preserve_r006_candidate_through_sealed_ledger_sidecar_tell_refill"
+  },
+  "gates": {
+    "active_stale_at_or_over_80ms": "fail_closed",
+    "feedback_p99_over_10ms": "fail_closed",
+    "fresh_gap_over_20ms": "fail_closed",
+    "inherited_record_gates": [
+      "sealed",
+      "safe_return",
+      "binding_ok",
+      "safety_gate",
+      "contact_gate",
+      "return_gate",
+      "motion_gate",
+      "identity_gate",
+      "evidence_provenance",
+      "objective_trainable",
+      "duration_at_least_60s"
+    ],
+    "sequence_mismatch": "fail_closed"
+  },
+  "lineage_id": "step5d_strict_rnn_autotune_v4_r007",
+  "offline_boundary": {
+    "bridge": false,
+    "contact": false,
+    "controller_readback": false,
+    "controller_upload": false,
+    "dashboard": false,
+    "kunwei": false,
+    "load": false,
+    "motion": false,
+    "network": false,
+    "package_generation": false,
+    "package_upload": false,
+    "play": false,
+    "rtde": false
+  },
+  "offline_boundary_scope": "tools/step5d_autotune_v4_r007/*; the r007 host route inherits the r006 live boundary unchanged and still never performs Dashboard Load or Play",
+  "parent_hashes": {
+    "config/step5d/autotune_v4_r006.json": "b16e692207c965d5cd0498bc615538dcc8de55e3949e69eb3561125cbeae6e93",
+    "tools/step5d_autotune_v4_r006/contracts.py": "72a78d212a8bd09db3b7ee0a101bcf569416b7e560af88e506c85aa79e20cb3d",
+    "tools/step5d_autotune_v4_r006/live_adapter.py": "981997fdaf6863fe4d74d919a053105e900e879003f066ce1ebf21b983612f0e",
+    "tools/step5d_autotune_v4_r006/runtime.py": "c9bb0eeca0331eae9cdc879faa32de077f5bdf71ba6a698a435ac2c95e294517",
+    "tools/step5d_runtime_codec.py": "1a750270a58b2e67e3b67bf6fb43b99f463cf6ed4eb52199c61c9822b0eb8580"
+  },
+  "parent_identity": {
+    "binding": "offline_read_only_parent",
+    "contract": "config/step5d/autotune_v4_r006.json",
+    "lineage": "step5d_strict_rnn_autotune_v4_r006"
+  },
+  "r006_mutation": false,
+  "revision": 7,
+  "schema": "step5d.autotune-v4/r007-native-ledger-repair-v1",
+  "timing": {
+    "absolute_deadline": true,
+    "active_stale_stop_s": 0.08,
+    "average_rate_used_for_eligibility": false,
+    "feedback_age_p99_max_s": 0.01,
+    "legacy_average_rate_floor_hz": 460.0,
+    "legacy_average_rate_policy": "telemetry_only",
+    "max_fresh_gap_s": 0.02,
+    "minimum_observation_s": 60.0,
+    "nominal_target_hz": 500.0,
+    "telemetry_layers": [
+      "writer",
+      "rtde",
+      "kunwei",
+      "tp"
+    ]
+  },
+  "version": "r007-native-ledger-repair-v1"
+}

@@ -11,6 +11,10 @@ r008 keeps the verifier body byte-identical and only lengthens the wall-clock
 budget for the live host process.  Prefer also using the r008 ledger/host
 overrides that skip full ledger replay on the hot seal path; this scope is the
 fail-closed backstop for cold resume and remaining binding calls.
+
+Phase 3 (2026-08-07): ``mode=artifact`` prefers in-process hydrate +
+ForceObjective columnar verify (slim JSON + ``.r008raw``). Legacy full-JSON
+artifacts still verify. Falls back to the stock subprocess on failure.
 """
 
 from __future__ import annotations
@@ -29,7 +33,22 @@ R008_FRESH_VERIFY_TIMEOUT_S = 600.0
 
 
 def run_fresh_r008(mode: str, path: Path, *, timeout_s: float = R008_FRESH_VERIFY_TIMEOUT_S) -> dict[str, Any]:
-    """Same contract as r005 ``_run_fresh``, with an r008-owned timeout."""
+    """Same contract as r005 ``_run_fresh``, with an r008-owned timeout.
+
+    For ``mode=artifact``, try Phase-3 in-process verify first (hydrate
+    ``.r008raw`` + columnar ForceObjective). Fail closed to stock subprocess.
+    """
+
+    if mode == "artifact":
+        try:
+            from step5d_autotune_v4_r008.ledger_raw_artifact import (
+                verify_ledger_artifact_fresh,
+            )
+
+            return verify_ledger_artifact_fresh(Path(path))
+        except Exception:
+            # Fail closed to stock subprocess (legacy full-JSON / odd fixtures).
+            pass
 
     from step5d_autotune_v4_r005 import observations as obs
 

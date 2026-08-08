@@ -1,0 +1,364 @@
+{
+  "anchor": {
+    "force_damping": 28.0,
+    "force_i_gain": 0.001810193359837562,
+    "force_p_gain": 0.0028284271248,
+    "kf": 0.6,
+    "motion_kp": 1.5,
+    "normal_filter_tau_s": 0.14715687266940003,
+    "orientation_ko": 0.2,
+    "pd_ratio": 0.00010000000000000005
+  },
+  "application_mae_threshold_n": 0.35,
+  "artifact_sha256": "7883e47f255af1ca02979936eb98dde78136d60017a5f7dbcaec2e57cb09aac0",
+  "box": {
+    "kf_off_allowed": true,
+    "log2_d": [
+      2.807354922057604,
+      7.807354922057604
+    ],
+    "log2_kf": [
+      -4.321928094887363,
+      1.0
+    ],
+    "log2_ko": [
+      -4.321928094887363,
+      -0.3219280948873623
+    ],
+    "log2_kp": [
+      0.5849625007211562,
+      2.584962500721156
+    ],
+    "log2_pd": [
+      -16.287712379549447,
+      -11.287712379549449
+    ],
+    "log2_tau": [
+      -4.321928094887363,
+      -0.5145731728297583
+    ]
+  },
+  "defaults": {
+    "D": 28.0,
+    "Ko": 0.2,
+    "Kp": 1.5,
+    "kf": 0.6,
+    "pd_ratio": 0.0001,
+    "tau": 0.15
+  },
+  "delay_budget_s": 0.012,
+  "greybox_artifact_sha256": "3b1fa0828f27e03ed366297fd02664b8beeb196a5dbe42f6b3e0e21d283602de",
+  "greybox_kinematic_c_v_m_s": 7.047159947545652e-05,
+  "greybox_rho": 0.5,
+  "greybox_schema": "step5d.greybox/r008-contact-plant-identification-v1",
+  "greybox_stiffness_n_per_m": 40382.25319626687,
+  "offline_hard_veto": [
+    {
+      "force_damping": 178.3597206487289,
+      "force_i_gain": 0.00855797177540594,
+      "force_p_gain": 0.005231427958666797,
+      "motion_kp": 4.963777111448958,
+      "normal_filter_tau_s": 0.4507603619665281,
+      "orientation_ko": 0.2094515116980972,
+      "phase_margin_deg": 19.76468534974984,
+      "predicted_mae_n": 1.2762532539663864,
+      "reasons": [
+        "pm<25.0",
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 24.69887108289975,
+      "force_i_gain": 0.0003224734647304347,
+      "force_p_gain": 0.001030921326816437,
+      "motion_kp": 3.45566577331183,
+      "normal_filter_tau_s": 0.14364818329817927,
+      "orientation_ko": 0.5312432363102144,
+      "phase_margin_deg": 67.52101466199582,
+      "predicted_mae_n": 1.469683537345469,
+      "reasons": [
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 9.64919096311538,
+      "force_i_gain": 0.00014297425084514406,
+      "force_p_gain": 0.0001597663124140877,
+      "motion_kp": 3.609272194886534,
+      "normal_filter_tau_s": 0.20414141058882987,
+      "orientation_ko": 0.2898380187448139,
+      "phase_margin_deg": 28.437677979965883,
+      "predicted_mae_n": 3.546392040020587,
+      "reasons": [
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 17.676559103035018,
+      "force_i_gain": 0.0011622397744297983,
+      "force_p_gain": 0.005968221455876411,
+      "motion_kp": 1.5445568419606015,
+      "normal_filter_tau_s": 0.22286865553961427,
+      "orientation_ko": 0.24181529779027328,
+      "phase_margin_deg": -14.484688090916165,
+      "predicted_mae_n": 0.14195636639599357,
+      "reasons": [
+        "pm<25.0"
+      ]
+    },
+    {
+      "force_damping": 60.51059377317755,
+      "force_i_gain": 0.0005754132004317879,
+      "force_p_gain": 0.0009039747638745283,
+      "motion_kp": 3.2092593445167683,
+      "normal_filter_tau_s": 0.13343577846583804,
+      "orientation_ko": 0.11189238681966808,
+      "phase_margin_deg": 40.17238439266836,
+      "predicted_mae_n": 4.187675421040822,
+      "reasons": [
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 12.935515215209676,
+      "force_i_gain": 8.395444413098007e-05,
+      "force_p_gain": 0.0006896946227965334,
+      "motion_kp": 4.492578346261991,
+      "normal_filter_tau_s": 0.5705629062167781,
+      "orientation_ko": 0.062135780184700805,
+      "phase_margin_deg": 44.27380620608429,
+      "predicted_mae_n": 1.2755370158311332,
+      "reasons": [
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 8.574272609045174,
+      "force_i_gain": 0.002044387502249262,
+      "force_p_gain": 0.001417118254244168,
+      "motion_kp": 2.0913708898273495,
+      "normal_filter_tau_s": 0.18482899944163628,
+      "orientation_ko": 0.6301254902151481,
+      "phase_margin_deg": 3.6511052088800113,
+      "predicted_mae_n": 0.073753711171611,
+      "reasons": [
+        "pm<25.0"
+      ]
+    },
+    {
+      "force_damping": 126.46077411165737,
+      "force_i_gain": 0.0,
+      "force_p_gain": 0.003805880280464954,
+      "motion_kp": 3.9820733519290954,
+      "normal_filter_tau_s": 0.3102540351947297,
+      "orientation_ko": 0.08599777405034642,
+      "phase_margin_deg": 77.93722170718965,
+      "predicted_mae_n": 2.356588000807239,
+      "reasons": [
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 28.53552906975385,
+      "force_i_gain": 0.00022284453230038968,
+      "force_p_gain": 0.0006040492047622212,
+      "motion_kp": 5.581977094129167,
+      "normal_filter_tau_s": 0.051048239328934764,
+      "orientation_ko": 0.1617183191911072,
+      "phase_margin_deg": 63.10283064630839,
+      "predicted_mae_n": 3.0347647594728064,
+      "reasons": [
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 90.36636075988365,
+      "force_i_gain": 0.004512822868973038,
+      "force_p_gain": 0.021239386229661563,
+      "motion_kp": 2.931640207414696,
+      "normal_filter_tau_s": 0.4170183391303956,
+      "orientation_ko": 0.3649078667819402,
+      "phase_margin_deg": 13.003432707583812,
+      "predicted_mae_n": 0.20790755797820606,
+      "reasons": [
+        "pm<25.0"
+      ]
+    },
+    {
+      "force_damping": 81.12030218742368,
+      "force_i_gain": 0.0001815034051729131,
+      "force_p_gain": 0.0019065969831039819,
+      "motion_kp": 1.9626131887910996,
+      "normal_filter_tau_s": 0.25100744242074885,
+      "orientation_ko": 0.48345375524693485,
+      "phase_margin_deg": 76.15648393765028,
+      "predicted_mae_n": 2.9286233089584695,
+      "reasons": [
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 7.689547314758147,
+      "force_i_gain": 0.0001319541558613758,
+      "force_p_gain": 0.00025709286211135593,
+      "motion_kp": 2.8613021447304914,
+      "normal_filter_tau_s": 0.08164659282098773,
+      "orientation_ko": 0.23543241015481528,
+      "phase_margin_deg": 55.14411363532365,
+      "predicted_mae_n": 1.7364456187158377,
+      "reasons": [
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 219.2914293768057,
+      "force_i_gain": 0.004959961548318117,
+      "force_p_gain": 0.010533350485504609,
+      "motion_kp": 1.580117478598883,
+      "normal_filter_tau_s": 0.1630574559252939,
+      "orientation_ko": 0.31197669144418766,
+      "phase_margin_deg": 65.52800626548843,
+      "predicted_mae_n": 1.1379591994235134,
+      "reasons": [
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 19.693671193533774,
+      "force_i_gain": 0.0,
+      "force_p_gain": 0.00026475674234351316,
+      "motion_kp": 2.306780949458552,
+      "normal_filter_tau_s": 0.36835165209905474,
+      "orientation_ko": 0.7295500808714928,
+      "phase_margin_deg": 82.33782801939535,
+      "predicted_mae_n": 5.210629155592534,
+      "reasons": [
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 54.31838201869971,
+      "force_i_gain": 0.03642219959621391,
+      "force_p_gain": 0.020357082126088836,
+      "motion_kp": 4.392970884699403,
+      "normal_filter_tau_s": 0.058048626939424426,
+      "orientation_ko": 0.08105313793548047,
+      "phase_margin_deg": 33.56942936628667,
+      "predicted_mae_n": 0.01859420270389397,
+      "reasons": [
+        "peak_u"
+      ]
+    },
+    {
+      "force_damping": 10.757997298003701,
+      "force_i_gain": 0.0009299773476370772,
+      "force_p_gain": 0.002899973543860662,
+      "motion_kp": 5.275137424201432,
+      "normal_filter_tau_s": 0.469254621628204,
+      "orientation_ko": 0.4210425467328941,
+      "phase_margin_deg": -33.12768075054072,
+      "predicted_mae_n": 0.15143569473058197,
+      "reasons": [
+        "pm<25.0"
+      ]
+    },
+    {
+      "force_damping": 100.1009397601153,
+      "force_i_gain": 0.00045042893485623616,
+      "force_p_gain": 0.0018413144575842781,
+      "motion_kp": 2.5388254783349335,
+      "normal_filter_tau_s": 0.06335547131301916,
+      "orientation_ko": 0.07022321326438467,
+      "phase_margin_deg": 69.48841186023216,
+      "predicted_mae_n": 3.6227003302117984,
+      "reasons": [
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 47.9215086773005,
+      "force_i_gain": 0.002056014821501684,
+      "force_p_gain": 0.0017999832276546245,
+      "motion_kp": 2.4299539656190148,
+      "normal_filter_tau_s": 0.6504142077735107,
+      "orientation_ko": 0.15285802265570977,
+      "phase_margin_deg": 23.906353995315072,
+      "predicted_mae_n": 1.1034198291128483,
+      "reasons": [
+        "pm<25.0",
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 15.796350027286136,
+      "force_i_gain": 7.009471614742524e-05,
+      "force_p_gain": 0.00041740522455795343,
+      "motion_kp": 1.7833937392771206,
+      "normal_filter_tau_s": 0.10923183520972865,
+      "orientation_ko": 0.09307005775101973,
+      "phase_margin_deg": 73.12286616075349,
+      "predicted_mae_n": 2.545685206146139,
+      "reasons": [
+        "peak_force"
+      ]
+    },
+    {
+      "force_damping": 27.999999999999993,
+      "force_i_gain": 0.006720000000000001,
+      "force_p_gain": 0.011200000000000002,
+      "motion_kp": 1.5,
+      "normal_filter_tau_s": 0.15,
+      "orientation_ko": 0.2,
+      "phase_margin_deg": -3.675578432873209,
+      "predicted_mae_n": 0.04642146039585637,
+      "reasons": [
+        "pm<25.0",
+        "peak_u"
+      ]
+    },
+    {
+      "force_damping": 27.999999999999993,
+      "force_i_gain": 0.013440000000000002,
+      "force_p_gain": 0.022400000000000003,
+      "motion_kp": 1.5,
+      "normal_filter_tau_s": 0.15,
+      "orientation_ko": 0.2,
+      "phase_margin_deg": -49.932752337066916,
+      "predicted_mae_n": 0.026594331012613114,
+      "reasons": [
+        "pm<25.0",
+        "peak_u"
+      ]
+    },
+    {
+      "force_damping": 27.999999999999993,
+      "force_i_gain": 0.026880000000000005,
+      "force_p_gain": 0.044800000000000006,
+      "motion_kp": 1.5,
+      "normal_filter_tau_s": 0.15,
+      "orientation_ko": 0.2,
+      "phase_margin_deg": -99.86584390031749,
+      "predicted_mae_n": 2.9581487413627623,
+      "reasons": [
+        "pm<25.0",
+        "peak_u"
+      ]
+    }
+  ],
+  "r006_anchors_unchanged": {
+    "D_ANCHOR": 28.0,
+    "I_ON_ANCHOR": 1e-05,
+    "KO_ANCHOR": 0.1,
+    "KP_ANCHOR": 1.5,
+    "P_ANCHOR": 0.0003535533906,
+    "TAU_ANCHOR": 0.35
+  },
+  "scan_summary": {
+    "evaluated": 37,
+    "survivor_mae_at_anchor": 0.35568590629794483,
+    "survivor_mae_min": 0.06432077912843051,
+    "survivors": 15,
+    "vetoed": 22
+  },
+  "schema": "step5d.autotune-v4/r008-domain-design-v1"
+}

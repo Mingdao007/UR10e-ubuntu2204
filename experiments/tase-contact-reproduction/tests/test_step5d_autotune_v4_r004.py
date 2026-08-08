@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -38,7 +39,9 @@ from step5d_autotune_v4_r004.ledger import (
     LedgerError,
     verify_ledger_hash_chain,
 )
+from step5d_autotune_v4_r004.qualification import CanonicalQualificationControl
 import step5d_autotune_v4_r004.transport as r004_transport
+from step5d_autotune_v4_r004.tp import render_script as render_r004_script
 from step5d_autotune_v4_r004.wire import (
     AttemptKind,
     CommandMode,
@@ -56,6 +59,73 @@ from step5d_autotune_v4_r004.wire import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_tp_stationary_gate_allows_bounded_settle_without_relaxing_thresholds() -> None:
+    script = render_r004_script()
+    assert "while dwell_s < required_s and elapsed_s < required_s * 5.0:" in script
+    assert "dwell_s = 0.0" in script
+    assert "return dwell_s >= required_s" in script
+    assert "linear > 0.000500000" in script
+    assert "angular > 0.005000000" in script
+
+
+def test_tp_publishes_state21_before_bounded_baseline_mode_requirement() -> None:
+    script = render_r004_script()
+    handshake = script.index(
+        "while read_input_integer_register(25) == 0 and baseline_entry_elapsed_s < 0.080000000:"
+    )
+    strict_mode_gate = script.index("baseline_mode != 1 and baseline_mode != 2 and baseline_mode != 3")
+    assert handshake < strict_mode_gate
+    assert "codex_r004_echo(epoch, ordinal, 21" in script[handshake:strict_mode_gate]
+
+
+def test_tp_executes_guarded_canonical_qdot_before_sticky_latch() -> None:
+    script = render_r004_script()
+    pre_latch = script.index("if not latch_seen:", script.index("while not baseline_done:"))
+    post_latch = script.index("else:", pre_latch)
+    branch = script[pre_latch:post_latch]
+    assert "speedj(baseline_qdot, 2.500000000, actual_dt)" in branch
+    assert "pre_latch_elapsed_s = pre_latch_elapsed_s + actual_dt" in branch
+
+
+def test_tp_reuses_transfer_home_search_entry_and_rejects_single_sample_contact() -> None:
+    script = render_r004_script()
+    floor_move = script.index("movel(p[transfer_pose[0]")
+    home_descent = script.index("movel(home_pose, a=0.050000000", floor_move)
+    search_start = script.index("local contact_start = get_actual_tcp_pose()", home_descent)
+    assert floor_move < home_descent < search_start
+    assert "return codex_r004_fault(epoch, ordinal, token, kind, consumed, 25" in script[
+        home_descent:search_start
+    ]
+    assert "contact_confirm_s >= 0.080000000" in script
+    assert "contact_confirm_s = 0.0" in script
+
+
+def test_tp_setpoint_slew_validator_uses_host_packet_age_not_tp_step() -> None:
+    script = render_r004_script()
+    assert "setpoint - prior_setpoint > 0.5 * 0.080000000 + 0.010000000" in script
+    assert "setpoint - prior_setpoint > 0.5 * actual_dt" not in script
+    assert "setpoint < 1.0" in script
+    assert "consumed, 71, runtime_hi" in script
+    assert "setpoint > 5.0" in script
+    assert "consumed, 72, runtime_hi" in script
+    assert "consumed, 73, runtime_hi" in script
+    assert "setpoint < prior_setpoint - 0.010000000" in script
+    assert "consumed, 74, runtime_hi" in script
+
+
+def test_qualification_startup_readiness_is_one_way_latched() -> None:
+    source = inspect.getsource(CanonicalQualificationControl.step)
+    assert "self._startup_ready_latched = self._startup_ready_latched or startup_ready" in source
+    assert "if observed_dt is None or not self._startup_ready_latched" in source
+
+
+def test_return_commands_margin_above_unchanged_transfer_floor() -> None:
+    script = render_r004_script()
+    return_branch = script[script.index("def codex_r004_return_home"):script.index("def codex_r004_execute_attempt")]
+    assert "transfer_z = 0.062963519" in return_branch
+    assert "floor_pose[2] < 0.062863519" in return_branch
 
 
 def _payload(*, sequence: int = 7, integer_override: tuple[int, int] | None = None) -> PacketPayload:
@@ -484,7 +554,22 @@ def test_r004_contract_and_deploy_manifest_share_canonical_controller_target() -
     assert contract.raw["script2"]["controller_target"] == expected
     assert manifest["controller_target"] == expected
     assert selector["candidate_v4_r004"]["controller_target"] == expected
-    assert stage["current_binding"]["controller_target"] == expected
+    # The global table remains byte-frozen for the legacy r003 contract; r004
+    # is owned only by its isolated V4 selector until an explicit promotion.
+    assert stage["current_binding"]["controller_target"] == (
+        "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r002.urp"
+    )
+    assert stage["current_binding"]["current_stage_pointer"] == (
+        "config/step5d/lineage_selector.json"
+    )
+    assert selector["candidate_v4_r004"]["live_scope"] == {
+        "mode": "qualification_only",
+        "allowed_logical_ordinals": [1, 2, 3],
+        "allowed_attempt_kind": "QUALIFICATION",
+        "ordinal_4_and_later_blocked_before_rtde_write": True,
+        "full_campaign_enabled": False,
+        "candidate_path_retest_and_promotion_enabled": False,
+    }
     assert selector["candidate_v4_r004"]["release_contract_sha256"] == contract.sha256
     assert selector["candidate_v4_r004"]["offline_closure_sha256"] == hashlib.sha256(
         (ROOT / "config/step5d/autotune_v4_r004_offline_closure.json").read_bytes()

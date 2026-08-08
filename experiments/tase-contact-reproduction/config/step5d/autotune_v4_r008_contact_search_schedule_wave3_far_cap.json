@@ -1,0 +1,30 @@
+{
+  "F_far_n": 0.3,
+  "confirm_force_norm_n": 0.7,
+  "confirm_hold_s": 0.08,
+  "confirm_normal_n": 0.5,
+  "d_near_m": 0.013970689,
+  "far_acceleration_m_s2": 0.02,
+  "force_fuse_n": 50.0,
+  "force_fuse_reason": 75,
+  "max_travel_m": 0.025,
+  "near_acceleration_m_s2": 0.005,
+  "notes": {
+    "calibration_provenance": "wave1_state20_sealed",
+    "calibration_seal_sha256": "f6f11ef8bacd88db1698a5c3b8966869f33dfe8b092fb24a88c2b925e8180369",
+    "d_near_start_travel_m": 0.011029311,
+    "delta_z_m": 0.013529310807,
+    "host_abs_normal_n_frozen": 60.0,
+    "mainline_forbidden": "never resume into live_20260803_1113_stage_d / 1db4f9bf",
+    "near_margin_m": 0.0025,
+    "v_far_policy": "capped at 0.002 (Wave3 default 0.002; Wave2 archive 0.0016)",
+    "wave": "B3 Wave 3 \u2014 geometry-planned FAR at planner cap (v_far=0.002), NEAR frozen at Wave1"
+  },
+  "parent_campaign_fingerprint": "1db4f9bf587826e7562dccef7040f627e660e540f847a2e8b92f63879870cc4a",
+  "program": "step5d_strict_rnn_autotune_v4_r008_b3_two_stage",
+  "schema": "step5d.autotune-v4/r008-contact-search-schedule-v1",
+  "timeout_s": 90.0,
+  "v_far_m_s": 0.002,
+  "v_near_m_s": 0.0005,
+  "version": "b3-geometry-planned-wave3-far-cap-v1"
+}
