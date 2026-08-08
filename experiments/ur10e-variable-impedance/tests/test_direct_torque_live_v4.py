@@ -103,6 +103,21 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "entry_elapsed_s = 0.0" in source
     assert "last_sequence = 0" in source
     assert "held_age_s = 0.0" in source
+    assert "incoherent_age_s = 0.0" in source
+    float_payload_end = source.index(
+        "local raw_force = [read_input_float_register(42)"
+    )
+    final_sequence_read = source.index(
+        "sequence_after = read_input_integer_register(25)",
+        float_payload_end,
+    )
+    coherent_check = source.index(
+        "local coherent = sequence_before == sequence_after", final_sequence_read
+    )
+    assert float_payload_end < final_sequence_read < coherent_check
+    assert "if not coherent:\n        incoherent_age_s = incoherent_age_s + control_dt_s" in source
+    assert "if incoherent_age_s > heartbeat_timeout_s:" in source
+    assert "elif not packet_ok:" in source
     assert "torque_thread_handle = 0" in source
     assert source.count("local compare_axis = 0") == 1
     assert source.count("local zero_axis = 0") == 1

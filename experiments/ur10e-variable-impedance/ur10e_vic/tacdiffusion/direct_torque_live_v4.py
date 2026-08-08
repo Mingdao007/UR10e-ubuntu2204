@@ -564,6 +564,7 @@ def build_live_receiver_source(
   local exit_reason = 0
   local last_sequence = 0
   local held_age_s = 0.0
+  local incoherent_age_s = 0.0
   local heartbeat_timeout_s = heartbeat_timeout_ticks*get_steptime()
   local lease_id = 0
   local episode_identity = 0
@@ -679,6 +680,7 @@ def build_live_receiver_source(
       local desired_k = [read_input_float_register(30), read_input_float_register(31), read_input_float_register(32), read_input_float_register(33), read_input_float_register(34), read_input_float_register(35)]
       local guard_wrench = [read_input_float_register(36), read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41)]
       local raw_force = [read_input_float_register(42), read_input_float_register(43), read_input_float_register(44), read_input_float_register(45), read_input_float_register(46), read_input_float_register(47)]
+      sequence_after = read_input_integer_register(25)
       local coherent = sequence_before == sequence_after and heartbeat == sequence_after
       local new_packet = sequence_after == last_sequence + 1
       local held_packet = last_sequence > 0 and sequence_after == last_sequence
@@ -808,10 +810,22 @@ def build_live_receiver_source(
       if desired_orientation_norm > tube_orientation_tolerance_rad:
         packet_ok = False
       end
-      if not packet_ok:
-        exit_fault = 5
-        exit_reason = 5
-        running = False
+      if coherent:
+        incoherent_age_s = 0.0
+      end
+      if not coherent:
+        incoherent_age_s = incoherent_age_s + control_dt_s
+        if incoherent_age_s > heartbeat_timeout_s:
+          exit_fault = 5
+          exit_reason = 5
+          running = False
+        else:
+          sync()
+        end
+      elif not packet_ok:
+          exit_fault = 5
+          exit_reason = 5
+          running = False
       else:
         if new_packet:
           if lease_id == 0:

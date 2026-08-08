@@ -50,6 +50,11 @@ phases:
    desired pose is the fresh actual handoff pose and its first feedforward is
    zero; the existing bounded settle ramp then reaches tracking. `TRACK` uses
    exact `K=(600,600,600,30,30,30)`.
+   The Direct Torque input seqlock reads its closing sequence only after the
+   complete integer/float payload. A transient incoherent snapshot holds the
+   previous applied command for one controller tick; it never becomes a new
+   action, and persistent incoherence still faults at the unchanged `80 ms`
+   heartbeat deadline.
 
 No sensor, guard, protective-stop, Safety, joint, or route fault performs an
 automatic retract or return. A no-contact search exhaustion is a separate

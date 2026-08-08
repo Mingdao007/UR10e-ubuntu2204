@@ -1,13 +1,13 @@
 {
   "content_address": {
     "algorithm": "sha256",
-    "sha256": "fa1875010dc2cf0065784935a59060dcde7c59e83daaf2928298c32d9d17e2f7"
+    "sha256": "08307802fbcd52d8bf44443f02f9994101fbc91dfecd26fab255cf8dc4fecba5"
   },
   "controller_readback_applicable": false,
   "files": [
     {
       "path": "experiments/tase-contact-reproduction/STEP5D_TACDIFFUSION_FORMAL_V4_FLOW.md",
-      "sha256": "5104f0e5395dc6d13117c309e5a4c153831e91f73c67b4ace48980744d10e701"
+      "sha256": "3ea00267cfb929e16c17639157859c8e712729a7170947e51b95428e5dae166f"
     },
     {
       "path": "experiments/tase-contact-reproduction/config/step5d_tacdiffusion_sensor_frame_v4.json",
@@ -67,7 +67,7 @@
     },
     {
       "path": "experiments/ur10e-variable-impedance/tests/test_direct_torque_live_v4.py",
-      "sha256": "3e1ca6a7f6d2302c5075f43a9bcc9855a950d098308f24accad5709758a96063"
+      "sha256": "bcdf52d7807a9756a102bcc2e419c035270ea4c483facfd57f92d756dcc61155"
     },
     {
       "path": "experiments/ur10e-variable-impedance/tests/test_tacdiffusion_formal_orchestration.py",
@@ -91,7 +91,7 @@
     },
     {
       "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/direct_torque_live_v4.py",
-      "sha256": "0f54a5bbed9bc7807e63aeec8ea6bed11a255483b0aee4276bf46179c7de97df"
+      "sha256": "6800821c4bdd57175062e8619567329009f2386997f92867819d8a6429e5834d"
     },
     {
       "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/eligibility.py",
