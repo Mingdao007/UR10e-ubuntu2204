@@ -330,3 +330,92 @@ def test_qualification_preflight_waits_only_for_transient_stationarity(
     monkeypatch.setattr(formal.legacy, "readonly_status", lambda _host: {"attempt": 3})
     with pytest.raises(RuntimeError, match="safety_not_normal"):
         formal._wait_for_qualification_stationary_preflight("192.0.2.1")
+
+
+def test_formal_position_return_is_bounded_base_positive_z() -> None:
+    current = (0.4872, 0.1291, 0.0194, 3.12, 0.0, 0.066)
+    entry = (0.4871, 0.1290, 0.0322, 3.12, 0.0, 0.066)
+    source = formal._formal_position_return_source(
+        current_pose_base=current, entry_pose_base=entry
+    )
+    assert source.startswith("def tacdiffusion_formal_position_return_v1():\n")
+    assert "movel(p[0.48709999999999998, 0.129" in source
+    assert ", a=0.01, v=0.001, r=0.0)" in source
+    with pytest.raises(ValueError, match=r"bounded base \+Z"):
+        formal._formal_position_return_source(
+            current_pose_base=current,
+            entry_pose_base=current[:2] + (0.018,) + current[3:],
+        )
+    with pytest.raises(ValueError, match="lateral delta"):
+        formal._formal_position_return_source(
+            current_pose_base=current,
+            entry_pose_base=(0.490, entry[1], entry[2], *entry[3:]),
+        )
+
+
+def test_monitored_formal_position_return_requires_stopped_at_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current = (0.4872, 0.1291, 0.0194, 3.12, 0.0, 0.066)
+    entry = (0.4871, 0.1290, 0.0322, 3.12, 0.0, 0.066)
+    sent: list[str] = []
+    monkeypatch.setattr(
+        formal.legacy,
+        "_send_urscript",
+        lambda _host, source, _timeout: sent.append(source),
+    )
+    batches = iter(
+        (
+            [
+                {
+                    "robot_mode": legacy.ROBOT_MODE_RUNNING,
+                    "safety_mode": legacy.SAFETY_MODE_NORMAL,
+                    "runtime_state": legacy.RUNTIME_PLAYING,
+                    "actual_TCP_pose": current,
+                    "actual_TCP_speed": (0.0, 0.0, 0.001, 0.0, 0.0, 0.0),
+                }
+            ],
+            [
+                {
+                    "robot_mode": legacy.ROBOT_MODE_RUNNING,
+                    "safety_mode": legacy.SAFETY_MODE_NORMAL,
+                    "runtime_state": legacy.RUNTIME_STOPPED,
+                    "actual_TCP_pose": entry,
+                    "actual_TCP_speed": (0.0,) * 6,
+                }
+            ],
+        )
+    )
+    monkeypatch.setattr(
+        formal.legacy,
+        "_receive_available",
+        lambda *_args, **_kwargs: next(batches),
+    )
+
+    class Guard:
+        force_norm_n = 1.25
+        torque_norm_nm = 0.05
+
+    class Kunwei:
+        def snapshot(self, **_kwargs: object) -> Guard:
+            return Guard()
+
+    result = formal._run_monitored_formal_position_return(
+        args=argparse.Namespace(
+            robot_host="192.0.2.1",
+            connect_timeout_s=3.0,
+            sensor_delivery_watchdog_s=0.08,
+        ),
+        rtde=object(),
+        output_recipe=1,
+        output_types=(),
+        kunwei=Kunwei(),
+        current_pose_base=current,
+        entry_pose_base=entry,
+    )
+    assert len(sent) == 1
+    assert result["translation_error_m"] == 0.0
+    assert result["maximum_kunwei_force_n"] == 1.25
+    assert result["maximum_kunwei_torque_nm"] == 0.05
+    assert result["safety_normal"] is True
+    assert result["ur_internal_ft_used"] is False

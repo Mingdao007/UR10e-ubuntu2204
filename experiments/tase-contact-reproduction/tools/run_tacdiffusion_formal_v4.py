@@ -1065,14 +1065,12 @@ def _run_contact_attempt_locked(
     previous_k = FixedKExpertV1().stiffness_6d
     track_completed = False
     contact_not_found = False
-    home_stable_rows = 0
-    home_return_start_pose = entry_pose
-    home_return_duration_s = 2.0
     end_sent = False
     observed_complete = False
     failure: str | None = None
     fault_class: str | None = None
     auto_return_performed = False
+    auto_return_evidence: dict[str, Any] | None = None
     start_s: float | None = None
     primary_barrier: Mapping[str, Any] | None = None
     tracking_started = False
@@ -1341,38 +1339,24 @@ def _run_contact_attempt_locked(
                     elif phase == FormalAttemptPhase.RETRACT and elapsed >= 2.0:
                         phase = FormalAttemptPhase.HOME_RETURN
                         phase_started_s = now
-                        home_return_start_pose = last_actual_pose
-                        home_return_duration_s = max(
-                            2.0,
-                            math.dist(last_actual_pose[:3], entry_pose[:3]) / 0.005,
+                        end_command = legacy._command_packet(
+                            command=legacy.MODE_END,
+                            sequence=outgoing.lineage.command_sequence,
+                            progress_s=0.0,
+                            pose=entry_pose,
+                            lease_id=lease_id,
+                            episode_identity=episode_identity,
+                            kunwei_guard_wrench_tcp_si=guard.wrench_tcp_si,
+                            kunwei_sample_index=guard.sample_index,
+                            kunwei_receive_batch_id=guard.receive_batch_id,
+                            kunwei_nominal_sensor_time_s=guard.nominal_sensor_time_s,
+                            kunwei_batch_arrival_monotonic_s=guard.t_monotonic_s,
+                            stiffness_6d=previous_k,
+                            raw_f_ff_6d=(0.0,) * 6,
                         )
-                    elif phase == FormalAttemptPhase.HOME_RETURN:
-                        translation_error = math.dist(last_actual_pose[:3], entry_pose[:3])
-                        speed_ok = max(abs(value) for value in last_actual_speed[:3]) <= 0.001
-                        if elapsed >= home_return_duration_s and translation_error <= 0.0005 and speed_ok:
-                            home_stable_rows += len(pending)
-                        else:
-                            home_stable_rows = 0
-                        if home_stable_rows >= 25 and not end_sent:
-                            end_command = legacy._command_packet(
-                                command=legacy.MODE_END,
-                                sequence=outgoing.lineage.command_sequence,
-                                progress_s=0.0,
-                                pose=entry_pose,
-                                lease_id=lease_id,
-                                episode_identity=episode_identity,
-                                kunwei_guard_wrench_tcp_si=guard.wrench_tcp_si,
-                                kunwei_sample_index=guard.sample_index,
-                                kunwei_receive_batch_id=guard.receive_batch_id,
-                                kunwei_nominal_sensor_time_s=guard.nominal_sensor_time_s,
-                                kunwei_batch_arrival_monotonic_s=guard.t_monotonic_s,
-                                stiffness_6d=previous_k,
-                                raw_f_ff_6d=(0.0,) * 6,
-                            )
-                            rtde.send_inputs(input_recipe, input_types, end_command.values)
-                            outgoing = end_command
-                            end_sent = True
-                            auto_return_performed = True
+                        rtde.send_inputs(input_recipe, input_types, end_command.values)
+                        outgoing = end_command
+                        end_sent = True
 
                 if end_sent:
                     pending = []
@@ -1431,13 +1415,6 @@ def _run_contact_attempt_locked(
                                     contact_pose, episode.target_load_n
                                 )
                                 feedforward = tuple((1.0 - p) * value for value in feedforward_full)
-                            elif phase == FormalAttemptPhase.HOME_RETURN:
-                                p = _smooth01(elapsed / home_return_duration_s)
-                                desired_pose = tuple(
-                                    home_return_start_pose[index]
-                                    + p * (entry_pose[index] - home_return_start_pose[index])
-                                    for index in range(3)
-                                ) + entry_pose[3:]
                         tube.assert_contains_pose(desired_pose, role="desired")
                         packet = legacy._command_packet(
                             command=legacy.MODE_RUN,
@@ -1466,6 +1443,17 @@ def _run_contact_attempt_locked(
                         outgoing = packet
                         previous_k = stiffness
                 pending = []
+            if observed_complete and track_completed and end_sent:
+                auto_return_evidence = _run_monitored_formal_position_return(
+                    args=args,
+                    rtde=rtde,
+                    output_recipe=output_recipe,
+                    output_types=output_types,
+                    kunwei=kunwei,
+                    current_pose_base=last_actual_pose,
+                    entry_pose_base=entry_pose,
+                )
+                auto_return_performed = True
     except Exception as exc:
         failure = f"{type(exc).__name__}: {exc}"
         fault_class, _ = classify_fault(exc)
@@ -1588,6 +1576,7 @@ def _run_contact_attempt_locked(
         "track_completed": track_completed,
         "observed_complete": observed_complete,
         "auto_return_performed": auto_return_performed,
+        "auto_return": auto_return_evidence,
         "task_ready_home": task_ready_home,
         "entry_pose_base": list(entry_pose),
         "post_status": post_status,
@@ -1678,6 +1667,117 @@ def _run_contact_attempt_locked(
     if outcome == FormalAttemptOutcome.HARD_FAULT:
         raise RuntimeError(f"formal_contact_hard_fault:{fault_class}:{attempt_id}")
     return evidence
+
+
+def _formal_position_return_source(
+    *, current_pose_base: Sequence[float], entry_pose_base: Sequence[float]
+) -> str:
+    current = tuple(float(value) for value in current_pose_base)
+    entry = tuple(float(value) for value in entry_pose_base)
+    if (
+        len(current) != 6
+        or len(entry) != 6
+        or not all(math.isfinite(value) for value in (*current, *entry))
+    ):
+        raise ValueError("formal position return poses must contain six finite values")
+    if entry[2] <= current[2] or entry[2] - current[2] > 0.020:
+        raise ValueError("formal position return must be bounded base +Z")
+    if math.dist(entry[:2], current[:2]) > 0.002:
+        raise ValueError("formal position return lateral delta exceeds 2 mm")
+    values = ", ".join(f"{value:.17g}" for value in entry)
+    return (
+        "def tacdiffusion_formal_position_return_v1():\n"
+        f"  movel(p[{values}], a=0.01, v=0.001, r=0.0)\n"
+        "end\n"
+    )
+
+
+def _run_monitored_formal_position_return(
+    *,
+    args: argparse.Namespace,
+    rtde: Any,
+    output_recipe: int,
+    output_types: Sequence[str],
+    kunwei: Any,
+    current_pose_base: Sequence[float],
+    entry_pose_base: Sequence[float],
+) -> dict[str, Any]:
+    """Exit contact under the same Kunwei 50/4 and RTDE Safety owner."""
+
+    source = _formal_position_return_source(
+        current_pose_base=current_pose_base,
+        entry_pose_base=entry_pose_base,
+    )
+    started = time.monotonic()
+    deadline = started + 20.0
+    saw_play = False
+    final_pose = tuple(float(value) for value in current_pose_base)
+    maximum_force_n = 0.0
+    maximum_torque_nm = 0.0
+    maximum_tcp_speed_m_s = 0.0
+    stop_sent = False
+    try:
+        legacy._send_urscript(args.robot_host, source, args.connect_timeout_s)
+        while time.monotonic() < deadline:
+            guard = kunwei.snapshot(max_age_s=args.sensor_delivery_watchdog_s)
+            maximum_force_n = max(maximum_force_n, float(guard.force_norm_n))
+            maximum_torque_nm = max(maximum_torque_nm, float(guard.torque_norm_nm))
+            batch = legacy._receive_available(
+                rtde,
+                output_recipe,
+                output_types,
+                legacy.OUTPUT_FIELDS,
+                0.005,
+            )
+            for sample in batch:
+                if (
+                    int(sample["robot_mode"]) != legacy.ROBOT_MODE_RUNNING
+                    or int(sample["safety_mode"]) != legacy.SAFETY_MODE_NORMAL
+                ):
+                    raise RuntimeError("formal_position_return_safety_changed")
+                final_pose = tuple(float(value) for value in sample["actual_TCP_pose"])
+                speed = tuple(float(value) for value in sample["actual_TCP_speed"])
+                maximum_tcp_speed_m_s = max(
+                    maximum_tcp_speed_m_s,
+                    math.sqrt(sum(value * value for value in speed[:3])),
+                )
+                saw_play = saw_play or int(sample["runtime_state"]) == legacy.RUNTIME_PLAYING
+            if (
+                saw_play
+                and batch
+                and int(batch[-1]["runtime_state"]) == legacy.RUNTIME_STOPPED
+            ):
+                break
+        else:
+            raise RuntimeError("formal_position_return_deadline_exceeded")
+        if math.dist(final_pose[:3], entry_pose_base[:3]) > 0.0005:
+            raise RuntimeError("formal_position_return_target_not_reached")
+    except Exception:
+        try:
+            legacy.dashboard_exchange(args.robot_host, ["stop"])
+            stop_sent = True
+        except Exception:
+            pass
+        raise
+    return {
+        "schema_version": "ur10e_tacdiffusion_formal_position_return/v1",
+        "source_sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
+        "motion_primitive": "movel_base_positive_z_to_recorded_entry",
+        "velocity_m_s": 0.001,
+        "acceleration_m_s2": 0.01,
+        "kunwei_guard_force_n": 50.0,
+        "kunwei_guard_torque_nm": 4.0,
+        "maximum_kunwei_force_n": maximum_force_n,
+        "maximum_kunwei_torque_nm": maximum_torque_nm,
+        "maximum_tcp_speed_m_s": maximum_tcp_speed_m_s,
+        "final_pose_base": list(final_pose),
+        "translation_error_m": math.dist(final_pose[:3], entry_pose_base[:3]),
+        "saw_play": saw_play,
+        "stop_sent": stop_sent,
+        "safety_normal": True,
+        "ur_internal_ft_used": False,
+        "duration_s": time.monotonic() - started,
+    }
 
 
 def _entry_transition_evidence(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
