@@ -302,3 +302,31 @@ def test_failed_seven_family_run_writes_partial_root_summary(
     assert summary["ok"] is False
     assert len(summary["episodes"]) == 1
     assert summary["episodes"][0]["failure"].endswith("receiver_fault:12")
+
+
+def test_qualification_preflight_waits_only_for_transient_stationarity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    statuses = iter(({"attempt": 1}, {"attempt": 2}))
+    monkeypatch.setattr(formal.legacy, "readonly_status", lambda _host: next(statuses))
+
+    def validate(status: dict[str, int]) -> None:
+        if status["attempt"] == 1:
+            raise RuntimeError("compile_probe_preflight_failed:robot_not_stationary")
+
+    monkeypatch.setattr(formal, "_validate_common_preflight", validate)
+    monkeypatch.setattr(formal.time, "sleep", lambda _duration: None)
+    assert formal._wait_for_qualification_stationary_preflight("192.0.2.1") == {
+        "attempt": 2
+    }
+
+    monkeypatch.setattr(
+        formal,
+        "_validate_common_preflight",
+        lambda _status: (_ for _ in ()).throw(
+            RuntimeError("compile_probe_preflight_failed:safety_not_normal")
+        ),
+    )
+    monkeypatch.setattr(formal.legacy, "readonly_status", lambda _host: {"attempt": 3})
+    with pytest.raises(RuntimeError, match="safety_not_normal"):
+        formal._wait_for_qualification_stationary_preflight("192.0.2.1")

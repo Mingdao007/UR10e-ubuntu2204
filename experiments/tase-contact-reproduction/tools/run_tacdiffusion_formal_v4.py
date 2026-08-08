@@ -1908,6 +1908,27 @@ def _validate_common_preflight(status: Mapping[str, Any]) -> None:
         raise RuntimeError("formal_preflight_loaded_program_identity_unexpected")
 
 
+def _wait_for_qualification_stationary_preflight(
+    robot_host: str, *, timeout_s: float = 2.0
+) -> Mapping[str, Any]:
+    """Retry only the transient stationarity rejection between families."""
+
+    deadline = time.monotonic() + float(timeout_s)
+    while True:
+        status = legacy.readonly_status(robot_host)
+        try:
+            _validate_common_preflight(status)
+        except RuntimeError as exc:
+            if (
+                str(exc) != "compile_probe_preflight_failed:robot_not_stationary"
+                or time.monotonic() >= deadline
+            ):
+                raise
+            time.sleep(0.05)
+            continue
+        return status
+
+
 def _episode_tube(anchor_pose: Sequence[float]) -> LiveTubeContract:
     anchor = tuple(float(value) for value in anchor_pose)
     return LiveTubeContract(
@@ -2352,8 +2373,7 @@ def _run_no_contact_episode(
     args: argparse.Namespace,
     output_dir: Path,
 ) -> dict[str, Any]:
-    status = legacy.readonly_status(args.robot_host)
-    _validate_common_preflight(status)
+    status = _wait_for_qualification_stationary_preflight(args.robot_host)
     anchor = tuple(float(value) for value in status["rtde"]["actual_TCP_pose"])
     tube = _episode_tube(anchor)
     timeline = build_formal_trajectory_timeline(
