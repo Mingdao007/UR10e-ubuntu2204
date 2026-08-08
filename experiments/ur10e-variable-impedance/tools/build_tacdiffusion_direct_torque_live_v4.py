@@ -175,7 +175,7 @@ def _numeric_sanity(
         "target_load_n": 0.0,
         "preload_n": 0.0,
         "feedforward_wrench": [0.0] * 6,
-        "receiver_wrench_limits": [20.0, 20.0, 20.0, 2.0, 2.0, 2.0],
+        "receiver_wrench_limits": [50.0, 50.0, 50.0, 4.0, 4.0, 4.0],
         "receiver_joint_torque_limits_nm": [20.0, 20.0, 20.0, 8.0, 8.0, 8.0],
         "claim_class": "offline_numeric_sanity_no_live_actions",
     }

@@ -765,7 +765,9 @@ def test_direct_torque_source_is_constructible_only_from_handoff() -> None:
     mode_zero = source[source.index("if model_mode == 0:") : source.index("elif model_mode == 1:")]
     assert "model_sequence != 0 or model_period_us != 0 or model_timestamp_us != 0" in mode_zero
     assert "if not model_inactive_expert_feedforward_allowed:" in mode_zero
-    assert "guard_force_norm > 20.0 or guard_torque_norm > 2.0" in source
+    assert "guard_force_norm > 50.0 or guard_torque_norm > 4.0" in source
+    assert parsed.formal_contact_entry_transition_profile == "formal_contact_entry_transition_v1"
+    assert parsed.formal_contact_entry_transition_ticks == 25
     assert "local formal_handoff_anchor_pose = p[" in source
     assert "0.40000000000000002" in source
     assert "actual_TCP_force" not in source

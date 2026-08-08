@@ -35,6 +35,23 @@ from ur10e_vic.tacdiffusion.formal_contact_acquisition import (
     FIXED_TRACKING_STIFFNESS,
     MAX_HANDOFF_MISMATCH_M,
 )
+from ur10e_vic.tacdiffusion.contracts import (
+    FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX,
+    FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N,
+    FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
+    FORMAL_EXPERT_ACTION_SLEW_PER_S,
+    FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM,
+)
+from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (
+    FORMAL_CONTACT_ENTRY_JOINT_ACCELERATION_LIMIT_RAD_S2,
+    FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD,
+    FORMAL_CONTACT_ENTRY_JOINT_SPEED_LIMIT_RAD_S,
+    FORMAL_CONTACT_ENTRY_TCP_EXCURSION_LIMIT_M,
+    FORMAL_CONTACT_ENTRY_TCP_ROTATION_SPEED_LIMIT_RAD_S,
+    FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S,
+    FORMAL_CONTACT_ENTRY_TRANSITION_PROFILE_V1,
+    FORMAL_CONTACT_ENTRY_TRANSITION_TICKS,
+)
 
 
 OUTPUT = ROOT / "config" / "tacdiffusion_formal_v4_numeric_sanity.json"
@@ -163,7 +180,35 @@ def build() -> dict[str, object]:
             "prepare_timeout_ticks": ACQUISITION_PREPARE_TIMEOUT_TICKS,
             "authority": "kunwei_kwr75_tcp_raw_stream_v1",
         },
+        "expert_action_limits": {
+            "schema_version": FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
+            "component_abs_max": list(FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX),
+            "force_norm_max_n": FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N,
+            "torque_norm_max_nm": FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM,
+            "slew_per_s": list(FORMAL_EXPERT_ACTION_SLEW_PER_S),
+        },
         "transition_invariants": {
+            "entry_transition_profile": FORMAL_CONTACT_ENTRY_TRANSITION_PROFILE_V1,
+            "entry_transition_enabled_ticks": FORMAL_CONTACT_ENTRY_TRANSITION_TICKS,
+            "entry_transition_one_shot": True,
+            "entry_transition_tcp_translation_speed_limit_m_s": (
+                FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S
+            ),
+            "entry_transition_tcp_rotation_speed_limit_rad_s": (
+                FORMAL_CONTACT_ENTRY_TCP_ROTATION_SPEED_LIMIT_RAD_S
+            ),
+            "entry_transition_joint_speed_limit_rad_s": (
+                FORMAL_CONTACT_ENTRY_JOINT_SPEED_LIMIT_RAD_S
+            ),
+            "entry_transition_joint_acceleration_limit_rad_s2": (
+                FORMAL_CONTACT_ENTRY_JOINT_ACCELERATION_LIMIT_RAD_S2
+            ),
+            "entry_transition_hard_tcp_excursion_limit_m": (
+                FORMAL_CONTACT_ENTRY_TCP_EXCURSION_LIMIT_M
+            ),
+            "entry_transition_hard_joint_excursion_limit_rad": (
+                FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD
+            ),
             "search_to_stopping": "host_latch_1N_for_50_consecutive_native_samples",
             "search_stop_distance": (
                 "decelerate_at_25mm_minus_12.5um_minus_one_control_tick"

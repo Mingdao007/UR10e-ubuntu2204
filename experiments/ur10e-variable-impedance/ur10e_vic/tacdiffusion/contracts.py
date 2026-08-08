@@ -54,8 +54,13 @@ KUNWEI_ONLY_TRANSPORT = "tcp_raw"
 KUNWEI_SOFTWARE_BASELINE_SEMANTICS = "software_baseline_only"
 FORMAL_NO_CONTACT_FORCE_LIMIT_N = 6.0
 FORMAL_NO_CONTACT_TORQUE_LIMIT_NM = 0.5
-FORMAL_EXPERT_CONTACT_FORCE_LIMIT_N = 20.0
-FORMAL_EXPERT_CONTACT_TORQUE_LIMIT_NM = 2.0
+FORMAL_EXPERT_CONTACT_FORCE_LIMIT_N = 50.0
+FORMAL_EXPERT_CONTACT_TORQUE_LIMIT_NM = 4.0
+FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1 = "ur10e_tacdiffusion_expert_action_limits/v1"
+FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX = (50.0, 50.0, 50.0, 4.0, 4.0, 4.0)
+FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N = 50.0
+FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM = 4.0
+FORMAL_EXPERT_ACTION_SLEW_PER_S = (100.0, 100.0, 100.0, 10.0, 10.0, 10.0)
 
 # These values are rejected only by formal payload/recipe validators.  Legacy
 # reports remain readable and are never rewritten into the V4 lineage.
@@ -1340,6 +1345,7 @@ class FormalEpisodeManifestV1:
     contact_guard_profile: ContactGuardProfileV1
     rtde_output_fields: Sequence[str]
     source_hashes: Mapping[str, str]
+    expert_action_limits: Mapping[str, object] | None = None
     observation_dimension: int = FORMAL_OBSERVATION_DIMENSION
     control_rate_hz: int = CONTROL_RATE_HZ
     model_rate_candidates_hz: tuple[int, ...] = FORMAL_MODEL_RATE_CANDIDATES_HZ
@@ -1359,6 +1365,18 @@ class FormalEpisodeManifestV1:
             raise ValueError("formal manifest force authority has the wrong type")
         if not isinstance(self.contact_guard_profile, ContactGuardProfileV1):
             raise ValueError("formal manifest contact guard profile has the wrong type")
+        expected_action_limits = {
+            "schema_version": FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
+            "frame_id": "tool0_tcp",
+            "component_abs_max": list(FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX),
+            "force_norm_max_n": FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N,
+            "torque_norm_max_nm": FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM,
+            "slew_per_s": list(FORMAL_EXPERT_ACTION_SLEW_PER_S),
+        }
+        if self.expert_action_limits is not None:
+            if dict(self.expert_action_limits) != expected_action_limits:
+                raise ValueError("formal manifest expert action limits mismatch")
+            object.__setattr__(self, "expert_action_limits", MappingProxyType(expected_action_limits))
         if not isinstance(self.rtde_output_fields, (list, tuple)) or any(
             not isinstance(value, str) or not value.strip()
             for value in self.rtde_output_fields
@@ -1408,6 +1426,8 @@ class FormalEpisodeManifestV1:
             "production_dynamics_required": self.production_dynamics_required,
             "review_governance_schema": self.review_governance_schema,
         }
+        if self.expert_action_limits is not None:
+            payload["expert_action_limits"] = dict(self.expert_action_limits)
         validate_formal_force_source_payload(payload)
         return payload
 
@@ -1436,6 +1456,7 @@ class FormalEpisodeManifestV1:
             contact_guard_profile=profile,
             rtde_output_fields=tuple(payload.get("rtde_output_fields", ())),
             source_hashes=payload.get("source_hashes", {}),
+            expert_action_limits=payload.get("expert_action_limits"),
             observation_dimension=int(payload.get("observation_dimension", -1)),
             control_rate_hz=int(payload.get("control_rate_hz", -1)),
             model_rate_candidates_hz=tuple(payload.get("model_rate_candidates_hz", ())),

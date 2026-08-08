@@ -12,7 +12,7 @@
     "damping_sqrt_tolerance": 0.05,
     "equilibrium_orientation_slew_max_rad_s": 0.05,
     "equilibrium_translation_slew_max_m_s": 0.05,
-    "feedforward_abs_max": [20.0, 20.0, 20.0, 2.0, 2.0, 2.0],
+    "feedforward_abs_max": [50.0, 50.0, 50.0, 4.0, 4.0, 4.0],
     "feedforward_force_norm_max_n": 20.0,
     "feedforward_torque_norm_max_nm": 2.0,
     "filter_alpha": 0.9,

@@ -33,6 +33,11 @@ import run_tacdiffusion_remote_direct_torque_v4 as legacy  # noqa: E402
 from _ur_common import read_rtde_once  # noqa: E402
 from ur10e_vic.tacdiffusion.contracts import (  # noqa: E402
     ContactGuardProfileV1,
+    FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX,
+    FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N,
+    FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
+    FORMAL_EXPERT_ACTION_SLEW_PER_S,
+    FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM,
     FormalEpisodeManifestV1,
     KunweiOnlyForceAuthorityV1,
 )
@@ -1081,8 +1086,8 @@ def _run_contact_attempt_locked(
                 output_dir=attempt_dir,
                 calibration=calibration,
                 delivery_watchdog_s=args.sensor_delivery_watchdog_s,
-                active_force_limit_n=20.0,
-                active_torque_limit_nm=2.0,
+                active_force_limit_n=50.0,
+                active_torque_limit_nm=4.0,
                 contact_latch_load_n=contract.contact_latch_load_n,
                 contact_latch_samples=contract.latch_samples,
             ) as kunwei,
@@ -1182,11 +1187,14 @@ def _run_contact_attempt_locked(
             )
             receiver_contract = parse_live_receiver_source(receiver_source)
             if (
-                receiver_contract.guard_force_limit_n != 20.0
-                or receiver_contract.guard_torque_limit_nm != 2.0
+                receiver_contract.guard_force_limit_n != 50.0
+                or receiver_contract.guard_torque_limit_nm != 4.0
                 or receiver_contract.formal_handoff_required is not True
                 or receiver_contract.model_inactive_expert_feedforward_allowed
                 is not True
+                or receiver_contract.formal_contact_entry_transition_profile
+                != "formal_contact_entry_transition_v1"
+                or receiver_contract.formal_contact_entry_transition_ticks != 25
             ):
                 raise RuntimeError("formal_contact_receiver_handoff_or_guard_mismatch")
             receiver_sha = hashlib.sha256(receiver_source.encode("utf-8")).hexdigest()
@@ -1592,6 +1600,7 @@ def _run_contact_attempt_locked(
             "center_semantics": "controller_rebased_to_actual_entry",
             "normal_half_width_m": receiver_tube.normal_half_width_m,
         },
+        "entry_transition": _entry_transition_evidence(rows),
         "formal_manifest": formal_manifest.as_json(),
         "contact_acquisition": contract.as_json(),
         "equipment_readback": equipment_receipt,
@@ -1603,8 +1612,8 @@ def _run_contact_attempt_locked(
         "kunwei": kunwei_summary,
         "kunwei_only": True,
         "ur_internal_ft_used": False,
-        "guard_force_limit_n": 20.0,
-        "guard_torque_limit_nm": 2.0,
+        "guard_force_limit_n": 50.0,
+        "guard_torque_limit_nm": 4.0,
         "model_active": False,
         "shadow_only": True,
         "formal_result": formal_result_for_evidence,
@@ -1671,6 +1680,70 @@ def _run_contact_attempt_locked(
     return evidence
 
 
+def _entry_transition_evidence(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    transition_rows = [
+        row
+        for row in rows
+        if int(row.get("receiver_state", -1)) in (legacy.STATE_STARTUP, legacy.STATE_TORQUE)
+        and 1 <= int(round(float(row.get("control_update_count", 0.0)))) <= 25
+    ]
+    max_translation = 0.0
+    max_rotation = 0.0
+    max_joint_speed = 0.0
+    max_joint_acceleration = 0.0
+    previous: Mapping[str, Any] | None = None
+    for row in transition_rows:
+        tcp = tuple(float(row[f"actual_TCP_speed_{axis}"]) for axis in range(6))
+        qd = tuple(float(row[f"actual_qd_{axis}"]) for axis in range(6))
+        max_translation = max(max_translation, math.sqrt(sum(value * value for value in tcp[:3])))
+        max_rotation = max(max_rotation, math.sqrt(sum(value * value for value in tcp[3:])))
+        max_joint_speed = max(max_joint_speed, *(abs(value) for value in qd))
+        if previous is not None:
+            dt_s = float(row["controller_timestamp_s"]) - float(previous["controller_timestamp_s"])
+            if dt_s > 0.0:
+                max_joint_acceleration = max(
+                    max_joint_acceleration,
+                    *(
+                        abs(qd[axis] - float(previous[f"actual_qd_{axis}"])) / dt_s
+                        for axis in range(6)
+                    ),
+                )
+        previous = row
+    observed_counts = [
+        int(round(float(row.get("control_update_count", 0.0)))) for row in transition_rows
+    ]
+    baseline_rows = [
+        row
+        for row in rows
+        if int(row.get("receiver_state", -1)) in (legacy.STATE_STARTUP, legacy.STATE_TORQUE)
+        and int(round(float(row.get("control_update_count", 0.0)))) >= 26
+    ]
+    return {
+        "profile": "formal_contact_entry_transition_v1",
+        "version": 1,
+        "enabled_ticks": 25,
+        "first_observed_control_update_count": min(observed_counts) if observed_counts else None,
+        "last_observed_control_update_count": max(observed_counts) if observed_counts else None,
+        "baseline_limits_observed_from_tick_26": bool(baseline_rows),
+        "max_tcp_translation_speed_m_s": max_translation,
+        "max_tcp_rotation_speed_rad_s": max_rotation,
+        "max_abs_joint_speed_rad_s": max_joint_speed,
+        "max_derived_abs_joint_acceleration_rad_s2": max_joint_acceleration,
+        "hard_tcp_excursion_limit_m": 0.0003,
+        "hard_joint_excursion_limit_rad": 0.0005,
+    }
+
+
+def _attempt_allows_automatic_continuation(result: Mapping[str, Any]) -> bool:
+    """Only a counted episode at verified Home may release the next attempt."""
+
+    return bool(
+        result.get("outcome") == FormalAttemptOutcome.ELIGIBLE.value
+        and result.get("task_ready_home") is True
+        and result.get("auto_return_performed") is True
+    )
+
+
 def run_collect_campaign(args: argparse.Namespace) -> dict[str, Any]:
     _require_exact_sensor_delivery_watchdog(args)
     _require_frozen_live_endpoints(args)
@@ -1716,15 +1789,16 @@ def run_collect_campaign(args: argparse.Namespace) -> dict[str, Any]:
         while not ledger.progress(verify_artifacts=False).complete:
             if args.max_attempts > 0 and attempts_started >= args.max_attempts:
                 break
-            results.append(
-                _run_contact_attempt_locked(
-                    args=args,
-                    ledger=ledger,
-                    identity=identity,
-                    dynamics_evidence=dynamics,
-                )
+            result = _run_contact_attempt_locked(
+                args=args,
+                ledger=ledger,
+                identity=identity,
+                dynamics_evidence=dynamics,
             )
+            results.append(result)
             attempts_started += 1
+            if not _attempt_allows_automatic_continuation(result):
+                break
     return {
         "ok": ledger.progress(verify_artifacts=False).complete,
         "campaign_id": ledger.contract.campaign_id,
@@ -1934,6 +2008,14 @@ def _formal_manifest_for_attempt(
         contact_guard_profile=ContactGuardProfileV1.expert_contact(authority=authority),
         rtde_output_fields=tuple(legacy.OUTPUT_FIELDS),
         source_hashes=source_hashes,
+        expert_action_limits={
+            "schema_version": FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
+            "frame_id": "tool0_tcp",
+            "component_abs_max": list(FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX),
+            "force_norm_max_n": FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N,
+            "torque_norm_max_nm": FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM,
+            "slew_per_s": list(FORMAL_EXPERT_ACTION_SLEW_PER_S),
+        },
     )
 
 

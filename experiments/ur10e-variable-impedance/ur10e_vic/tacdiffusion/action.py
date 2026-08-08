@@ -20,9 +20,9 @@ class ActionProfile:
     force_units: str = "N,Nm"
     stiffness_units: str = "N/m,Nm/rad"
     damping_units: str = "N s/m,Nm s/rad"
-    force_component_abs_max: tuple[float, ...] = (20.0, 20.0, 20.0, 2.0, 2.0, 2.0)
-    force_norm_max_n: float = 20.0
-    torque_norm_max_nm: float = 2.0
+    force_component_abs_max: tuple[float, ...] = (50.0, 50.0, 50.0, 4.0, 4.0, 4.0)
+    force_norm_max_n: float = 50.0
+    torque_norm_max_nm: float = 4.0
     stiffness_baseline: tuple[float, ...] = (600.0, 600.0, 600.0, 30.0, 30.0, 30.0)
     stiffness_min: tuple[float, ...] = (25.0, 25.0, 25.0, 0.5, 0.5, 0.5)
     stiffness_max: tuple[float, ...] = (1000.0, 1000.0, 1000.0, 60.0, 60.0, 60.0)

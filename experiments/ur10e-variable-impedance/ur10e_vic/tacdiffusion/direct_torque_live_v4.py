@@ -32,6 +32,14 @@ WRENCH_FRAME_TOKEN = 5_252_001
 CONTROL_RATE_HZ = 500
 DEFAULT_HEARTBEAT_TIMEOUT_TICKS = 10
 NO_CONTACT_RELEASE_TOLERANCE_M = 0.001
+FORMAL_CONTACT_ENTRY_TRANSITION_PROFILE_V1 = "formal_contact_entry_transition_v1"
+FORMAL_CONTACT_ENTRY_TRANSITION_TICKS = 25
+FORMAL_CONTACT_ENTRY_JOINT_SPEED_LIMIT_RAD_S = 0.05
+FORMAL_CONTACT_ENTRY_JOINT_ACCELERATION_LIMIT_RAD_S2 = 30.0
+FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S = 0.05
+FORMAL_CONTACT_ENTRY_TCP_ROTATION_SPEED_LIMIT_RAD_S = 0.10
+FORMAL_CONTACT_ENTRY_TCP_EXCURSION_LIMIT_M = 0.0003
+FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD = 0.0005
 ORIENTATION_POLICY_HOLD_ENTRY = "hold_entry_orientation"
 ORIENTATION_POLICY_INTERPOLATE_POSE = "interpolate_pose_geodesic"
 ORIENTATION_INTERPOLATION_POLICIES = (
@@ -257,6 +265,36 @@ class SequenceResult:
     reason: str = ""
 
 
+@dataclass(frozen=True)
+class EntryTransitionRateLimits:
+    tcp_translation_m_s: float
+    tcp_rotation_rad_s: float
+    joint_speed_rad_s: float
+    joint_acceleration_rad_s2: float
+    transition_active: bool
+
+
+def formal_contact_entry_rate_limits(
+    *, control_update_count: int, enabled: bool
+) -> EntryTransitionRateLimits:
+    """Deterministic oracle for the one-shot controller-tick rate envelope."""
+
+    if int(control_update_count) < 1:
+        raise ValueError("control update count must be positive")
+    transition_active = bool(
+        enabled and int(control_update_count) <= FORMAL_CONTACT_ENTRY_TRANSITION_TICKS
+    )
+    if transition_active:
+        return EntryTransitionRateLimits(
+            FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S,
+            FORMAL_CONTACT_ENTRY_TCP_ROTATION_SPEED_LIMIT_RAD_S,
+            FORMAL_CONTACT_ENTRY_JOINT_SPEED_LIMIT_RAD_S,
+            FORMAL_CONTACT_ENTRY_JOINT_ACCELERATION_LIMIT_RAD_S2,
+            True,
+        )
+    return EntryTransitionRateLimits(0.01, 0.02, 0.02, 5.0, False)
+
+
 def evaluate_sequence(
     *,
     last_sequence: int,
@@ -310,6 +348,8 @@ class LiveReceiverContract:
     formal_handoff_required: bool = False
     formal_handoff_max_mismatch_m: float = 0.0003
     model_inactive_expert_feedforward_allowed: bool = False
+    formal_contact_entry_transition_profile: str | None = None
+    formal_contact_entry_transition_ticks: int = 0
 
 
 def build_live_receiver_source(
@@ -323,6 +363,7 @@ def build_live_receiver_source(
     formal_handoff_anchor_pose_base: Sequence[float] | None = None,
     formal_handoff_max_mismatch_m: float = 0.0003,
     model_inactive_expert_feedforward_allowed: bool = False,
+    formal_contact_entry_transition_profile: str | None = None,
 ) -> str:
     """Build one controller-resident 500 Hz program; sending is a separate gate."""
 
@@ -340,23 +381,41 @@ def build_live_receiver_source(
             "friction profile must be one of " + ", ".join(FRICTION_PROFILES)
         )
     guard_pair = (float(guard_force_limit_n), float(guard_torque_limit_nm))
-    if guard_pair not in ((6.0, 0.5), (20.0, 2.0)):
-        raise ValueError("receiver guard profile must be no-contact 6/0.5 or contact 20/2")
+    if guard_pair not in ((6.0, 0.5), (50.0, 4.0)):
+        raise ValueError("receiver guard profile must be no-contact 6/0.5 or contact 50/4")
     if (
         friction_profile == FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
-        and guard_pair != (20.0, 2.0)
+        and guard_pair != (50.0, 4.0)
     ):
-        raise ValueError("formal contact friction profile requires contact 20/2 guard")
+        raise ValueError("formal contact friction profile requires contact 50/4 guard")
     formal_handoff_required = formal_handoff_anchor_pose_base is not None
     if not isinstance(model_inactive_expert_feedforward_allowed, bool):
         raise TypeError("model-inactive expert feedforward capability must be boolean")
     if model_inactive_expert_feedforward_allowed and (
         not formal_handoff_required
         or friction_profile != FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
-        or guard_pair != (20.0, 2.0)
+        or guard_pair != (50.0, 4.0)
     ):
         raise ValueError(
             "model-inactive expert feedforward requires formal handoff and contact guard"
+        )
+    if formal_contact_entry_transition_profile not in (
+        None,
+        FORMAL_CONTACT_ENTRY_TRANSITION_PROFILE_V1,
+    ):
+        raise ValueError("formal contact entry transition profile is unsupported")
+    formal_contact_entry_transition_enabled = (
+        formal_contact_entry_transition_profile
+        == FORMAL_CONTACT_ENTRY_TRANSITION_PROFILE_V1
+    )
+    if formal_contact_entry_transition_enabled and (
+        not formal_handoff_required
+        or friction_profile != FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
+        or guard_pair != (50.0, 4.0)
+        or not model_inactive_expert_feedforward_allowed
+    ):
+        raise ValueError(
+            "formal contact entry transition requires the complete formal contact identity"
         )
     formal_handoff_max_mismatch_m = float(formal_handoff_max_mismatch_m)
     if (
@@ -459,7 +518,7 @@ def build_live_receiver_source(
   local release_ready_tolerance_m = {NO_CONTACT_RELEASE_TOLERANCE_M:.17g}
   local k_min = [25.0, 25.0, 25.0, 0.5, 0.5, 0.5]
   local k_max = [1000.0, 1000.0, 1000.0, 60.0, 60.0, 60.0]
-  local receiver_force_limit = [20.0, 20.0, 20.0, 2.0, 2.0, 2.0]
+  local receiver_force_limit = [50.0, 50.0, 50.0, 4.0, 4.0, 4.0]
   # Gravity is compensated internally by direct_torque().  Friction/stiction
   # compensation is bound explicitly by the selected immutable profile.
   local virtual_mass = [2.0, 2.0, 2.0, 0.2, 0.2, 0.2]
@@ -472,12 +531,19 @@ def build_live_receiver_source(
   local entry_tcp_translation_speed_limit_m_s = 0.001
   local entry_tcp_rotation_speed_limit_rad_s = 0.002
   local entry_joint_speed_limit_rad_s = 0.001
-  local entry_transition_tcp_translation_limit_m = 0.0003
-  local entry_transition_joint_excursion_limit_rad = 0.0005
+  local entry_transition_tcp_translation_limit_m = {FORMAL_CONTACT_ENTRY_TCP_EXCURSION_LIMIT_M}
+  local entry_transition_joint_excursion_limit_rad = {FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD}
   local active_joint_speed_limit_rad_s = 0.02
   local active_joint_acceleration_limit_rad_s2 = 5.0
   local active_tcp_translation_speed_limit_m_s = 0.01
   local active_tcp_rotation_speed_limit_rad_s = 0.02
+  local formal_contact_entry_transition_profile = "{formal_contact_entry_transition_profile or 'disabled'}"
+  local formal_contact_entry_transition_enabled = {str(formal_contact_entry_transition_enabled)}
+  local formal_contact_entry_transition_ticks = {FORMAL_CONTACT_ENTRY_TRANSITION_TICKS}
+  local formal_contact_entry_joint_speed_limit_rad_s = {FORMAL_CONTACT_ENTRY_JOINT_SPEED_LIMIT_RAD_S:.17g}
+  local formal_contact_entry_joint_acceleration_limit_rad_s2 = {FORMAL_CONTACT_ENTRY_JOINT_ACCELERATION_LIMIT_RAD_S2:.17g}
+  local formal_contact_entry_tcp_translation_speed_limit_m_s = {FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S:.17g}
+  local formal_contact_entry_tcp_rotation_speed_limit_rad_s = {FORMAL_CONTACT_ENTRY_TCP_ROTATION_SPEED_LIMIT_RAD_S:.17g}
   local command_idle = 0
   local command_run = 1
   local command_end = 2
@@ -491,6 +557,7 @@ def build_live_receiver_source(
   local formal_handoff_verified = False
   local tube_rebased = False
   local entry_elapsed_s = 0.0
+  local formal_contact_entry_transition_tick_count = 0
   local entry_stable_elapsed_s = 0.0
   local entry_velocity_filter_elapsed_s = 0.0
   local exit_fault = 0
@@ -710,7 +777,7 @@ def build_live_receiver_source(
         end
         axis = axis + 1
       end
-      if force_norm > 20.0 or torque_norm > 2.0:
+      if force_norm > 50.0 or torque_norm > 4.0:
         packet_ok = False
       end
       if guard_force_norm > {guard_pair[0]:.1f} or guard_torque_norm > {guard_pair[1]:.1f}:
@@ -798,7 +865,13 @@ def build_live_receiver_source(
               entry_excursion_violation = True
             end
           end
-          if actual_translation_speed > active_tcp_translation_speed_limit_m_s or actual_rotation_speed > active_tcp_rotation_speed_limit_rad_s:
+          local selected_tcp_translation_speed_limit_m_s = active_tcp_translation_speed_limit_m_s
+          local selected_tcp_rotation_speed_limit_rad_s = active_tcp_rotation_speed_limit_rad_s
+          if formal_contact_entry_transition_enabled and formal_contact_entry_transition_tick_count < formal_contact_entry_transition_ticks:
+            selected_tcp_translation_speed_limit_m_s = formal_contact_entry_tcp_translation_speed_limit_m_s
+            selected_tcp_rotation_speed_limit_rad_s = formal_contact_entry_tcp_rotation_speed_limit_rad_s
+          end
+          if actual_translation_speed > selected_tcp_translation_speed_limit_m_s or actual_rotation_speed > selected_tcp_rotation_speed_limit_rad_s:
             active_speed_violation = True
           end
           axis = 0
@@ -809,10 +882,16 @@ def build_live_receiver_source(
                 entry_excursion_violation = True
               end
             end
-            if qd[axis] > active_joint_speed_limit_rad_s or qd[axis] < -active_joint_speed_limit_rad_s:
+            local selected_joint_speed_limit_rad_s = active_joint_speed_limit_rad_s
+            local selected_joint_acceleration_limit_rad_s2 = active_joint_acceleration_limit_rad_s2
+            if formal_contact_entry_transition_enabled and formal_contact_entry_transition_tick_count < formal_contact_entry_transition_ticks:
+              selected_joint_speed_limit_rad_s = formal_contact_entry_joint_speed_limit_rad_s
+              selected_joint_acceleration_limit_rad_s2 = formal_contact_entry_joint_acceleration_limit_rad_s2
+            end
+            if qd[axis] > selected_joint_speed_limit_rad_s or qd[axis] < -selected_joint_speed_limit_rad_s:
               active_speed_violation = True
             end
-            if qdd[axis] > active_joint_acceleration_limit_rad_s2 or qdd[axis] < -active_joint_acceleration_limit_rad_s2:
+            if qdd[axis] > selected_joint_acceleration_limit_rad_s2 or qdd[axis] < -selected_joint_acceleration_limit_rad_s2:
               active_acceleration_violation = True
             end
             axis = axis + 1
@@ -1032,6 +1111,9 @@ def build_live_receiver_source(
             if entry_elapsed_s < entry_blend_duration_s:
               entry_elapsed_s = entry_elapsed_s + control_dt_s
             end
+            if formal_contact_entry_transition_enabled and formal_contact_entry_transition_tick_count < formal_contact_entry_transition_ticks:
+              formal_contact_entry_transition_tick_count = formal_contact_entry_transition_tick_count + 1
+            end
             sync()
           end
         end
@@ -1103,6 +1185,10 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "entry_pose[axis] = actual_pose[axis]",
         "tube_rebased = False",
         "model_inactive_expert_feedforward_allowed = ",
+        "formal_contact_entry_transition_profile = ",
+        "formal_contact_entry_transition_enabled = ",
+        "formal_contact_entry_transition_tick_count < formal_contact_entry_transition_ticks",
+        "formal_contact_entry_transition_tick_count = formal_contact_entry_transition_tick_count + 1",
         "if not model_inactive_expert_feedforward_allowed:",
         "tube_center_base = [actual_pose[0], actual_pose[1], actual_pose[2]]",
         "tube_anchor_pose_base = p[actual_pose[0], actual_pose[1], actual_pose[2], actual_pose[3], actual_pose[4], actual_pose[5]]",
@@ -1132,8 +1218,8 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "control_k[axis] = last_k[axis]",
         "viscous_scale = [",
         "coulomb_scale = [",
-        "actual_translation_speed > active_tcp_translation_speed_limit_m_s",
-        "actual_rotation_speed > active_tcp_rotation_speed_limit_rad_s",
+        "actual_translation_speed > selected_tcp_translation_speed_limit_m_s",
+        "actual_rotation_speed > selected_tcp_rotation_speed_limit_rad_s",
         "active_speed_violation",
         "qdd = get_actual_joint_accelerations()",
         "control_clock = time()",
@@ -1221,7 +1307,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
     if guard_match is None:
         raise ValueError("live receiver guard profile is not parseable")
     guard_pair = (float(guard_match.group(1)), float(guard_match.group(2)))
-    if guard_pair not in ((6.0, 0.5), (20.0, 2.0)):
+    if guard_pair not in ((6.0, 0.5), (50.0, 4.0)):
         raise ValueError("live receiver guard profile is not accepted")
     handoff_match = re.search(
         r"^\s*local formal_handoff_required = (True|False)$",
@@ -1237,6 +1323,27 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
     )
     if expert_feedforward_match is None:
         raise ValueError("model-inactive expert feedforward declaration is not parseable")
+    entry_transition_profile_match = re.search(
+        r'^\s*local formal_contact_entry_transition_profile = "([^"]+)"$',
+        source,
+        re.MULTILINE,
+    )
+    entry_transition_enabled_match = re.search(
+        r"^\s*local formal_contact_entry_transition_enabled = (True|False)$",
+        source,
+        re.MULTILINE,
+    )
+    entry_transition_ticks_match = re.search(
+        r"^\s*local formal_contact_entry_transition_ticks = (\d+)$",
+        source,
+        re.MULTILINE,
+    )
+    if (
+        entry_transition_profile_match is None
+        or entry_transition_enabled_match is None
+        or entry_transition_ticks_match is None
+    ):
+        raise ValueError("formal contact entry transition declaration is not parseable")
     handoff_bound_match = re.search(
         r"^\s*local formal_handoff_max_mismatch_m = ([0-9.eE+-]+)$",
         source,
@@ -1323,12 +1430,27 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
     expert_feedforward_allowed = expert_feedforward_match.group(1) == "True"
     if expert_feedforward_allowed and (
         handoff_match.group(1) != "True"
-        or guard_pair != (20.0, 2.0)
+        or guard_pair != (50.0, 4.0)
         or friction_profile != FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
     ):
         raise ValueError(
             "model-inactive expert feedforward source requires formal contact identity"
         )
+    entry_transition_enabled = entry_transition_enabled_match.group(1) == "True"
+    entry_transition_profile = entry_transition_profile_match.group(1)
+    entry_transition_ticks = int(entry_transition_ticks_match.group(1))
+    if entry_transition_enabled:
+        if (
+            entry_transition_profile != FORMAL_CONTACT_ENTRY_TRANSITION_PROFILE_V1
+            or entry_transition_ticks != FORMAL_CONTACT_ENTRY_TRANSITION_TICKS
+            or handoff_match.group(1) != "True"
+            or guard_pair != (50.0, 4.0)
+            or friction_profile != FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
+            or not expert_feedforward_allowed
+        ):
+            raise ValueError("formal contact entry transition source identity mismatch")
+    elif entry_transition_profile != "disabled":
+        raise ValueError("disabled formal contact entry transition has a non-disabled profile")
     if re.search(
         r"(?m)^\s*tacdiffusion_remote_direct_torque_v4_program\(\)\s*$",
         source,
@@ -1357,5 +1479,11 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         formal_handoff_max_mismatch_m=float(handoff_bound_match.group(1)),
         model_inactive_expert_feedforward_allowed=(
             expert_feedforward_allowed
+        ),
+        formal_contact_entry_transition_profile=(
+            entry_transition_profile if entry_transition_enabled else None
+        ),
+        formal_contact_entry_transition_ticks=(
+            entry_transition_ticks if entry_transition_enabled else 0
         ),
     )

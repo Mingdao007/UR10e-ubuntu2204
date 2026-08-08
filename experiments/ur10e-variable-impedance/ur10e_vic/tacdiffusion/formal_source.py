@@ -10,6 +10,11 @@ from typing import Any, Mapping, Sequence
 
 from .contracts import (
     CONTACT_GUARD_PROFILE_SCHEMA_V1,
+    FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX,
+    FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N,
+    FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
+    FORMAL_EXPERT_ACTION_SLEW_PER_S,
+    FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM,
     FORMAL_MODEL_RATE_CANDIDATES_HZ,
     FORMAL_OBSERVATION_DIMENSION,
     FORMAL_REVIEW_GOVERNANCE_SCHEMA_V1,
@@ -127,6 +132,16 @@ def load_formal_v4_source_contract(path: str | Path) -> FormalV4SourceContractV1
     expert_contact = _profile_from_source(
         profiles["expert_contact"], authority=authority, expected_id="expert_contact"
     )
+    expected_action_limits = {
+        "schema_version": FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
+        "frame_id": "tool0_tcp",
+        "component_abs_max": list(FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX),
+        "force_norm_max_n": FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N,
+        "torque_norm_max_nm": FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM,
+        "slew_per_s": list(FORMAL_EXPERT_ACTION_SLEW_PER_S),
+    }
+    if raw.get("expert_action_limits") != expected_action_limits:
+        raise ValueError("formal V4 source expert action limits are invalid")
     raw_fields = raw.get("rtde_output_allowlist")
     if not isinstance(raw_fields, Sequence) or isinstance(raw_fields, (str, bytes)):
         raise ValueError("formal V4 source RTDE allowlist is missing")

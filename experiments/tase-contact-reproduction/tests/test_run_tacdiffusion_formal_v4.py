@@ -69,14 +69,14 @@ def test_formal_tool_has_exactly_all_seven_families_and_no_model_active_path() -
     assert "get_tcp_force" not in source
 
 
-def test_formal_contact_receiver_uses_kunwei_20n_2nm_guard() -> None:
+def test_formal_contact_receiver_uses_kunwei_50n_4nm_guard() -> None:
     tube = formal._episode_tube((0.48, 0.13, 0.02, 3.12, 0.0, 0.068))
     receiver = build_live_receiver_source(
-        tube, guard_force_limit_n=20.0, guard_torque_limit_nm=2.0
+        tube, guard_force_limit_n=50.0, guard_torque_limit_nm=4.0
     )
     contract = parse_live_receiver_source(receiver)
-    assert contract.guard_force_limit_n == 20.0
-    assert contract.guard_torque_limit_nm == 2.0
+    assert contract.guard_force_limit_n == 50.0
+    assert contract.guard_torque_limit_nm == 4.0
     assert "get_tcp_force" not in receiver
 
 
@@ -100,6 +100,60 @@ def test_command_packet_carries_typed_expert_force_and_stiffness() -> None:
         30.0,
     )
     assert packet.lineage.commanded_raw_f_ff == (0.0, 0.0, 5.0, 0.0, 0.0, 0.0)
+
+
+def test_formal_manifest_binds_50n_4nm_guard_and_action_limits() -> None:
+    manifest = formal._formal_manifest_for_attempt(
+        attempt_id="attempt_0000_eligible_000",
+        source_hashes={"source": "a" * 64},
+    ).as_json()
+    assert manifest["contact_guard_profile"]["force_limit_n"] == 50.0
+    assert manifest["contact_guard_profile"]["torque_limit_nm"] == 4.0
+    assert manifest["expert_action_limits"] == {
+        "schema_version": "ur10e_tacdiffusion_expert_action_limits/v1",
+        "frame_id": "tool0_tcp",
+        "component_abs_max": [50.0, 50.0, 50.0, 4.0, 4.0, 4.0],
+        "force_norm_max_n": 50.0,
+        "torque_norm_max_nm": 4.0,
+        "slew_per_s": [100.0, 100.0, 100.0, 10.0, 10.0, 10.0],
+    }
+
+
+def test_campaign_automatic_continuation_requires_counted_episode_at_home() -> None:
+    accepted = {
+        "outcome": "eligible",
+        "task_ready_home": True,
+        "auto_return_performed": True,
+    }
+    assert formal._attempt_allows_automatic_continuation(accepted) is True
+    for key, value in (
+        ("outcome", "recoverable_failure"),
+        ("task_ready_home", False),
+        ("auto_return_performed", False),
+    ):
+        rejected = dict(accepted)
+        rejected[key] = value
+        assert formal._attempt_allows_automatic_continuation(rejected) is False
+
+
+def test_entry_transition_evidence_ends_before_tick_26() -> None:
+    rows = []
+    for tick in (1, 25, 26):
+        row: dict[str, float | int] = {
+            "receiver_state": legacy.STATE_TORQUE,
+            "control_update_count": float(tick),
+            "controller_timestamp_s": tick / 500.0,
+        }
+        for axis in range(6):
+            row[f"actual_TCP_speed_{axis}"] = 0.03 if axis == 3 else 0.0
+            row[f"actual_qd_{axis}"] = 0.04 if axis == 0 else 0.0
+        rows.append(row)
+    evidence = formal._entry_transition_evidence(rows)
+    assert evidence["profile"] == "formal_contact_entry_transition_v1"
+    assert evidence["last_observed_control_update_count"] == 25
+    assert evidence["baseline_limits_observed_from_tick_26"] is True
+    assert evidence["max_tcp_rotation_speed_rad_s"] == pytest.approx(0.03)
+    assert evidence["max_abs_joint_speed_rad_s"] == pytest.approx(0.04)
 
 
 def test_strict_episode_gate_uses_zeroed_kunwei_summary_norms() -> None:
@@ -139,8 +193,8 @@ def test_contact_receiver_tube_accounts_for_controller_entry_rebase() -> None:
     receiver = build_live_receiver_source(
         tube,
         friction_profile=legacy.FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT,
-        guard_force_limit_n=20.0,
-        guard_torque_limit_nm=2.0,
+        guard_force_limit_n=50.0,
+        guard_torque_limit_nm=4.0,
     )
     parsed = parse_live_receiver_source(receiver)
 

@@ -29,10 +29,18 @@
     "expert_contact": {
       "schema_version": "ur10e_tacdiffusion_contact_guard_profile/v1",
       "profile_id": "expert_contact",
-      "force_limit_n": 20.0,
-      "torque_limit_nm": 2.0,
+      "force_limit_n": 50.0,
+      "torque_limit_nm": 4.0,
       "semantics": "software_baseline_only"
     }
+  },
+  "expert_action_limits": {
+    "schema_version": "ur10e_tacdiffusion_expert_action_limits/v1",
+    "frame_id": "tool0_tcp",
+    "component_abs_max": [50.0, 50.0, 50.0, 4.0, 4.0, 4.0],
+    "force_norm_max_n": 50.0,
+    "torque_norm_max_nm": 4.0,
+    "slew_per_s": [100.0, 100.0, 100.0, 10.0, 10.0, 10.0]
   },
   "formal_observation_dimension": 84,
   "control_rate_hz": 500,

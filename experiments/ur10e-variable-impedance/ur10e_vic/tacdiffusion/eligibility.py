@@ -14,6 +14,11 @@ from typing import Any, Iterable, Mapping, Sequence
 from .contracts import (
     DYNAMICS_AUTHORITATIVE_TORQUE_SOURCE,
     FORMAL_EPISODE_MANIFEST_SCHEMA_V1,
+    FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX,
+    FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N,
+    FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
+    FORMAL_EXPERT_ACTION_SLEW_PER_S,
+    FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM,
     FORMAL_MODEL_RATE_CANDIDATES_HZ,
     FORMAL_OBSERVATION_DIMENSION,
     KUNWEI_ONLY_FORCE_SOURCE_ID,
@@ -681,6 +686,15 @@ class FormalEligibilityValidator:
             if manifest.model_active is not False or manifest.shadow_only is not True:
                 return False
             if manifest.production_dynamics_required is not True:
+                return False
+            if dict(manifest.expert_action_limits or {}) != {
+                "schema_version": FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
+                "frame_id": "tool0_tcp",
+                "component_abs_max": list(FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX),
+                "force_norm_max_n": FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N,
+                "torque_norm_max_nm": FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM,
+                "slew_per_s": list(FORMAL_EXPERT_ACTION_SLEW_PER_S),
+            }:
                 return False
             validate_formal_force_source_payload(payload, path="formal_manifest")
             return True

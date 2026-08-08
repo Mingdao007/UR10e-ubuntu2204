@@ -11,8 +11,8 @@
     "deceleration_start_distance_m": 0.0249865,
     "force_authority": "kunwei_kwr75_tcp_raw_stream_v1",
     "handoff_max_mismatch_m": 0.0003,
-    "hard_guard_force_n": 20.0,
-    "hard_guard_torque_nm": 2.0,
+    "hard_guard_force_n": 50.0,
+    "hard_guard_torque_nm": 4.0,
     "heartbeat_timeout_s": 0.08,
     "heartbeat_timeout_ticks": 40,
     "latch_load_n": 1.0,
@@ -33,6 +33,38 @@
     "velocity_primitive": "speedl_base_minus_z"
   },
   "controller_target": "secondary_client://192.168.1.18:30002",
+  "expert_action_limits": {
+    "component_abs_max": [
+      50.0,
+      50.0,
+      50.0,
+      4.0,
+      4.0,
+      4.0
+    ],
+    "force_norm_max_n": 50.0,
+    "schema_version": "ur10e_tacdiffusion_expert_action_limits/v1",
+    "slew_per_s": [
+      100.0,
+      100.0,
+      100.0,
+      10.0,
+      10.0,
+      10.0
+    ],
+    "torque_norm_max_nm": 4.0
+  },
+  "formal_contact_entry_transition": {
+    "enabled_ticks": 25,
+    "hard_joint_excursion_limit_rad": 0.0005,
+    "hard_tcp_excursion_limit_m": 0.0003,
+    "joint_acceleration_limit_rad_s2": 30.0,
+    "joint_speed_limit_rad_s": 0.05,
+    "one_shot_per_receiver_episode": true,
+    "profile": "formal_contact_entry_transition_v1",
+    "tcp_rotation_speed_limit_rad_s": 0.1,
+    "tcp_translation_speed_limit_m_s": 0.05
+  },
   "formal_eligibility_window": {
     "acquisition_included": false,
     "phase": "TRACK",
@@ -44,31 +76,29 @@
   "sensor_target": "tcp_raw://192.168.50.25:5152",
   "stages": [
     {
-      "active": false,
+      "active": true,
       "guard": {
         "force_limit_n": 6.0,
         "torque_limit_nm": 0.5
       },
       "id": "formal_v4_no_contact_qualification",
-      "invalidated_qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0210HKT_speedlfix/qualification_summary.json",
-      "invalidated_qualification_summary_sha256": "198d6e33f8d5e1fffc06077be497830f809368bc11bd05fc6f24c5b23efa696e",
+      "invalidated_qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0250HKT_expertff_retry/qualification_summary.json",
+      "invalidated_qualification_summary_sha256": "a169088a4fb9633ccf90d712869329ca2f90fc48f5d3baea745c899293d5f5db",
       "invalidation_reason": "source_changed_after_contact_acceptance_repair",
       "motion_class": "no_contact",
-      "qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0250HKT_expertff_retry/qualification_summary.json",
-      "qualification_summary_sha256": "a169088a4fb9633ccf90d712869329ca2f90fc48f5d3baea745c899293d5f5db",
-      "status": "accepted",
+      "status": "invalidated_by_source_change",
       "successor": "formal_v4_fixed_k_campaign"
     },
     {
-      "active": true,
+      "active": false,
       "eligible_episode_target": 200,
       "guard": {
-        "force_limit_n": 20.0,
-        "torque_limit_nm": 2.0
+        "force_limit_n": 50.0,
+        "torque_limit_nm": 4.0
       },
       "id": "formal_v4_fixed_k_campaign",
       "motion_class": "contact",
-      "status": "ready",
+      "status": "blocked_on_requalification",
       "successor": "formal_v4_fixed_k_shadow"
     },
     {
@@ -84,8 +114,8 @@
       "active": false,
       "eligible_episode_target": 200,
       "guard": {
-        "force_limit_n": 20.0,
-        "torque_limit_nm": 2.0
+        "force_limit_n": 50.0,
+        "torque_limit_nm": 4.0
       },
       "id": "formal_v4_variable_k_campaign",
       "motion_class": "contact",

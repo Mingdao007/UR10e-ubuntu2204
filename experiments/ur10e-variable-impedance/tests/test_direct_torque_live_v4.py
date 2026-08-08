@@ -20,6 +20,7 @@ from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (
     SequenceDecision,
     build_compile_probe_source,
     build_live_receiver_source,
+    formal_contact_entry_rate_limits,
     evaluate_sequence,
     parse_compile_probe_source,
     parse_live_receiver_source,
@@ -249,7 +250,7 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert source.count("sync()") == 4
 
 
-def test_receiver_contact_guard_profile_is_explicit_20n_2nm() -> None:
+def test_receiver_contact_guard_profile_is_explicit_50n_4nm() -> None:
     tube = LiveTubeContract(
         center_base_m=(0.4, 0.1, 0.03),
         anchor_pose_base=(0.4, 0.1, 0.03, 3.14, 0.0, 0.0),
@@ -261,12 +262,12 @@ def test_receiver_contact_guard_profile_is_explicit_20n_2nm() -> None:
         orientation_tolerance_rad=0.05,
     )
     source = build_live_receiver_source(
-        tube, guard_force_limit_n=20.0, guard_torque_limit_nm=2.0
+        tube, guard_force_limit_n=50.0, guard_torque_limit_nm=4.0
     )
     contract = parse_live_receiver_source(source)
-    assert "guard_force_norm > 20.0 or guard_torque_norm > 2.0" in source
-    assert contract.guard_force_limit_n == 20.0
-    assert contract.guard_torque_limit_nm == 2.0
+    assert "guard_force_norm > 50.0 or guard_torque_norm > 4.0" in source
+    assert contract.guard_force_limit_n == 50.0
+    assert contract.guard_torque_limit_nm == 4.0
     assert contract.model_inactive_expert_feedforward_allowed is False
     mode_zero = source[source.index("if model_mode == 0:") : source.index("elif model_mode == 1:")]
     assert "model_sequence != 0 or model_period_us != 0 or model_timestamp_us != 0" in mode_zero
@@ -281,8 +282,8 @@ def test_receiver_contact_guard_profile_is_explicit_20n_2nm() -> None:
         build_live_receiver_source(
             tube,
             friction_profile="ur_default_v2_formal_contact",
-            guard_force_limit_n=20.0,
-            guard_torque_limit_nm=2.0,
+            guard_force_limit_n=50.0,
+            guard_torque_limit_nm=4.0,
             model_inactive_expert_feedforward_allowed=True,
         )
     tampered = source.replace(
@@ -292,6 +293,71 @@ def test_receiver_contact_guard_profile_is_explicit_20n_2nm() -> None:
     )
     with pytest.raises(ValueError, match="requires formal contact identity"):
         parse_live_receiver_source(tampered)
+
+
+def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
+    tube = LiveTubeContract(
+        center_base_m=(0.4, 0.1, 0.03),
+        anchor_pose_base=(0.4, 0.1, 0.03, 3.14, 0.0, 0.0),
+        u_axis_base=(1.0, 0.0, 0.0),
+        v_axis_base=(0.0, 1.0, 0.0),
+        safe_u_half_width_m=0.01,
+        safe_v_half_width_m=0.01,
+        normal_half_width_m=0.0255,
+        orientation_tolerance_rad=0.05,
+    )
+    source = build_live_receiver_source(
+        tube,
+        friction_profile="ur_default_v2_formal_contact",
+        guard_force_limit_n=50.0,
+        guard_torque_limit_nm=4.0,
+        formal_handoff_anchor_pose_base=tube.anchor_pose_base,
+        model_inactive_expert_feedforward_allowed=True,
+        formal_contact_entry_transition_profile="formal_contact_entry_transition_v1",
+    )
+    contract = parse_live_receiver_source(source)
+    assert contract.formal_contact_entry_transition_profile == "formal_contact_entry_transition_v1"
+    assert contract.formal_contact_entry_transition_ticks == 25
+    assert "formal_contact_entry_joint_speed_limit_rad_s = 0.050000000000000003" in source
+    assert "formal_contact_entry_joint_acceleration_limit_rad_s2 = 30" in source
+    assert "formal_contact_entry_tcp_translation_speed_limit_m_s = 0.050000000000000003" in source
+    assert "formal_contact_entry_tcp_rotation_speed_limit_rad_s = 0.10000000000000001" in source
+    assert source.count(
+        "formal_contact_entry_transition_tick_count = formal_contact_entry_transition_tick_count + 1"
+    ) == 1
+    assert "entry_transition_tcp_translation_limit_m = 0.0003" in source
+    assert "entry_transition_joint_excursion_limit_rad = 0.0005" in source
+
+    tampered = source.replace(
+        "local formal_contact_entry_transition_ticks = 25",
+        "local formal_contact_entry_transition_ticks = 26",
+        1,
+    )
+    with pytest.raises(ValueError, match="transition source identity mismatch"):
+        parse_live_receiver_source(tampered)
+
+
+def test_fault11_recorded_peak_replay_uses_transition_then_restores_baseline() -> None:
+    recorded = {
+        "tcp_translation_m_s": 0.005525089118650993,
+        "tcp_rotation_rad_s": 0.027072823876060963,
+        "joint_speed_rad_s": 0.02636725641787052,
+        "joint_acceleration_rad_s2": 11.506,
+    }
+    transition = formal_contact_entry_rate_limits(control_update_count=4, enabled=True)
+    assert transition.transition_active is True
+    assert recorded["tcp_translation_m_s"] < transition.tcp_translation_m_s
+    assert recorded["tcp_rotation_rad_s"] < transition.tcp_rotation_rad_s
+    assert recorded["joint_speed_rad_s"] < transition.joint_speed_rad_s
+    assert recorded["joint_acceleration_rad_s2"] < transition.joint_acceleration_rad_s2
+
+    baseline = formal_contact_entry_rate_limits(control_update_count=26, enabled=True)
+    assert baseline.transition_active is False
+    assert recorded["tcp_rotation_rad_s"] > baseline.tcp_rotation_rad_s
+    assert recorded["joint_speed_rad_s"] > baseline.joint_speed_rad_s
+    assert recorded["joint_acceleration_rad_s2"] > baseline.joint_acceleration_rad_s2
+    with pytest.raises(ValueError, match="positive"):
+        formal_contact_entry_rate_limits(control_update_count=0, enabled=True)
 
 
 def test_entry_velocity_filter_rejects_drift_but_accepts_bounded_57hz_noise() -> None:

@@ -34,8 +34,8 @@ ACQUISITION_COMMAND_PREPARE = 0
 ACQUISITION_COMMAND_START = 1
 ACQUISITION_COMMAND_ABORT = 2
 ACQUISITION_COMMAND_STOP_NO_CONTACT = 3
-ACQUISITION_FORCE_GUARD_N = 20.0
-ACQUISITION_TORQUE_GUARD_NM = 2.0
+ACQUISITION_FORCE_GUARD_N = 50.0
+ACQUISITION_TORQUE_GUARD_NM = 4.0
 ACQUISITION_LATCH_LOAD_N = 1.0
 ACQUISITION_LATCH_SAMPLES = 50
 ACQUISITION_STATIONARY_DWELL_S = 0.100
@@ -1130,11 +1130,12 @@ def build_formal_direct_torque_tracking_source_after_handoff(
     return build_live_receiver_source(
         tube,
         friction_profile="ur_default_v2_formal_contact",
-        guard_force_limit_n=20.0,
-        guard_torque_limit_nm=2.0,
+        guard_force_limit_n=50.0,
+        guard_torque_limit_nm=4.0,
         formal_handoff_anchor_pose_base=handoff.anchor_pose_base,
         formal_handoff_max_mismatch_m=transition.maximum_handoff_mismatch_m,
         model_inactive_expert_feedforward_allowed=True,
+        formal_contact_entry_transition_profile="formal_contact_entry_transition_v1",
     )
 
 

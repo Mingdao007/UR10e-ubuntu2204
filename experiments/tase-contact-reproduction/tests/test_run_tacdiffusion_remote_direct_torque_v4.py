@@ -656,7 +656,8 @@ def test_formal_runner_contact_profile_seam_is_explicit_and_fail_closed() -> Non
     assert select_formal_contact_guard_profile() is FORMAL_NO_CONTACT_GUARD_PROFILE_V1
     expert = select_formal_contact_guard_profile("expert_contact")
     assert expert is FORMAL_CONTACT_GUARD_PROFILES_V1["expert_contact"]
-    assert expert.force_limit_n == 20.0
+    assert expert.force_limit_n == 50.0
+    assert expert.torque_limit_nm == 4.0
     assert build_formal_runner_contract("expert_contact")["model_active"] is False
     with pytest.raises(RuntimeError, match="model activation"):
         select_formal_contact_guard_profile("no_contact", model_active=True)

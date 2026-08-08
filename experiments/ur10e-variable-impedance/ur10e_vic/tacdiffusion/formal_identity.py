@@ -221,8 +221,8 @@ def resolve_formal_current_state(experiment_root: str | Path) -> dict[str, Any]:
         if acquisition.get("stationary_joint_speed_limit_rad_s") != 0.001:
             blockers.append("contact_acquisition_stationary_joint_speed_mismatch")
         if (
-            acquisition.get("hard_guard_force_n") != 20.0
-            or acquisition.get("hard_guard_torque_nm") != 2.0
+            acquisition.get("hard_guard_force_n") != 50.0
+            or acquisition.get("hard_guard_torque_nm") != 4.0
         ):
             blockers.append("contact_acquisition_guard_mismatch")
         if acquisition.get("handoff_max_mismatch_m") != 0.0003:

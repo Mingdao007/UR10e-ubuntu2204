@@ -26,6 +26,11 @@ from ur10e_vic.tacdiffusion.contracts import (
     FORMAL_MODEL_RATE_CANDIDATES_HZ,
     FORMAL_OBSERVATION_DIMENSION,
     FORMAL_SAMPLER_STEPS,
+    FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX,
+    FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N,
+    FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
+    FORMAL_EXPERT_ACTION_SLEW_PER_S,
+    FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM,
     ForceAuthorityReceiptV1,
     FormalEpisodeManifestV1,
     KunweiOnlyForceAuthorityV1,
@@ -144,6 +149,14 @@ def _formal_row() -> tuple[EpisodeFrameV4, FormalEpisodeManifestV1]:
         contact_guard_profile=guard,
         rtde_output_fields=("timestamp", "actual_current_as_torque"),
         source_hashes={"manifest": _SHA_C},
+        expert_action_limits={
+            "schema_version": FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
+            "frame_id": "tool0_tcp",
+            "component_abs_max": list(FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX),
+            "force_norm_max_n": FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N,
+            "torque_norm_max_nm": FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM,
+            "slew_per_s": list(FORMAL_EXPERT_ACTION_SLEW_PER_S),
+        },
     )
     semantic_fingerprint = _SHA_D
     context = ActionLabelContext(
@@ -246,8 +259,8 @@ def test_kunwei_authority_guard_profiles_and_formal_recipe_reject_alternates() -
     assert authority.software_baseline_semantics == "software_baseline_only"
     assert ContactGuardProfileV1.no_contact().force_limit_n == 6.0
     assert ContactGuardProfileV1.no_contact().torque_limit_nm == 0.5
-    assert ContactGuardProfileV1.expert_contact().force_limit_n == 20.0
-    assert ContactGuardProfileV1.expert_contact().torque_limit_nm == 2.0
+    assert ContactGuardProfileV1.expert_contact().force_limit_n == 50.0
+    assert ContactGuardProfileV1.expert_contact().torque_limit_nm == 4.0
     recipe = validate_formal_rtde_recipe(
         {
             "output_fields": ["timestamp", "actual_current_as_torque"],
@@ -621,7 +634,16 @@ def test_formal_source_contract_loader_binds_canonical_allowlist_and_profiles() 
     contract = load_formal_v4_source_contract(path)
     assert contract.lineage == "tacdiffusion_formal_v4"
     assert contract.no_contact_guard.force_limit_n == 6.0
-    assert contract.expert_contact_guard.torque_limit_nm == 2.0
+    assert contract.expert_contact_guard.force_limit_n == 50.0
+    assert contract.expert_contact_guard.torque_limit_nm == 4.0
+    assert contract.payload["expert_action_limits"] == {
+        "schema_version": "ur10e_tacdiffusion_expert_action_limits/v1",
+        "frame_id": "tool0_tcp",
+        "component_abs_max": [50.0, 50.0, 50.0, 4.0, 4.0, 4.0],
+        "force_norm_max_n": 50.0,
+        "torque_norm_max_nm": 4.0,
+        "slew_per_s": [100.0, 100.0, 100.0, 10.0, 10.0, 10.0],
+    }
     assert "actual_current_as_torque" in contract.rtde_output_allowlist
     assert "actual_TCP_force" not in contract.rtde_output_allowlist
     assert contract.review_governance is not None
