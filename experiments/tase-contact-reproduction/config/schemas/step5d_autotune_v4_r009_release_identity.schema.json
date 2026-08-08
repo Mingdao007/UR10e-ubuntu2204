@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "step5d.autotune-v4/r009-release-identity-v1",
+  "title": "Step5d Autotune V4 R009 release identity",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "program",
+    "lineage",
+    "campaign_fingerprint",
+    "behavior_manifest_sha256",
+    "final_contract_sha256",
+    "source_closure_sha256",
+    "controller_triplet_sha256",
+    "runtime_protocol"
+  ],
+  "properties": {
+    "schema": {"const": "step5d.autotune-v4/r009-release-identity-v1"},
+    "version": {"const": "r009-v1"},
+    "program": {"const": "step5d_strict_rnn_autotune_v4_r009"},
+    "lineage": {"const": "step5d_strict_rnn_autotune_v4"},
+    "campaign_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "behavior_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "final_contract_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source_closure_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "controller_triplet_sha256": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["script", "txt", "urp"],
+      "properties": {
+        "script": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "txt": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "urp": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "runtime_protocol": {"type": "integer", "minimum": 1}
+  }
+}

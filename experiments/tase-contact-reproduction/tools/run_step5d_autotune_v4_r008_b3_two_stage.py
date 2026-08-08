@@ -16,24 +16,12 @@ from typing import Sequence
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-# Temporary RTDE seq probe (CONTACT_SEARCH dt=0.000). Outside r006 source closure.
-import os as _os  # noqa: E402
-
-if _os.environ.get("R008_RTDE_SEQ_PROBE", "1").strip().lower() not in {
-    "0",
-    "false",
-    "off",
-    "no",
-}:
-    from r008_rtde_seq_probe_inject import install_all as _install_rtde_seq_probe  # noqa: E402
-
-    _install_rtde_seq_probe()
-
 from step5d_autotune_v4_r005.observations import ObservationLedger  # noqa: E402
 from step5d_autotune_v4_r006.live_adapter import R006LiveAdapterError  # noqa: E402
 from step5d_autotune_v4_r006.parent import load_frozen_r005_contract  # noqa: E402
 import run_step5d_autotune_v4_r006 as r006_host  # noqa: E402
 
+from step5d_autotune_v4_r009.quarantine import reject_r008_formal_resume  # noqa: E402
 from step5d_autotune_v4_r008.b3_identity import load_b3_contract  # noqa: E402
 from step5d_autotune_v4_r008.bounded_resume_ledger import (  # noqa: E402
     R008BoundedResumeObservationLedger,
@@ -59,6 +47,7 @@ class R008B3HostError(R006LiveAdapterError):
 
 
 def run_live(args: argparse.Namespace) -> int:
+    reject_r008_formal_resume("run_step5d_autotune_v4_r008_b3_two_stage.live")
     try:
         contract = load_b3_contract()
         if contract.campaign_fingerprint == MAINLINE_FINGERPRINT:

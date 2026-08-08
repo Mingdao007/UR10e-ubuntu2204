@@ -12,14 +12,19 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
 
 from step5d_autotune_v4_r005.observations import ObservationLedger
 
 from step5d_autotune_v4_r006.contracts import load_contract
 from step5d_autotune_v4_r006.live_adapter import R006LiveAdapterError
 from step5d_autotune_v4_r006.parent import load_frozen_r005_contract
+from step5d_autotune_v4_r009.quarantine import reject_r008_formal_resume
 
 import run_step5d_autotune_v4_r006 as r006_host
 import run_step5d_autotune_v4_r007 as r007_host
@@ -39,7 +44,6 @@ from step5d_autotune_v4_r008.bounded_resume_ledger import R008BoundedResumeObser
 from step5d_autotune_v4_r008.timing import r008_timing_scope
 
 
-ROOT = Path(__file__).resolve().parents[1]
 R008_CONTRACT_PATH = ROOT / "config/step5d/autotune_v4_r008.json"
 R008_CONTRACT_VERSION = "r008-domain-repair-v1"
 R008_DOMAIN_PATH = ROOT / "config/step5d/autotune_v4_r008_domain.json"
@@ -90,6 +94,7 @@ def load_r008_activation(path: Path = R008_CONTRACT_PATH) -> Mapping[str, Any]:
 
 
 def run_live(args: argparse.Namespace) -> int:
+    reject_r008_formal_resume("run_step5d_autotune_v4_r008.live")
     activation: Mapping[str, Any] = {}
     try:
         activation = load_r008_activation()
