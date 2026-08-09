@@ -78,8 +78,8 @@
     "host_pose_tracking": {
       "schema_version": "ur10e_formal_host_pose_feedforward/v1",
       "profile_id": "formal_host_pose_feedforward_v1",
-      "position_tracking_stiffness_n_per_m": 2500.0,
-      "position_tracking_force_cap_n": 12.0,
+      "position_tracking_stiffness_n_per_m": 12000.0,
+      "position_tracking_force_cap_n": 25.0,
       "frame_id": "base",
       "layers_on": "formal_motion_feedforward_v1"
     }

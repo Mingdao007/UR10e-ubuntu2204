@@ -410,10 +410,10 @@ def test_formal_tracking_feedforward_adds_host_pose_authority_when_actual_lagged
         (600.0, 600.0, 600.0, 30.0, 30.0, 30.0),
         actual_pose_base=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
     )
-    # tangential ~2 N + host pose 2500*0.004=10 N along +X
-    assert 11.5 < command[0] < 12.5
-    assert abs(command[1]) < 0.2
-    assert abs(command[2]) < 0.2
+    # tangential ~2 N + host pose 12000*0.004=48 → capped at 25 N along +X
+    assert 26.5 < command[0] < 27.5
+    assert abs(command[1]) < 0.3
+    assert abs(command[2]) < 0.3
     assert sum(value * value for value in command[:3]) ** 0.5 < 50.0
 
 
