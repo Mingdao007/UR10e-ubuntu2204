@@ -1,0 +1,18 @@
+{
+  "acceleration_max_m_s2": [1.0, 1.0],
+  "acceleration_min_m_s2": [-1.0, -1.0],
+  "constraint": "exact_one_step_tightened_ellipsoid",
+  "dt_s": 0.002,
+  "ellipse_axes_m": [0.025, 0.015],
+  "force_cbf_claim": false,
+  "frame_error_bound_m": 0.001,
+  "latency_error_bound_m": 0.001,
+  "margin_tolerance": 1e-10,
+  "max_state_age_s": 0.02,
+  "previous_command_required": true,
+  "schema": "step5d.autotune-v4/r011-path-safety-filter-v1",
+  "scope": "2-D PATH-frame translational command only; z/angular nominal preserved",
+  "tracking_error_bound_m": 0.001,
+  "velocity_max_m_s": [0.15, 0.15],
+  "velocity_min_m_s": [-0.15, -0.15]
+}

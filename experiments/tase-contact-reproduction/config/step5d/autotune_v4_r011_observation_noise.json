@@ -1,0 +1,20 @@
+{
+  "calibration_grid_n2": [2.5e-05, 0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.02],
+  "freeze": {
+    "consecutive_refits": 2,
+    "full_observations": 30,
+    "identifiable_lengthscale_relative_change": 0.2,
+    "noise_relative_change": 0.25,
+    "repeat_groups": 8
+  },
+  "i_axes": {
+    "force_i_gain": "not_identifiable_until_five_fold_varying_support",
+    "i_mode": "not_identifiable_until_five_fold_varying_support"
+  },
+  "noise_floor_n2": 0.005,
+  "policy_version": "r011-hierarchical-log-shrink-v1",
+  "schema": "step5d.autotune-v4/r011-observation-noise-v1",
+  "strata": ["kind", "campaign_epoch"],
+  "stars_drift": "diagnostic_only_no_variance_model_or_fingerprint_effect",
+  "variance_estimator": "statistics.variance"
+}

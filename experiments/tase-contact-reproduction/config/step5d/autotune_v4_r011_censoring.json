@@ -1,0 +1,14 @@
+{
+  "active_early_abort_allowed": false,
+  "denominator_bins": 550,
+  "bin_width_s": 0.1,
+  "dispatch_identity_required": true,
+  "first_release_mode": "shadow_only",
+  "incumbent_threshold_required": true,
+  "kappa_required": true,
+  "lower_bound_semantics": "r009_causal_550_bin",
+  "release_identity_required": true,
+  "schema": "step5d.autotune-v4/r011-censored-observation-protocol-v2",
+  "watermark_unit": "seconds",
+  "kappa_semantics": {"start": 3.0, "end": 1.3, "guard_fraction": 0.1, "midpoint": 0.5, "steepness": 10.0, "decreasing_with_post_guard_progress": true}
+}
