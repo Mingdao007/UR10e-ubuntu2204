@@ -217,10 +217,10 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     ) in source
     assert "control_k[axis] = last_k[axis]" in source
     assert "k_min[axis] + blend*(last_k[axis] - k_min[axis])" not in source
-    assert "active_joint_speed_limit_rad_s = 0.1" in source
-    assert "active_joint_acceleration_limit_rad_s2 = 30.0" in source
-    assert "active_tcp_translation_speed_limit_m_s = 0.05" in source
-    assert "active_tcp_rotation_speed_limit_rad_s = 0.2" in source
+    assert "active_joint_speed_limit_rad_s = 0.29999999999999999" in source
+    assert "active_joint_acceleration_limit_rad_s2 = 90.0" in source
+    assert "active_tcp_translation_speed_limit_m_s = 0.14999999999999999" in source
+    assert "active_tcp_rotation_speed_limit_rad_s = 0.59999999999999998" in source
     assert "qdd = get_actual_joint_accelerations()" in source
     assert "control_clock = time()" in source
     assert (
@@ -412,10 +412,10 @@ def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
     contract = parse_live_receiver_source(source)
     assert contract.formal_contact_entry_transition_profile == "formal_contact_entry_transition_v1"
     assert contract.formal_contact_entry_transition_ticks == 25
-    assert "formal_contact_entry_joint_speed_limit_rad_s = 0.050000000000000003" in source
-    assert "formal_contact_entry_joint_acceleration_limit_rad_s2 = 30" in source
-    assert "formal_contact_entry_tcp_translation_speed_limit_m_s = 0.050000000000000003" in source
-    assert "formal_contact_entry_tcp_rotation_speed_limit_rad_s = 0.10000000000000001" in source
+    assert "formal_contact_entry_joint_speed_limit_rad_s = 0.14999999999999999" in source
+    assert "formal_contact_entry_joint_acceleration_limit_rad_s2 = 90" in source
+    assert "formal_contact_entry_tcp_translation_speed_limit_m_s = 0.14999999999999999" in source
+    assert "formal_contact_entry_tcp_rotation_speed_limit_rad_s = 0.29999999999999999" in source
     assert source.count(
         "formal_contact_entry_transition_tick_count = formal_contact_entry_transition_tick_count + 1"
     ) == 1
@@ -431,23 +431,23 @@ def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
     assert "local transition_active = formal_contact_entry_transition_tick_count < formal_contact_entry_transition_ticks" in torque_thread_source
     assert "selected_tcp_translation_speed_limit_m_s = formal_contact_baseline_tcp_translation_speed_limit_m_s" in torque_thread_source
     assert "selected_tcp_translation_speed_limit_m_s = formal_contact_entry_tcp_translation_speed_limit_m_s" in torque_thread_source
-    assert "formal_contact_baseline_tcp_translation_speed_limit_m_s = 0.05" in source
-    assert "formal_contact_baseline_tcp_rotation_speed_limit_rad_s = 0.2" in source
-    assert "formal_contact_baseline_joint_speed_limit_rad_s = 0.1" in source
-    assert "formal_contact_baseline_joint_acceleration_limit_rad_s2 = 30.0" in source
+    assert "formal_contact_baseline_tcp_translation_speed_limit_m_s = 0.14999999999999999" in source
+    assert "formal_contact_baseline_tcp_rotation_speed_limit_rad_s = 0.59999999999999998" in source
+    assert "formal_contact_baseline_joint_speed_limit_rad_s = 0.29999999999999999" in source
+    assert "formal_contact_baseline_joint_acceleration_limit_rad_s2 = 90.0" in source
     assert torque_thread_source.count(
         "direct_torque(torque_to_apply, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
     ) == 1
 
     transition = formal_contact_entry_rate_limits(torque_thread_tick_count=25, enabled=True)
     assert transition.transition_active is True
-    assert transition.tcp_translation_m_s == 0.05
+    assert transition.tcp_translation_m_s == 0.15
     baseline = formal_contact_entry_rate_limits(torque_thread_tick_count=26, enabled=True)
     assert baseline.transition_active is False
-    assert baseline.tcp_translation_m_s == 0.05
-    assert baseline.tcp_rotation_rad_s == 0.20
-    assert baseline.joint_speed_rad_s == 0.10
-    assert baseline.joint_acceleration_rad_s2 == 30.0
+    assert baseline.tcp_translation_m_s == 0.15
+    assert baseline.tcp_rotation_rad_s == 0.60
+    assert baseline.joint_speed_rad_s == 0.30
+    assert baseline.joint_acceleration_rad_s2 == 90.0
 
     tampered = source.replace(
         "formal_contact_entry_transition_ticks = 25",

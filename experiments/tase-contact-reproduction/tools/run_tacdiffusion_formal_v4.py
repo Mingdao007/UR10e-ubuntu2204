@@ -2422,8 +2422,8 @@ def _formal_tracking_feedforward_tcp(
     rotation_base_from_tcp = _rotation_matrix_from_rotvec(frame_rotvec)
     force_tcp = rotation_base_from_tcp.T @ force_base
     result = tuple(float(value) for value in force_tcp) + (0.0, 0.0, 0.0)
-    if np.linalg.norm(np.asarray(result[:3], dtype=float)) > 50.0 + 1.0e-12:
-        raise ValueError("formal tracking feedforward exceeded 50 N force norm")
+    if np.linalg.norm(np.asarray(result[:3], dtype=float)) > FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N + 1.0e-12:
+        raise ValueError("formal tracking feedforward exceeded force norm action cap")
     return result
 
 

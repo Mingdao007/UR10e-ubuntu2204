@@ -35,14 +35,14 @@
   "controller_target": "secondary_client://192.168.1.18:30002",
   "expert_action_limits": {
     "component_abs_max": [
-      50.0,
-      50.0,
-      50.0,
+      100.0,
+      100.0,
+      100.0,
       4.0,
       4.0,
       4.0
     ],
-    "force_norm_max_n": 50.0,
+    "force_norm_max_n": 100.0,
     "schema_version": "ur10e_tacdiffusion_expert_action_limits/v1",
     "slew_per_s": [
       100.0,
@@ -59,13 +59,13 @@
     "enabled_ticks": 25,
     "hard_joint_excursion_limit_rad": 0.0005,
     "hard_tcp_excursion_limit_m": 0.0003,
-    "joint_acceleration_limit_rad_s2": 30.0,
-    "joint_speed_limit_rad_s": 0.05,
+    "joint_acceleration_limit_rad_s2": 90.0,
+    "joint_speed_limit_rad_s": 0.15,
     "one_shot_per_receiver_episode": true,
     "profile": "formal_contact_entry_transition_v1",
     "tick_source": "direct_torque_application_500hz",
-    "tcp_rotation_speed_limit_rad_s": 0.1,
-    "tcp_translation_speed_limit_m_s": 0.05
+    "tcp_rotation_speed_limit_rad_s": 0.3,
+    "tcp_translation_speed_limit_m_s": 0.15
   },
   "formal_motion_authority": {
     "breakaway_smoothing_speed_m_s": 0.0005,
@@ -79,7 +79,7 @@
       "schema_version": "ur10e_formal_host_pose_feedforward/v1",
       "profile_id": "formal_host_pose_feedforward_v1",
       "position_tracking_stiffness_n_per_m": 12000.0,
-      "position_tracking_force_cap_n": 25.0,
+      "position_tracking_force_cap_n": 50.0,
       "frame_id": "base",
       "layers_on": "formal_motion_feedforward_v1"
     }

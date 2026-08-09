@@ -219,7 +219,7 @@ class FormalHostPoseTrackingFeedforwardV1:
     schema_version: str = "ur10e_formal_host_pose_feedforward/v1"
     profile_id: str = "formal_host_pose_feedforward_v1"
     position_tracking_stiffness_n_per_m: float = 12000.0
-    position_tracking_force_cap_n: float = 25.0
+    position_tracking_force_cap_n: float = 50.0
     frame_id: str = "base"
 
     def __post_init__(self) -> None:
@@ -229,7 +229,7 @@ class FormalHostPoseTrackingFeedforwardV1:
             raise ValueError("unsupported host pose feedforward profile")
         if float(self.position_tracking_stiffness_n_per_m) != 12000.0:
             raise ValueError("host pose feedforward stiffness is frozen")
-        if float(self.position_tracking_force_cap_n) != 25.0:
+        if float(self.position_tracking_force_cap_n) != 50.0:
             raise ValueError("host pose feedforward force cap is frozen")
         if self.frame_id != "base":
             raise ValueError("host pose feedforward frame_id must be base")

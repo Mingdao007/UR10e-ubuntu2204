@@ -792,8 +792,8 @@ def test_formal_source_contract_loader_binds_canonical_allowlist_and_profiles() 
     assert contract.payload["expert_action_limits"] == {
         "schema_version": "ur10e_tacdiffusion_expert_action_limits/v1",
         "frame_id": "tool0_tcp",
-        "component_abs_max": [50.0, 50.0, 50.0, 4.0, 4.0, 4.0],
-        "force_norm_max_n": 50.0,
+        "component_abs_max": [100.0, 100.0, 100.0, 4.0, 4.0, 4.0],
+        "force_norm_max_n": 100.0,
         "torque_norm_max_nm": 4.0,
         "slew_per_s": [100.0, 100.0, 100.0, 10.0, 10.0, 10.0],
     }

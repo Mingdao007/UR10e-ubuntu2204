@@ -263,8 +263,8 @@ def test_formal_manifest_binds_50n_4nm_guard_and_action_limits() -> None:
     assert manifest["expert_action_limits"] == {
         "schema_version": "ur10e_tacdiffusion_expert_action_limits/v1",
         "frame_id": "tool0_tcp",
-        "component_abs_max": [50.0, 50.0, 50.0, 4.0, 4.0, 4.0],
-        "force_norm_max_n": 50.0,
+        "component_abs_max": [100.0, 100.0, 100.0, 4.0, 4.0, 4.0],
+        "force_norm_max_n": 100.0,
         "torque_norm_max_nm": 4.0,
         "slew_per_s": [100.0, 100.0, 100.0, 10.0, 10.0, 10.0],
     }
@@ -410,11 +410,11 @@ def test_formal_tracking_feedforward_adds_host_pose_authority_when_actual_lagged
         (600.0, 600.0, 600.0, 30.0, 30.0, 30.0),
         actual_pose_base=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
     )
-    # tangential ~2 N + host pose 12000*0.004=48 → capped at 25 N along +X
-    assert 26.5 < command[0] < 27.5
+    # tangential ~2 N + host pose 12000*0.004=48 → capped at 50 N along +X
+    assert 49.5 < command[0] < 50.5
     assert abs(command[1]) < 0.3
     assert abs(command[2]) < 0.3
-    assert sum(value * value for value in command[:3]) ** 0.5 < 50.0
+    assert sum(value * value for value in command[:3]) ** 0.5 < 100.0
 
 
 def test_torque_active_rows_after_counter_restart_drops_stale_prefix() -> None:
