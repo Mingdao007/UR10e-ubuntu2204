@@ -217,10 +217,10 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     ) in source
     assert "control_k[axis] = last_k[axis]" in source
     assert "k_min[axis] + blend*(last_k[axis] - k_min[axis])" not in source
-    assert "active_joint_speed_limit_rad_s = 0.02" in source
-    assert "active_joint_acceleration_limit_rad_s2 = 5.0" in source
-    assert "active_tcp_translation_speed_limit_m_s = 0.01" in source
-    assert "active_tcp_rotation_speed_limit_rad_s = 0.02" in source
+    assert "active_joint_speed_limit_rad_s = 0.05" in source
+    assert "active_joint_acceleration_limit_rad_s2 = 30.0" in source
+    assert "active_tcp_translation_speed_limit_m_s = 0.05" in source
+    assert "active_tcp_rotation_speed_limit_rad_s = 0.1" in source
     assert "qdd = get_actual_joint_accelerations()" in source
     assert "control_clock = time()" in source
     assert (
@@ -431,10 +431,10 @@ def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
     assert "local transition_active = formal_contact_entry_transition_tick_count < formal_contact_entry_transition_ticks" in torque_thread_source
     assert "selected_tcp_translation_speed_limit_m_s = formal_contact_baseline_tcp_translation_speed_limit_m_s" in torque_thread_source
     assert "selected_tcp_translation_speed_limit_m_s = formal_contact_entry_tcp_translation_speed_limit_m_s" in torque_thread_source
-    assert "formal_contact_baseline_tcp_translation_speed_limit_m_s = 0.01" in source
-    assert "formal_contact_baseline_tcp_rotation_speed_limit_rad_s = 0.02" in source
-    assert "formal_contact_baseline_joint_speed_limit_rad_s = 0.02" in source
-    assert "formal_contact_baseline_joint_acceleration_limit_rad_s2 = 5.0" in source
+    assert "formal_contact_baseline_tcp_translation_speed_limit_m_s = 0.05" in source
+    assert "formal_contact_baseline_tcp_rotation_speed_limit_rad_s = 0.1" in source
+    assert "formal_contact_baseline_joint_speed_limit_rad_s = 0.05" in source
+    assert "formal_contact_baseline_joint_acceleration_limit_rad_s2 = 30.0" in source
     assert torque_thread_source.count(
         "direct_torque(torque_to_apply, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
     ) == 1
@@ -444,10 +444,10 @@ def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
     assert transition.tcp_translation_m_s == 0.05
     baseline = formal_contact_entry_rate_limits(torque_thread_tick_count=26, enabled=True)
     assert baseline.transition_active is False
-    assert baseline.tcp_translation_m_s == 0.01
-    assert baseline.tcp_rotation_rad_s == 0.02
-    assert baseline.joint_speed_rad_s == 0.02
-    assert baseline.joint_acceleration_rad_s2 == 5.0
+    assert baseline.tcp_translation_m_s == 0.05
+    assert baseline.tcp_rotation_rad_s == 0.10
+    assert baseline.joint_speed_rad_s == 0.05
+    assert baseline.joint_acceleration_rad_s2 == 30.0
 
     tampered = source.replace(
         "formal_contact_entry_transition_ticks = 25",
@@ -504,11 +504,15 @@ def test_fault11_recorded_peak_replay_uses_transition_then_restores_baseline() -
     assert recorded["joint_speed_rad_s"] < transition.joint_speed_rad_s
     assert recorded["joint_acceleration_rad_s2"] < transition.joint_acceleration_rad_s2
 
+    # Raised free-space baseline matches the entry-transition envelope so
+    # host pose-tracking catch-up (and this historical fault-11 signature)
+    # stays legal after tick 26.
     baseline = formal_contact_entry_rate_limits(torque_thread_tick_count=26, enabled=True)
     assert baseline.transition_active is False
-    assert recorded["tcp_rotation_rad_s"] > baseline.tcp_rotation_rad_s
-    assert recorded["joint_speed_rad_s"] > baseline.joint_speed_rad_s
-    assert recorded["joint_acceleration_rad_s2"] > baseline.joint_acceleration_rad_s2
+    assert recorded["tcp_translation_m_s"] < baseline.tcp_translation_m_s
+    assert recorded["tcp_rotation_rad_s"] < baseline.tcp_rotation_rad_s
+    assert recorded["joint_speed_rad_s"] < baseline.joint_speed_rad_s
+    assert recorded["joint_acceleration_rad_s2"] < baseline.joint_acceleration_rad_s2
     with pytest.raises(ValueError, match="positive"):
         formal_contact_entry_rate_limits(torque_thread_tick_count=0, enabled=True)
 

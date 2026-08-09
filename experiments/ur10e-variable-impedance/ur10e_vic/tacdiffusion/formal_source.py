@@ -30,7 +30,7 @@ from .governance import (
     ReviewGovernanceSourceContractV1,
     load_review_governance_source,
 )
-from .expert import FormalMotionFeedforwardV1
+from .expert import FormalHostPoseTrackingFeedforwardV1, FormalMotionFeedforwardV1
 from .formal_tracking_quality import FormalTrackingQualityContractV1
 
 
@@ -171,6 +171,7 @@ def load_formal_v4_source_contract(path: str | Path) -> FormalV4SourceContractV1
             "friction_profile": "ur_full_v3_formal_motion",
             "viscous_scale": [1.0] * 6,
             "coulomb_scale": [1.0] * 6,
+            "host_pose_tracking": FormalHostPoseTrackingFeedforwardV1().as_json(),
         }
     )
     expected_motion.pop("frame_id")

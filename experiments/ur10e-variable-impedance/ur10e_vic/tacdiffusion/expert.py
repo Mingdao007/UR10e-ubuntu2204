@@ -205,6 +205,81 @@ class FormalMotionFeedforwardV1:
 
 
 @dataclass(frozen=True)
+class FormalHostPoseTrackingFeedforwardV1:
+    """Host translational pose-error FF layered on FormalMotionFeedforwardV1.
+
+    The receiver already applies ``K * (p_des - p_act)``.  Live free-space
+    evidence showed that authority (~2–4 N including the 2 N tangential
+    breakaway) remains inside the residual low-speed deadband.  This host term
+    adds bounded position-error force on the wire so measured TCP excursion can
+    clear the formal tracking gate without softening thresholds or raising the
+    frozen on-controller K.
+    """
+
+    schema_version: str = "ur10e_formal_host_pose_feedforward/v1"
+    profile_id: str = "formal_host_pose_feedforward_v1"
+    position_tracking_stiffness_n_per_m: float = 2500.0
+    position_tracking_force_cap_n: float = 12.0
+    frame_id: str = "base"
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "ur10e_formal_host_pose_feedforward/v1":
+            raise ValueError("unsupported host pose feedforward schema")
+        if self.profile_id != "formal_host_pose_feedforward_v1":
+            raise ValueError("unsupported host pose feedforward profile")
+        if float(self.position_tracking_stiffness_n_per_m) != 2500.0:
+            raise ValueError("host pose feedforward stiffness is frozen")
+        if float(self.position_tracking_force_cap_n) != 12.0:
+            raise ValueError("host pose feedforward force cap is frozen")
+        if self.frame_id != "base":
+            raise ValueError("host pose feedforward frame_id must be base")
+
+    def position_force_base(
+        self,
+        desired_pose_base: Sequence[float],
+        actual_pose_base: Sequence[float],
+        *,
+        surface_normal_base: Sequence[float] = (0.0, 0.0, 1.0),
+        project_off_normal: bool = False,
+    ) -> tuple[float, float, float]:
+        desired = tuple(float(value) for value in desired_pose_base)
+        actual = tuple(float(value) for value in actual_pose_base)
+        normal = tuple(float(value) for value in surface_normal_base)
+        if len(desired) != 6 or len(actual) != 6 or len(normal) != 3:
+            raise ValueError("host pose feedforward vector shape is invalid")
+        if not all(math.isfinite(value) for value in (*desired, *actual, *normal)):
+            raise ValueError("host pose feedforward vectors must be finite")
+        normal_norm = math.sqrt(sum(value * value for value in normal))
+        if abs(normal_norm - 1.0) > 1.0e-9:
+            raise ValueError("surface normal must be unit length")
+        error = tuple(desired[index] - actual[index] for index in range(3))
+        force = tuple(
+            self.position_tracking_stiffness_n_per_m * error[index]
+            for index in range(3)
+        )
+        if project_off_normal:
+            normal_force = sum(value * axis for value, axis in zip(force, normal))
+            force = tuple(
+                force[index] - normal_force * normal[index] for index in range(3)
+            )
+        norm = math.sqrt(sum(value * value for value in force))
+        if norm > self.position_tracking_force_cap_n + 1.0e-12:
+            scale = self.position_tracking_force_cap_n / norm
+            force = tuple(scale * value for value in force)
+        return force
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "profile_id": self.profile_id,
+            "position_tracking_stiffness_n_per_m": self.position_tracking_stiffness_n_per_m,
+            "position_tracking_force_cap_n": self.position_tracking_force_cap_n,
+            "frame_id": self.frame_id,
+            "layers_on": "formal_motion_feedforward_v1",
+        }
+
+
+@dataclass(frozen=True)
 class VariableKExpertV1:
     """Bounded variable-K primitive and deterministic seventh-output label.
 

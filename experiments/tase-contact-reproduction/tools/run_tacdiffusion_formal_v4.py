@@ -112,6 +112,7 @@ from ur10e_vic.tacdiffusion.formal_trajectory import (  # noqa: E402
 from ur10e_vic.tacdiffusion.trajectory import TRAJECTORY_FAMILIES  # noqa: E402
 from ur10e_vic.tacdiffusion.expert import (  # noqa: E402
     FixedKExpertV1,
+    FormalHostPoseTrackingFeedforwardV1,
     FormalMotionFeedforwardV1,
     VariableKExpertV1,
 )
@@ -1567,6 +1568,7 @@ def _run_contact_attempt_locked(
                                     episode.target_load_n,
                                     desired_twist,
                                     stiffness,
+                                    actual_pose_base=last_actual_pose,
                                 )
                             elif phase == FormalAttemptPhase.RETRACT:
                                 assert contact_pose is not None
@@ -1756,6 +1758,7 @@ def _run_contact_attempt_locked(
         "receiver_source_sha256": receiver_sha,
         "receiver_friction_profile": "ur_full_v3_formal_motion",
         "formal_motion_feedforward": FormalMotionFeedforwardV1().as_json(),
+        "formal_host_pose_feedforward": FormalHostPoseTrackingFeedforwardV1().as_json(),
         "receiver_tube": {
             "center_semantics": "controller_rebased_to_actual_entry",
             "normal_half_width_m": receiver_tube.normal_half_width_m,
@@ -2007,14 +2010,39 @@ def _entry_transition_evidence(rows: Sequence[Mapping[str, Any]]) -> dict[str, A
     }
 
 
-def _formal_runtime_rate_gate(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """Bind formal eligibility to measured outer-law and torque-call cadence."""
+def _torque_active_rows_after_counter_restart(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[Mapping[str, Any]]:
+    """Drop stale leading TORQUE rows left by a previous Secondary Client program.
+
+    Output float registers are not cleared atomically on program replace.  The
+    first STATE_TORQUE sample of a new receiver can still echo the previous
+    program's high ``control_update_count`` / ``torque_thread_tick_count``, then
+    jump down to the fresh counters.  Rate and tracking gates must evaluate only
+    the monotonic suffix after that restart.
+    """
 
     active = [
         row
         for row in rows
         if int(row.get("receiver_state", -1)) == legacy.STATE_TORQUE
     ]
+    if len(active) < 2:
+        return list(active)
+    start = 0
+    previous = float(active[0].get("control_update_count", 0.0))
+    for index in range(1, len(active)):
+        current = float(active[index].get("control_update_count", 0.0))
+        if current + 5.0 < previous:
+            start = index
+        previous = current
+    return list(active[start:])
+
+
+def _formal_runtime_rate_gate(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Bind formal eligibility to measured outer-law and torque-call cadence."""
+
+    active = _torque_active_rows_after_counter_restart(rows)
     control_rate_hz = 0.0
     torque_rate_hz = 0.0
     maximum_gap_s: float | None = None
@@ -2354,6 +2382,8 @@ def _formal_tracking_feedforward_tcp(
     target_load_n: float,
     desired_twist_base: Sequence[float],
     stiffness_6d: Sequence[float],
+    *,
+    actual_pose_base: Sequence[float] | None = None,
 ) -> tuple[float, ...]:
     """Compose normal load plus bounded moving-reference authority in TCP."""
 
@@ -2368,11 +2398,28 @@ def _formal_tracking_feedforward_tcp(
         stiffness_6d,
         surface_normal_base=(0.0, 0.0, 1.0),
     )
+    position_base = (0.0, 0.0, 0.0)
+    frame_rotvec = pose[3:]
+    if actual_pose_base is not None:
+        actual = tuple(float(value) for value in actual_pose_base)
+        if len(actual) != 6 or not all(math.isfinite(value) for value in actual):
+            raise ValueError("actual feedforward pose must contain six finite values")
+        position_base = FormalHostPoseTrackingFeedforwardV1().position_force_base(
+            pose,
+            actual,
+            surface_normal_base=(0.0, 0.0, 1.0),
+            project_off_normal=target > 0.0,
+        )
+        frame_rotvec = actual[3:]
     force_base = np.asarray(
-        (tangential_base[0], tangential_base[1], tangential_base[2] - target),
+        (
+            tangential_base[0] + position_base[0],
+            tangential_base[1] + position_base[1],
+            tangential_base[2] + position_base[2] - target,
+        ),
         dtype=float,
     )
-    rotation_base_from_tcp = _rotation_matrix_from_rotvec(pose[3:])
+    rotation_base_from_tcp = _rotation_matrix_from_rotvec(frame_rotvec)
     force_tcp = rotation_base_from_tcp.T @ force_base
     result = tuple(float(value) for value in force_tcp) + (0.0, 0.0, 0.0)
     if np.linalg.norm(np.asarray(result[:3], dtype=float)) > 50.0 + 1.0e-12:
@@ -2743,29 +2790,33 @@ def _strict_episode_gate(
     complete: bool,
     duration_s: float,
 ) -> dict[str, Any]:
-    active = [
+    startup_or_torque = [
         row
         for row in rows
         if int(row["receiver_state"]) in (legacy.STATE_STARTUP, legacy.STATE_TORQUE)
     ]
+    # Presence/coherence still inspect startup+torque; measured cadence uses the
+    # TORQUE suffix after any Secondary Client counter restart.
+    active = startup_or_torque
+    rate_rows = _torque_active_rows_after_counter_restart(rows)
     timestamps = [float(row["controller_timestamp_s"]) for row in rows]
     span = max(0.0, timestamps[-1] - timestamps[0]) if timestamps else 0.0
     row_rate = (len(timestamps) - 1) / span if span > 0.0 else 0.0
     coherent = [row for row in active if legacy._action_echo_coherent(row)]
     control_rate_hz = 0.0
     torque_rate_hz = 0.0
-    if len(active) >= 2:
-        active_span = float(active[-1]["controller_timestamp_s"]) - float(
-            active[0]["controller_timestamp_s"]
+    if len(rate_rows) >= 2:
+        active_span = float(rate_rows[-1]["controller_timestamp_s"]) - float(
+            rate_rows[0]["controller_timestamp_s"]
         )
         if active_span > 0.0:
             control_rate_hz = (
-                float(active[-1].get("control_update_count", 0.0))
-                - float(active[0].get("control_update_count", 0.0))
+                float(rate_rows[-1].get("control_update_count", 0.0))
+                - float(rate_rows[0].get("control_update_count", 0.0))
             ) / active_span
             torque_rate_hz = (
-                float(active[-1].get("torque_thread_tick_count", 0.0))
-                - float(active[0].get("torque_thread_tick_count", 0.0))
+                float(rate_rows[-1].get("torque_thread_tick_count", 0.0))
+                - float(rate_rows[0].get("torque_thread_tick_count", 0.0))
             ) / active_span
     gate = {
         "observed_complete": bool(complete),
@@ -2815,9 +2866,7 @@ def _no_contact_tracking_gate(rows: Sequence[Mapping[str, Any]]) -> dict[str, An
 
     selected: list[Mapping[str, Any]] = []
     last_update = -1
-    for row in rows:
-        if int(row.get("receiver_state", -1)) != legacy.STATE_TORQUE:
-            continue
+    for row in _torque_active_rows_after_counter_restart(rows):
         try:
             update = int(round(float(row.get("control_update_count", -1.0))))
             desired = tuple(float(row[f"command_desired_pose_{axis}"]) for axis in range(3))
@@ -2910,6 +2959,7 @@ def _run_no_contact_episode(
     complete = False
     torque_start: float | None = None
     previous_feedforward = (0.0,) * 6
+    last_actual_pose = anchor
     failure: str | None = None
     output_dir.mkdir(parents=True, exist_ok=False)
     with (
@@ -2968,6 +3018,9 @@ def _run_no_contact_episode(
                     if not pending:
                         raise RuntimeError("formal_qualification_rtde_output_stale")
                 last_sample = pending[-1]
+                last_actual_pose = tuple(
+                    float(value) for value in last_sample["actual_TCP_pose"]
+                )
                 for sample in pending:
                     state = int(sample["output_int_register_24"])
                     fault = int(sample["output_int_register_26"])
@@ -3020,6 +3073,7 @@ def _run_no_contact_episode(
                             0.0,
                             reference["desired_twist_base"],
                             FixedKExpertV1().stiffness_6d,
+                            actual_pose_base=last_actual_pose,
                         )
                         feedforward = _slew_limit_feedforward(
                             previous_feedforward,

@@ -183,6 +183,7 @@ from .expert import (
     ExpertInput,
     ExpertState,
     FixedKExpertV1,
+    FormalHostPoseTrackingFeedforwardV1,
     FormalMotionFeedforwardV1,
     VariableKExpertV1,
 )
@@ -558,6 +559,7 @@ __all__ = [
     "ExpertInput",
     "ExpertState",
     "FixedKExpertV1",
+    "FormalHostPoseTrackingFeedforwardV1",
     "FormalMotionFeedforwardV1",
     "VariableKExpertV1",
     "FORMAL_TRACKING_QUALITY_SCHEMA_V1",

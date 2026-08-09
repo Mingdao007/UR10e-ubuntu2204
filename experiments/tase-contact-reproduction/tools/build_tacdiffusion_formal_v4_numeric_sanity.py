@@ -54,7 +54,10 @@ from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (
     FORMAL_CONTACT_ENTRY_TRANSITION_PROFILE_V1,
     FORMAL_CONTACT_ENTRY_TRANSITION_TICKS,
 )
-from ur10e_vic.tacdiffusion.expert import FormalMotionFeedforwardV1
+from ur10e_vic.tacdiffusion.expert import (
+    FormalHostPoseTrackingFeedforwardV1,
+    FormalMotionFeedforwardV1,
+)
 from ur10e_vic.tacdiffusion.formal_tracking_quality import (
     FormalTrackingQualityContractV1,
 )
@@ -198,6 +201,7 @@ def build() -> dict[str, object]:
             "viscous_scale": [1.0] * 6,
             "coulomb_scale": [1.0] * 6,
             "feedforward": FormalMotionFeedforwardV1().as_json(),
+            "host_pose_tracking": FormalHostPoseTrackingFeedforwardV1().as_json(),
             "receiver_velocity_feedback_term": "-D_times_actual_twist",
             "host_velocity_reference_term": "plus_D_times_desired_twist",
             "completed_velocity_error_damping": True,

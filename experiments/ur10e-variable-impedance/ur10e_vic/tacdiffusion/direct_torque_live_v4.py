@@ -40,10 +40,14 @@ FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S = 0.05
 FORMAL_CONTACT_ENTRY_TCP_ROTATION_SPEED_LIMIT_RAD_S = 0.10
 FORMAL_CONTACT_ENTRY_TCP_EXCURSION_LIMIT_M = 0.0003
 FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD = 0.0005
-FORMAL_CONTACT_BASELINE_TCP_TRANSLATION_SPEED_LIMIT_M_S = 0.01
-FORMAL_CONTACT_BASELINE_TCP_ROTATION_SPEED_LIMIT_RAD_S = 0.02
-FORMAL_CONTACT_BASELINE_JOINT_SPEED_LIMIT_RAD_S = 0.02
-FORMAL_CONTACT_BASELINE_JOINT_ACCELERATION_LIMIT_RAD_S2 = 5.0
+# Free-space catch-up after residual deadband breakout can briefly exceed the
+# prior 10 mm/s TCP / 0.02 rad/s joint caps while still tracking a ~3 mm/s
+# reference.  Keep these at the entry-transition envelope so host pose FF can
+# clear the measured-path gate without tripping fault 11/12.
+FORMAL_CONTACT_BASELINE_TCP_TRANSLATION_SPEED_LIMIT_M_S = 0.05
+FORMAL_CONTACT_BASELINE_TCP_ROTATION_SPEED_LIMIT_RAD_S = 0.10
+FORMAL_CONTACT_BASELINE_JOINT_SPEED_LIMIT_RAD_S = 0.05
+FORMAL_CONTACT_BASELINE_JOINT_ACCELERATION_LIMIT_RAD_S2 = 30.0
 FORMAL_CONTACT_BASELINE_JOINT_DAMPING = (1.5, 1.5, 1.2, 0.3, 0.3, 0.2)
 FORMAL_CONTACT_ENTRY_JOINT_DAMPING = (5.0, 5.0, 4.0, 5.0, 1.0, 1.0)
 ORIENTATION_POLICY_HOLD_ENTRY = "hold_entry_orientation"
@@ -1359,7 +1363,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "write_output_float_register(45, control_update_count)",
         "write_output_float_register(46, maximum_control_update_gap_s)",
         "write_output_float_register(47, torque_thread_tick_count)",
-        "active_joint_acceleration_limit_rad_s2 = 5.0",
+        "active_joint_acceleration_limit_rad_s2 = 30.0",
         "active_acceleration_violation",
         "get_coriolis_and_centrifugal_torques(q, qd)",
         "get_jacobian(q)",

@@ -402,6 +402,100 @@ def test_formal_tracking_feedforward_adds_bounded_tangential_authority_and_slew(
     assert limited[2] == pytest.approx(-0.2)
 
 
+def test_formal_tracking_feedforward_adds_host_pose_authority_when_actual_lagged() -> None:
+    command = formal._formal_tracking_feedforward_tcp(
+        (0.004, 0.0, 0.0, 0.0, 0.0, 0.0),
+        0.0,
+        (0.001, 0.0, 0.0, 0.0, 0.0, 0.0),
+        (600.0, 600.0, 600.0, 30.0, 30.0, 30.0),
+        actual_pose_base=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+    )
+    # tangential ~2 N + host pose 2500*0.004=10 N along +X
+    assert 11.5 < command[0] < 12.5
+    assert abs(command[1]) < 0.2
+    assert abs(command[2]) < 0.2
+    assert sum(value * value for value in command[:3]) ** 0.5 < 50.0
+
+
+def test_torque_active_rows_after_counter_restart_drops_stale_prefix() -> None:
+    rows: list[dict[str, float | int]] = []
+
+    def _row(
+        *,
+        timestamp_s: float,
+        control_update_count: float,
+        torque_thread_tick_count: float,
+        x: float,
+        actual_x: float,
+    ) -> dict[str, float | int]:
+        row: dict[str, float | int] = {
+            "receiver_state": legacy.STATE_TORQUE,
+            "controller_timestamp_s": timestamp_s,
+            "control_update_count": control_update_count,
+            "torque_thread_tick_count": torque_thread_tick_count,
+            "maximum_control_update_gap_s": 0.006,
+            "command_desired_pose_0": x,
+            "command_desired_pose_1": 0.130,
+            "command_desired_pose_2": 0.020,
+            "actual_TCP_pose_0": actual_x,
+            "actual_TCP_pose_1": 0.130,
+            "actual_TCP_pose_2": 0.020,
+        }
+        for axis in range(6):
+            row[f"actual_TCP_speed_{axis}"] = 0.0
+            row[f"actual_qd_{axis}"] = 0.0
+        return row
+
+    for index, count in enumerate((9000.0, 9001.0, 9002.0)):
+        rows.append(
+            _row(
+                timestamp_s=0.002 * index,
+                control_update_count=count,
+                torque_thread_tick_count=3.0 * count,
+                x=0.480,
+                actual_x=0.480,
+            )
+        )
+    for index in range(40):
+        x = 0.480 + 0.0001 * index
+        rows.append(
+            _row(
+                timestamp_s=0.006 + 0.006 * index,
+                control_update_count=float(index),
+                torque_thread_tick_count=float(3 * index),
+                x=x,
+                actual_x=x - 0.00005,
+            )
+        )
+
+    active = formal._torque_active_rows_after_counter_restart(rows)
+    assert [float(row["control_update_count"]) for row in active[:3]] == [0.0, 1.0, 2.0]
+    assert float(active[-1]["control_update_count"]) == 39.0
+
+    rate = formal._formal_runtime_rate_gate(rows)
+    assert rate["predicates"]["control_law_update_rate_150_to_200hz"] is True
+    assert rate["predicates"]["torque_application_rate_450_to_550hz"] is True
+
+    tracking = formal._no_contact_tracking_gate(rows)
+    assert tracking["passed"] is True
+    assert float(tracking["metrics"]["actual_excursion_m"]) >= 0.0018
+
+
+def test_torque_active_rows_after_counter_restart_noop_when_monotonic() -> None:
+    rows = [
+        {
+            "receiver_state": legacy.STATE_TORQUE,
+            "controller_timestamp_s": 0.002 * index,
+            "control_update_count": float(index),
+            "torque_thread_tick_count": float(3 * index),
+        }
+        for index in range(10)
+    ]
+    active = formal._torque_active_rows_after_counter_restart(rows)
+    assert len(active) == 10
+    assert float(active[0]["control_update_count"]) == 0.0
+
+
 def test_formal_parser_exposes_resumable_contact_campaign_without_default_live() -> None:
     parser = formal.build_parser()
     parsed = parser.parse_args(
