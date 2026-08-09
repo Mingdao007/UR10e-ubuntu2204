@@ -220,7 +220,7 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "active_joint_speed_limit_rad_s = 0.1" in source
     assert "active_joint_acceleration_limit_rad_s2 = 30.0" in source
     assert "active_tcp_translation_speed_limit_m_s = 0.05" in source
-    assert "active_tcp_rotation_speed_limit_rad_s = 0.1" in source
+    assert "active_tcp_rotation_speed_limit_rad_s = 0.2" in source
     assert "qdd = get_actual_joint_accelerations()" in source
     assert "control_clock = time()" in source
     assert (
@@ -432,7 +432,7 @@ def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
     assert "selected_tcp_translation_speed_limit_m_s = formal_contact_baseline_tcp_translation_speed_limit_m_s" in torque_thread_source
     assert "selected_tcp_translation_speed_limit_m_s = formal_contact_entry_tcp_translation_speed_limit_m_s" in torque_thread_source
     assert "formal_contact_baseline_tcp_translation_speed_limit_m_s = 0.05" in source
-    assert "formal_contact_baseline_tcp_rotation_speed_limit_rad_s = 0.1" in source
+    assert "formal_contact_baseline_tcp_rotation_speed_limit_rad_s = 0.2" in source
     assert "formal_contact_baseline_joint_speed_limit_rad_s = 0.1" in source
     assert "formal_contact_baseline_joint_acceleration_limit_rad_s2 = 30.0" in source
     assert torque_thread_source.count(
@@ -445,7 +445,7 @@ def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
     baseline = formal_contact_entry_rate_limits(torque_thread_tick_count=26, enabled=True)
     assert baseline.transition_active is False
     assert baseline.tcp_translation_m_s == 0.05
-    assert baseline.tcp_rotation_rad_s == 0.10
+    assert baseline.tcp_rotation_rad_s == 0.20
     assert baseline.joint_speed_rad_s == 0.10
     assert baseline.joint_acceleration_rad_s2 == 30.0
 
