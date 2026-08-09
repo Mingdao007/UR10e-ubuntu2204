@@ -233,11 +233,47 @@ def _score_combination_batches(
     return selected_batch, score_list, scoring
 
 
+def _merge_sidecar_penalties(
+    grouped: dict[tuple[Any, ...], list[float]],
+    group_order: list[tuple[Any, ...]],
+    sidecar_dir: Path,
+    *,
+    allow_early_abort_training: bool,
+) -> tuple[int, int]:
+    """Merge legacy penalty rows while enforcing the caller's EA policy."""
+
+    if not isinstance(allow_early_abort_training, bool):
+        raise OptimizerWorkerError("early-abort training policy must be bool")
+    penalty_count = merge_penalties_into_grouped(
+        grouped,
+        group_order,
+        load_penalties(sidecar_dir),
+    )
+    early_abort_rows = [
+        row
+        for row in load_early_abort_penalties(sidecar_dir)
+        if row.get("enters_gp_training") is True
+    ]
+    if early_abort_rows and not allow_early_abort_training:
+        raise OptimizerWorkerError(
+            "R010 early-abort rows are shadow-only and cannot enter GP training"
+        )
+    early_abort_penalty_count = 0
+    if allow_early_abort_training:
+        early_abort_penalty_count = merge_penalties_into_grouped(
+            grouped,
+            group_order,
+            early_abort_rows,
+        )
+    return penalty_count, early_abort_penalty_count
+
+
 def _fit_and_ask(
     payload: Mapping[str, Any],
     expected: Mapping[str, Any],
     *,
     r010_calibration: Mapping[str, Any] | None = None,
+    allow_early_abort_training: bool = True,
 ) -> dict[str, Any]:
     import torch
     import gpytorch
@@ -299,20 +335,11 @@ def _fit_and_ask(
     early_abort_penalty_count = 0
     if isinstance(sidecar_path, str) and sidecar_path:
         sidecar_dir = Path(sidecar_path).resolve().parent
-        penalty_count = merge_penalties_into_grouped(
+        penalty_count, early_abort_penalty_count = _merge_sidecar_penalties(
             grouped,
             group_order,
-            load_penalties(sidecar_dir),
-        )
-        early_abort_rows = [
-            row
-            for row in load_early_abort_penalties(sidecar_dir)
-            if row.get("enters_gp_training") is True
-        ]
-        early_abort_penalty_count = merge_penalties_into_grouped(
-            grouped,
-            group_order,
-            early_abort_rows,
+            sidecar_dir,
+            allow_early_abort_training=allow_early_abort_training,
         )
     train_points = tuple(_point(list(key)) for key in group_order)
     device = torch.device("cuda:0")
@@ -376,6 +403,9 @@ def _fit_and_ask(
         "raw_trainable_row_count": len(rows),
         "hard_stop_penalty_row_count": int(penalty_count),
         "early_abort_penalty_row_count": int(early_abort_penalty_count),
+        "early_abort_training_policy": (
+            "legacy_opt_in" if allow_early_abort_training else "forbidden"
+        ),
         "deduplicated_row_count": len(rows) - len(train_points),
         "q": requested_q,
         "initialization": initialization,

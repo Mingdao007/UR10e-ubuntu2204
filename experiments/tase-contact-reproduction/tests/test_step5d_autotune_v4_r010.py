@@ -28,6 +28,7 @@ from step5d_autotune_v4_r009.early_abort import (  # noqa: E402
 from step5d_autotune_v4_r010.behavior import (  # noqa: E402
     command_speed_m_s,
     default_wave7_schedule,
+    early_abort_kappa,
     travel_sigmoid_speed_m_s,
 )
 from step5d_autotune_v4_r010.contracts import (  # noqa: E402
@@ -37,6 +38,7 @@ from step5d_autotune_v4_r010.contracts import (  # noqa: E402
     load_contract,
 )
 from step5d_autotune_v4_r010.gp_calibration import (  # noqa: E402
+    AdmissionResult,
     CALIBRATION_SCHEMA,
     CV_FOLDS,
     CalibrationRow,
@@ -52,6 +54,13 @@ from step5d_autotune_v4_r010.gp_calibration import (  # noqa: E402
     select_noise_floor,
     sha256_file,
 )
+from step5d_autotune_v4_r010.bo_health import (  # noqa: E402
+    build_bo_health_report,
+)
+from step5d_autotune_v4_r010.early_abort_backtest import (  # noqa: E402
+    evaluate_formal_trace,
+    formal_partial_trace,
+)
 from step5d_autotune_v4_r010.identity import (  # noqa: E402
     DEFAULT_CALIBRATION_PATH,
     SourceClosure,
@@ -62,6 +71,11 @@ from step5d_autotune_v4_r010.identity import (  # noqa: E402
 from step5d_autotune_v4_r010.ledger import (  # noqa: E402
     HistoricalLedgerResumeError,
     Ledger,
+)
+from step5d_autotune_v4_r010.runtime_composition import (  # noqa: E402
+    R010RuntimeCompositionError,
+    build_readiness_report,
+    require_live_ready,
 )
 from step5d_autotune_v4_r010.tp import numeric_sanity, render_script  # noqa: E402
 
@@ -123,6 +137,12 @@ def test_wave7_speed_is_monotone_bounded_and_latch_precedence() -> None:
     assert schedule.raw["travel_sigmoid"]["input"] == "travel_m"
     assert schedule.raw["travel_sigmoid"]["midpoint"] == "0.5 span"
     assert schedule.raw["force_latched_creep"]["is_sigmoid"] is False
+    early_abort = schedule.raw["early_abort_sigmoid"]
+    assert early_abort["guard_fraction"] == 0.1
+    assert early_abort["progress_normalization"] == "post_guard_span"
+    kappas = [early_abort_kappa(index / 100.0) for index in range(101)]
+    assert all(early_abort["kappa_end"] <= value <= early_abort["kappa_start"] for value in kappas)
+    assert all(left >= right for left, right in zip(kappas, kappas[1:]))
 
 
 def test_kernel_masked_diag_matches_full_covariance_diag() -> None:
@@ -227,6 +247,7 @@ def test_behavior_bytes_drive_identity_but_stars_is_excluded() -> None:
         "tools/step5d_autotune_v4_r010/behavior.py",
         "tools/step5d_autotune_v4_r010/kernel.py",
         "tools/step5d_autotune_v4_r010/optimizer_keepalive.py",
+        "tools/step5d_autotune_v4_r010/runtime_composition.py",
         "tools/step5d_autotune_v4_r008/optimizer_worker_batched.py",
     ):
         files = dict(base_closure.files)
@@ -298,6 +319,103 @@ def test_early_abort_remains_shadow_only() -> None:
         resolve_early_abort_mode({"R009_EARLY_ABORT_MODE": "active"})
 
 
+def test_r010_optimizer_rejects_legacy_early_abort_training_rows() -> None:
+    from step5d_autotune_v4_r006.optimizer_worker import OptimizerWorkerError
+    from step5d_autotune_v4_r008 import optimizer_worker_batched
+
+    with mock.patch.object(optimizer_worker_batched, "load_penalties", return_value=[]), mock.patch.object(
+        optimizer_worker_batched,
+        "load_early_abort_penalties",
+        return_value=[{"enters_gp_training": True}],
+    ):
+        with pytest.raises(OptimizerWorkerError, match="shadow-only"):
+            optimizer_worker_batched._merge_sidecar_penalties(
+                {},
+                [],
+                Path("/tmp/r010-fixture"),
+                allow_early_abort_training=False,
+            )
+
+
+def test_runtime_composition_exposes_unbound_host_tube_and_shadow_blockers() -> None:
+    report = build_readiness_report(load_contract())
+    assert report["offline_analysis_ready"] is True
+    assert report["live_ready"] is False
+    assert report["bo_dispatch_allowed"] is False
+    assert "host_campaign_runner_missing" in report["blockers"]
+    assert "live_writer_adapter_missing" in report["blockers"]
+    assert "early_abort_shadow_host_wiring_unproven" in report["blockers"]
+    assert "containment_geometry_frame_evidence_missing" in report["blockers"]
+    containment = report["runtime_composition"]["containment"]
+    assert containment["mode"] == "prohibited"
+    assert containment["legacy_r008_tube_reuse_allowed"] is False
+    with pytest.raises(R010RuntimeCompositionError, match="offline-only"):
+        require_live_ready(report)
+
+
+def test_bo_health_distinguishes_progress_plateau_and_repeat_robustness() -> None:
+    campaign = "a" * 64
+    anchor_candidate = _candidate(0)
+    best_candidate = _candidate(999)
+    rows = [
+        CalibrationRow(1, "ANCHOR", anchor_candidate, 5.60, campaign),
+        CalibrationRow(2, "ANCHOR", anchor_candidate, 5.58, campaign),
+        CalibrationRow(3, "SPACEFILL", _candidate(1), 0.76, campaign),
+        CalibrationRow(10, "BO_TRIAL", best_candidate, 0.59, campaign),
+        CalibrationRow(11, "BO_TRIAL", best_candidate, 0.81, campaign),
+    ]
+    rows.extend(
+        CalibrationRow(sequence, "BO_TRIAL", _candidate(sequence), 0.70 + sequence / 10000.0, campaign)
+        for sequence in range(12, 117)
+    )
+    admission = AdmissionResult(
+        rows=tuple(rows),
+        header={"record_type": "header", "campaign_fingerprint": campaign},
+        input_sha256="b" * 64,
+        total_observation_rows=len(rows),
+        rejection_counts={},
+        rejected_attempt_sequences={},
+    )
+    first = build_bo_health_report(admission)
+    second = build_bo_health_report(admission)
+    assert first == second
+    assert first["improvement"]["historical_bo_improved"] is True
+    assert first["improvement"]["r010_calibration_live_improvement_proven"] is False
+    assert first["progress"]["plateau_detected"] is True
+    assert first["progress"]["one_shot_incumbent"]["objective_n"] == 0.59
+    assert first["progress"]["one_shot_incumbent_repeat_evidence"]["median_n"] == 0.7
+    assert first["decision"]["single_low_mae_is_robust_incumbent"] is False
+    assert first["decision"]["completion_proven"] is False
+    assert first["decision"]["historical_training_import_allowed"] is False
+
+
+def test_early_abort_backtest_uses_formal_equal_bin_lower_bound() -> None:
+    samples = [
+        {
+            "path_time_s": 5.0 + index * 0.1 + 0.01,
+            "path_phase": 25,
+            "stage": 25,
+            "path_stage": 25,
+            "filtered_normal_n": 6.0,
+            "source_sequences": {"sensor": index + 1},
+            "source_ages_s": {"sensor": 0.001},
+            "commanded_qdot": None,
+            "actual_qd": None,
+            "timestamp_s": float(index),
+        }
+        for index in range(550)
+    ]
+    trace = formal_partial_trace(samples)
+    assert trace[24]["partial_mae_n"] == pytest.approx(0.5)
+    assert trace[-1]["formal_mae_n"] == pytest.approx(1.0)
+    bad = evaluate_formal_trace(trace, best_so_far_n=0.2, real_mae_n=1.0)
+    assert bad["would_abort"] is True
+    assert bad["correctly_skipped_bad"] is True
+    assert bad["false_abort_new_best"] is False
+    safe = evaluate_formal_trace(trace, best_so_far_n=2.0, real_mae_n=1.0)
+    assert safe["would_abort"] is False
+
+
 def test_worker_response_attests_calibration_fields() -> None:
     from step5d_autotune_v4_r010 import optimizer_worker
 
@@ -324,6 +442,7 @@ def test_worker_response_attests_calibration_fields() -> None:
     assert fit_and_ask.call_args.kwargs["r010_calibration"]["calibration_sha256"] == calibration[
         "calibration_sha256"
     ]
+    assert fit_and_ask.call_args.kwargs["allow_early_abort_training"] is False
     attestation = response["payload"]["attestation"]
     assert attestation["calibration"] == {
         "calibration_sha256": calibration["calibration_sha256"],

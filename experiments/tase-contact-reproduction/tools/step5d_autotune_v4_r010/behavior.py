@@ -35,9 +35,13 @@ EARLY_ABORT_SIGMOID_SEMANTICS: dict[str, Any] = {
     "input": "progress_fraction",
     "kappa_start": 3.0,
     "kappa_end": 1.3,
+    "guard_fraction": 0.1,
     "midpoint": 0.5,
     "steepness": 10.0,
     "direction": "decreasing kappa",
+    "progress_normalization": "post_guard_span",
+    "endpoint_semantics": "start/end are asymptotic target range",
+    "minimum_complete_bins": 1,
     "mode": "shadow",
     "active_allowed": False,
     "enters_gp_training": False,
@@ -237,6 +241,26 @@ def travel_sigmoid_speed_m_s(travel_m: float, schedule: Wave7Schedule | None = N
     return v_far + (v_near - v_far) * sigma
 
 
+def early_abort_kappa(progress_fraction: float) -> float:
+    """Return the identity-bound shadow threshold on the post-guard span."""
+
+    progress = _finite(progress_fraction, "early-abort progress fraction")
+    semantics = EARLY_ABORT_SIGMOID_SEMANTICS
+    guard = float(semantics["guard_fraction"])
+    span = max(1e-12, 1.0 - guard)
+    normalized = min(1.0, max(0.0, (progress - guard) / span))
+    weight = 1.0 / (
+        1.0
+        + math.exp(
+            float(semantics["steepness"])
+            * (normalized - float(semantics["midpoint"]))
+        )
+    )
+    return float(semantics["kappa_end"]) + (
+        float(semantics["kappa_start"]) - float(semantics["kappa_end"])
+    ) * weight
+
+
 def command_speed_m_s(
     travel_m: float,
     *,
@@ -364,6 +388,7 @@ __all__ = [
     "Wave7Schedule",
     "command_speed_m_s",
     "default_wave7_schedule",
+    "early_abort_kappa",
     "render_wave7_contact_loop",
     "travel_sigmoid_speed_m_s",
     "validate_wave7_schedule",

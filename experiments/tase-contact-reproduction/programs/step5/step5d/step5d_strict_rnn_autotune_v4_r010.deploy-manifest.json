@@ -1,11 +1,11 @@
 {
   "artifacts": {
-    "script": "a9d4d8105b696f3f527b14d26980ec5472ff17688c25f91a2afe04ef0b38229e",
-    "txt": "6560da0ae41f6d0808057fc1aac84a0a95b85dbf74744d8abd4e7b9d99b53f64",
-    "urp": "caf08d30cc8ed46f30a643dc3ecbb834d126d19bf342f8b0c259969c32a03dde"
+    "script": "46aeef2e239b4a21a8f4c095ab3ae9ba1a7afe65aabbd0ccd962c0a95d5d5267",
+    "txt": "2e7130026d22f23f2a8318a452bd8b71a9dede96bb89e46682d623c32ccdff99",
+    "urp": "6a65b6f39f0cb54e6e66c912191bdece0de0277158f3beacf23ef8a21f767e57"
   },
-  "behavior_manifest_sha256": "465e347331e84e839c227f926725bc94ba8abc7f18d6cbebdbdf2eeca6cb5229",
-  "campaign_fingerprint": "465e347331e84e839c227f926725bc94ba8abc7f18d6cbebdbdf2eeca6cb5229",
+  "behavior_manifest_sha256": "b58360d63605550e691d80dabbc4d8a628268c15a831ae114dd8a5370e443c90",
+  "campaign_fingerprint": "b58360d63605550e691d80dabbc4d8a628268c15a831ae114dd8a5370e443c90",
   "controller_directory": "/programs/andyl/kunwei/step5",
   "controller_readback": false,
   "controller_upload": false,

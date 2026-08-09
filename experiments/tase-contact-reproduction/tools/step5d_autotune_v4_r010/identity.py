@@ -24,6 +24,10 @@ from .gp_calibration import (
     VARIANCE_ESTIMATOR,
     load_calibration_artifact,
 )
+from .runtime_composition import (
+    runtime_composition_manifest,
+    validate_runtime_composition,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -64,6 +68,7 @@ DEFAULT_SOURCE_PATHS = (
     "tools/step5d_autotune_v4_r010/identity.py",
     "tools/step5d_autotune_v4_r010/contracts.py",
     "tools/step5d_autotune_v4_r010/ledger.py",
+    "tools/step5d_autotune_v4_r010/runtime_composition.py",
     "tools/step5d_autotune_v4_r010/tp.py",
     "tools/calibrate_step5d_autotune_v4_r010_gp.py",
     "tools/build_step5d_autotune_v4_r010.py",
@@ -320,6 +325,7 @@ def build_behavior_manifest(
         },
         "raw_codec": RAW_CODEC,
         "runtime_protocol": R010_RUNTIME_PROTOCOL,
+        "runtime_composition": runtime_composition_manifest(),
         "optimizer": {
             "worker": "tools/step5d_autotune_v4_r010/optimizer_worker.py",
             "keepalive": "tools/step5d_autotune_v4_r010/optimizer_keepalive.py",
@@ -364,6 +370,7 @@ def validate_behavior_manifest(value: Mapping[str, Any]) -> BehaviorManifest:
         "formal_objective",
         "raw_codec",
         "runtime_protocol",
+        "runtime_composition",
         "optimizer",
         "executable_behavior",
         "reused_r009_components",
@@ -391,6 +398,7 @@ def validate_behavior_manifest(value: Mapping[str, Any]) -> BehaviorManifest:
         raise R010IdentityError("R010 parent R009 release identity digest differs")
     closure = SourceClosure.from_mapping(value["source_closure"])
     schedule = validate_wave7_schedule(value["wave7_contact_entry"])
+    validate_runtime_composition(value["runtime_composition"])
     calibration = value.get("gp_calibration")
     if not isinstance(calibration, Mapping) or set(calibration) != {
         "path",

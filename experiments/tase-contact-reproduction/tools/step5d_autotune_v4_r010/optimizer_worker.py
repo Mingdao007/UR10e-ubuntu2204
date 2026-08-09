@@ -50,6 +50,7 @@ def run(request: Mapping[str, Any]) -> dict[str, Any]:
         r008_payload,
         expected,
         r010_calibration=calibration,
+        allow_early_abort_training=False,
     )
     calibration_attestation = {
         "calibration_sha256": calibration["calibration_sha256"],
