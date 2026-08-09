@@ -1,7 +1,7 @@
 {
   "content_address": {
     "algorithm": "sha256",
-    "sha256": "bcefb4c0d75f3353e2c87c8c51f280bf25d665250df435fbead66fda8977aaa6"
+    "sha256": "1c5fcc9562a7d8f6a5dd728befe028c82afb377a07aad5bfe69687c04e93f0f1"
   },
   "controller_readback_applicable": false,
   "files": [
@@ -15,7 +15,7 @@
     },
     {
       "path": "experiments/tase-contact-reproduction/config/tacdiffusion_formal_v4_numeric_sanity.json",
-      "sha256": "eea58deac33aabe3df1870c846558f18f8049b9fc401033e5063adcf537e9f66"
+      "sha256": "5f1bc94e6c32eab6dd961274f2b7645b0e5aeb13b9f8b0e4df9f6222f8afde4a"
     },
     {
       "path": "experiments/tase-contact-reproduction/evidence/step5d_tacdiffusion/sensor_frame_calibration_v4_20260808.json",
@@ -35,7 +35,7 @@
     },
     {
       "path": "experiments/tase-contact-reproduction/tools/build_tacdiffusion_formal_v4_numeric_sanity.py",
-      "sha256": "b69fb02f2f7af822cdd64058486f25045412665d97434231f828c88f73b6f210"
+      "sha256": "1f717b1855c8aa1c2fd3ea57d1a19504fa9a61f262c081332d00b304f8bf0311"
     },
     {
       "path": "experiments/tase-contact-reproduction/tools/run_tacdiffusion_formal_v4.py",
@@ -67,7 +67,7 @@
     },
     {
       "path": "experiments/ur10e-variable-impedance/tests/test_direct_torque_live_v4.py",
-      "sha256": "e3fe7c06b329c74ebd34c45b1475ceea7ea8a0e1d51648672dfecdf0888de33e"
+      "sha256": "6852c3b8374f2ff35ef84aa1d2ae1d984612100c0d8792085fb41feb1b58ac9b"
     },
     {
       "path": "experiments/ur10e-variable-impedance/tests/test_tacdiffusion_core.py",
@@ -99,7 +99,7 @@
     },
     {
       "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/direct_torque_live_v4.py",
-      "sha256": "3d48d83aced13d968c52c457fda4f20bb46331b9a3f467e2afff47237ad540e5"
+      "sha256": "02cbccdeadb523be2d9737885270fca644d846bbf43f30013aecc64de510c4c5"
     },
     {
       "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/eligibility.py",

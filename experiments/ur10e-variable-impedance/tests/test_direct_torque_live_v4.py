@@ -396,6 +396,9 @@ def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
     ) == 1
     assert "entry_transition_tcp_translation_limit_m = 0.0003" in source
     assert "entry_transition_joint_excursion_limit_rad = 0.0005" in source
+    assert "formal_contact_entry_joint_damping = [5, 5, 4, 5, 1, 1]" in source
+    assert "selected_joint_damping = formal_contact_entry_joint_damping[joint]" in source
+    assert "tau[joint] = coriolis[joint] - selected_joint_damping*qd[joint]" in source
 
     tampered = source.replace(
         "local formal_contact_entry_transition_ticks = 25",
@@ -404,6 +407,30 @@ def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
     )
     with pytest.raises(ValueError, match="transition source identity mismatch"):
         parse_live_receiver_source(tampered)
+
+    tampered_damping = source.replace(
+        "formal_contact_entry_joint_damping = [5, 5, 4, 5, 1, 1]",
+        "formal_contact_entry_joint_damping = [1, 1, 1, 1, 1, 1]",
+        1,
+    )
+    with pytest.raises(ValueError, match="transition source identity mismatch"):
+        parse_live_receiver_source(tampered_damping)
+
+
+def test_formal_contact_entry_damping_restores_baseline_at_tick_26() -> None:
+    from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (
+        formal_contact_entry_joint_damping,
+    )
+
+    assert formal_contact_entry_joint_damping(
+        control_update_count=1, enabled=True
+    ) == (5.0, 5.0, 4.0, 5.0, 1.0, 1.0)
+    assert formal_contact_entry_joint_damping(
+        control_update_count=25, enabled=True
+    ) == (5.0, 5.0, 4.0, 5.0, 1.0, 1.0)
+    assert formal_contact_entry_joint_damping(
+        control_update_count=26, enabled=True
+    ) == (1.5, 1.5, 1.2, 0.3, 0.3, 0.2)
 
 
 def test_fault11_recorded_peak_replay_uses_transition_then_restores_baseline() -> None:

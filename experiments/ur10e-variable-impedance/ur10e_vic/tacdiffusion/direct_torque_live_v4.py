@@ -40,6 +40,8 @@ FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S = 0.05
 FORMAL_CONTACT_ENTRY_TCP_ROTATION_SPEED_LIMIT_RAD_S = 0.10
 FORMAL_CONTACT_ENTRY_TCP_EXCURSION_LIMIT_M = 0.0003
 FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD = 0.0005
+FORMAL_CONTACT_BASELINE_JOINT_DAMPING = (1.5, 1.5, 1.2, 0.3, 0.3, 0.2)
+FORMAL_CONTACT_ENTRY_JOINT_DAMPING = (5.0, 5.0, 4.0, 5.0, 1.0, 1.0)
 ORIENTATION_POLICY_HOLD_ENTRY = "hold_entry_orientation"
 ORIENTATION_POLICY_INTERPOLATE_POSE = "interpolate_pose_geodesic"
 ORIENTATION_INTERPOLATION_POLICIES = (
@@ -295,6 +297,18 @@ def formal_contact_entry_rate_limits(
     return EntryTransitionRateLimits(0.01, 0.02, 0.02, 5.0, False)
 
 
+def formal_contact_entry_joint_damping(
+    *, control_update_count: int, enabled: bool
+) -> tuple[float, ...]:
+    """Return transition damping for ticks 1-25 and baseline from tick 26."""
+
+    if int(control_update_count) < 1:
+        raise ValueError("control update count must be positive")
+    if enabled and int(control_update_count) <= FORMAL_CONTACT_ENTRY_TRANSITION_TICKS:
+        return FORMAL_CONTACT_ENTRY_JOINT_DAMPING
+    return FORMAL_CONTACT_BASELINE_JOINT_DAMPING
+
+
 def evaluate_sequence(
     *,
     last_sequence: int,
@@ -544,6 +558,7 @@ def build_live_receiver_source(
   local formal_contact_entry_joint_acceleration_limit_rad_s2 = {FORMAL_CONTACT_ENTRY_JOINT_ACCELERATION_LIMIT_RAD_S2:.17g}
   local formal_contact_entry_tcp_translation_speed_limit_m_s = {FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S:.17g}
   local formal_contact_entry_tcp_rotation_speed_limit_rad_s = {FORMAL_CONTACT_ENTRY_TCP_ROTATION_SPEED_LIMIT_RAD_S:.17g}
+  local formal_contact_entry_joint_damping = {_urscript_vector(FORMAL_CONTACT_ENTRY_JOINT_DAMPING)}
   local command_idle = 0
   local command_run = 1
   local command_end = 2
@@ -1047,7 +1062,7 @@ def build_live_receiver_source(
           local control_wrench = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
           local tau = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
           local tau_limit = [20.0, 20.0, 20.0, 8.0, 8.0, 8.0]
-          local joint_damping = [1.5, 1.5, 1.2, 0.3, 0.3, 0.2]
+          local joint_damping = {_urscript_vector(FORMAL_CONTACT_BASELINE_JOINT_DAMPING)}
           axis = 0
           while axis < 6:
             damping[axis] = 2.0*damping_ratio*sqrt(virtual_mass[axis]*control_k[axis])
@@ -1057,7 +1072,11 @@ def build_live_receiver_source(
           local joint = 0
           local max_abs_tau = 0.0
           while joint < 6:
-            tau[joint] = coriolis[joint] - joint_damping[joint]*qd[joint]
+            local selected_joint_damping = joint_damping[joint]
+            if formal_contact_entry_transition_enabled and formal_contact_entry_transition_tick_count < formal_contact_entry_transition_ticks:
+              selected_joint_damping = formal_contact_entry_joint_damping[joint]
+            end
+            tau[joint] = coriolis[joint] - selected_joint_damping*qd[joint]
             axis = 0
             while axis < 6:
               tau[joint] = tau[joint] + jacobian[axis, joint]*control_wrench[axis]
@@ -1354,10 +1373,16 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         source,
         re.MULTILINE,
     )
+    entry_transition_damping_match = re.search(
+        r"^\s*local formal_contact_entry_joint_damping = \[([^\]]+)\]$",
+        source,
+        re.MULTILINE,
+    )
     if (
         entry_transition_profile_match is None
         or entry_transition_enabled_match is None
         or entry_transition_ticks_match is None
+        or entry_transition_damping_match is None
     ):
         raise ValueError("formal contact entry transition declaration is not parseable")
     handoff_bound_match = re.search(
@@ -1455,10 +1480,19 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
     entry_transition_enabled = entry_transition_enabled_match.group(1) == "True"
     entry_transition_profile = entry_transition_profile_match.group(1)
     entry_transition_ticks = int(entry_transition_ticks_match.group(1))
+    entry_transition_damping = _finite(
+        [
+            float(value.strip())
+            for value in entry_transition_damping_match.group(1).split(",")
+        ],
+        6,
+        "formal_contact_entry_joint_damping",
+    )
     if entry_transition_enabled:
         if (
             entry_transition_profile != FORMAL_CONTACT_ENTRY_TRANSITION_PROFILE_V1
             or entry_transition_ticks != FORMAL_CONTACT_ENTRY_TRANSITION_TICKS
+            or entry_transition_damping != FORMAL_CONTACT_ENTRY_JOINT_DAMPING
             or handoff_match.group(1) != "True"
             or guard_pair != (50.0, 4.0)
             or friction_profile != FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT

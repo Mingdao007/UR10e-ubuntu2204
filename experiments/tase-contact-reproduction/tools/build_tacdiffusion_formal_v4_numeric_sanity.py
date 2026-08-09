@@ -45,6 +45,7 @@ from ur10e_vic.tacdiffusion.contracts import (
 from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (
     FORMAL_CONTACT_ENTRY_JOINT_ACCELERATION_LIMIT_RAD_S2,
     FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD,
+    FORMAL_CONTACT_ENTRY_JOINT_DAMPING,
     FORMAL_CONTACT_ENTRY_JOINT_SPEED_LIMIT_RAD_S,
     FORMAL_CONTACT_ENTRY_TCP_EXCURSION_LIMIT_M,
     FORMAL_CONTACT_ENTRY_TCP_ROTATION_SPEED_LIMIT_RAD_S,
@@ -209,6 +210,12 @@ def build() -> dict[str, object]:
             "entry_transition_hard_joint_excursion_limit_rad": (
                 FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD
             ),
+            "entry_transition_joint_damping": list(
+                FORMAL_CONTACT_ENTRY_JOINT_DAMPING
+            ),
+            "entry_transition_max_damping_torque_at_joint_speed_cap_nm": max(
+                FORMAL_CONTACT_ENTRY_JOINT_DAMPING
+            ) * FORMAL_CONTACT_ENTRY_JOINT_SPEED_LIMIT_RAD_S,
             "search_to_stopping": "host_latch_1N_for_50_consecutive_native_samples",
             "search_stop_distance": (
                 "decelerate_at_25mm_minus_12.5um_minus_one_control_tick"

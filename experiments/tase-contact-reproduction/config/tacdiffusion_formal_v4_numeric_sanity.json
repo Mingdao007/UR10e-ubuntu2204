@@ -97,7 +97,16 @@
     "entry_transition_hard_joint_excursion_limit_rad": 0.0005,
     "entry_transition_hard_tcp_excursion_limit_m": 0.0003,
     "entry_transition_joint_acceleration_limit_rad_s2": 30.0,
+    "entry_transition_joint_damping": [
+      5.0,
+      5.0,
+      4.0,
+      5.0,
+      1.0,
+      1.0
+    ],
     "entry_transition_joint_speed_limit_rad_s": 0.05,
+    "entry_transition_max_damping_torque_at_joint_speed_cap_nm": 0.25,
     "entry_transition_one_shot": true,
     "entry_transition_profile": "formal_contact_entry_transition_v1",
     "entry_transition_tcp_rotation_speed_limit_rad_s": 0.1,
