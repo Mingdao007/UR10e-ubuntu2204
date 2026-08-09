@@ -1,7 +1,7 @@
 {
   "content_address": {
     "algorithm": "sha256",
-    "sha256": "316cd207cc4cfa2bcdc53ee2941c7234613ab45c07dacb9a796eaae9b8765cf3"
+    "sha256": "4047ce95e5a5427e01e22f1012d42d9a6343da87dccb1b12848eff04a5ace91b"
   },
   "controller_readback_applicable": false,
   "files": [
@@ -71,7 +71,7 @@
     },
     {
       "path": "experiments/ur10e-variable-impedance/tests/test_direct_torque_live_v4.py",
-      "sha256": "8bcb304ae35874f5142ed74dd07c0fb10dd86d346cc0a63dcc43282c3f168c78"
+      "sha256": "c260922c2d1cc32761026325d5ff054ee5cbee4becbe0a7a1b50af5b4932c8b4"
     },
     {
       "path": "experiments/ur10e-variable-impedance/tests/test_tacdiffusion_core.py",
@@ -103,7 +103,7 @@
     },
     {
       "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/direct_torque_live_v4.py",
-      "sha256": "69b09734d48e949dadde5aeeb91e72b355f390d2e6796af098f38964599d330b"
+      "sha256": "11d75872206ae5ab5a9b17430c83985d0e08b0d417c7fee68a9ae3e5ddf5d6ad"
     },
     {
       "path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/eligibility.py",
