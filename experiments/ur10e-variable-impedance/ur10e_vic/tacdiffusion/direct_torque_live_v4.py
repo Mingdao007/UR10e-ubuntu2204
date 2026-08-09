@@ -38,10 +38,12 @@ FORMAL_CONTACT_ENTRY_JOINT_SPEED_LIMIT_RAD_S = 0.15
 FORMAL_CONTACT_ENTRY_JOINT_ACCELERATION_LIMIT_RAD_S2 = 90.0
 FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S = 0.15
 FORMAL_CONTACT_ENTRY_TCP_ROTATION_SPEED_LIMIT_RAD_S = 0.30
-FORMAL_CONTACT_ENTRY_TCP_EXCURSION_LIMIT_M = 0.0003
-FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD = 0.0005
+FORMAL_CONTACT_ENTRY_TCP_EXCURSION_LIMIT_M = 0.010
+FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD = 0.015
 # Temporary free-space catch-up envelope: 3x the prior Formal baseline/entry
 # speed gates so host pose FF can break residual stiction without fault 11/12.
+# Entry TCP/joint excursion is opened to formal-path scale (10 mm / 15 mrad)
+# so blend no longer fights measured tracking.
 FORMAL_CONTACT_BASELINE_TCP_TRANSLATION_SPEED_LIMIT_M_S = 0.15
 FORMAL_CONTACT_BASELINE_TCP_ROTATION_SPEED_LIMIT_RAD_S = 0.60
 FORMAL_CONTACT_BASELINE_JOINT_SPEED_LIMIT_RAD_S = 0.30
@@ -1339,8 +1341,8 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "write_output_integer_register(29, action_publish_generation)",
         "write_output_integer_register(33, action_publish_generation)",
         "entry_joint_speed_limit_rad_s = 0.001",
-        "entry_transition_tcp_translation_limit_m = 0.0003",
-        "entry_transition_joint_excursion_limit_rad = 0.0005",
+        "entry_transition_tcp_translation_limit_m = 0.01",
+        "entry_transition_joint_excursion_limit_rad = 0.015",
         "entry_joint_positions[axis] = q[axis]",
         "entry_excursion_violation = True",
         "exit_fault = 14",

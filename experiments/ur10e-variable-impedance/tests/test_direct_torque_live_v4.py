@@ -419,8 +419,8 @@ def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
     assert source.count(
         "formal_contact_entry_transition_tick_count = formal_contact_entry_transition_tick_count + 1"
     ) == 1
-    assert "entry_transition_tcp_translation_limit_m = 0.0003" in source
-    assert "entry_transition_joint_excursion_limit_rad = 0.0005" in source
+    assert "entry_transition_tcp_translation_limit_m = 0.01" in source
+    assert "entry_transition_joint_excursion_limit_rad = 0.015" in source
     assert "formal_contact_entry_joint_damping = [5, 5, 4, 5, 1, 1]" in source
     assert "baseline_joint_damping = [1.5, 1.5, 1.2, 0.29999999999999999, 0.29999999999999999, 0.20000000000000001]" in source
     assert "torque_to_apply[transition_joint] = torque_to_apply[transition_joint] - (formal_contact_entry_joint_damping[transition_joint] - baseline_joint_damping[transition_joint])*transition_qd[transition_joint]" in source

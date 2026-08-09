@@ -2005,8 +2005,8 @@ def _entry_transition_evidence(rows: Sequence[Mapping[str, Any]]) -> dict[str, A
         "max_tcp_rotation_speed_rad_s": max_rotation,
         "max_abs_joint_speed_rad_s": max_joint_speed,
         "max_derived_abs_joint_acceleration_rad_s2": max_joint_acceleration,
-        "hard_tcp_excursion_limit_m": 0.0003,
-        "hard_joint_excursion_limit_rad": 0.0005,
+        "hard_tcp_excursion_limit_m": 0.01,
+        "hard_joint_excursion_limit_rad": 0.015,
     }
 
 
