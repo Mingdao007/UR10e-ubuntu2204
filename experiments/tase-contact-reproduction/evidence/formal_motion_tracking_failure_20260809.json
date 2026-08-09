@@ -1,0 +1,49 @@
+{
+  "schema_version": "ur10e_tacdiffusion_formal_motion_failure/v1",
+  "lineage": "tacdiffusion_formal_v4",
+  "disposition": "campaign_retired_not_training_eligible",
+  "campaign_path": "experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_fixed_k/fixed_k_20260809T0905HKT_1c5fcc",
+  "ledger_attempts": 27,
+  "previously_labelled_eligible_episodes": 25,
+  "eligible_episodes_after_behavioral_revalidation": 0,
+  "representative_attempt": "attempt_0024_eligible_022",
+  "representative_metrics": {
+    "desired_excursion_m": 0.005035786904051208,
+    "actual_excursion_m": 0.000047722395876781966,
+    "excursion_ratio": 0.009476651174097555,
+    "desired_path_length_m": 0.012981721746702118,
+    "actual_path_length_m": 0.0006193730327513293,
+    "path_length_ratio": 0.04771116226618207,
+    "tracking_rmse_m": 0.002469064988309379,
+    "displacement_correlation": -0.07307111024075899,
+    "mean_normal_load_error_n": 2.6968831925667636,
+    "p95_normal_load_error_n": 3.2806578636591732
+  },
+  "owner_verified_root_causes": [
+    "formal_track_feedforward_was_normal_load_only",
+    "k600_at_5mm_error_provided_at_most_3n_tangential_feedback",
+    "ur_default_v2_formal_contact_left_residual_low_speed_deadband",
+    "control_law_updated_about_166p7hz_while_direct_torque_applied_about_500hz",
+    "entry_transition_counted_outer_updates_and_therefore_lasted_about_150ms",
+    "formal_eligibility_did_not_require_measured_path_or_load_quality"
+  ],
+  "shadow_advisory": {
+    "provider": "claude_cli",
+    "requested_model": "opus",
+    "canonical_model": "claude-opus-5",
+    "requested_effort": "xhigh",
+    "session_id": "1bb9ebb6-cc1d-4da7-bc6d-e23236535960",
+    "role": "read_only_hypothesis_generation",
+    "hardware_actions": false,
+    "source_edits": false
+  },
+  "required_before_new_campaign": [
+    "full_friction_motion_profile",
+    "bounded_tangential_velocity_error_and_breakaway_feedforward",
+    "exact_25_direct_torque_tick_entry_transition",
+    "measured_path_and_normal_load_eligibility",
+    "new_hash_bound_seven_family_no_contact_qualification"
+  ],
+  "ur_internal_ft_used": false,
+  "kunwei_only": true
+}

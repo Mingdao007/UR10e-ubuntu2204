@@ -35,7 +35,7 @@ phases:
    `speedl` plus frozen-deceleration `stopl` and exits. The fixed
    `sensor_delivery_watchdog_s=0.080`
    is latest TCP-batch delivery age, not per-frame host-arrival freshness. Hard
-   `20 N` / `2 Nm` guards, lease, episode, route, robot, Safety, protective and
+   `50 N` / `4 Nm` guards, lease, episode, route, robot, Safety, protective and
    joint checks also fail closed. Acquisition rows use a separate non-training
    schema and are never Direct Torque protocol evidence.
 2. `HANDOFF -> SETTLE -> TRACK`: after the host latch, velocity control is
@@ -49,18 +49,35 @@ phases:
    Direct Torque cannot start without that identity-bound handoff. Its first
    desired pose is the fresh actual handoff pose and its first feedforward is
    zero; the existing bounded settle ramp then reaches tracking. `TRACK` uses
-   exact `K=(600,600,600,30,30,30)`.
+   exact `K=(600,600,600,30,30,30)`, full controller friction scales, and the
+   versioned `formal_motion_feedforward_v1`: `D*v_desired` completes the
+   receiver's `-D*v_actual` velocity-error damping and a smooth norm-bounded
+   `2 N` tangential breakaway term crosses the low-speed deadband. The frozen
+   50/4 component/norm caps and 100 N/s / 10 Nm/s action slew remain final.
+   The one-shot entry transition is counted by the 500 Hz `direct_torque`
+   application thread, so ticks 1--25 are exactly 50 ms and tick 26 restores
+   the baseline damping and rate envelope.
    The Direct Torque input seqlock reads its closing sequence only after the
    complete integer/float payload. A transient incoherent snapshot holds the
    previous applied command for one controller tick; it never becomes a new
    action, and persistent incoherence still faults at the unchanged `80 ms`
    heartbeat deadline.
-   Formal post-run composition retains the robot's real 500 Hz timestamp grid,
+Formal post-run composition retains the robot's real 500 Hz timestamp grid,
    including integer-tick gaps for explicitly rejected torn rows.  Every kept
    tick is clock-bounded after its Kunwei batch arrival and at or before that
    row's captured host-monotonic processing time within a recorded `0.1 ms`
    clock-fit tolerance; a larger non-intersection or any causal-alignment fault
-   makes the attempt ineligible.
+makes the attempt ineligible.
+
+Formal eligibility also reconstructs measured TCP pose from the sealed 84D
+`desired - actual` tracking-error channels. A moving command is insufficient:
+the measured path must cover at least 1.8 mm and 60% of desired excursion,
+have bounded path-length ratio and 1.5 mm RMSE, keep peak/tail tracking error
+within 1.5 mm over the final 20% of the path, correlate at least 0.80 with the
+reference, and keep mean/P95 Kunwei and applied normal-load errors versus the
+episode planned target (3/5/8 N) within 1/2 N. The torque
+application rate must remain 450--550 Hz; the currently measured outer
+control-law update rate is declared separately and must remain 150--200 Hz.
 
 No sensor, guard, protective-stop, Safety, joint, or route fault performs an
 automatic retract or return. A no-contact search exhaustion is a separate

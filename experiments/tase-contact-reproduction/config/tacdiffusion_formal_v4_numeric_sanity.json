@@ -88,11 +88,61 @@
     "torque_limit_nm": 4.0
   },
   "lineage": "tacdiffusion_formal_v4",
+  "motion_authority": {
+    "completed_velocity_error_damping": true,
+    "coulomb_scale": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "feedforward": {
+      "breakaway_smoothing_speed_m_s": 0.0005,
+      "damping_ratio": 1.0,
+      "frame_id": "base",
+      "profile_id": "formal_motion_feedforward_v1",
+      "schema_version": "ur10e_formal_motion_feedforward/v1",
+      "tangential_breakaway_force_n": 2.0,
+      "translational_virtual_mass_kg": 2.0,
+      "velocity_error_damping": true
+    },
+    "friction_profile": "ur_full_v3_formal_motion",
+    "host_velocity_reference_term": "plus_D_times_desired_twist",
+    "receiver_velocity_feedback_term": "-D_times_actual_twist",
+    "viscous_scale": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
   "offline_only": true,
   "schema_version": "ur10e_tacdiffusion_formal_v4_numeric_sanity/v1",
+  "tracking_quality_contract": {
+    "maximum_mean_normal_load_error_n": 1.0,
+    "maximum_p95_normal_load_error_n": 2.0,
+    "maximum_path_length_ratio": 2.0,
+    "maximum_tail_tracking_error_m": 0.0015,
+    "maximum_tail_tracking_rmse_m": 0.0015,
+    "maximum_tracking_error_m": 0.0015,
+    "maximum_tracking_rmse_m": 0.0015,
+    "minimum_actual_excursion_m": 0.0018,
+    "minimum_desired_excursion_m": 0.0025,
+    "minimum_displacement_correlation": 0.8,
+    "minimum_excursion_ratio": 0.6,
+    "minimum_path_length_ratio": 0.5,
+    "minimum_tail_path_length_ratio": 0.5,
+    "schema_version": "ur10e_tacdiffusion_formal_tracking_quality/v2",
+    "tail_fraction": 0.2
+  },
   "transition_invariants": {
     "acquisition_training": false,
     "dwell_to_handoff": "fresh_stationary_dwell_complete",
+    "entry_transition_duration_s": 0.05,
     "entry_transition_enabled_ticks": 25,
     "entry_transition_hard_joint_excursion_limit_rad": 0.0005,
     "entry_transition_hard_tcp_excursion_limit_m": 0.0003,
@@ -111,6 +161,7 @@
     "entry_transition_profile": "formal_contact_entry_transition_v1",
     "entry_transition_tcp_rotation_speed_limit_rad_s": 0.1,
     "entry_transition_tcp_translation_speed_limit_m_s": 0.05,
+    "entry_transition_tick_source": "direct_torque_application_500hz",
     "fault_policy": "fail_closed_no_automatic_return",
     "formal_training_window": "TRACK_plus_STATE_TORQUE_only",
     "handoff_to_direct_torque": "successful_identity_bound_handoff_only",

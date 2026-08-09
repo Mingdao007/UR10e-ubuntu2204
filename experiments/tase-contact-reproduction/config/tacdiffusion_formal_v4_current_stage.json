@@ -36,28 +36,37 @@
   "controller_readback_claimed": false,
   "controller_target": "secondary_client://192.168.1.18:30002",
   "controller_upload_applicable": false,
-  "current_stage_id": "formal_v4_fixed_k_campaign",
+  "current_stage_id": "formal_v4_no_contact_qualification",
   "formal_eligibility_window": {
     "acquisition_included": false,
     "phase": "TRACK",
     "receiver_state": "STATE_TORQUE"
   },
-  "invalidated_qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0656HKT_bcefb4/qualification_summary.json",
-  "invalidated_qualification_summary_sha256": "64aeb92cb4455cae9e49107edf3c9575ff12b0be47024f9c1b1cf04a978fc00d",
+  "invalidated_campaign": "experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_fixed_k/fixed_k_20260809T0905HKT_1c5fcc",
+  "invalidated_campaign_previously_labelled_eligible_count": 25,
+  "invalidation_evidence": "experiments/tase-contact-reproduction/evidence/formal_motion_tracking_failure_20260809.json",
   "kunwei_only": true,
   "lineage": "tacdiffusion_formal_v4",
   "loaded_tp_executed": false,
   "model_active": false,
-  "qualification_invalidation_reason": "source_changed_after_contact_acceptance_repair",
-  "qualification_summary": "/home/andy/.codex-worktrees/tacdiffusion-formal-v4-20260808/experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0855HKT_1c5fcc_retry/qualification_summary.json",
-  "qualification_summary_sha256": "8fb68f3a5d81289ceaa388c8dfa9fc3ec1bdd3f846c6cb6dc44946862164f705",
+  "qualification_invalidation_reason": "accepted_protocol_only_qualification_did_not_prove_measured_path_tracking",
   "route": "remote_secondary_client_direct_torque",
   "schema_version": "ur10e_tacdiffusion_formal_current_stage/v1",
   "sensor_target": "tcp_raw://192.168.50.25:5152",
   "shadow_only": true,
-  "source_closure_file_sha256": "f650c7873830a901db7d81a4052299bb92e982d2ec8704cdf4848a138df9b58e",
+  "source_closure_file_sha256": "9c6766f3cc67e4241c7bac877b428bfe14af3208a0c5e16f3075ce613939d94d",
   "source_closure_path": "experiments/tase-contact-reproduction/config/tacdiffusion_formal_v4_offline_closure.json",
-  "source_content_sha256": "1c5fcc9562a7d8f6a5dd728befe028c82afb377a07aad5bfe69687c04e93f0f1",
+  "source_content_sha256": "a740f39437bbcdcad89c83c2386525104a7338ce6fd1f29adacd3fac64b1c76e",
+  "superseded_qualification_summaries": [
+    {
+      "path": "experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0656HKT_bcefb4/qualification_summary.json",
+      "sha256": "64aeb92cb4455cae9e49107edf3c9575ff12b0be47024f9c1b1cf04a978fc00d"
+    },
+    {
+      "path": "experiments/tase-contact-reproduction/runs/tacdiffusion_formal_v4_qualification/seven_no_contact_20260809T0855HKT_1c5fcc_retry/qualification_summary.json",
+      "sha256": "8fb68f3a5d81289ceaa388c8dfa9fc3ec1bdd3f846c6cb6dc44946862164f705"
+    }
+  ],
   "tp_package_applicable": false,
   "ur_internal_ft_used": false
 }

@@ -346,11 +346,11 @@ def test_receiver_contact_guard_profile_is_explicit_50n_4nm() -> None:
     )
     with pytest.raises(
         ValueError,
-        match="model-inactive expert feedforward requires formal handoff",
+        match="model-inactive expert feedforward requires a typed full-friction",
     ):
         build_live_receiver_source(
             tube,
-            friction_profile="ur_default_v2_formal_contact",
+            friction_profile="ur_full_v3_formal_motion",
             guard_force_limit_n=50.0,
             guard_torque_limit_nm=4.0,
             model_inactive_expert_feedforward_allowed=True,
@@ -362,6 +362,31 @@ def test_receiver_contact_guard_profile_is_explicit_50n_4nm() -> None:
     )
     with pytest.raises(ValueError, match="requires formal contact identity"):
         parse_live_receiver_source(tampered)
+
+
+def test_no_contact_full_motion_profile_keeps_6n_0p5nm_guard() -> None:
+    tube = LiveTubeContract(
+        center_base_m=(0.4, 0.1, 0.03),
+        anchor_pose_base=(0.4, 0.1, 0.03, 3.14, 0.0, 0.0),
+        u_axis_base=(1.0, 0.0, 0.0),
+        v_axis_base=(0.0, 1.0, 0.0),
+        safe_u_half_width_m=0.01,
+        safe_v_half_width_m=0.01,
+        normal_half_width_m=0.002,
+        orientation_tolerance_rad=0.05,
+    )
+    source = build_live_receiver_source(
+        tube,
+        friction_profile="ur_full_v3_formal_motion",
+        guard_force_limit_n=6.0,
+        guard_torque_limit_nm=0.5,
+        model_inactive_expert_feedforward_allowed=True,
+    )
+    parsed = parse_live_receiver_source(source)
+    assert parsed.friction_profile == "ur_full_v3_formal_motion"
+    assert parsed.formal_handoff_required is False
+    assert parsed.guard_force_limit_n == 6.0
+    assert parsed.guard_torque_limit_nm == 0.5
 
 
 def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
@@ -377,7 +402,7 @@ def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
     )
     source = build_live_receiver_source(
         tube,
-        friction_profile="ur_default_v2_formal_contact",
+        friction_profile="ur_full_v3_formal_motion",
         guard_force_limit_n=50.0,
         guard_torque_limit_nm=4.0,
         formal_handoff_anchor_pose_base=tube.anchor_pose_base,
@@ -397,12 +422,36 @@ def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
     assert "entry_transition_tcp_translation_limit_m = 0.0003" in source
     assert "entry_transition_joint_excursion_limit_rad = 0.0005" in source
     assert "formal_contact_entry_joint_damping = [5, 5, 4, 5, 1, 1]" in source
-    assert "selected_joint_damping = formal_contact_entry_joint_damping[joint]" in source
-    assert "tau[joint] = coriolis[joint] - selected_joint_damping*qd[joint]" in source
+    assert "baseline_joint_damping = [1.5, 1.5, 1.2, 0.29999999999999999, 0.29999999999999999, 0.20000000000000001]" in source
+    assert "torque_to_apply[transition_joint] = torque_to_apply[transition_joint] - (formal_contact_entry_joint_damping[transition_joint] - baseline_joint_damping[transition_joint])*transition_qd[transition_joint]" in source
+    assert "tau[joint] = coriolis[joint] - joint_damping[joint]*qd[joint]" in source
+    torque_thread_start = source.index("thread torqueThread():")
+    program_start = source.index('receiver_schema = "ur10e_direct_torque_receiver/v4"')
+    torque_thread_source = source[torque_thread_start:program_start]
+    assert "local transition_active = formal_contact_entry_transition_tick_count < formal_contact_entry_transition_ticks" in torque_thread_source
+    assert "selected_tcp_translation_speed_limit_m_s = formal_contact_baseline_tcp_translation_speed_limit_m_s" in torque_thread_source
+    assert "selected_tcp_translation_speed_limit_m_s = formal_contact_entry_tcp_translation_speed_limit_m_s" in torque_thread_source
+    assert "formal_contact_baseline_tcp_translation_speed_limit_m_s = 0.01" in source
+    assert "formal_contact_baseline_tcp_rotation_speed_limit_rad_s = 0.02" in source
+    assert "formal_contact_baseline_joint_speed_limit_rad_s = 0.02" in source
+    assert "formal_contact_baseline_joint_acceleration_limit_rad_s2 = 5.0" in source
+    assert torque_thread_source.count(
+        "direct_torque(torque_to_apply, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
+    ) == 1
+
+    transition = formal_contact_entry_rate_limits(torque_thread_tick_count=25, enabled=True)
+    assert transition.transition_active is True
+    assert transition.tcp_translation_m_s == 0.05
+    baseline = formal_contact_entry_rate_limits(torque_thread_tick_count=26, enabled=True)
+    assert baseline.transition_active is False
+    assert baseline.tcp_translation_m_s == 0.01
+    assert baseline.tcp_rotation_rad_s == 0.02
+    assert baseline.joint_speed_rad_s == 0.02
+    assert baseline.joint_acceleration_rad_s2 == 5.0
 
     tampered = source.replace(
-        "local formal_contact_entry_transition_ticks = 25",
-        "local formal_contact_entry_transition_ticks = 26",
+        "formal_contact_entry_transition_ticks = 25",
+        "formal_contact_entry_transition_ticks = 26",
         1,
     )
     with pytest.raises(ValueError, match="transition source identity mismatch"):
@@ -416,6 +465,14 @@ def test_formal_contact_entry_transition_is_one_shot_and_tick_bounded() -> None:
     with pytest.raises(ValueError, match="transition source identity mismatch"):
         parse_live_receiver_source(tampered_damping)
 
+    tampered_baseline = source.replace(
+        "selected_tcp_translation_speed_limit_m_s = formal_contact_baseline_tcp_translation_speed_limit_m_s",
+        "selected_tcp_translation_speed_limit_m_s = formal_contact_entry_tcp_translation_speed_limit_m_s",
+        1,
+    )
+    with pytest.raises(ValueError, match="missing contract token|transition source identity mismatch"):
+        parse_live_receiver_source(tampered_baseline)
+
 
 def test_formal_contact_entry_damping_restores_baseline_at_tick_26() -> None:
     from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (
@@ -423,13 +480,13 @@ def test_formal_contact_entry_damping_restores_baseline_at_tick_26() -> None:
     )
 
     assert formal_contact_entry_joint_damping(
-        control_update_count=1, enabled=True
+        torque_thread_tick_count=1, enabled=True
     ) == (5.0, 5.0, 4.0, 5.0, 1.0, 1.0)
     assert formal_contact_entry_joint_damping(
-        control_update_count=25, enabled=True
+        torque_thread_tick_count=25, enabled=True
     ) == (5.0, 5.0, 4.0, 5.0, 1.0, 1.0)
     assert formal_contact_entry_joint_damping(
-        control_update_count=26, enabled=True
+        torque_thread_tick_count=26, enabled=True
     ) == (1.5, 1.5, 1.2, 0.3, 0.3, 0.2)
 
 
@@ -440,20 +497,20 @@ def test_fault11_recorded_peak_replay_uses_transition_then_restores_baseline() -
         "joint_speed_rad_s": 0.02636725641787052,
         "joint_acceleration_rad_s2": 11.506,
     }
-    transition = formal_contact_entry_rate_limits(control_update_count=4, enabled=True)
+    transition = formal_contact_entry_rate_limits(torque_thread_tick_count=4, enabled=True)
     assert transition.transition_active is True
     assert recorded["tcp_translation_m_s"] < transition.tcp_translation_m_s
     assert recorded["tcp_rotation_rad_s"] < transition.tcp_rotation_rad_s
     assert recorded["joint_speed_rad_s"] < transition.joint_speed_rad_s
     assert recorded["joint_acceleration_rad_s2"] < transition.joint_acceleration_rad_s2
 
-    baseline = formal_contact_entry_rate_limits(control_update_count=26, enabled=True)
+    baseline = formal_contact_entry_rate_limits(torque_thread_tick_count=26, enabled=True)
     assert baseline.transition_active is False
     assert recorded["tcp_rotation_rad_s"] > baseline.tcp_rotation_rad_s
     assert recorded["joint_speed_rad_s"] > baseline.joint_speed_rad_s
     assert recorded["joint_acceleration_rad_s2"] > baseline.joint_acceleration_rad_s2
     with pytest.raises(ValueError, match="positive"):
-        formal_contact_entry_rate_limits(control_update_count=0, enabled=True)
+        formal_contact_entry_rate_limits(torque_thread_tick_count=0, enabled=True)
 
 
 def test_entry_velocity_filter_rejects_drift_but_accepts_bounded_57hz_noise() -> None:

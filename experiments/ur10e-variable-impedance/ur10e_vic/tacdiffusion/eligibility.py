@@ -13,7 +13,6 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from .contracts import (
     DYNAMICS_AUTHORITATIVE_TORQUE_SOURCE,
-    FORMAL_EPISODE_MANIFEST_SCHEMA_V1,
     FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX,
     FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N,
     FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
@@ -30,6 +29,7 @@ from .episode_recorder import (
     EPISODE_FRAME_SCHEMA_V4,
     compute_v3_row_sha256,
 )
+from .formal_tracking_quality import evaluate_formal_tracking_quality
 
 
 ELIGIBILITY_SCHEMA = "ur10e_tacdiffusion_training_eligibility/v2"
@@ -37,7 +37,7 @@ _MISSING = object()
 HOST_BATCH_WATCHDOG_S = 0.080
 MAX_UNSEALED_TAIL = 9
 ACTION_DIMENSION = 12
-FORMAL_ELIGIBILITY_SCHEMA = "ur10e_tacdiffusion_formal_training_eligibility/v1"
+FORMAL_ELIGIBILITY_SCHEMA = "ur10e_tacdiffusion_formal_training_eligibility/v3"
 
 
 def _value(row: object, name: str, default: Any = None) -> Any:
@@ -612,6 +612,7 @@ class FormalEligibilityDecision:
     reasons: tuple[str, ...]
     row_count: int
     first_live_shadow: bool
+    tracking_quality: Mapping[str, Any] = field(default_factory=dict)
     schema: str = FORMAL_ELIGIBILITY_SCHEMA
 
     @property
@@ -634,6 +635,7 @@ class FormalEligibilityDecision:
             "row_count": self.row_count,
             "predicates": dict(self.predicates),
             "reasons": list(self.reasons),
+            "tracking_quality": dict(self.tracking_quality),
         }
 
 
@@ -737,6 +739,25 @@ class FormalEligibilityValidator:
         if manifest_payload is None and payloads and payloads[0] is not None:
             manifest_payload = payloads[0].get("formal_manifest")
         reasons: list[str] = []
+        planned_target_load_n: float | None = None
+        if isinstance(manifest_payload, Mapping):
+            try:
+                planned_target_load_n = float(manifest_payload.get("target_load_n"))
+            except (TypeError, ValueError):
+                planned_target_load_n = None
+        try:
+            if planned_target_load_n is None:
+                raise ValueError("planned_target_load_n_missing")
+            tracking_quality = evaluate_formal_tracking_quality(
+                rows, planned_target_load_n=planned_target_load_n
+            )
+        except (TypeError, ValueError, KeyError):
+            tracking_quality = {
+                "schema_version": "ur10e_tacdiffusion_formal_tracking_quality/v2",
+                "predicates": {},
+                "passed": False,
+                "error": "formal_tracking_quality_unavailable",
+            }
         predicates: dict[str, bool] = {
             "non_empty": bool(rows),
             "all_rows_are_v4": bool(rows) and all(
@@ -790,6 +811,7 @@ class FormalEligibilityValidator:
                 )
                 for payload in payloads
             ),
+            "complete_measured_path_and_load": tracking_quality.get("passed") is True,
         }
         previous_sequence = -1
         previous_time = -math.inf
@@ -855,6 +877,7 @@ class FormalEligibilityValidator:
             reasons=tuple(dict.fromkeys(reasons)),
             row_count=len(rows),
             first_live_shadow=first_live_shadow,
+            tracking_quality=tracking_quality,
         )
 
     def write_receipt(

@@ -66,6 +66,9 @@ from ur10e_vic.tacdiffusion.governance import (
 )
 from ur10e_vic.tacdiffusion.formal_timing import FormalModelTimingEvidence
 from ur10e_vic.tacdiffusion.formal_trajectory import build_formal_trajectory_timeline
+from ur10e_vic.tacdiffusion.formal_tracking_quality import (
+    evaluate_formal_tracking_quality,
+)
 from ur10e_vic.tacdiffusion.formal_dynamics import (
     FormalDynamicsConformanceV1,
     ProductionDynamicsRuntimeV1,
@@ -149,6 +152,12 @@ def _formal_row() -> tuple[EpisodeFrameV4, FormalEpisodeManifestV1]:
         contact_guard_profile=guard,
         rtde_output_fields=("timestamp", "actual_current_as_torque"),
         source_hashes={"manifest": _SHA_C},
+        target_load_n=5.0,
+        campaign_kind="fixed_k",
+        campaign_id="fixed_k_formal_v4",
+        trajectory_family="circle",
+        episode_index=0,
+        impedance_identity=FixedKExpertV1().as_json(),
         expert_action_limits={
             "schema_version": FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
             "frame_id": "tool0_tcp",
@@ -300,6 +309,12 @@ def test_kunwei_authority_guard_profiles_and_formal_recipe_reject_alternates() -
         contact_guard_profile=ContactGuardProfileV1.no_contact(authority=authority),
         rtde_output_fields=("timestamp", "actual_current_as_torque"),
         source_hashes={"manifest": _SHA_A},
+        target_load_n=5.0,
+        campaign_kind="fixed_k",
+        campaign_id="fixed_k_formal_v4",
+        trajectory_family="circle",
+        episode_index=0,
+        impedance_identity=FixedKExpertV1().as_json(),
     ).as_json()
     manifest_payload["rtde_output_fields"] = ["timestamp", "actual_TCP_force"]
     with pytest.raises(ValueError):
@@ -411,7 +426,8 @@ def test_formal_v4_row_receipts_seal_and_legacy_rows_never_qualify(tmp_path: Pat
         formal_manifest=manifest,
         first_live_shadow=False,
     )
-    assert decision.formal_eligible is True
+    assert decision.formal_eligible is False
+    assert decision.predicates["complete_measured_path_and_load"] is False
     receipt_path = tmp_path / "formal_eligibility.json"
     FormalEligibilityValidator().write_receipt(
         receipt_path, decision, recorder_health=_healthy_recorder()
@@ -425,6 +441,143 @@ def test_formal_v4_row_receipts_seal_and_legacy_rows_never_qualify(tmp_path: Pat
     )
     assert legacy.formal_eligible is False
     assert legacy.predicates["all_rows_are_v4"] is False
+
+
+def test_formal_tracking_quality_rejects_static_hold_and_accepts_complete_path() -> None:
+    moving = []
+    static = []
+    count = 101
+    for index in range(count):
+        theta = 2.0 * np.pi * index / (count - 1)
+        desired = np.asarray((0.003 * (np.cos(theta) - 1.0), 0.003 * np.sin(theta), 0.0))
+        pose = tuple(desired) + (0.0, 0.0, 0.0)
+        base_observation = np.zeros(84, dtype=float)
+        base_observation[2] = 5.0
+        action = (0.0, 0.0, -5.0, 0.0, 0.0, 0.0) + (600.0, 600.0, 600.0, 30.0, 30.0, 30.0)
+        moving.append(
+            {
+                "observation_84d": tuple(base_observation),
+                "desired_pose_6d": pose,
+                "expert_action_12d": action,
+                "applied_action_12d": action,
+            }
+        )
+        static_observation = base_observation.copy()
+        static_observation[36:39] = desired
+        static.append(
+            {
+                "observation_84d": tuple(static_observation),
+                "desired_pose_6d": pose,
+                "expert_action_12d": action,
+                "applied_action_12d": action,
+            }
+        )
+    accepted = evaluate_formal_tracking_quality(moving, planned_target_load_n=5.0)
+    rejected = evaluate_formal_tracking_quality(static, planned_target_load_n=5.0)
+    assert accepted["passed"] is True
+    assert accepted["schema_version"].endswith("/v2")
+    assert accepted["metrics"]["actual_excursion_m"] == pytest.approx(0.006)
+    assert rejected["passed"] is False
+    assert rejected["predicates"]["actual_path_moved"] is False
+
+
+def test_formal_tracking_quality_rejects_freeze_tail_last_20_percent() -> None:
+    count = 101
+    freeze_start = int(0.8 * (count - 1))
+    rows = []
+    frozen_xy = None
+    for index in range(count):
+        theta = 2.0 * np.pi * index / (count - 1)
+        desired = np.asarray((0.003 * (np.cos(theta) - 1.0), 0.003 * np.sin(theta), 0.0))
+        if index <= freeze_start:
+            actual = desired.copy()
+            frozen_xy = desired.copy()
+        else:
+            actual = frozen_xy
+        obs = np.zeros(84, dtype=float)
+        obs[2] = 5.0
+        obs[36:39] = desired - actual
+        action = (0.0, 0.0, -5.0, 0.0, 0.0, 0.0) + (600.0, 600.0, 600.0, 30.0, 30.0, 30.0)
+        rows.append(
+            {
+                "observation_84d": tuple(obs),
+                "desired_pose_6d": tuple(desired) + (0.0, 0.0, 0.0),
+                "expert_action_12d": action,
+                "applied_action_12d": action,
+            }
+        )
+    result = evaluate_formal_tracking_quality(rows, planned_target_load_n=5.0)
+    assert result["passed"] is False
+    assert result["schema_version"].endswith("/v2")
+    assert result["metrics"]["tracking_rmse_m"] < 0.0015
+    assert result["metrics"]["path_length_ratio"] == pytest.approx(0.8, abs=0.05)
+    assert result["metrics"]["tracking_error_m"] > 0.0015
+    assert result["predicates"]["tracking_error_bounded"] is False
+
+
+def test_formal_tracking_quality_rejects_late_freeze_via_tail_path_ratio() -> None:
+    # Radius chosen so an 80% freeze keeps peak error under 1.5 mm while the
+    # final 20% of the actual path is stationary, so only the tail path-ratio
+    # gate must reject.
+    count = 101
+    freeze_start = int(0.8 * (count - 1))
+    radius = 0.00125
+    rows = []
+    frozen_xy = None
+    for index in range(count):
+        theta = 2.0 * np.pi * index / (count - 1)
+        desired = np.asarray((radius * (np.cos(theta) - 1.0), radius * np.sin(theta), 0.0))
+        if index <= freeze_start:
+            actual = desired.copy()
+            frozen_xy = desired.copy()
+        else:
+            actual = frozen_xy
+        obs = np.zeros(84, dtype=float)
+        obs[2] = 5.0
+        obs[36:39] = desired - actual
+        action = (0.0, 0.0, -5.0, 0.0, 0.0, 0.0) + (600.0, 600.0, 600.0, 30.0, 30.0, 30.0)
+        rows.append(
+            {
+                "observation_84d": tuple(obs),
+                "desired_pose_6d": tuple(desired) + (0.0, 0.0, 0.0),
+                "expert_action_12d": action,
+                "applied_action_12d": action,
+            }
+        )
+    result = evaluate_formal_tracking_quality(rows, planned_target_load_n=5.0)
+    assert result["passed"] is False
+    assert result["metrics"]["tracking_error_m"] <= 0.0015
+    assert result["predicates"]["tracking_error_bounded"] is True
+    assert result["predicates"]["tail_path_length_ratio_ok"] is False
+
+
+@pytest.mark.parametrize("planned", (3.0, 5.0, 8.0))
+def test_formal_tracking_quality_rejects_zero_applied_and_kunwei_vs_planned(
+    planned: float,
+) -> None:
+    count = 101
+    rows = []
+    zero_action = (0.0,) * 12
+    for index in range(count):
+        theta = 2.0 * np.pi * index / (count - 1)
+        desired = np.asarray((0.003 * (np.cos(theta) - 1.0), 0.003 * np.sin(theta), 0.0))
+        obs = np.zeros(84, dtype=float)
+        rows.append(
+            {
+                "observation_84d": tuple(obs),
+                "desired_pose_6d": tuple(desired) + (0.0, 0.0, 0.0),
+                "expert_action_12d": zero_action,
+                "applied_action_12d": zero_action,
+            }
+        )
+    result = evaluate_formal_tracking_quality(rows, planned_target_load_n=planned)
+    assert result["passed"] is False
+    assert result["predicates"]["desired_path_complete"] is True
+    assert result["predicates"]["actual_path_moved"] is True
+    assert result["predicates"]["mean_kunwei_vs_planned_load_bounded"] is False
+    assert result["predicates"]["mean_applied_vs_planned_load_bounded"] is False
+    assert result["metrics"]["mean_kunwei_vs_planned_load_error_n"] == pytest.approx(planned)
+    assert result["metrics"]["mean_applied_vs_planned_load_error_n"] == pytest.approx(planned)
 
 
 def test_formal_v4_production_receipt_is_bound_to_base_dynamics_receipt() -> None:

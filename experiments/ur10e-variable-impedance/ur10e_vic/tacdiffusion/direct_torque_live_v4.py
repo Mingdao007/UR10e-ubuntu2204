@@ -40,6 +40,10 @@ FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S = 0.05
 FORMAL_CONTACT_ENTRY_TCP_ROTATION_SPEED_LIMIT_RAD_S = 0.10
 FORMAL_CONTACT_ENTRY_TCP_EXCURSION_LIMIT_M = 0.0003
 FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD = 0.0005
+FORMAL_CONTACT_BASELINE_TCP_TRANSLATION_SPEED_LIMIT_M_S = 0.01
+FORMAL_CONTACT_BASELINE_TCP_ROTATION_SPEED_LIMIT_RAD_S = 0.02
+FORMAL_CONTACT_BASELINE_JOINT_SPEED_LIMIT_RAD_S = 0.02
+FORMAL_CONTACT_BASELINE_JOINT_ACCELERATION_LIMIT_RAD_S2 = 5.0
 FORMAL_CONTACT_BASELINE_JOINT_DAMPING = (1.5, 1.5, 1.2, 0.3, 0.3, 0.2)
 FORMAL_CONTACT_ENTRY_JOINT_DAMPING = (5.0, 5.0, 4.0, 5.0, 1.0, 1.0)
 ORIENTATION_POLICY_HOLD_ENTRY = "hold_entry_orientation"
@@ -51,6 +55,7 @@ ORIENTATION_INTERPOLATION_POLICIES = (
 FRICTION_PROFILE_ZERO_ISOLATION = "zero_isolation"
 FRICTION_PROFILE_UR_DEFAULT_V2_DIAGNOSTIC = "ur_default_v2_diagnostic"
 FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT = "ur_default_v2_formal_contact"
+FRICTION_PROFILE_UR_FULL_V3_FORMAL_MOTION = "ur_full_v3_formal_motion"
 FRICTION_PROFILES = {
     FRICTION_PROFILE_ZERO_ISOLATION: (
         (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
@@ -68,6 +73,14 @@ FRICTION_PROFILES = {
     FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT: (
         (0.9, 0.9, 0.8, 0.9, 0.9, 0.9),
         (0.8, 0.8, 0.7, 0.8, 0.8, 0.8),
+    ),
+    # Formal path tracking needs the controlled joints' complete controller
+    # friction model.  The earlier 0.8/0.7 residual profile was sufficient for
+    # contact acquisition but left a repeatable tangential deadband: a 3--5 mm
+    # reference produced only about 0.1 mm of measured TCP motion.
+    FRICTION_PROFILE_UR_FULL_V3_FORMAL_MOTION: (
+        (1.0, 1.0, 1.0, 1.0, 1.0, 1.0),
+        (1.0, 1.0, 1.0, 1.0, 1.0, 1.0),
     ),
 }
 
@@ -277,14 +290,14 @@ class EntryTransitionRateLimits:
 
 
 def formal_contact_entry_rate_limits(
-    *, control_update_count: int, enabled: bool
+    *, torque_thread_tick_count: int, enabled: bool
 ) -> EntryTransitionRateLimits:
-    """Deterministic oracle for the one-shot controller-tick rate envelope."""
+    """Deterministic oracle for the one-shot 500 Hz torque-tick envelope."""
 
-    if int(control_update_count) < 1:
-        raise ValueError("control update count must be positive")
+    if int(torque_thread_tick_count) < 1:
+        raise ValueError("torque thread tick count must be positive")
     transition_active = bool(
-        enabled and int(control_update_count) <= FORMAL_CONTACT_ENTRY_TRANSITION_TICKS
+        enabled and int(torque_thread_tick_count) <= FORMAL_CONTACT_ENTRY_TRANSITION_TICKS
     )
     if transition_active:
         return EntryTransitionRateLimits(
@@ -294,17 +307,23 @@ def formal_contact_entry_rate_limits(
             FORMAL_CONTACT_ENTRY_JOINT_ACCELERATION_LIMIT_RAD_S2,
             True,
         )
-    return EntryTransitionRateLimits(0.01, 0.02, 0.02, 5.0, False)
+    return EntryTransitionRateLimits(
+        FORMAL_CONTACT_BASELINE_TCP_TRANSLATION_SPEED_LIMIT_M_S,
+        FORMAL_CONTACT_BASELINE_TCP_ROTATION_SPEED_LIMIT_RAD_S,
+        FORMAL_CONTACT_BASELINE_JOINT_SPEED_LIMIT_RAD_S,
+        FORMAL_CONTACT_BASELINE_JOINT_ACCELERATION_LIMIT_RAD_S2,
+        False,
+    )
 
 
 def formal_contact_entry_joint_damping(
-    *, control_update_count: int, enabled: bool
+    *, torque_thread_tick_count: int, enabled: bool
 ) -> tuple[float, ...]:
-    """Return transition damping for ticks 1-25 and baseline from tick 26."""
+    """Return transition damping for torque ticks 1-25 and baseline at 26."""
 
-    if int(control_update_count) < 1:
-        raise ValueError("control update count must be positive")
-    if enabled and int(control_update_count) <= FORMAL_CONTACT_ENTRY_TRANSITION_TICKS:
+    if int(torque_thread_tick_count) < 1:
+        raise ValueError("torque thread tick count must be positive")
+    if enabled and int(torque_thread_tick_count) <= FORMAL_CONTACT_ENTRY_TRANSITION_TICKS:
         return FORMAL_CONTACT_ENTRY_JOINT_DAMPING
     return FORMAL_CONTACT_BASELINE_JOINT_DAMPING
 
@@ -397,21 +416,18 @@ def build_live_receiver_source(
     guard_pair = (float(guard_force_limit_n), float(guard_torque_limit_nm))
     if guard_pair not in ((6.0, 0.5), (50.0, 4.0)):
         raise ValueError("receiver guard profile must be no-contact 6/0.5 or contact 50/4")
-    if (
-        friction_profile == FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
-        and guard_pair != (50.0, 4.0)
-    ):
-        raise ValueError("formal contact friction profile requires contact 50/4 guard")
     formal_handoff_required = formal_handoff_anchor_pose_base is not None
     if not isinstance(model_inactive_expert_feedforward_allowed, bool):
         raise TypeError("model-inactive expert feedforward capability must be boolean")
-    if model_inactive_expert_feedforward_allowed and (
-        not formal_handoff_required
-        or friction_profile != FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
-        or guard_pair != (50.0, 4.0)
+    if model_inactive_expert_feedforward_allowed and not (
+        friction_profile == FRICTION_PROFILE_UR_FULL_V3_FORMAL_MOTION
+        and (
+            (formal_handoff_required and guard_pair == (50.0, 4.0))
+            or (not formal_handoff_required and guard_pair == (6.0, 0.5))
+        )
     ):
         raise ValueError(
-            "model-inactive expert feedforward requires formal handoff and contact guard"
+            "model-inactive expert feedforward requires a typed full-friction contact or no-contact route"
         )
     if formal_contact_entry_transition_profile not in (
         None,
@@ -424,7 +440,7 @@ def build_live_receiver_source(
     )
     if formal_contact_entry_transition_enabled and (
         not formal_handoff_required
-        or friction_profile != FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
+        or friction_profile != FRICTION_PROFILE_UR_FULL_V3_FORMAL_MOTION
         or guard_pair != (50.0, 4.0)
         or not model_inactive_expert_feedforward_allowed
     ):
@@ -485,6 +501,24 @@ def build_live_receiver_source(
   torque_thread_last_control_update_count = -1
   torque_thread_stale_ticks = 0
   torque_thread_watchdog_fault = False
+  formal_contact_entry_transition_enabled = {str(formal_contact_entry_transition_enabled)}
+  formal_contact_entry_transition_ticks = {FORMAL_CONTACT_ENTRY_TRANSITION_TICKS}
+  formal_contact_entry_transition_tick_count = 0
+  formal_contact_entry_transition_previous_qd = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  formal_contact_entry_joint_speed_limit_rad_s = {FORMAL_CONTACT_ENTRY_JOINT_SPEED_LIMIT_RAD_S:.17g}
+  formal_contact_entry_joint_acceleration_limit_rad_s2 = {FORMAL_CONTACT_ENTRY_JOINT_ACCELERATION_LIMIT_RAD_S2:.17g}
+  formal_contact_entry_tcp_translation_speed_limit_m_s = {FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S:.17g}
+  formal_contact_entry_tcp_rotation_speed_limit_rad_s = {FORMAL_CONTACT_ENTRY_TCP_ROTATION_SPEED_LIMIT_RAD_S:.17g}
+  formal_contact_baseline_tcp_translation_speed_limit_m_s = {FORMAL_CONTACT_BASELINE_TCP_TRANSLATION_SPEED_LIMIT_M_S:.17g}
+  formal_contact_baseline_tcp_rotation_speed_limit_rad_s = {FORMAL_CONTACT_BASELINE_TCP_ROTATION_SPEED_LIMIT_RAD_S:.17g}
+  formal_contact_baseline_joint_speed_limit_rad_s = {FORMAL_CONTACT_BASELINE_JOINT_SPEED_LIMIT_RAD_S:.17g}
+  formal_contact_baseline_joint_acceleration_limit_rad_s2 = {FORMAL_CONTACT_BASELINE_JOINT_ACCELERATION_LIMIT_RAD_S2:.1f}
+  entry_transition_tcp_translation_limit_m = {FORMAL_CONTACT_ENTRY_TCP_EXCURSION_LIMIT_M}
+  entry_transition_joint_excursion_limit_rad = {FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD}
+  baseline_joint_damping = {_urscript_vector(FORMAL_CONTACT_BASELINE_JOINT_DAMPING)}
+  formal_contact_entry_joint_damping = {_urscript_vector(FORMAL_CONTACT_ENTRY_JOINT_DAMPING)}
+  entry_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  entry_joint_positions = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
   thread torqueThread():
     while torque_thread_run:
@@ -505,8 +539,68 @@ def build_live_receiver_source(
           torque_thread_last_coherent_command = torque_candidate
         end
         local torque = torque_thread_last_coherent_command
-        direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)
-        torque_thread_tick_count = torque_thread_tick_count + 1
+        local torque_to_apply = [torque[0], torque[1], torque[2], torque[3], torque[4], torque[5]]
+        if formal_contact_entry_transition_enabled:
+          # Every 500 Hz direct_torque tick selects caps: ticks 1-25 use the
+          # transition envelope; tick 26 restores baseline rate/accel caps and
+          # drops the extra entry damping / hard excursion checks.
+          local transition_active = formal_contact_entry_transition_tick_count < formal_contact_entry_transition_ticks
+          local selected_tcp_translation_speed_limit_m_s = formal_contact_baseline_tcp_translation_speed_limit_m_s
+          local selected_tcp_rotation_speed_limit_rad_s = formal_contact_baseline_tcp_rotation_speed_limit_rad_s
+          local selected_joint_speed_limit_rad_s = formal_contact_baseline_joint_speed_limit_rad_s
+          local selected_joint_acceleration_limit_rad_s2 = formal_contact_baseline_joint_acceleration_limit_rad_s2
+          if transition_active:
+            selected_tcp_translation_speed_limit_m_s = formal_contact_entry_tcp_translation_speed_limit_m_s
+            selected_tcp_rotation_speed_limit_rad_s = formal_contact_entry_tcp_rotation_speed_limit_rad_s
+            selected_joint_speed_limit_rad_s = formal_contact_entry_joint_speed_limit_rad_s
+            selected_joint_acceleration_limit_rad_s2 = formal_contact_entry_joint_acceleration_limit_rad_s2
+          end
+          local transition_pose = get_actual_tcp_pose()
+          local transition_tcp_speed = get_actual_tcp_speed()
+          local transition_q = get_actual_joint_positions()
+          local transition_qd = get_actual_joint_speeds()
+          local transition_translation_speed = sqrt(transition_tcp_speed[0]*transition_tcp_speed[0] + transition_tcp_speed[1]*transition_tcp_speed[1] + transition_tcp_speed[2]*transition_tcp_speed[2])
+          local transition_rotation_speed = sqrt(transition_tcp_speed[3]*transition_tcp_speed[3] + transition_tcp_speed[4]*transition_tcp_speed[4] + transition_tcp_speed[5]*transition_tcp_speed[5])
+          local transition_violation = transition_translation_speed > selected_tcp_translation_speed_limit_m_s or transition_rotation_speed > selected_tcp_rotation_speed_limit_rad_s
+          if transition_active:
+            local transition_pose_error = pose_sub(p[entry_pose[0], entry_pose[1], entry_pose[2], entry_pose[3], entry_pose[4], entry_pose[5]], transition_pose)
+            local transition_translation = sqrt(transition_pose_error[0]*transition_pose_error[0] + transition_pose_error[1]*transition_pose_error[1] + transition_pose_error[2]*transition_pose_error[2])
+            if transition_translation > entry_transition_tcp_translation_limit_m:
+              transition_violation = True
+            end
+          end
+          local transition_joint = 0
+          while transition_joint < 6:
+            local transition_joint_acceleration = 0.0
+            if torque_thread_tick_count > 0:
+              transition_joint_acceleration = (transition_qd[transition_joint] - formal_contact_entry_transition_previous_qd[transition_joint])/get_steptime()
+            end
+            if transition_qd[transition_joint] > selected_joint_speed_limit_rad_s or transition_qd[transition_joint] < -selected_joint_speed_limit_rad_s or transition_joint_acceleration > selected_joint_acceleration_limit_rad_s2 or transition_joint_acceleration < -selected_joint_acceleration_limit_rad_s2:
+              transition_violation = True
+            end
+            if transition_active:
+              local transition_joint_delta = transition_q[transition_joint] - entry_joint_positions[transition_joint]
+              if transition_joint_delta > entry_transition_joint_excursion_limit_rad or transition_joint_delta < -entry_transition_joint_excursion_limit_rad:
+                transition_violation = True
+              end
+              torque_to_apply[transition_joint] = torque_to_apply[transition_joint] - (formal_contact_entry_joint_damping[transition_joint] - baseline_joint_damping[transition_joint])*transition_qd[transition_joint]
+            end
+            formal_contact_entry_transition_previous_qd[transition_joint] = transition_qd[transition_joint]
+            transition_joint = transition_joint + 1
+          end
+          if transition_violation:
+            torque_thread_watchdog_fault = True
+            torque_thread_run = False
+          else:
+            if transition_active:
+              formal_contact_entry_transition_tick_count = formal_contact_entry_transition_tick_count + 1
+            end
+          end
+        end
+        if not torque_thread_watchdog_fault:
+          direct_torque(torque_to_apply, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)
+          torque_thread_tick_count = torque_thread_tick_count + 1
+        end
       end
     end
     stopj(10.0)
@@ -545,20 +639,11 @@ def build_live_receiver_source(
   local entry_tcp_translation_speed_limit_m_s = 0.001
   local entry_tcp_rotation_speed_limit_rad_s = 0.002
   local entry_joint_speed_limit_rad_s = 0.001
-  local entry_transition_tcp_translation_limit_m = {FORMAL_CONTACT_ENTRY_TCP_EXCURSION_LIMIT_M}
-  local entry_transition_joint_excursion_limit_rad = {FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD}
-  local active_joint_speed_limit_rad_s = 0.02
-  local active_joint_acceleration_limit_rad_s2 = 5.0
-  local active_tcp_translation_speed_limit_m_s = 0.01
-  local active_tcp_rotation_speed_limit_rad_s = 0.02
+  local active_joint_speed_limit_rad_s = {FORMAL_CONTACT_BASELINE_JOINT_SPEED_LIMIT_RAD_S:.17g}
+  local active_joint_acceleration_limit_rad_s2 = {FORMAL_CONTACT_BASELINE_JOINT_ACCELERATION_LIMIT_RAD_S2:.1f}
+  local active_tcp_translation_speed_limit_m_s = {FORMAL_CONTACT_BASELINE_TCP_TRANSLATION_SPEED_LIMIT_M_S:.17g}
+  local active_tcp_rotation_speed_limit_rad_s = {FORMAL_CONTACT_BASELINE_TCP_ROTATION_SPEED_LIMIT_RAD_S:.17g}
   local formal_contact_entry_transition_profile = "{formal_contact_entry_transition_profile or 'disabled'}"
-  local formal_contact_entry_transition_enabled = {str(formal_contact_entry_transition_enabled)}
-  local formal_contact_entry_transition_ticks = {FORMAL_CONTACT_ENTRY_TRANSITION_TICKS}
-  local formal_contact_entry_joint_speed_limit_rad_s = {FORMAL_CONTACT_ENTRY_JOINT_SPEED_LIMIT_RAD_S:.17g}
-  local formal_contact_entry_joint_acceleration_limit_rad_s2 = {FORMAL_CONTACT_ENTRY_JOINT_ACCELERATION_LIMIT_RAD_S2:.17g}
-  local formal_contact_entry_tcp_translation_speed_limit_m_s = {FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S:.17g}
-  local formal_contact_entry_tcp_rotation_speed_limit_rad_s = {FORMAL_CONTACT_ENTRY_TCP_ROTATION_SPEED_LIMIT_RAD_S:.17g}
-  local formal_contact_entry_joint_damping = {_urscript_vector(FORMAL_CONTACT_ENTRY_JOINT_DAMPING)}
   local command_idle = 0
   local command_run = 1
   local command_end = 2
@@ -572,7 +657,6 @@ def build_live_receiver_source(
   local formal_handoff_verified = False
   local tube_rebased = False
   local entry_elapsed_s = 0.0
-  local formal_contact_entry_transition_tick_count = 0
   local entry_stable_elapsed_s = 0.0
   local entry_velocity_filter_elapsed_s = 0.0
   local exit_fault = 0
@@ -595,8 +679,6 @@ def build_live_receiver_source(
   local last_raw_force = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local filtered_force = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local filter_velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  local entry_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  local entry_joint_positions = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local filtered_entry_tcp_speed = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local filtered_entry_joint_speed = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local torque_thread_handle = 0
@@ -1072,11 +1154,9 @@ def build_live_receiver_source(
           local joint = 0
           local max_abs_tau = 0.0
           while joint < 6:
-            local selected_joint_damping = joint_damping[joint]
-            if formal_contact_entry_transition_enabled and formal_contact_entry_transition_tick_count < formal_contact_entry_transition_ticks:
-              selected_joint_damping = formal_contact_entry_joint_damping[joint]
-            end
-            tau[joint] = coriolis[joint] - selected_joint_damping*qd[joint]
+            # The outer law always publishes the baseline command.  The exact
+            # first-25-torque-tick damping delta is applied inside torqueThread.
+            tau[joint] = coriolis[joint] - joint_damping[joint]*qd[joint]
             axis = 0
             while axis < 6:
               tau[joint] = tau[joint] + jacobian[axis, joint]*control_wrench[axis]
@@ -1146,9 +1226,6 @@ def build_live_receiver_source(
             if entry_elapsed_s < entry_blend_duration_s:
               entry_elapsed_s = entry_elapsed_s + control_dt_s
             end
-            if formal_contact_entry_transition_enabled and formal_contact_entry_transition_tick_count < formal_contact_entry_transition_ticks:
-              formal_contact_entry_transition_tick_count = formal_contact_entry_transition_tick_count + 1
-            end
             sync()
           end
         end
@@ -1210,7 +1287,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "torque_candidate = [torque_command[0]",
         "torque_generation_end = torque_command_generation",
         "torque_command[axis] = tau[axis]",
-        "direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)",
+        "direct_torque(torque_to_apply, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)",
         "torque_thread_tick_count = torque_thread_tick_count + 1",
         "torque_thread_handle = run torqueThread()",
         "torque_thread_run = False",
@@ -1222,8 +1299,27 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "model_inactive_expert_feedforward_allowed = ",
         "formal_contact_entry_transition_profile = ",
         "formal_contact_entry_transition_enabled = ",
-        "formal_contact_entry_transition_tick_count < formal_contact_entry_transition_ticks",
+        "local transition_active = formal_contact_entry_transition_tick_count < formal_contact_entry_transition_ticks",
+        "selected_tcp_translation_speed_limit_m_s = formal_contact_baseline_tcp_translation_speed_limit_m_s",
+        "selected_tcp_rotation_speed_limit_rad_s = formal_contact_baseline_tcp_rotation_speed_limit_rad_s",
+        "selected_joint_speed_limit_rad_s = formal_contact_baseline_joint_speed_limit_rad_s",
+        "selected_joint_acceleration_limit_rad_s2 = formal_contact_baseline_joint_acceleration_limit_rad_s2",
+        "selected_tcp_translation_speed_limit_m_s = formal_contact_entry_tcp_translation_speed_limit_m_s",
+        "selected_tcp_rotation_speed_limit_rad_s = formal_contact_entry_tcp_rotation_speed_limit_rad_s",
+        "selected_joint_speed_limit_rad_s = formal_contact_entry_joint_speed_limit_rad_s",
+        "selected_joint_acceleration_limit_rad_s2 = formal_contact_entry_joint_acceleration_limit_rad_s2",
+        "formal_contact_baseline_tcp_translation_speed_limit_m_s = ",
+        "formal_contact_baseline_tcp_rotation_speed_limit_rad_s = ",
+        "formal_contact_baseline_joint_speed_limit_rad_s = ",
+        "formal_contact_baseline_joint_acceleration_limit_rad_s2 = ",
         "formal_contact_entry_transition_tick_count = formal_contact_entry_transition_tick_count + 1",
+        "torque_thread_tick_count > 0",
+        "formal_contact_entry_transition_previous_qd[transition_joint] = transition_qd[transition_joint]",
+        "torque_to_apply[transition_joint] = torque_to_apply[transition_joint] - (formal_contact_entry_joint_damping[transition_joint] - baseline_joint_damping[transition_joint])*transition_qd[transition_joint]",
+        "transition_translation_speed > selected_tcp_translation_speed_limit_m_s",
+        "transition_rotation_speed > selected_tcp_rotation_speed_limit_rad_s",
+        "transition_qd[transition_joint] > selected_joint_speed_limit_rad_s",
+        "transition_joint_acceleration > selected_joint_acceleration_limit_rad_s2",
         "if not model_inactive_expert_feedforward_allowed:",
         "tube_center_base = [actual_pose[0], actual_pose[1], actual_pose[2]]",
         "tube_anchor_pose_base = p[actual_pose[0], actual_pose[1], actual_pose[2], actual_pose[3], actual_pose[4], actual_pose[5]]",
@@ -1308,7 +1404,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
     if re.search(r"\babs\s*\(", source):
         raise ValueError("live receiver must avoid unsupported abs() parser calls")
     torque_call = (
-        "direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
+        "direct_torque(torque_to_apply, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
     )
     if source.count(torque_call) != 1:
         raise ValueError("live receiver requires one continuous torque command site")
@@ -1364,17 +1460,17 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         re.MULTILINE,
     )
     entry_transition_enabled_match = re.search(
-        r"^\s*local formal_contact_entry_transition_enabled = (True|False)$",
+        r"^\s*formal_contact_entry_transition_enabled = (True|False)$",
         source,
         re.MULTILINE,
     )
     entry_transition_ticks_match = re.search(
-        r"^\s*local formal_contact_entry_transition_ticks = (\d+)$",
+        r"^\s*formal_contact_entry_transition_ticks = (\d+)$",
         source,
         re.MULTILINE,
     )
     entry_transition_damping_match = re.search(
-        r"^\s*local formal_contact_entry_joint_damping = \[([^\]]+)\]$",
+        r"^\s*formal_contact_entry_joint_damping = \[([^\]]+)\]$",
         source,
         re.MULTILINE,
     )
@@ -1469,10 +1565,12 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
     if viscous_scale != expected_viscous or coulomb_scale != expected_coulomb:
         raise ValueError("live receiver friction scales do not match declared profile")
     expert_feedforward_allowed = expert_feedforward_match.group(1) == "True"
-    if expert_feedforward_allowed and (
-        handoff_match.group(1) != "True"
-        or guard_pair != (50.0, 4.0)
-        or friction_profile != FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
+    if expert_feedforward_allowed and not (
+        friction_profile == FRICTION_PROFILE_UR_FULL_V3_FORMAL_MOTION
+        and (
+            (handoff_match.group(1) == "True" and guard_pair == (50.0, 4.0))
+            or (handoff_match.group(1) == "False" and guard_pair == (6.0, 0.5))
+        )
     ):
         raise ValueError(
             "model-inactive expert feedforward source requires formal contact identity"
@@ -1495,8 +1593,20 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
             or entry_transition_damping != FORMAL_CONTACT_ENTRY_JOINT_DAMPING
             or handoff_match.group(1) != "True"
             or guard_pair != (50.0, 4.0)
-            or friction_profile != FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
+            or friction_profile != FRICTION_PROFILE_UR_FULL_V3_FORMAL_MOTION
             or not expert_feedforward_allowed
+            or f"formal_contact_baseline_tcp_translation_speed_limit_m_s = {FORMAL_CONTACT_BASELINE_TCP_TRANSLATION_SPEED_LIMIT_M_S:.17g}"
+            not in source
+            or f"formal_contact_baseline_tcp_rotation_speed_limit_rad_s = {FORMAL_CONTACT_BASELINE_TCP_ROTATION_SPEED_LIMIT_RAD_S:.17g}"
+            not in source
+            or f"formal_contact_baseline_joint_speed_limit_rad_s = {FORMAL_CONTACT_BASELINE_JOINT_SPEED_LIMIT_RAD_S:.17g}"
+            not in source
+            or f"formal_contact_baseline_joint_acceleration_limit_rad_s2 = {FORMAL_CONTACT_BASELINE_JOINT_ACCELERATION_LIMIT_RAD_S2:.1f}"
+            not in source
+            or "selected_tcp_translation_speed_limit_m_s = formal_contact_baseline_tcp_translation_speed_limit_m_s"
+            not in torque_thread_source
+            or "selected_tcp_translation_speed_limit_m_s = formal_contact_entry_tcp_translation_speed_limit_m_s"
+            not in torque_thread_source
         ):
             raise ValueError("formal contact entry transition source identity mismatch")
     elif entry_transition_profile != "disabled":

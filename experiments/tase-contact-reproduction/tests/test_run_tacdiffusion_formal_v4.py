@@ -38,6 +38,9 @@ def _qualification_row(*, timestamp_s: float) -> dict[str, float | int]:
         "robot_mode": legacy.ROBOT_MODE_RUNNING,
         "safety_mode": legacy.SAFETY_MODE_NORMAL,
         "action_echo_coherent": 1,
+        "control_update_count": timestamp_s * (500.0 / 3.0),
+        "torque_thread_tick_count": timestamp_s * 500.0,
+        "maximum_control_update_gap_s": 0.006,
     }
     row.update(
         {
@@ -110,9 +113,18 @@ def test_formal_artifact_row_selection_fails_closed_when_all_rows_rejected() -> 
 def test_formal_manifest_source_hashes_are_complete_recorder_identity(
     tmp_path: Path,
 ) -> None:
+    episode = formal.FormalCampaignEpisodeV1(
+        episode_index=0,
+        phase="pilot",
+        trajectory_family="circle",
+        target_load_n=3.0,
+    )
     manifest = formal._formal_manifest_for_attempt(
         attempt_id="attempt_0000_eligible_000",
         source_hashes={"source_content": "a" * 64, "receiver_source": "b" * 64},
+        episode=episode,
+        campaign_kind="fixed_k",
+        campaign_id="fixed_k_formal_v4",
     )
     metadata = formal._formal_recorder_metadata(
         formal_manifest=manifest,
@@ -124,7 +136,9 @@ def test_formal_manifest_source_hashes_are_complete_recorder_identity(
     )
     assert recorder.sealer.identity_enabled is True
     assert recorder.sealer.semantic_context_fingerprint_sha256 == "a" * 64
-
+    assert manifest.target_load_n == 3.0
+    assert manifest.campaign_kind == "fixed_k"
+    assert manifest.impedance_identity["mode"] == "fixed_k"
 
 def test_formal_control_clock_is_bounded_by_arrival_and_host_processing() -> None:
     selected = [
@@ -221,12 +235,31 @@ def test_command_packet_carries_typed_expert_force_and_stiffness() -> None:
 
 
 def test_formal_manifest_binds_50n_4nm_guard_and_action_limits() -> None:
+    episode = formal.FormalCampaignEpisodeV1(
+        episode_index=1,
+        phase="pilot",
+        trajectory_family="circle",
+        target_load_n=5.0,
+    )
     manifest = formal._formal_manifest_for_attempt(
         attempt_id="attempt_0000_eligible_000",
         source_hashes={"source": "a" * 64},
+        episode=episode,
+        campaign_kind="fixed_k",
+        campaign_id="fixed_k_formal_v4",
     ).as_json()
     assert manifest["contact_guard_profile"]["force_limit_n"] == 50.0
     assert manifest["contact_guard_profile"]["torque_limit_nm"] == 4.0
+    assert manifest["target_load_n"] == 5.0
+    assert manifest["campaign_kind"] == "fixed_k"
+    assert manifest["impedance_identity"]["stiffness_6d"] == [
+        600.0,
+        600.0,
+        600.0,
+        30.0,
+        30.0,
+        30.0,
+    ]
     assert manifest["expert_action_limits"] == {
         "schema_version": "ur10e_tacdiffusion_expert_action_limits/v1",
         "frame_id": "tool0_tcp",
@@ -260,6 +293,7 @@ def test_entry_transition_evidence_ends_before_tick_26() -> None:
         row: dict[str, float | int] = {
             "receiver_state": legacy.STATE_TORQUE,
             "control_update_count": float(tick),
+            "torque_thread_tick_count": float(tick),
             "controller_timestamp_s": tick / 500.0,
         }
         for axis in range(6):
@@ -268,10 +302,26 @@ def test_entry_transition_evidence_ends_before_tick_26() -> None:
         rows.append(row)
     evidence = formal._entry_transition_evidence(rows)
     assert evidence["profile"] == "formal_contact_entry_transition_v1"
-    assert evidence["last_observed_control_update_count"] == 25
+    assert evidence["last_observed_torque_thread_tick_count"] == 25
     assert evidence["baseline_limits_observed_from_tick_26"] is True
     assert evidence["max_tcp_rotation_speed_rad_s"] == pytest.approx(0.03)
     assert evidence["max_abs_joint_speed_rad_s"] == pytest.approx(0.04)
+
+
+def test_formal_runtime_rate_gate_distinguishes_outer_law_and_torque_ticks() -> None:
+    rows = []
+    for index in range(501):
+        row = _qualification_row(timestamp_s=index / 500.0)
+        row["torque_thread_tick_count"] = float(index + 1)
+        row["control_update_count"] = 1.0 + index / 3.0
+        for axis in range(6):
+            row[f"actual_TCP_speed_{axis}"] = 0.0
+            row[f"actual_qd_{axis}"] = 0.0
+        rows.append(row)
+    gate = formal._formal_runtime_rate_gate(rows)
+    assert gate["passed"] is True
+    assert gate["measured_control_law_update_rate_hz"] == pytest.approx(500.0 / 3.0)
+    assert gate["measured_torque_application_rate_hz"] == pytest.approx(500.0)
 
 
 def test_strict_episode_gate_uses_zeroed_kunwei_summary_norms() -> None:
@@ -331,6 +381,25 @@ def test_approach_feedforward_is_named_base_minus_z_transformed_to_tcp() -> None
     assert formal._approach_feedforward_tcp(downward_tool, 5.0) == pytest.approx(
         (0.0, 0.0, 5.0, 0.0, 0.0, 0.0), abs=1.0e-9
     )
+
+
+def test_formal_tracking_feedforward_adds_bounded_tangential_authority_and_slew() -> None:
+    command = formal._formal_tracking_feedforward_tcp(
+        (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        5.0,
+        (0.001, 0.0, 0.0, 0.0, 0.0, 0.0),
+        (600.0, 600.0, 600.0, 30.0, 30.0, 30.0),
+    )
+    assert 1.9 < command[0] < 2.2
+    assert command[2] == pytest.approx(-5.0)
+    assert sum(value * value for value in command[:3]) ** 0.5 < 6.0
+    limited = formal._slew_limit_feedforward(
+        (0.0,) * 6,
+        command,
+        dt_s=0.002,
+    )
+    assert limited[0] == pytest.approx(0.2)
+    assert limited[2] == pytest.approx(-0.2)
 
 
 def test_formal_parser_exposes_resumable_contact_campaign_without_default_live() -> None:

@@ -47,6 +47,11 @@ DYNAMICS_AUTHORITATIVE_TORQUE_SOURCE = "previous_commanded_no_gravity_torque"
 FORCE_AUTHORITY_SCHEMA_V1 = "ur10e_tacdiffusion_force_authority/v1"
 CONTACT_GUARD_PROFILE_SCHEMA_V1 = "ur10e_tacdiffusion_contact_guard_profile/v1"
 FORMAL_EPISODE_MANIFEST_SCHEMA_V1 = "ur10e_tacdiffusion_formal_episode_manifest/v1"
+FORMAL_EPISODE_MANIFEST_SCHEMA_V2 = "ur10e_tacdiffusion_formal_episode_manifest/v2"
+FORMAL_MANIFEST_TARGET_LOADS_N = (3.0, 5.0, 8.0)
+FORMAL_MANIFEST_CAMPAIGN_KINDS = ("fixed_k", "variable_k")
+FORMAL_MANIFEST_FIXED_CAMPAIGN_ID = "fixed_k_formal_v4"
+FORMAL_MANIFEST_VARIABLE_CAMPAIGN_ID = "variable_k_formal_v4"
 FORMAL_REVIEW_GOVERNANCE_SCHEMA_V1 = "ur10e_tacdiffusion_review_governance/v1"
 KUNWEI_ONLY_FORCE_SOURCE_ID = "kunwei_kwr75_tcp_raw_stream_v1"
 KUNWEI_ONLY_SENSOR_MODEL = "KWR75"
@@ -1345,6 +1350,12 @@ class FormalEpisodeManifestV1:
     contact_guard_profile: ContactGuardProfileV1
     rtde_output_fields: Sequence[str]
     source_hashes: Mapping[str, str]
+    target_load_n: float
+    campaign_kind: str
+    campaign_id: str
+    trajectory_family: str
+    episode_index: int
+    impedance_identity: Mapping[str, object]
     expert_action_limits: Mapping[str, object] | None = None
     observation_dimension: int = FORMAL_OBSERVATION_DIMENSION
     control_rate_hz: int = CONTROL_RATE_HZ
@@ -1354,10 +1365,10 @@ class FormalEpisodeManifestV1:
     shadow_only: bool = True
     production_dynamics_required: bool = True
     review_governance_schema: str = FORMAL_REVIEW_GOVERNANCE_SCHEMA_V1
-    schema_version: str = FORMAL_EPISODE_MANIFEST_SCHEMA_V1
+    schema_version: str = FORMAL_EPISODE_MANIFEST_SCHEMA_V2
 
     def __post_init__(self) -> None:
-        if self.schema_version != FORMAL_EPISODE_MANIFEST_SCHEMA_V1:
+        if self.schema_version != FORMAL_EPISODE_MANIFEST_SCHEMA_V2:
             raise ValueError("unsupported formal episode manifest schema")
         if not _IDENTITY_RE.fullmatch(str(self.manifest_id)):
             raise ValueError("formal episode manifest id is invalid")
@@ -1365,6 +1376,51 @@ class FormalEpisodeManifestV1:
             raise ValueError("formal manifest force authority has the wrong type")
         if not isinstance(self.contact_guard_profile, ContactGuardProfileV1):
             raise ValueError("formal manifest contact guard profile has the wrong type")
+        if float(self.target_load_n) not in FORMAL_MANIFEST_TARGET_LOADS_N:
+            raise ValueError("formal manifest target_load_n must be one of 3/5/8 N")
+        if self.campaign_kind not in FORMAL_MANIFEST_CAMPAIGN_KINDS:
+            raise ValueError("formal manifest campaign_kind is invalid")
+        expected_campaign_id = (
+            FORMAL_MANIFEST_FIXED_CAMPAIGN_ID
+            if self.campaign_kind == "fixed_k"
+            else FORMAL_MANIFEST_VARIABLE_CAMPAIGN_ID
+        )
+        if self.campaign_id != expected_campaign_id:
+            raise ValueError("formal manifest campaign_id does not match campaign_kind")
+        if not str(self.trajectory_family).strip():
+            raise ValueError("formal manifest trajectory_family is required")
+        if int(self.episode_index) < 0:
+            raise ValueError("formal manifest episode_index must be non-negative")
+        if not isinstance(self.impedance_identity, Mapping):
+            raise ValueError("formal manifest impedance_identity must be a mapping")
+        identity = dict(self.impedance_identity)
+        if self.campaign_kind == "fixed_k":
+            expected_identity = {
+                "schema_version": "ur10e_fixed_k_expert/v1",
+                "mode": "fixed_k",
+                "model_output_dimension": 6,
+                "stiffness_6d": [600.0, 600.0, 600.0, 30.0, 30.0, 30.0],
+                "active": False,
+                "shadow_only": True,
+            }
+        else:
+            expected_identity = {
+                "schema_version": "ur10e_variable_k_expert/v1",
+                "mode": "variable_k",
+                "model_output_dimension": 7,
+                "formula": "clip(600 + 200*clip(e/0.010,0,1) - 400*clip((f-8)/4,0,1),400,800)",
+                "seventh_output_semantics": "learned_isotropic_translational_K_n_m",
+                "seventh_output_training_label": "deterministic_formula_above",
+                "rotational_stiffness_nm_rad": 30.0,
+                "translational_slew_n_m_s": 400.0,
+                "active": False,
+                "shadow_only": True,
+            }
+        if identity != expected_identity:
+            raise ValueError("formal manifest impedance_identity mismatch")
+        object.__setattr__(self, "impedance_identity", MappingProxyType(expected_identity))
+        object.__setattr__(self, "target_load_n", float(self.target_load_n))
+        object.__setattr__(self, "episode_index", int(self.episode_index))
         expected_action_limits = {
             "schema_version": FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
             "frame_id": "tool0_tcp",
@@ -1417,6 +1473,12 @@ class FormalEpisodeManifestV1:
             "contact_guard_profile": self.contact_guard_profile.as_json(),
             "rtde_output_fields": list(self.rtde_output_fields),
             "source_hashes": dict(self.source_hashes),
+            "target_load_n": self.target_load_n,
+            "campaign_kind": self.campaign_kind,
+            "campaign_id": self.campaign_id,
+            "trajectory_family": self.trajectory_family,
+            "episode_index": self.episode_index,
+            "impedance_identity": dict(self.impedance_identity),
             "observation_dimension": self.observation_dimension,
             "control_rate_hz": self.control_rate_hz,
             "model_rate_candidates_hz": list(self.model_rate_candidates_hz),
@@ -1456,6 +1518,12 @@ class FormalEpisodeManifestV1:
             contact_guard_profile=profile,
             rtde_output_fields=tuple(payload.get("rtde_output_fields", ())),
             source_hashes=payload.get("source_hashes", {}),
+            target_load_n=float(payload.get("target_load_n", float("nan"))),
+            campaign_kind=str(payload.get("campaign_kind", "")),
+            campaign_id=str(payload.get("campaign_id", "")),
+            trajectory_family=str(payload.get("trajectory_family", "")),
+            episode_index=int(payload.get("episode_index", -1)),
+            impedance_identity=payload.get("impedance_identity", {}),
             expert_action_limits=payload.get("expert_action_limits"),
             observation_dimension=int(payload.get("observation_dimension", -1)),
             control_rate_hz=int(payload.get("control_rate_hz", -1)),

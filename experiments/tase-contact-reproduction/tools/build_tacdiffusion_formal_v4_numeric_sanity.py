@@ -43,6 +43,7 @@ from ur10e_vic.tacdiffusion.contracts import (
     FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM,
 )
 from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (
+    FRICTION_PROFILE_UR_FULL_V3_FORMAL_MOTION,
     FORMAL_CONTACT_ENTRY_JOINT_ACCELERATION_LIMIT_RAD_S2,
     FORMAL_CONTACT_ENTRY_JOINT_EXCURSION_LIMIT_RAD,
     FORMAL_CONTACT_ENTRY_JOINT_DAMPING,
@@ -52,6 +53,10 @@ from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (
     FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S,
     FORMAL_CONTACT_ENTRY_TRANSITION_PROFILE_V1,
     FORMAL_CONTACT_ENTRY_TRANSITION_TICKS,
+)
+from ur10e_vic.tacdiffusion.expert import FormalMotionFeedforwardV1
+from ur10e_vic.tacdiffusion.formal_tracking_quality import (
+    FormalTrackingQualityContractV1,
 )
 
 
@@ -188,9 +193,21 @@ def build() -> dict[str, object]:
             "torque_norm_max_nm": FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM,
             "slew_per_s": list(FORMAL_EXPERT_ACTION_SLEW_PER_S),
         },
+        "motion_authority": {
+            "friction_profile": FRICTION_PROFILE_UR_FULL_V3_FORMAL_MOTION,
+            "viscous_scale": [1.0] * 6,
+            "coulomb_scale": [1.0] * 6,
+            "feedforward": FormalMotionFeedforwardV1().as_json(),
+            "receiver_velocity_feedback_term": "-D_times_actual_twist",
+            "host_velocity_reference_term": "plus_D_times_desired_twist",
+            "completed_velocity_error_damping": True,
+        },
+        "tracking_quality_contract": FormalTrackingQualityContractV1().as_json(),
         "transition_invariants": {
             "entry_transition_profile": FORMAL_CONTACT_ENTRY_TRANSITION_PROFILE_V1,
             "entry_transition_enabled_ticks": FORMAL_CONTACT_ENTRY_TRANSITION_TICKS,
+            "entry_transition_tick_source": "direct_torque_application_500hz",
+            "entry_transition_duration_s": FORMAL_CONTACT_ENTRY_TRANSITION_TICKS / 500.0,
             "entry_transition_one_shot": True,
             "entry_transition_tcp_translation_speed_limit_m_s": (
                 FORMAL_CONTACT_ENTRY_TCP_TRANSLATION_SPEED_LIMIT_M_S

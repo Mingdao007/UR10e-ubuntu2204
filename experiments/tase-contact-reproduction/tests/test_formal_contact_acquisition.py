@@ -791,6 +791,7 @@ def test_direct_torque_source_is_constructible_only_from_handoff() -> None:
     generic = parse_live_receiver_source(build_live_receiver_source(tube))
     assert generic.heartbeat_timeout_ticks == DEFAULT_HEARTBEAT_TIMEOUT_TICKS == 10
     assert parsed.formal_handoff_required is True
+    assert parsed.friction_profile == "ur_full_v3_formal_motion"
     assert parsed.model_inactive_expert_feedforward_allowed is True
     assert parsed.formal_handoff_max_mismatch_m == pytest.approx(0.0003)
     assert "local model_inactive_expert_feedforward_allowed = True" in source

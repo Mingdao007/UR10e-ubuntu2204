@@ -1132,7 +1132,7 @@ def build_formal_direct_torque_tracking_source_after_handoff(
     return build_live_receiver_source(
         tube,
         heartbeat_timeout_ticks=FORMAL_CONTACT_HEARTBEAT_TIMEOUT_TICKS_V1,
-        friction_profile="ur_default_v2_formal_contact",
+        friction_profile="ur_full_v3_formal_motion",
         guard_force_limit_n=50.0,
         guard_torque_limit_nm=4.0,
         formal_handoff_anchor_pose_base=handoff.anchor_pose_base,

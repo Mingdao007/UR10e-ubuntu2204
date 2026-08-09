@@ -301,7 +301,7 @@ def _validate_v4_required_receipts(rows: Sequence[object]) -> None:
         if production.get("dynamics_receipt") != row.get("dynamics_receipt"):
             raise ValueError(f"episode v4 row {index} production/base dynamics receipt mismatch")
         manifest = row["formal_manifest"]
-        if manifest.get("schema_version") != "ur10e_tacdiffusion_formal_episode_manifest/v1":
+        if manifest.get("schema_version") != "ur10e_tacdiffusion_formal_episode_manifest/v2":
             raise ValueError(f"episode v4 row {index} formal manifest schema mismatch")
         expert = row["expert_action_receipt"]
         reference = row["reference_receipt"]

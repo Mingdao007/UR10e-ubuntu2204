@@ -44,6 +44,37 @@
   },
   "formal_observation_dimension": 84,
   "control_rate_hz": 500,
+  "torque_application_rate_hz": 500,
+  "control_law_update_rate_range_hz": [150.0, 200.0],
+  "formal_motion_authority": {
+    "schema_version": "ur10e_formal_motion_feedforward/v1",
+    "profile_id": "formal_motion_feedforward_v1",
+    "friction_profile": "ur_full_v3_formal_motion",
+    "viscous_scale": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+    "coulomb_scale": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+    "translational_virtual_mass_kg": 2.0,
+    "damping_ratio": 1.0,
+    "tangential_breakaway_force_n": 2.0,
+    "breakaway_smoothing_speed_m_s": 0.0005,
+    "velocity_error_damping": true
+  },
+  "formal_tracking_quality": {
+    "schema_version": "ur10e_tacdiffusion_formal_tracking_quality/v2",
+    "minimum_desired_excursion_m": 0.0025,
+    "minimum_actual_excursion_m": 0.0018,
+    "minimum_excursion_ratio": 0.6,
+    "minimum_path_length_ratio": 0.5,
+    "maximum_path_length_ratio": 2.0,
+    "maximum_tracking_rmse_m": 0.0015,
+    "minimum_displacement_correlation": 0.8,
+    "maximum_mean_normal_load_error_n": 1.0,
+    "maximum_p95_normal_load_error_n": 2.0,
+    "maximum_tracking_error_m": 0.0015,
+    "tail_fraction": 0.2,
+    "maximum_tail_tracking_error_m": 0.0015,
+    "maximum_tail_tracking_rmse_m": 0.0015,
+    "minimum_tail_path_length_ratio": 0.5
+  },
   "formal_model_rate_candidates_hz": [
     100,
     50

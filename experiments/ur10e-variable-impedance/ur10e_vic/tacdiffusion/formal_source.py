@@ -30,6 +30,8 @@ from .governance import (
     ReviewGovernanceSourceContractV1,
     load_review_governance_source,
 )
+from .expert import FormalMotionFeedforwardV1
+from .formal_tracking_quality import FormalTrackingQualityContractV1
 
 
 FORMAL_V4_SOURCE_SCHEMA_V1 = "ur10e_tacdiffusion_formal_v4_source_contract/v1"
@@ -159,6 +161,23 @@ def load_formal_v4_source_contract(path: str | Path) -> FormalV4SourceContractV1
         raise ValueError("formal V4 source observation dimension is invalid")
     if raw.get("control_rate_hz") != 500:
         raise ValueError("formal V4 source control rate is invalid")
+    if raw.get("torque_application_rate_hz") != 500:
+        raise ValueError("formal V4 source torque application rate is invalid")
+    if raw.get("control_law_update_rate_range_hz") != [150.0, 200.0]:
+        raise ValueError("formal V4 source control-law update rate range is invalid")
+    expected_motion = FormalMotionFeedforwardV1().as_json()
+    expected_motion.update(
+        {
+            "friction_profile": "ur_full_v3_formal_motion",
+            "viscous_scale": [1.0] * 6,
+            "coulomb_scale": [1.0] * 6,
+        }
+    )
+    expected_motion.pop("frame_id")
+    if raw.get("formal_motion_authority") != expected_motion:
+        raise ValueError("formal V4 source motion authority is invalid")
+    if raw.get("formal_tracking_quality") != FormalTrackingQualityContractV1().as_json():
+        raise ValueError("formal V4 source tracking quality contract is invalid")
     if raw.get("formal_model_rate_candidates_hz") != list(FORMAL_MODEL_RATE_CANDIDATES_HZ):
         raise ValueError("formal V4 source model-rate candidates are invalid")
     if raw.get("sampler_steps") != FORMAL_SAMPLER_STEPS:

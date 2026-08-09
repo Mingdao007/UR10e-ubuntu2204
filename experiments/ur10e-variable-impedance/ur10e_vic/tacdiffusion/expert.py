@@ -119,6 +119,92 @@ class FixedKExpertV1:
 
 
 @dataclass(frozen=True)
+class FormalMotionFeedforwardV1:
+    """Bounded tangential authority for a moving formal reference.
+
+    The receiver already applies ``-D * actual_twist``.  Adding
+    ``D * desired_twist`` here completes velocity-error damping without a new
+    wire field.  A smooth, norm-bounded breakaway term supplies enough
+    authority to cross the controller's residual low-speed deadband while the
+    existing 50 N / 4 Nm action guard and slew limits remain authoritative.
+    """
+
+    schema_version: str = "ur10e_formal_motion_feedforward/v1"
+    profile_id: str = "formal_motion_feedforward_v1"
+    translational_virtual_mass_kg: float = 2.0
+    damping_ratio: float = 1.0
+    tangential_breakaway_force_n: float = 2.0
+    breakaway_smoothing_speed_m_s: float = 0.0005
+
+    def __post_init__(self) -> None:
+        expected = {
+            "translational_virtual_mass_kg": 2.0,
+            "damping_ratio": 1.0,
+            "tangential_breakaway_force_n": 2.0,
+            "breakaway_smoothing_speed_m_s": 0.0005,
+        }
+        if self.schema_version != "ur10e_formal_motion_feedforward/v1":
+            raise ValueError("unsupported formal motion feedforward schema")
+        if self.profile_id != "formal_motion_feedforward_v1":
+            raise ValueError("unsupported formal motion feedforward profile")
+        for name, value in expected.items():
+            if float(getattr(self, name)) != value:
+                raise ValueError(f"formal motion feedforward {name} is frozen")
+
+    def tangential_force_base(
+        self,
+        desired_twist_base: Sequence[float],
+        stiffness_6d: Sequence[float],
+        *,
+        surface_normal_base: Sequence[float] = (0.0, 0.0, 1.0),
+    ) -> tuple[float, float, float]:
+        twist = tuple(float(value) for value in desired_twist_base)
+        stiffness = tuple(float(value) for value in stiffness_6d)
+        normal = tuple(float(value) for value in surface_normal_base)
+        if len(twist) != 6 or len(stiffness) != 6 or len(normal) != 3:
+            raise ValueError("formal motion feedforward vector shape is invalid")
+        if not all(math.isfinite(value) for value in (*twist, *stiffness, *normal)):
+            raise ValueError("formal motion feedforward vectors must be finite")
+        normal_norm = math.sqrt(sum(value * value for value in normal))
+        if abs(normal_norm - 1.0) > 1.0e-9:
+            raise ValueError("surface normal must be unit length")
+        if max(stiffness[:3]) - min(stiffness[:3]) > 1.0e-9:
+            raise ValueError("formal translational stiffness must be isotropic")
+        velocity = twist[:3]
+        normal_velocity = sum(value * axis for value, axis in zip(velocity, normal))
+        tangent = tuple(
+            velocity[index] - normal_velocity * normal[index] for index in range(3)
+        )
+        speed = math.sqrt(sum(value * value for value in tangent))
+        damping = 2.0 * self.damping_ratio * math.sqrt(
+            self.translational_virtual_mass_kg * stiffness[0]
+        )
+        if speed <= 1.0e-12:
+            breakaway = (0.0, 0.0, 0.0)
+        else:
+            magnitude = self.tangential_breakaway_force_n * math.tanh(
+                speed / self.breakaway_smoothing_speed_m_s
+            )
+            breakaway = tuple(magnitude * value / speed for value in tangent)
+        force = tuple(damping * tangent[index] + breakaway[index] for index in range(3))
+        if math.sqrt(sum(value * value for value in force)) > 3.0 + 1.0e-9:
+            raise ValueError("formal tangential feedforward exceeded its 3 N envelope")
+        return force
+
+    def as_json(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "profile_id": self.profile_id,
+            "translational_virtual_mass_kg": self.translational_virtual_mass_kg,
+            "damping_ratio": self.damping_ratio,
+            "tangential_breakaway_force_n": self.tangential_breakaway_force_n,
+            "breakaway_smoothing_speed_m_s": self.breakaway_smoothing_speed_m_s,
+            "velocity_error_damping": True,
+            "frame_id": "base",
+        }
+
+
+@dataclass(frozen=True)
 class VariableKExpertV1:
     """Bounded variable-K primitive and deterministic seventh-output label.
 

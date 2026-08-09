@@ -72,6 +72,7 @@ from ur10e_vic.tacdiffusion.formal_benchmark import (  # noqa: E402
     validate_formal_50_step_sampler_candidate,
 )
 from ur10e_vic.tacdiffusion.formal_campaign import (  # noqa: E402
+    FormalCampaignEpisodeV1,
     load_formal_campaign_source_contract,
 )
 from ur10e_vic.tacdiffusion.formal_dataset import (  # noqa: E402
@@ -109,7 +110,15 @@ from ur10e_vic.tacdiffusion.formal_trajectory import (  # noqa: E402
     build_formal_trajectory_timeline,
 )
 from ur10e_vic.tacdiffusion.trajectory import TRAJECTORY_FAMILIES  # noqa: E402
-from ur10e_vic.tacdiffusion.expert import FixedKExpertV1, VariableKExpertV1  # noqa: E402
+from ur10e_vic.tacdiffusion.expert import (  # noqa: E402
+    FixedKExpertV1,
+    FormalMotionFeedforwardV1,
+    VariableKExpertV1,
+)
+from ur10e_vic.tacdiffusion.formal_tracking_quality import (  # noqa: E402
+    FormalTrackingQualityContractV1,
+    evaluate_formal_path_geometry,
+)
 
 
 FORMAL_QUALIFICATION_SCHEMA_V1 = (
@@ -1157,7 +1166,11 @@ def _run_contact_attempt_locked(
         "campaign_manifest": _sha256(ledger.root / "campaign_manifest.json"),
     }
     formal_manifest = _formal_manifest_for_attempt(
-        attempt_id=attempt_id, source_hashes=source_hashes
+        attempt_id=attempt_id,
+        source_hashes=source_hashes,
+        episode=episode,
+        campaign_kind=str(ledger.contract.kind),
+        campaign_id=str(ledger.contract.campaign_id),
     )
     lease_id, episode_identity = legacy._new_live_identity_pair()
     initial_guard = (0.0,) * 6
@@ -1197,6 +1210,7 @@ def _run_contact_attempt_locked(
     last_actual_pose = entry_pose
     last_actual_speed = (0.0,) * 6
     previous_k = FixedKExpertV1().stiffness_6d
+    previous_feedforward = (0.0,) * 6
     track_completed = False
     contact_not_found = False
     end_sent = False
@@ -1236,7 +1250,11 @@ def _run_contact_attempt_locked(
                 attempt_dir / "equipment_readback.json"
             )
             formal_manifest = _formal_manifest_for_attempt(
-                attempt_id=attempt_id, source_hashes=source_hashes
+                attempt_id=attempt_id,
+                source_hashes=source_hashes,
+                episode=episode,
+                campaign_kind=str(ledger.contract.kind),
+                campaign_id=str(ledger.contract.campaign_id),
             )
             rtde.negotiate()
             output_recipe, output_types = rtde.setup_outputs(500.0, legacy.OUTPUT_FIELDS)
@@ -1363,7 +1381,11 @@ def _run_contact_attempt_locked(
                 ).encode("utf-8")
             ).hexdigest()
             formal_manifest = _formal_manifest_for_attempt(
-                attempt_id=attempt_id, source_hashes=source_hashes
+                attempt_id=attempt_id,
+                source_hashes=source_hashes,
+                episode=episode,
+                campaign_kind=str(ledger.contract.kind),
+                campaign_id=str(ledger.contract.campaign_id),
             )
             legacy._prime_idle_inputs(
                 rtde,
@@ -1529,9 +1551,6 @@ def _run_contact_attempt_locked(
                                 desired_acceleration = tuple(reference["desired_acceleration_base"])
                                 reference_sample_id = str(reference["reference_sample_id"])
                                 progress_s = float(reference["progress_s"])
-                                feedforward = _approach_feedforward_tcp(
-                                    desired_pose, episode.target_load_n
-                                )
                                 if ledger.contract.kind == "variable_k":
                                     tracking_error = tuple(
                                         desired_pose[index] - last_actual_pose[index]
@@ -1543,6 +1562,12 @@ def _run_contact_attempt_locked(
                                         previous_stiffness=previous_k[:3],
                                         dt_s=max(0.002, scheduler.period_s),
                                     )
+                                feedforward = _formal_tracking_feedforward_tcp(
+                                    desired_pose,
+                                    episode.target_load_n,
+                                    desired_twist,
+                                    stiffness,
+                                )
                             elif phase == FormalAttemptPhase.RETRACT:
                                 assert contact_pose is not None
                                 p = min(1.0, elapsed / 2.0)
@@ -1551,6 +1576,11 @@ def _run_contact_attempt_locked(
                                     contact_pose, episode.target_load_n
                                 )
                                 feedforward = tuple((1.0 - p) * value for value in feedforward_full)
+                        feedforward = _slew_limit_feedforward(
+                            previous_feedforward,
+                            feedforward,
+                            dt_s=max(0.002, scheduler.period_s),
+                        )
                         tube.assert_contains_pose(desired_pose, role="desired")
                         packet = legacy._command_packet(
                             command=legacy.MODE_RUN,
@@ -1578,6 +1608,7 @@ def _run_contact_attempt_locked(
                         }
                         outgoing = packet
                         previous_k = stiffness
+                        previous_feedforward = feedforward
                 pending = []
             if observed_complete and track_completed and end_sent:
                 auto_return_evidence = _run_monitored_formal_position_return(
@@ -1651,6 +1682,11 @@ def _run_contact_attempt_locked(
         failure = "TaskReadyHome_not_verified_after_return"
         fault_class = "recoverable_runtime"
 
+    runtime_rate_gate = _formal_runtime_rate_gate(rows)
+    if failure is None and track_completed and runtime_rate_gate["passed"] is not True:
+        failure = "formal_runtime_rate_gate_failed"
+        fault_class = "recoverable_runtime"
+
     formal_result: dict[str, Any] | None = None
     if failure is None and track_completed and task_ready_home:
         try:
@@ -1718,14 +1754,14 @@ def _run_contact_attempt_locked(
         "post_status": post_status,
         "source_content_sha256": identity["source_content_sha256"],
         "receiver_source_sha256": receiver_sha,
-        "receiver_friction_profile": (
-            legacy.FRICTION_PROFILE_UR_DEFAULT_V2_FORMAL_CONTACT
-        ),
+        "receiver_friction_profile": "ur_full_v3_formal_motion",
+        "formal_motion_feedforward": FormalMotionFeedforwardV1().as_json(),
         "receiver_tube": {
             "center_semantics": "controller_rebased_to_actual_entry",
             "normal_half_width_m": receiver_tube.normal_half_width_m,
         },
         "entry_transition": _entry_transition_evidence(rows),
+        "runtime_rate_gate": runtime_rate_gate,
         "formal_manifest": formal_manifest.as_json(),
         "contact_acquisition": contract.as_json(),
         "equipment_readback": equipment_receipt,
@@ -1921,7 +1957,7 @@ def _entry_transition_evidence(rows: Sequence[Mapping[str, Any]]) -> dict[str, A
         row
         for row in rows
         if int(row.get("receiver_state", -1)) in (legacy.STATE_STARTUP, legacy.STATE_TORQUE)
-        and 1 <= int(round(float(row.get("control_update_count", 0.0)))) <= 25
+        and 1 <= int(round(float(row.get("torque_thread_tick_count", 0.0)))) <= 25
     ]
     max_translation = 0.0
     max_rotation = 0.0
@@ -1946,20 +1982,21 @@ def _entry_transition_evidence(rows: Sequence[Mapping[str, Any]]) -> dict[str, A
                 )
         previous = row
     observed_counts = [
-        int(round(float(row.get("control_update_count", 0.0)))) for row in transition_rows
+        int(round(float(row.get("torque_thread_tick_count", 0.0)))) for row in transition_rows
     ]
     baseline_rows = [
         row
         for row in rows
         if int(row.get("receiver_state", -1)) in (legacy.STATE_STARTUP, legacy.STATE_TORQUE)
-        and int(round(float(row.get("control_update_count", 0.0)))) >= 26
+        and int(round(float(row.get("torque_thread_tick_count", 0.0)))) >= 26
     ]
     return {
         "profile": "formal_contact_entry_transition_v1",
         "version": 1,
         "enabled_ticks": 25,
-        "first_observed_control_update_count": min(observed_counts) if observed_counts else None,
-        "last_observed_control_update_count": max(observed_counts) if observed_counts else None,
+        "tick_source": "direct_torque_application_500hz",
+        "first_observed_torque_thread_tick_count": min(observed_counts) if observed_counts else None,
+        "last_observed_torque_thread_tick_count": max(observed_counts) if observed_counts else None,
         "baseline_limits_observed_from_tick_26": bool(baseline_rows),
         "max_tcp_translation_speed_m_s": max_translation,
         "max_tcp_rotation_speed_rad_s": max_rotation,
@@ -1967,6 +2004,63 @@ def _entry_transition_evidence(rows: Sequence[Mapping[str, Any]]) -> dict[str, A
         "max_derived_abs_joint_acceleration_rad_s2": max_joint_acceleration,
         "hard_tcp_excursion_limit_m": 0.0003,
         "hard_joint_excursion_limit_rad": 0.0005,
+    }
+
+
+def _formal_runtime_rate_gate(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Bind formal eligibility to measured outer-law and torque-call cadence."""
+
+    active = [
+        row
+        for row in rows
+        if int(row.get("receiver_state", -1)) == legacy.STATE_TORQUE
+    ]
+    control_rate_hz = 0.0
+    torque_rate_hz = 0.0
+    maximum_gap_s: float | None = None
+    if len(active) >= 2:
+        span = float(active[-1]["controller_timestamp_s"]) - float(
+            active[0]["controller_timestamp_s"]
+        )
+        if span > 0.0:
+            control_rate_hz = (
+                float(active[-1].get("control_update_count", 0.0))
+                - float(active[0].get("control_update_count", 0.0))
+            ) / span
+            torque_rate_hz = (
+                float(active[-1].get("torque_thread_tick_count", 0.0))
+                - float(active[0].get("torque_thread_tick_count", 0.0))
+            ) / span
+            gap_values = [
+                float(row["maximum_control_update_gap_s"])
+                for row in active
+                if row.get("maximum_control_update_gap_s") not in (None, "")
+                and math.isfinite(float(row["maximum_control_update_gap_s"]))
+            ]
+            maximum_gap_s = max(gap_values) if len(gap_values) == len(active) else None
+    transition = _entry_transition_evidence(rows)
+    predicates = {
+        "control_law_update_rate_150_to_200hz": 150.0 <= control_rate_hz <= 200.0,
+        "torque_application_rate_450_to_550hz": 450.0 <= torque_rate_hz <= 550.0,
+        "maximum_control_update_gap_at_most_10ms": (
+            maximum_gap_s is not None and maximum_gap_s <= 0.010
+        ),
+        "transition_observed_through_tick_25": transition.get(
+            "last_observed_torque_thread_tick_count"
+        )
+        == 25,
+        "baseline_observed_from_tick_26": transition.get(
+            "baseline_limits_observed_from_tick_26"
+        )
+        is True,
+    }
+    return {
+        "schema_version": "ur10e_tacdiffusion_formal_runtime_rate_gate/v1",
+        "measured_control_law_update_rate_hz": control_rate_hz,
+        "measured_torque_application_rate_hz": torque_rate_hz,
+        "maximum_control_update_gap_s": maximum_gap_s,
+        "predicates": predicates,
+        "passed": all(predicates.values()),
     }
 
 
@@ -2255,16 +2349,93 @@ def _approach_feedforward_tcp(
     return tuple(float(value) for value in force_tcp) + (0.0, 0.0, 0.0)
 
 
+def _formal_tracking_feedforward_tcp(
+    pose_base: Sequence[float],
+    target_load_n: float,
+    desired_twist_base: Sequence[float],
+    stiffness_6d: Sequence[float],
+) -> tuple[float, ...]:
+    """Compose normal load plus bounded moving-reference authority in TCP."""
+
+    pose = tuple(float(value) for value in pose_base)
+    if len(pose) != 6 or not all(math.isfinite(value) for value in pose):
+        raise ValueError("feedforward pose must contain six finite values")
+    target = float(target_load_n)
+    if target not in (0.0, 3.0, 5.0, 8.0):
+        raise ValueError("tracking target load must be exactly 0, 3, 5, or 8 N")
+    tangential_base = FormalMotionFeedforwardV1().tangential_force_base(
+        desired_twist_base,
+        stiffness_6d,
+        surface_normal_base=(0.0, 0.0, 1.0),
+    )
+    force_base = np.asarray(
+        (tangential_base[0], tangential_base[1], tangential_base[2] - target),
+        dtype=float,
+    )
+    rotation_base_from_tcp = _rotation_matrix_from_rotvec(pose[3:])
+    force_tcp = rotation_base_from_tcp.T @ force_base
+    result = tuple(float(value) for value in force_tcp) + (0.0, 0.0, 0.0)
+    if np.linalg.norm(np.asarray(result[:3], dtype=float)) > 50.0 + 1.0e-12:
+        raise ValueError("formal tracking feedforward exceeded 50 N force norm")
+    return result
+
+
+def _slew_limit_feedforward(
+    previous: Sequence[float], target: Sequence[float], *, dt_s: float
+) -> tuple[float, ...]:
+    """Apply the frozen expert action slew contract before packet emission."""
+
+    before = tuple(float(value) for value in previous)
+    requested = tuple(float(value) for value in target)
+    dt = float(dt_s)
+    if len(before) != 6 or len(requested) != 6 or not all(
+        math.isfinite(value) for value in (*before, *requested, dt)
+    ) or dt <= 0.0:
+        raise ValueError("formal feedforward slew inputs are invalid")
+    applied = []
+    for old, new, rate in zip(before, requested, FORMAL_EXPERT_ACTION_SLEW_PER_S):
+        maximum_delta = float(rate) * dt
+        applied.append(max(old - maximum_delta, min(old + maximum_delta, new)))
+    result = tuple(applied)
+    if any(
+        abs(value) > limit + 1.0e-12
+        for value, limit in zip(result, FORMAL_EXPERT_ACTION_COMPONENT_ABS_MAX)
+    ):
+        raise ValueError("formal feedforward exceeded component action cap")
+    if math.sqrt(sum(value * value for value in result[:3])) > FORMAL_EXPERT_ACTION_FORCE_NORM_MAX_N + 1.0e-12:
+        raise ValueError("formal feedforward exceeded force norm action cap")
+    if math.sqrt(sum(value * value for value in result[3:])) > FORMAL_EXPERT_ACTION_TORQUE_NORM_MAX_NM + 1.0e-12:
+        raise ValueError("formal feedforward exceeded torque norm action cap")
+    return result
+
+
 def _formal_manifest_for_attempt(
-    *, attempt_id: str, source_hashes: Mapping[str, str]
+    *,
+    attempt_id: str,
+    source_hashes: Mapping[str, str],
+    episode: FormalCampaignEpisodeV1,
+    campaign_kind: str,
+    campaign_id: str,
 ) -> FormalEpisodeManifestV1:
     authority = KunweiOnlyForceAuthorityV1()
+    if campaign_kind == "fixed_k":
+        impedance_identity = FixedKExpertV1().as_json()
+    elif campaign_kind == "variable_k":
+        impedance_identity = VariableKExpertV1().as_json()
+    else:
+        raise ValueError("formal manifest campaign_kind must be fixed_k or variable_k")
     return FormalEpisodeManifestV1(
         manifest_id=attempt_id,
         force_authority=authority,
         contact_guard_profile=ContactGuardProfileV1.expert_contact(authority=authority),
         rtde_output_fields=tuple(legacy.OUTPUT_FIELDS),
         source_hashes=source_hashes,
+        target_load_n=float(episode.target_load_n),
+        campaign_kind=str(campaign_kind),
+        campaign_id=str(campaign_id),
+        trajectory_family=str(episode.trajectory_family),
+        episode_index=int(episode.episode_index),
+        impedance_identity=impedance_identity,
         expert_action_limits={
             "schema_version": FORMAL_EXPERT_ACTION_LIMITS_SCHEMA_V1,
             "frame_id": "tool0_tcp",
@@ -2497,6 +2668,12 @@ def _compose_formal_artifact(
                 control_clock=control_clock,
             )
             previous_dynamics_sample = dynamics_runtime.previous_sample
+            actual_pose = tuple(
+                float(row[f"actual_TCP_pose_{axis}"]) for axis in range(6)
+            )
+            desired_pose = tuple(float(value) for value in desired_row["desired_pose_base"])
+            tube.assert_contains_pose(actual_pose, role="formal_actual")
+            tube.assert_contains_pose(desired_pose, role="formal_desired")
             formal = composer.compose(
                 base,
                 previous_runtime_row=previous_runtime_row,
@@ -2565,7 +2742,7 @@ def _strict_episode_gate(
     kunwei: Mapping[str, Any],
     complete: bool,
     duration_s: float,
-) -> dict[str, bool]:
+) -> dict[str, Any]:
     active = [
         row
         for row in rows
@@ -2575,10 +2752,27 @@ def _strict_episode_gate(
     span = max(0.0, timestamps[-1] - timestamps[0]) if timestamps else 0.0
     row_rate = (len(timestamps) - 1) / span if span > 0.0 else 0.0
     coherent = [row for row in active if legacy._action_echo_coherent(row)]
+    control_rate_hz = 0.0
+    torque_rate_hz = 0.0
+    if len(active) >= 2:
+        active_span = float(active[-1]["controller_timestamp_s"]) - float(
+            active[0]["controller_timestamp_s"]
+        )
+        if active_span > 0.0:
+            control_rate_hz = (
+                float(active[-1].get("control_update_count", 0.0))
+                - float(active[0].get("control_update_count", 0.0))
+            ) / active_span
+            torque_rate_hz = (
+                float(active[-1].get("torque_thread_tick_count", 0.0))
+                - float(active[0].get("torque_thread_tick_count", 0.0))
+            ) / active_span
     gate = {
         "observed_complete": bool(complete),
         "active_rows_present": len(active) >= int(0.9 * duration_s * 500.0),
         "output_rate_450_to_550hz": 450.0 <= row_rate <= 550.0,
+        "control_law_update_rate_150_to_200hz": 150.0 <= control_rate_hz <= 200.0,
+        "torque_application_rate_450_to_550hz": 450.0 <= torque_rate_hz <= 550.0,
         # Startup and RTDE sampling can expose transient torn snapshots while
         # the generation counter changes.  Those rows are excluded from
         # episode eligibility; qualification requires usable coherent echoes,
@@ -2605,8 +2799,59 @@ def _strict_episode_gate(
             float(kunwei["max_zeroed_torque_norm_nm"]) <= 0.5
         ),
     }
-    gate["ok"] = all(gate.values())
+    gate["measured_output_rate_hz"] = row_rate
+    gate["measured_control_law_update_rate_hz"] = control_rate_hz
+    gate["measured_torque_application_rate_hz"] = torque_rate_hz
+    gate["ok"] = all(
+        bool(value)
+        for key, value in gate.items()
+        if not key.startswith("measured_")
+    )
     return gate
+
+
+def _no_contact_tracking_gate(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Require measured no-contact motion, not merely a moving command."""
+
+    selected: list[Mapping[str, Any]] = []
+    last_update = -1
+    for row in rows:
+        if int(row.get("receiver_state", -1)) != legacy.STATE_TORQUE:
+            continue
+        try:
+            update = int(round(float(row.get("control_update_count", -1.0))))
+            desired = tuple(float(row[f"command_desired_pose_{axis}"]) for axis in range(3))
+            actual = tuple(float(row[f"actual_TCP_pose_{axis}"]) for axis in range(3))
+        except (TypeError, ValueError, KeyError):
+            continue
+        if update <= last_update or not all(math.isfinite(value) for value in (*desired, *actual)):
+            continue
+        selected.append(row)
+        last_update = update
+    contract = FormalTrackingQualityContractV1()
+    if len(selected) < 2:
+        geometry = evaluate_formal_path_geometry(
+            np.zeros((0, 3)),
+            np.zeros((0, 3)),
+            contract=contract,
+        )
+    else:
+        desired = np.asarray(
+            [[float(row[f"command_desired_pose_{axis}"]) for axis in range(3)] for row in selected],
+            dtype=float,
+        )
+        actual = np.asarray(
+            [[float(row[f"actual_TCP_pose_{axis}"]) for axis in range(3)] for row in selected],
+            dtype=float,
+        )
+        geometry = evaluate_formal_path_geometry(desired, actual, contract=contract)
+    return {
+        "schema_version": "ur10e_tacdiffusion_no_contact_tracking_gate/v2",
+        "formal_geometry_schema_version": geometry["schema_version"],
+        "metrics": geometry["metrics"],
+        "predicates": geometry["predicates"],
+        "passed": bool(geometry["passed"]),
+    }
 
 
 def _run_no_contact_episode(
@@ -2631,10 +2876,19 @@ def _run_no_contact_episode(
     for row in timeline.rows:
         tube.assert_contains_pose(row.desired_pose_base, role="desired")
     source = build_live_receiver_source(
-        tube, guard_force_limit_n=6.0, guard_torque_limit_nm=0.5
+        tube,
+        friction_profile="ur_full_v3_formal_motion",
+        guard_force_limit_n=6.0,
+        guard_torque_limit_nm=0.5,
+        model_inactive_expert_feedforward_allowed=True,
     )
     contract = parse_live_receiver_source(source)
-    if contract.guard_force_limit_n != 6.0 or contract.guard_torque_limit_nm != 0.5:
+    if (
+        contract.guard_force_limit_n != 6.0
+        or contract.guard_torque_limit_nm != 0.5
+        or contract.friction_profile != "ur_full_v3_formal_motion"
+        or contract.model_inactive_expert_feedforward_allowed is not True
+    ):
         raise RuntimeError("formal_qualification_receiver_guard_mismatch")
     source_sha256 = hashlib.sha256(source.encode("utf-8")).hexdigest()
     calibration, calibration_sha256 = legacy.validate_calibration(
@@ -2655,6 +2909,7 @@ def _run_no_contact_episode(
     rows: list[dict[str, Any]] = []
     complete = False
     torque_start: float | None = None
+    previous_feedforward = (0.0,) * 6
     failure: str | None = None
     output_dir.mkdir(parents=True, exist_ok=False)
     with (
@@ -2760,6 +3015,17 @@ def _run_no_contact_episode(
                     )
                     if next_sequence is not None:
                         reference = timeline.row_at(active_elapsed)
+                        requested_feedforward = _formal_tracking_feedforward_tcp(
+                            reference["desired_pose_base"],
+                            0.0,
+                            reference["desired_twist_base"],
+                            FixedKExpertV1().stiffness_6d,
+                        )
+                        feedforward = _slew_limit_feedforward(
+                            previous_feedforward,
+                            requested_feedforward,
+                            dt_s=max(0.002, scheduler.period_s),
+                        )
                         outgoing = legacy._command_packet(
                             command=legacy.MODE_RUN,
                             sequence=next_sequence,
@@ -2772,9 +3038,12 @@ def _run_no_contact_episode(
                             kunwei_receive_batch_id=guard.receive_batch_id,
                             kunwei_nominal_sensor_time_s=guard.nominal_sensor_time_s,
                             kunwei_batch_arrival_monotonic_s=guard.t_monotonic_s,
+                            stiffness_6d=FixedKExpertV1().stiffness_6d,
+                            raw_f_ff_6d=feedforward,
                         )
                         rtde.send_inputs(input_recipe, input_types, outgoing.values)
                         legacy._register_command_lineage(lineages, outgoing)
+                        previous_feedforward = feedforward
                 pending = []
         except Exception as exc:
             failure = f"{type(exc).__name__}: {exc}"
@@ -2803,6 +3072,9 @@ def _run_no_contact_episode(
         complete=complete,
         duration_s=timeline.duration_s,
     )
+    tracking_gate = _no_contact_tracking_gate(rows)
+    gate["measured_path_tracking"] = tracking_gate["passed"]
+    gate["ok"] = bool(gate["ok"] and tracking_gate["passed"])
     evidence = {
         "schema": FORMAL_QUALIFICATION_SCHEMA_V1,
         "claim_class": "live_no_contact_seven_family_qualification",
@@ -2820,6 +3092,7 @@ def _run_no_contact_episode(
         "kunwei_calibration_sha256": calibration_sha256,
         "kunwei": kunwei_summary,
         "strict_success_gate": gate,
+        "tracking_quality": tracking_gate,
         "model_active": False,
         "shadow_only": True,
         "contact_authorized": False,
