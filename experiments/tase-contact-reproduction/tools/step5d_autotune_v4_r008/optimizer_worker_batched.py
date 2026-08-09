@@ -36,6 +36,7 @@ from step5d_autotune_v4_r008.hard_stop_penalty import (
     merge_penalties_into_grouped,
 )
 from step5d_autotune_v4_r008.optimizer import feature_map_r008
+from step5d_autotune_v4_r010.kernel import build_conditional_matern52_kernel
 
 # Calibrated FixedNoise / warm-start noise floor (σ≈0.005 N).
 FIXED_NOISE_N2 = 2.5e-5
@@ -54,6 +55,7 @@ def _deterministic_initialization(
     values: Sequence[float],
     features: Any,
     torch: Any,
+    r010_calibration: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """r008-local warm-start seed: same probes as r006, noise floor = FIXED_NOISE_N2.
 
@@ -65,12 +67,13 @@ def _deterministic_initialization(
     by_point: dict[tuple[Any, ...], list[float]] = {}
     for point, value in zip(points, values, strict=True):
         by_point.setdefault(tuple(point.key), []).append(float(value))
-    repeat_variances = [
-        statistics.pvariance(row)
-        for row in by_point.values()
-        if len(row) > 1
-    ]
-    floor = float(FIXED_NOISE_N2)
+    variance = statistics.variance if r010_calibration is not None else statistics.pvariance
+    repeat_variances = [variance(row) for row in by_point.values() if len(row) > 1]
+    floor = float(
+        r010_calibration["noise"]["selected_floor_n2"]
+        if r010_calibration is not None
+        else FIXED_NOISE_N2
+    )
     repeat_noise_n2 = max(
         floor, statistics.fmean(repeat_variances) if repeat_variances else floor
     )
@@ -81,18 +84,42 @@ def _deterministic_initialization(
     matrix = torch.as_tensor(features, dtype=torch.double, device=model.train_inputs[0].device)
     spans = (matrix.max(dim=0).values - matrix.min(dim=0).values).clamp_min(1.0)
     base = model.covar_module.base_kernel
-    for component in (base.shared, base.same_mode, base.i_on_only):
-        component.initialize(lengthscale=spans.reshape(1, 1, -1))
+    if r010_calibration is None:
+        initializations = (spans, spans, spans)
+    else:
+        policy = r010_calibration["lengthscales"]
+        initializations = tuple(
+            torch.tensor(policy[name], dtype=torch.double, device=matrix.device)
+            for name in ("shared", "same_mode", "i_on_only")
+        )
+    for component, initialization in zip(
+        (base.shared, base.same_mode, base.i_on_only), initializations, strict=True
+    ):
+        component.initialize(lengthscale=initialization.reshape(1, 1, -1))
     model.covar_module.initialize(
         outputscale=torch.tensor(signal_scale_n**2, dtype=torch.double, device=matrix.device)
     )
     return {
         "method": "repeats_plus_minus_probes",
         "signal_scale_n": float(signal_scale_n),
-        "lengthscales": [float(value) for value in spans.detach().cpu().tolist()],
+        "lengthscales": (
+            [float(value) for value in spans.detach().cpu().tolist()]
+            if r010_calibration is None
+            else {
+                name: [float(value) for value in initialization.detach().cpu().tolist()]
+                for name, initialization in zip(
+                    ("shared", "same_mode", "i_on_only"), initializations, strict=True
+                )
+            }
+        ),
         "repeat_noise_n2": float(repeat_noise_n2),
         "repeat_noise_n2_floor": floor,
         "repeat_point_count": sum(1 for row in by_point.values() if len(row) > 1),
+        "variance_estimator": (
+            "statistics.variance"
+            if r010_calibration is not None
+            else "statistics.pvariance"
+        ),
     }
 
 # r006._request() validates by calling module-global ``_artifact_binding`` and
@@ -206,7 +233,12 @@ def _score_combination_batches(
     return selected_batch, score_list, scoring
 
 
-def _fit_and_ask(payload: Mapping[str, Any], expected: Mapping[str, Any]) -> dict[str, Any]:
+def _fit_and_ask(
+    payload: Mapping[str, Any],
+    expected: Mapping[str, Any],
+    *,
+    r010_calibration: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     import torch
     import gpytorch
     from botorch.acquisition.logei import qLogNoisyExpectedImprovement
@@ -287,56 +319,20 @@ def _fit_and_ask(payload: Mapping[str, Any], expected: Mapping[str, Any]) -> dic
     train_x = torch.tensor([_features(point) for point in train_points], dtype=torch.double, device=device)
     # Calibrated down from 1e-4 (σ≈0.01 N): ANCHOR I-off repeats are ~0.003 N sd;
     # 2.5e-5 ⇒ σ≈0.005 N keeps a small floor without drowning sealed MAE signal.
-    fixed_noise_n2 = float(FIXED_NOISE_N2)
+    fixed_noise_n2 = float(
+        r010_calibration["noise"]["selected_floor_n2"]
+        if r010_calibration is not None
+        else FIXED_NOISE_N2
+    )
+    variance = statistics.variance if r010_calibration is not None else statistics.pvariance
     train_y_values = [statistics.fmean(grouped[key]) for key in group_order]
     train_yvar_values = [
-        max(fixed_noise_n2, statistics.pvariance(grouped[key])) if len(grouped[key]) > 1 else fixed_noise_n2
+        max(fixed_noise_n2, variance(grouped[key])) if len(grouped[key]) > 1 else fixed_noise_n2
         for key in group_order
     ]
     train_y = torch.tensor([[value] for value in train_y_values], dtype=torch.double, device=device)
     train_yvar = torch.tensor([[value] for value in train_yvar_values], dtype=torch.double, device=device)
     initializer_features = train_x.detach()
-
-    class ConditionalMatern52Kernel(gpytorch.kernels.Kernel):
-        has_lengthscale = True
-
-        def __init__(self) -> None:
-            super().__init__(ard_num_dims=7)
-            # 2026-08-06: without a lengthscale prior on these three sub-kernels
-            # (or an outputscale prior on the wrapping ScaleKernel below),
-            # botorch.fit's sample_all_priors() retry-diversification is a
-            # no-op -- every one of the 5 default fit attempts starts from the
-            # identical _deterministic_initialization state and runs the
-            # identical scipy L-BFGS-B trajectory, hitting the same
-            # NotPSDError at the same step every time (confirmed live,
-            # reproduced offline against the real failing dataset). These are
-            # botorch's own SingleTaskGP default priors, not new choices.
-            # Each sub-kernel gets its own prior instance -- not shared -- so
-            # there is no cross-module aliasing of prior state.
-            self.shared = gpytorch.kernels.MaternKernel(
-                nu=2.5, ard_num_dims=7,
-                lengthscale_prior=gpytorch.priors.GammaPrior(3.0, 6.0),
-            )
-            self.same_mode = gpytorch.kernels.MaternKernel(
-                nu=2.5, ard_num_dims=7,
-                lengthscale_prior=gpytorch.priors.GammaPrior(3.0, 6.0),
-            )
-            self.i_on_only = gpytorch.kernels.MaternKernel(
-                nu=2.5, ard_num_dims=7,
-                lengthscale_prior=gpytorch.priors.GammaPrior(3.0, 6.0),
-            )
-
-        def forward(self, x1, x2, diag=False, **params):
-            shared = self.shared(x1, x2, diag=diag, **params)
-            same = self.same_mode(x1, x2, diag=diag, **params)
-            ion = self.i_on_only(x1, x2, diag=diag, **params)
-            if diag:
-                return shared + same + ion
-            x1_mode = x1[..., -1].unsqueeze(-1)
-            x2_mode = x2[..., -1].unsqueeze(-2)
-            mode_equal = (x1_mode == x2_mode).to(dtype=x1.dtype)
-            ion_mask = (x1_mode > 0.5) & (x2_mode > 0.5)
-            return shared + mode_equal * same + ion_mask.to(dtype=x1.dtype) * ion
 
     model = SingleTaskGP(
         train_X=train_x,
@@ -344,7 +340,7 @@ def _fit_and_ask(payload: Mapping[str, Any], expected: Mapping[str, Any]) -> dic
         train_Yvar=train_yvar,
         likelihood=FixedNoiseGaussianLikelihood(noise=train_yvar.squeeze(-1)),
         covar_module=gpytorch.kernels.ScaleKernel(
-            ConditionalMatern52Kernel(),
+            build_conditional_matern52_kernel(gpytorch),
             outputscale_prior=gpytorch.priors.GammaPrior(2.0, 0.15),
         ),
     ).to(device=device, dtype=torch.double)
@@ -354,6 +350,7 @@ def _fit_and_ask(payload: Mapping[str, Any], expected: Mapping[str, Any]) -> dic
         values=train_y_values,
         features=initializer_features,
         torch=torch,
+        r010_calibration=r010_calibration,
     )
     if bool(payload["hyperparameters_frozen"]):
         _load_model_state(model, payload.get("frozen_model_state"), torch=torch)
@@ -384,6 +381,14 @@ def _fit_and_ask(payload: Mapping[str, Any], expected: Mapping[str, Any]) -> dic
         "initialization": initialization,
         "child_attestation": attestation,
     }
+    if r010_calibration is not None:
+        metadata["r010_calibration"] = {
+            "calibration_sha256": r010_calibration["calibration_sha256"],
+            "noise_floor_n2": fixed_noise_n2,
+            "variance_estimator": r010_calibration["noise"]["variance_estimator"],
+            "lengthscale_policy": r010_calibration["lengthscales"]["policy"],
+            "kernel_implementation_sha256": r010_calibration["kernel"]["implementation_sha256"],
+        }
     if operation == "fit":
         metadata["fit_only"] = True
         return {

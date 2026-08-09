@@ -1,0 +1,61 @@
+{
+  "F_far_n": 1.0,
+  "F_soft_n": 1.2,
+  "confirm_force_norm_n": 1.7,
+  "confirm_hold_s": 0.08,
+  "confirm_normal_n": 1.5,
+  "d_blend_m": 0.002,
+  "d_near_start_travel_m": 0.010529311,
+  "early_abort_sigmoid": {
+    "active_allowed": false,
+    "direction": "decreasing kappa",
+    "enters_control": false,
+    "enters_gp_training": false,
+    "enters_ledger": false,
+    "input": "progress_fraction",
+    "kappa_end": 1.3,
+    "kappa_start": 3.0,
+    "midpoint": 0.5,
+    "mode": "shadow",
+    "schema": "step5d.autotune-v4/r010-early-abort-kappa-sigmoid-v1",
+    "steepness": 10.0
+  },
+  "f_far_hold_s": 0.04,
+  "far_acceleration_m_s2": 0.013355575,
+  "force_fuse_n": 50.0,
+  "force_fuse_reason": 75,
+  "force_latched_creep": {
+    "creep_latch_overrides_travel_and_force_latch": true,
+    "force_latch_clamps_to_near": true,
+    "is_sigmoid": false,
+    "latches_reset_per_attempt": true,
+    "primitive": "force_latched_speed_precedence",
+    "schema": "step5d.autotune-v4/r010-force-latched-creep-v1"
+  },
+  "max_travel_m": 0.025,
+  "near_acceleration_m_s2": 0.2,
+  "near_margin_m": 0.003,
+  "program": "step5d_strict_rnn_autotune_v4_r010",
+  "runtime_protocol": 609009,
+  "schema": "step5d.autotune-v4/r010-wave7-contact-entry-v1",
+  "timeout_s": 90.0,
+  "travel_sigmoid": {
+    "direction": "decreasing speed",
+    "endpoint_semantics": "start/end are target range, not exact finite-interval endpoints",
+    "input": "travel_m",
+    "midpoint": "0.5 span",
+    "normalized_endpoints": false,
+    "schema": "step5d.autotune-v4/r010-travel-sigmoid-v1",
+    "steepness": 8.0
+  },
+  "unchanged_first_cut": {
+    "anchor_force_gains": true,
+    "baseline_ramp": true,
+    "formal_objective": true,
+    "path_entry_limiter": true
+  },
+  "v_creep_m_s": 0.0007,
+  "v_far_m_s": 0.015,
+  "v_near_m_s": 0.005,
+  "version": "r010-wave7-v1"
+}

@@ -1,0 +1,22 @@
+Step5d independent new-EOAT 5 N Autotune V4 R010 offline candidate
+
+Program:
+  step5d_strict_rnn_autotune_v4_r010
+
+Controller target (not uploaded):
+  /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r010.urp
+
+Version:
+  2026-08-09T1200HKT_STEP5D_AUTOTUNE_V4_R010
+
+Behavior:
+  R009 reason43/observability/early-abort protocol is retained at wire protocol 609009.
+  Contact entry is Wave7 travel-logistic speed with independent F_far and F_soft latches.
+  Early-abort remains shadow-only and active mode is rejected.
+
+Offline boundary:
+  This triplet has not been uploaded or read back. No Dashboard Load/Play occurred.
+
+Binding:
+  # R010_BEHAVIOR_MANIFEST_SHA256: 465e347331e84e839c227f926725bc94ba8abc7f18d6cbebdbdf2eeca6cb5229
+  # R010_CAMPAIGN_FINGERPRINT: 465e347331e84e839c227f926725bc94ba8abc7f18d6cbebdbdf2eeca6cb5229

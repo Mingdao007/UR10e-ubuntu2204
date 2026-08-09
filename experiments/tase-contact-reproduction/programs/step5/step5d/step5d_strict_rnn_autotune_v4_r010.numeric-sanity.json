@@ -1,0 +1,33 @@
+{
+  "checks": {
+    "no_live_shortcut": true,
+    "no_parent_identity": true,
+    "path_60s": true,
+    "reason43_subtypes": true,
+    "resident_loop": true,
+    "runtime_protocol_609009": true,
+    "wave7_creep_precedence": true,
+    "wave7_creep_speed": true,
+    "wave7_far_speed": true,
+    "wave7_force_latch": true,
+    "wave7_near_speed": true,
+    "wave7_travel_sigmoid": true
+  },
+  "live_evidence": false,
+  "passed": true,
+  "program": "step5d_strict_rnn_autotune_v4_r010",
+  "runtime_protocol": 609009,
+  "schema": "step5d.autotune-v4/r010-numeric-sanity-v1",
+  "triplet_checks": {
+    "behavior_identity": true,
+    "cached_contents_exact": true,
+    "campaign_identity": true,
+    "controller_directory": true,
+    "gzip_urp": true,
+    "package_text_offline": true,
+    "program_name": true,
+    "script_node_path": true,
+    "version_stamp": true,
+    "wire_protocol": true
+  }
+}
