@@ -1647,6 +1647,8 @@ def resolve_live_controller_helper(
     requested_helper: Path | None,
     requested_sha256: str | None,
 ) -> tuple[Path, str]:
+    if (requested_helper is None) != (requested_sha256 is None):
+        die("controller helper path and SHA-256 must be supplied together")
     binding = _verified_owner_dependency("controller_helper")
     path_value = binding.get("path")
     sha_value = binding.get("sha256")

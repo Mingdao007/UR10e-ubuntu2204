@@ -592,9 +592,28 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                         self_reported_digest,
                     )
                 self.assertEqual(
+                    upload.resolve_live_controller_helper(attested, attested_digest),
+                    (attested, attested_digest),
+                )
+                self.assertEqual(
                     upload.resolve_live_controller_helper(None, None),
                     (attested, attested_digest),
                 )
+                for requested_helper, requested_sha256 in (
+                    (attested, None),
+                    (None, attested_digest),
+                    (attested, "0" * 64),
+                ):
+                    with self.assertRaisesRegex(
+                        RuntimeError,
+                        "controller helper path and SHA-256 must be supplied together"
+                        if (requested_helper is None) != (requested_sha256 is None)
+                        else "CLI binding differs from verified runtime attestation",
+                    ):
+                        upload.resolve_live_controller_helper(
+                            requested_helper,
+                            requested_sha256,
+                        )
 
     def test_helper_replacement_after_validation_executes_only_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
