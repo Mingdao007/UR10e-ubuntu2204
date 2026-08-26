@@ -75,13 +75,30 @@ from verify_step5d_current_binding import (  # noqa: E402
     verify_v35_evidence_freeze,
 )
 from step5d_paper_outer_loop import (  # noqa: E402
+    CONDITIONAL_DOUBLE_CLAMP_POLICY,
+    LEGACY_FORCE_INTEGRAL_POLICY,
+    ConditionalAntiWindupResult,
     Step5dOuterLoopConfig,
     Step5dOuterLoopInputs,
     Step5dOuterLoopOutput,
     Step5dOuterLoopState,
     compute_step5d_outer_loop,
+    conditional_double_clamp_step,
     rnn_target_state_from_outer_loop,
 )
+
+# Public bridge aliases make the opt-in controller primitive auditable at the
+# live composition boundary without changing any legacy profile default.
+STEP5D_INTEGRAL_POLICY_LEGACY = LEGACY_FORCE_INTEGRAL_POLICY
+STEP5D_INTEGRAL_POLICY_R013 = CONDITIONAL_DOUBLE_CLAMP_POLICY
+STEP5D_INTEGRAL_POLICIES = (
+    STEP5D_INTEGRAL_POLICY_LEGACY,
+    STEP5D_INTEGRAL_POLICY_R013,
+)
+STEP5D_R013_INTEGRAL_STATE_LIMIT_N_S = 1.0
+STEP5D_R013_INTEGRAL_AUTHORITY_ERROR_N = 0.5
+Step5dConditionalAntiWindupResult = ConditionalAntiWindupResult
+step5d_conditional_anti_windup_step = conditional_double_clamp_step
 from step5d_p0_v8_control_core import (  # noqa: E402
     P0V8Target,
     build_p0_v8_target as shared_build_p0_v8_target,
@@ -352,6 +369,19 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_normal_rate_limiter_saturated_s",
     "_step5d_normal_rate_limiter_active_s",
     "_step5d_normal_rate_limiter_duty",
+    "_step5d_integral_policy",
+    "_step5d_integral_state_n_s",
+    "_step5d_integral_effective_limit_n_s",
+    "_step5d_integral_i_term",
+    "_step5d_integral_normal_velocity_raw_m_s",
+    "_step5d_integral_normal_velocity_applied_m_s",
+    "_step5d_integral_state_clamped",
+    "_step5d_integral_authority_clamped",
+    "_step5d_integral_conditional_frozen",
+    "_step5d_integral_velocity_saturated",
+    "_step5d_integral_reset_reason",
+    "_step5d_integral_saturation_duty",
+    "_step5d_integral_freeze_duty",
     "_step5d_normal_filter_dt_s",
     "_step5d_normal_filter_tau_s",
     "_step5d_applied_force_p_gain",
@@ -4045,7 +4075,7 @@ def reset_step5d_autotune_diagnostics_for_trial(
     state.step5d_physical_prior_sha256 = str(args.step5d_physical_prior_sha256)
     state.integral_error_n_s = 0.0
     state.normal_velocity_m_s = 0.0
-    state.step5d_outer_state = Step5dOuterLoopState()
+    state.reset_conditional_integral("candidate_dispatch")
     reset_step5d_solver_state_for_boundary(state, "inactive")
     state.latched_normal_b = prior
     state.filtered_normal_b = prior
@@ -4464,6 +4494,20 @@ class BridgeState:
         self.step5d_live_normal_blend_enabled = False
         self.step5d_normal_rate_limiter_saturated_s = 0.0
         self.step5d_normal_rate_limiter_active_s = 0.0
+        self.step5d_integral_policy = STEP5D_INTEGRAL_POLICY_LEGACY
+        self.step5d_integral_effective_limit_n_s = 0.0
+        self.step5d_integral_i_term = 0.0
+        self.step5d_integral_normal_velocity_raw_m_s = 0.0
+        self.step5d_integral_normal_velocity_applied_m_s = 0.0
+        self.step5d_integral_state_clamped = False
+        self.step5d_integral_authority_clamped = False
+        self.step5d_integral_conditional_frozen = False
+        self.step5d_integral_velocity_saturated = False
+        self.step5d_integral_reset_reason = "initial_state"
+        self.step5d_integral_active_s = 0.0
+        self.step5d_integral_saturated_s = 0.0
+        self.step5d_integral_frozen_s = 0.0
+        self.step5d_integral_gain_signature: tuple[float, float, float] | None = None
         self.step5b_15n_anchor_xy: tuple[float, float] | None = None
         self.step5b_15n_acquired = False
         self.step5b_15n_after_acquire_s = 0.0
@@ -4492,6 +4536,26 @@ class BridgeState:
         self.step5b_ramp_alpha = 0.0
         self.step5b_ramp_xy_enabled = False
 
+    def reset_conditional_integral(self, reason: str, *, reset_duty: bool = True) -> None:
+        parsed_reason = str(reason).strip()
+        if not parsed_reason:
+            raise ValueError("conditional anti-windup reset requires a reason")
+        self.step5d_outer_state = Step5dOuterLoopState()
+        self.step5d_integral_effective_limit_n_s = 0.0
+        self.step5d_integral_i_term = 0.0
+        self.step5d_integral_normal_velocity_raw_m_s = 0.0
+        self.step5d_integral_normal_velocity_applied_m_s = 0.0
+        self.step5d_integral_state_clamped = False
+        self.step5d_integral_authority_clamped = False
+        self.step5d_integral_conditional_frozen = False
+        self.step5d_integral_velocity_saturated = False
+        self.step5d_integral_reset_reason = parsed_reason
+        self.step5d_integral_gain_signature = None
+        if reset_duty:
+            self.step5d_integral_active_s = 0.0
+            self.step5d_integral_saturated_s = 0.0
+            self.step5d_integral_frozen_s = 0.0
+
     def reset_line_contact(self) -> None:
         self.integral_error_n_s = 0.0
         self.normal_velocity_m_s = 0.0
@@ -4501,7 +4565,7 @@ class BridgeState:
         self.normal_acquired = self.step5d_physical_prior_reaction_normal_b is not None
         self.line_stage_s = 0.0
         self.last_robot_stage = None
-        self.step5d_outer_state = Step5dOuterLoopState()
+        self.reset_conditional_integral("mode_exit_or_home")
         self.step5d_v30_sequence = 0
         self.step5d_p0_v9_anchor_tcp_pose = None
         self.step5d_p0_v9_approach_normal = None
@@ -4828,12 +4892,35 @@ def compute_bridge_values(
     ) and acquire_stage_active
     line_stage_active = args.bridge_mode == "line" and abs(robot_stage - 25.0) < 0.05
     step5d_joint_line_profile = (step5d_liveprep_profile or step5d_ablation_profile) and line_stage_active
+    conditional_integral_active = (
+        step5d_autotune_profile
+        and args.bridge_integral_policy == STEP5D_INTEGRAL_POLICY_R013
+    )
+    state.step5d_integral_policy = str(args.bridge_integral_policy)
+    entered_path = bool(
+        conditional_integral_active
+        and line_stage_active
+        and (
+            state.last_robot_stage is None
+            or abs(float(state.last_robot_stage) - 25.0) >= 0.05
+        )
+    )
+    if entered_path:
+        state.reset_conditional_integral("path_entry")
+    exited_path = bool(
+        conditional_integral_active
+        and not line_stage_active
+        and state.last_robot_stage is not None
+        and abs(float(state.last_robot_stage) - 25.0) < 0.05
+    )
     step5d_stage25_control_mode = (
         str(getattr(args, "step5d_stage25_control_mode", "speedl_cartesian_oracle"))
         if step5d_ablation_profile
         else "speedj_rnn_live"
     )
     if not step5d_joint_line_profile:
+        if exited_path:
+            state.reset_conditional_integral("path_exit")
         state.step5d_line_guard_loss_s = 0.0
         state.step5d_last_qdot = None
         state.step5d_contact_hold_s = 0.0
@@ -5281,12 +5368,18 @@ def compute_bridge_values(
             state.line_stage_s = state.step5d_contact_hold_path_time_s
         elif step5d_contact_safety["action"] == "pass_solver":
             if state.step5d_contact_hold_path_time_s is not None:
-                state.step5d_outer_state = Step5dOuterLoopState()
+                if conditional_integral_active:
+                    state.reset_conditional_integral("contact_reentry", reset_duty=False)
+                else:
+                    state.step5d_outer_state = Step5dOuterLoopState()
                 state.step5d_last_qdot = None
             state.step5d_contact_hold_path_time_s = None
         elif step5d_contact_safety["action"] == "stop_zero_qdot":
             step5d_contact_safety_stop = True
-            state.step5d_outer_state = Step5dOuterLoopState()
+            if conditional_integral_active:
+                state.reset_conditional_integral("contact_abort", reset_duty=False)
+            else:
+                state.step5d_outer_state = Step5dOuterLoopState()
             state.step5d_last_qdot = None
     orientation_target_axis_b = (
         # For contact routes in angular_speedl_profile, n_control_b is the
@@ -5923,6 +6016,35 @@ def compute_bridge_values(
                             force_error_n=force_error,
                         )
                 else:
+                    integral_enabled = True
+                    integral_reset_reason = ""
+                    if conditional_integral_active:
+                        gain_signature = (
+                            float(autotune_force_terms["P"]),
+                            float(autotune_force_terms["I"]),
+                            float(autotune_force_terms["damping"]),
+                        )
+                        prior_signature = state.step5d_integral_gain_signature
+                        if prior_signature is not None and any(
+                            not math.isclose(actual, expected, rel_tol=0.0, abs_tol=1e-15)
+                            for actual, expected in zip(gain_signature, prior_signature)
+                        ):
+                            state.reset_conditional_integral("path_gain_hot_switch")
+                            raise RuntimeError(
+                                "conditional-double-clamp-v1 forbids PATH gain hot switching"
+                            )
+                        state.step5d_integral_gain_signature = gain_signature
+                        integral_enabled = bool(
+                            sensor_ok > 0.5
+                            and state.normal_acquired
+                            and step5d_contact_safety.get("action") == "pass_solver"
+                        )
+                        if not integral_enabled:
+                            integral_reset_reason = "contact_loss_or_invalid_state"
+                            state.reset_conditional_integral(
+                                integral_reset_reason,
+                                reset_duty=False,
+                            )
                     step5d_outer_call_kwargs = (
                         {"include_diagnostics": "compact"}
                         if step5d_v30_contract_profile
@@ -5947,9 +6069,22 @@ def compute_bridge_values(
                             Md_scalar=float(autotune_force_terms["Md"]) if autotune_force_terms is not None else STEP5D_V33_FORCE_MD if step5d_v33_outer_profile else STEP5D_V28_SHADOW_MD if step5d_step5b_speedl_live_profile else 12.0,
                             Bd_scalar=float(autotune_force_terms["Bd"]) if autotune_force_terms is not None else STEP5D_V33_FORCE_BD if step5d_v33_outer_profile else STEP5D_V28_SHADOW_BD if step5d_step5b_speedl_live_profile else 550.0,
                             force_integral_limit_n_s=(
-                                STEP5D_V33_FORCE_INTEGRAL_LIMIT_N_S
+                                STEP5D_R013_INTEGRAL_STATE_LIMIT_N_S
+                                if conditional_integral_active
+                                else STEP5D_V33_FORCE_INTEGRAL_LIMIT_N_S
                                 if step5d_v33_outer_profile
                                 else 5.0
+                            ),
+                            force_integral_policy=(
+                                STEP5D_INTEGRAL_POLICY_R013
+                                if conditional_integral_active
+                                else STEP5D_INTEGRAL_POLICY_LEGACY
+                            ),
+                            force_integral_authority_error_n=STEP5D_R013_INTEGRAL_AUTHORITY_ERROR_N,
+                            force_normal_velocity_limit_m_s=(
+                                float(args.bridge_normal_velocity_limit_m_s)
+                                if conditional_integral_active
+                                else None
                             ),
                             force_target_n=float(args.target_force_n),
                             delay_T_s=dt_s,
@@ -5965,6 +6100,8 @@ def compute_bridge_values(
                             xdot_pd_base=step5d_xdot_pd_base,
                             dt_s=dt_s,
                             cmd_valid=True,
+                            integral_enabled=integral_enabled,
+                            integral_reset_reason=integral_reset_reason,
                         ),
                         **step5d_outer_call_kwargs,
                     )
@@ -5979,6 +6116,39 @@ def compute_bridge_values(
                         "Step5d semantic gate blocked: contact orientation "
                         f"{orientation_error:.6f} rad vs outer orientation {outer_orientation_error_rad:.6f} rad"
                     )
+                if conditional_integral_active:
+                    integral_diag = step5d_outer_output.diagnostics
+                    state.step5d_integral_effective_limit_n_s = float(
+                        integral_diag["integral_effective_limit_n_s"]
+                    )
+                    state.step5d_integral_i_term = float(integral_diag["integral_i_term"])
+                    state.step5d_integral_normal_velocity_raw_m_s = float(
+                        integral_diag["integral_raw_normal_velocity_m_s"]
+                    )
+                    state.step5d_integral_normal_velocity_applied_m_s = float(
+                        integral_diag["integral_applied_normal_velocity_m_s"]
+                    )
+                    state.step5d_integral_state_clamped = bool(
+                        integral_diag["integral_state_clamped"]
+                    )
+                    state.step5d_integral_authority_clamped = bool(
+                        integral_diag["integral_authority_clamped"]
+                    )
+                    state.step5d_integral_conditional_frozen = bool(
+                        integral_diag["integral_conditional_frozen"]
+                    )
+                    state.step5d_integral_velocity_saturated = bool(
+                        integral_diag["integral_velocity_saturated"]
+                    )
+                    state.step5d_integral_reset_reason = str(
+                        integral_diag.get("integral_reset_reason", "")
+                    )
+                    safe_integral_dt_s = max(0.0, float(dt_s))
+                    state.step5d_integral_active_s += safe_integral_dt_s
+                    if state.step5d_integral_velocity_saturated:
+                        state.step5d_integral_saturated_s += safe_integral_dt_s
+                    if state.step5d_integral_conditional_frozen:
+                        state.step5d_integral_frozen_s += safe_integral_dt_s
                 state.step5d_outer_state = (
                     Step5dOuterLoopState()
                     if low_load_active_reacquire_reset
@@ -6377,7 +6547,13 @@ def compute_bridge_values(
                             state.line_stage_s = state.step5d_contact_hold_path_time_s
                         zero_qdot = np.zeros(6, dtype=float)
                         step5d_qdot_command = tuple(float(value) for value in zero_qdot.tolist())
-                        state.step5d_outer_state = Step5dOuterLoopState()
+                        if conditional_integral_active:
+                            state.reset_conditional_integral(
+                                "contact_loss_or_abort",
+                                reset_duty=False,
+                            )
+                        else:
+                            state.step5d_outer_state = Step5dOuterLoopState()
                         state.step5d_last_qdot = None
                 if (
                     step5d_no_contact_p0_profile
@@ -6649,7 +6825,10 @@ def compute_bridge_values(
             except (ValueError, RuntimeError) as exc:
                 if not str(exc).startswith("Step5d contact safety"):
                     values["_step5d_solver_error"] = str(exc)
-                state.step5d_outer_state = Step5dOuterLoopState()
+                if conditional_integral_active:
+                    state.reset_conditional_integral("abort_or_invalid_state", reset_duty=False)
+                else:
+                    state.step5d_outer_state = Step5dOuterLoopState()
                 state.step5d_last_qdot = None
                 cmd = (0.0, 0.0, 0.0)
                 orientation_cmd = (0.0, 0.0, 0.0)
@@ -7386,6 +7565,27 @@ def compute_bridge_values(
         )
         values["_step5d_applied_motion_kp"] = float(
             args.step5d_autotune_motion_kp
+        )
+        values["_step5d_integral_policy"] = state.step5d_integral_policy
+        values["_step5d_integral_state_n_s"] = state.step5d_outer_state.force_integral_n_s
+        values["_step5d_integral_effective_limit_n_s"] = state.step5d_integral_effective_limit_n_s
+        values["_step5d_integral_i_term"] = state.step5d_integral_i_term
+        values["_step5d_integral_normal_velocity_raw_m_s"] = state.step5d_integral_normal_velocity_raw_m_s
+        values["_step5d_integral_normal_velocity_applied_m_s"] = state.step5d_integral_normal_velocity_applied_m_s
+        values["_step5d_integral_state_clamped"] = 1.0 if state.step5d_integral_state_clamped else 0.0
+        values["_step5d_integral_authority_clamped"] = 1.0 if state.step5d_integral_authority_clamped else 0.0
+        values["_step5d_integral_conditional_frozen"] = 1.0 if state.step5d_integral_conditional_frozen else 0.0
+        values["_step5d_integral_velocity_saturated"] = 1.0 if state.step5d_integral_velocity_saturated else 0.0
+        values["_step5d_integral_reset_reason"] = state.step5d_integral_reset_reason
+        values["_step5d_integral_saturation_duty"] = (
+            state.step5d_integral_saturated_s / state.step5d_integral_active_s
+            if state.step5d_integral_active_s > 0.0
+            else 0.0
+        )
+        values["_step5d_integral_freeze_duty"] = (
+            state.step5d_integral_frozen_s / state.step5d_integral_active_s
+            if state.step5d_integral_active_s > 0.0
+            else 0.0
         )
     values["_step4e_contact_offset_x_m"] = contact_offset_x
     values["_step4e_contact_offset_y_m"] = contact_offset_y
@@ -8183,6 +8383,20 @@ def configure_step5d_autotune_args(
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
+    if args.bridge_integral_policy == STEP5D_INTEGRAL_POLICY_R013:
+        if terms["I"] <= 0.0:
+            raise SystemExit("conditional-double-clamp-v1 requires Step5d autotune I > 0")
+        if not math.isclose(
+            float(args.bridge_integral_limit_n_s),
+            STEP5D_R013_INTEGRAL_STATE_LIMIT_N_S,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        ):
+            raise SystemExit(
+                "conditional-double-clamp-v1 fixes --bridge-integral-limit-n-s at 1.0"
+            )
+        if float(args.bridge_normal_velocity_limit_m_s) <= 0.0:
+            raise SystemExit("conditional-double-clamp-v1 requires a positive normal velocity limit")
     if args.step5d_autotune_orientation_ko <= 0.0:
         raise SystemExit("--step5d-autotune-orientation-ko must be positive")
     if args.step5d_autotune_motion_kp <= 0.0:
@@ -9188,6 +9402,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step4e-force-damping", type=float, default=0.35)
     parser.add_argument("--step4e-normal-command-sign", type=float, choices=(-1.0, 1.0), default=1.0)
     parser.add_argument("--step4e-integral-limit-n-s", type=float, default=10.0)
+    parser.add_argument(
+        "--step4e-integral-policy",
+        choices=STEP5D_INTEGRAL_POLICIES,
+        default=env_choice(
+            "STEP5D_INTEGRAL_POLICY",
+            STEP5D_INTEGRAL_POLICY_LEGACY,
+            STEP5D_INTEGRAL_POLICIES,
+        ),
+    )
     parser.add_argument("--step4e-min-force-for-control-n", type=float, default=1.0)
     parser.add_argument("--step4e-acquire-grace-s", type=float, default=0.25)
     parser.add_argument("--step4e-reacquire-velocity-m-s", type=float, default=0.001)
@@ -9247,6 +9470,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--bridge-force-damping", dest="step4e_force_damping", type=float, default=argparse.SUPPRESS)
     parser.add_argument("--bridge-normal-command-sign", dest="step4e_normal_command_sign", type=float, choices=(-1.0, 1.0), default=argparse.SUPPRESS)
     parser.add_argument("--bridge-integral-limit-n-s", dest="step4e_integral_limit_n_s", type=float, default=argparse.SUPPRESS)
+    parser.add_argument(
+        "--bridge-integral-policy",
+        dest="step4e_integral_policy",
+        choices=STEP5D_INTEGRAL_POLICIES,
+        default=argparse.SUPPRESS,
+    )
     parser.add_argument("--bridge-min-force-for-control-n", dest="step4e_min_force_for_control_n", type=float, default=argparse.SUPPRESS)
     parser.add_argument("--bridge-acquire-grace-s", dest="step4e_acquire_grace_s", type=float, default=argparse.SUPPRESS)
     parser.add_argument("--bridge-reacquire-velocity-m-s", dest="step4e_reacquire_velocity_m_s", type=float, default=argparse.SUPPRESS)
@@ -10808,7 +11037,17 @@ def main(argv: list[str] | None = None) -> int:
                     if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
                     else STEP5D_V33_FORCE_KF
                 ),
-                "force_integral_limit_n_s": STEP5D_V33_FORCE_INTEGRAL_LIMIT_N_S,
+                "force_integral_limit_n_s": (
+                    STEP5D_R013_INTEGRAL_STATE_LIMIT_N_S
+                    if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+                    and args.bridge_integral_policy == STEP5D_INTEGRAL_POLICY_R013
+                    else STEP5D_V33_FORCE_INTEGRAL_LIMIT_N_S
+                ),
+                "force_integral_policy": (
+                    args.bridge_integral_policy
+                    if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+                    else STEP5D_INTEGRAL_POLICY_LEGACY
+                ),
                 "host_qdot_command_slew_rad_s2": (
                     args.step5d_autotune_host_slew_rad_s2
                     if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
@@ -10854,6 +11093,18 @@ def main(argv: list[str] | None = None) -> int:
                 "profile_eligibility": args.step5d_autotune_profile_eligibility,
                 "qdot_cap_rad_s": STEP5D_AUTOTUNE_QDOT_CAP_RAD_S,
                 "force_terms": args.step5d_autotune_force_terms,
+                "anti_windup": (
+                    {
+                        "schema": STEP5D_INTEGRAL_POLICY_R013,
+                        "integral_state_limit_n_s": STEP5D_R013_INTEGRAL_STATE_LIMIT_N_S,
+                        "i_term_authority_error_n": STEP5D_R013_INTEGRAL_AUTHORITY_ERROR_N,
+                        "effective_limit": "min(1.0, 0.5*P/Ki)",
+                        "back_calculation": False,
+                        "path_gain_hot_switch": "fail_closed_after_reset",
+                    }
+                    if args.bridge_integral_policy == STEP5D_INTEGRAL_POLICY_R013
+                    else None
+                ),
                 "host_slew_rad_s2": args.step5d_autotune_host_slew_rad_s2,
                 "speedj_acceleration_rad_s2": args.step5d_autotune_speedj_acceleration_rad_s2,
                 "handshake": {

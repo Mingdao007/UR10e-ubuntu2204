@@ -35,7 +35,6 @@ from step5d_autotune_v4_r005.runtime import (
 from step5d_force_objective import (
     FORMAL_END_S,
     FORMAL_START_S,
-    ForceObjectiveBuilder,
     TARGET_FORCE_N,
 )
 from step5d_autotune_v4_r008.early_abort_kappa import sigmoid_kappa
@@ -355,11 +354,7 @@ class R008LiveWriterAdapter(R005LiveWriterAdapter):
         if kind_s != "QUALIFICATION":
             return super().run_60s(attempt)
         # Mirror the frozen QUAL branch, but keep layered timing diagnostics.
-        self._objective_builder = ForceObjectiveBuilder()
-        self._path_samples.clear()
-        self._last_joint_evidence = None
-        self._last_rtde_frame_identity = None
-        self._rtde_sequence = 0
+        self._consume_prepared_attempt(attempt)
         raw = self.writer.run_60s(attempt)
         if isinstance(raw, AttemptResult):
             return raw

@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 import subprocess
+import time
 from typing import Any, Callable, Mapping, Sequence
 
 from step5d_autotune_v3 import runtime_environment
@@ -48,6 +49,14 @@ _HEX = frozenset("0123456789abcdef")
 _MODULE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
 _IDENTITY = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 _RELEASE_IDENTITY = re.compile(r"^[A-Za-z0-9_.:/-]{1,160}$")
+# Admission/diagnostic children must fail quickly.  A live Figure-eight
+# bundle, however, legitimately spans capability chains plus the declared
+# Primary/Correction campaign and cannot fit inside the old 60 s wrapper.
+# Keep both values typed and bounded; the live owner still owns its own
+# per-trial/campaign termination and safety gates.
+MANAGED_CHILD_TIMEOUT_S = 60.0
+MANAGED_LIVE_STARTUP_TIMEOUT_S = 60.0
+MANAGED_LIVE_CLEANUP_TIMEOUT_S = 30.0
 
 
 class ManagedRuntimeError(RuntimeError):
@@ -189,6 +198,10 @@ class ManagedRuntimeManifest:
     optimizer_worker_module: str
     no_system_install: bool
     source_closure: tuple[str, ...]
+    # Routes whose child owns the complete live-campaign lifecycle.  This is
+    # manifest data rather than a module-name heuristic so a lineage cannot
+    # accidentally inherit the long-running timeout by renaming a module.
+    long_running_routes: tuple[str, ...] = ()
 
     @property
     def routes(self) -> Mapping[str, str]:
@@ -228,7 +241,8 @@ def load_runtime_manifest(
         raise ManagedRuntimeError("MANAGED_RUNTIME_INVALID", "runtime manifest digest differs")
     document = _canonical_json(selected, "runtime manifest")
     required = {"schema", "lineage_id", "launcher_path", "release_contract", "routes", "control", "optimizer", "no_system_install", "source_closure"}
-    if set(document) != required or document.get("schema") != MANIFEST_SCHEMA:
+    allowed = required | {"long_running_routes"}
+    if not required.issubset(document) or set(document).difference(allowed) or document.get("schema") != MANIFEST_SCHEMA:
         raise ManagedRuntimeError("MANAGED_RUNTIME_INVALID", "runtime manifest fields/schema differ")
     lineage_id = _identity_string(document.get("lineage_id"), "lineage_id")
     launcher_path = _safe_relative(document.get("launcher_path"), "runtime launcher path")
@@ -305,6 +319,15 @@ def load_runtime_manifest(
     for source in source_closure:
         _regular_under(root, source, "runtime source closure file")
 
+    long_running_raw = document.get("long_running_routes", [])
+    if not isinstance(long_running_raw, list) or any(
+        not isinstance(route, str) or route not in ROUTES for route in long_running_raw
+    ) or len(set(long_running_raw)) != len(long_running_raw):
+        raise ManagedRuntimeError(
+            "MANAGED_RUNTIME_INVALID",
+            "long-running routes are not a unique subset of declared routes",
+        )
+
     return ManagedRuntimeManifest(
         path=selected,
         sha256=actual_sha256,
@@ -326,6 +349,7 @@ def load_runtime_manifest(
         optimizer_worker_module=optimizer_worker,
         no_system_install=True,
         source_closure=source_closure,
+        long_running_routes=tuple(long_running_raw),
     )
 
 
@@ -465,6 +489,7 @@ class ManagedControlBinding:
     dependency_attestation: Mapping[str, Any]
     environment: Mapping[str, str]
     route_modules: tuple[tuple[str, str], ...]
+    long_running_routes: tuple[str, ...] = ()
 
     @property
     def schema(self) -> str:
@@ -477,6 +502,182 @@ class ManagedControlBinding:
         if module not in allowed or any(not isinstance(value, str) for value in args):
             raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "control launcher module/arguments are invalid")
         return (str(self.python_executable), "-B", "-m", module, *tuple(args))
+
+
+@dataclass(frozen=True)
+class ExecutionRequestV1:
+    """Typed request for one manifest-bound execution admission."""
+
+    schema: str
+    entrypoint: str
+    manifest_path: Path
+    route: str
+    required_imports: tuple[str, ...]
+    side_effect_level: str
+    source_or_lineage_identity: str
+
+    def __post_init__(self) -> None:
+        if self.schema != "step5d.execution-admission/request-v1":
+            raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "execution admission request schema differs")
+        if not isinstance(self.entrypoint, str) or _MODULE.fullmatch(self.entrypoint) is None:
+            raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "execution admission entrypoint is invalid")
+        if self.route not in ROUTES:
+            raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "execution admission route is invalid")
+        if not self.required_imports or any(
+            not isinstance(item, str) or _MODULE.fullmatch(item) is None
+            for item in self.required_imports
+        ):
+            raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "execution admission imports are invalid")
+        if self.side_effect_level not in {"offline", "controller_read_only", "live_mutation"}:
+            raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "execution admission side-effect level is invalid")
+        if not isinstance(self.source_or_lineage_identity, str) or not self.source_or_lineage_identity.strip():
+            raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "execution admission lineage identity is missing")
+
+
+@dataclass(frozen=True)
+class RuntimeAdmissionReceiptV1:
+    """Serializable runtime evidence; it grants no authority by itself."""
+
+    schema: str
+    status: str
+    reason_code: str
+    entrypoint: str
+    route: str
+    source_or_lineage_identity: str
+    manifest_sha256: str
+    bundle_id: str
+    environment_id: str
+    python_executable: str
+    pythonpath: tuple[str, ...]
+    required_imports: tuple[str, ...]
+    import_origins: Mapping[str, Any]
+    side_effect_level: str
+    controller_calls_allowed: bool
+    authority_granted: bool
+    detail: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "status": self.status,
+            "reason_code": self.reason_code,
+            "entrypoint": self.entrypoint,
+            "route": self.route,
+            "source_or_lineage_identity": self.source_or_lineage_identity,
+            "manifest_sha256": self.manifest_sha256,
+            "bundle_id": self.bundle_id,
+            "environment_id": self.environment_id,
+            "python_executable": self.python_executable,
+            "pythonpath": list(self.pythonpath),
+            "required_imports": list(self.required_imports),
+            "import_origins": dict(self.import_origins),
+            "side_effect_level": self.side_effect_level,
+            "controller_calls_allowed": self.controller_calls_allowed,
+            "authority_granted": self.authority_granted,
+            "detail": self.detail,
+        }
+
+
+def _admitted_receipt(request: ExecutionRequestV1, binding: ManagedControlBinding) -> RuntimeAdmissionReceiptV1:
+    origins = binding.dependency_attestation.get("required_imports", {})
+    if not isinstance(origins, Mapping):
+        raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "control import origins are not attested")
+    return RuntimeAdmissionReceiptV1(
+        schema="step5d.execution-admission/runtime-receipt-v1",
+        status="admitted",
+        reason_code="admitted",
+        entrypoint=request.entrypoint,
+        route=request.route,
+        source_or_lineage_identity=request.source_or_lineage_identity,
+        manifest_sha256=binding.manifest_sha256,
+        bundle_id=binding.bundle_id,
+        environment_id=binding.environment_id,
+        python_executable=str(binding.python_executable),
+        pythonpath=binding.pythonpath,
+        required_imports=binding.required_imports,
+        import_origins=dict(origins),
+        side_effect_level=request.side_effect_level,
+        controller_calls_allowed=request.side_effect_level != "offline",
+        authority_granted=False,
+        detail="control runtime admitted; authority remains separate",
+    )
+
+
+def _invalid_receipt(request: ExecutionRequestV1, error: ManagedRuntimeError) -> RuntimeAdmissionReceiptV1:
+    return RuntimeAdmissionReceiptV1(
+        schema="step5d.execution-admission/runtime-receipt-v1",
+        status="invalid",
+        reason_code=error.reason_code,
+        entrypoint=request.entrypoint,
+        route=request.route,
+        source_or_lineage_identity=request.source_or_lineage_identity,
+        manifest_sha256="",
+        bundle_id="",
+        environment_id="",
+        python_executable="",
+        pythonpath=(),
+        required_imports=request.required_imports,
+        import_origins={},
+        side_effect_level=request.side_effect_level,
+        controller_calls_allowed=False,
+        authority_granted=False,
+        detail=error.detail,
+    )
+
+
+def admit_control_runtime(
+    request: ExecutionRequestV1,
+    *,
+    root: Path = ROOT,
+    source_environment: Mapping[str, str] | None = None,
+    pointer_loader: Callable[..., Mapping[str, Any]] | None = None,
+    environment_builder: Callable[..., Mapping[str, str]] | None = None,
+    dependency_probe: Callable[..., Mapping[str, Any]] | None = None,
+    runtime_contract_loader: Callable[[], Mapping[str, Any]] | None = None,
+) -> RuntimeAdmissionReceiptV1:
+    """Resolve and attest control runtime before any heavy/live import."""
+
+    try:
+        if not isinstance(request, ExecutionRequestV1):
+            raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "execution admission request is not typed")
+        manifest = load_runtime_manifest(request.manifest_path, root=root)
+        if manifest.module_for_route(request.route) != request.entrypoint:
+            raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "execution admission entrypoint is not route-bound")
+        binding = resolve_managed_control_runtime(
+            manifest,
+            source_environment=source_environment,
+            pointer_loader=pointer_loader,
+            environment_builder=environment_builder,
+            dependency_probe=dependency_probe,
+            runtime_contract_loader=runtime_contract_loader,
+        )
+        if not set(request.required_imports).issubset(set(binding.required_imports)):
+            raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "requested imports are not manifest-bound")
+        return _admitted_receipt(request, binding)
+    except ManagedRuntimeError as exc:
+        return _invalid_receipt(request, exc)
+    except Exception as exc:
+        return _invalid_receipt(
+            request,
+            ManagedRuntimeError("CONTROL_RUNTIME_INVALID", f"runtime admission failed closed: {exc}"),
+        )
+
+
+def require_execution_admission_receipt() -> dict[str, Any]:
+    """Require the receipt injected by the managed launcher in a live child."""
+
+    if os.environ.get("STEP5D_EXECUTION_ADMISSION") != "admitted":
+        raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "execution admission receipt is missing")
+    raw = os.environ.get("STEP5D_EXECUTION_ADMISSION_RECEIPT", "")
+    try:
+        value = json.loads(raw)
+    except (TypeError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "execution admission receipt is not JSON") from exc
+    if not isinstance(value, Mapping) or value.get("status") != "admitted":
+        raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "execution admission receipt is not admitted")
+    if value.get("authority_granted") is not False:
+        raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "runtime admission cannot grant authority")
+    return dict(value)
 
 
 def resolve_managed_control_runtime(
@@ -553,6 +754,7 @@ def resolve_managed_control_runtime(
             dependency_attestation=attestation,
             environment=environment,
             route_modules=manifest.route_modules,
+            long_running_routes=manifest.long_running_routes,
         )
     except ManagedRuntimeError:
         raise
@@ -618,6 +820,105 @@ def resolve_managed_runtime(manifest: ManagedRuntimeManifest, lane: str, **kwarg
     raise ManagedRuntimeError("MANAGED_RUNTIME_INVALID", "control and optimizer profiles cannot be mixed")
 
 
+def _launch_long_running_child(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    environment: Mapping[str, str],
+) -> int:
+    """Bound only startup; let the live owner close itself at Home.
+
+    A total ``subprocess.run(timeout=...)`` around a live robot owner can
+    SIGKILL it between ARM and seal.  The child publishes a startup receipt
+    before it can enter the bundle/owner path.  Only that pre-owner phase is
+    bounded here; after READY the campaign's typed owner/watchdog is the
+    lifecycle authority.
+    """
+
+    marker_dir = Path(cwd) / ".codex-runs" / "managed-startup"
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    marker = marker_dir / f"startup-{os.getpid()}-{time.time_ns()}.json"
+    child_environment = dict(environment)
+    child_environment["STEP5D_MANAGED_STARTUP_RECEIPT"] = str(marker)
+    process = subprocess.Popen(
+        list(command),
+        cwd=Path(cwd),
+        env=child_environment,
+        stdin=None,
+    )
+    ready = False
+    deadline = time.monotonic() + MANAGED_LIVE_STARTUP_TIMEOUT_S
+    try:
+        while time.monotonic() < deadline:
+            if marker.is_file():
+                try:
+                    receipt = json.loads(marker.read_text(encoding="utf-8"))
+                except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                    raise ManagedRuntimeError(
+                        "CONTROL_RUNTIME_INVALID",
+                        "managed child startup receipt is unreadable",
+                    ) from exc
+                if (
+                    not isinstance(receipt, Mapping)
+                    or receipt.get("schema") != "step5d.execution-admission/startup-receipt-v1"
+                    or receipt.get("status") != "READY"
+                    or receipt.get("pid") != process.pid
+                ):
+                    raise ManagedRuntimeError(
+                        "CONTROL_RUNTIME_INVALID",
+                        "managed child startup receipt identity differs",
+                    )
+                ready = True
+                break
+            code = process.poll()
+            if code is not None:
+                return int(code)
+            time.sleep(0.05)
+        if not ready:
+            process.terminate()
+            try:
+                process.wait(timeout=MANAGED_LIVE_CLEANUP_TIMEOUT_S)
+            except subprocess.TimeoutExpired as exc:
+                # The child has not published READY, so it cannot have
+                # entered the live owner.  Hard-stop this bounded admission
+                # hang, and report the failure rather than pretending live
+                # execution did not start after READY.
+                process.kill()
+                process.wait()
+                raise ManagedRuntimeError(
+                    "CONTROL_RUNTIME_TIMEOUT",
+                    "managed child did not publish startup READY receipt",
+                ) from exc
+            raise ManagedRuntimeError(
+                "CONTROL_RUNTIME_TIMEOUT",
+                "managed child did not publish startup READY receipt",
+            )
+        return int(process.wait())
+    except KeyboardInterrupt as exc:
+        if ready:
+            process.terminate()
+            try:
+                process.wait(timeout=MANAGED_LIVE_CLEANUP_TIMEOUT_S)
+            except subprocess.TimeoutExpired:
+                raise ManagedRuntimeError(
+                    "CONTROL_RUNTIME_UNKNOWN",
+                    "user interrupt left a live child requiring owner recovery",
+                ) from exc
+        else:
+            process.kill()
+            process.wait()
+        raise
+    except ManagedRuntimeError:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=MANAGED_LIVE_CLEANUP_TIMEOUT_S)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+        raise
+
+
 def launch_managed_module(
     module: str,
     args: Sequence[str] = (),
@@ -625,6 +926,8 @@ def launch_managed_module(
     binding: ManagedControlBinding,
     process_runner: Callable[..., Any] | None = None,
     cwd: Path = ROOT,
+    side_effect_level: str = "live_mutation",
+    source_or_lineage_identity: str | None = None,
 ) -> int:
     """Run one manifest-allowlisted control module after admission."""
 
@@ -636,14 +939,62 @@ def launch_managed_module(
     if any(not isinstance(value, str) for value in arguments):
         raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "launcher arguments must be strings")
     runner = process_runner or subprocess.run
+    child_environment = dict(binding.environment)
+    route = next((route for route, candidate in binding.route_modules if candidate == module), None)
+    if route is None:
+        raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "control module is not route-bound")
+    receipt_imports = binding.required_imports or ("step5d_managed_runtime",)
+    receipt = _admitted_receipt(
+        ExecutionRequestV1(
+            schema="step5d.execution-admission/request-v1",
+            entrypoint=module,
+            manifest_path=binding.manifest_path,
+            route=route,
+            required_imports=receipt_imports,
+            side_effect_level=side_effect_level,
+            source_or_lineage_identity=source_or_lineage_identity or binding.manifest_sha256,
+        ),
+        binding,
+    )
+    child_environment["STEP5D_EXECUTION_ADMISSION"] = "admitted"
+    child_environment["STEP5D_EXECUTION_ADMISSION_RECEIPT"] = json.dumps(
+        receipt.as_dict(), sort_keys=True, separators=(",", ":")
+    )
+    long_live_campaign = (
+        side_effect_level == "live_mutation"
+        and route in binding.long_running_routes
+        and ("--execute-live" in arguments or "--capability-only" in arguments)
+    )
+    # Once the manifest-bound live owner has been launched, an outer
+    # subprocess timeout is not a safety supervisor: it can kill the child
+    # between ARM/close and leave an ACTIVE authority or .part artifact.  The
+    # owner/campaign itself has the typed per-trial and campaign bounds.  Keep
+    # bounded startup, but let the declared long campaign reach its own
+    # terminal Home/release receipt.
+    if long_live_campaign and process_runner is None:
+        return _launch_long_running_child(
+            binding.command(module, arguments),
+            cwd=Path(cwd),
+            environment=child_environment,
+        )
+    # Test/advisory callers may inject a runner; preserve its explicit
+    # no-total-timeout contract while production uses the READY watchdog.
+    timeout_s = None if long_live_campaign else MANAGED_CHILD_TIMEOUT_S
     try:
         completed = runner(
             list(binding.command(module, arguments)),
             cwd=Path(cwd),
-            env=dict(binding.environment),
+            env=child_environment,
             stdin=None,
+            timeout=timeout_s,
             check=False,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise ManagedRuntimeError(
+            "CONTROL_RUNTIME_TIMEOUT",
+            f"managed child exceeded {timeout_s if timeout_s is not None else 'bounded-live-owner'} "
+            f"for side_effect_level={side_effect_level}",
+        ) from exc
     except OSError as exc:
         raise ManagedRuntimeError("CONTROL_RUNTIME_INVALID", f"managed child could not start: {exc}") from exc
     return int(completed.returncode)
@@ -661,6 +1012,8 @@ def launch_manifest_route(
     environment_builder: Callable[..., Mapping[str, str]] | None = None,
     dependency_probe: Callable[..., Mapping[str, Any]] | None = None,
     runtime_contract_loader: Callable[[], Mapping[str, Any]] | None = None,
+    side_effect_level: str = "live_mutation",
+    source_or_lineage_identity: str | None = None,
 ) -> int:
     arguments = tuple(argv)
     if any(not isinstance(value, str) for value in arguments):
@@ -685,6 +1038,8 @@ def launch_manifest_route(
         binding=selected,
         process_runner=process_runner,
         cwd=Path(root),
+        side_effect_level=side_effect_level,
+        source_or_lineage_identity=source_or_lineage_identity,
     )
 
 
@@ -694,6 +1049,7 @@ launch_managed_route = launch_manifest_route
 __all__ = [
     "CONTROL_PROFILE",
     "CONTROL_VERIFICATION_MODE",
+    "ExecutionRequestV1",
     "MANIFEST_SCHEMA",
     "ManagedControlBinding",
     "ManagedOptimizerBinding",
@@ -702,7 +1058,9 @@ __all__ = [
     "OPTIMIZER_PROFILE",
     "OPTIMIZER_RESOLVER",
     "REQUIRED_PRIMITIVES",
+    "RuntimeAdmissionReceiptV1",
     "ROUTES",
+    "admit_control_runtime",
     "launch_managed_module",
     "launch_managed_route",
     "launch_manifest_route",
@@ -710,4 +1068,5 @@ __all__ = [
     "resolve_managed_control_runtime",
     "resolve_managed_optimizer_runtime",
     "resolve_managed_runtime",
+    "require_execution_admission_receipt",
 ]

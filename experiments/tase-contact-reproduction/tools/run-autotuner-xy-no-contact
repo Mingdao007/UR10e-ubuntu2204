@@ -1,0 +1,1029 @@
+#!/usr/bin/env python3
+"""One-shot, offline-runnable Step5d autotuner XY no-contact diagnostic slice.
+
+The slice deliberately has no RTDE/network/controller implementation.  The
+owner can provide the small ``DiagnosticTransport`` protocol later.  The
+default CLI uses ``OfflineDiagnosticTransport`` and writes a complete
+diagnostic evidence bundle without contacting a robot.
+
+The trajectory and path-guard calculations are pure.  Contact/search/force
+control/model/candidate/qualification/promotion/tell_exact are not imported
+or activated by this module.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import math
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+from typing import Any, Mapping, Protocol, Sequence
+
+from step5d_autotune_v4_r004.path_reference import (
+    BOUND_FRAME_SEMANTIC_SHA256,
+    BOUND_STAGE_ROW_SEMANTIC_SHA256,
+    PATH_DURATION_S,
+    PATH_STAGE_ID,
+    R004_PATH_FRAME_SNAPSHOT,
+    path_reference_binding,
+    step5_path_reference,
+)
+from step5d_autotune_v4_r012.path_cbf_live import (
+    R012_HARD_TUBE_AXES_M,
+    R012_SOFT_CBF_AXES_M,
+    R012GuardStop,
+    R012PathGuardStack,
+)
+
+
+CLAIM_CLASS = "single_autotuner_xy_no_contact_diagnostic"
+SCHEMA = "step5d.autotuner-xy-no-contact-diagnostic/v1"
+SAMPLE_RATE_HZ = 500.0
+SAMPLE_PERIOD_S = 1.0 / SAMPLE_RATE_HZ
+EXPECTED_SAMPLE_COUNT = int(round(PATH_DURATION_S * SAMPLE_RATE_HZ)) + 1
+PREPOSITION_SPEED_MAX_M_S = 0.003
+PREPOSITION_BLEND_M = 0.0
+
+# These are offline-fixture values only.  A real session always captures Z and
+# orientation from its fresh startup/home pose and never substitutes them with
+# a source constant.
+OFFLINE_FIXTURE_SAFE_Z_M = 0.033000000
+OFFLINE_FIXTURE_ORIENTATION_ROTVEC = (3.120752062, 0.0, 0.068626833)
+BASE_ORIGIN_XY_M = (0.487795411149049, 0.12932679270060748)
+U_ALONG_XY = (-0.010785642631908187, 0.9999418332648238)
+P_LATERAL_XY = (-0.9999418332648239, -0.010785642631908406)
+PATH_AMPLITUDE_M = 0.015
+PATH_OMEGA_RAD_S = 0.1
+GUARD_ORDER = ("moving_reference_hard_ellipse", "soft_cbf_qp")
+
+
+def _same_float_tuple(actual: Sequence[float], expected: Sequence[float]) -> bool:
+    return tuple(float(value) for value in actual) == tuple(float(value) for value in expected)
+
+
+def _validate_canonical_path_binding() -> None:
+    basis = R004_PATH_FRAME_SNAPSHOT["basis"]
+    if not _same_float_tuple(basis["origin_xy_m"], BASE_ORIGIN_XY_M):
+        raise RuntimeError("canonical Step5d XY origin differs")
+    if not _same_float_tuple(basis["u_along_xy"], U_ALONG_XY):
+        raise RuntimeError("canonical Step5d along basis differs")
+    if not _same_float_tuple(basis["p_lateral_xy"], P_LATERAL_XY):
+        raise RuntimeError("canonical Step5d lateral basis differs")
+
+
+_validate_canonical_path_binding()
+
+
+class SessionPhase(str, Enum):
+    CREATED = "created"
+    PREPOSITIONED = "prepositioned"
+    PATH = "path"
+    STOPPED = "stopped"
+    RETURNING_PATH_ORIGIN = "returning_path_origin"
+    HOMED = "homed"
+    ABORTED = "aborted_no_automatic_recovery"
+
+
+class OneShotTerminalError(RuntimeError):
+    """The diagnostic has a terminal outcome and cannot start another lap."""
+
+
+@dataclass(frozen=True)
+class Pose:
+    x_m: float
+    y_m: float
+    z_m: float
+    rx_rad: float
+    ry_rad: float
+    rz_rad: float
+
+    def __post_init__(self) -> None:
+        values = (self.x_m, self.y_m, self.z_m, self.rx_rad, self.ry_rad, self.rz_rad)
+        if not all(math.isfinite(float(value)) for value in values):
+            raise ValueError("pose must contain six finite values")
+
+    @classmethod
+    def from_sequence(cls, value: Sequence[float]) -> "Pose":
+        if len(value) != 6:
+            raise ValueError("pose must contain six values")
+        return cls(*(float(item) for item in value))
+
+    def as_tuple(self) -> tuple[float, float, float, float, float, float]:
+        return (self.x_m, self.y_m, self.z_m, self.rx_rad, self.ry_rad, self.rz_rad)
+
+
+@dataclass(frozen=True)
+class TrajectoryPoint:
+    path_time_s: float
+    phase_rad: float
+    local_along_m: float
+    local_lateral_m: float
+    desired_xy_m: tuple[float, float]
+    desired_velocity_xy_m_s: tuple[float, float]
+    desired_pose: Pose
+
+    @property
+    def desired_twist(self) -> tuple[float, float, float, float, float, float]:
+        return (*self.desired_velocity_xy_m_s, 0.0, 0.0, 0.0, 0.0)
+
+    @property
+    def reference_speed_m_s(self) -> float:
+        return math.hypot(*self.desired_velocity_xy_m_s)
+
+
+@dataclass(frozen=True)
+class SafetyLimits:
+    max_force_n: float = 6.0
+    max_torque_nm: float = 0.5
+    max_fixed_z_error_m: float = 0.002
+    max_orientation_error_rad: float = math.radians(5.0)
+    max_linear_command_speed_m_s: float = 0.004
+    max_qdot_rad_s: float = 0.15
+
+    def __post_init__(self) -> None:
+        values = (
+            self.max_force_n,
+            self.max_torque_nm,
+            self.max_fixed_z_error_m,
+            self.max_orientation_error_rad,
+            self.max_linear_command_speed_m_s,
+            self.max_qdot_rad_s,
+        )
+        if not all(math.isfinite(float(value)) and float(value) > 0.0 for value in values):
+            raise ValueError("fail-closed safety limits must be finite and positive")
+
+    def as_dict(self) -> dict[str, float]:
+        return {
+            "max_force_n": self.max_force_n,
+            "max_torque_nm": self.max_torque_nm,
+            "max_fixed_z_error_m": self.max_fixed_z_error_m,
+            "max_orientation_error_rad": self.max_orientation_error_rad,
+            "max_orientation_error_deg": math.degrees(self.max_orientation_error_rad),
+            "max_linear_command_speed_m_s": self.max_linear_command_speed_m_s,
+            "max_qdot_rad_s": self.max_qdot_rad_s,
+        }
+
+
+FAIL_CLOSED_LIMITS = SafetyLimits()
+
+
+@dataclass(frozen=True)
+class CommandReceipt:
+    operation: str
+    command_seq: int
+    ack_seq: int
+    accepted: bool = True
+    heartbeat_ok: bool = True
+    protocol_ok: bool = True
+    joint_mode_ok: bool = True
+    receiver_ok: bool = True
+    single_live_writer_ok: bool = True
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "operation": self.operation,
+            "command_seq": self.command_seq,
+            "ack_seq": self.ack_seq,
+            "accepted": self.accepted,
+            "heartbeat_ok": self.heartbeat_ok,
+            "protocol_ok": self.protocol_ok,
+            "joint_mode_ok": self.joint_mode_ok,
+            "receiver_ok": self.receiver_ok,
+            "single_live_writer_ok": self.single_live_writer_ok,
+        }
+
+
+@dataclass(frozen=True)
+class Feedback:
+    actual_pose: Pose
+    actual_velocity: tuple[float, float, float, float, float, float]
+    force_norm_n: float
+    torque_norm_nm: float
+    qdot_max_abs_rad_s: float
+    heartbeat_ok: bool = True
+    protocol_ok: bool = True
+    joint_mode_ok: bool = True
+    receiver_ok: bool = True
+    single_live_writer_ok: bool = True
+    tracking_ok: bool = True
+    fault_reason: str | None = None
+    ack_seq: int = 0
+    rtde_row: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if len(self.actual_velocity) != 6 or not all(
+            math.isfinite(float(value)) for value in self.actual_velocity
+        ):
+            raise ValueError("actual velocity must contain six finite values")
+
+
+@dataclass(frozen=True)
+class SafetyDecision:
+    passed: bool
+    reason: str | None
+    force_norm_n: float
+    torque_norm_nm: float
+    fixed_z_error_m: float
+    orientation_error_rad: float
+    command_speed_m_s: float
+    qdot_max_abs_rad_s: float
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "passed": self.passed,
+            "reason": self.reason,
+            "force_norm_n": self.force_norm_n,
+            "torque_norm_nm": self.torque_norm_nm,
+            "fixed_z_error_m": self.fixed_z_error_m,
+            "orientation_error_rad": self.orientation_error_rad,
+            "command_speed_m_s": self.command_speed_m_s,
+            "qdot_max_abs_rad_s": self.qdot_max_abs_rad_s,
+        }
+
+
+def _finite_or_inf(value: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return math.inf
+
+
+def _orientation_error_rad(actual: Pose, desired: Pose) -> float:
+    return math.sqrt(
+        sum(
+            (float(left) - float(right)) ** 2
+            for left, right in zip(
+                (actual.rx_rad, actual.ry_rad, actual.rz_rad),
+                (desired.rx_rad, desired.ry_rad, desired.rz_rad),
+            )
+        )
+    )
+
+
+def evaluate_safety(
+    feedback: Feedback,
+    desired: TrajectoryPoint,
+    command_twist: Sequence[float],
+    limits: SafetyLimits = FAIL_CLOSED_LIMITS,
+) -> SafetyDecision:
+    """Evaluate only the requested no-contact fail-closed safety scope."""
+
+    force = _finite_or_inf(feedback.force_norm_n)
+    torque = _finite_or_inf(feedback.torque_norm_nm)
+    z_error = abs(_finite_or_inf(feedback.actual_pose.z_m) - desired.desired_pose.z_m)
+    orientation = _orientation_error_rad(feedback.actual_pose, desired.desired_pose)
+    try:
+        command_speed = math.sqrt(sum(float(value) ** 2 for value in command_twist[:3]))
+    except (TypeError, ValueError):
+        command_speed = math.inf
+    qdot = _finite_or_inf(feedback.qdot_max_abs_rad_s)
+
+    checks = (
+        (feedback.heartbeat_ok is True, "heartbeat_fault"),
+        (feedback.protocol_ok is True, "protocol_fault"),
+        (feedback.joint_mode_ok is True, "joint_mode_fault"),
+        (feedback.receiver_ok is True, "receiver_fault"),
+        (feedback.single_live_writer_ok is True, "single_live_writer_fault"),
+        (force <= limits.max_force_n, "force_limit_exceeded"),
+        (torque <= limits.max_torque_nm, "torque_limit_exceeded"),
+        (z_error <= limits.max_fixed_z_error_m, "fixed_z_error_exceeded"),
+        (orientation <= limits.max_orientation_error_rad, "orientation_limit_exceeded"),
+        (command_speed <= limits.max_linear_command_speed_m_s, "linear_command_limit_exceeded"),
+        (qdot <= limits.max_qdot_rad_s, "qdot_limit_exceeded"),
+    )
+    reason = next((name for passed, name in checks if not passed), None)
+    return SafetyDecision(
+        passed=reason is None,
+        reason=reason,
+        force_norm_n=force,
+        torque_norm_nm=torque,
+        fixed_z_error_m=z_error,
+        orientation_error_rad=orientation,
+        command_speed_m_s=command_speed,
+        qdot_max_abs_rad_s=qdot,
+    )
+
+
+def sample_times_hz(
+    duration_s: float = PATH_DURATION_S,
+    sample_rate_hz: float = SAMPLE_RATE_HZ,
+) -> tuple[float, ...]:
+    if duration_s != PATH_DURATION_S or sample_rate_hz != SAMPLE_RATE_HZ:
+        raise ValueError("the diagnostic uses the frozen 60 s / 500 Hz contract")
+    return tuple(index * SAMPLE_PERIOD_S for index in range(EXPECTED_SAMPLE_COUNT))
+
+
+def trajectory_at(path_time_s: float, anchor_pose: Pose | None = None) -> TrajectoryPoint:
+    """Return frozen absolute XY while holding the session anchor Z/orientation."""
+
+    time_s = float(path_time_s)
+    if not math.isfinite(time_s) or time_s < 0.0 or time_s > PATH_DURATION_S:
+        raise ValueError("PATH time must be finite and within [0, 60] s")
+    theta = PATH_OMEGA_RAD_S * time_s
+    along = PATH_AMPLITUDE_M * (theta - math.sin(theta))
+    lateral = PATH_AMPLITUDE_M * (1.0 - math.cos(theta))
+    along_speed = PATH_AMPLITUDE_M * PATH_OMEGA_RAD_S * (1.0 - math.cos(theta))
+    lateral_speed = PATH_AMPLITUDE_M * PATH_OMEGA_RAD_S * math.sin(theta)
+    desired_xy = (
+        BASE_ORIGIN_XY_M[0] + along * U_ALONG_XY[0] + lateral * P_LATERAL_XY[0],
+        BASE_ORIGIN_XY_M[1] + along * U_ALONG_XY[1] + lateral * P_LATERAL_XY[1],
+    )
+    anchor = anchor_pose or Pose(
+        BASE_ORIGIN_XY_M[0],
+        BASE_ORIGIN_XY_M[1],
+        OFFLINE_FIXTURE_SAFE_Z_M,
+        *OFFLINE_FIXTURE_ORIENTATION_ROTVEC,
+    )
+    return TrajectoryPoint(
+        path_time_s=time_s,
+        phase_rad=theta,
+        local_along_m=along,
+        local_lateral_m=lateral,
+        desired_xy_m=desired_xy,
+        desired_velocity_xy_m_s=(
+            along_speed * U_ALONG_XY[0] + lateral_speed * P_LATERAL_XY[0],
+            along_speed * U_ALONG_XY[1] + lateral_speed * P_LATERAL_XY[1],
+        ),
+        desired_pose=Pose(
+            desired_xy[0],
+            desired_xy[1],
+            anchor.z_m,
+            anchor.rx_rad,
+            anchor.ry_rad,
+            anchor.rz_rad,
+        ),
+    )
+
+
+def canonical_reference_at(path_time_s: float) -> Mapping[str, Any]:
+    """Expose the mature canonical reference for an exact mapping check."""
+
+    return step5_path_reference(PATH_STAGE_ID, BASE_ORIGIN_XY_M, path_time_s)
+
+
+def guard_path_command(
+    desired: TrajectoryPoint,
+    actual_pose: Pose,
+    *,
+    guard_stack: R012PathGuardStack,
+    nominal_twist: Sequence[float] | None = None,
+) -> "GuardedCommand":
+    """Apply the mature R012 hard-before-soft PATH guard stack."""
+
+    try:
+        outcome = guard_stack.apply(
+            desired.desired_twist if nominal_twist is None else nominal_twist,
+            mode="path",
+            actual_tcp_pose=actual_pose.as_tuple(),
+            path_time_s=desired.path_time_s,
+        )
+    except R012GuardStop as exc:
+        return GuardedCommand(
+            command_twist=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            hard_ellipse_value=exc.outcome.hard_value,
+            soft_cbf_qp_active=False,
+            terminal_stop=True,
+            reason=exc.outcome.reason or "r012_guard_terminal_stop",
+        )
+    return GuardedCommand(
+        command_twist=tuple(float(value) for value in outcome.desired_twist),
+        hard_ellipse_value=outcome.hard_value,
+        soft_cbf_qp_active=bool(outcome.soft.applied),
+        terminal_stop=outcome.terminal_stop,
+        reason=outcome.reason,
+    )
+
+
+@dataclass(frozen=True)
+class GuardedCommand:
+    command_twist: tuple[float, float, float, float, float, float]
+    hard_ellipse_value: float | None
+    soft_cbf_qp_active: bool
+    terminal_stop: bool
+    reason: str | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "command_twist": list(self.command_twist),
+            "hard_ellipse_value": self.hard_ellipse_value,
+            "soft_cbf_qp_active": self.soft_cbf_qp_active,
+            "terminal_stop": self.terminal_stop,
+            "reason": self.reason,
+            "guard_order": list(GUARD_ORDER),
+        }
+
+
+class DiagnosticTransport(Protocol):
+    """The only owner seam needed for later live integration."""
+
+    def session_home_pose(self) -> Pose: ...
+
+    def preposition(self, target: Pose, *, speed_m_s: float, blend_m: float) -> CommandReceipt: ...
+
+    def read_feedback(self, desired: TrajectoryPoint) -> Feedback: ...
+
+    def write_path_command(self, command_twist: Sequence[float]) -> CommandReceipt: ...
+
+    def stop_path(self) -> CommandReceipt: ...
+
+    def return_to_path_origin(self, target: Pose) -> CommandReceipt: ...
+
+    def return_to_session_home(self, target: Pose) -> CommandReceipt: ...
+
+    def verify_stationary(self) -> bool: ...
+
+    def send_zero_abort(self, reason: str) -> CommandReceipt: ...
+
+    def controller_source_identity(self) -> Mapping[str, Any]: ...
+
+    def kunwei_summary(self) -> Mapping[str, Any]: ...
+
+    def kunwei_raw_reference(self) -> Mapping[str, Any]: ...
+
+
+@dataclass
+class OfflineDiagnosticTransport:
+    """Deterministic, no-I/O transport for the CLI whole-flow dry run."""
+
+    home: Pose = Pose(
+        0.50,
+        0.13,
+        OFFLINE_FIXTURE_SAFE_Z_M,
+        *OFFLINE_FIXTURE_ORIENTATION_ROTVEC,
+    )
+    tracking_failure_at_s: float | None = None
+    operations: list[str] = field(default_factory=list)
+    _sequence: int = 0
+    _pose: Pose | None = None
+
+    def _receipt(self, operation: str) -> CommandReceipt:
+        self._sequence += 1
+        self.operations.append(operation)
+        return CommandReceipt(operation, self._sequence, self._sequence)
+
+    def session_home_pose(self) -> Pose:
+        return self.home
+
+    def preposition(self, target: Pose, *, speed_m_s: float, blend_m: float) -> CommandReceipt:
+        if speed_m_s > PREPOSITION_SPEED_MAX_M_S or blend_m != PREPOSITION_BLEND_M:
+            return CommandReceipt("preposition", self._sequence, self._sequence, accepted=False)
+        self._pose = target
+        return self._receipt("preposition")
+
+    def read_feedback(self, desired: TrajectoryPoint) -> Feedback:
+        failed = (
+            self.tracking_failure_at_s is not None
+            and desired.path_time_s >= float(self.tracking_failure_at_s)
+        )
+        pose = desired.desired_pose
+        if failed:
+            pose = Pose(
+                pose.x_m + 0.010,
+                pose.y_m,
+                pose.z_m,
+                pose.rx_rad,
+                pose.ry_rad,
+                pose.rz_rad,
+            )
+        self._pose = pose
+        return Feedback(
+            actual_pose=pose,
+            actual_velocity=(*desired.desired_velocity_xy_m_s, 0.0, 0.0, 0.0, 0.0),
+            force_norm_n=0.0,
+            torque_norm_nm=0.0,
+            qdot_max_abs_rad_s=0.0,
+            tracking_ok=not failed,
+            fault_reason="offline_tracking_failure" if failed else None,
+            ack_seq=self._sequence,
+        )
+
+    def write_path_command(self, command_twist: Sequence[float]) -> CommandReceipt:
+        if len(tuple(command_twist)) != 6:
+            return CommandReceipt("path_command", self._sequence, self._sequence, accepted=False)
+        return self._receipt("path_command")
+
+    def stop_path(self) -> CommandReceipt:
+        return self._receipt("stop_zero")
+
+    def return_to_path_origin(self, target: Pose) -> CommandReceipt:
+        self._pose = target
+        return self._receipt("return_path_origin")
+
+    def return_to_session_home(self, target: Pose) -> CommandReceipt:
+        self._pose = target
+        return self._receipt("return_session_home")
+
+    def verify_stationary(self) -> bool:
+        self.operations.append("verify_stationary")
+        return True
+
+    def send_zero_abort(self, reason: str) -> CommandReceipt:
+        del reason
+        return self._receipt("zero_abort")
+
+    def controller_source_identity(self) -> Mapping[str, Any]:
+        return {
+            "controller": "offline_diagnostic_transport",
+            "source": "run-autotuner-xy-no-contact",
+            "live_controller_readback": False,
+        }
+
+    def kunwei_summary(self) -> Mapping[str, Any]:
+        return {
+            "source": "offline_zero_force_reference",
+            "force_norm_n": 0.0,
+            "torque_norm_nm": 0.0,
+            "contact_control_active": False,
+        }
+
+    def kunwei_raw_reference(self) -> Mapping[str, Any]:
+        return {
+            "source": "offline_diagnostic_transport",
+            "rows": [],
+            "preserved": True,
+        }
+
+
+CSV_FIELDS = (
+    "sample_index",
+    "t_monotonic_s",
+    "path_time_s",
+    "phase_rad",
+    "desired_base_x_m",
+    "desired_base_y_m",
+    "actual_base_x_m",
+    "actual_base_y_m",
+    "desired_local_along_m",
+    "desired_local_lateral_m",
+    "actual_local_along_m",
+    "actual_local_lateral_m",
+    "desired_z_m",
+    "actual_z_m",
+    "desired_rx_rad",
+    "desired_ry_rad",
+    "desired_rz_rad",
+    "actual_rx_rad",
+    "actual_ry_rad",
+    "actual_rz_rad",
+    "desired_vx_m_s",
+    "desired_vy_m_s",
+    "actual_vx_m_s",
+    "actual_vy_m_s",
+    "actual_vz_m_s",
+    "path_error_along_m",
+    "path_error_lateral_m",
+    "hard_ellipse_value",
+    "soft_cbf_qp_active",
+    "guard_order",
+    "force_norm_n",
+    "torque_norm_nm",
+    "fixed_z_error_m",
+    "orientation_error_rad",
+    "command_speed_m_s",
+    "qdot_max_abs_rad_s",
+    "command_vx_m_s",
+    "command_vy_m_s",
+    "command_vz_m_s",
+    "command_seq",
+    "ack_seq",
+    "command_ack_ok",
+    "rtde_row_json",
+    "fault_reason",
+)
+
+
+def _local_coordinates(xy: Sequence[float]) -> tuple[float, float]:
+    dx = float(xy[0]) - BASE_ORIGIN_XY_M[0]
+    dy = float(xy[1]) - BASE_ORIGIN_XY_M[1]
+    return (
+        dx * U_ALONG_XY[0] + dy * U_ALONG_XY[1],
+        dx * P_LATERAL_XY[0] + dy * P_LATERAL_XY[1],
+    )
+
+
+def _status_ok(receipt: CommandReceipt) -> bool:
+    return all(
+        (
+            receipt.accepted,
+            receipt.heartbeat_ok,
+            receipt.protocol_ok,
+            receipt.joint_mode_ok,
+            receipt.receiver_ok,
+            receipt.single_live_writer_ok,
+        )
+    )
+
+
+@dataclass
+class RunResult:
+    state: SessionPhase
+    path_count: int
+    path_sample_count: int
+    expected_sample_count: int
+    tracking_failed: bool
+    fault_reason: str | None
+    return_home_verified: bool
+    output_dir: Path
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema": SCHEMA,
+            "claim_class": CLAIM_CLASS,
+            "state": self.state.value,
+            "path_count": self.path_count,
+            "path_sample_count": self.path_sample_count,
+            "expected_sample_count": self.expected_sample_count,
+            "tracking_failed": self.tracking_failed,
+            "fault_reason": self.fault_reason,
+            "return_home_verified": self.return_home_verified,
+            "output_dir": str(self.output_dir),
+        }
+
+
+class OneShotDiagnosticSession:
+    """State machine for exactly one PATH and explicit safe return semantics."""
+
+    def __init__(
+        self,
+        transport: DiagnosticTransport,
+        output_dir: Path,
+        *,
+        limits: SafetyLimits = FAIL_CLOSED_LIMITS,
+    ) -> None:
+        self.transport = transport
+        self.output_dir = Path(output_dir)
+        self.limits = limits
+        self.phase = SessionPhase.CREATED
+        self.path_count = 0
+        self.path_sample_count = 0
+        self.session_home_pose: Pose | None = None
+        self.path_origin_pose: Pose | None = None
+        self.last_safety: SafetyDecision | None = None
+        self.last_guard: GuardedCommand | None = None
+        self.fault_reason: str | None = None
+        self.abort_sent = False
+        self.return_home_verified = False
+        self.tracking_failed = False
+        self._terminal_result: RunResult | None = None
+        self._rows_written = 0
+        self._output_dir_ready = False
+
+    def _write_row(self, writer: csv.DictWriter[str], row: Mapping[str, Any], handle: Any) -> None:
+        writer.writerow(dict(row))
+        handle.flush()
+        self._rows_written += 1
+        self.path_sample_count += 1
+
+    def _abort(self, reason: str) -> None:
+        self.fault_reason = str(reason)
+        if not self.abort_sent:
+            self.abort_sent = True
+            try:
+                self.transport.send_zero_abort(self.fault_reason)
+            except Exception:
+                # The original zero/abort attempt is retained in evidence;
+                # retry/recovery motion is explicitly forbidden.
+                pass
+        self.phase = SessionPhase.ABORTED
+
+    def _make_row(
+        self,
+        index: int,
+        desired: TrajectoryPoint,
+        feedback: Feedback,
+        safety: SafetyDecision,
+        guarded: GuardedCommand,
+        receipt: CommandReceipt,
+        fault_reason: str | None = None,
+    ) -> dict[str, Any]:
+        actual_local = _local_coordinates((feedback.actual_pose.x_m, feedback.actual_pose.y_m))
+        return {
+            "sample_index": index,
+            "t_monotonic_s": desired.path_time_s,
+            "path_time_s": desired.path_time_s,
+            "phase_rad": desired.phase_rad,
+            "desired_base_x_m": desired.desired_pose.x_m,
+            "desired_base_y_m": desired.desired_pose.y_m,
+            "actual_base_x_m": feedback.actual_pose.x_m,
+            "actual_base_y_m": feedback.actual_pose.y_m,
+            "desired_local_along_m": desired.local_along_m,
+            "desired_local_lateral_m": desired.local_lateral_m,
+            "actual_local_along_m": actual_local[0],
+            "actual_local_lateral_m": actual_local[1],
+            "desired_z_m": desired.desired_pose.z_m,
+            "actual_z_m": feedback.actual_pose.z_m,
+            "desired_rx_rad": desired.desired_pose.rx_rad,
+            "desired_ry_rad": desired.desired_pose.ry_rad,
+            "desired_rz_rad": desired.desired_pose.rz_rad,
+            "actual_rx_rad": feedback.actual_pose.rx_rad,
+            "actual_ry_rad": feedback.actual_pose.ry_rad,
+            "actual_rz_rad": feedback.actual_pose.rz_rad,
+            "desired_vx_m_s": desired.desired_velocity_xy_m_s[0],
+            "desired_vy_m_s": desired.desired_velocity_xy_m_s[1],
+            "actual_vx_m_s": feedback.actual_velocity[0],
+            "actual_vy_m_s": feedback.actual_velocity[1],
+            "actual_vz_m_s": feedback.actual_velocity[2],
+            "path_error_along_m": actual_local[0] - desired.local_along_m,
+            "path_error_lateral_m": actual_local[1] - desired.local_lateral_m,
+            "hard_ellipse_value": guarded.hard_ellipse_value,
+            "soft_cbf_qp_active": guarded.soft_cbf_qp_active,
+            "guard_order": ">".join(GUARD_ORDER),
+            "force_norm_n": safety.force_norm_n,
+            "torque_norm_nm": safety.torque_norm_nm,
+            "fixed_z_error_m": safety.fixed_z_error_m,
+            "orientation_error_rad": safety.orientation_error_rad,
+            "command_speed_m_s": safety.command_speed_m_s,
+            "qdot_max_abs_rad_s": safety.qdot_max_abs_rad_s,
+            "command_vx_m_s": guarded.command_twist[0],
+            "command_vy_m_s": guarded.command_twist[1],
+            "command_vz_m_s": guarded.command_twist[2],
+            "command_seq": receipt.command_seq,
+            "ack_seq": receipt.ack_seq,
+            "command_ack_ok": receipt.accepted and receipt.command_seq == receipt.ack_seq,
+            "rtde_row_json": json.dumps(dict(feedback.rtde_row), sort_keys=True),
+            "fault_reason": fault_reason or safety.reason or guarded.reason or "",
+        }
+
+    def _write_bundle(self) -> None:
+        if not self._output_dir_ready:
+            return
+        identity = dict(self.transport.controller_source_identity())
+        kunwei_summary = dict(self.transport.kunwei_summary())
+        kunwei_raw = dict(self.transport.kunwei_raw_reference())
+        (self.output_dir / "controller_source_identity.json").write_text(
+            json.dumps(identity, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        (self.output_dir / "kunwei_summary.json").write_text(
+            json.dumps(kunwei_summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        (self.output_dir / "kunwei_raw_reference.json").write_text(
+            json.dumps(kunwei_raw, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        evidence = {
+            "schema": SCHEMA,
+            "claim_class": CLAIM_CLASS,
+            "mode": "offline_diagnostic_no_live_claim",
+            "path": {
+                "stage_id": PATH_STAGE_ID,
+                "duration_s": PATH_DURATION_S,
+                "sample_rate_hz": SAMPLE_RATE_HZ,
+                "sample_period_s": SAMPLE_PERIOD_S,
+                "expected_sample_count": EXPECTED_SAMPLE_COUNT,
+                "actual_sample_count": self.path_sample_count,
+                "one_shot": True,
+                "path_count": self.path_count,
+                "reference_formula": "theta=0.1*t; along=0.015*(theta-sin(theta)); lateral=0.015*(1-cos(theta))",
+                "base_origin_xy_m": list(BASE_ORIGIN_XY_M),
+                "u_along_xy": list(U_ALONG_XY),
+                "p_lateral_xy": list(P_LATERAL_XY),
+                "desired_z_m": None if self.path_origin_pose is None else self.path_origin_pose.z_m,
+                "desired_orientation_rotvec": None
+                if self.path_origin_pose is None
+                else list(self.path_origin_pose.as_tuple()[3:]),
+                "reference_speed_max_m_s": 0.003,
+            },
+            "path_reference_identity": {
+                **dict(path_reference_binding()),
+                "stage_row_semantic_sha256": BOUND_STAGE_ROW_SEMANTIC_SHA256,
+                "frame_semantic_sha256": BOUND_FRAME_SEMANTIC_SHA256,
+            },
+            "activation": {
+                "contact": False,
+                "search": False,
+                "force_control": False,
+                "model": False,
+                "candidate": False,
+                "training_dataset": False,
+                "qualification": False,
+                "promotion": False,
+                "tell_exact": False,
+            },
+            "safety_limits": self.limits.as_dict(),
+            "guard_order": list(GUARD_ORDER),
+            "guard_axes_m": {
+                "moving_reference_hard_ellipse": list(R012_HARD_TUBE_AXES_M),
+                "soft_cbf_qp": list(R012_SOFT_CBF_AXES_M),
+            },
+            "lifecycle": {
+                "session_home_pose": None
+                if self.session_home_pose is None
+                else list(self.session_home_pose.as_tuple()),
+                "preposition": {
+                    "target": None
+                    if self.path_origin_pose is None
+                    else list(self.path_origin_pose.as_tuple()),
+                    "safe_z_m": None
+                    if self.path_origin_pose is None
+                    else self.path_origin_pose.z_m,
+                    "speed_max_m_s": PREPOSITION_SPEED_MAX_M_S,
+                    "blend_m": PREPOSITION_BLEND_M,
+                },
+                "normal_return_order": [
+                    "stop_zero",
+                    "return_path_origin",
+                    "return_session_home",
+                    "verify_stationary",
+                ],
+                "automatic_recovery_motion": False,
+                "abort_zero_sent": self.abort_sent,
+            },
+            "terminal": {
+                "state": self.phase.value,
+                "fault_reason": self.fault_reason,
+                "tracking_failed": self.tracking_failed,
+                "return_home_verified": self.return_home_verified,
+                "last_safety": None if self.last_safety is None else self.last_safety.as_dict(),
+                "last_guard": None if self.last_guard is None else self.last_guard.as_dict(),
+            },
+            "controller_source_identity": identity,
+            "kunwei_summary": kunwei_summary,
+            "evidence_files": {
+                "rtde_500hz_rows": "rtde_500hz.csv",
+                "kunwei_summary": "kunwei_summary.json",
+                "kunwei_raw_reference": "kunwei_raw_reference.json",
+                "controller_source_identity": "controller_source_identity.json",
+                "evidence": "evidence.json",
+            },
+        }
+        (self.output_dir / "evidence.json").write_text(
+            json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+
+    def run(self) -> RunResult:
+        if self._terminal_result is not None or self.phase in {
+            SessionPhase.HOMED,
+            SessionPhase.ABORTED,
+        }:
+            raise OneShotTerminalError("no-contact diagnostic is terminal; a second PATH is forbidden")
+
+        csv_handle = None
+        try:
+            self.output_dir.mkdir(parents=True, exist_ok=False)
+            self._output_dir_ready = True
+            csv_handle = (self.output_dir / "rtde_500hz.csv").open(
+                "w", newline="", encoding="utf-8"
+            )
+            writer = csv.DictWriter(csv_handle, fieldnames=CSV_FIELDS)
+            writer.writeheader()
+            csv_handle.flush()
+
+            self.session_home_pose = self.transport.session_home_pose()
+            self.path_origin_pose = Pose(
+                BASE_ORIGIN_XY_M[0],
+                BASE_ORIGIN_XY_M[1],
+                self.session_home_pose.z_m,
+                self.session_home_pose.rx_rad,
+                self.session_home_pose.ry_rad,
+                self.session_home_pose.rz_rad,
+            )
+            receipt = self.transport.preposition(
+                self.path_origin_pose,
+                speed_m_s=PREPOSITION_SPEED_MAX_M_S,
+                blend_m=PREPOSITION_BLEND_M,
+            )
+            if not _status_ok(receipt):
+                raise RuntimeError("preposition_fault")
+            self.phase = SessionPhase.PREPOSITIONED
+            guard_stack = R012PathGuardStack()
+            self.path_count += 1
+            if self.path_count != 1:
+                raise OneShotTerminalError("second PATH is forbidden")
+            self.phase = SessionPhase.PATH
+
+            for index, path_time_s in enumerate(sample_times_hz()):
+                desired = trajectory_at(path_time_s, self.path_origin_pose)
+                feedback = self.transport.read_feedback(desired)
+                self.tracking_failed = self.tracking_failed or not feedback.tracking_ok
+                guarded = guard_path_command(
+                    desired, feedback.actual_pose, guard_stack=guard_stack
+                )
+                self.last_guard = guarded
+                safety = evaluate_safety(
+                    feedback, desired, guarded.command_twist, self.limits
+                )
+                self.last_safety = safety
+                if not safety.passed:
+                    zero = CommandReceipt("zero_abort", receipt.command_seq, feedback.ack_seq)
+                    self._write_row(
+                        writer,
+                        self._make_row(
+                            index, desired, feedback, safety, guarded, zero, safety.reason
+                        ),
+                        csv_handle,
+                    )
+                    raise RuntimeError(safety.reason or "safety_fault")
+                if guarded.terminal_stop:
+                    zero = CommandReceipt("zero_abort", receipt.command_seq, feedback.ack_seq)
+                    self._write_row(
+                        writer,
+                        self._make_row(
+                            index,
+                            desired,
+                            feedback,
+                            safety,
+                            guarded,
+                            zero,
+                            guarded.reason,
+                        ),
+                        csv_handle,
+                    )
+                    raise RuntimeError(guarded.reason or "r012_guard_terminal_stop")
+                receipt = self.transport.write_path_command(guarded.command_twist)
+                if not _status_ok(receipt):
+                    self._write_row(
+                        writer,
+                        self._make_row(
+                            index, desired, feedback, safety, guarded, receipt, "command_ack_fault"
+                        ),
+                        csv_handle,
+                    )
+                    raise RuntimeError("command_ack_fault")
+                self._write_row(
+                    writer, self._make_row(index, desired, feedback, safety, guarded, receipt), csv_handle
+                )
+
+            receipt = self.transport.stop_path()
+            if not _status_ok(receipt):
+                raise RuntimeError("stop_fault")
+            self.phase = SessionPhase.STOPPED
+            self.phase = SessionPhase.RETURNING_PATH_ORIGIN
+            assert self.path_origin_pose is not None
+            receipt = self.transport.return_to_path_origin(self.path_origin_pose)
+            if not _status_ok(receipt):
+                raise RuntimeError("return_path_origin_fault")
+            receipt = self.transport.return_to_session_home(self.session_home_pose)
+            if not _status_ok(receipt):
+                raise RuntimeError("return_session_home_fault")
+            self.return_home_verified = bool(self.transport.verify_stationary())
+            if not self.return_home_verified:
+                raise RuntimeError("stationary_verification_fault")
+            self.phase = SessionPhase.HOMED
+        except Exception as exc:
+            if self.phase != SessionPhase.ABORTED:
+                self._abort(str(exc))
+        finally:
+            if csv_handle is not None:
+                csv_handle.close()
+            self._write_bundle()
+
+        self._terminal_result = RunResult(
+            state=self.phase,
+            path_count=self.path_count,
+            path_sample_count=self.path_sample_count,
+            expected_sample_count=EXPECTED_SAMPLE_COUNT,
+            tracking_failed=self.tracking_failed,
+            fault_reason=self.fault_reason,
+            return_home_verified=self.return_home_verified,
+            output_dir=self.output_dir,
+        )
+        return self._terminal_result
+
+
+def run_offline_dry_run(output_dir: Path, *, tracking_failure_at_s: float | None = None) -> RunResult:
+    transport = OfflineDiagnosticTransport(tracking_failure_at_s=tracking_failure_at_s)
+    return OneShotDiagnosticSession(transport, output_dir).run()
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dry-run", action="store_true", help="run the local no-I/O transport")
+    parser.add_argument("--live", action="store_true", help="run the dedicated live one-shot diagnostic")
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--tracking-failure-at-s", type=float)
+    parser.add_argument("--package-manifest", type=Path)
+    parser.add_argument("--readback-manifest", type=Path)
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    if args.dry_run == args.live:
+        parser.error("choose exactly one of --dry-run or --live")
+    if args.live:
+        if args.package_manifest is None or args.readback_manifest is None:
+            parser.error("--live requires --package-manifest and --readback-manifest")
+        import sys
+
+        from autotuner_xy_no_contact_live import run_live
+
+        evidence = run_live(
+            sys.modules[__name__],
+            output_dir=args.output_dir,
+            package_manifest=args.package_manifest,
+            readback_manifest=args.readback_manifest,
+        )
+        print(json.dumps({
+            "schema": evidence["schema"],
+            "claim_class": evidence["claim_class"],
+            **evidence["runtime"],
+            "output_dir": str(args.output_dir),
+        }, sort_keys=True))
+        return 0 if evidence["runtime"]["normal_complete"] else 1
+    result = run_offline_dry_run(
+        args.output_dir, tracking_failure_at_s=args.tracking_failure_at_s
+    )
+    print(json.dumps(result.as_dict(), sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

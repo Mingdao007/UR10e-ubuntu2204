@@ -23,11 +23,13 @@ from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 from ur10e_experiment_runtime.stage_adapters import (
     ACTIVE_STAGE25_CODE,
     Stage25ControllerProgressAdapter,
+    TRAJECTORY_PARAMETERS,
 )
 
 ENV_FLAG = "R008_HOST_HARD_TUBE"
 # Launch-profile moving_sphere_reference_sha256 must match this adapter.
 EXPECTED_REFERENCE_SHA256 = "dd5f065a5cecc04098865dda08891e11bfa8c6c11f40bbd964d1b1dcb2b60b86"
+PATH_END_OVERRUN_ALLOWANCE_S = 0.020
 
 
 def env_flag_enabled(environ: Mapping[str, str] | None = None) -> bool:
@@ -156,6 +158,18 @@ class HostHardTubeGuard:
             else time.monotonic_ns()
         )
         # Host-owned progress: age_ns=0 (fresh). tick_seq monotonic via allow_tick_gaps.
+        # The frozen centerline is defined through exactly duration_s.  A
+        # small RTDE/host clock skew can expose state25 just after that
+        # endpoint; project only that bounded handoff interval to the finite
+        # endpoint and keep the same HardTubeGuard active.
+        raw_path_time_s = float(path_time_s)
+        duration_s = float(TRAJECTORY_PARAMETERS["duration_s"])
+        path_overrun_s = (
+            max(0.0, raw_path_time_s - duration_s)
+            if math.isfinite(raw_path_time_s)
+            else math.inf
+        )
+        effective_path_time_s = min(raw_path_time_s, duration_s)
         ts_s = (
             float(controller_timestamp_s)
             if controller_timestamp_s is not None and math.isfinite(float(controller_timestamp_s))
@@ -163,7 +177,7 @@ class HostHardTubeGuard:
         )
         progress = self.adapter.sample(
             stage=ACTIVE_STAGE25_CODE,
-            controller_progress_s=float(path_time_s),
+            controller_progress_s=effective_path_time_s,
             controller_tick_seq=self._tick_seq,
             controller_timestamp_s=ts_s,
             age_ns=0,
@@ -175,7 +189,26 @@ class HostHardTubeGuard:
             tcp_base=tcp_pose_m_rad,
             observed_monotonic_ns=mono_ns,
         )
-        return _decision(result, path_time_s=path_time_s)
+        decision = _decision(result, path_time_s=path_time_s)
+        if path_overrun_s > 0.0 and not result.stop:
+            if path_overrun_s > PATH_END_OVERRUN_ALLOWANCE_S:
+                return HostHardTubeDecision(
+                    enabled=True,
+                    stop=True,
+                    reason="PATH_END_OVERRUN",
+                    actual_distance_m=decision.actual_distance_m,
+                    remaining_margin_m=decision.remaining_margin_m,
+                    path_time_s=path_time_s,
+                )
+            return HostHardTubeDecision(
+                enabled=True,
+                stop=False,
+                reason="PATH_END_OVERRUN_PENDING",
+                actual_distance_m=decision.actual_distance_m,
+                remaining_margin_m=decision.remaining_margin_m,
+                path_time_s=path_time_s,
+            )
+        return decision
 
 
 def _decision(result: HardTubeResult, *, path_time_s: float | None) -> HostHardTubeDecision:
@@ -193,6 +226,7 @@ def _decision(result: HardTubeResult, *, path_time_s: float | None) -> HostHardT
 __all__ = [
     "ENV_FLAG",
     "EXPECTED_REFERENCE_SHA256",
+    "PATH_END_OVERRUN_ALLOWANCE_S",
     "HostHardTubeDecision",
     "HostHardTubeGuard",
     "env_flag_enabled",
