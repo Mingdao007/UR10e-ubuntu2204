@@ -1,0 +1,46 @@
+Step6 Figure-eight Autotuner V5 layout-607 resident package
+
+Open on Teach Pendant only after offline package inspection and owner admission:
+  /programs/andyl/kunwei/step6/step6_figure8_autotune_v1.urp
+
+Version: 2026-08-20T0406HKT_STEP6_FIGURE8_AUTOTUNE_V1
+Build inputs SHA-256: 6268107483423ea471e3bfb313d64801d80f942580d7113f95ba50aa3e12e8f8
+Composition contract: step6.autotune/autotuner-v5-composition-contract-v2 v2
+Wire: input doubles 24..47; input integers 24..39; output double24 and output integers 24..34 only.
+Session identity: int27 command, int28 sequence, int29 epoch, int30 ordinal, int31 V5 kind10..15, int32 token.
+Stable latch: input int26; int24/int25 are reserved and are not phase controls.
+
+Mature resident seams retained:
+  fixed Home entry check; R008 FAR/NEAR contact search; one chain-start contact acquisition;
+  host-owned 500 Hz qdot via speedj; packet/timing/freshness/hard-safety guards;
+  verified return Home; READY_HOME_NEXT=78; COMPLETE=80; no EOAT/TCP/payload/tare writes.
+
+V5 resident protocol:
+  ONE_NEWTON_ENTRY=21; latch tick enters PATH=25 with path clock exactly 0.
+  Contact acquisition uses a 1 N latch outside the trial; PATH starts on the stable-contact tick at fixed 5 N; correction/formal metric from 5 s.
+  PATH=[0,60); analytic CLOSURE_TAIL=[60,20*pi); no boundary stopj/stationary/Home/contact.
+  Closure tail is old-candidate authority and excluded from MAE/censor/GP/tell_exact/exact-novel budget.
+  Rollover inputs: int33..39; PREPARE/CANCEL/COMMIT typed; monotonic generation fence; four committed cap.
+  State overlays: base PATH; rollover states 26/27/28/29; commit state 28 resets logical/segment state.
+  Matching input35 during PATH is trial-local typed Home; nonmatching input35 is ignored.
+  Hard fault/session STOP is dominant STOPPED=90 with no automatic Home/retry.
+
+Figure-eight metric metadata:
+  FigureEightPathProviderV1; along=0.04*sin(0.1t); lateral=0.01*sin(0.2t).
+  metric=figure8-force-mae-v2; evidence=[0,60) 600 bins; formal=[5,60) 550 bins.
+  tail excluded from MAE/censor/GP/tell_exact/exact-novel budget; closure tail=[60,20*pi).
+  filtered_normal_n is the metric input; raw signed normal/force/torque are hard-safety/evidence channels only; no performance/readiness force window is a gate.
+
+Home:
+  pose=(0.4620551816, 0.1778825964, 0.03408876139925415, 3.120752062, 0.0, 0.068626833)
+  status=contact-derived final
+  calibration receipt SHA-256=1c34c27d33aae2e6d93e0dc3017e7c95099cbc15dea32c3faf0d9951b78028c9
+
+Contact search (mature R013/R008 seam):
+  boundary=11.029311 mm;
+  far=5.000 mm/s;
+  near=0.200 mm/s;
+  far_accel=10.000 mm/s^2;
+  near_accel=5.000 mm/s^2;
+  fuse=50.0 N; travel=25.0 mm;
+  timeout=90.0 s.

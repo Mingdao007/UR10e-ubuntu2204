@@ -1,0 +1,1051 @@
+# VERSION: 2026-08-17T2156HKT_STEP6_FIGURE8_AUTOTUNE_V1
+# BUILD_INPUTS_SHA256: 1df319fd997002c8fec28ee9041643b2bfc2a4929aeb96a67fd0cff39ebaed66
+# MATURE_PARENT_SCRIPT_SHA256: 67c45eb980b98dad94432b14674e7ca5d2cbf2b767777f18cc3c03e2beac8a1f
+# TP_PROGRAM_ID: step6_figure8_autotune_v1
+# EXPECTED_PROGRAM: step6_figure8_autotune_v1
+# V5_COMPOSITION_CONTRACT: step6.autotune/autotuner-v5-composition-contract-v2 v2.
+# WIRE_LAYOUT: layout-607; input_double[24..47]; input_integer[24..39]; output_integer[24..34].
+# V5_SESSION_IDENTITY: input_integer[27]=command, input_integer[28]=sequence, input_integer[29]=epoch, input_integer[30]=ordinal, input_integer[31]=kind10..15, input_integer[32]=token.
+# V5_ROLLOVER_INPUT: input_integer[33]=NONE/PREPARE/COMMIT/CANCEL, [34]=generation, [35]=early_end, [36]=next_ordinal, [37]=next_kind10..15, [38]=next_token, [39]=qdot_generation.
+# V5_OUTPUT_IDENTITY: output_integer[24..28]=epoch/ordinal/state/token/reason; [29..31]=state-dependent overlay; [32..34]=fixed V5 runtime identity.
+# V5_SETUP_RATE_HZ: 500; one live writer; no second connection or reader.
+# STEP6_LINEAGE: r013 mature contact/safety/fixed-Home/return-Home/qdot seams with V5 resident replacement.
+# STEP6_PATH_PROVIDER: FigureEightPathProviderV1; host-owned desired pose/twist/acceleration; exact analytic closure.
+# STEP6_PATH: along=0.04sin(0.1t), lateral=0.01sin(0.2t), PATH=[0,60), CLOSURE_TAIL=[60,20*pi).
+# STEP6_METRIC: figure8-force-mae-v2; evidence=[0,60) 600 bins; formal=[5,60) 550 bins; tail excluded from MAE/censor/GP/tell_exact/exact-novel budget.
+# STEP6_METRIC_INPUT: filtered_normal_n; raw signed normal/force/torque are hard-safety/evidence channels only; no measured readiness window.
+# STEP6_ENTRY: contact acquisition uses a 1N latch; same-tick PATH clock=0 starts at fixed 5N; correction/formal metric from 5s.
+# V5_ROLLOVER: typed two-slot PREPARE/CANCEL/COMMIT; monotonic generation fence; exactly four committed rollovers; fifth seam Home.
+# V5_STATE_OVERLAYS: PATH=25 base; CLOSURE_TAIL=26, ROLLOVER_PREPARED=27, ROLLOVER_COMMITTED=28, ROLLOVER_REJECTED=29 rollover overlay.
+# V5_LIFECYCLE: READY_HOME_NEXT=78; COMPLETE=80; STOPPED=90; one live writer; no automatic retry.
+# STEP6_HOME_FRAME: p[0.4620551816, 0.1778825964, 0.034088761, 3.120752062, 0.000000000, 0.068626833].
+# FIXED_HOME_POSE: p[0.4620551816, 0.1778825964, 0.034088761, 3.120752062, 0.000000000, 0.068626833]
+# STEP6_HOME_STATUS: contact-derived final Home
+# STEP6_HOME_CALIBRATION_RECEIPT_SHA256: 1c34c27d33aae2e6d93e0dc3017e7c95099cbc15dea32c3faf0d9951b78028c9
+# STEP6_FORCE_CORRECTION: host context policy only; no performance/readiness window is a switch gate.
+# STEP6_MATURE_SEAMS: contact search + host speedj + fixed Home + verified return Home + READY_HOME_NEXT.
+# STEP6_CONTACT_SEARCH: V4-equivalent boundary=0.011029311m; far=0.005000m/s; near=0.000200m/s; far_accel=0.010000m/s2; near_accel=0.005000m/s2; fuse=50.0N; travel=0.025m; timeout=90.0s.
+global codex_r006_cache_valid = False
+global codex_r006_cache_sequence = -1.0
+global codex_r006_cache_age_s = 0.0
+global codex_r006_attempt_success = False
+global codex_r006_attempt_reason = 0
+global codex_r006_attempt_guard = 0
+global codex_v5_active_epoch = 0
+global codex_v5_active_ordinal = 0
+global codex_v5_active_kind = 0
+global codex_v5_active_token = 0
+global codex_v5_active_qdot_generation = 0
+global codex_r006_cache_d24 = 0.0
+global codex_r006_cache_d25 = 0.0
+global codex_r006_cache_d26 = 0.0
+global codex_r006_cache_d27 = 0.0
+global codex_r006_cache_d28 = 0.0
+global codex_r006_cache_d29 = 0.0
+global codex_r006_cache_d30 = 0.0
+global codex_r006_cache_d31 = 0.0
+global codex_r006_cache_d32 = 0.0
+global codex_r006_cache_d33 = 0.0
+global codex_r006_cache_d34 = 0.0
+global codex_r006_cache_d35 = 0.0
+global codex_r006_cache_d36 = 0.0
+global codex_r006_cache_d37 = 0.0
+global codex_r006_cache_d38 = 0.0
+global codex_r006_cache_d39 = 0.0
+global codex_r006_cache_d40 = 0.0
+global codex_r006_cache_d41 = 0.0
+global codex_r006_cache_d42 = 0.0
+global codex_r006_cache_d43 = 0.0
+global codex_r006_cache_d44 = 0.0
+global codex_r006_cache_d45 = 0.0
+global codex_r006_cache_d46 = 0.0
+global codex_r006_cache_d47 = 0.0
+global codex_r006_cache_i24 = 0
+global codex_r006_cache_i25 = 0
+global codex_r006_cache_i26 = 0
+global codex_r006_cache_i27 = 0
+global codex_r006_cache_i28 = 0
+global codex_r006_cache_i29 = 0
+global codex_r006_cache_i30 = 0
+global codex_r006_cache_i31 = 0
+global codex_r006_cache_i32 = 0
+global codex_r006_cache_i33 = 0
+global codex_r006_cache_i34 = 0
+global codex_r006_cache_i35 = 0
+global codex_r006_cache_i36 = 0
+global codex_r006_cache_i37 = 0
+global codex_r006_cache_i38 = 0
+global codex_r006_cache_i39 = 0
+def codex_r006_finite(value, limit):
+  return value == value and value <= limit and value >= -limit
+end
+
+def codex_r006_abs(value):
+  if value < 0.0:
+    return -value
+  end
+  return value
+end
+
+def codex_r006_packet_payload_equal():
+  local same = True
+  if codex_r006_cache_d24 != read_input_float_register(24):
+    same = False
+  end
+  if codex_r006_cache_d25 != read_input_float_register(25):
+    same = False
+  end
+  if codex_r006_cache_d26 != read_input_float_register(26):
+    same = False
+  end
+  if codex_r006_cache_d27 != read_input_float_register(27):
+    same = False
+  end
+  if codex_r006_cache_d28 != read_input_float_register(28):
+    same = False
+  end
+  if codex_r006_cache_d29 != read_input_float_register(29):
+    same = False
+  end
+  if codex_r006_cache_d30 != read_input_float_register(30):
+    same = False
+  end
+  if codex_r006_cache_d31 != read_input_float_register(31):
+    same = False
+  end
+  if codex_r006_cache_d32 != read_input_float_register(32):
+    same = False
+  end
+  if codex_r006_cache_d33 != read_input_float_register(33):
+    same = False
+  end
+  if codex_r006_cache_d34 != read_input_float_register(34):
+    same = False
+  end
+  if codex_r006_cache_d35 != read_input_float_register(35):
+    same = False
+  end
+  if codex_r006_cache_d36 != read_input_float_register(36):
+    same = False
+  end
+  if codex_r006_cache_d37 != read_input_float_register(37):
+    same = False
+  end
+  if codex_r006_cache_d38 != read_input_float_register(38):
+    same = False
+  end
+  if codex_r006_cache_d39 != read_input_float_register(39):
+    same = False
+  end
+  if codex_r006_cache_d40 != read_input_float_register(40):
+    same = False
+  end
+  if codex_r006_cache_d41 != read_input_float_register(41):
+    same = False
+  end
+  if codex_r006_cache_d42 != read_input_float_register(42):
+    same = False
+  end
+  if codex_r006_cache_d43 != read_input_float_register(43):
+    same = False
+  end
+  if codex_r006_cache_d44 != read_input_float_register(44):
+    same = False
+  end
+  if codex_r006_cache_d45 != read_input_float_register(45):
+    same = False
+  end
+  if codex_r006_cache_d46 != read_input_float_register(46):
+    same = False
+  end
+  if codex_r006_cache_d47 != read_input_float_register(47):
+    same = False
+  end
+  if codex_r006_cache_i24 != read_input_integer_register(24):
+    same = False
+  end
+  if codex_r006_cache_i25 != read_input_integer_register(25):
+    same = False
+  end
+  if codex_r006_cache_i26 != read_input_integer_register(26):
+    same = False
+  end
+  if codex_r006_cache_i27 != read_input_integer_register(27):
+    same = False
+  end
+  if codex_r006_cache_i28 != read_input_integer_register(28):
+    same = False
+  end
+  if codex_r006_cache_i29 != read_input_integer_register(29):
+    same = False
+  end
+  if codex_r006_cache_i30 != read_input_integer_register(30):
+    same = False
+  end
+  if codex_r006_cache_i31 != read_input_integer_register(31):
+    same = False
+  end
+  if codex_r006_cache_i32 != read_input_integer_register(32):
+    same = False
+  end
+  if codex_r006_cache_i33 != read_input_integer_register(33):
+    same = False
+  end
+  if codex_r006_cache_i34 != read_input_integer_register(34):
+    same = False
+  end
+  if codex_r006_cache_i35 != read_input_integer_register(35):
+    same = False
+  end
+  if codex_r006_cache_i36 != read_input_integer_register(36):
+    same = False
+  end
+  if codex_r006_cache_i37 != read_input_integer_register(37):
+    same = False
+  end
+  if codex_r006_cache_i38 != read_input_integer_register(38):
+    same = False
+  end
+  if codex_r006_cache_i39 != read_input_integer_register(39):
+    same = False
+  end
+  return same
+end
+
+def codex_r006_copy_packet():
+  codex_r006_cache_d24 = read_input_float_register(24)
+  codex_r006_cache_d25 = read_input_float_register(25)
+  codex_r006_cache_d26 = read_input_float_register(26)
+  codex_r006_cache_d27 = read_input_float_register(27)
+  codex_r006_cache_d28 = read_input_float_register(28)
+  codex_r006_cache_d29 = read_input_float_register(29)
+  codex_r006_cache_d30 = read_input_float_register(30)
+  codex_r006_cache_d31 = read_input_float_register(31)
+  codex_r006_cache_d32 = read_input_float_register(32)
+  codex_r006_cache_d33 = read_input_float_register(33)
+  codex_r006_cache_d34 = read_input_float_register(34)
+  codex_r006_cache_d35 = read_input_float_register(35)
+  codex_r006_cache_d36 = read_input_float_register(36)
+  codex_r006_cache_d37 = read_input_float_register(37)
+  codex_r006_cache_d38 = read_input_float_register(38)
+  codex_r006_cache_d39 = read_input_float_register(39)
+  codex_r006_cache_d40 = read_input_float_register(40)
+  codex_r006_cache_d41 = read_input_float_register(41)
+  codex_r006_cache_d42 = read_input_float_register(42)
+  codex_r006_cache_d43 = read_input_float_register(43)
+  codex_r006_cache_d44 = read_input_float_register(44)
+  codex_r006_cache_d45 = read_input_float_register(45)
+  codex_r006_cache_d46 = read_input_float_register(46)
+  codex_r006_cache_d47 = read_input_float_register(47)
+  codex_r006_cache_i24 = read_input_integer_register(24)
+  codex_r006_cache_i25 = read_input_integer_register(25)
+  codex_r006_cache_i26 = read_input_integer_register(26)
+  codex_r006_cache_i27 = read_input_integer_register(27)
+  codex_r006_cache_i28 = read_input_integer_register(28)
+  codex_r006_cache_i29 = read_input_integer_register(29)
+  codex_r006_cache_i30 = read_input_integer_register(30)
+  codex_r006_cache_i31 = read_input_integer_register(31)
+  codex_r006_cache_i32 = read_input_integer_register(32)
+  codex_r006_cache_i33 = read_input_integer_register(33)
+  codex_r006_cache_i34 = read_input_integer_register(34)
+  codex_r006_cache_i35 = read_input_integer_register(35)
+  codex_r006_cache_i36 = read_input_integer_register(36)
+  codex_r006_cache_i37 = read_input_integer_register(37)
+  codex_r006_cache_i38 = read_input_integer_register(38)
+  codex_r006_cache_i39 = read_input_integer_register(39)
+  codex_r006_cache_sequence = read_input_float_register(46)
+  codex_r006_cache_age_s = 0.0
+  codex_r006_cache_valid = True
+end
+
+def codex_r006_packet_observe():
+  if not codex_r006_finite(read_input_float_register(24), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(25), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(26), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(27), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(28), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(29), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(30), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(31), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(32), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(33), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(34), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(35), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(36), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(37), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(38), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(39), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(40), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(41), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(42), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(43), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(44), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(45), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(46), 1000000000000.0):
+    return 41
+  end
+  if not codex_r006_finite(read_input_float_register(47), 1000000000000.0):
+    return 41
+  end
+  local sequence = read_input_float_register(46)
+  local layout = read_input_float_register(47)
+  local valid = read_input_float_register(43)
+  if sequence < 0.0 or sequence != floor(sequence):
+    return 41
+  elif layout != 607.0:
+    return 42
+  elif valid < 0.5 and read_input_float_register(28) < 0.5:
+    return 42
+  elif not codex_r006_cache_valid:
+    codex_r006_copy_packet()
+    return 0
+  elif sequence > codex_r006_cache_sequence:
+    codex_r006_copy_packet()
+    return 0
+  elif sequence < codex_r006_cache_sequence:
+    return 43
+  elif not codex_r006_packet_payload_equal():
+    return 43
+  end
+  codex_r006_cache_age_s = codex_r006_cache_age_s + get_steptime()
+  if codex_r006_cache_age_s >= 0.080000000:
+    return 43
+  end
+  return 0
+end
+def codex_r006_integer_wire_guard():
+  # Integer24/25 are reserved in V5 and are not phase controls.
+  local reserved_i24 = read_input_integer_register(24)
+  local reserved_i25 = read_input_integer_register(25)
+  local latch = read_input_integer_register(26)
+  local session_command = read_input_integer_register(27)
+  local session_sequence = read_input_integer_register(28)
+  local epoch = read_input_integer_register(29)
+  local ordinal = read_input_integer_register(30)
+  local kind = read_input_integer_register(31)
+  local token = read_input_integer_register(32)
+  local rollover_command = read_input_integer_register(33)
+  local generation = read_input_integer_register(34)
+  local early_end = read_input_integer_register(35)
+  local next_ordinal = read_input_integer_register(36)
+  local next_kind = read_input_integer_register(37)
+  local next_token = read_input_integer_register(38)
+  local qdot_generation = read_input_integer_register(39)
+  if reserved_i24 < 0 or reserved_i25 < 0:
+    return 67
+  elif latch < 0 or latch > 1:
+    return 52
+  elif session_command < 0 or session_command > 3:
+    return 66
+  elif session_sequence < 0 or epoch < 0 or ordinal < 0 or token < 0:
+    return 67
+  elif session_command != 0 and (kind < 10 or kind > 15):
+    return 67
+  elif rollover_command < 0 or rollover_command > 3:
+    return 67
+  elif generation < 0 or early_end < 0 or next_ordinal < 0 or next_kind < 0 or next_token < 0 or qdot_generation < 0:
+    return 67
+  elif next_kind != 0 and (next_kind < 10 or next_kind > 15):
+    return 67
+  elif rollover_command == 1 and (generation <= 0 or next_ordinal <= 0 or next_kind == 0 or next_token <= 0 or qdot_generation != 0):
+    return 67
+  elif rollover_command == 2 and (generation <= 0 or next_ordinal <= 0 or next_kind == 0 or next_token <= 0 or qdot_generation != generation):
+    return 67
+  elif rollover_command == 3 and (generation <= 0 or next_ordinal != 0 or next_kind != 0 or next_token != 0 or qdot_generation != 0):
+    return 67
+  end
+  return 0
+end
+
+def codex_r006_qdot_ok():
+  local index = 0
+  while index < 6:
+    local qdot = read_input_float_register(37 + index)
+    if not codex_r006_finite(qdot, 5.000000000):
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
+def codex_r006_packet_guard(packet_reason, abs_normal_limit, force_norm_limit, torque_limit):
+  if packet_reason != 0:
+    return packet_reason
+  elif read_input_float_register(27) < 0.5 or read_input_float_register(29) < 0.5:
+    return 3
+  elif read_input_float_register(28) > 0.5:
+    return 4
+  elif read_input_integer_register(27) == 3:
+    return 4
+  elif read_input_integer_register(27) != 0 and read_input_integer_register(27) != 1 and read_input_integer_register(27) != 2 and read_input_integer_register(27) != 3:
+    return 66
+  elif codex_r006_abs(read_input_float_register(24)) >= abs_normal_limit:
+    return 5
+  elif read_input_float_register(25) >= force_norm_limit:
+    return 6
+  elif read_input_float_register(30) >= torque_limit:
+    return 7
+  elif read_input_float_register(44) < 1.0 or read_input_float_register(44) > 5.0:
+    return 49
+  elif not codex_r006_qdot_ok():
+    return 45
+  end
+  return 0
+end
+def codex_r006_stationary(required_s):
+  local dwell_s = 0.0
+  local elapsed_s = 0.0
+  # A blocking move may expose one deceleration sample after it returns.
+  # Keep the existing speed thresholds and require the full dwell, but allow
+  # at most four dwell-windows for that residual motion to settle.  With the
+  # fixed 250 ms call sites this is a 1.0 s settle plus 250 ms full dwell.
+  while dwell_s < required_s and elapsed_s < required_s * 5.0:
+    local packet_reason = codex_r006_packet_observe()
+    local guard = codex_r006_packet_guard(packet_reason, 60.0, 100.0, 3.0)
+    local speed = get_actual_tcp_speed()
+    local linear = sqrt(speed[0] * speed[0] + speed[1] * speed[1] + speed[2] * speed[2])
+    local angular = sqrt(speed[3] * speed[3] + speed[4] * speed[4] + speed[5] * speed[5])
+    if guard != 0:
+      return False
+    elif linear > 0.000500000 or angular > 0.005000000:
+      dwell_s = 0.0
+    else:
+      dwell_s = dwell_s + get_steptime()
+    end
+    elapsed_s = elapsed_s + get_steptime()
+    sync()
+  end
+  return dwell_s >= required_s
+end
+
+def codex_r006_pose_close(actual, expected):
+  local position_error = sqrt((actual[0] - expected[0]) * (actual[0] - expected[0]) + (actual[1] - expected[1]) * (actual[1] - expected[1]) + (actual[2] - expected[2]) * (actual[2] - expected[2]))
+  local rotation_error = sqrt((actual[3] - expected[3]) * (actual[3] - expected[3]) + (actual[4] - expected[4]) * (actual[4] - expected[4]) + (actual[5] - expected[5]) * (actual[5] - expected[5]))
+  return position_error <= 0.001000000 and rotation_error <= 0.010000000
+end
+
+def codex_r006_q_close(actual, expected):
+  local index = 0
+  while index < 6:
+    if not codex_r006_finite(actual[index], 1000000.0) or not codex_r006_finite(expected[index], 1000000.0):
+      return False
+    elif codex_r006_abs(actual[index] - expected[index]) > 0.020000000:
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
+def codex_r006_home_close(expected_pose, expected_q):
+  local actual_pose = get_actual_tcp_pose()
+  if not codex_r006_pose_close(actual_pose, expected_pose):
+    return False
+  end
+  local actual_q = get_actual_joint_positions()
+  if not codex_r006_q_close(actual_q, expected_q):
+    return False
+  end
+  return True
+end
+
+def codex_r006_entry_home_verified(expected_pose, locked_q, locked_q_valid):
+  # The Cartesian check is authoritative.  Only after it passes may the
+  # current q establish or be compared with the resident IK branch.
+  local actual_pose = get_actual_tcp_pose()
+  if not codex_r006_pose_close(actual_pose, expected_pose):
+    return False
+  end
+  local actual_q = get_actual_joint_positions()
+  if not codex_r006_q_close(actual_q, actual_q):
+    return False
+  elif locked_q_valid and not codex_r006_q_close(actual_q, locked_q):
+    return False
+  end
+  return True
+end
+
+def codex_v5_stop_requested():
+  return read_input_integer_register(27) == 3 or read_input_float_register(28) > 0.5
+end
+
+def codex_v5_switch_gate_families(hard_safety_gate, timing_freshness_gate, tube_cbf_gate, identity_metric_closure_gate, command_envelope_gate):
+  # Every family is evaluated by the resident tick before this pure combiner.
+  return hard_safety_gate and timing_freshness_gate and tube_cbf_gate and identity_metric_closure_gate and command_envelope_gate
+end
+
+def codex_r006_echo(epoch, ordinal, state, token, reason, consumed, kind, return_guard, runtime_revision, runtime_extension):
+  # V5 writes only output integer24..34; the overlay interpretation is state-dependent.
+  write_output_float_register(24, codex_r006_cache_sequence)
+  write_output_integer_register(24, epoch)
+  write_output_integer_register(25, ordinal)
+  write_output_integer_register(26, state)
+  write_output_integer_register(27, token)
+  write_output_integer_register(28, reason)
+  write_output_integer_register(29, consumed)
+  write_output_integer_register(30, kind)
+  write_output_integer_register(31, return_guard)
+  write_output_integer_register(32, 607007)
+  write_output_integer_register(33, 5)
+  write_output_integer_register(34, 520607)
+end
+
+def codex_r006_fault(epoch, ordinal, token, kind, consumed, reason, runtime_revision, runtime_extension):
+  stopl(0.250000000)
+  codex_r006_attempt_reason = reason
+  codex_r006_attempt_guard = 0
+  codex_r006_attempt_success = False
+  codex_r006_echo(epoch, ordinal, 90, token, reason, consumed, kind, 0, runtime_revision, runtime_extension)
+  return False
+end
+
+def codex_r006_return_fault(epoch, ordinal, token, kind, consumed, reason, runtime_revision, runtime_extension, return_guard):
+  stopl(0.250000000)
+  codex_r006_attempt_reason = reason
+  codex_r006_attempt_guard = return_guard
+  codex_r006_attempt_success = False
+  codex_r006_echo(epoch, ordinal, 90, token, reason, consumed, kind, return_guard, runtime_revision, runtime_extension)
+  return False
+end
+
+def codex_r006_return_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, current_guard):
+  local return_guard = current_guard
+  local packet_reason = codex_r006_packet_observe()
+  local guard = codex_r006_packet_guard(packet_reason, 60.0, 100.0, 3.0)
+  if guard != 0 or not codex_r006_stationary(0.250000000):
+    return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 58, runtime_revision, runtime_extension, return_guard)
+  end
+  # R008 B3 Wave2b: two-segment adaptive return. Lift/descend to target_z =
+  # home_pose[2] (not home+5mm), XY-transfer at that Z, no third descend.
+  local current_pose = get_actual_tcp_pose()
+  local target_z = home_pose[2]
+  local z_eps_m = 0.001000000
+  if current_pose[2] < target_z - z_eps_m or current_pose[2] > target_z + z_eps_m:
+    local vertical_pose = p[current_pose[0], current_pose[1], target_z, current_pose[3], current_pose[4], current_pose[5]]
+    movel(vertical_pose, a=0.060, v=0.040, r=0.0)
+    stopl(0.1)
+    if not codex_r006_stationary(0.250000000):
+      return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 59, runtime_revision, runtime_extension, return_guard)
+    end
+  end
+  return_guard = return_guard + 1 + 2 + 8
+  codex_r006_echo(epoch, ordinal, 40, token, 0, consumed, kind, return_guard, runtime_revision, runtime_extension)
+  local transfer_pose = p[home_pose[0], home_pose[1], target_z, home_pose[3], home_pose[4], home_pose[5]]
+  movel(transfer_pose, a=0.135, v=0.090, r=0.0)
+  stopl(0.1)
+  if not codex_r006_stationary(0.250000000):
+    return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 59, runtime_revision, runtime_extension, return_guard)
+  end
+  return_guard = return_guard + 16
+  codex_r006_echo(epoch, ordinal, 40, token, 0, consumed, kind, return_guard, runtime_revision, runtime_extension)
+  if not codex_r006_home_close(home_pose, home_q):
+    return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 60, runtime_revision, runtime_extension, return_guard)
+  end
+  return_guard = return_guard + 32 + 64
+  codex_r006_attempt_guard = return_guard
+  codex_r006_attempt_reason = 0
+  codex_r006_attempt_success = True
+  codex_r006_echo(epoch, ordinal, 78, token, 0, consumed, kind, return_guard, runtime_revision, runtime_extension)
+  return True
+end
+
+
+def codex_r006_execute_chain(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension):
+  codex_r006_attempt_success = False
+  codex_r006_attempt_reason = 0
+  codex_r006_attempt_guard = 0
+  local packet_reason = codex_r006_packet_observe()
+  local guard = codex_r006_packet_guard(packet_reason, 60.0, 100.0, 3.0)
+  if guard != 0:
+    return codex_r006_fault(epoch, ordinal, token, kind, consumed, guard, runtime_revision, runtime_extension)
+  end
+  # R008 B3 two-stage contact search (FAR then NEAR); near=0.000200000 m/s.
+  # FAR: empty-air approach. NEAR: B3 canary force-search speed. Fuse << 48 N.
+  local contact_start = get_actual_tcp_pose()
+  local contact_elapsed_s = 0.0
+  local contact_confirm_s = 0.0
+  local contact_done = False
+  local d_near_start_travel_m = 0.011029311
+  local f_far_n = 0.300000000
+  local force_fuse_n = 50.000000000
+  local v_far_m_s = 0.005000000
+  local v_near_m_s = 0.000200000
+  local far_accel_m_s2 = 0.010000000
+  local near_accel_m_s2 = 0.005000000
+  while not contact_done:
+    packet_reason = codex_r006_packet_observe()
+    # B3: raise search-loop abs-normal hard guard 60N → 100N; keep 50N fuse below.
+    guard = codex_r006_packet_guard(packet_reason, 100.0, 100.0, 3.0)
+    local contact_pose = get_actual_tcp_pose()
+    local travel = contact_start[2] - contact_pose[2]
+    local normal_force = read_input_float_register(24)
+    local force_norm = read_input_float_register(25)
+    if guard != 0:
+      stopl(0.010000000)
+      return codex_r006_fault(epoch, ordinal, token, kind, consumed, guard, runtime_revision, runtime_extension)
+    elif normal_force >= force_fuse_n or force_norm >= force_fuse_n:
+      stopl(0.010000000)
+      return codex_r006_fault(epoch, ordinal, token, kind, consumed, 75, runtime_revision, runtime_extension)
+    elif travel >= 0.025000000:
+      return codex_r006_fault(epoch, ordinal, token, kind, consumed, 8, runtime_revision, runtime_extension)
+    elif contact_elapsed_s >= 90.000000000:
+      return codex_r006_fault(epoch, ordinal, token, kind, consumed, 10, runtime_revision, runtime_extension)
+    else:
+      local contact_dt = get_steptime()
+      if normal_force >= 0.500000000 or force_norm >= 0.700000000:
+        contact_confirm_s = contact_confirm_s + contact_dt
+      else:
+        contact_confirm_s = 0.0
+      end
+      if contact_confirm_s >= 0.080000000:
+        contact_done = True
+      else:
+        if travel < d_near_start_travel_m and normal_force < f_far_n and force_norm < f_far_n:
+          speedl([0.0, 0.0, -v_far_m_s, 0.0, 0.0, 0.0], far_accel_m_s2, contact_dt)
+        else:
+          speedl([0.0, 0.0, -v_near_m_s, 0.0, 0.0, 0.0], near_accel_m_s2, contact_dt)
+        end
+        contact_elapsed_s = contact_elapsed_s + contact_dt
+        codex_r006_echo(epoch, ordinal, 20, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)
+      end
+    end
+  end
+  stopl(0.010000000)
+  if not codex_r006_stationary(0.250000000):
+    return codex_r006_fault(epoch, ordinal, token, kind, consumed, 11, runtime_revision, runtime_extension)
+  end
+def codex_v5_reject_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, reason, ack_generation, active_qdot_generation, prepared_candidate_token):
+  codex_r006_echo(epoch, ordinal, 29, token, reason, ack_generation, active_qdot_generation, prepared_candidate_token, runtime_revision, runtime_extension)
+  return codex_r006_return_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, 0)
+end
+
+  # One contact acquisition feeds the complete resident chain.
+  codex_v5_active_epoch = epoch
+  codex_v5_active_ordinal = ordinal
+  codex_v5_active_kind = kind
+  codex_v5_active_token = token
+  codex_v5_active_qdot_generation = 0
+  local active_path_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
+  local committed_rollovers = 0
+  local rollover_generation_fence = 0
+  local prepared_valid = False
+  local prepared_generation = 0
+  local prepared_ordinal = 0
+  local prepared_kind = 0
+  local prepared_token = 0
+  local prepared_path_qdot = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local commit_armed = False
+  local armed_qdot_generation = 0
+  local qdot_generation = 0
+  local metric_sample_count = 0
+  local censor_sample_count = 0
+  local formal_metric_sample_count = 0
+  local correction_generation = 0
+  local force_integral_n_s = 0.0
+  local path_elapsed_s = 0.0
+  local tail_end_s = 20.0 * 3.141592653589793
+  local latch_seen = False
+  local last_rollover_command = 0
+  local last_rollover_generation = 0
+  local last_rollover_ordinal = 0
+  local last_rollover_kind = 0
+  local last_rollover_token = 0
+  local last_rollover_qdot_generation = 0
+
+  # ONE_NEWTON_ENTRY: only the existing bounded host qdot approach runs until
+  # the typed stable latch.  Rollover registers are held untouched here.
+  while not latch_seen:
+    local actual_dt = get_steptime()
+    local packet_reason = codex_r006_packet_observe()
+    local entry_guard = codex_r006_packet_guard(packet_reason, 60.0, 100.0, 3.0)
+    local integer_reason = codex_r006_integer_wire_guard()
+    local latch = read_input_integer_register(26)
+    if actual_dt <= 0.0 or actual_dt >= 0.080000000:
+      return codex_r006_fault(epoch, ordinal, token, kind, consumed, 46, runtime_revision, runtime_extension)
+    elif codex_v5_stop_requested():
+      return codex_r006_fault(epoch, ordinal, token, kind, consumed, 4, runtime_revision, runtime_extension)
+    elif entry_guard != 0:
+      return codex_r006_fault(epoch, ordinal, token, kind, consumed, entry_guard, runtime_revision, runtime_extension)
+    elif integer_reason != 0:
+      return codex_r006_fault(epoch, ordinal, token, kind, consumed, integer_reason, runtime_revision, runtime_extension)
+    elif latch == 1:
+      latch_seen = True
+      active_path_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
+      path_elapsed_s = 0.0
+      codex_r006_echo(epoch, ordinal, 25, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)
+    else:
+      local entry_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
+      speedj(entry_qdot, 40.000000000, actual_dt)
+      codex_r006_echo(epoch, ordinal, 21, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)
+    end
+    sync()
+  end
+
+  while True:
+    local actual_path_dt = get_steptime()
+    local packet_reason = codex_r006_packet_observe()
+    local motion_guard = codex_r006_packet_guard(packet_reason, 60.0, 100.0, 3.0)
+    local integer_reason = codex_r006_integer_wire_guard()
+    local rollover_command = read_input_integer_register(33)
+    local rollover_generation = read_input_integer_register(34)
+    local early_end_request = read_input_integer_register(35)
+    local next_ordinal = read_input_integer_register(36)
+    local next_kind = read_input_integer_register(37)
+    local next_token = read_input_integer_register(38)
+    local next_qdot_generation = read_input_integer_register(39)
+    local live_candidate_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
+    local resident_state = 25
+    local tail_crossing = path_elapsed_s + actual_path_dt >= tail_end_s
+    local bounded_motion_dt = actual_path_dt
+    if tail_crossing:
+      bounded_motion_dt = tail_end_s - path_elapsed_s
+    end
+    local duplicate_prepare = rollover_command == 1 and last_rollover_command == 1 and rollover_generation == last_rollover_generation and next_ordinal == last_rollover_ordinal and next_kind == last_rollover_kind and next_token == last_rollover_token and next_qdot_generation == last_rollover_qdot_generation
+    local duplicate_cancel = rollover_command == 3 and last_rollover_command == 3 and rollover_generation == last_rollover_generation and next_ordinal == last_rollover_ordinal and next_kind == last_rollover_kind and next_token == last_rollover_token and next_qdot_generation == last_rollover_qdot_generation
+    local duplicate_commit = rollover_command == 2 and last_rollover_command == 2 and rollover_generation == last_rollover_generation and next_ordinal == last_rollover_ordinal and next_kind == last_rollover_kind and next_token == last_rollover_token and next_qdot_generation == last_rollover_qdot_generation
+    local duplicate_commit_ack = duplicate_commit
+    if actual_path_dt <= 0.0 or actual_path_dt >= 0.080000000:
+      return codex_r006_fault(epoch, ordinal, token, kind, consumed, 46, runtime_revision, runtime_extension)
+    elif codex_v5_stop_requested():
+      return codex_r006_fault(epoch, ordinal, token, kind, consumed, 4, runtime_revision, runtime_extension)
+    elif motion_guard != 0:
+      return codex_r006_fault(epoch, ordinal, token, kind, consumed, motion_guard, runtime_revision, runtime_extension)
+    elif integer_reason != 0:
+      if rollover_command != 0:
+        return codex_v5_reject_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, integer_reason, rollover_generation_fence, qdot_generation, prepared_token)
+      else:
+        return codex_r006_fault(epoch, ordinal, token, kind, consumed, integer_reason, runtime_revision, runtime_extension)
+      end
+    else:
+      if path_elapsed_s < 60.000000000 and early_end_request == ordinal and early_end_request > 0:
+        return codex_v5_reject_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, 35, rollover_generation_fence, qdot_generation, prepared_token)
+      elif rollover_command == 0:
+        # NONE clears only the contiguous duplicate discriminator.
+        last_rollover_command = 0
+        last_rollover_generation = 0
+        last_rollover_ordinal = 0
+        last_rollover_kind = 0
+        last_rollover_token = 0
+        last_rollover_qdot_generation = 0
+      elif rollover_command == 1:
+        if duplicate_prepare and prepared_valid:
+          resident_state = 27
+        elif committed_rollovers >= 4 or prepared_valid or rollover_generation <= rollover_generation_fence or next_ordinal <= ordinal or next_kind < 10 or next_kind > 15 or next_token <= 0:
+          return codex_v5_reject_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, 80, rollover_generation_fence, qdot_generation, prepared_token)
+        else:
+          prepared_valid = True
+          prepared_generation = rollover_generation
+          prepared_ordinal = next_ordinal
+          prepared_kind = next_kind
+          prepared_token = next_token
+          commit_armed = False
+          armed_qdot_generation = 0
+          rollover_generation_fence = rollover_generation
+          last_rollover_command = rollover_command
+          last_rollover_generation = rollover_generation
+          last_rollover_ordinal = next_ordinal
+          last_rollover_kind = next_kind
+          last_rollover_token = next_token
+          last_rollover_qdot_generation = next_qdot_generation
+          resident_state = 27
+        end
+      elif rollover_command == 3:
+        if duplicate_cancel:
+          resident_state = 26
+        elif not prepared_valid or rollover_generation != prepared_generation:
+          return codex_v5_reject_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, 88, rollover_generation_fence, qdot_generation, prepared_token)
+        else:
+          prepared_valid = False
+          prepared_generation = 0
+          prepared_ordinal = 0
+          prepared_kind = 0
+          prepared_token = 0
+          prepared_path_qdot = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+          commit_armed = False
+          armed_qdot_generation = 0
+          last_rollover_command = rollover_command
+          last_rollover_generation = rollover_generation
+          last_rollover_ordinal = next_ordinal
+          last_rollover_kind = next_kind
+          last_rollover_token = next_token
+          last_rollover_qdot_generation = next_qdot_generation
+          resident_state = 26
+        end
+      elif rollover_command == 2:
+        if duplicate_commit_ack and not commit_armed:
+          resident_state = 28
+        elif duplicate_commit_ack:
+          # A repeated in-flight COMMIT is the expected idempotent hold until
+          # the exact periodic seam; it does not revoke old-candidate authority.
+          resident_state = 27
+        elif not prepared_valid or rollover_generation != prepared_generation or next_ordinal != prepared_ordinal or next_kind != prepared_kind or next_token != prepared_token:
+          return codex_v5_reject_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, 82, rollover_generation_fence, qdot_generation, prepared_token)
+        elif next_qdot_generation != prepared_generation or next_qdot_generation <= qdot_generation:
+          return codex_v5_reject_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, 84, rollover_generation_fence, qdot_generation, prepared_token)
+        else:
+          # COMMIT is validated and latched before the periodic seam.  The old
+          # candidate remains the sole qdot authority until the seam tick.
+          commit_armed = True
+          armed_qdot_generation = next_qdot_generation
+          prepared_path_qdot = live_candidate_qdot
+          last_rollover_command = rollover_command
+          last_rollover_generation = rollover_generation
+          last_rollover_ordinal = next_ordinal
+          last_rollover_kind = next_kind
+          last_rollover_token = next_token
+          last_rollover_qdot_generation = next_qdot_generation
+          resident_state = 27
+        end
+      end
+
+      local base_target_n = 5.000000000
+      local correction_enabled = path_elapsed_s >= 5.000000000 and path_elapsed_s < tail_end_s
+      local formal_metric_enabled = path_elapsed_s >= 5.000000000 and path_elapsed_s < 60.000000000
+      local tail_old_candidate_authority = path_elapsed_s >= 60.000000000 and path_elapsed_s < tail_end_s
+      if path_elapsed_s < 60.000000000:
+        metric_sample_count = metric_sample_count + 1
+        if formal_metric_enabled:
+          formal_metric_sample_count = formal_metric_sample_count + 1
+        end
+        if early_end_request > 0 and early_end_request != ordinal:
+          censor_sample_count = censor_sample_count
+        end
+        if correction_enabled:
+          correction_generation = correction_generation
+        end
+      end
+      # The current candidate owns every motion tick through the exact 20*pi
+      # endpoint, including the bounded interval while COMMIT is in flight.
+      active_path_qdot = live_candidate_qdot
+      if commit_armed:
+        prepared_path_qdot = live_candidate_qdot
+      end
+      if bounded_motion_dt > 0.0:
+        speedj(active_path_qdot, 40.000000000, bounded_motion_dt)
+      end
+      path_elapsed_s = path_elapsed_s + bounded_motion_dt
+      if tail_crossing:
+        local hard_safety_gate = motion_guard == 0
+        local timing_freshness_gate = packet_reason == 0 and actual_path_dt > 0.0 and actual_path_dt < 0.080000000
+        local tube_cbf_gate = codex_r006_qdot_ok()
+        local identity_metric_closure_gate = path_elapsed_s == tail_end_s and prepared_valid and commit_armed and prepared_generation == rollover_generation_fence
+        local command_envelope_gate = integer_reason == 0 and armed_qdot_generation == prepared_generation and armed_qdot_generation > qdot_generation
+        if not prepared_valid and not commit_armed and rollover_command == 0:
+          # No prepared successor is the typed, successful end of this chain.
+          # The current candidate owns the exact periodic endpoint, then the
+          # unchanged mature return-Home primitive closes the artifact.
+          return codex_r006_return_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, 0)
+        elif committed_rollovers >= 4:
+          return codex_v5_reject_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, 87, rollover_generation_fence, qdot_generation, prepared_token)
+        elif not identity_metric_closure_gate:
+          return codex_v5_reject_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, 82, rollover_generation_fence, qdot_generation, prepared_token)
+        elif not command_envelope_gate:
+          return codex_v5_reject_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, 84, rollover_generation_fence, qdot_generation, prepared_token)
+        elif not codex_v5_switch_gate_families(hard_safety_gate, timing_freshness_gate, tube_cbf_gate, identity_metric_closure_gate, command_envelope_gate):
+          return codex_v5_reject_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, 85, rollover_generation_fence, qdot_generation, prepared_token)
+        else:
+          ordinal = prepared_ordinal
+          kind = prepared_kind
+          token = prepared_token
+          qdot_generation = armed_qdot_generation
+          codex_v5_active_epoch = epoch
+          codex_v5_active_ordinal = ordinal
+          codex_v5_active_kind = kind
+          codex_v5_active_token = token
+          codex_v5_active_qdot_generation = qdot_generation
+          active_path_qdot = prepared_path_qdot
+          committed_rollovers = committed_rollovers + 1
+          prepared_valid = False
+          prepared_generation = 0
+          prepared_ordinal = 0
+          prepared_kind = 0
+          prepared_token = 0
+          prepared_path_qdot = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+          commit_armed = False
+          armed_qdot_generation = 0
+          last_rollover_command = rollover_command
+          last_rollover_generation = rollover_generation
+          last_rollover_ordinal = next_ordinal
+          last_rollover_kind = next_kind
+          last_rollover_token = next_token
+          last_rollover_qdot_generation = next_qdot_generation
+          path_elapsed_s = 0.0
+          metric_sample_count = 0
+          censor_sample_count = 0
+          formal_metric_sample_count = 0
+          correction_generation = 0
+          force_integral_n_s = 0.0
+          codex_r006_echo(epoch, ordinal, 28, token, 0, rollover_generation, qdot_generation, 0, runtime_revision, runtime_extension)
+        end
+      elif resident_state == 28:
+        codex_r006_echo(epoch, ordinal, 28, token, 0, last_rollover_generation, qdot_generation, 0, runtime_revision, runtime_extension)
+      elif resident_state == 27:
+        codex_r006_echo(epoch, ordinal, 27, token, 0, rollover_generation_fence, qdot_generation, prepared_token, runtime_revision, runtime_extension)
+      elif resident_state == 26:
+        codex_r006_echo(epoch, ordinal, 26, token, 0, rollover_generation_fence, qdot_generation, 0, runtime_revision, runtime_extension)
+      elif path_elapsed_s >= 60.000000000:
+        codex_r006_echo(epoch, ordinal, 26, token, 0, rollover_generation_fence, qdot_generation, 0, runtime_revision, runtime_extension)
+      else:
+        codex_r006_echo(epoch, ordinal, 25, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)
+      end
+    end
+    # The timed speed command is the one blocking controller-cycle primitive
+    # for this PATH loop.  A second synchronization barrier would halve packet
+    # consumption while the host/RTDE path clock continued at 500 Hz.
+  end
+end
+def step6_figure8_autotune_v1():
+  # Script1 owns EOAT setup.  This resident V5 writer performs no EOAT writes.
+  local fixed_home_pose = p[0.4620551816, 0.1778825964, 0.034088761, 3.120752062, 0.000000000, 0.068626833]
+  local locked_home_q = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local locked_home_q_valid = False
+  local runtime_revision = 5
+  local runtime_extension = 520607
+  local active_epoch = 0
+  local last_failed_epoch = 0
+  local consumed_session_sequence = read_input_integer_register(28)
+  local current_ordinal = 0
+  local current_token = 0
+  local current_kind = 0
+  local state = 78
+  local reason = 0
+  local return_guard = 0
+  local session_active = False
+  local completed = False
+  while True:
+    local packet_reason = codex_r006_packet_observe()
+    local integer_reason = codex_r006_integer_wire_guard()
+    local session_command = read_input_integer_register(27)
+    local session_sequence = read_input_integer_register(28)
+    local input_epoch = read_input_integer_register(29)
+    local input_ordinal = read_input_integer_register(30)
+    local input_kind = read_input_integer_register(31)
+    local input_token = read_input_integer_register(32)
+    if codex_v5_stop_requested():
+      stopl(0.250000000)
+      session_active = False
+      completed = False
+      active_epoch = input_epoch
+      state = 90
+      reason = 4
+      return_guard = 0
+    elif integer_reason != 0 and session_command != 0:
+      stopl(0.250000000)
+      session_active = False
+      state = 90
+      reason = integer_reason
+      return_guard = 0
+    elif not session_active and not completed and session_command == 1 and session_sequence > consumed_session_sequence and packet_reason == 0:
+      if input_epoch <= last_failed_epoch or input_epoch <= 0 or input_ordinal < 1 or input_ordinal <= current_ordinal or (active_epoch > 0 and input_epoch != active_epoch) or input_kind < 10 or input_kind > 15 or input_token <= 0:
+        state = 90
+        reason = 61
+        last_failed_epoch = input_epoch
+      else:
+        active_epoch = input_epoch
+        current_ordinal = input_ordinal
+        current_kind = input_kind
+        current_token = input_token
+        consumed_session_sequence = session_sequence
+        if not codex_r006_entry_home_verified(fixed_home_pose, locked_home_q, locked_home_q_valid):
+          stopl(0.250000000)
+          session_active = False
+          state = 90
+          reason = 69
+          return_guard = 0
+          last_failed_epoch = input_epoch
+        else:
+          locked_home_q = get_actual_joint_positions()
+          locked_home_q_valid = True
+          session_active = True
+          state = 11
+          reason = 0
+          return_guard = 0
+          codex_r006_echo(active_epoch, current_ordinal, state, current_token, reason, consumed_session_sequence, current_kind, return_guard, runtime_revision, runtime_extension)
+          codex_v5_active_epoch = active_epoch
+          codex_v5_active_ordinal = current_ordinal
+          codex_v5_active_kind = current_kind
+          codex_v5_active_token = current_token
+          codex_v5_active_qdot_generation = 0
+          local chain_ok = codex_r006_execute_chain(fixed_home_pose, locked_home_q, active_epoch, current_ordinal, current_token, current_kind, consumed_session_sequence, runtime_revision, runtime_extension)
+          active_epoch = codex_v5_active_epoch
+          current_ordinal = codex_v5_active_ordinal
+          current_kind = codex_v5_active_kind
+          current_token = codex_v5_active_token
+          if chain_ok:
+            session_active = False
+            state = 78
+            reason = 0
+            return_guard = codex_r006_attempt_guard
+          else:
+            session_active = False
+            state = 90
+            reason = codex_r006_attempt_reason
+            return_guard = codex_r006_attempt_guard
+          end
+        end
+      end
+    elif session_command == 2 and state == 78 and session_sequence > consumed_session_sequence:
+      if input_epoch == active_epoch and input_ordinal == current_ordinal and input_token == current_token and input_kind == current_kind:
+        consumed_session_sequence = session_sequence
+        completed = True
+        state = 80
+        reason = 0
+        return_guard = 123
+      else:
+        reason = 63
+      end
+    elif session_command == 1 and (session_sequence <= consumed_session_sequence or input_epoch != active_epoch) and state == 78:
+      reason = 62
+    end
+    codex_r006_echo(active_epoch, current_ordinal, state, current_token, reason, consumed_session_sequence, current_kind, return_guard, runtime_revision, runtime_extension)
+    sync()
+  end
+end
+
+step6_figure8_autotune_v1()
+

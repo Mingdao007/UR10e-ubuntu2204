@@ -1,0 +1,147 @@
+{
+  "contact_search": {
+    "boundary_m": 0.011029311,
+    "contract_basis": "v4_equivalent_restored_not_failed_16mm_experiment",
+    "far_acceleration_m_s2": 0.01,
+    "far_speed_m_s": 0.005,
+    "fuse_n": 50.0,
+    "max_travel_m": 0.025,
+    "near_acceleration_m_s2": 0.005,
+    "near_speed_m_s": 0.0002,
+    "schema": "step6.autotune/figure8-contact-search-v4-equivalent-v1",
+    "timeout_s": 90.0
+  },
+  "deterministic": true,
+  "force_metric_semantics": {
+    "closure_tail_authority": "old_candidate",
+    "closure_tail_excluded_from": [
+      "mae",
+      "censor",
+      "gp",
+      "tell_exact",
+      "exact_novel_budget"
+    ],
+    "closure_tail_window_s": [
+      60.0,
+      62.83185307179586
+    ],
+    "correction_changes_internal_target_only": true,
+    "correction_enabled_from_s": 5.0,
+    "entry_target_ramp": "5.0 N from the stable-contact trial-start tick; contact acquisition latch is separate",
+    "filtered_normal_is_metric_input": true,
+    "formal_metric_bin_count": 550,
+    "formal_metric_window_s": [
+      5.0,
+      60.0
+    ],
+    "metric_evidence_bin_count": 600,
+    "metric_evidence_window_s": [
+      0.0,
+      60.0
+    ],
+    "metric_name": "figure8-force-mae-v2",
+    "metric_statistic": "mean_abs(mean(filtered_normal_n_in_bin)-5N)",
+    "positive_load_semantics": "filtered_normal_n",
+    "primary_metric": "evidence_0_60",
+    "secondary_metric": "formal_5_60",
+    "target_force_n": 5.0
+  },
+  "guards": {
+    "active_path_cbf_qp_ellipse_m": [
+      0.022,
+      0.012
+    ],
+    "attempt_count": 1,
+    "hard_tracking_error_ellipse_m": [
+      0.025,
+      0.015
+    ],
+    "hard_tracking_error_evaluated_first": true,
+    "raw_force_norm_limit_n": 60.0,
+    "raw_normal_force_limit_n": 50.0,
+    "raw_tcp_speed_limit_m_s": 0.015,
+    "raw_torque_norm_limit_nm": 3.0,
+    "safe_return": "recoverable_home",
+    "stale_or_invalid_state": "terminal_stop"
+  },
+  "home_frame": {
+    "along_xy": [
+      0.0049336434,
+      0.9999878295
+    ],
+    "home_calibration_receipt_sha256": "1c34c27d33aae2e6d93e0dc3017e7c95099cbc15dea32c3faf0d9951b78028c9",
+    "home_status": "contact_derived_final_home",
+    "lateral_xy": [
+      -0.9999878295,
+      0.0049336434
+    ],
+    "no_contact_z_m": 0.03408876139925415,
+    "orientation_rotvec": [
+      3.120752062,
+      0.0,
+      0.068626833
+    ],
+    "origin_xy_m": [
+      0.4620551816,
+      0.1778825964
+    ]
+  },
+  "kinematics": {
+    "acceleration_feasible": true,
+    "linear_speed_feasible": true,
+    "max_abs_signed_curvature_m_inv_sampled": 107.34447342269048,
+    "max_acceleration_m_s2": 0.0004999999872692255,
+    "max_speed_expected_m_s": 0.00447213595499958,
+    "max_speed_m_s": 0.00447213595499958,
+    "motion_limit_m_s": 0.015,
+    "normal_reserve_m_s": 0.003,
+    "required_total_linear_m_s": 0.005385164807134505,
+    "total_linear_limit_m_s": 0.015
+  },
+  "live_acceptance": false,
+  "path": {
+    "anchor_pose": [
+      0.4620551816,
+      0.1778825964,
+      0.03408876139925415,
+      3.120752062,
+      0.0,
+      0.068626833
+    ],
+    "duration_s": 60.0,
+    "formal_bin_count": 550,
+    "formal_window_s": [
+      5.0,
+      60.0
+    ],
+    "formula": "along=0.04*sin(0.1t), lateral=0.01*sin(0.2t)",
+    "full_bin_count": 600,
+    "path_id": "r013_figure8_v1",
+    "path_identity_sha256": "0aea185bcbf6b8f9e8c65551cf48c9098e8afdae8290c188944c1afb5be588c4",
+    "provider": "FigureEightPathProviderV1",
+    "sample_count_inclusive": 601,
+    "sample_dt_s": 0.1
+  },
+  "schema": "step6.autotune/figure8-numeric-sanity-v1",
+  "spans_envelope": {
+    "base_x_guard_line_m": 0.4888784335,
+    "base_x_guard_margin_m": 0.016683734787568183,
+    "base_x_m": [
+      0.4519155206152037,
+      0.4721946987124318
+    ],
+    "base_y_m": [
+      0.13788343308975134,
+      0.21788217547324323
+    ],
+    "local_along_m": [
+      -0.04,
+      0.04
+    ],
+    "local_lateral_m": [
+      -0.01,
+      0.01
+    ]
+  },
+  "version": 1
+}

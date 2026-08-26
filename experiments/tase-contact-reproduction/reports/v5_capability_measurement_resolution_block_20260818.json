@@ -1,0 +1,40 @@
+{
+  "schema": "step6.autotune/v5-capability-measurement-resolution-block-v1",
+  "version": 1,
+  "status": "NO_GO_MEASUREMENT_RESOLUTION",
+  "state_root": "runs/autotuner_v5_live_20260818_retry2",
+  "source_identity": "9080a0a780bc0d1519fecffe557084cc280cdf4fb9ff4b1a815c2991641de38c",
+  "current_source_identity_after_timeout_repair": "4bc8ec7813a287fe64d299f6def12d0acbbd97081cf0229a5b4bebd3338c9b05",
+  "capability_fingerprint": "a98a156aa546e8c01c3acb28cbec614b882a640cba0983b86b2e3b5562052bce",
+  "equivalence": {
+    "margin_n": 0.05,
+    "confidence": 0.9,
+    "reported_ci_n": [-0.235160478, 0.234362143],
+    "declared_pair_upper_bound": 80,
+    "estimated_pairs_required_from_observed_half_width": 111,
+    "pairs_required_exceed_declared_upper_bound": true,
+    "gate": "fail_closed",
+    "campaign_started": false,
+    "primary_started": false,
+    "correction_started": false
+  },
+  "chain_results": {
+    "cap-same-candidate-01": [1.6704899701029952, 1.648223544643383],
+    "cap-bounded-neighbor-01": [1.5988419520350283, 1.8294992150726015],
+    "cap-entry-pair-02": [1.4775612508825968, 1.882253985476653],
+    "cap-entry-pair-03": [1.8789930385385238, 1.6266183721140461],
+    "cap-entry-pair-04": [1.6891028960887702, 1.5689927451484966],
+    "cap-entry-pair-05": [1.738670103896027, 1.7267327746195757],
+    "cap-four-rollover-01": [1.6641440668200917, 1.7414453073378835, 1.6353505661281624, 1.5756581104075553]
+  },
+  "interpretation": {
+    "measurement_resolution_blocked": true,
+    "margin_widened": false,
+    "automatic_retry": false,
+    "old_v5_state_resumed": false,
+    "state_root_reuse_forbidden": true,
+    "writer_released_home": true,
+    "safety_normal_after_release": true,
+    "next_action": "discuss_or_run_declared_repeatability_pilot; do not start Primary/Correction"
+  }
+}

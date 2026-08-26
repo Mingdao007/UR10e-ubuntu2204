@@ -1,0 +1,132 @@
+{
+  "schema": "step5d.managed-runtime/manifest-v1",
+  "lineage_id": "step6_figure8_autotuner_v5_layout607_v1",
+  "launcher_path": "tools/run_step6_figure8_autotune_v1_live.py",
+  "release_contract": {
+    "path": "config/step6/step6_figure8_autotune_v1_runtime_release.json",
+    "schema": "step6.autotune/figure8-runtime-release-v1",
+    "program": "step6_figure8_autotune_v1",
+    "revision": 5
+  },
+  "routes": {
+    "prepare": {
+      "module": "step6_figure8_autotune_v1.prepare_live"
+    },
+    "host": {
+      "module": "run_step6_figure8_autotune_v1_live"
+    }
+  },
+  "long_running_routes": ["host"],
+  "control": {
+    "profile": "control",
+    "verification_mode": "full_audit",
+    "required_imports": [
+      "numpy",
+      "scipy",
+      "pinocchio"
+    ],
+    "required_ros_packages": [
+      "ros-humble-pinocchio"
+    ],
+    "required_ros_pythonpath": [
+      "/opt/ros/humble/lib/python3.10/site-packages",
+      "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
+  },
+  "optimizer": {
+    "profile": "optimizer",
+    "resolver": "step5d_optimizer_runtime.resolve_optimizer_runtime",
+    "worker_module": "step6_figure8_autotune_v1.optimizer_worker"
+  },
+  "no_system_install": true,
+  "source_closure": [
+    "STEP6_FLOW.md",
+    "config/step6_stage_table.json",
+    "config/step6/r013_figure8_direct_campaign_v1.json",
+    "config/step6/autotuner_v5_composition_contract_v2.json",
+    "config/step6/autotuner_v5_campaign_v2.json",
+    "config/step6/autotuner_v5_home_only_primary_v1.json",
+    "config/step6/autotuner_v5_sidecars_v1.json",
+    "config/step6/autotuner_v5_extension_policy_v1.json",
+    "config/step5d/v4_two_stage_campaign_v1.json",
+    "config/step6/v4_isaturation_validation_plan_v1.json",
+    "config/step6/step6_figure8_autotune_v1_runtime_release.json",
+    "config/step6/step6_figure8_runtime_manifest.json",
+    "tools/run_step6_figure8_autotune_v1_live.py",
+    "tools/run_step6_figure8_no_contact_canary_v1_live.py",
+    "tools/run_autotuner_v5_sidecars.py",
+    "tools/build_step6_figure8_autotune_v1.py",
+    "tools/build_step6_figure8_no_contact_canary_v1.py",
+    "tools/launch_step5d_managed_runtime.py",
+    "tools/step5d_managed_runtime.py",
+    "tools/step5d_optimizer_runtime.py",
+    "tools/step5d_autotune_v3/runtime_installation.py",
+    "tools/step5d_autotune_v3/runtime_environment.py",
+    "tools/step5d_autotune_v4_r013/live_owner.py",
+    "tools/step5d_autotune_v4_r013/live_runtime.py",
+    "tools/step5d_autotune_v4_r013/handoff.py",
+    "tools/step5d_autotune_v4_r013/metrics.py",
+    "tools/step5d_autotune_v4_r013/path_context.py",
+    "tools/step5d_autotune_v4_r013/lifecycle_trace.py",
+    "tools/step5d_autotune_v4_r013/floor_coordinator.py",
+    "tools/step5d_autotune_v4_r006/live_adapter.py",
+    "tools/step5d_autotune_v4_live_writer.py",
+    "tools/step5d_autotune_v4_r004/transport.py",
+    "tools/step5d_autotune_v4_r004/arm_transition.py",
+    "tools/step5d_autotune_v4_r004/wire.py",
+    "tools/step5d_autotune_v4_r004/calibrated_runtime.py",
+    "tools/step5d_autotune_v4_r004/path_controller.py",
+    "tools/step5d_autotune_v4_r004/policies.py",
+    "tools/step5d_autotune_v4_r004/runtime.py",
+    "tools/step5d_autotune_v4_r004/home.py",
+    "tools/step5d_autotune_v4_r004/motion_profile.py",
+    "tools/step5d_autotune_v4_r004/qualification.py",
+    "tools/step5d_autotune_v4_r004_live_writer.py",
+    "tools/step5d_autotune_v4/contracts.py",
+    "tools/step5d_paper_outer_loop.py",
+    "tools/step5c_strict_rnn.py",
+    "tools/contact_semantics.py",
+    "tools/step5d_autotune_v4_r012/path_cbf_live.py",
+    "tools/step5d_autotune_v4_r012/safety_filter.py",
+    "tools/step5d_autotune_v4_r012/register_transport.py",
+    "tools/step6_figure8_autotune_v1/__init__.py",
+    "tools/step6_figure8_autotune_v1/core.py",
+    "tools/step6_figure8_autotune_v1/live_composition.py",
+    "tools/step6_figure8_autotune_v1/physical_candidate.py",
+    "tools/step6_figure8_autotune_v1/physical_censor.py",
+    "tools/step6_figure8_autotune_v1/physical_ledger.py",
+    "tools/step6_figure8_autotune_v1/prepare_live.py",
+    "tools/step6_figure8_autotune_v1/report.py",
+    "tools/step6_figure8_autotune_v1/optimizer_worker.py",
+    "tools/step6_figure8_autotune_v1/optimizer_bridge.py",
+    "tools/step6_figure8_autotune_v1/v5_design_domain.py",
+    "tools/step6_figure8_autotune_v1/v5_kernel_selection.py",
+    "tools/step6_figure8_autotune_v1/v4_isaturation_plan.py",
+    "tools/step6_figure8_autotune_v1/campaign_runner.py",
+    "tools/step6_figure8_autotune_v1/source_identity.py",
+    "tools/step6_figure8_autotune_v1/v5_composition_contract.py"
+    ,"tools/step6_figure8_autotune_v1/v5_rollover.py"
+    ,"tools/step6_figure8_autotune_v1/v5_register_transport.py"
+    ,"tools/step6_figure8_autotune_v1/v5_resident_protocol.py"
+    ,"tools/step6_figure8_autotune_v1/v5_live_runtime.py"
+    ,"tools/step6_figure8_autotune_v1/v5_live_owner.py"
+    ,"tools/step6_figure8_autotune_v1/v5_optimizer_journal.py"
+    ,"tools/step6_figure8_autotune_v1/v5_lifecycle_ledger.py"
+    ,"tools/step6_figure8_autotune_v1/v5_campaign.py"
+    ,"tools/step6_figure8_autotune_v1/v5_campaign_runner.py"
+    ,"tools/step6_figure8_autotune_v1/v5_capability_acceptance.py"
+    ,"tools/step6_figure8_autotune_v1/v5_production_bundle.py"
+    ,"tools/step6_figure8_autotune_v1/v5_filter_shadow.py"
+    ,"tools/step6_figure8_autotune_v1/v5_camera_observer.py"
+    ,"tools/step6_figure8_autotune_v1/v5_ros2_observation_mirror.py"
+    ,"tools/step6_figure8_autotune_v1/v5_sidecar_bundle.py"
+    ,"tools/step6_figure8_autotune_v1/v5_report.py",
+    "tools/step6_figure8_autotune_v1/v5_extension.py",
+    "tools/step6_figure8_autotune_v1/v5_extension_runner.py",
+    "tools/step6_figure8_autotune_v1/v5_raw_archive.py",
+    "tools/build_autotuner_combined_report.py",
+    "tools/run_v4_stage_live.py",
+    "tools/run_v4_timing_characterization.py"
+    ,"tools/capture_v4_timing_host_snapshot.py"
+  ]
+}

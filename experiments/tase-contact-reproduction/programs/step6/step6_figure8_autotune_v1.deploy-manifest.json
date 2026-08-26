@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "basename": "step6_figure8_autotune_v1",
+  "controller_directory": "/programs/andyl/kunwei/step6",
+  "artifacts": [
+    {
+      "filename": "step6_figure8_autotune_v1.urp",
+      "source": "step6_figure8_autotune_v1.urp",
+      "sha256": "6bd3427b10ae163f5832b3bb8081870cb16d20820a6705eeb7e6fd92d48603ec"
+    },
+    {
+      "filename": "step6_figure8_autotune_v1.txt",
+      "source": "step6_figure8_autotune_v1.txt",
+      "sha256": "d997be6063693ac919cde099933de772d9485021647eaad1bf09c556ac8b0364"
+    },
+    {
+      "filename": "step6_figure8_autotune_v1.script",
+      "source": "step6_figure8_autotune_v1.script",
+      "sha256": "79377669a0252e2c48ddd4930bab8dbddb3c5666771c563307162ed1029b5e87"
+    }
+  ]
+}

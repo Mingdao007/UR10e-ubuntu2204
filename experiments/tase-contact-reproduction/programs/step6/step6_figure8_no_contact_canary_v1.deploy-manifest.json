@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "basename": "step6_figure8_no_contact_canary_v1",
+  "controller_directory": "/programs/andyl/kunwei/step6",
+  "artifacts": [
+    {
+      "filename": "step6_figure8_no_contact_canary_v1.urp",
+      "source": "step6_figure8_no_contact_canary_v1.urp",
+      "sha256": "1a80ee9f689933946d2805252f77a1553c7081faeecb181fa11fc3708cce7467"
+    },
+    {
+      "filename": "step6_figure8_no_contact_canary_v1.txt",
+      "source": "step6_figure8_no_contact_canary_v1.txt",
+      "sha256": "388490c9fe1d4535c49aa78281f709d88723cc10d6071ac6c76d84a75c60fedc"
+    },
+    {
+      "filename": "step6_figure8_no_contact_canary_v1.script",
+      "source": "step6_figure8_no_contact_canary_v1.script",
+      "sha256": "439176a67550e1fbf72263dca49464a85a4e59e5d69bd50bcfe58bc09c27dc33"
+    }
+  ]
+}

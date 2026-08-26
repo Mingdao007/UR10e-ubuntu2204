@@ -1,0 +1,14 @@
+{
+  "schema": "step6.autotune/v4-isaturation-validation-plan-v1",
+  "version": 1,
+  "candidate_n": 5,
+  "correction_weights": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+  "comparisons": {
+    "i_saturation": ["I_OFF", "I_ON"],
+    "path_velocity_feedforward": ["FEEDFORWARD_OFF", "FEEDFORWARD_ON"],
+    "phase_target_intervention": "PHASE_TARGET_CORRECTION_SEPARATE"
+  },
+  "primary_floor_campaign_n": 200,
+  "automatic_promotion": false,
+  "live_capability_required_before_start": true
+}

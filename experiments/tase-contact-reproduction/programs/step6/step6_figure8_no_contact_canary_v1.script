@@ -1,0 +1,169 @@
+# One-shot Step6 Figure-eight no-contact geometry canary v1.
+# VERSION: 2026-08-20T0407HKT_STEP6_FIGURE8_NO_CONTACT_CANARY_V1
+# BUILD_INPUTS_SHA256: 1acb62897d815d6b5c4868ecc67ff715db0f8f70ff9f8d1c1bbffd6c00036cec
+# CONTROLLER_TARGET: /programs/andyl/kunwei/step6/step6_figure8_no_contact_canary_v1.urp
+# MOTION_CLASS: no-contact motion only; no force control/search, no Kunwei, no host writer.
+# PATH: along=0.04*sin(0.1t), lateral=0.01*sin(0.2t), duration=60s.
+# HOME_FRAME: p[0.4620551816, 0.1778825964, 0.0340887614, 3.1207520620, 0.0000000000, 0.0686268330]
+# HOME_STATUS: contact-derived final Home
+# HOME_CALIBRATION_RECEIPT_SHA256: 1c34c27d33aae2e6d93e0dc3017e7c95099cbc15dea32c3faf0d9951b78028c9
+# GUARD_ORDER: current transfer envelope -> force/no-contact -> hard tracking ellipse -> speedl.
+# TRACE_REGISTERS: int40=state int41=reason double40=t double41/42=desired_xy double43/44=hard/soft_rho double45=cmd_speed double46=z_error double47=orientation_error.
+
+def codex_canary_abs(value):
+  if value < 0.0:
+    return -value
+  end
+  return value
+end
+
+def codex_canary_clamp(value, lower, upper):
+  if value < lower:
+    return lower
+  elif value > upper:
+    return upper
+  end
+  return value
+end
+
+def codex_canary_pose_position_error(actual, expected):
+  return sqrt((actual[0] - expected[0]) * (actual[0] - expected[0]) + (actual[1] - expected[1]) * (actual[1] - expected[1]) + (actual[2] - expected[2]) * (actual[2] - expected[2]))
+end
+
+def codex_canary_pose_orientation_error(actual, expected):
+  return sqrt((actual[3] - expected[3]) * (actual[3] - expected[3]) + (actual[4] - expected[4]) * (actual[4] - expected[4]) + (actual[5] - expected[5]) * (actual[5] - expected[5]))
+end
+
+def codex_canary_transfer_pose_ok(actual, expected):
+  local orientation_error = codex_canary_pose_orientation_error(actual, expected)
+  return actual[0] >= 0.425000000 and actual[0] <= 0.488878433 and actual[1] >= 0.110000000 and actual[1] <= 0.245000000 and actual[2] >= 0.028000000 and actual[2] <= 0.038000000 and orientation_error <= 0.020000000
+end
+
+def codex_step6_figure8_no_contact_canary_v1():
+  local home_pose = p[0.4620551816, 0.1778825964, 0.0340887614, 3.1207520620, 0.0000000000, 0.0686268330]
+  local origin_x = 0.4620551816
+  local origin_y = 0.1778825964
+  local fixed_z = 0.034088761
+  local along_x = 0.0049336434
+  local along_y = 0.9999878295
+  local lateral_x = -0.9999878295
+  local lateral_y = 0.0049336434
+  local stop_reason = 0
+  local state = 1
+  local path_t = 0.0
+  write_output_integer_register(40, state)
+  write_output_integer_register(41, stop_reason)
+  write_output_float_register(40, path_t)
+  write_output_float_register(43, 0.0)
+  write_output_float_register(44, 0.0)
+
+  local transfer_pose = get_actual_tcp_pose()
+  if not codex_canary_transfer_pose_ok(transfer_pose, home_pose):
+    stop_reason = 1
+  end
+  if stop_reason == 0:
+    movel(home_pose, a=0.030000000, v=0.020000000, r=0.0)
+    stopl(0.500000000)
+    local entry_pose = get_actual_tcp_pose()
+    if codex_canary_pose_position_error(entry_pose, home_pose) > 0.001000000:
+      stop_reason = 2
+    elif codex_canary_pose_orientation_error(entry_pose, home_pose) > 0.010000000:
+      stop_reason = 3
+    end
+  end
+
+  if stop_reason == 0:
+    state = 2
+    write_output_integer_register(40, state)
+  end
+  while stop_reason == 0 and path_t < 60.000000000:
+    local pose_now = get_actual_tcp_pose()
+    local speed_now = get_actual_tcp_speed()
+    local force_now = get_tcp_force()
+    local phase = 0.100000000 * path_t
+    local local_along = 0.040000000 * sin(phase)
+    local local_lateral = 0.010000000 * sin(2.0 * phase)
+    local local_v_along = 0.004000000 * cos(phase)
+    local local_v_lateral = 0.002000000 * cos(2.0 * phase)
+    local desired_x = origin_x + local_along * along_x + local_lateral * lateral_x
+    local desired_y = origin_y + local_along * along_y + local_lateral * lateral_y
+    local desired_vx = local_v_along * along_x + local_v_lateral * lateral_x
+    local desired_vy = local_v_along * along_y + local_v_lateral * lateral_y
+    local error_x = pose_now[0] - desired_x
+    local error_y = pose_now[1] - desired_y
+    local error_along = error_x * along_x + error_y * along_y
+    local error_lateral = error_x * lateral_x + error_y * lateral_y
+    local hard_rho = (error_along / 0.025000000) * (error_along / 0.025000000) + (error_lateral / 0.015000000) * (error_lateral / 0.015000000)
+    local soft_rho = (error_along / 0.022000000) * (error_along / 0.022000000) + (error_lateral / 0.012000000) * (error_lateral / 0.012000000)
+    local orientation_error = codex_canary_pose_orientation_error(pose_now, home_pose)
+    local z_error = pose_now[2] - fixed_z
+    local force_norm = sqrt(force_now[0] * force_now[0] + force_now[1] * force_now[1] + force_now[2] * force_now[2])
+    local speed_norm = sqrt(speed_now[0] * speed_now[0] + speed_now[1] * speed_now[1] + speed_now[2] * speed_now[2])
+    local correction_vx = codex_canary_clamp(2.0 * (desired_x - pose_now[0]), -0.003000000, 0.003000000)
+    local correction_vy = codex_canary_clamp(2.0 * (desired_y - pose_now[1]), -0.003000000, 0.003000000)
+    local correction_vz = codex_canary_clamp(2.0 * (fixed_z - pose_now[2]), -0.003000000, 0.003000000)
+    local cmd_vx = desired_vx + correction_vx
+    local cmd_vy = desired_vy + correction_vy
+    local cmd_vz = correction_vz
+    local cmd_speed = sqrt(cmd_vx * cmd_vx + cmd_vy * cmd_vy + cmd_vz * cmd_vz)
+    if cmd_speed > 0.010000000:
+      local cmd_scale = 0.010000000 / cmd_speed
+      cmd_vx = cmd_vx * cmd_scale
+      cmd_vy = cmd_vy * cmd_scale
+      cmd_vz = cmd_vz * cmd_scale
+      cmd_speed = 0.010000000
+    end
+    write_output_float_register(40, path_t)
+    write_output_float_register(41, desired_x)
+    write_output_float_register(42, desired_y)
+    write_output_float_register(43, hard_rho)
+    write_output_float_register(44, soft_rho)
+    write_output_float_register(45, cmd_speed)
+    write_output_float_register(46, z_error)
+    write_output_float_register(47, orientation_error)
+
+    if force_norm > 20.000000000 or codex_canary_abs(force_now[2]) > 15.000000000:
+      stop_reason = 10
+    elif pose_now[0] > 0.4888784335:
+      stop_reason = 11
+    elif pose_now[0] < 0.425000000 or pose_now[1] < 0.110000000 or pose_now[1] > 0.245000000 or pose_now[2] < 0.028000000 or pose_now[2] > 0.038000000:
+      stop_reason = 12
+    elif hard_rho > 1.000000000:
+      stop_reason = 13
+    elif orientation_error > 0.030000000:
+      stop_reason = 14
+    elif speed_norm > 0.015000000:
+      stop_reason = 15
+    else:
+      speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0], 0.300000000, 0.002000000)
+      path_t = path_t + get_steptime()
+    end
+  end
+  stopl(0.500000000)
+  write_output_integer_register(41, stop_reason)
+
+  local terminal_pose = get_actual_tcp_pose()
+  local safe_return_allowed = stop_reason < 10 and codex_canary_transfer_pose_ok(terminal_pose, home_pose)
+  if stop_reason == 0 or safe_return_allowed:
+    state = 3
+    write_output_integer_register(40, state)
+    movel(home_pose, a=0.030000000, v=0.020000000, r=0.0)
+    stopl(0.500000000)
+    local final_pose = get_actual_tcp_pose()
+    if codex_canary_pose_position_error(final_pose, home_pose) <= 0.001000000 and codex_canary_pose_orientation_error(final_pose, home_pose) <= 0.010000000:
+      state = 4
+    else:
+      state = 90
+      if stop_reason == 0:
+        stop_reason = 20
+      end
+    end
+  else:
+    state = 90
+  end
+  write_output_integer_register(40, state)
+  write_output_integer_register(41, stop_reason)
+  textmsg("Step6 Figure-eight no-contact canary terminal state/reason:", state, stop_reason)
+end
+
+codex_step6_figure8_no_contact_canary_v1()

@@ -264,6 +264,221 @@
         "min_force_n": 2.0
       },
       "success_condition": "Complete 30.0 s contact 8-shaped path in the Step6 five-waypoint safe frame with 5 N target force under the v2 15 mm/s linear and 0.060 rad/s attitude caps."
+    },
+    {
+      "id": "r013_figure8_transfer_v1_offline_template",
+      "stage": "Step6b",
+      "owner": "offline_autotuner_transfer_preparation",
+      "active": false,
+      "blocked": true,
+      "complete": false,
+      "shape": "eight",
+      "frame": "config/step6_eight_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "current_binding": {
+        "is_current": false,
+        "current_pointer_changed": false,
+        "claim_status": "offline_transfer_template_not_path_specific_incumbent"
+      },
+      "source_binding": {
+        "transfer_config": "config/step5d/r013_figure8_transfer_template_v1.json",
+        "transfer_primitive": "tools/step5d_autotune_v4_r013/figure8_transfer.py",
+        "path_provider": "tools/step5d_autotune_v4_r013/path_context.py",
+        "metric": "tools/step5d_autotune_v4_r013/metrics.py"
+      },
+      "campaign": {
+        "metric_id": "figure8-force-mae-v1",
+        "target_force_n": 5.0,
+        "formal_window_half_open_s": [5.0, 30.0],
+        "required_complete_bins": 250,
+        "designed_warm_start_count": 24,
+        "minimum_novel": 80,
+        "maximum_novel": 160,
+        "absolute_mae_early_stop": false,
+        "posterior_convergence_rule": "25 fresh valid proposals all have P(improvement>=0.01N)<0.05 and top3 each n=5"
+      },
+      "transfer_policy": {
+        "transferable": ["P/D", "damping", "I/P", "tau", "anti_windup", "selected_handoff", "admission", "repeat_noise_model"],
+        "path_specific_unset": ["motion_Kp", "Ko", "figure8_correction"],
+        "phase_sin_cos_reset": [0.0, 0.0],
+        "historical_step6_use": "geometry_and_safe_frame_clues_only"
+      },
+      "package_delivery": {
+        "state": "offline_template_only",
+        "launch_ready": false,
+        "controller_upload": false,
+        "controller_readback": false,
+        "load": false,
+        "play": false,
+        "bridge_start": false,
+        "arm": false,
+        "motion": false,
+        "contact": false,
+        "live_evidence": false
+      },
+      "success_condition": "Offline template only. Figure-eight ready requires the completed cycloid empirical-floor package, top-three n=5 evidence, selected live handoff, installed path-specific correction runtime, and frozen logger/controller/objective/admission/report seams; a path-specific incumbent requires the later fixed-architecture Figure-eight campaign."
+    },
+    {
+      "id": "step6_figure8_autotune_v1",
+      "canonical_profile_ref": "Step6.figure8_autotune_v1",
+      "stage": "Step6b",
+      "owner": "step6_figure8_v4_equivalent_live_owner",
+      "active": true,
+      "blocked": false,
+      "complete": false,
+      "retained_evidence": false,
+      "shape": "eight",
+      "frame": "config/step6_eight_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "lineage_classification": "direct_provisional_transfer",
+      "current_binding": {
+        "is_current": false,
+        "current_pointer_changed": false,
+        "claim_status": "v5_source_bound_package_readback_and_canary_reuse_validated_cadence_probe_pending",
+        "current_stage_config_edited": true
+      },
+      "source_binding": {
+        "direct_campaign_config": "config/step6/r013_figure8_direct_campaign_v1.json",
+        "v5_campaign_config": "config/step6/autotuner_v5_campaign_v2.json",
+        "v4_two_stage_campaign_config": "config/step5d/v4_two_stage_campaign_v1.json",
+        "v5_sidecar_config": "config/step6/autotuner_v5_sidecars_v1.json",
+        "v5_runtime_manifest": "config/step6/step6_figure8_runtime_manifest.json",
+        "path_provider": "tools/step5d_autotune_v4_r013/path_context.py#FigureEightPathProviderV1",
+        "metric": "tools/step6_figure8_autotune_v1/v5_lifecycle_ledger.py#MetricSnapshotV1.primary_mae_n",
+        "historical_observations_imported": false,
+        "source_mode": "provisional_cycloid_n3",
+        "cycloid_empirical_floor_available": false
+      },
+      "campaign": {
+        "metric_id": "figure8-force-mae-v2",
+        "primary_metric": "evidence_0_60",
+        "primary_metric_window_half_open_s": [0.0, 60.0],
+        "primary_required_complete_bins": 600,
+        "secondary_metric": "formal_5_60",
+        "target_force_n": 5.0,
+        "formal_window_half_open_s": [5.0, 60.0],
+        "required_complete_bins": 550,
+        "path_duration_s": 60.0,
+        "designed_warm_start_count": 24,
+        "exact_novel_target": 200,
+        "minimum_exact_novel": 200,
+        "maximum_exact_novel": 200,
+        "campaign_target_stop": false,
+        "trial_censor": {
+          "active": true,
+          "ordinary_novel_only": true,
+          "requires_repeat_confirmed_incumbent": true,
+          "guard_bins": 25,
+          "kappa": 2.0,
+          "register_request": 35,
+          "register_ack": 36,
+          "censored_trainable": false,
+          "censored_counts_toward_exact_novel": false,
+          "fresh_candidate_refill": true
+        },
+        "serial_q": 1,
+        "async_policy": "safe_return_only_proposal_prefetch_v1",
+        "completion_rule": "200 trial-admitted distinct Exact novel candidates and top three each n=5"
+      },
+      "v4_pre_v5_sequence": {
+        "stage_a": "V4_FF_IOFF_100",
+        "stage_a_features": 5,
+        "stage_a_attempt_budget": 100,
+        "stage_b": "V4_FF_ION_6D_100",
+        "stage_b_features": 6,
+        "stage_b_attempt_budget": 100,
+        "winner_total_n": 3,
+        "ff_bundle": "combined_ff_velocity_xy_plus_phase_force_reference_v1",
+        "curvature_acceleration_history_residual_ff": "deferred_until_core_experiments_complete",
+        "status": "offline_contract_ready_live_not_started"
+      },
+      "entry_policy": {
+        "contact_acquisition_latch_n": 1.0,
+        "trial_clock_starts_on_stable_five_newton_target": true,
+        "path_target_0_to_4_s": "5.0 N",
+        "rollover_target": "5.0 N"
+      },
+      "v4_equivalent_runtime": {
+        "contact_boundary_m": 0.011029311,
+        "contact_far_near_speed_m_s": [0.005, 0.0002],
+        "contact_far_near_acceleration_m_s2": [0.01, 0.005],
+        "contact_fuse_n": 50.0,
+        "contact_travel_limit_m": 0.025,
+        "contact_timeout_s": 90.0,
+        "calibration_home_z_m": 0.0345,
+        "contact_acquisition_count": 3,
+        "final_home_rule": "max(contact_confirm_z_m)+0.013525311 m"
+      },
+      "transfer_policy": {
+        "classification": "direct_provisional_transfer",
+        "handoff_policy_enum": ["blind_reset_v0", "freeze_carry_v1"],
+        "correction_seed": "zero",
+        "phase_sin_cos_weights": [0.0, 0.0],
+        "historical_step6_use": "geometry_and_safe_frame_clues_only",
+        "step5_observations_imported": false
+      },
+      "package_delivery": {
+        "program_basename": "step6_figure8_autotune_v1",
+        "local_program_dir": "programs/step6",
+        "local_triplet": "programs/step6/step6_figure8_autotune_v1.{script,txt,urp}",
+        "controller_dir": "/programs/andyl/kunwei/step6",
+        "controller_upload": true,
+        "controller_readback": true,
+        "readback_manifest": "runs/controller_readback_step6_figure8_v5_v2_20260817_2156/manifest.json",
+        "readback_sha_verified": true,
+        "source_sha256": "f38c853255028be535025ab06b5bba854fe5888dd13a073ecf2fb1e832c30138",
+        "current_source_bound_upload": true,
+        "current_source_bound_readback": true,
+        "release_binding_status": "v5_v2_source_triplet_uploaded_and_fresh_readback_verified_current_pointer_unchanged",
+        "triplet_sha256": {
+          "script": "1d1ffe3ed7acd8ed42ebad55c7b9f3172d8489b688367bd0aa2e2dbc7c4b121b",
+          "txt": "3d833b5ebab78bf7ee408b7dc6dddcd918f5f1fcaef2431cfbfd34b8fc7fcfec",
+          "urp": "b9c24ba3943b7e7981e03113c4b6e410060171d5e96285a5ccd6611a41b1af2d"
+        },
+        "calibration_canary_readback_manifest": "runs/controller_readback_step6_no_contact_canary_v5_v2_20260817_2156/manifest.json",
+        "calibration_canary_triplet_sha256": {
+          "script": "7e42b0acfc4c2cd039567df5484f85a325e861de6561d09654828230fc9dad41",
+          "txt": "84b27e72759619f59e9d0df04ae5cc8b0174a5ad292278f13580c8f186a148f5",
+          "urp": "d396fc2dfd38c7b60bce81d63fe835a657a88d0533c3d15717c12422881faf5d"
+        },
+        "campaign_fingerprint_sha256": "9ddb84d962f82d42ae995f8b1098f410338e3f440ff295e4a4d517af3b03b7a8",
+        "prior_source_sha256": "535ebe522702b0982daf3f5870fee6c3e70dd2bb25e04f102cf444937b34bc87",
+        "prior_campaign_fingerprint_sha256": "2a626ed9a43ca47535d4d02d40f5bea43163ca534ba941f0d2226181f01522d2",
+        "readback_required_before_live": true,
+        "launch_ready": false,
+        "launch_ready_reason": "package/read-back closed; no-motion/no-contact and continuous-contact capability gates remain"
+      },
+      "live_gates": {
+        "local_package_readback": true,
+        "calibration_package_readback": true,
+        "calibration_home_no_contact_canary": false,
+        "contact_derived_home": true,
+        "final_package_readback": true,
+        "final_home_no_contact_canary": false,
+        "current_source_canary_reuse_validated": false,
+        "normal_affinity_cadence_probe": false,
+        "normal_affinity_cadence_probe_receipt": "runs/step6_figure8_v5_wait_normal_affinity_probe_20260816_2227/probe.json",
+        "direct_trial_admission": false,
+        "live_ready": false,
+        "promotion_allowed": false,
+        "paused_reason": "V4 two-stage offline contract is ready; fresh compatibility canary stopped before writer open on managed control import blocker ur10e_experiment_runtime",
+        "latest_read_only_safety_snapshot": "fresh_dashboard_20260816_2221",
+        "latest_read_only_observation": {
+          "captured_at": "2026-08-16T22:21:00+08:00",
+          "safety_normal": true,
+          "remote_control": true,
+          "robotmode_running": true,
+          "program_running": false,
+          "program_state": "STOPPED",
+          "loaded_program": "/programs/andyl/kunwei/step6/step6_figure8_autotune_v1.urp",
+          "home_verified_by_receipt": true,
+          "writer_resident": false,
+          "kunwei_post_restart_rate_hz_approx": 1000.0
+        }
+      },
+      "success_condition": "Complete only after contact-derived final Home, final package read-back/canary, matched handoff A/B winner n=5, direct trial admission, 200 distinct trial-admitted [0,60) primary Exact novel candidates with [5,60) secondary evidence, top three each n=5, cold-readable ledger, final Safety NORMAL/Home writer release, and canonical HTML report opened in Chrome."
     }
   ]
 }

@@ -1,0 +1,35 @@
+{
+  "schema": "step6.autotune/figure8-v5-extension-policy-v1",
+  "version": 1,
+  "status": "home_only_serial_extension",
+  "entry_mode": "HOME_ONLY_V1",
+  "exact_novel_per_epoch": 200,
+  "top3_total_n": 5,
+  "automatic_correction": false,
+  "campaign_early_stop": false,
+  "trial_censor": {
+    "enabled_after_epoch_0": true,
+    "kappa": 2,
+    "minimum_closed_bins": 25,
+    "refill_censored": true,
+    "censored_trainable": false
+  },
+  "active_set": {
+    "max_observations": 512,
+    "historical_champions": 32,
+    "lowest_mae_observations": 128,
+    "recent_observations": 160,
+    "remainder": "deterministic_farthest_first_maximin",
+    "selection_tie_break": "observation_id_ascending",
+    "source": "complete_parent_ledger",
+    "parent_head_required": true
+  },
+  "raw_archive": {
+    "canonical_format": ".r013life.zst",
+    "compression": "zstd",
+    "cold_verify_raw_sha256": true,
+    "retain_uncompressed_until_dependent_evidence_sealed": true,
+    "summary_only_fallback": false,
+    "free_space_pause_floor_gib": 100
+  }
+}

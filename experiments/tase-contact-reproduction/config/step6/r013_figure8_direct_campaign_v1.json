@@ -1,0 +1,357 @@
+{
+  "schema": "step6.autotune/figure8-direct-campaign-config-v1",
+  "version": 1,
+  "immutable": true,
+  "status": "direct_live_campaign_requires_derived_launch_receipt",
+  "launch_ready": false,
+  "stage_id": "step6_figure8_autotune_v1",
+  "lineage": "step6_figure8_direct_v4_equivalent_restored_v1",
+  "source_mode": "provisional_cycloid_n3",
+  "cycloid_empirical_floor_available": false,
+  "historical_observations_imported": false,
+  "correction_seed": "zero",
+  "v5_authority": {
+    "campaign_config": "config/step6/autotuner_v5_campaign_v2.json",
+    "metric_primary": {
+      "id": "figure8-force-mae-v2",
+      "signal": "filtered_normal_n",
+      "window_half_open_s": [0.0, 60.0],
+      "bin_count": 600,
+      "role": "primary_gp_and_acceptance"
+    },
+    "metric_secondary": {
+      "id": "figure8-force-mae-v1",
+      "signal": "legacy_formal_comparability",
+      "window_half_open_s": [5.0, 60.0],
+      "bin_count": 550,
+      "role": "secondary_only"
+    },
+    "closure_tail_window_half_open_s": [60.0, 62.83185307179586],
+    "closure_tail_role": "continuity_and_safety_evidence_only",
+    "entry_target": "5.0 N from stable-contact trial-start tick; 1.0 N latch is acquisition-only",
+    "home_binding": {
+      "receipt_path": "runs/step6_figure8_home_calibration_v1_20260816_201400/home_calibration_receipt.json",
+      "receipt_sha256": "1c34c27d33aae2e6d93e0dc3017e7c95099cbc15dea32c3faf0d9951b78028c9",
+      "final_home_pose": [0.4620551816, 0.1778825964, 0.03408876139925415, 3.120752062, 0.0, 0.068626833]
+    },
+    "legacy_top_level_metric_is_not_v5_primary": true
+  },
+  "metric_fingerprint": {
+    "schema": "step5d.autotune-v4/r013-metric-fingerprint-v1",
+    "version": 1,
+    "metric_id": "figure8-force-mae-v1",
+    "target_force_n": 5.0,
+    "formal_start_s": 5.0,
+    "formal_end_s": 60.0,
+    "bin_width_s": 0.1,
+    "required_bin_count": 550,
+    "statistic": "mean_abs(mean(normal_load_n_in_bin)-target_force_n)_over_bins"
+  },
+  "path": {
+    "provider": "FigureEightPathProviderV1",
+    "path_id": "r013_figure8_v1",
+    "duration_s": 60.0,
+    "sample_bin_width_s": 0.1,
+    "sample_bin_count": 600,
+    "theoretical_max_speed_m_s": 0.00447213595499958,
+    "formula": "along=0.04*sin(0.1t), lateral=0.01*sin(0.2t)",
+    "live_path_contract": "exactly_60s_550_formal_bins_600_full_bins"
+  },
+  "contact_search": {
+    "schema": "step6.autotune/figure8-contact-search-v4-equivalent-v1",
+    "boundary_m": 0.011029311,
+    "far_speed_m_s": 0.005,
+    "near_speed_m_s": 0.0002,
+    "far_acceleration_m_s2": 0.01,
+    "near_acceleration_m_s2": 0.005,
+    "fuse_n": 50.0,
+    "max_travel_m": 0.025,
+    "timeout_s": 90.0,
+    "contract_basis": "v4_equivalent_restored_not_failed_16mm_experiment"
+  },
+  "budget": {
+    "min_novel": 80,
+    "max_novel": 200,
+    "exact_novel_target": 200,
+    "campaign_target_stop": false,
+    "warm_start_count": 24,
+    "q": 1,
+    "sobol_pool_size": 128
+  },
+  "scheduler": {
+    "serial_q": 1,
+    "pool_size": 128,
+    "candidate_generation": "persisted_sobol_cursor",
+    "proposal_provider_required_for_qlognei": true,
+    "qlognei_unavailable": "fail_closed",
+    "async_policy": "safe_return_only_proposal_prefetch_v1",
+    "async_max_workers": 1,
+    "async_allowed_work": [
+      "next_candidate_materialization",
+      "fresh_128_pool_scoring",
+      "optimizer_ledger_persistence"
+    ],
+    "async_forbidden_before_safe_return": true,
+    "prefetched_proposal_treats_current_candidate_as_pending": true,
+    "arm_requires_current_home_admission": true,
+    "novel_count_excludes": ["censored_novel", "probe_repeats", "sentinels", "matched_ab", "rejected_attempts"],
+    "novel_dispatch_count_includes": ["ordinary_novel_exact", "ordinary_novel_censored"]
+  },
+  "trial_censor": {
+    "schema": "step6.autotune/figure8-censor-protocol-v1",
+    "version": 1,
+    "active": true,
+    "denominator_bins": 550,
+    "bin_width_s": 0.1,
+    "guard_bins": 25,
+    "kappa": 2.0,
+    "trigger": "prefix_mean_mae_n > 2.0 * repeat_confirmed_incumbent_mean_n",
+    "eligible_run_kinds": ["BO_TRIAL", "NOVEL_BO"],
+    "forbidden_run_kinds": [
+      "ANCHOR",
+      "BOUNDARY_PROBE",
+      "BOUNDARY_CONFIRMATION",
+      "CANARY_I_OFF",
+      "CANARY_I_ON",
+      "CHALLENGER_CONFIRM",
+      "HANDOFF_AB",
+      "I_CANARY",
+      "INCUMBENT_RETEST",
+      "NON_BO",
+      "REFERENCE",
+      "REPEAT",
+      "SENTINEL",
+      "TOP3_CONFIRMATION"
+    ],
+    "censored_rows_trainable": false,
+    "censored_rows_count_toward_exact_novel": false,
+    "campaign_target_stop": false
+  },
+  "operational_segment": {
+    "max_attempts": 320,
+    "max_duration_h": 10,
+    "resume_policy": "same_fingerprint_and_persisted_sobol_cursor_after_safe_checkpoint",
+    "rollover": "safe_between_trial_boundary_only",
+    "campaign_completion_on_rollover": false,
+    "hard_safety_auto_retry": false,
+    "hard_safety_auto_home": false
+  },
+  "candidate_schema": {
+    "schema": "step6.autotune/figure8-complete-candidate-v1",
+    "version": 1,
+    "controller_path_dimensions": [
+      "log2_force_p_over_d",
+      "log2_force_damping",
+      "log2_normal_filter_tau_s",
+      "log2_orientation_ko",
+      "log2_motion_kp",
+      "log2_force_i_gain_over_force_p_gain"
+    ],
+    "requires_controller_path_block": true,
+    "requires_correction_block": true
+  },
+  "repeat_policy": {
+    "probe_repeat_target_n": 3,
+    "repeat_does_not_consume_novel_budget": true,
+    "bound_open_improvement_n": 0.01,
+    "requires_all_strict_gates": true,
+    "sentinel_interval_novel": 10,
+    "sentinel_top_fraction": 0.05,
+    "sentinel_min_posterior_beating_probability": 0.25,
+    "sentinel_repeat_target_n": 3,
+    "terminal_top_count": 3,
+    "terminal_repeat_target_n": 5
+  },
+  "convergence": {
+    "eligible_after_novel": 200,
+    "fresh_proposal_checks": 25,
+    "improvement_threshold_n": 0.01,
+    "max_probability_strict_less_than": 0.05,
+    "top_three_repeat_n": 5,
+    "continue_to_novel": 200,
+    "terminal_repeats_start_at_exact_novel": 200
+  },
+  "phases": {
+    "novel_1_24": {
+      "kind": "warm_start",
+      "outward_probe": {
+        "tau_s": 0.03094,
+        "orientation_ko": 0.03536,
+        "i_over_p": 0.7071
+      },
+      "remaining": "21_sobol"
+    },
+    "novel_25_100": {
+      "kind": "controller_path",
+      "acquisition": "qLogNEI",
+      "every_fifth_fresh": "global_sobol"
+    },
+    "novel_101_112": {
+      "kind": "correction",
+      "acquisition": "sobol"
+    },
+    "novel_113_160": {
+      "kind": "correction",
+      "acquisition": "qLogNEI"
+    },
+    "novel_161_200": {
+      "kind": "alternating",
+      "one_block_per_trial": true,
+      "odd": "controller_path_local",
+      "even": "correction_local"
+    }
+  },
+  "correction": {
+    "schema": "step6.autotune/figure8-correction-policy-v1",
+    "version": 1,
+    "feature_names": [
+      "bias",
+      "speed",
+      "signed_acceleration",
+      "signed_curvature",
+      "sin_phase",
+      "cos_phase"
+    ],
+    "normalization_schema": "step6.autotune/figure8-feature-normalization-v1",
+    "normalization_scales": [1.0, 0.01, 0.002, 100.0, 1.0, 1.0],
+    "coefficient_bounds_n": [-0.5, 0.5],
+    "l1_norm_max_n": 1.25,
+    "output_clip_n": 1.25,
+    "slew_limit_n_s": 0.5,
+    "weights_default": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    "target_semantics": "raw_measured_force_mae_uses_5N; correction_changes_internal_target_only"
+  },
+  "handoff": {
+    "schema": "step6.autotune/figure8-handoff-policy-v1",
+    "version": 1,
+    "allowed": ["blind_reset_v0", "freeze_carry_v1"],
+    "selected": "handoff_pending",
+    "selection_is_live_evidence": false,
+    "trainable": false,
+    "launchable": false,
+    "requires_matched_ab_winner_n5": true
+  },
+  "production_proposal": {
+    "provider": "tools/step6_figure8_autotune_v1/optimizer_bridge.py",
+    "worker": "tools/step6_figure8_autotune_v1/optimizer_worker.py",
+    "backend": "CUDA botorch.SingleTaskGP with train_Yvar",
+    "controller_ask": "serial qLogNEI over transformed six-dimensional controller/path block",
+    "correction_ask": "serial qLogNEI over six-dimensional signed correction block",
+    "pool_size": 128,
+    "q": 1,
+    "unavailable_policy": "fail_closed_not_sobol_relabel"
+  },
+  "admission_policy": {
+    "schema": "step6.autotune/figure8-trial-admission-v2",
+    "version": 2,
+    "separate_trial_admission": true,
+    "required_motion_gate": true,
+    "required_timing_gate": true,
+    "required_exact_complete_550_bin_seal": true,
+    "rejected_attempts_are_evidence": true,
+    "rejected_attempts_reach_tell_exact": false,
+    "trial_admission_mode": "direct_sealed_trial_gates"
+  },
+  "home_frame": {
+    "origin_xy_m": [0.4620551816, 0.1778825964],
+    "along_xy": [0.0049336434, 0.9999878295],
+    "lateral_xy": [-0.9999878295, 0.0049336434],
+    "no_contact_z_m": 0.0345,
+    "orientation_rotvec": [3.120752062, 0.0, 0.068626833],
+    "home_pose": [0.4620551816, 0.1778825964, 0.0345, 3.120752062, 0.0, 0.068626833],
+    "frame_status": "calibration_only_pending_contact_confirmation"
+  },
+  "home_rule": {
+    "calibration_home_z_m": 0.0345,
+    "final_home_offset_m": 0.013525311,
+    "final_home_rule": "max(contact_confirm_z_m)+0.013525311 m",
+    "calibration_acquisitions": 3,
+    "final_home_status": "pending_contact_confirmation",
+    "launchable": false,
+    "contact_confirmation_run_kind": "NON_BO",
+    "contact_confirmation_acquisitions": 3
+  },
+  "eoat_tcp_payload": {
+    "eoat_lineage": "step6_new_eoat_v4_isolated",
+    "eoat_profile_id": "new-3d-printed-eoat-v4",
+    "eoat_profile_sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+    "payload_kg": 0.413,
+    "payload_cog_m": [
+      0.0011,
+      0.0031,
+      0.0163
+    ],
+    "tcp_offset_m_rad": [
+      0,
+      0,
+      0.0874,
+      0,
+      0,
+      0
+    ],
+    "identity_status": "fresh_readback_required_each_resident_session",
+    "payload_write_authorized": false,
+    "tcp_write_authorized": false
+  },
+  "controller": {
+    "local_triplet": "programs/step6/step6_figure8_autotune_v1.{script,txt,urp}",
+    "controller_directory": "/programs/andyl/kunwei/step6",
+    "controller_readback_required": true,
+    "source_parent_sha256": "2c81de10b7445e6ea900349effccbf3a08755eaf03e55b797a96fa586d7a8226"
+  },
+  "transaction": [
+    "Home",
+    "ARM/apply",
+    "60 s PATH",
+    "seal",
+    "exact trial admission",
+    "Home"
+  ],
+  "offline_boundaries": {
+    "controller_upload": false,
+    "controller_readback": false,
+    "dashboard_write": false,
+    "rtde_write": false,
+    "kunwei_write": false,
+    "bridge_start": false,
+    "program_load": false,
+    "program_play": false,
+    "robot_motion": false,
+    "contact": false,
+    "zero_tare": false,
+    "current_stage_promotion": false
+  },
+  "launch_receipt": {
+    "schema": "step6.autotune/figure8-launch-receipt-v2",
+    "derived_only": true,
+    "manual_boolean_receipts_allowed": false,
+    "required_evidence_roles": [
+      "package_readback",
+      "no_contact_canary",
+      "home_frame",
+      "controller_identity",
+      "source_identity",
+      "eoat_tcp_payload",
+      "admission_policy",
+      "final_campaign_fingerprint"
+    ]
+  },
+  "physical_writer": {
+    "owner": "tools/step5d_autotune_v4_r013/live_owner.py",
+    "runtime": "tools/step5d_autotune_v4_r013/live_runtime.py",
+    "fresh_frame_wait_policy": {
+      "schema": "step5d.autotune-v5/fresh-frame-wait-policy-v1",
+      "version": 1,
+      "wait_s": 0.004
+    },
+    "profile": {
+      "path_id": "r013_figure8_v1",
+      "duration_s": 60.0,
+      "formal_window_s": [5.0, 60.0],
+      "required_bins": 550,
+      "bin_width_s": 0.1,
+      "metric": "figure8-force-mae-v1"
+    },
+    "package_status": "no_contact_geometry_accepted_contact_requires_derived_launch_receipt"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "schema": "step6.autotune/autotuner-v5-sidecars-v1",
+  "version": 1,
+  "status": "implemented_explicit_launch_only",
+  "auto_start": false,
+  "physical_campaign_dependency": false,
+  "control_authority": false,
+  "single_live_writer_unchanged": true,
+  "failure_policy": "isolate_and_record",
+  "filter_shadow": {
+    "input": "sealed_r013life_artifact_only",
+    "run_phase": "post_home",
+    "queue_capacity": 2,
+    "overflow_policy": "drop_newest",
+    "worker_count": 1,
+    "anchor_tau_s": 0.04375,
+    "candidates": [
+      "actual_dt_one_pole_lpf",
+      "same_cutoff_two_pole_bessel",
+      "same_cutoff_two_pole_butterworth"
+    ],
+    "notch_50_hz_enabled": false,
+    "authority": "observation_only"
+  },
+  "camera_observer": {
+    "retention_policy_version": 2,
+    "hard_quota_bytes": 1073741824,
+    "soft_target_jpeg_frames": 1000,
+    "metadata_reserve_bytes": 1048576,
+    "active_event_pin_ttl_s": 900.0,
+    "active_event_pin_max_bytes": 268435456,
+    "quota_drop_policy": "drop_new_frame_and_record_quota_drop_when_only_pinned_frames_remain",
+    "input": "rtsp://127.0.0.1:8554/arm",
+    "single_reader": true,
+    "ring_duration_s": 15.0,
+    "regular_sample_hz": 1.0,
+    "event_capture": true,
+    "ring_overflow_policy": "drop_oldest",
+    "stale_after_s": 2.5,
+    "stale_status": "UNKNOWN",
+    "authority": "advisory_only",
+    "controller_write_allowed": false,
+    "safety_bypass_allowed": false
+  },
+  "ros2_observation_mirror": {
+    "sample_rate_hz": 10.0,
+    "events_bypass_rate_limit": true,
+    "queue_capacity": 128,
+    "overflow_policy": "drop_newest",
+    "topics": [
+      "/autotuner_v5/observations",
+      "/autotuner_v5/events"
+    ],
+    "message_type": "std_msgs/msg/String",
+    "storage_id": "sqlite3",
+    "rosbag2": true,
+    "authority": "observation_only",
+    "subscribers_allowed": false,
+    "command_topics_allowed": false,
+    "second_rtde_or_kunwei_reader_allowed": false
+  }
+}

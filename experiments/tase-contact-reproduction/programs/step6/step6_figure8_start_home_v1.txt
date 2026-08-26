@@ -1,0 +1,23 @@
+Step6 Figure-eight calibration-only Home one-shot TP package
+
+Open on the Teach Pendant only after the separate live gates are satisfied:
+  /programs/andyl/kunwei/step6/step6_figure8_start_home_v1.urp
+
+Version:
+  2026-08-16T0000HKT_STEP6_FIGURE8_START_HOME_V1
+
+Identity and scope:
+  Standalone one-shot positioning helper for the calibration-only Figure-eight Home.
+  Home status: calibration-only; contact-derived Home evidence is intentionally absent.
+  This package does not traverse the Figure-eight or claim a contact-derived final Home.
+
+Motion geometry:
+  Final target: p[0.4620551816, 0.1778825964, 0.0345000000, 3.1207520620, 0.0000000000, 0.0686268330]
+  Segment 1: current x/y/orientation to max(current z, 0.034500000), a=0.060 m/s^2, v=0.040 m/s.
+  Segment 2: constant safe-transfer Z to target x/y/orientation, a=0.135 m/s^2, v=0.090 m/s.
+  Segment 3: only when needed, vertical descent to z=0.034500000 with a=0.060 m/s^2, v=0.040 m/s.
+  Every segment uses r=0.0 and is separated by stopl(0.1); final target and stationary checks are required.
+
+Excluded behavior:
+  No path traversal, contact search, force mode, zero/tare, bridge, register ARM, optimizer, or campaign side effect.
+  The triplet is deterministic for a fixed version stamp and local-only; no upload, read-back, or release-pointer change is performed.

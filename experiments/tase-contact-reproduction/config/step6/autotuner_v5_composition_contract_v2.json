@@ -1,0 +1,47 @@
+{
+  "schema": "step6.autotune/autotuner-v5-composition-contract-v2",
+  "version": 2,
+  "layout_tag": 607.0,
+  "register_recipe": {
+    "input_double": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47],
+    "input_integer": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39],
+    "output_double": [24],
+    "output_integer": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34]
+  },
+  "rollover_input_fields": {
+    "33": "rollover_command",
+    "34": "rollover_generation",
+    "35": "path_early_end_request",
+    "36": "next_attempt_ordinal",
+    "37": "next_attempt_kind",
+    "38": "next_candidate_token",
+    "39": "qdot_generation"
+  },
+  "base_output_overlay_fields": {
+    "29": "consumed_session_command_sequence",
+    "30": "attempt_kind",
+    "31": "return_guard"
+  },
+  "rollover_output_overlay_fields": {
+    "29": "rollover_ack_generation",
+    "30": "active_qdot_generation",
+    "31": "prepared_candidate_token"
+  },
+  "maximum_rollovers_per_chain": 4,
+  "early_censor_register": 35,
+  "single_live_writer": true,
+  "performance_force_windows_blocking": false,
+  "safety_policy_ref": "existing-v5-hard-safety-authority",
+  "blocking_gate_families": [
+    "existing_hard_safety",
+    "timing_and_freshness",
+    "tube_and_cbf",
+    "identity_and_metric_closure",
+    "command_envelope"
+  ],
+  "observation_only_sidecars": [
+    "filter_shadow",
+    "camera_observer",
+    "ros2_observation_mirror"
+  ]
+}

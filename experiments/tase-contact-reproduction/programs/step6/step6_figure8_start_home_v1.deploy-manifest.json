@@ -1,0 +1,55 @@
+{
+  "artifacts": [
+    {
+      "filename": "step6_figure8_start_home_v1.script",
+      "sha256": "39f65929c045385fb977dd9b0f9d5a10d24dc8e1624b6c3d9d833dc2d596db7f",
+      "source": "step6_figure8_start_home_v1.script"
+    },
+    {
+      "filename": "step6_figure8_start_home_v1.txt",
+      "sha256": "e3da495f25c831a2a5f5f506b0f349379bed7a409b1f4a82957b3aa086c51998",
+      "source": "step6_figure8_start_home_v1.txt"
+    },
+    {
+      "filename": "step6_figure8_start_home_v1.urp",
+      "sha256": "6cac93510133fd9dbd6059298dc715296f4322f74f391ec81a9024580efa0e73",
+      "source": "step6_figure8_start_home_v1.urp"
+    }
+  ],
+  "basename": "step6_figure8_start_home_v1",
+  "builder": "tools/build_step6_figure8_start_home_v1.py",
+  "controller_directory": "/programs/andyl/kunwei/step6",
+  "controller_target": "/programs/andyl/kunwei/step6/step6_figure8_start_home_v1.urp",
+  "delivery": {
+    "controller_readback": false,
+    "controller_upload": false,
+    "current_release_pointer_changed": false,
+    "local_urp_internal_content_gate": true
+  },
+  "identity": {
+    "contact_derived_final_home_claimed": false,
+    "geometry": "Figure-eight calibration-only Home",
+    "home_status": "calibration_only_pending_contact_confirmation",
+    "step": "Step6"
+  },
+  "immutable": true,
+  "live_acceptance": false,
+  "local_package_dir": "programs/step6",
+  "motion_contract": {
+    "bridge": false,
+    "campaign_side_effects": false,
+    "contact_search": false,
+    "figure8_traversal": false,
+    "force_mode": false,
+    "one_shot": true,
+    "optimizer": false,
+    "register_arm": false,
+    "safe_transfer_z_policy": "max(current_z, 0.034500000 m)",
+    "vertical_first": true,
+    "zero_or_tare": false
+  },
+  "schema": "step6.figure8-start-home/local-candidate-v1",
+  "schema_version": 1,
+  "source_stamp": "2026-08-16T0000HKT_STEP6_FIGURE8_START_HOME_V1",
+  "status": "local_candidate_not_uploaded"
+}

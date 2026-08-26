@@ -1,0 +1,6 @@
+{
+  "schema": "step6.autotune/figure8-runtime-release-v1",
+  "program": "step6_figure8_autotune_v1",
+  "revision": 5,
+  "lineage": "step6_figure8_autotuner_v5_layout607_v1"
+}

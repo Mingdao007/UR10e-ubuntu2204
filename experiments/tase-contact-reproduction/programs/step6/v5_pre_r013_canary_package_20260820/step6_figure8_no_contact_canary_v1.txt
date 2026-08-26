@@ -1,0 +1,17 @@
+Step6 Figure-eight no-contact geometry canary v1
+
+Open on Teach Pendant:
+  /programs/andyl/kunwei/step6/step6_figure8_no_contact_canary_v1.urp
+
+Version: 2026-08-18T1143HKT_STEP6_FIGURE8_NO_CONTACT_CANARY_V1
+Build inputs SHA-256: 1acb62897d815d6b5c4868ecc67ff715db0f8f70ff9f8d1c1bbffd6c00036cec
+
+Motion boundary:
+  One-shot no-contact motion only. No force control, no contact search, no Kunwei bridge.
+  Home=(0.4620551816, 0.1778825964, 0.03408876139925415, 3.120752062, 0.0, 0.068626833)
+  Home status=contact-derived final
+  Home calibration receipt SHA-256=1c34c27d33aae2e6d93e0dc3017e7c95099cbc15dea32c3faf0d9951b78028c9
+  path=along 0.04*sin(0.1t), lateral 0.01*sin(0.2t), duration=60 s.
+  analytic peak speed=0.004472135955 m/s; command cap=0.010 m/s.
+  hard tracking ellipse=(0.025, 0.015); soft observation ellipse=(0.022, 0.012).
+  Any force/workspace/hard/speed guard ends the one-shot; there is no automatic retry.
