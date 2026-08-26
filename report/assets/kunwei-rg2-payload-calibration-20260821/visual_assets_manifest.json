@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "image_dir": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat",
+  "assets_dir": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821",
+  "thumbnail_count": 18,
+  "contact_sheet_count": 2,
+  "thumbnails": [
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/current_IMG_2281.JPG",
+      "source_name": "current_IMG_2281.JPG",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/current_IMG_2281.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/current_IMG_2281.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/current_IMG_2282.JPG",
+      "source_name": "current_IMG_2282.JPG",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/current_IMG_2282.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/current_IMG_2282.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/current_IMG_2283.JPG",
+      "source_name": "current_IMG_2283.JPG",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/current_IMG_2283.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/current_IMG_2283.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/current_IMG_2284.JPG",
+      "source_name": "current_IMG_2284.JPG",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/current_IMG_2284.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/current_IMG_2284.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/current_IMG_2285.JPG",
+      "source_name": "current_IMG_2285.JPG",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/current_IMG_2285.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/current_IMG_2285.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/mounted_IMG_1681.jpg",
+      "source_name": "mounted_IMG_1681.jpg",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1681.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1681.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/mounted_IMG_1682.jpg",
+      "source_name": "mounted_IMG_1682.jpg",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1682.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1682.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/mounted_IMG_1683.jpg",
+      "source_name": "mounted_IMG_1683.jpg",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1683.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1683.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/mounted_IMG_1684.jpg",
+      "source_name": "mounted_IMG_1684.jpg",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1684.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1684.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/mounted_IMG_1688.jpg",
+      "source_name": "mounted_IMG_1688.jpg",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1688.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1688.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/mounted_IMG_1691.jpg",
+      "source_name": "mounted_IMG_1691.jpg",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1691.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1691.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/mounted_IMG_1695.jpg",
+      "source_name": "mounted_IMG_1695.jpg",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1695.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/mounted_IMG_1695.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/wiring_IMG_1697_t0.jpg",
+      "source_name": "wiring_IMG_1697_t0.jpg",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/wiring_IMG_1697_t0.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/wiring_IMG_1697_t0.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 506,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/wiring_IMG_1697_t3.jpg",
+      "source_name": "wiring_IMG_1697_t3.jpg",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/wiring_IMG_1697_t3.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/wiring_IMG_1697_t3.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 506,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/wiring_IMG_1697_t6.jpg",
+      "source_name": "wiring_IMG_1697_t6.jpg",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/wiring_IMG_1697_t6.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/wiring_IMG_1697_t6.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 506,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/wiring_IMG_1697_t9.jpg",
+      "source_name": "wiring_IMG_1697_t9.jpg",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/wiring_IMG_1697_t9.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/wiring_IMG_1697_t9.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 506,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/wiring_IMG_1697_t12.jpg",
+      "source_name": "wiring_IMG_1697_t12.jpg",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/wiring_IMG_1697_t12.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/wiring_IMG_1697_t12.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 506,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/source-images-flat/wiring_IMG_1697_t14.jpg",
+      "source_name": "wiring_IMG_1697_t14.jpg",
+      "thumbnail_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/thumbnails/wiring_IMG_1697_t14.jpg",
+      "thumbnail": "kunwei-rg2-payload-calibration-20260821/thumbnails/wiring_IMG_1697_t14.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 506,
+      "thumbnail_height": 900
+    }
+  ],
+  "contact_sheets": [
+    {
+      "path_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/contact_sheets/contact_sheet_01.jpg",
+      "path": "kunwei-rg2-payload-calibration-20260821/contact_sheets/contact_sheet_01.jpg",
+      "first": "current_IMG_2281.JPG",
+      "last": "mounted_IMG_1695.jpg",
+      "count": 12
+    },
+    {
+      "path_abs": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-rg2-payload-calibration-20260821/contact_sheets/contact_sheet_02.jpg",
+      "path": "kunwei-rg2-payload-calibration-20260821/contact_sheets/contact_sheet_02.jpg",
+      "first": "wiring_IMG_1697_t0.jpg",
+      "last": "wiring_IMG_1697_t14.jpg",
+      "count": 6
+    }
+  ]
+}
