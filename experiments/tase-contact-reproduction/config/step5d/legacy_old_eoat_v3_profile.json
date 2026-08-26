@@ -1,0 +1,35 @@
+{
+  "schema": "step5d.remote-eoat-profile/v1",
+  "revision": 1,
+  "profile_id": "legacy-old-eoat-v3",
+  "lineage": "V3/r034",
+  "release": {
+    "manifest_path": "config/step5d/releases/9adf3791ec322bacbddce0c16a7fcfd588c9f232cde3ccb438baa9e9c97e2df5/manifest.json",
+    "manifest_sha256": "9adf3791ec322bacbddce0c16a7fcfd588c9f232cde3ccb438baa9e9c97e2df5"
+  },
+  "payload_kg": 0.404,
+  "cog_m": [
+    -0.00044,
+    -0.00094,
+    0.0268
+  ],
+  "tcp_m_rad": [
+    0,
+    0,
+    0.1221,
+    0,
+    0,
+    0
+  ],
+  "evidence": {
+    "prior_real_fresh_controller_get_sha256": "5887ded371e2e43aac60ae2340cabfbcb91ff7adf027c26e554a460864c3b625"
+  },
+  "tolerances": {
+    "payload_kg": 0.0005,
+    "cog_m": 0.00005,
+    "tcp_m_rad": 0.00005,
+    "stationary_linear_m_s": 0.0005,
+    "stationary_angular_rad_s": 0.005
+  },
+  "profile_sha256": "852a131a7b3f47eb15f60f0dc7faf06fdf68a1e3c2d59ab9f6170685776356db"
+}
