@@ -1020,6 +1020,7 @@ control = [
     { name = "nvidia-cuda-runtime-cu12", version = "12.9.79", source = { registry = "https://pypi.org/simple" } },
     { name = "pexpect" },
     { name = "pyyaml" },
+    { name = "scipy" },
 ]
 optimizer = [
     { name = "botorch" },
@@ -1055,6 +1056,7 @@ control = [
     { name = "nvidia-cuda-runtime-cu12", specifier = "==12.9.79" },
     { name = "pexpect", specifier = "==4.9.0" },
     { name = "pyyaml", specifier = "==6.0.3" },
+    { name = "scipy", specifier = "==1.15.3" },
 ]
 optimizer = [
     { name = "botorch", specifier = "==0.16.1" },

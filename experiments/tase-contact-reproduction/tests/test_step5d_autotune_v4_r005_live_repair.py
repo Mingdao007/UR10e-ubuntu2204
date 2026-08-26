@@ -50,7 +50,8 @@ class _RTDE:
     def open(self) -> None:
         self.open_count += 1
 
-    def poll_output(self) -> R004OutputSnapshot | None:
+    def poll_output(self, *, wait_s: float = 0.0) -> R004OutputSnapshot | None:
+        del wait_s
         response = self.responses.popleft()
         if isinstance(response, BaseException):
             raise response
@@ -156,6 +157,9 @@ def _arm_probe(
     writer._qualification_control = None
     writer._path_command_started_mono_s = None
     writer._path_rtde_origin_s = None
+    writer._r013_path_end_requested = False
+    writer._r013_path_end_request_sequence = None
+    writer._r013_path_end_request_mono_s = None
     writer._last_poll_was_fresh = False
     writer._mono_clock = lambda: clock["now"]
     writer._sleep = lambda duration: clock.__setitem__("now", clock["now"] + duration)
@@ -191,6 +195,7 @@ def _arm_probe(
                 "ordinal": writer._ordinal,
                 "kind": writer._kind,
                 "candidate_token": writer._candidate_token,
+                "path_end_requested": writer._r013_path_end_requested,
             }
         )
         writer._packet_sequence += 1
@@ -247,6 +252,34 @@ def test_arm_delayed_echo_keeps_same_identity_alive_on_distinct_fresh_frames() -
     assert all(packet["ordinal"] == 7 for packet in sent)
     assert all(packet["kind"] is AttemptKind.BATCH_A for packet in sent)
     assert all(packet["candidate_token"] == 77 for packet in sent)
+
+
+def test_arm_clears_previous_r013_path_end_before_first_prearm_packet() -> None:
+    writer: LiveR004Writer
+    sent: list[dict[str, object]]
+    _failures: list[str]
+    _clock: dict[str, float]
+
+    def poll() -> SimpleNamespace:
+        writer._last_poll_was_fresh = True
+        return _arm_output(echo=True)
+
+    writer, sent, _failures, _clock = _arm_probe(poll)
+    writer._r013_path_end_requested = True
+    writer._r013_path_end_request_sequence = 6
+    writer._r013_path_end_request_mono_s = 123.0
+
+    writer.arm_unbounded(
+        ordinal=7,
+        kind=AttemptKind.BATCH_A,
+        candidate_token=77,
+    )
+
+    assert sent
+    assert all(packet["path_end_requested"] is False for packet in sent)
+    assert writer._r013_path_end_requested is False
+    assert writer._r013_path_end_request_sequence is None
+    assert writer._r013_path_end_request_mono_s is None
 
 
 def test_arm_cached_frames_do_not_advance_packet_sequence() -> None:

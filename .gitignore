@@ -64,3 +64,10 @@ experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010
 .obsidian/workspace-mobile.json
 ur10e/.obsidian/
 .trash/
+
+# Local Codex and Playwright session records remain in place and are not
+# committed to the offline checkpoint.
+/.codex-runs/
+/.playwright-cli/
+/experiments/tase-contact-reproduction/.codex-runs/
+/experiments/tase-contact-reproduction/.playwright-cli/

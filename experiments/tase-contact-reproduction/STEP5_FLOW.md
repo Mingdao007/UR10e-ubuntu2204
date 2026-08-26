@@ -84,6 +84,54 @@ with the live campaign, but they cannot import or call Dashboard, RTDE writer,
 bridge, Load, Play, ARM, contact, zero, or tare. The only producer/consumer seam
 is an immutable queued candidate.
 
+### R013 empirical-floor campaign and isolated manual canary
+
+The formal R013 empirical-floor campaign remains a fail-closed offline package.
+Its authoritative preparation record is
+`config/step5d/r013_budgeted_floor_v1.json`; that record is fixed to
+`status=offline_prepared_awaiting_live_prerequisites` and
+`launch_ready=false`. Neither the default template nor a pure
+handoff-selection materialization may become live-ready in this schema.
+
+Separately, `r013-manual-canary-preparation-v1` permits exactly one
+fixed-candidate demonstration limb with an explicit immutable
+`feedforward=on|off` choice. It is current-triplet-bound, uses the same fixed
+Home, fresh controller GET, software-baseline, neutral-HOLD, resident-READY,
+hard-tube, timing, identity, and safe-return closures, and remains
+`launch_ready=false` with `formal_campaign_tell_exact=false`. Its campaign
+object rejects both optimizer `ask()` and `tell_exact()`, so a canary result
+cannot enter the 200-trial ledger or become promotion evidence.
+
+The R013-only baseline transition opens after the canonical 1 N latch and an
+8 s post-latch ramp when freshness, timing, Safety NORMAL, and the inherited
+hard limits pass. The older narrow force windows are telemetry only. For the
+feedforward-off limb, XY and endpoint errors are recorded outcomes rather than
+blocking gates; duration/phase, qdot correlation and lag, hard/soft tubes,
+contact, timing, identity, lifecycle closure, and safe return remain blocking.
+
+The offline package composes typed, independently testable primitives for:
+
+- versioned `blind_reset_v0` / `freeze_carry_v1` handoff A/B evidence and a
+  receipt-bound `CampaignFingerprint`;
+- split epoch qualification, trial admission, motion, and timing receipts;
+- repeat-group means with empirical/shrunk `Yvar` rather than one fixed GP
+  noise value;
+- a persistent 128-candidate fresh Sobol cursor, serial `q=1 qLogNEI`, a
+  `100 core + 60 correction + 40 alternating polish` novel-candidate budget,
+  sentinels every ten novel candidates, adaptive repeats, and final top-three
+  `n=5` evidence;
+- cycloid and Figure-eight analytic path context, strict gap-preserving
+  `[5,60)` / 550-bin and `[5,30)` / 250-bin metrics, and a bounded six-context
+  force-correction policy.
+
+`0.35 N` is a checkpoint only; it cannot stop the 200-candidate campaign. The
+current package does not claim that the observed `0.316264 N` single run is a
+confirmed incumbent, does not claim an empirical floor, and does not claim
+Figure-eight readiness. Formal live execution remains blocked by the unexecuted
+handoff A/B, absent outward-boundary and context-correction runtime primitives,
+and the unexecuted 200-novel cycloid campaign. An isolated manual canary does
+not satisfy or bypass any of those formal prerequisites.
+
 The control plane consumes exactly one candidate at a Home/ready boundary. A
 candidate has six physical coordinates: force `P`, force `I`, force damping
 `D`, normal-filter `tau`, orientation `Ko`, and tangential path `Kp`. BO uses a
@@ -1216,6 +1264,22 @@ Archived v1-v11 delivery status:
 - bridge/TP Play remain separate explicit operator actions. These read-backs
   verify package delivery only; they do not mark the full reproduction target
   complete.
+
+## V4 R013 three-stage long-goal binding
+
+The current V3 pointer remains unchanged while the isolated V4 lineage is
+prepared.  The new V4 campaign is serial and requires a fresh source/package
+identity after any seam or anti-windup change:
+
+- `V4_FF_IOFF_100`: combined historical FF, I-off, 5D, 100 attempts;
+- `V4_FF_ION_6D_100`: same FF, conditional double clamp, fixed `1.0 N·s`, 6D;
+- `V4_FF_ION_LIMIT_7D_100`: same controller, soft state limit `0.5–5.0 N·s`,
+  feasible under the fixed `0.5 N` authority clamp, 7D.
+
+Before any stage, one resident writer must pass three consecutive fixed-candidate
+attempt-boundary canaries.  A first timing/coverage failure pauses the stage and
+preserves the receipt; it does not advance the proposal budget.  Formal timing
+evidence remains `rate >=460 Hz`, `p99 <=10 ms`, and `max gap <20 ms`.
 
 ## Handoff Gate
 

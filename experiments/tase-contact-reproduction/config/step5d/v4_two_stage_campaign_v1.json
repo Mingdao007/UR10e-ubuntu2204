@@ -1,0 +1,65 @@
+{
+  "schema": "step5d.autotune-v4/v4-two-stage-campaign-v1",
+  "version": 2,
+  "ff_bundle": {
+    "schema": "step5d.autotune-v4/combined-ff-bundle-v1",
+    "version": 1,
+    "velocity_xy": true,
+    "phase_force_reference": true,
+    "curvature": false,
+    "acceleration": false,
+    "history_residual": false,
+    "phase_force_reference_profile_id": "r013_goal035_path_phase_target_profile_v1"
+  },
+  "stages": {
+    "V4_FF_IOFF_100": {
+      "attempt_budget": 100,
+      "winner_total_n": 3,
+      "censor_kappa": 2.0,
+      "censor_min_closed_bins": 25,
+      "stretch_target_n": 0.1,
+      "target_force_n": 5.0,
+      "metric_window_s": [5.0, 60.0],
+      "kernel": "matern52_ard",
+      "i_policy": "off",
+      "integral_state_limit_n_s": 1.0,
+      "authority_error_n": 0.5,
+      "normal_velocity_bound_m_s": 0.003
+    },
+    "V4_FF_ION_6D_100": {
+      "attempt_budget": 100,
+      "winner_total_n": 3,
+      "censor_kappa": 2.0,
+      "censor_min_closed_bins": 25,
+      "stretch_target_n": 0.1,
+      "target_force_n": 5.0,
+      "metric_window_s": [5.0, 60.0],
+      "kernel": "matern52_ard",
+      "i_policy": "conditional-double-clamp-v1",
+      "integral_state_limit_n_s": 1.0,
+      "authority_error_n": 0.5,
+      "normal_velocity_bound_m_s": 0.003
+    },
+    "V4_FF_ION_LIMIT_7D_100": {
+      "attempt_budget": 100,
+      "winner_total_n": 3,
+      "censor_kappa": 2,
+      "censor_min_closed_bins": 25,
+      "stretch_target_n": 0.1,
+      "target_force_n": 5,
+      "metric_window_s": [
+        5,
+        60
+      ],
+      "kernel": "matern52_ard",
+      "i_policy": "conditional-double-clamp-v1",
+      "integral_state_limit_n_s": 1,
+      "integral_state_limit_bounds": [
+        0.5,
+        5.0
+      ],
+      "authority_error_n": 0.5,
+      "normal_velocity_bound_m_s": 0.003
+    }
+  }
+}

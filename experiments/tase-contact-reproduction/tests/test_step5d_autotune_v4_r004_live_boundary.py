@@ -7,12 +7,14 @@ import inspect
 import os
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 import run_step5d_autotune_v4_r004_campaign as campaign_cli
 import step5d_autotune_v4_r004_live_writer as writer_cli
 import step5d_bridge_authority as canonical_authority
+from step5d_autotune_v4_r004.qualification import CanonicalQualificationControl
 from step5d_autotune_v4_r004.campaign import Attempt, promotion_decision
 from step5d_autotune_v4_r004.contracts import load_contract, runtime_identity_limbs
 from step5d_autotune_v4_r004.evidence import (
@@ -44,6 +46,13 @@ def test_path_clock_starts_at_tp_state25_not_early_path_command() -> None:
         "                        and mode is CommandMode.PATH\n"
         "                        and self._path_command_started_mono_s is None"
     ) in source
+    control_source = inspect.getsource(CanonicalQualificationControl.step)
+    assert "tp_state = int(output.integer_echoes[26])" in control_source
+    assert "if tp_state == 25:" in control_source
+    assert control_source.index("if tp_state == 25:") < control_source.index(
+        "self._path_origin_monotonic_s = now"
+    )
+    assert "else:\n                    path_time_s = 0.0" in control_source
 
 
 def test_path_evidence_uses_common_tp_rtde_boundary_clock() -> None:
@@ -59,14 +68,14 @@ def test_path_evidence_uses_common_tp_rtde_boundary_clock() -> None:
 def test_cached_state25_at_exact_path_end_uses_zero_path_fence_until_terminal() -> None:
     source = inspect.getsource(writer_cli.LiveR004Writer.execute_attempt)
     assert "path_elapsed_s = max(0.0, now - self._path_command_started_mono_s)" in source
-    assert "path_end_fence = path_elapsed_s >= 60.0" in source
+    assert "path_end_fence = path_elapsed_s >= self._path_duration_s" in source
     assert "if path_end_fence:" in source
     assert "mode = CommandMode.PATH" in source
     assert "setpoint = 5.0" in source
     assert "qdot = (0.0,) * 6" in source
-    assert "and path_elapsed_s < 60.0" in source
-    assert 'float(sample_kwargs["path_time_s"]) < 60.0' in source
-    assert "observed_path_sample.path_time_s < 60.0" in source
+    assert "and path_elapsed_s < self._path_duration_s" in source
+    assert 'float(sample_kwargs["path_time_s"]) < self._path_duration_s' in source
+    assert "observed_path_sample.path_time_s < self._path_duration_s" in source
     assert "if state in {78, 80, 90}:" in source
     assert source.index("if path_end_fence:") < source.index("self._qualification_control.step")
 
@@ -589,6 +598,86 @@ def test_gc_collection_precedes_arm_session_mutation_and_arm_packet(
         writer.close()
 
 
+def test_prepared_timing_lease_does_not_repeat_gc_under_lease(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The owner-side pre-ARM collection must not run again after promotion."""
+
+    class Clock:
+        def __init__(self) -> None:
+            self.value = 0.0
+
+        def now(self) -> float:
+            return self.value
+
+        def sleep(self, duration: float) -> None:
+            self.value += duration
+
+    contract = load_contract()
+    clock = Clock()
+    events: list[str] = []
+    rtde = FakeLiveRTDETransport(contract)
+    kunwei = FakeLiveKunweiTransport(observed_clock=clock.now)
+    writer = writer_cli.LiveR004Writer(
+        _prerequisites(),
+        authority_root=tmp_path / "authority",
+        route_id="r004-test-route",
+        attempt_id="step5d-v4-r004-gc-lease-order",
+        controller_transport=rtde,
+        kunwei_transport=kunwei,
+        wall_clock=lambda: 100.0,
+        mono_clock=clock.now,
+        sleep=clock.sleep,
+    )
+    writer.open(live_ack=writer_cli.LIVE_ACK, now_s=100.0)
+
+    def collect() -> int:
+        events.append("gc.collect")
+        return 0
+
+    monkeypatch.setattr(writer_cli.gc, "collect", collect)
+
+    class Lease:
+        def enter(self) -> dict[str, object]:
+            events.append("lease.enter")
+            return {}
+
+        def exit(self) -> dict[str, object]:
+            events.append("lease.exit")
+            return {"restore_verified": True}
+
+        def receipt(self) -> dict[str, object]:
+            return {}
+
+    writer.install_timing_scheduler_lease(Lease())
+    session_arm = writer.session.arm
+
+    def record_session_arm(
+        request: object, *, ledger_ready: bool, allow_unbounded: bool = False
+    ) -> object:
+        events.append("session.arm")
+        return session_arm(
+            request,
+            ledger_ready=ledger_ready,
+            allow_unbounded=allow_unbounded,
+        )
+
+    monkeypatch.setattr(writer.session, "arm", record_session_arm)
+    try:
+        writer.prepare_timing_scheduler_lease()
+        writer.arm(
+            ordinal=1,
+            kind=AttemptKind.QUALIFICATION,
+            candidate_token=17,
+            ledger=DurableCampaignLedger(tmp_path / "ledger.jsonl"),
+        )
+        assert events.count("gc.collect") == 1
+        assert events.index("gc.collect") < events.index("lease.enter")
+        assert events.index("lease.enter") < events.index("session.arm")
+    finally:
+        writer.close()
+
+
 def test_long_observable_gc_never_runs_after_arm_before_execute_packet_service(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -631,6 +720,15 @@ def test_long_observable_gc_never_runs_after_arm_before_execute_packet_service(
     class StubQualificationControl:
         def __init__(self, *_args: object, **_kwargs: object) -> None:
             pass
+
+        def step(self, **_kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                sticky_one_newton_latched=0,
+                filtered_normal_n=0.0,
+                command_mode=writer_cli.CommandMode.HOLD,
+                internal_setpoint_n=1.0,
+                qdot=(0.0,) * 6,
+            )
 
     monkeypatch.setattr(writer_cli, "CanonicalQualificationControl", StubQualificationControl)
     send_packet = writer._send_packet

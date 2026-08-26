@@ -11501,6 +11501,180 @@
         "safety_or_return_failure": "immediate_stop_no_auto_home"
       },
       "success_condition": "Offline proof only here; formal COMPLETE requires fresh live application acceptance plus finite-region simultaneous-95-percent local epsilon-PAC. Global convergence is never claimed."
+    },
+    {
+      "id": "step5d_strict_rnn_autotune_v4_r013_offline_floor_prep",
+      "stage": "Step5d",
+      "owner": "offline_autotuner_floor_preparation",
+      "active": false,
+      "blocked": true,
+      "complete": false,
+      "shape": "cycloid_empirical_floor_200_novel_budget",
+      "frame": "config/step5_safe_frame.json",
+      "contact": true,
+      "bridge": true,
+      "strict_rnn": true,
+      "current_binding": {
+        "is_current": false,
+        "controller_lineage": "step5d_strict_rnn_autotune_v4_r013",
+        "current_pointer_changed": false,
+        "claim_status": "formal_offline_with_isolated_manual_canary"
+      },
+      "source_binding": {
+        "campaign_config": "config/step5d/r013_budgeted_floor_v1.json",
+        "campaign": "tools/step5d_autotune_v4_r013/campaign.py",
+        "campaign_config_loader": "tools/step5d_autotune_v4_r013/campaign_config.py",
+        "floor_coordinator": "tools/step5d_autotune_v4_r013/floor_coordinator.py",
+        "gp": "tools/step5d_autotune_v4_r013/gp.py",
+        "handoff": "tools/step5d_autotune_v4_r013/handoff.py",
+        "metrics": "tools/step5d_autotune_v4_r013/metrics.py",
+        "path_context": "tools/step5d_autotune_v4_r013/path_context.py",
+        "force_correction": "tools/step5d_autotune_v4_r013/force_correction.py",
+        "figure8_transfer": "config/step5d/r013_figure8_transfer_template_v1.json"
+      },
+      "campaign": {
+        "completion_policy": "budgeted_floor_v1",
+        "target_mae_n": 0.35,
+        "target_is_checkpoint_only": true,
+        "mae_early_stop": false,
+        "novel_exact_candidate_target": 200,
+        "controller_core_novel": 100,
+        "correction_novel": 60,
+        "alternating_polish_novel": 40,
+        "fresh_pool_size": 128,
+        "sentinel_interval": 10,
+        "adaptive_repeat_target_n": 3,
+        "final_top_k": 3,
+        "final_repeat_target_n": 5
+      },
+      "metric": {
+        "id": "force-mae-v2-sealed",
+        "target_force_n": 5.0,
+        "formal_window_half_open_s": [5.0, 60.0],
+        "bin_width_s": 0.1,
+        "required_complete_bins": 550,
+        "gap_policy": "no_fill_fail_closed"
+      },
+      "offline_readiness": {
+        "status": "offline_prepared_awaiting_live_prerequisites",
+        "launch_ready": false,
+        "blockers": [
+          "live_handoff_ab_not_executed",
+          "outward_boundary_runtime_primitive_not_installed",
+          "context_correction_runtime_primitive_not_installed",
+          "cycloid_200_novel_not_executed"
+        ],
+        "handoff_selected": false,
+        "empirical_floor_established": false,
+        "figure8_ready": false
+      },
+      "manual_canary": {
+        "schema": "step5d.autotune-v4/r013-manual-canary-preparation-v1",
+        "role": "manual_canary",
+        "feedforward_mode_required": true,
+        "fixed_candidate_only": true,
+        "formal_campaign_tell_exact": false,
+        "launch_ready": false,
+        "state": "delivery_verified_canary_pending"
+      },
+      "package_delivery": {
+        "state": "controller_readback_verified_manual_canary_not_executed",
+        "program_basename": "step5d_strict_rnn_autotune_v4_r013",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v4_r013.urp",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "controller_upload": true,
+        "controller_readback": true,
+        "readback_manifest": "runs/controller_readback_step5d_strict_rnn_autotune_v4_r013_20260817_142147/manifest.json",
+        "readback_manifest_sha256": "7ebae3b1771c670a7b1c8c0b9581680638ce446df20e2561e0acd169fc2440cc",
+        "triplet_sha256": {
+          "script": "67c45eb980b98dad94432b14674e7ca5d2cbf2b767777f18cc3c03e2beac8a1f",
+          "txt": "bee22fb6b6d73c77a3033af72b4a471732a80890133680144ab6f9b8a0bf86d7",
+          "urp": "a717e84130f08fcbf0f7ed61caab629a9f61e4b8dd66315d30e9145a8c57c25f"
+        },
+        "load": false,
+        "play": false,
+        "bridge_start": false,
+        "arm": false,
+        "motion": false,
+        "contact": false,
+        "home": false,
+        "tare": false,
+        "live_evidence": false
+      },
+      "success_condition": "Offline milestone only: typed/replayable campaign primitives and non-launchable transfer template pass deterministic tests. The cycloid empirical floor still requires a separately authorized live handoff A/B, installed boundary/correction runtime primitives, 200 admitted novel observations, and top-three n=5 repeats."
+    },
+    {
+      "id": "step5d_autotune_v4_r013_three_stage_long_goal",
+      "stage": "Step5d V4 R013 three-stage FF/I/limit campaign",
+      "owner": "ur10e-live-bench + v4_stage_campaign_owner",
+      "active": true,
+      "blocked": true,
+      "complete": false,
+      "shape": "figure-eight-independent-cycloid-contact-path",
+      "frame": "R013 calibrated base frame with fixed Home/EOAT identity",
+      "contact": {
+        "target_force_n": 5.0,
+        "feedforward_bundle": "combined historical velocity XY + Goal-035 phase force reference",
+        "curvature_acceleration_history_residual": false,
+        "integral_policy": "conditional-double-clamp-v1"
+      },
+      "bridge": {
+        "route": "ros2_remote_control_headless",
+        "single_writer": true,
+        "controller_program": "step5d_strict_rnn_autotune_v4_r013"
+      },
+      "strict_rnn": {
+        "source": "tools/step5c_strict_rnn.py",
+        "runtime_identity_bound": true
+      },
+      "duration_s": 60.0,
+      "current_binding": {
+        "pointer": "config/current_stage.json",
+        "pointer_changed": false,
+        "status": "new_v4_three_stage_lineage_pending_canary"
+      },
+      "source_binding": {
+        "campaign_config": "config/step5d/v4_two_stage_campaign_v1.json",
+        "campaign_scheduler": "tools/step5d_autotune_v4_r013/v4_two_stage_campaign.py",
+        "optimizer": "tools/step5d_autotune_v4_r013/v4_stage_optimizer.py",
+        "runtime": "tools/step5d_autotune_v4_r013/live_runtime.py",
+        "live_owner": "tools/step5d_autotune_v4_r013/live_owner.py"
+      },
+      "campaign": {
+        "stages": [
+          "V4_FF_IOFF_100",
+          "V4_FF_ION_6D_100",
+          "V4_FF_ION_LIMIT_7D_100"
+        ],
+        "attempt_budget_each": 100,
+        "winner_total_n": 3,
+        "stage_b2_limit_bounds_n_s": [0.5, 5.0],
+        "stage_b2_authority_error_n_fixed": 0.5,
+        "early_censor": "branch-local-confirmed-incumbent-only-kappa2-25-bins"
+      },
+      "timing": {
+        "formal_rate_min_hz": 460,
+        "p99_max_s": 0.01,
+        "max_gap_max_s": 0.02,
+        "cpu_affinity": [11, 13, 14, 15],
+        "scheduler": "SCHED_FIFO/20",
+        "attempt_boundary_canary_n": 3
+      },
+      "acceptance": {
+        "offline": "focused contract, candidate identity, feasible 7D pool, runtime limit propagation and whole-flow resume tests",
+        "live": "3/3 timing canary, then Stage A/B1/B2 exact ledgers and Home-verified winner n=3",
+        "report": "image-rich evidence with saturation duty and effective-limit plots"
+      },
+      "package_delivery": {
+        "state": "fresh_package_readback_required_after_source_change",
+        "load": false,
+        "play": false,
+        "bridge_start": false,
+        "arm": false,
+        "motion": false,
+        "contact": false
+      },
+      "success_condition": "Fresh source/package identity, 3/3 boundary canary, all three V4 stage ledgers complete with winner n=3, and no timing/safety/CBF/source-closure failure. Current V3 pointer remains unchanged."
     }
   ],
   "startup_gate_profiles": {

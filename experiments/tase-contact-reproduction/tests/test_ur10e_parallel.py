@@ -20,6 +20,9 @@ from ur10e_parallel import (  # noqa: E402
     CONTRACT_ID,
     CrossProcessWeightedLease,
     FileLease,
+    formal_timing_lease,
+    formal_timing_owner,
+    notify_formal_timing_owner,
     ObserverBarrier,
     ResourceProfile,
     TaskRunner,
@@ -222,6 +225,25 @@ class Ur10eParallelTest(unittest.TestCase):
                     with throughput_lease(profile, exclusive=False, blocking=False):
                         pass
             self.assertIsNone(writer_lease_owner(profile))
+
+    def test_formal_timing_lease_records_owner_and_blocks_second_lane(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            profile = self.profile(Path(directory))
+            with formal_timing_lease(profile, "formal-test", blocking=False) as owner:
+                self.assertEqual(owner["schema"], "ur10e/formal-timing-lease-owner-v1")
+                self.assertEqual(formal_timing_owner(profile), owner)
+                with self.assertRaises(BlockingIOError):
+                    with formal_timing_lease(profile, "second-formal", blocking=False):
+                        pass
+            self.assertIsNone(formal_timing_owner(profile))
+
+    def test_formal_timing_owner_notification_is_best_effort(self) -> None:
+        self.assertFalse(
+            notify_formal_timing_owner(
+                {"tty": "/dev/pts/does-not-exist"},
+                "release the lane",
+            )
+        )
 
     def test_observer_barrier_requires_every_endpoint(self) -> None:
         barrier = ObserverBarrier({"kunwei", "rtde", "video"})

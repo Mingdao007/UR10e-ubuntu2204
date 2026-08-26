@@ -156,7 +156,7 @@ def test_attach_state25_trace_binds_run_dir(tmp_path: Path) -> None:
     assert trace.run_dir == tmp_path
 
 
-def test_attempt_ordinal_change_resets_integral_max(tmp_path: Path) -> None:
+def test_home_begin_attempt_resets_integral_max(tmp_path: Path) -> None:
     trace = State25PathTrace(tmp_path, ring_size=8)
     trace.observe(
         build_state25_row(
@@ -170,6 +170,7 @@ def test_attempt_ordinal_change_resets_integral_max(tmp_path: Path) -> None:
         )
     )
     assert trace.abs_force_integral_max_n_s == pytest.approx(40.0)
+    trace.begin_attempt(42)
     trace.observe(
         build_state25_row(
             monotonic_s=2.0,
@@ -184,6 +185,96 @@ def test_attempt_ordinal_change_resets_integral_max(tmp_path: Path) -> None:
     assert len(trace.recent_rows()) == 1
     assert trace.abs_force_integral_max_n_s == pytest.approx(3.0)
     trace.close()
+
+
+def test_persistence_stride_keeps_full_attempt_rows_but_thins_sidecar(tmp_path: Path) -> None:
+    trace = State25PathTrace(tmp_path, persistence_stride=3)
+    for index in range(7):
+        trace.observe(
+            build_state25_row(
+                monotonic_s=float(index),
+                tcp_pose_m_rad=(0.0, 0.0, 0.02, 0.0, 0.0, 0.0),
+                normal_load_n=5.0,
+                force_norm_n=5.0,
+                force_integral_n_s=1.0,
+                force_integral_limit_n_s=50.0,
+                attempt_ordinal=11,
+            )
+        )
+    assert len(trace.attempt_rows(11)) == 7
+    trace.flush()
+    persisted = (tmp_path / STATE25_PATH_TRACE_SIDECAR_NAME).read_text(encoding="utf-8").strip().splitlines()
+    assert len(persisted) == 3  # first row and ticks 3/6
+    assert trace.rows_written == 3
+    trace.close()
+
+
+def test_state25_relative_path_time_anchors_to_first_attempt_row() -> None:
+    trace = State25PathTrace(None)
+    trace.begin_attempt(12)
+    first = trace.observe(
+        build_state25_row(
+            monotonic_s=1.0,
+            path_time_s=42.0,
+            tcp_pose_m_rad=(0.0, 0.0, 0.02, 0.0, 0.0, 0.0),
+            normal_load_n=5.0,
+            force_norm_n=5.0,
+            attempt_ordinal=12,
+        )
+    )
+    second = trace.observe(
+        build_state25_row(
+            monotonic_s=1.01,
+            path_time_s=42.25,
+            tcp_pose_m_rad=(0.0, 0.0, 0.02, 0.0, 0.0, 0.0),
+            normal_load_n=5.0,
+            force_norm_n=5.0,
+            attempt_ordinal=12,
+        )
+    )
+    assert first["path_time_s"] == pytest.approx(42.0)
+    assert first["relative_path_time_s"] == pytest.approx(0.0)
+    assert second["path_time_s"] == pytest.approx(42.25)
+    assert second["relative_path_time_s"] == pytest.approx(0.25)
+
+
+def test_attempt_trace_flushes_at_explicit_home_boundary_not_first_state25() -> None:
+    trace = State25PathTrace(None)
+    flushes: list[str] = []
+    trace.flush = lambda timeout_s=30.0: flushes.append("home")  # type: ignore[method-assign]
+    trace.begin_attempt(1)
+    trace.observe(
+        build_state25_row(
+            monotonic_s=1.0,
+            tcp_pose_m_rad=(0.0, 0.0, 0.02, 0.0, 0.0, 0.0),
+            normal_load_n=5.0,
+            force_norm_n=5.0,
+            attempt_ordinal=1,
+        )
+    )
+    assert flushes == ["home"]
+    trace.begin_attempt(2)
+    assert flushes == ["home", "home"]
+    trace.observe(
+        build_state25_row(
+            monotonic_s=2.0,
+            tcp_pose_m_rad=(0.0, 0.0, 0.02, 0.0, 0.0, 0.0),
+            normal_load_n=5.0,
+            force_norm_n=5.0,
+            attempt_ordinal=2,
+        )
+    )
+    assert flushes == ["home", "home"]
+    with pytest.raises(ValueError, match="Home begin_attempt"):
+        trace.observe(
+            build_state25_row(
+                monotonic_s=3.0,
+                tcp_pose_m_rad=(0.0, 0.0, 0.02, 0.0, 0.0, 0.0),
+                normal_load_n=5.0,
+                force_norm_n=5.0,
+                attempt_ordinal=3,
+            )
+        )
 
 
 def test_observe_does_not_open_sidecar_on_calling_thread(tmp_path: Path, monkeypatch) -> None:
@@ -339,6 +430,7 @@ def test_r006_path_stop_writes_state25_stop_dominant(tmp_path: Path, monkeypatch
         },
     )()
     writer._send_packet(sensor, command_mode=2)
+    writer._state25_trace.flush()
     assert (tmp_path / STATE25_PATH_TRACE_SIDECAR_NAME).is_file()
     row = json.loads(
         (tmp_path / STATE25_PATH_TRACE_SIDECAR_NAME).read_text(encoding="utf-8").strip()

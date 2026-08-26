@@ -1,0 +1,60 @@
+{
+  "schema": "step5d.autotune-v4/goal035-correction-target-v1",
+  "version": 1,
+  "purpose": "fresh bounded follow-up after V4 B1",
+  "parent_stage": "V4_FF_ION_6D_100",
+  "controller_profile": "same R013 Step5 path and combined FF bundle",
+  "feedforward_bundle": {
+    "velocity_xy": true,
+    "phase_force_reference": true,
+    "curvature": false,
+    "acceleration": false,
+    "history_residual": false,
+    "phase_force_reference_profile_id": "r013_goal035_path_phase_target_profile_v1"
+  },
+  "runtime_strategy_profile": "runs/v4_timing_char_prep_05_20260818/runtime_strategy.json",
+  "warm_anchor": {
+    "source": "historical Goal035 phase_004 single exact row",
+    "source_mae_n": 0.3162640181193824,
+    "source_formal_qualification": false,
+    "source_confirmed": false,
+    "coordinates_only": true,
+    "candidate": {
+      "force_damping": 188.36079701683204,
+      "force_i_gain": 0.008610779292198037,
+      "force_p_gain": 0.019027313840405524,
+      "i_off": false,
+      "motion_kp": 2.5226892457611436,
+      "normal_filter_tau_s": 0.04375,
+      "orientation_ko": 0.05,
+      "target_force_n": 5.0,
+      "integral_state_limit_n_s": 1.0
+    }
+  },
+  "stop_policy": {
+    "operator": "OR",
+    "target_mae_n": 0.1,
+    "epoch_budget": 100,
+    "counting": "physical_attempts_including_ineligible_and_censored",
+    "target_requires": [
+      "new exact sealed row",
+      "physical_eligible",
+      "timing_gate",
+      "motion_gate",
+      "contact_gate",
+      "return_gate",
+      "Home",
+      "Safety NORMAL",
+      "CBF/invariant gates"
+    ],
+    "confirmation_after_target": false,
+    "next_dispatch_after_stop": false
+  },
+  "runtime_controls": {
+    "timing_scheduler_profile": "quota_safe_other_v1",
+    "serial_q": 1,
+    "old_observations_imported": false,
+    "old_gp_state_imported": false,
+    "fresh_ledger_required": true
+  }
+}

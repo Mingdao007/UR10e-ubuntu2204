@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -11,15 +12,18 @@ import pytest
 
 from step5d_managed_runtime import (
     CONTROL_PROFILE,
+    ExecutionRequestV1,
     MANIFEST_SCHEMA,
     OPTIMIZER_PROFILE,
     ManagedControlBinding,
     ManagedRuntimeError,
+    admit_control_runtime,
     launch_manifest_route,
     load_runtime_manifest,
     resolve_managed_control_runtime,
     resolve_managed_optimizer_runtime,
     resolve_managed_runtime,
+    require_execution_admission_receipt,
 )
 
 
@@ -111,9 +115,11 @@ def test_synthetic_v5_routes_use_managed_profiles_without_generic_changes(tmp_pa
     manifest = load_runtime_manifest(path, root=path.parents[1])
     binding = _binding(manifest)
     calls: list[tuple[list[str], Path]] = []
+    environments: list[dict[str, str]] = []
 
     def runner(command, *, cwd, **_kwargs):
         calls.append((list(command), Path(cwd)))
+        environments.append(dict(_kwargs["env"]))
         return SimpleNamespace(returncode=19)
 
     assert launch_manifest_route(
@@ -135,6 +141,11 @@ def test_synthetic_v5_routes_use_managed_profiles_without_generic_changes(tmp_pa
         "synthetic_v5.host",
     ]
     assert [call[0][4:] for call in calls] == [["--future", "V5"], ["--offline", ""]]
+    assert all(environment["STEP5D_EXECUTION_ADMISSION"] == "admitted" for environment in environments)
+    assert all(
+        json.loads(environment["STEP5D_EXECUTION_ADMISSION_RECEIPT"])["authority_granted"] is False
+        for environment in environments
+    )
 
     runtime = SimpleNamespace(
         declaration=SimpleNamespace(profile=OPTIMIZER_PROFILE),
@@ -149,6 +160,103 @@ def test_synthetic_v5_routes_use_managed_profiles_without_generic_changes(tmp_pa
     assert optimizer.profile == OPTIMIZER_PROFILE
     assert optimizer.worker_module == "synthetic_v5.optimizer_worker"
     assert optimizer.python_executable == runtime.python_executable
+
+
+def test_live_figure8_route_does_not_use_short_outer_child_timeout(tmp_path: Path) -> None:
+    from step5d_managed_runtime import launch_managed_module
+
+    path, _document = _synthetic_manifest(tmp_path)
+    manifest = load_runtime_manifest(path, root=path.parents[1])
+    binding = replace(
+        _binding(manifest),
+        route_modules=(("host", "run_step6_figure8_autotune_v1_live"),),
+        long_running_routes=("host",),
+    )
+    observed: list[object] = []
+
+    def runner(_command, **kwargs):
+        observed.append(kwargs.get("timeout"))
+        return SimpleNamespace(returncode=0)
+
+    assert launch_managed_module(
+        "run_step6_figure8_autotune_v1_live",
+        ("--execute-live",),
+        binding=binding,
+        process_runner=runner,
+        cwd=path.parents[1],
+        side_effect_level="live_mutation",
+    ) == 0
+    assert observed == [None]
+
+
+def test_production_live_launcher_bounds_startup_before_owner_ready(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from step5d_managed_runtime import _launch_long_running_child
+
+    class FakeProcess:
+        pid = 12345
+
+        def __init__(self, environment: dict[str, str]) -> None:
+            marker = Path(environment["STEP5D_MANAGED_STARTUP_RECEIPT"])
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(
+                json.dumps(
+                    {
+                        "schema": "step5d.execution-admission/startup-receipt-v1",
+                        "version": 1,
+                        "status": "READY",
+                        "pid": self.pid,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+        def poll(self) -> None:
+            return None
+
+        def wait(self, timeout: float | None = None) -> int:
+            assert timeout is None
+            return 0
+
+        def terminate(self) -> None:
+            raise AssertionError("ready child must not be terminated by startup timeout")
+
+        def kill(self) -> None:
+            raise AssertionError("ready child must not be killed")
+
+    monkeypatch.setattr(
+        "step5d_managed_runtime.subprocess.Popen",
+        lambda _command, **kwargs: FakeProcess(dict(kwargs["env"])),
+    )
+    assert _launch_long_running_child(
+        ("python", "live"), cwd=tmp_path, environment={"BASE": "1"}
+    ) == 0
+
+
+def test_non_live_managed_route_keeps_bounded_timeout(tmp_path: Path) -> None:
+    from step5d_managed_runtime import launch_managed_module, MANAGED_CHILD_TIMEOUT_S
+
+    path, _document = _synthetic_manifest(tmp_path)
+    manifest = load_runtime_manifest(path, root=path.parents[1])
+    binding = _binding(manifest)
+    observed: list[object] = []
+
+    def runner(_command, **kwargs):
+        observed.append(kwargs.get("timeout"))
+        return SimpleNamespace(returncode=0)
+
+    assert launch_managed_module(
+        "synthetic_v5.host",
+        ("--offline",),
+        binding=binding,
+        process_runner=runner,
+        cwd=path.parents[1],
+        side_effect_level="offline",
+    ) == 0
+    assert observed == [MANAGED_CHILD_TIMEOUT_S]
 
 
 def test_synthetic_v5_control_resolver_stays_on_v3_full_audit_profile(tmp_path: Path) -> None:
@@ -217,6 +325,185 @@ def test_synthetic_v5_control_resolver_stays_on_v3_full_audit_profile(tmp_path: 
     assert binding.profile == CONTROL_PROFILE
     assert binding.python_executable == executable
     assert "STEP5D_V3_OPTIMIZER_PYTHON" not in binding.environment
+
+
+def test_execution_admission_receipt_is_typed_and_never_authority(tmp_path: Path) -> None:
+    path, _document = _synthetic_manifest(tmp_path)
+    manifest = load_runtime_manifest(path, root=path.parents[1])
+    managed_root = tmp_path / "managed-control"
+    executable = managed_root / "bin/python"
+    target = tmp_path / "system-python3.10"
+    executable.parent.mkdir(parents=True)
+    target.write_bytes(b"managed-python")
+    target.chmod(0o755)
+    executable.symlink_to(target)
+    pointer = {
+        "schema": "step5d.autotune-v3/runtime-pointer-v2",
+        "bundle_id": "1" * 64,
+        "contract_sha256": "2" * 64,
+        "lock_sha256": "3" * 64,
+        "attestation_sha256": "4" * 64,
+        "profiles": {
+            "control": {
+                "root": str(managed_root),
+                "python_executable": str(executable),
+                "environment_id": "5" * 64,
+                "profile_tree_sha256": "6" * 64,
+            }
+        },
+    }
+    ros_path = manifest.control_required_ros_pythonpath[0]
+    environment = {
+        "STEP5D_V3_RUNTIME_PROFILE": CONTROL_PROFILE,
+        "STEP5D_V3_CONTROL_ENVIRONMENT_ID": "5" * 64,
+        "STEP5D_V3_CONTROL_PYTHON": str(executable),
+        "PYTHONPATH": ros_path,
+    }
+
+    request = ExecutionRequestV1(
+        schema="step5d.execution-admission/request-v1",
+        entrypoint="synthetic_v5.host",
+        manifest_path=path,
+        route="host",
+        required_imports=("synthetic_control",),
+        side_effect_level="live_mutation",
+        source_or_lineage_identity="synthetic_v5",
+    )
+    receipt = admit_control_runtime(
+        request,
+        root=path.parents[1],
+        source_environment={},
+        pointer_loader=lambda _mode, *, environ: pointer,
+        environment_builder=lambda source, *, profile, runtime_pointer: environment,
+        dependency_probe=lambda **kwargs: {
+            "python_executable": str(executable),
+            "python_resolved_executable": str(executable.resolve()),
+            "python_prefix": str(managed_root.resolve()),
+            "required_imports": {
+                "v3_control": "managed/v3_control",
+                "synthetic_control": "managed/synthetic_control",
+            },
+            "required_distributions": {"v3-control": "1.0"},
+        },
+        runtime_contract_loader=lambda: {
+            "profiles": {
+                "control": {
+                    "required_imports": ["v3_control"],
+                    "required_distributions": {"v3-control": "1.0"},
+                }
+            },
+            "ros": {"packages": {"ros-humble-pinocchio": "managed"}},
+        },
+    )
+    assert receipt.status == "admitted"
+    assert receipt.reason_code == "admitted"
+    assert receipt.controller_calls_allowed is True
+    assert receipt.authority_granted is False
+    assert receipt.detail.startswith("control runtime admitted")
+    assert receipt.import_origins["synthetic_control"] == "managed/synthetic_control"
+
+
+def test_execution_admission_fails_closed_for_dependency_probe(tmp_path: Path) -> None:
+    path, _document = _synthetic_manifest(tmp_path)
+    request = ExecutionRequestV1(
+        schema="step5d.execution-admission/request-v1",
+        entrypoint="synthetic_v5.host",
+        manifest_path=path,
+        route="host",
+        required_imports=("synthetic_control",),
+        side_effect_level="live_mutation",
+        source_or_lineage_identity="synthetic_v5",
+    )
+    receipt = admit_control_runtime(
+        request,
+        root=path.parents[1],
+        pointer_loader=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ManagedRuntimeError("CONTROL_RUNTIME_INVALID", "pinocchio import missing")
+        ),
+    )
+    assert receipt.status == "invalid"
+    assert receipt.reason_code == "CONTROL_RUNTIME_INVALID"
+    assert receipt.controller_calls_allowed is False
+    assert receipt.authority_granted is False
+    assert receipt.detail == "pinocchio import missing"
+
+
+def test_execution_admission_fails_closed_for_missing_ros_path(tmp_path: Path) -> None:
+    path, _document = _synthetic_manifest(tmp_path)
+    manifest = load_runtime_manifest(path, root=path.parents[1])
+    managed_root = tmp_path / "managed-control"
+    executable = managed_root / "bin/python"
+    target = tmp_path / "system-python3.10"
+    executable.parent.mkdir(parents=True)
+    target.write_bytes(b"managed-python")
+    target.chmod(0o755)
+    executable.symlink_to(target)
+    pointer = {
+        "schema": "step5d.autotune-v3/runtime-pointer-v2",
+        "bundle_id": "1" * 64,
+        "contract_sha256": "2" * 64,
+        "lock_sha256": "3" * 64,
+        "attestation_sha256": "4" * 64,
+        "profiles": {
+            "control": {
+                "root": str(managed_root),
+                "python_executable": str(executable),
+                "environment_id": "5" * 64,
+                "profile_tree_sha256": "6" * 64,
+            }
+        },
+    }
+    environment = {
+        "STEP5D_V3_RUNTIME_PROFILE": CONTROL_PROFILE,
+        "STEP5D_V3_CONTROL_ENVIRONMENT_ID": "5" * 64,
+        "STEP5D_V3_CONTROL_PYTHON": str(executable),
+        "PYTHONPATH": "",
+    }
+    request = ExecutionRequestV1(
+        schema="step5d.execution-admission/request-v1",
+        entrypoint=manifest.module_for_route("host"),
+        manifest_path=path,
+        route="host",
+        required_imports=("synthetic_control",),
+        side_effect_level="controller_read_only",
+        source_or_lineage_identity="synthetic_v5",
+    )
+    receipt = admit_control_runtime(
+        request,
+        root=path.parents[1],
+        pointer_loader=lambda _mode, *, environ: pointer,
+        environment_builder=lambda source, *, profile, runtime_pointer: environment,
+        dependency_probe=lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("dependency probe must not run before ROS path admission")
+        ),
+        runtime_contract_loader=lambda: {
+            "profiles": {
+                "control": {
+                    "required_imports": ["v3_control"],
+                    "required_distributions": {"v3-control": "1.0"},
+                }
+            },
+            "ros": {"packages": {"ros-humble-pinocchio": "managed"}},
+        },
+    )
+    assert receipt.status == "invalid"
+    assert receipt.reason_code == "CONTROL_RUNTIME_INVALID"
+    assert receipt.detail == "ROS PYTHONPATH is incomplete"
+    assert receipt.controller_calls_allowed is False
+    assert receipt.authority_granted is False
+
+
+def test_execution_admission_environment_receipt_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("STEP5D_EXECUTION_ADMISSION", raising=False)
+    monkeypatch.delenv("STEP5D_EXECUTION_ADMISSION_RECEIPT", raising=False)
+    with pytest.raises(ManagedRuntimeError, match="receipt is missing"):
+        require_execution_admission_receipt()
+    monkeypatch.setenv("STEP5D_EXECUTION_ADMISSION", "admitted")
+    monkeypatch.setenv(
+        "STEP5D_EXECUTION_ADMISSION_RECEIPT",
+        json.dumps({"status": "admitted", "authority_granted": False}),
+    )
+    assert require_execution_admission_receipt()["status"] == "admitted"
 
 
 def test_manifest_and_route_fail_closed_without_fallback_or_profile_mixing(tmp_path: Path) -> None:

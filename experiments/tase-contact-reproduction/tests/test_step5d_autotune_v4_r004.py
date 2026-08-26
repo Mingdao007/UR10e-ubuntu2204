@@ -61,6 +61,65 @@ from step5d_autotune_v4_r004.wire import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_fresh_frame_wait_policy_and_base_socket_rendezvous(monkeypatch: pytest.MonkeyPatch) -> None:
+    raw = {
+        field: (
+            1.0
+            if field == "timestamp"
+            else 0.413
+            if field == "payload"
+            else [0.0] * 3
+            if field == "payload_cog"
+            else [0.0] * 6
+            if field in {"tcp_offset", "actual_TCP_speed", "actual_TCP_pose", "actual_q", "actual_qd"}
+            else "NORMAL"
+            if field == "safety_mode"
+            else "RUNNING"
+            if field in {"robot_mode", "runtime_state"}
+            else -1.0
+            if field == "output_double_register_24"
+            else 0
+        )
+        for field in r004_transport.OUTPUT_FIELDS
+    }
+
+    class Client:
+        sock = object()
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def recv_latest_sample(self, *_args: object) -> dict[str, object]:
+            self.calls += 1
+            return raw
+
+    select_calls: list[float] = []
+    ready = {"value": False}
+
+    def fake_select(_read: list[object], _write: list[object], _error: list[object], wait_s: float) -> tuple[list[object], list[object], list[object]]:
+        select_calls.append(wait_s)
+        return ([object()] if ready["value"] else [], [], [])
+
+    monkeypatch.setattr(r004_transport.select, "select", fake_select)
+    assert r004_transport.FreshFrameWaitPolicyV1.legacy().wait_s == 0.0
+    assert r004_transport.FreshFrameWaitPolicyV1.v5().wait_s == 0.004
+    with pytest.raises(r004_transport.TransportError):
+        r004_transport.FreshFrameWaitPolicyV1(wait_s=0.0041)
+
+    client = Client()
+    base = r004_transport.LiveR004RTDETransport("offline-test")
+    base.client = client
+    assert base.poll_output(wait_s=0.004) is None
+    assert client.calls == 0
+    ready["value"] = True
+    assert base.poll_output(wait_s=0.004) is not None
+    assert client.calls == 1
+    assert base.poll_output() is None
+    assert client.calls == 2
+
+    assert select_calls == [0.004, 0.004]
+
+
 def test_tp_stationary_gate_allows_bounded_settle_without_relaxing_thresholds() -> None:
     script = render_r004_script()
     assert "while dwell_s < required_s and elapsed_s < required_s * 5.0:" in script

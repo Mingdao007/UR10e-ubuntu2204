@@ -8,7 +8,7 @@
     "version": "3.10.12"
   },
   "uv": {
-    "dependency_manifest_sha256": "80fed926de6b4356743eaffccf9bb61c3c7e216153b06233cdc5d33c1545e69f",
+    "dependency_manifest_sha256": "bcfcced1bb56772e35c8e0876dd46ce9642cb9bec0f8fc69398dd813c7b22b22",
     "executable_name": "uv",
     "sha256": "87a36ef1f9fd1e412d18e2810ac3bf7f7de4bdfb8280e2d6525b5fce29e3e2f9",
     "version": "0.9.30"
@@ -23,13 +23,15 @@
         "nvidia-cuda-nvrtc-cu12": "12.9.86",
         "nvidia-cuda-runtime-cu12": "12.9.79",
         "pexpect": "4.9.0",
-        "pyyaml": "6.0.3"
+        "pyyaml": "6.0.3",
+        "scipy": "1.15.3"
       },
       "required_imports": [
         "cupy",
         "jsonschema",
         "numpy",
         "pexpect",
+        "scipy",
         "yaml"
       ],
       "forbidden_imports": [

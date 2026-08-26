@@ -1,0 +1,66 @@
+{
+  "schema": "step5d.autotune-v4/r013-bounded-bo-seed-v1",
+  "version": 1,
+  "policy": "bounded_bo_v1",
+  "physical_attempt_budget": 100,
+  "target_mae_n": 0.35,
+  "checkpoint_only_target": true,
+  "candidate": {
+    "force_p_gain": 0.019027313840405524,
+    "force_damping": 188.36079701683204,
+    "force_i_gain": 0.008610779292198037,
+    "i_off": false,
+    "normal_filter_tau_s": 0.04375,
+    "orientation_ko": 0.05,
+    "motion_kp": 2.5226892457611436,
+    "target_force_n": 5.0
+  },
+  "runtime_strategy": {
+    "base_target_n": 5.0,
+    "enabled": true,
+    "formal_window_s": [5.0, 60.0],
+    "interpolation": "linear_clamped",
+    "knot_times_s": [7.5, 12.5, 17.5, 22.5, 27.5, 32.5, 37.5, 42.5, 47.5, 52.5, 57.5, 60.0],
+    "maximum_correction_n": 1.25,
+    "maximum_effective_target_n": 5.0,
+    "minimum_effective_target_n": 3.75,
+    "schema": "step5d.autotune-v4/r013-path-phase-force-target-correction-v1",
+    "source": {
+      "estimator": "positive_median_signed_error_5s_segments_v1",
+      "holdout_attempt_sequence": 113,
+      "holdout_counterfactual_mae_n": 0.31584643685744035,
+      "holdout_observed_mae_n": 0.517507521080191,
+      "holdout_role": "numeric_profile_validation_only_not_pristine_confirmatory",
+      "direction_selection_used_holdout": true,
+      "physical_ledger_sha256": "3b3c88d0292de184017288a35be86b01a33b955ad9258b3787d5671deceffe69",
+      "sealed_metric_semantics": "force-mae-v2-sealed|formal=[5,60)|bin=0.1s|target=5N",
+      "training_attempt_sequences": [89, 90, 92, 93, 94, 111],
+      "training_row_sha256": [
+        "43e0cd6aedb73bf2dcbc8bd29f6e1d634732ea1ed5babf40504c9d8cb2eca7bb",
+        "1a679d6f392e03965580b8ac0d84f0d766a28a3c27d945191ce70b2020b5e102",
+        "697127a3941b45d26addcd2193bfca70d31c6dd5e593990386509d0a8385f99b",
+        "91748553b4781e3cbe27365fe3ae72821a776749578e5eff778db845f623d0da",
+        "3888772ff6871c83b510a99d25d4381b77c938891787974b2ddb664a95fee365",
+        "e655969fc481a5bb0548359934eb3bd22e9cab0e84ea0943d1b69903df6cd4c0"
+      ]
+    },
+    "target_correction_n": [0.0, 0.0, 0.2113184538031736, 0.5560418729434788, 0.9614950382874712, 1.0367550730800117, 0.5621120157207038, 0.0, 0.0, 0.0, 0.03867915861189397, 0.0],
+    "version": 1
+  },
+  "runtime_strategy_sha256": "bc3fa1dd6efc2e8fad995e6325789baadca5a71e11b5661315209b359104f4fd",
+  "source_closure_sha256": "047d31b8c453e8041971ef1157ca8734eed5a010776ac281299d2297bc12b5c5",
+  "controller_triplet_sha256": {
+    "script": "3a4c2b44c7936f27f0512855a1965bbe3b4f675739feca5be30268c2159ebf1e",
+    "txt": "1dbe779b82ba9fd7a71dd6e64e652299920e87195bdd7e09771382eb36a49a26",
+    "urp": "2f5afea522a417a51eec8a59b76a578afb6e99f11dc3f540a546732dbcb9ee68"
+  },
+  "provenance": {
+    "historical_candidate_token": "fcf0c3255393f2ccc3474865568893556dc7ff3566d7bbca728b51b357aa8da2",
+    "historical_single_trial_mae_n": 0.3162640181193824,
+    "historical_repeat_mae_n": [0.3162640181193824, 0.34746167184823024, 0.3785035110775007],
+    "historical_repeat_mean_n": 0.3474097336817044,
+    "historical_evidence_scope": "coordinates_and_control_law_only; historical_objectives_not_imported",
+    "historical_report": "reports/r013_floor_discovery_offline_20260815/autotuner_report_evidence.json",
+    "historical_runtime_strategy": "runs/step5d_autotune_v4_r013/live_20260815_goal035_phase_004/runtime_strategy.json"
+  }
+}

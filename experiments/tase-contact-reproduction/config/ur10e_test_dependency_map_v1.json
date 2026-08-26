@@ -203,7 +203,10 @@
     ],
     "live_writer": [],
     "visible_gazebo": [],
-    "formal_timing": []
+    "formal_timing": [
+      "tests/test_step5d_autotune_v4_r013.py",
+      "tests/test_step6_autotuner_v5_live_owner.py"
+    ]
   },
   "validators": [
     "tools/validate_tase_protocol_table.py",

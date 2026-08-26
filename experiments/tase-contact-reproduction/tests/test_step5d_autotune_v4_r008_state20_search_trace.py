@@ -106,6 +106,26 @@ def test_attach_state20_trace_binds_run_dir(tmp_path: Path) -> None:
     owner = type("Owner", (), {})()
     trace = attach_state20_trace(owner, tmp_path)
     assert owner._state20_trace is trace
+
+
+def test_persistence_stride_keeps_ring_but_thins_sidecar(tmp_path: Path) -> None:
+    trace = State20SearchTrace(tmp_path, async_write=True, persistence_stride=3)
+    for index in range(7):
+        trace.observe(
+            build_state20_row(
+                monotonic_s=float(index),
+                tcp_pose_m_rad=(0.0, 0.0, 0.1, 0.0, 0.0, 0.0),
+                normal_load_n=1.0,
+                force_norm_n=1.0,
+                packet_sequence=index,
+            )
+        )
+    trace.flush()
+    rows = [json.loads(line) for line in (tmp_path / STATE20_SEARCH_TRACE_SIDECAR_NAME).read_text().splitlines()]
+    assert len(trace.recent_rows()) == 7
+    assert len(rows) == 3
+    assert trace.rows_written == 3
+    trace.close()
     assert trace.run_dir == tmp_path
 
 
@@ -254,6 +274,7 @@ def test_r006_state20_observe_writes_sidecar_on_send(tmp_path: Path, monkeypatch
     )()
     out = writer._send_packet(sensor, command_mode=0)
     assert out is packet
+    writer._state20_trace.flush()
     lines = (tmp_path / STATE20_SEARCH_TRACE_SIDECAR_NAME).read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 1
     row = json.loads(lines[0])
@@ -264,6 +285,7 @@ def test_r006_state20_observe_writes_sidecar_on_send(tmp_path: Path, monkeypatch
     # Non-state-20: no additional row.
     writer._last_output.integer_echoes[26] = 21
     writer._send_packet(sensor, command_mode=0)
+    writer._state20_trace.flush()
     lines2 = (tmp_path / STATE20_SEARCH_TRACE_SIDECAR_NAME).read_text(encoding="utf-8").strip().splitlines()
     assert len(lines2) == 1
 

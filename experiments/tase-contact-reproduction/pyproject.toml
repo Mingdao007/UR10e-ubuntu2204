@@ -13,6 +13,7 @@ control = [
   "nvidia-cuda-runtime-cu12==12.9.79",
   "pexpect==4.9.0",
   "pyyaml==6.0.3",
+  "scipy==1.15.3",
 ]
 optimizer = [
   "botorch==0.16.1",
