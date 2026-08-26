@@ -1,0 +1,4 @@
+step5d_tacdiffusion_autotuner_xy_no_contact_v1
+
+Independent 60 s no-contact Direct Torque Cartesian impedance diagnostic.
+No contact search, training, qualification, promotion, or TP Play.

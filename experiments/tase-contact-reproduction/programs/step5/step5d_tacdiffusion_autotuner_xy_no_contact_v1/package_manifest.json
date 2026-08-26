@@ -1,0 +1,32 @@
+{
+  "claim_class": "offline_package_not_uploaded",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_tacdiffusion_autotuner_xy_no_contact_v1.urp",
+  "files": {
+    "script": {
+      "path": "/tmp/step5d-autotuner-package-new-parent.BhxzvA/package/step5d_tacdiffusion_autotuner_xy_no_contact_v1.script",
+      "sha256": "7eca028e4a785f4196f3cc338fcb1c4c19ba45a0c9d4531485fe2a2876322e0f"
+    },
+    "txt": {
+      "path": "/tmp/step5d-autotuner-package-new-parent.BhxzvA/package/step5d_tacdiffusion_autotuner_xy_no_contact_v1.txt",
+      "sha256": "76240235ee568f8c7862a4ab46bce802badeb51d428fdcc0c2ba68cb00618592"
+    },
+    "urp": {
+      "path": "/tmp/step5d-autotuner-package-new-parent.BhxzvA/package/step5d_tacdiffusion_autotuner_xy_no_contact_v1.urp",
+      "sha256": "d059b2e5bef06d51386052b36862ed4f6773d694004b5591bf6e9ad0788a055d"
+    }
+  },
+  "generated_at": "2026-08-15T18:02:29.775306+00:00",
+  "profile_id": "step5d_tacdiffusion_autotuner_xy_no_contact_v1",
+  "schema": "step5d_tacdiffusion_autotuner_xy_no_contact_package/v1",
+  "source_identity": {
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_tacdiffusion_autotuner_xy_no_contact_v1.urp",
+    "numeric_sanity_sha256": "c93165c8fa3b6f20c77b4a4daa5aa69f7b11272729fa5e425db58e75f0861498",
+    "package_id": "41935577c991866a12a203d12f34ceb295cad23bd5b8bbdb0406cb8d11435096",
+    "package_schema": "step5d_tacdiffusion_diagnostic_bundle/v1",
+    "profile_id": "step5d_tacdiffusion_autotuner_xy_no_contact_v1",
+    "readback_identity": "profile_id + package_id + runtime_source_sha256 + numeric_sanity_sha256",
+    "runtime_schema": "ur10e_direct_torque_receiver/no_contact_xy/v1",
+    "runtime_source_sha256": "7eca028e4a785f4196f3cc338fcb1c4c19ba45a0c9d4531485fe2a2876322e0f",
+    "source_path": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/step5d_autotuner_xy_no_contact_v1.py"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "schema": "step5d_tacdiffusion_autotuner_xy_no_contact/v1",
+  "profile_id": "step5d_tacdiffusion_autotuner_xy_no_contact_v1",
+  "runtime_schema": "ur10e_direct_torque_receiver/no_contact_xy/v1",
+  "control_rate_hz": 500,
+  "sample_count_60s_500hz": 30000,
+  "duration_options_s": [2, 10, 60],
+  "trajectory": {
+    "theta": "0.1*t",
+    "along": "0.015*(theta-sin(theta))",
+    "lateral": "0.015*(1-cos(theta))",
+    "t_interval_s": [0, 60],
+    "origin_xy_m": [0.487795411149049, 0.12932679270060748],
+    "u_along_xy": [-0.010785642631908187, 0.9999418332648238],
+    "p_lateral_xy": [-0.9999418332648239, -0.010785642631908406]
+  },
+  "checked_points": {
+    "t0": {
+      "along_m": 0.0,
+      "lateral_m": 0.0,
+      "base_xy_m": [0.487795411149049, 0.12932679270060748]
+    },
+    "t30": {
+      "along_m": 0.04288319987910199,
+      "lateral_m": 0.02984988744900668,
+      "base_xy_m": [0.45748473710173193, 0.1718855479853509]
+    },
+    "t60": {
+      "along_m": 0.09419123247298389,
+      "lateral_m": 0.0005974457002445104,
+      "base_xy_m": [0.48618208722775774, 0.2235061025413014]
+    }
+  },
+  "speed": {
+    "reference_bound_m_s": 0.003,
+    "linear_command_bound_m_s": 0.004,
+    "analytic_max_reference_speed_m_s": 0.003
+  },
+  "guards": {
+    "static_safe_frame_first": true,
+    "static_safe_frame_numeric_epsilon_m": 1e-08,
+    "hard_ellipse_half_axes_m": [0.025, 0.015],
+    "soft_cbf_qp_half_axes_m": [0.022, 0.012],
+    "kunwei_force_limit_n": 6.0,
+    "kunwei_torque_limit_nm": 0.5,
+    "z_deviation_limit_m": 0.002,
+    "orientation_limit_deg": 5.0,
+    "reference_speed_limit_m_s": 0.003,
+    "linear_command_limit_m_s": 0.004,
+    "qdot_limit_rad_s": 0.15,
+    "heartbeat_protocol_joint_mode_receiver_fault_checks": true
+  },
+  "gains": {
+    "fixed_stiffness": [600.0, 600.0, 600.0, 30.0, 30.0, 30.0],
+    "feedforward_wrench": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    "gravity_handling": "direct_torque_controller_compensation",
+    "coriolis_handling": "get_coriolis_and_centrifugal_torques",
+    "model_candidate_contact_search_training_promotion": false
+  },
+  "terminal": {
+    "normal_sequence": ["path_origin", "session_home", "stop", "stationary_verified"],
+    "fault_sequence": ["zero", "abort", "stop"],
+    "automatic_recovery": false,
+    "tracking_failure_claim": "diagnostic_only"
+  }
+}

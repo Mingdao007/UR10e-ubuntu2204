@@ -1,0 +1,337 @@
+# VERSION: step5d_tacdiffusion_autotuner_xy_no_contact_v1
+# INDEPENDENT NO-CONTACT DIAGNOSTIC: step5d_tacdiffusion_autotuner_xy_no_contact_v1
+# Host-side network ownership is external to this receiver; this source has no
+# TP program, contact-search, model, training, or promotion behavior.
+# direct_torque() supplies the controller's gravity compensation; this profile
+# adds coriolis compensation and Cartesian impedance through J^T*wrench.
+def step5d_tacdiffusion_autotuner_xy_no_contact_v1_package_receiver():
+  local profile_schema = "step5d_tacdiffusion_autotuner_xy_no_contact/v1"
+  local receiver_schema = "ur10e_direct_torque_receiver/no_contact_xy/v1"
+  local control_mode = "direct_torque_cartesian_impedance"
+  local model_active = False
+  local training_enabled = False
+  local promotion_enabled = False
+  local contact_search_enabled = False
+  local control_rate_hz = 500
+  local diagnostic_duration_s = 60.0
+  local protocol_token = 5252101
+  local wrench_frame_token = 5252001
+  local fixed_k = [600, 600, 600, 30, 30, 30]
+  local fixed_d = [69.282032302755098, 69.282032302755098, 69.282032302755098, 4.8989794855663558, 4.8989794855663558, 4.8989794855663558]
+  local zero_feedforward_wrench = [0, 0, 0, 0, 0, 0]
+  local joint_damping = [1.5, 1.5, 1.2, 0.3, 0.3, 0.2]
+  local tau_limit = [20.0, 20.0, 20.0, 8.0, 8.0, 8.0]
+  local origin_xy = [0.48779541114904901, 0.12932679270060748]
+  local u_along_xy = [-0.010785642631908187, 0.99994183326482378]
+  local p_lateral_xy = [-0.99994183326482389, -0.010785642631908406]
+  local static_xy_min = [0.45728547984107082, 0.12932678034319484]
+  local static_xy_max = [0.48779541114904901, 0.22350610254130138]
+  local hard_half_axes = [0.025000000000000001, 0.014999999999999999]
+  local cbf_qp_half_axes = [0.021999999999999999, 0.012]
+  local kunwei_force_limit_n = 6
+  local kunwei_torque_limit_nm = 0.5
+  local z_deviation_limit_m = 0.002
+  local orientation_limit_rad = 0.087266462599716474
+  local reference_speed_limit_m_s = 0.0030000000000000001
+  local linear_command_limit_m_s = 0.0040000000000000001
+  local qdot_limit_rad_s = 0.14999999999999999
+  local command_mode = 0
+  local last_sequence = 0
+  local stale_packet_ticks = 0
+  local lease_id = 0
+  local phase = 0
+  local fault_code = 0
+  local path_time_s = 0.0
+  # Direct Torque is owned by a minimal dedicated 500 Hz thread.  The main
+  # receiver publishes a seqlocked command; it never places packet parsing or
+  # Jacobian/controller work in the torque-call path.
+  local torque_thread_run = False
+  local torque_thread_handle = 0
+  local torque_command_generation = 0
+  local torque_thread_last_coherent_command = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local torque_thread_tick_count = 0
+  local control_update_count = 0
+  local torque_thread_last_control_update_count = -1
+  local torque_thread_stale_ticks = 0
+  local torque_thread_watchdog_fault = False
+  local friction_viscous_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local friction_coulomb_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  # Ramp the Cartesian wrench from zero after the fresh stationary handoff;
+  # the logged reference remains the exact frozen cycloid throughout.
+  local entry_ramp_count = 0
+  local entry_ramp_tick_limit = 50
+  local startup_safe_z = 0.0
+  local anchor_orientation = [0.0, 0.0, 0.0]
+  local torque_command = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+  thread direct_torque_thread():
+    while torque_thread_run:
+      if control_update_count == torque_thread_last_control_update_count:
+        torque_thread_stale_ticks = torque_thread_stale_ticks + 1
+      else:
+        torque_thread_last_control_update_count = control_update_count
+        torque_thread_stale_ticks = 0
+      end
+      if torque_thread_stale_ticks >= 25:
+        torque_thread_watchdog_fault = True
+        torque_thread_run = False
+      else:
+        local generation_begin = torque_command_generation
+        local candidate = [torque_command[0], torque_command[1], torque_command[2], torque_command[3], torque_command[4], torque_command[5]]
+        local generation_end = torque_command_generation
+        if generation_begin == generation_end and floor(generation_end/2)*2 == generation_end:
+          torque_thread_last_coherent_command = candidate
+        end
+        local torque_to_apply = [torque_thread_last_coherent_command[0], torque_thread_last_coherent_command[1], torque_thread_last_coherent_command[2], torque_thread_last_coherent_command[3], torque_thread_last_coherent_command[4], torque_thread_last_coherent_command[5]]
+        if not torque_thread_watchdog_fault:
+          direct_torque(torque_to_apply, viscous_scale=friction_viscous_scale, coulomb_scale=friction_coulomb_scale)
+          torque_thread_tick_count = torque_thread_tick_count + 1
+        end
+      end
+    end
+    stopj(10.0)
+  end
+
+  # Existing command/ack lineage: payload first, coherent sequence/heartbeat,
+  # bounded monotonic advancement (RTDE may coalesce a few host packets),
+  # exclusive lease, and explicit protocol echo.
+  write_output_integer_register(24, 0)
+  write_output_integer_register(25, 0)
+  write_output_integer_register(26, 0)
+  write_output_integer_register(27, 0)
+  write_output_integer_register(28, protocol_token)
+  while phase < 5:
+    local sequence_before = read_input_integer_register(25)
+    local mode = read_input_integer_register(24)
+    local heartbeat = read_input_integer_register(26)
+    local packet_lease = read_input_integer_register(27)
+    local joint_mode_ok = read_input_integer_register(28) == 1
+    local packet_protocol_ok = read_input_integer_register(29) == protocol_token
+    local receiver_fault = read_input_integer_register(30) != 0
+    local sequence_after = read_input_integer_register(25)
+    local coherent = sequence_before == sequence_after and heartbeat == sequence_after
+    local sequence_advanced = sequence_after > 0 and sequence_after > last_sequence and sequence_after <= last_sequence + 5
+    local sequence_duplicate = sequence_after > 0 and sequence_after == last_sequence
+    local sequence_ok = sequence_advanced or sequence_duplicate
+    local lease_ok = packet_lease > 0 and (lease_id == 0 or packet_lease == lease_id)
+    local packet_ok = coherent and sequence_ok and lease_ok and packet_protocol_ok and joint_mode_ok and not receiver_fault
+    local actual_pose = get_actual_tcp_pose()
+    local actual_speed = get_actual_tcp_speed()
+    local actual_q = get_actual_joint_positions()
+    local actual_qd = get_actual_joint_speeds()
+    # Kunwei is the only experiment F/T authority.  The host writes the
+    # software-baselined SI wrench into the guard payload; UR's internal F/T
+    # signal is never used as a fallback or alternate guard source.
+    local actual_wrench = [read_input_float_register(36), read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41)]
+    local desired_pose = [read_input_float_register(24), read_input_float_register(25), read_input_float_register(26), read_input_float_register(27), read_input_float_register(28), read_input_float_register(29)]
+    local reference_theta = path_time_s*0.10000000000000001
+    local reference_along = 0.014999999999999999*(reference_theta - sin(reference_theta))
+    local reference_lateral = 0.014999999999999999*(1.0 - cos(reference_theta))
+    local reference_pose = p[origin_xy[0] + u_along_xy[0]*reference_along + p_lateral_xy[0]*reference_lateral, origin_xy[1] + u_along_xy[1]*reference_along + p_lateral_xy[1]*reference_lateral, startup_safe_z, anchor_orientation[0], anchor_orientation[1], anchor_orientation[2]]
+    local reference_velocity = [0.014999999999999999*0.10000000000000001*(u_along_xy[0]*(1.0-cos(reference_theta)) + p_lateral_xy[0]*sin(reference_theta)), 0.014999999999999999*0.10000000000000001*(u_along_xy[1]*(1.0-cos(reference_theta)) + p_lateral_xy[1]*sin(reference_theta)), 0.0, 0.0, 0.0, 0.0]
+    if phase == 0:
+      # The receiver may start before the first RTDE packet.  Zero/default
+      # inputs are a waiting state; any nonzero malformed packet fails closed.
+      local waiting_for_first_packet = mode == 0 and sequence_after == 0
+      if waiting_for_first_packet:
+        phase = 0
+      elif not packet_ok or mode != 1:
+        fault_code = 1
+        phase = 4
+      else:
+        startup_safe_z = desired_pose[2]
+        anchor_orientation = [desired_pose[3], desired_pose[4], desired_pose[5]]
+        lease_id = packet_lease
+        last_sequence = sequence_after
+        stale_packet_ticks = 0
+        phase = 1
+      end
+    elif phase == 1:
+      if not packet_ok or mode != 1:
+        fault_code = 2
+        phase = 4
+      else:
+        if sequence_duplicate:
+          stale_packet_ticks = stale_packet_ticks + 1
+        else:
+          stale_packet_ticks = 0
+        end
+        if stale_packet_ticks > 25:
+          fault_code = 6
+          phase = 4
+        end
+        if stale_packet_ticks <= 25:
+          if sequence_advanced:
+            last_sequence = sequence_after
+          end
+        local pose_error = pose_sub(reference_pose, actual_pose)
+        local tcp_rotation_base = p[0.0, 0.0, 0.0, actual_pose[3], actual_pose[4], actual_pose[5]]
+        local orientation_error_base = wrench_trans(tcp_rotation_base, [0.0, 0.0, 0.0, pose_error[3], pose_error[4], pose_error[5]])
+        pose_error[0] = reference_pose[0] - actual_pose[0]
+        pose_error[1] = reference_pose[1] - actual_pose[1]
+        pose_error[2] = reference_pose[2] - actual_pose[2]
+        pose_error[3] = orientation_error_base[3]
+        pose_error[4] = orientation_error_base[4]
+        pose_error[5] = orientation_error_base[5]
+        local hard_along = (actual_pose[0]-reference_pose[0])*u_along_xy[0] + (actual_pose[1]-reference_pose[1])*u_along_xy[1]
+        local hard_lateral = (actual_pose[0]-reference_pose[0])*p_lateral_xy[0] + (actual_pose[1]-reference_pose[1])*p_lateral_xy[1]
+        local hard_value = (hard_along/hard_half_axes[0])*(hard_along/hard_half_axes[0]) + (hard_lateral/hard_half_axes[1])*(hard_lateral/hard_half_axes[1])
+        local cbf_qp_value = (hard_along/cbf_qp_half_axes[0])*(hard_along/cbf_qp_half_axes[0]) + (hard_lateral/cbf_qp_half_axes[1])*(hard_lateral/cbf_qp_half_axes[1])
+        local static_footprint_epsilon_m = 1.0e-8
+        local static_ok = reference_pose[0] >= static_xy_min[0] - static_footprint_epsilon_m and reference_pose[0] <= static_xy_max[0] + static_footprint_epsilon_m and reference_pose[1] >= static_xy_min[1] - static_footprint_epsilon_m and reference_pose[1] <= static_xy_max[1] + static_footprint_epsilon_m
+        local kunwei_force = sqrt(actual_wrench[0]*actual_wrench[0] + actual_wrench[1]*actual_wrench[1] + actual_wrench[2]*actual_wrench[2])
+        local kunwei_torque = sqrt(actual_wrench[3]*actual_wrench[3] + actual_wrench[4]*actual_wrench[4] + actual_wrench[5]*actual_wrench[5])
+        local actual_linear_speed = sqrt(actual_speed[0]*actual_speed[0] + actual_speed[1]*actual_speed[1] + actual_speed[2]*actual_speed[2])
+        local reference_speed = sqrt(reference_velocity[0]*reference_velocity[0] + reference_velocity[1]*reference_velocity[1] + reference_velocity[2]*reference_velocity[2])
+        local orientation_error = sqrt((actual_pose[3]-anchor_orientation[0])*(actual_pose[3]-anchor_orientation[0]) + (actual_pose[4]-anchor_orientation[1])*(actual_pose[4]-anchor_orientation[1]) + (actual_pose[5]-anchor_orientation[2])*(actual_pose[5]-anchor_orientation[2]))
+        local z_error = actual_pose[2] - startup_safe_z
+        if z_error < 0.0:
+          z_error = -z_error
+        end
+        local qdot_max = 0.0
+        local joint = 0
+        while joint < 6:
+          local qdot_abs = actual_qd[joint]
+          if qdot_abs < 0.0:
+            qdot_abs = -qdot_abs
+          end
+          if qdot_abs > qdot_max:
+            qdot_max = qdot_abs
+          end
+          joint = joint + 1
+        end
+        local safety_ok = static_ok and hard_value <= 1.0 and cbf_qp_value <= 1.0 and kunwei_force <= kunwei_force_limit_n and kunwei_torque <= kunwei_torque_limit_nm and z_error <= z_deviation_limit_m and orientation_error <= orientation_limit_rad and reference_speed <= reference_speed_limit_m_s and actual_linear_speed <= linear_command_limit_m_s and qdot_max <= qdot_limit_rad_s and packet_ok
+        if not safety_ok:
+          fault_code = 3
+          phase = 4
+        else:
+          local entry_blend = 1.0
+          if entry_ramp_count < entry_ramp_tick_limit:
+            entry_blend = entry_ramp_count / entry_ramp_tick_limit
+            entry_ramp_count = entry_ramp_count + 1
+          end
+          local cartesian_wrench = [entry_blend*(zero_feedforward_wrench[0] + fixed_k[0]*pose_error[0] - fixed_d[0]*actual_speed[0]), entry_blend*(zero_feedforward_wrench[1] + fixed_k[1]*pose_error[1] - fixed_d[1]*actual_speed[1]), entry_blend*(zero_feedforward_wrench[2] + fixed_k[2]*pose_error[2] - fixed_d[2]*actual_speed[2]), entry_blend*(zero_feedforward_wrench[3] + fixed_k[3]*pose_error[3] - fixed_d[3]*actual_speed[3]), entry_blend*(zero_feedforward_wrench[4] + fixed_k[4]*pose_error[4] - fixed_d[4]*actual_speed[4]), entry_blend*(zero_feedforward_wrench[5] + fixed_k[5]*pose_error[5] - fixed_d[5]*actual_speed[5])]
+          local q = get_actual_joint_positions()
+          local qd = get_actual_joint_speeds()
+          local jacobian = get_jacobian(q)
+          local coriolis = get_coriolis_and_centrifugal_torques(q, qd)
+          local tau = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+          joint = 0
+          while joint < 6:
+            tau[joint] = coriolis[joint] - joint_damping[joint]*qd[joint]
+            local axis = 0
+            while axis < 6:
+              tau[joint] = tau[joint] + jacobian[axis, joint]*cartesian_wrench[axis]
+              axis = axis + 1
+            end
+            joint = joint + 1
+          end
+          joint = 0
+          while joint < 6:
+            if tau[joint] > tau_limit[joint] or tau[joint] < -tau_limit[joint] or tau[joint] != tau[joint]:
+              safety_ok = False
+            end
+            joint = joint + 1
+          end
+          if not safety_ok:
+            fault_code = 4
+            phase = 4
+          else:
+            if torque_thread_watchdog_fault:
+              fault_code = 7
+              phase = 4
+            else:
+              torque_command_generation = torque_command_generation + 1
+              joint = 0
+              while joint < 6:
+                torque_command[joint] = tau[joint]
+                joint = joint + 1
+              end
+              torque_command_generation = torque_command_generation + 1
+              control_update_count = control_update_count + 1
+              if not torque_thread_run:
+                torque_thread_run = True
+                torque_thread_handle = run direct_torque_thread()
+              end
+            end
+            path_time_s = path_time_s + get_steptime()
+            if path_time_s >= diagnostic_duration_s:
+              phase = 2
+            end
+          end
+        end
+        end
+      end
+    elif phase == 2:
+      # Normal completion is typed: return to the path origin before session Home.
+      # The impedance return is followed by the host's guarded transition.
+      local origin_pose = p[origin_xy[0], origin_xy[1], startup_safe_z, anchor_orientation[0], anchor_orientation[1], anchor_orientation[2]]
+      local origin_error = pose_sub(origin_pose, actual_pose)
+      if sqrt(origin_error[0]*origin_error[0] + origin_error[1]*origin_error[1] + origin_error[2]*origin_error[2]) <= 0.0005:
+        phase = 3
+      else:
+        local return_wrench = [fixed_k[0]*origin_error[0] - fixed_d[0]*actual_speed[0], fixed_k[1]*origin_error[1] - fixed_d[1]*actual_speed[1], fixed_k[2]*origin_error[2] - fixed_d[2]*actual_speed[2], fixed_k[3]*origin_error[3] - fixed_d[3]*actual_speed[3], fixed_k[4]*origin_error[4] - fixed_d[4]*actual_speed[4], fixed_k[5]*origin_error[5] - fixed_d[5]*actual_speed[5]]
+        local q_return = get_actual_joint_positions()
+        local qd_return = get_actual_joint_speeds()
+        local jacobian_return = get_jacobian(q_return)
+        local coriolis_return = get_coriolis_and_centrifugal_torques(q_return, qd_return)
+        local tau_return = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        joint = 0
+        while joint < 6:
+          tau_return[joint] = coriolis_return[joint] - joint_damping[joint]*qd_return[joint]
+          local axis_return = 0
+          while axis_return < 6:
+            tau_return[joint] = tau_return[joint] + jacobian_return[axis_return, joint]*return_wrench[axis_return]
+            axis_return = axis_return + 1
+          end
+          if tau_return[joint] > tau_limit[joint] or tau_return[joint] < -tau_limit[joint] or tau_return[joint] != tau_return[joint]:
+            fault_code = 5
+            phase = 4
+          end
+          joint = joint + 1
+        end
+        if phase == 2:
+          torque_command_generation = torque_command_generation + 1
+          joint = 0
+          while joint < 6:
+            torque_command[joint] = tau_return[joint]
+            joint = joint + 1
+          end
+          torque_command_generation = torque_command_generation + 1
+          control_update_count = control_update_count + 1
+        end
+      end
+    elif phase == 3:
+      # Session Home is an external session transition; stop and verify stationary.
+      if torque_thread_run:
+        torque_thread_run = False
+        join torque_thread_handle
+      end
+      direct_torque([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], viscous_scale=friction_viscous_scale, coulomb_scale=friction_coulomb_scale)
+      stopj(10.0)
+      if sqrt(actual_speed[0]*actual_speed[0] + actual_speed[1]*actual_speed[1] + actual_speed[2]*actual_speed[2]) <= 0.0001:
+        phase = 5
+      end
+    else:
+      # Any preposition/path/return fault is zero -> abort -> stop; no recovery.
+      if torque_thread_run:
+        torque_thread_run = False
+        join torque_thread_handle
+      end
+      direct_torque([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], viscous_scale=friction_viscous_scale, coulomb_scale=friction_coulomb_scale)
+      stopj(10.0)
+      phase = 5
+    end
+    write_output_integer_register(24, phase)
+    write_output_integer_register(25, last_sequence)
+    write_output_integer_register(26, fault_code)
+    write_output_integer_register(27, lease_id)
+    write_output_integer_register(28, protocol_token)
+    sync()
+  end
+  if torque_thread_run:
+    torque_thread_run = False
+    join torque_thread_handle
+  end
+end
+step5d_tacdiffusion_autotuner_xy_no_contact_v1_package_receiver()
