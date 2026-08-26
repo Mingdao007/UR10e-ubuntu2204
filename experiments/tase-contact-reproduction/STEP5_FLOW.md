@@ -484,6 +484,7 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v29` | archive | true | false | historical strict TASE RNN speedj | `v31_filtered_live` | `ARCHIVED_PROFILE`: immutable non-executable evidence only; replacement is `step5d_strict_rnn_autotune_v3_r012`. |
 | `step5d_strict_rnn_no_contact_p0_v8` | frozen failed P0 evidence | false | false | v30 strict-RNN contract | none | Retained 60 s failed canary and controller readback evidence. Its press-only target conflicts with the intended no-contact experiment and its TP package lacks the full command echo required for semantic qualification. It cannot be promoted and is superseded by P0 v9. |
 | `step5d_strict_rnn_no_contact_p0_v9` | permissive P0 guard v2 | false | false | strict-RNN layout-524 structural contract | none | Canonical free-space candidate: 60 s cycloid with `A=15 mm`, `theta=0..6`, about 94.19 mm along travel, 30 mm lateral peak, and smooth relative base `Z=+20 mm`; `qdot<=0.5 rad/s`; 2 s sensor stale, 1 s heartbeat stale, 75 s TP runtime. Force/torque, Cartesian/normal speed, approach-normal displacement, DLS, residual magnitude, and active bounds are diagnostic-only. Success requires 60 continuous consumed/accepted seconds, along endpoint >=90 mm, lateral peak >=25 mm, relative Z endpoint >=18 mm, and terminal TP stop acknowledgement. |
+| `step5d_tacdiffusion_autotuner_xy_no_contact_v1` | offline Direct Torque diagnostic | false | false | frozen base-frame XY moving reference | none | Independent 2 s -> 10 s -> 60 s diagnostic: exact origin/basis cycloid, fixed startup-safe Z and pre-positioned-anchor orientation, 500 Hz recorder, moving-reference 25x15 mm hard ellipse then 22x12 mm soft CBF-QP, Kunwei 6 N/0.5 Nm and protocol/heartbeat/joint-mode/fault checks. Flags remain `contact=false`, `training_dataset=false`, `qualification=false`, `promotion=false`; terminal route is path origin -> session Home -> stop -> stationary verification, and tracking failure is diagnostic-only. |
 | `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive contact candidate retaining the stricter 1%/20 ms bounded last-command-hold contract. Hard-real-time remains a distinct zero-miss claim; readiness still requires live-runtime integration, a passing successor no-contact canary, and frozen package/readback. Contact requires separate authorization. |
 | `step5d_strict_rnn_ablation_v31` | superseded failure evidence | true | false | strict TASE RNN layout-524; DLS/Cartesian shadow-only | latched contact normal | Immutable failed run: TP reached Stage25.05, but the old global 524 publisher gate suppressed latch-ready state 33, so TP timed out before preload/continuous contact. Superseded by v32. |
 | `step5d_strict_rnn_ablation_v32` | immutable failure evidence | true | false | stage-aware strict TASE RNN speedj; DLS/Cartesian shadow-only | latched contact normal | Live run reached Stage25 but accumulated about 2.7 s stale RTDE feedback, drifted in XY, and ended at the 60 N gross normal guard. Superseded by v33; never rerun or reinterpret. |
@@ -1136,30 +1137,35 @@ Before any TP play instruction:
 
 ## Bridge Trigger
 
-The Step4e trigger vocabulary applies unchanged to Step5, contact stages
-included. After Codex states it is waiting for the bridge trigger, any of
-`开bridge`, `开 bridge`, single-token `开`, or single-token `1` is a complete
-authorization. Codex must not ask the user for any additional confirmation
-phrase for any Step5 stage.
+Step5 (contact stages included) uses the same remote-control auto path as
+Step4e. When package handoff is done and Dashboard reports remote control +
+Safety `NORMAL` + exact program loaded/stopped + exclusive writer free, Codex
+runs the live entry in the same turn. Live preflight writes
+`bridge_trigger.live_motion_authorized=true` with
+`authorization_source=remote_control_readiness`.
 
-On a valid trigger:
+Optional chat aliases that also enter the same path immediately:
+`开bridge`, `开 bridge`, single-token `开`, or single-token `1`.
 
-1. For governed Step5d V3, invoke `scripts/step5d-autotune-v3.sh bridge-live` once;
-   do not ask for stage-by-stage authorization. The invocation is the typed
-   campaign authorization bound to the release, campaign, and safety envelope.
+On that live start:
+
+1. For governed Step5d V3, invoke `scripts/step5d-autotune-v3.sh bridge-live`
+   once for the release/campaign/safety envelope. The same campaign continues
+   subsequent attempts on that authorization; stages advance on the supervisor
+   chain without a fresh chat token per stage.
 2. `release-contract-check` performs only the offline/no-motion/no-network
    release-contract transition. `tp-deliver` consumes that certificate, uploads,
    performs a fresh controller GET, writes the immutable delivery receipt, and
-   promotes the current-release pointer; it never sends Dashboard Load or Play.
-   `bridge-live` consumes the promoted receipt and performs a read-only
-   exact-program-loaded/stopped observation before creating an attempt. If the
-   TP has not loaded and stopped the exact program, it exits 75 with
-   `EXTERNAL_ACTION_REQUIRED`; after the operator completes Load/Stop, rerun the
-   same `bridge-live` command. The operator separately owns physical Play and
-   Stop.
+   promotes the current-release pointer; Load and Play stay outside
+   `tp-deliver`. `bridge-live` consumes the promoted receipt and performs a
+   read-only exact-program-loaded/stopped observation before creating an
+   attempt. If the TP has not loaded and stopped the exact program, it exits
+   75 with `EXTERNAL_ACTION_REQUIRED`; after the operator completes Load/Stop,
+   rerun the same `bridge-live` command. The operator separately owns physical
+   Play and Stop.
 3. `WAITING_FOR_PLAY` is the only state that permits a Play prompt. Every ARM
-   still requires a fresh exact-command grant; readiness observations cannot
-   authorize ARM and a prior grant cannot be reused by the next command.
+   still requires a fresh exact-command grant; a prior ARM grant applies to one
+   command only.
 4. After compaction or resume, run `scripts/step5d-autotune-v3.sh status --json`
    before continuing. A state-digest mismatch invalidates the previous plan.
 

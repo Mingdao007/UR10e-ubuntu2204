@@ -66,7 +66,11 @@ def _mini_experiment(
             "packages": {
                 "ros-humble-pinocchio": "4.0.0",
                 "ros-humble-xacro": "2.1.1",
-            }
+            },
+            "required_python_imports": {
+                "pinocchio": "ros-humble-pinocchio",
+                "xacro": "ros-humble-xacro",
+            },
         },
         "gpu": {"uuid": "GPU-test", "driver_version": "test"},
         "calibration": {

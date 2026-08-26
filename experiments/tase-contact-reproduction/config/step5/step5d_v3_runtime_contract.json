@@ -91,6 +91,10 @@
       "ros-humble-ur-robot-driver": "2.13.2-1jammy.20260625.112711",
       "ros-humble-xacro": "2.1.1-1jammy.20260304.195513"
     },
+    "required_python_imports": {
+      "pinocchio": "ros-humble-pinocchio",
+      "xacro": "ros-humble-xacro"
+    },
     "xacro_path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
     "xacro_sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
   },

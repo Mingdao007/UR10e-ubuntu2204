@@ -55,6 +55,7 @@ from step5d_bridge_authority import (
     BridgeAuthorityError,
     load_current as load_owner_authority,
 )
+from step5d_autotune_v3.runtime_host_gate import host_runtime_status
 
 
 STATUS_SCHEMA = "step5d.bridge/governed-status-v2"
@@ -132,6 +133,11 @@ def _base_status(reason: str, *, attempt: Mapping[str, Any] | None) -> dict[str,
             "PUBLICATION_LINEAGE_MISSING": "run_revalidate_current",
             "LOADED_PROGRAM_UNSUPPORTED": "load_exact_supported_program_before_retry",
             "MANUAL_V2_ARCHIVED": "load_current_autotune_v3_program",
+            "RUNTIME_NOT_PROVISIONED": "provision_runtime",
+            "RUNTIME_LOCK_MISMATCH": "provision_runtime_for_current_lock",
+            "HOST_IMPORT_MISSING": "restore_host_contract",
+            "HOST_CONTRACT_MISMATCH": "restore_host_contract",
+            "ENTRYPOINT_RUNTIME_MISMATCH": "use_canonical_entrypoint",
         }.get(reason, "repair_internal_governance_state"),
         "launch_attempt": _launch_view(attempt),
     }
@@ -488,7 +494,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
-        status = resolve_status(args.experiment_root)
+        runtime = host_runtime_status()
+        if runtime.get("ok") is not True:
+            status = _base_status(
+                str(runtime.get("reason_code") or "HOST_CONTRACT_MISMATCH"),
+                attempt=None,
+            )
+            status["runtime"] = runtime
+            status["blocker"]["evidence"] = [
+                {
+                    "role": "runtime_host_gate",
+                    "detail": runtime.get("detail"),
+                }
+            ]
+        else:
+            status = resolve_status(args.experiment_root)
+            status["runtime"] = runtime
         payload = status if args.assert_state is None else readiness_claim(status, args.assert_state)
     except Exception as exc:
         print(f"Step5d governed status unavailable: {type(exc).__name__}:{exc}", file=sys.stderr)

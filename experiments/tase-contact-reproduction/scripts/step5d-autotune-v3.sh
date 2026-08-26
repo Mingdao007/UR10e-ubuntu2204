@@ -714,10 +714,30 @@ if [[ ! -f "${RUNTIME_RESOLVER}" || -L "${RUNTIME_RESOLVER}" ]]; then
   bridge_runtime_fail 66 ACTIVE_SOURCE_CLOSURE_UNRESOLVED \
     "missing governed runtime resolver: ${RUNTIME_RESOLVER}"
 fi
+if [[ "${1:-}" == "status" && "${2:-}" == "--json" ]]; then
+  status_command=(
+    /usr/bin/python3.10 -B -I
+    "${EXPERIMENT_ROOT}/tools/step5d_bridge_status.py"
+    --experiment-root "${EXPERIMENT_ROOT}"
+  )
+  if (( $# == 4 )) && [[ "${3}" == "--assert-state" ]]; then
+    status_command+=(--assert-state "${4}")
+  elif (( $# != 2 )); then
+    echo "status accepts only --json and optional --assert-state STATE" >&2
+    exit 64
+  fi
+  exec "${status_command[@]}"
+fi
 runtime_binding=""
-if ! runtime_binding="$(/usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --shell-binding)"; then
-  bridge_runtime_fail 78 RUNTIME_NOT_PROVISIONED \
-    "governed runtime unavailable; provision the current uv.lock runtime before bridge delivery"
+if ! runtime_binding="$(/usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --shell-binding 2>&1)"; then
+  runtime_error_line="${runtime_binding%%$'\n'*}"
+  runtime_reason="${runtime_error_line%%:*}"
+  runtime_detail="${runtime_error_line#*: }"
+  if [[ ! "${runtime_reason}" =~ ^[A-Z][A-Z0-9_]+$ ]]; then
+    runtime_reason="RUNTIME_NOT_PROVISIONED"
+    runtime_detail="governed runtime unavailable; ${runtime_error_line}"
+  fi
+  bridge_runtime_fail 78 "${runtime_reason}" "${runtime_detail}"
 fi
 IFS=$'\t' read -r \
   CONTROL_PYTHON \

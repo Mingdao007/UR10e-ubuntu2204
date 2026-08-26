@@ -30,11 +30,53 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
+STEP4F_SAFE_FRAME_PATH = EXPERIMENT_ROOT / "config" / "step4f_safe_frame.json"
+TOOLS_ROOT = EXPERIMENT_ROOT / "tools"
+if str(TOOLS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOLS_ROOT))
+RUNTIME_SOURCE = EXPERIMENT_ROOT.parents[1] / "src" / "ur10e_experiment_runtime"
+if str(RUNTIME_SOURCE) not in sys.path:
+    sys.path.insert(0, str(RUNTIME_SOURCE))
+from step5d_autotune_v3.runtime_host_gate import require_host_runtime  # noqa: E402
+from step5d_autotune_v3.runtime_installation import (  # noqa: E402
+    RuntimeInstallationError,
+    require_runtime_profile,
+)
+
+if __name__ == "__main__":
+    try:
+        require_host_runtime()
+        require_runtime_profile("control", full_integrity=False)
+    except RuntimeInstallationError as exc:
+        reason_code = exc.reason_code
+        detail = exc.detail
+        if reason_code in {"CONTROL_RUNTIME_INVALID", "OPTIMIZER_RUNTIME_INVALID"}:
+            reason_code = "ENTRYPOINT_RUNTIME_MISMATCH"
+            detail = (
+                f"{detail}; use the canonical entrypoint "
+                f"{EXPERIMENT_ROOT / 'scripts/step5d-autotune-v3.sh'} bridge-live"
+            )
+        print(
+            json.dumps(
+                {
+                    "schema": "step5d.autotune-v3/entrypoint-error-v1",
+                    "ok": False,
+                    "reason_code": reason_code,
+                    "detail": detail,
+                    "canonical_entrypoint": str(
+                        EXPERIMENT_ROOT / "scripts/step5d-autotune-v3.sh"
+                    ),
+                },
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        raise SystemExit(78)
+
 import numpy as np
 
 
-EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
-STEP4F_SAFE_FRAME_PATH = EXPERIMENT_ROOT / "config" / "step4f_safe_frame.json"
 KUNWEI_TOOLS = (
     EXPERIMENT_ROOT.parents[1]
     / "experiments/sensor-integration/kunwei-kwr75b/tools"
@@ -10320,6 +10362,34 @@ def require_v29_dashboard_program_binding(
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    try:
+        require_host_runtime()
+        require_runtime_profile("control", full_integrity=False)
+    except RuntimeInstallationError as exc:
+        reason_code = exc.reason_code
+        detail = exc.detail
+        if reason_code in {"CONTROL_RUNTIME_INVALID", "OPTIMIZER_RUNTIME_INVALID"}:
+            reason_code = "ENTRYPOINT_RUNTIME_MISMATCH"
+            detail = (
+                f"{detail}; use the canonical entrypoint "
+                f"{EXPERIMENT_ROOT / 'scripts/step5d-autotune-v3.sh'} bridge-live"
+            )
+        print(
+            json.dumps(
+                {
+                    "schema": "step5d.autotune-v3/entrypoint-error-v1",
+                    "ok": False,
+                    "reason_code": reason_code,
+                    "detail": detail,
+                    "canonical_entrypoint": str(
+                        EXPERIMENT_ROOT / "scripts/step5d-autotune-v3.sh"
+                    ),
+                },
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        return 78
     try:
         require_executable_step5d_profile(args.bridge_profile)
     except RuntimeError as exc:

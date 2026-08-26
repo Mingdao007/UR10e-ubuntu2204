@@ -23,6 +23,9 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
+TOOLS_ROOT = ROOT / "tools"
+if str(TOOLS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOLS_ROOT))
 RUNTIME_SRC = ROOT.parents[1] / "src" / "ur10e_experiment_runtime"
 if str(RUNTIME_SRC) not in sys.path:
     sys.path.insert(0, str(RUNTIME_SRC))
@@ -41,7 +44,11 @@ from step5d_autotune_v3.runtime_gate import (
     loaded_program_matches,
     release_runtime_contract,
 )
-from step5d_autotune_v3.runtime_installation import require_runtime_profile
+from step5d_autotune_v3.runtime_host_gate import require_host_runtime
+from step5d_autotune_v3.runtime_installation import (
+    RuntimeInstallationError,
+    require_runtime_profile,
+)
 
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
 TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v6"
@@ -899,6 +906,7 @@ def main(argv: list[str] | None = None) -> int:
         # before spawning this ticket-bound child. Revalidate its immutable
         # pointer/attestation and exact interpreter binding without repeating
         # the multi-gigabyte profile-tree hash inside the readiness window.
+        require_host_runtime(bridge_argv=bridge_argv)
         require_runtime_profile("control", full_integrity=False)
         release = load_runtime_release(ROOT)
         ticket = _strict_ticket(
@@ -910,6 +918,31 @@ def main(argv: list[str] | None = None) -> int:
             ticket,
             release_identity=release,
         )
+    except RuntimeInstallationError as exc:
+        reason_code = exc.reason_code
+        detail = exc.detail
+        if reason_code in {"CONTROL_RUNTIME_INVALID", "OPTIMIZER_RUNTIME_INVALID"}:
+            reason_code = "ENTRYPOINT_RUNTIME_MISMATCH"
+            detail = (
+                f"{detail}; use the canonical entrypoint "
+                f"{ROOT / 'scripts/step5d-autotune-v3.sh'} bridge-live"
+            )
+        print(
+            json.dumps(
+                {
+                    "schema": "step5d.autotune-v3/entrypoint-error-v1",
+                    "ok": False,
+                    "reason_code": reason_code,
+                    "detail": detail,
+                    "canonical_entrypoint": str(
+                        ROOT / "scripts/step5d-autotune-v3.sh"
+                    ),
+                },
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        return 78
     except (BridgeTicketError, ReleaseIdentityError, RuntimeGateError) as exc:
         print(f"refusing: {exc}", file=sys.stderr)
         return 24

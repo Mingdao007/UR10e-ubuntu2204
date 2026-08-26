@@ -143,6 +143,39 @@ def test_canonical_shell_resolves_runtime_without_caller_pythonpath() -> None:
     assert isinstance(status["predicates"]["canonical_attempt_bound"], bool)
 
 
+def test_direct_kunwei_python_entrypoint_fails_closed_with_canonical_reason() -> None:
+    environment = dict(os.environ)
+    environment.pop("PYTHONPATH", None)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-I",
+            str(ROOT / "tools/kunwei_rtde_bridge.py"),
+            "--no-start-command",
+            "--no-stop-command",
+            "--duration-s",
+            "0.1",
+            "--baseline-s",
+            "0.0",
+        ],
+        cwd=ROOT,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=30.0,
+        check=False,
+    )
+    assert completed.returncode == 78
+    payload = json.loads(completed.stderr.splitlines()[-1])
+    assert payload["reason_code"] == "ENTRYPOINT_RUNTIME_MISMATCH"
+    assert payload["canonical_entrypoint"].endswith(
+        "scripts/step5d-autotune-v3.sh"
+    )
+    assert "ModuleNotFoundError" not in completed.stderr
+
+
 def test_status_entrypoint_bootstraps_repository_runtime_under_isolated_python() -> None:
     environment = dict(os.environ)
     environment.pop("PYTHONPATH", None)

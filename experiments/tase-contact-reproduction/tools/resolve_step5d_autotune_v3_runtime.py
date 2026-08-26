@@ -20,6 +20,10 @@ from step5d_autotune_v3.runtime_installation import (
     load_runtime_pointer_identity,
     runtime_status,
 )
+from step5d_autotune_v3.runtime_host_gate import (
+    host_runtime_status,
+    require_host_runtime,
+)
 from step5d_autotune_v3.runtime_environment import production_runtime_environment
 
 
@@ -30,6 +34,8 @@ _NEXT_ACTION = {
     "CONTROL_RUNTIME_INVALID": "reprovision_control_runtime",
     "OPTIMIZER_RUNTIME_INVALID": "reprovision_optimizer_runtime",
     "HOST_CONTRACT_MISMATCH": "restore_host_contract",
+    "HOST_IMPORT_MISSING": "restore_host_contract",
+    "ENTRYPOINT_RUNTIME_MISMATCH": "use_canonical_entrypoint",
     "GPU_IDENTITY_MISMATCH": "restore_governed_gpu_identity",
     "OWNER_DEPENDENCY_MISMATCH": "restore_owner_dependency",
 }
@@ -103,7 +109,24 @@ def main(argv: list[str] | None = None) -> int:
         if status.get("reason_code") is not None:
             print(json.dumps(_blocked_status(status), sort_keys=True))
         else:
-            print(json.dumps({"ok": True, **status}, sort_keys=True))
+            host = host_runtime_status()
+            if host.get("ok") is not True:
+                blocked = _blocked_status(
+                    {
+                        **status,
+                        "reason_code": host.get("reason_code"),
+                        "detail": host.get("detail"),
+                        "host_runtime": host,
+                    }
+                )
+                print(json.dumps(blocked, sort_keys=True))
+            else:
+                print(
+                    json.dumps(
+                        {"ok": True, **status, "host_runtime": host},
+                        sort_keys=True,
+                    )
+                )
         return 0
     pointer_loader = (
         load_runtime_pointer_identity if args.shell_binding else load_runtime_pointer
@@ -129,12 +152,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.shell_binding:
         from step5d_autotune_v3.runtime_installation import load_runtime_contract
 
-        contract = load_runtime_contract()
-        control_environment = production_runtime_environment(
-            os.environ,
-            profile="control",
-            runtime_pointer=pointer,
-        )
+        try:
+            contract = load_runtime_contract()
+            control_environment = production_runtime_environment(
+                os.environ,
+                profile="control",
+                runtime_pointer=pointer,
+            )
+            require_host_runtime(runtime_pointer=pointer)
+        except RuntimeInstallationError as exc:
+            print(f"{exc.reason_code}: {exc.detail}")
+            return 2
+        except (OSError, TypeError, ValueError, KeyError) as exc:
+            print(f"HOST_CONTRACT_MISMATCH: runtime binding failed closed: {exc}")
+            return 2
         fields = (
             pointer["profiles"]["control"]["python_executable"],
             pointer["bundle_id"],

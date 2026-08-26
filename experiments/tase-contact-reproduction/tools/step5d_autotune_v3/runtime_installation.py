@@ -293,7 +293,14 @@ def load_runtime_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:
 
     ros = exact_object(
         payload["ros"],
-        {"distro", "prefix", "packages", "xacro_path", "xacro_sha256"},
+        {
+            "distro",
+            "prefix",
+            "packages",
+            "required_python_imports",
+            "xacro_path",
+            "xacro_sha256",
+        },
         "ROS contract",
     )
     for field in ("distro", "prefix", "xacro_path"):
@@ -312,6 +319,26 @@ def load_runtime_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:
     ):
         raise RuntimeInstallationError(
             "HOST_CONTRACT_MISMATCH", "ROS package contract is invalid"
+        )
+    required_python_imports = ros["required_python_imports"]
+    if (
+        not isinstance(required_python_imports, dict)
+        or not required_python_imports
+        or any(
+            not isinstance(module, str)
+            or not module
+            or not isinstance(package, str)
+            or not package
+            or package not in packages
+            for module, package in required_python_imports.items()
+        )
+        or len(required_python_imports) != len(set(required_python_imports))
+        or len(required_python_imports.values())
+        != len(set(required_python_imports.values()))
+    ):
+        raise RuntimeInstallationError(
+            "HOST_CONTRACT_MISMATCH",
+            "ROS required Python imports must map uniquely to declared packages",
         )
     _require_sha256(ros["xacro_sha256"], "xacro digest")
 

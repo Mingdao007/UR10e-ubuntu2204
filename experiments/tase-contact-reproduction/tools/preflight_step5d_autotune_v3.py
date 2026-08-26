@@ -14,6 +14,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+TOOLS_ROOT = Path(__file__).resolve().parent
+if str(TOOLS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOLS_ROOT))
+
 import build_step5d_autotune_tp_v3 as tp_v3
 import run_step5d_autotune_v3_bridge as bridge_wrapper
 from step5d_autotune_v3 import preflight_support as support
@@ -36,16 +40,23 @@ from step5d_autotune_v3.rtde_client import RTDEClient
 from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY
 from step5d_autotune_v3.runtime_profile import load_launch_profile
 from step5d_autotune_v3.runtime_calibration import dependency_observation
-from step5d_autotune_v3.runtime_installation import require_runtime_profile
+from step5d_autotune_v3.runtime_host_gate import require_host_runtime
+from step5d_autotune_v3.runtime_installation import (
+    RuntimeInstallationError,
+    require_runtime_profile,
+)
+from step5d_autotune_v3.atomic_io import AtomicIOError, atomic_bytes
 from step5d_autotune_v3.state import atomic_json
 from step5d_autotune_v3.launch_basis import read_and_validate_launch_basis
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
+CURRENT_STAGE_REL = Path("config/current_stage.json")
 PREDICATE_NAMES = frozenset(
     {
         "safety_normal",
+        "remote_control",
         "program_safe_for_bridge",
         "robot_stationary",
         "prealign_start_clearance",
@@ -187,6 +198,71 @@ def _safety_normal(dashboard: Mapping[str, Any]) -> dict[str, Any]:
     return {"ok": value == "NORMAL", "observed": value}
 
 
+def _remote_control(dashboard: Mapping[str, Any]) -> dict[str, Any]:
+    raw = dashboard.get("is in remote control", dashboard.get("remote_control"))
+    if isinstance(raw, bool):
+        return {"ok": raw is True, "observed": raw}
+    text = str(raw or "").strip()
+    token = text.rsplit(":", 1)[-1].strip().upper()
+    return {"ok": token in {"TRUE", "1", "YES"}, "observed": token or text}
+
+
+def apply_remote_control_live_authorization(
+    *,
+    root: Path,
+    dashboard: Mapping[str, Any],
+    preflight_ok: bool,
+) -> dict[str, Any]:
+    """Record live authorization when remote-control readiness already passed."""
+    remote = _remote_control(dashboard)
+    safety = _safety_normal(dashboard)
+    record: dict[str, Any] = {
+        "applied": False,
+        "preflight_ok": preflight_ok,
+        "remote_control": remote,
+        "safety_normal": safety,
+        "authorization_source": "remote_control_readiness",
+        "current_stage": str(root / CURRENT_STAGE_REL),
+    }
+    if not (preflight_ok and remote["ok"] is True and safety["ok"] is True):
+        return record
+    path = root / CURRENT_STAGE_REL
+    if path.is_symlink() or not path.is_file():
+        record["error"] = "current_stage.json missing or not a regular file"
+        return record
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        record["error"] = f"{type(exc).__name__}:{exc}"
+        return record
+    if not isinstance(payload, dict):
+        record["error"] = "current_stage.json root must be an object"
+        return record
+    trigger = payload.setdefault("bridge_trigger", {})
+    if not isinstance(trigger, dict):
+        record["error"] = "bridge_trigger must be an object"
+        return record
+    authorized_at = datetime.now(timezone.utc).isoformat()
+    trigger["live_motion_authorized"] = True
+    trigger["authorization_source"] = "remote_control_readiness"
+    trigger["authorized_at"] = authorized_at
+    trigger["blocked_reason"] = None
+    encoded = (json.dumps(payload, allow_nan=False, indent=2) + "\n").encode("utf-8")
+    try:
+        atomic_bytes(path, encoded)
+    except AtomicIOError as exc:
+        record["error"] = str(exc)
+        return record
+    record.update(
+        {
+            "applied": True,
+            "live_motion_authorized": True,
+            "authorized_at": authorized_at,
+        }
+    )
+    return record
+
+
 def _mailbox_initial_zero(path: Path) -> dict[str, Any]:
     absent = not path.exists() and not path.is_symlink()
     return {"ok": absent, "path": str(path), "policy": "absent_before_live_bridge"}
@@ -326,6 +402,7 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
     )
     predicates = {
         "safety_normal": _safety_normal(dashboard),
+        "remote_control": _remote_control(dashboard),
         "program_safe_for_bridge": _program_safe_for_bridge(
             dashboard,
             rtde,
@@ -403,8 +480,14 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
             "the current TCP start Z is checked against the evidence-bound prealign Z before Play",
             "no bridge, RTDE input, Load, ARM, contact, or motion",
             "an operator-started exact release is accepted only at READY_HOME with zero trial identity and matching TP runtime identity",
+            "remote-control readiness writes bridge_trigger.live_motion_authorized before live handoff",
         ],
     }
+    payload["live_authorization"] = apply_remote_control_live_authorization(
+        root=ROOT,
+        dashboard=dashboard,
+        preflight_ok=payload["ok"] is True,
+    )
     atomic_json(args.output, payload)
     return payload
 
@@ -440,10 +523,24 @@ def main(argv: list[str] | None = None) -> int:
             owner_starttime=args.owner_starttime,
             expected_basis_sha256=args.launch_basis_sha256,
         )
+        require_host_runtime()
         require_runtime_profile("control")
         payload = run_preflight(args)
         payload["launch_basis_sha256"] = basis["basis_sha256"]
         atomic_json(args.output, payload)
+    except RuntimeInstallationError as exc:
+        payload = {
+            "schema": SCHEMA,
+            "ok": False,
+            "fresh": False,
+            "blocker": {
+                "reason_code": exc.reason_code,
+                "detail": exc.detail,
+                "canonical_entrypoint": str(
+                    ROOT / "scripts/step5d-autotune-v3.sh"
+                ),
+            },
+        }
     except Exception as exc:
         payload = {"schema": SCHEMA, "ok": False, "fresh": False, "blocker": str(exc)}
     print(json.dumps(payload, indent=2, sort_keys=True))

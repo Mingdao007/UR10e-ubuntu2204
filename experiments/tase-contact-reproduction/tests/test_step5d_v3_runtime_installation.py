@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import inspect
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT.parents[1] / "src/ur10e_experiment_runtime"))
 
 from step5d_autotune_v3 import runtime_installation as runtime  # noqa: E402
+from step5d_autotune_v3 import runtime_host_gate  # noqa: E402
 
 
 RESOLVER_PATH = ROOT / "tools/resolve_step5d_autotune_v3_runtime.py"
@@ -66,6 +68,28 @@ def test_runtime_contract_and_lock_define_two_distinct_profiles() -> None:
     assert contract["profiles"]["optimizer"]["required_distributions"]["torch"] == (
         "2.11.0+cu128"
     )
+    assert contract["ros"]["required_python_imports"] == {
+        "pinocchio": "ros-humble-pinocchio",
+        "xacro": "ros-humble-xacro",
+    }
+    assert {"pinocchio", "xacro"}.issubset(
+        contract["profiles"]["optimizer"]["forbidden_imports"]
+    )
+
+
+def test_host_runtime_gate_imports_ros_host_and_prewarm_without_live_io() -> None:
+    result = runtime_host_gate.run_host_runtime_gate(environ={**os.environ})
+
+    assert result["ok"] is True
+    assert result["host_runtime_ready"] is True
+    assert result["startup_prewarm_passed"] is True
+    assert result["sensor_connectivity"] == "not_run"
+    assert result["live_acceptance"] is False
+    assert set(result["imports"]) >= {
+        "pinocchio",
+        "xacro",
+        "ur10e_experiment_runtime",
+    }
 
 
 def test_missing_runtime_pointer_has_one_machine_reason(tmp_path: Path) -> None:
@@ -264,6 +288,11 @@ def test_shell_binding_uses_identity_pointer_before_command_full_gate(
             "CUPY_CACHE_DIR": "/runtime/cache/cupy",
         },
     )
+    monkeypatch.setattr(
+        resolver,
+        "require_host_runtime",
+        lambda **_kwargs: {"ok": True},
+    )
 
     assert resolver.main(["--shell-binding"]) == 0
     fields = capsys.readouterr().out.strip().split("\t")
@@ -274,6 +303,35 @@ def test_shell_binding_uses_identity_pointer_before_command_full_gate(
         "/runtime/control/nvidia",
         "/runtime/cache/cupy",
     ]
+
+
+def test_shell_binding_reports_structured_host_gate_reason(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pointer = _runtime_pointer_fixture(tmp_path)
+    monkeypatch.setattr(resolver, "load_runtime_pointer_identity", lambda: pointer)
+    monkeypatch.setattr(
+        resolver,
+        "production_runtime_environment",
+        lambda *_args, **_kwargs: {
+            "LD_LIBRARY_PATH": "/runtime/control/nvidia",
+            "CUPY_CACHE_DIR": "/runtime/cache/cupy",
+        },
+    )
+
+    def blocked(**_kwargs):
+        raise runtime.RuntimeInstallationError(
+            "HOST_IMPORT_MISSING", "host import pinocchio unavailable"
+        )
+
+    monkeypatch.setattr(resolver, "require_host_runtime", blocked)
+
+    assert resolver.main(["--shell-binding"]) == 2
+    assert capsys.readouterr().out.strip() == (
+        "HOST_IMPORT_MISSING: host import pinocchio unavailable"
+    )
 
 
 def test_require_runtime_profile_rejects_cross_profile_interpreter(
@@ -419,6 +477,9 @@ def test_runtime_contract_malformed_nested_objects_have_one_typed_reason(
         lambda value: value.__setitem__("python", []),
         lambda value: value["uv"].pop("sha256"),
         lambda value: value["host"].__setitem__("required_available_cpus", [11, 11]),
+        lambda value: value["ros"]["required_python_imports"].__setitem__(
+            "pinocchio", "ros-humble-missing"
+        ),
         lambda value: value["ros"].__setitem__("xacro_path", "relative.xacro"),
         lambda value: value["gpu"].__setitem__("uuid", "not-a-gpu-uuid"),
         lambda value: value["calibration"].__setitem__("artifact_path", "../escape"),

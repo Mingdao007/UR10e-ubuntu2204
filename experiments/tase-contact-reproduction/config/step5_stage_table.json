@@ -11109,6 +11109,83 @@
       "stage": "Step5d",
       "strict_rnn": true,
       "success_condition": "V3 remains the unique selected route; failures fail closed as V3 and never fall back to V1."
+    },
+    {
+      "acceptance": {
+        "contact": false,
+        "qualification": false,
+        "promotion": false,
+        "tracking_failure": "diagnostic_only",
+        "controller_readback_required_before_live": true,
+        "live_run_authorized": false
+      },
+      "active": false,
+      "blocked": false,
+      "bridge": false,
+      "candidate_search": false,
+      "contact": false,
+      "duration_options_s": [2, 10, 60],
+      "duration_s": 60,
+      "frame": "config/step5_safe_frame.json",
+      "guard": {
+        "static_safe_frame_first": true,
+        "hard_moving_reference_ellipse_half_axes_m": [0.025, 0.015],
+        "soft_cbf_qp_moving_reference_ellipse_half_axes_m": [0.022, 0.012],
+        "kunwei_force_limit_n": 6.0,
+        "kunwei_torque_limit_nm": 0.5,
+        "z_deviation_limit_m": 0.002,
+        "orientation_limit_deg": 5.0,
+        "reference_speed_limit_m_s": 0.003,
+        "linear_command_limit_m_s": 0.004,
+        "qdot_limit_rad_s": 0.15,
+        "heartbeat_protocol_joint_mode_receiver_fault_checks": true
+      },
+      "id": "step5d_tacdiffusion_autotuner_xy_no_contact_v1",
+      "joint_space": false,
+      "offline_validation": {
+        "status": "offline_diagnostic_only",
+        "numeric_sanity": "config/step5d_tacdiffusion_autotuner_xy_no_contact_v1_numeric_sanity.json",
+        "sample_rate_hz": 500,
+        "sample_count_60s": 30000,
+        "live_motion_performed": false,
+        "current_r013_ledger_changed": false,
+        "current_pointer_changed": false
+      },
+      "owner": "offline_direct_torque_diagnostic",
+      "package_delivery": {
+        "status": "local_bundle_identity_only",
+        "controller_upload_performed": false,
+        "controller_readback_performed": false,
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_tacdiffusion_autotuner_xy_no_contact_v1.urp",
+        "identity_source": "ur10e_vic.tacdiffusion.step5d_autotuner_xy_no_contact_v1.package_identity"
+      },
+      "phase_law": {
+        "theta": "0.1*t",
+        "along": "0.015*(theta-sin(theta))",
+        "lateral": "0.015*(1-cos(theta))",
+        "t_interval_s": [0, 60],
+        "origin_xy_m": [0.487795411149049, 0.12932679270060748],
+        "u_along_xy": [-0.010785642631908187, 0.9999418332648238],
+        "p_lateral_xy": [-0.9999418332648239, -0.010785642631908406],
+        "z_policy": "startup_safe_z_fixed",
+        "orientation_policy": "prepositioned_anchor_fixed"
+      },
+      "runtime_profile": {
+        "backend": "direct_torque_cartesian_impedance",
+        "fixed_gains": true,
+        "fixed_stiffness": [600.0, 600.0, 600.0, 30.0, 30.0, 30.0],
+        "feedforward_wrench": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "gravity_handling": "direct_torque_controller_compensation",
+        "coriolis_handling": "get_coriolis_and_centrifugal_torques",
+        "model_active": false,
+        "training": false,
+        "promotion": false,
+        "contact_search": false,
+        "wire_protocol": "existing_sequence_heartbeat_lease_plus_protocol_echo_v1"
+      },
+      "shape": "cycloid_moving_reference_xy",
+      "stage": "Step5d",
+      "success_condition": "Offline 2s/10s/60s diagnostic emits the exact 500 Hz recorder, preserves command/ack identity, and ends path-origin -> session Home -> stop -> stationary verification; tracking failure remains diagnostic-only."
     }
   ],
   "startup_gate_profiles": {

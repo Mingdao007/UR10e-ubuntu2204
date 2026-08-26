@@ -87,6 +87,7 @@ EXPERIMENT_SOURCE_PATHS = frozenset({
     'tools/step5d_autotune_v3/runtime_calibration.py',
     'tools/step5d_autotune_v3/runtime_environment.py',
     'tools/step5d_autotune_v3/runtime_gate.py',
+    'tools/step5d_autotune_v3/runtime_host_gate.py',
     'tools/step5d_autotune_v3/runtime_identity.py',
     'tools/step5d_autotune_v3/runtime_installation.py',
     'tools/step5d_autotune_v3/runtime_observation.py',

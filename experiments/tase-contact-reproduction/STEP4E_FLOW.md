@@ -101,36 +101,45 @@ Check classes before live bridge:
 - Long checks: Ubuntu direct-link, UR controller network, Dashboard/RTDE port
   reachability, SSH helper availability, and Kunwei route checks have a
   `30 min` TTL cache. Refresh them during prep or with `prep-long-checks`.
-- Trigger checks: every `开` runs only loaded expected `.urp`, safety `NORMAL`,
-  program not already running unless intentionally caught late, and no existing
-  bridge process. Target budget is `1-3 s`.
+- Trigger checks (every live start): loaded expected `.urp`, safety `NORMAL`,
+  Dashboard `is in remote control` true, program stopped (or late-catch if
+  already running by design), and no existing bridge process. Target budget is
+  `1-3 s`.
 
-While waiting for bridge, only these user replies trigger live bridge action:
-`开bridge`, `开 bridge`, single-token `开`, or single-token `1`. These tokens
-are not global commands; they only apply after Codex has just stated that it is
-waiting for a bridge trigger. They are step-agnostic: they cover any current
-delivered package (step4*, step5*, future steps), contact or no-contact. Never
-ask the user for an extra confirmation phrase; operator-internal interlocks
-(`STEP5B_CONFIRM=...`, `START_STEP4E_..._V*` stdin prompts) are supplied by
-Codex itself in the same command via env assignment or piped stdin.
+## Bridge Trigger (remote-control auto path)
 
-On a valid bridge trigger:
+Main path: when package handoff is done and Dashboard reports remote control +
+Safety `NORMAL` + exact program loaded/stopped + exclusive writer free, Codex
+sets `bridge_trigger.live_motion_authorized` via the live preflight
+(`authorization_source=remote_control_readiness`) and runs the prepared fast
+bridge command in the same turn. This covers any current delivered package
+(step4*, step5*, future steps), contact or no-contact.
 
-1. Do not upload packages or repeat package read-back, artifact validation, or
-   Git checks at trigger time; those belong to the package handoff above.
+Optional chat aliases that also enter the same path immediately:
+`开bridge`, `开 bridge`, single-token `开`, or single-token `1`.
+
+Operator-internal interlocks (`STEP5B_CONFIRM=...`,
+`START_STEP4E_..._V*` stdin prompts) are supplied by Codex itself in the same
+command via env assignment or piped stdin.
+
+On that live start:
+
+1. Package upload/read-back, artifact validation, and Git checks stay in the
+   package handoff above; the live start consumes the already-verified package.
 2. Run the prepared fast bridge command directly. The operator wrapper owns
-   current loaded `.urp`, `NORMAL` safety, no existing bridge, fresh long-check
-   cache, bridge process lifecycle, and quiet stop.
+   current loaded `.urp`, `NORMAL` safety, remote-control readiness, no
+   existing bridge, fresh long-check cache, bridge process lifecycle, and quiet
+   stop.
 3. Start the current version bridge-first with
    `STEP4E_VERSION=<current> ... step4e-line-v1-operator.sh line-bridge-fast`.
-   Do not use `line-autowatch` as the main trigger path; it may hide a long
-   wait if Dashboard never reports the already-played TP program as running.
+   Keep `line-autowatch` as a secondary path only; the primary path is
+   bridge-first so a long Dashboard wait cannot hide an already-played TP.
 4. Confirm the bridge process, run directory, and bridge output have started.
    If a local commit was already prepared, `STEP4E_BACKGROUND_PUSH_AFTER_LIVE=1`
-   may run a background `git push`; it must not stage, commit, or inspect diff
-   during live monitoring.
-5. If push is blocked by no upstream, ambiguous repo/branch, suspected
-   sensitive material, failed validation, or unsplittable unrelated dirty state,
-   report the exact blocker but keep bridge monitoring active.
+   may run a background `git push`; live monitoring keeps staging/commit/diff
+   work out of the hot path.
+5. If push hits no upstream, ambiguous repo/branch, suspected sensitive
+   material, failed validation, or unsplittable unrelated dirty state, report
+   the exact blocker and keep bridge monitoring active.
 6. Continue monitoring until the TP program stops, bridge shutdown completes,
    Kunwei quiet-stop evidence is written, and post-run summaries are generated.

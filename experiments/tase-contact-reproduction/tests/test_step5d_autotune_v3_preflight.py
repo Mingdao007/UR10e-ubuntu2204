@@ -41,6 +41,69 @@ def _program_gate(dashboard, rtde):
     )
 
 
+def test_remote_control_predicate_accepts_dashboard_truthy_forms() -> None:
+    assert gate._remote_control({"is in remote control": "true"})["ok"] is True
+    assert gate._remote_control({"is in remote control": "TRUE"})["ok"] is True
+    assert gate._remote_control({"remote_control": True})["ok"] is True
+    assert gate._remote_control({"is in remote control": "false"})["ok"] is False
+    assert gate._remote_control({})["ok"] is False
+
+
+def test_remote_control_readiness_writes_live_motion_authorization(
+    tmp_path: Path,
+) -> None:
+    current = {
+        "bridge_trigger": {
+            "allowed_tokens": ["开bridge", "开", "1"],
+            "authorization_source": None,
+            "authorized_at": None,
+            "live_motion_authorized": False,
+            "blocked_reason": "waiting",
+        }
+    }
+    stage_path = tmp_path / "config" / "current_stage.json"
+    stage_path.parent.mkdir(parents=True)
+    stage_path.write_text(json.dumps(current), encoding="utf-8")
+
+    applied = gate.apply_remote_control_live_authorization(
+        root=tmp_path,
+        dashboard={
+            "is in remote control": "true",
+            "safetymode": "NORMAL",
+        },
+        preflight_ok=True,
+    )
+    assert applied["applied"] is True
+    assert applied["live_motion_authorized"] is True
+    assert applied["authorization_source"] == "remote_control_readiness"
+
+    written = json.loads(stage_path.read_text(encoding="utf-8"))
+    trigger = written["bridge_trigger"]
+    assert trigger["live_motion_authorized"] is True
+    assert trigger["authorization_source"] == "remote_control_readiness"
+    assert isinstance(trigger["authorized_at"], str) and trigger["authorized_at"]
+    assert trigger["blocked_reason"] is None
+
+
+def test_remote_control_readiness_keeps_unauthorized_when_not_remote(
+    tmp_path: Path,
+) -> None:
+    stage_path = tmp_path / "config" / "current_stage.json"
+    stage_path.parent.mkdir(parents=True)
+    stage_path.write_text(
+        json.dumps({"bridge_trigger": {"live_motion_authorized": False}}),
+        encoding="utf-8",
+    )
+    skipped = gate.apply_remote_control_live_authorization(
+        root=tmp_path,
+        dashboard={"is in remote control": "false", "safetymode": "NORMAL"},
+        preflight_ok=True,
+    )
+    assert skipped["applied"] is False
+    written = json.loads(stage_path.read_text(encoding="utf-8"))
+    assert written["bridge_trigger"]["live_motion_authorized"] is False
+
+
 def test_exact_v3_must_be_stopped_before_bridge_start() -> None:
     assert _program_gate(
         {

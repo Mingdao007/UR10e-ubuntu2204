@@ -298,10 +298,21 @@ class _Resolver:
             return
         if root in HOST_IMPORT_PACKAGES:
             package = HOST_IMPORT_PACKAGES[root]
-            packages = self.contract.get("ros", {}).get("packages", {})
-            if not isinstance(packages, Mapping) or package not in packages:
+            ros = self.contract.get("ros", {})
+            packages = ros.get("packages", {}) if isinstance(ros, Mapping) else {}
+            declared = (
+                ros.get("required_python_imports", {})
+                if isinstance(ros, Mapping)
+                else {}
+            )
+            if (
+                not isinstance(packages, Mapping)
+                or package not in packages
+                or not isinstance(declared, Mapping)
+                or declared.get(root) != package
+            ):
                 raise SourceClosureError(
-                    f"import {root!r} maps to absent host contract package {package!r}"
+                    f"import {root!r} is not bound by the declared host import contract"
                 )
             self.host_contract.setdefault(root, set()).add(source)
             return
@@ -465,6 +476,25 @@ def _runtime_contract(experiment_root: Path) -> dict[str, Any]:
     }
     if not required < set(contract):
         raise SourceClosureError("runtime contract classification fields are incomplete")
+    ros = contract.get("ros")
+    required_imports = ros.get("required_python_imports") if isinstance(ros, Mapping) else None
+    packages = ros.get("packages") if isinstance(ros, Mapping) else None
+    if (
+        not isinstance(required_imports, Mapping)
+        or not {"pinocchio", "xacro"}.issubset(required_imports)
+        or not isinstance(packages, Mapping)
+        or any(
+            not isinstance(module, str)
+            or not module
+            or not isinstance(package, str)
+            or not package
+            or package not in packages
+            for module, package in required_imports.items()
+        )
+    ):
+        raise SourceClosureError(
+            "runtime contract required host Python imports are incomplete"
+        )
     return contract
 
 
@@ -636,7 +666,10 @@ def production_source_closure_report(experiment_root: Path) -> dict[str, Any]:
             rows.append(row)
         return rows
 
-    host_rows = import_rows(resolver.host_contract, provider=HOST_IMPORT_PACKAGES)
+    host_provider = {
+        name: HOST_IMPORT_PACKAGES[name] for name in resolver.host_contract
+    }
+    host_rows = import_rows(resolver.host_contract, provider=host_provider)
     host_rows.extend(
         {
             "kind": "executable",

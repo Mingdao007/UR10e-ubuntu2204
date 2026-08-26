@@ -1305,6 +1305,7 @@ def _validate_preflight(
     predicates = payload.get("predicates") or {}
     required = {
         "safety_normal",
+        "remote_control",
         "program_safe_for_bridge",
         "robot_stationary",
         "prealign_start_clearance",
