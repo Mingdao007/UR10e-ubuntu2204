@@ -1,0 +1,73 @@
+{
+  "args": {
+    "builtin_cog_mm": [
+      1.0,
+      -4.0,
+      51.0
+    ],
+    "builtin_payload_kg": 1.55,
+    "condition_label": "polyscope_four_pose_compare",
+    "connect_timeout_s": 4.0,
+    "flush_every": 250,
+    "known_added_mass_kg": null,
+    "measurement_plane": "UR flange -> Kunwei sensor -> QC/RG2 downstream stack",
+    "no_start_command": false,
+    "no_stop_command": false,
+    "output_dir": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260821_012147_rg2_open_custom_compare",
+    "robot_host": "192.168.1.18",
+    "rtde_hz": 125.0,
+    "rtde_timeout_s": 3.0,
+    "segment_duration_s": 8.0,
+    "sensor_ip": "192.168.50.25",
+    "sensor_origin_in_tool_m": null,
+    "sensor_port": 5152,
+    "settle_s": 2.0
+  },
+  "condition": {
+    "known_added_mass_kg": null,
+    "label": "polyscope_four_pose_compare",
+    "measurement_plane": "UR flange -> Kunwei sensor -> QC/RG2 downstream stack"
+  },
+  "created": "2026-08-21T01:21:47",
+  "outputs": {
+    "csv": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260821_012147_rg2_open_custom_compare/gravity_axis_calibration.csv",
+    "metadata": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260821_012147_rg2_open_custom_compare/metadata.json",
+    "raw_frames": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260821_012147_rg2_open_custom_compare/kunwei_raw_frames.bin",
+    "summary": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260821_012147_rg2_open_custom_compare/summary.json"
+  },
+  "pose_plan": [
+    {
+      "name": "P0_current",
+      "operator_action": "保持当前姿态；确认夹爪完全悬空、无接触。"
+    },
+    {
+      "name": "P1_w1_plus_45",
+      "operator_action": "只把 wrist1(w1) 改到 +42.457°；其余关节不变。"
+    },
+    {
+      "name": "P2_w1_minus_45",
+      "operator_action": "只把 wrist1(w1) 改到 -47.543°；其余关节不变。"
+    },
+    {
+      "name": "P3_w2_minus_60",
+      "operator_action": "返回 w1=-2.543°，只把 wrist2(w2) 改到 -67.866°；其余关节不变。"
+    }
+  ],
+  "purpose": "Kunwei + UR pose payload/CoG and gravity-axis comparison; condition=polyscope_four_pose_compare",
+  "reference_builtin": {
+    "cog_mm": [
+      1.0,
+      -4.0,
+      51.0
+    ],
+    "payload_kg": 1.55
+  },
+  "safety": [
+    "Operator-guided poses; this script commands no robot motion.",
+    "No UR RTDE inputs, payload/TCP settings, or zero_ftsensor calls are written.",
+    "No Kunwei zero/tare/filter/IP/configuration command is sent.",
+    "Kunwei stream start/stop commands are sent unless disabled by CLI flags.",
+    "Stop on contact, cable tension, unexpected safety mode, or program start."
+  ],
+  "sensor_origin_in_tool_m": null
+}

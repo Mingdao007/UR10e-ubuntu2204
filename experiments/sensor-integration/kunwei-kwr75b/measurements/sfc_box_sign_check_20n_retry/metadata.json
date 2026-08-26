@@ -1,20 +1,20 @@
 {
   "args": {
     "bind_ip": "192.168.50.26",
-    "checkpoint_interval_s": 900.0,
-    "connect_timeout_s": 5.0,
-    "duration_s": 86400.0,
+    "checkpoint_interval_s": 5.0,
+    "connect_timeout_s": 120.0,
+    "duration_s": 15.0,
     "flush_every": 1000,
     "local_port": 8886,
     "no_start_command": false,
     "no_stop_command": false,
-    "output_dir": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/19h15min/capture",
+    "output_dir": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/sfc_box_sign_check_20n_retry",
     "sensor_ip": "192.168.50.25",
     "sensor_port": 5152,
     "transport": "tcp-client"
   },
   "connected_peer": "('192.168.50.25', 5152)",
-  "created_at": "2026-06-02T19:57:27",
+  "created_at": "2026-08-22T02:04:32",
   "manual_basis": {
     "configuration_write_not_used": true,
     "configuration_write_prefix_not_sent": "EE AA",
@@ -28,10 +28,10 @@
     "stream_command_hex": "48 AA 0D 0A"
   },
   "paths": {
-    "checkpoint": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/checkpoint.json",
-    "csv": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv",
-    "metadata": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/metadata.json",
-    "raw_frames": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/raw_frames.bin",
-    "summary": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json"
+    "checkpoint": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/sfc_box_sign_check_20n_retry/checkpoint.json",
+    "csv": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/sfc_box_sign_check_20n_retry/data.csv",
+    "metadata": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/sfc_box_sign_check_20n_retry/metadata.json",
+    "raw_frames": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/sfc_box_sign_check_20n_retry/raw_frames.bin",
+    "summary": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/sfc_box_sign_check_20n_retry/summary.json"
   }
 }

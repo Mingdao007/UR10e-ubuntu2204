@@ -1,0 +1,28 @@
+{
+  "created": "2026-08-21T01:35:18+08:00",
+  "purpose": "Recovered four-pose Kunwei+UR RTDE comparison aligned with PolyScope payload/CoG wizard.",
+  "selection_policy": {
+    "P0_current": "first 8000 stable rows from the original P0 segment",
+    "P1_w1_plus_45": "first 8000 stable transition rows with w1 near 42.457 deg and w2 near -7.866 deg",
+    "P2_w1_minus_45": "first 8000 stable transition rows with w1 near -47.543 deg and w2 near -7.866 deg",
+    "P3_w2_minus_60": "first 8000 stable rows from the dedicated P3 capture"
+  },
+  "source_runs": {
+    "P0_P1_P2": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260821_012147_rg2_open_custom_compare",
+    "P3": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260821_013518_rg2_open_custom_compare"
+  },
+  "source_raw_frames_retained": true,
+  "rows_by_segment": {
+    "P0_current": 7999,
+    "P1_w1_plus_45": 8000,
+    "P2_w1_minus_45": 8000,
+    "P3_w2_minus_60": 8000
+  },
+  "controller_writes": false,
+  "sensor_zero_or_tare": false,
+  "notes": [
+    "P1/P2 were recovered from the uninterrupted transition stream because operator confirmation arrived after those poses.",
+    "The aborted interactive capture did not produce a summary.json; source CSV and raw frames are retained unchanged.",
+    "P3 was independently captured after live verification at the target pose."
+  ]
+}

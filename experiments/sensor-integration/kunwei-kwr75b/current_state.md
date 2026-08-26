@@ -1,6 +1,32 @@
 # Kunwei KWR75B Current State
 
-Last updated: 2026-06-11
+Last updated: 2026-08-21
+
+## Current EOAT and Calibration Handoff
+
+The canonical image crosswalk and full calibration procedure are maintained in
+the private Kunwei skill reference:
+
+`/home/andy/codex-private-skills-shared-main/skills/ur10e-kunwei-kwr75/references/current-eoat-photo-and-calibration.md`
+
+Current live UR read-back:
+
+- payload: `1.33 kg`
+- CoG: `[-2,-6,65] mm`
+- TCP offset: `[0,0,262.6,0,0,0] mm` (unchanged)
+- final check: `Safety NORMAL`, `STOPPED 1.urp`, TCP speed zero
+
+Current Mac photo set:
+
+`/Users/andyl/Documents/UR10e/ft_sensor/kunwei/photo_sets/20260821_rg2_payload_calibration`
+
+Use `IMG_2284.JPG` (`891.0 g`, wired RG2/QC) as the current physical assembly
+mass reference. `IMG_2285.JPG` (`873.0 g`, unwired) is reference-only. The old
+white adapter in `IMG_1688` is excluded from the current experiment.
+
+The independent Kunwei fit (`1.0617 kg`, Kunwei sensing-plane frame) is
+diagnostic and must not replace the UR payload value. The next controller task
+is SFC reproduction; Autotuner is only the existing UR10e bench environment.
 
 ## Source Evidence
 
@@ -43,9 +69,9 @@ Last updated: 2026-06-11
 - Serial-server default network facts from manuals: IP `192.168.50.25`,
   gateway `192.168.50.1`, target IP `192.168.50.26`, target port `8886`,
   config receive port UDP `5152`, reply port UDP `5153`.
-- Current mass candidate: `0.331 kg` for the Kunwei sensor-side stack shown in
-  `IMG_1691`; add about `0.0704 kg` if the white adapter/tool is part of the
-  final payload.
+- Historical mass bookkeeping: `0.331 kg` for the Kunwei sensor-side stack
+  shown in `IMG_1691`; the old white adapter/tool is excluded from the current
+  experiment and must not be added.
 - Current TCP-length candidates: `122.34 mm` from the UR/native tool and about
   `126.1 mm` from caliper measurement. This is not resolved.
 - Default remote-control architecture: Python Kunwei TCP logger plus Python
@@ -60,6 +86,8 @@ Last updated: 2026-06-11
   traceability is needed; ordinary current-unit work uses the `kwr75b` root.
 - Run a short no-motion regression capture after the current cable routing is
   settled.
-- Validate final payload/TCP through `ur10e-realsetup` before any UR writes.
+- Payload/CoG was validated through the PolyScope wizard and fresh
+  `ur10e-realsetup` read-back on 2026-08-21. TCP remains unresolved between the
+  `122.34 mm` native and about `126.1 mm` caliper candidates.
 - Keep Windows SensorLinker as vendor reference; use Ubuntu/Python as the
   primary collector.

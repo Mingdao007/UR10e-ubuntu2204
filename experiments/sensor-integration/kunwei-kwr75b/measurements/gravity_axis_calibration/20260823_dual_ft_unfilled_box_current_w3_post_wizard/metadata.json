@@ -1,0 +1,133 @@
+{
+  "args": {
+    "builtin_cog_mm": [
+      4.0,
+      0.0,
+      74.0
+    ],
+    "builtin_payload_kg": 1.57,
+    "condition_label": "unfilled_box_89p6g_dual_ft_post_wizard",
+    "connect_timeout_s": 4.0,
+    "flush_every": 250,
+    "known_added_mass_kg": 0.0896,
+    "measurement_plane": "UR flange -> Kunwei sensor -> QC/RG2 downstream stack",
+    "no_start_command": false,
+    "no_stop_command": false,
+    "output_dir": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260823_dual_ft_unfilled_box_current_w3_post_wizard",
+    "p0_joint_deg": [
+      25.998852113370493,
+      -94.99753012651051,
+      -124.99672384927543,
+      -1.999002632039369,
+      -6.998201805682395,
+      -140.5416779671782
+    ],
+    "robot_host": "192.168.1.18",
+    "rtde_hz": 125.0,
+    "rtde_timeout_s": 3.0,
+    "segment_duration_s": 8.0,
+    "sensor_ip": "192.168.50.25",
+    "sensor_origin_in_tool_m": null,
+    "sensor_port": 5152,
+    "settle_s": 2.0
+  },
+  "condition": {
+    "known_added_mass_kg": 0.0896,
+    "label": "unfilled_box_89p6g_dual_ft_post_wizard",
+    "measurement_plane": "UR flange -> Kunwei sensor -> QC/RG2 downstream stack"
+  },
+  "created": "2026-08-23T19:21:26",
+  "outputs": {
+    "csv": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260823_dual_ft_unfilled_box_current_w3_post_wizard/gravity_axis_calibration.csv",
+    "metadata": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260823_dual_ft_unfilled_box_current_w3_post_wizard/metadata.json",
+    "raw_frames": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260823_dual_ft_unfilled_box_current_w3_post_wizard/kunwei_raw_frames.bin",
+    "summary": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260823_dual_ft_unfilled_box_current_w3_post_wizard/summary.json"
+  },
+  "pose_plan": [
+    {
+      "joint_deg": [
+        25.998852113370493,
+        -94.99753012651051,
+        -124.99672384927543,
+        -1.999002632039369,
+        -6.998201805682395,
+        -140.5416779671782
+      ],
+      "name": "P0",
+      "operator_action": "手动移动到 launch P0 [25.998852113370493, -94.99753012651051, -124.99672384927543, -1.999002632039369, -6.998201805682395, -140.5416779671782] deg；保持无接触并确认稳定。",
+      "unique_pose": true
+    },
+    {
+      "joint_deg": [
+        25.998852113370493,
+        -94.99753012651051,
+        -124.99672384927543,
+        43.00099736796063,
+        -6.998201805682395,
+        -140.5416779671782
+      ],
+      "name": "P1",
+      "operator_action": "仅将 Wrist1 相对 P0 +45 deg；resolved pose [25.998852113370493, -94.99753012651051, -124.99672384927543, 43.00099736796063, -6.998201805682395, -140.5416779671782] deg，保持无接触并确认稳定。",
+      "unique_pose": true
+    },
+    {
+      "joint_deg": [
+        25.998852113370493,
+        -94.99753012651051,
+        -124.99672384927543,
+        -46.99900263203937,
+        -6.998201805682395,
+        -140.5416779671782
+      ],
+      "name": "P2",
+      "operator_action": "仅将 Wrist1 相对 P0 -45 deg；resolved pose [25.998852113370493, -94.99753012651051, -124.99672384927543, -46.99900263203937, -6.998201805682395, -140.5416779671782] deg，保持无接触并确认稳定。",
+      "unique_pose": true
+    },
+    {
+      "joint_deg": [
+        25.998852113370493,
+        -94.99753012651051,
+        -124.99672384927543,
+        -1.999002632039369,
+        -66.9982018056824,
+        -140.5416779671782
+      ],
+      "name": "P3",
+      "operator_action": "Wrist1 返回 P0、仅将 Wrist2 相对 P0 -60 deg；resolved pose [25.998852113370493, -94.99753012651051, -124.99672384927543, -1.999002632039369, -66.9982018056824, -140.5416779671782] deg，保持无接触并确认稳定。",
+      "unique_pose": true
+    },
+    {
+      "exclude_from_unique_pose_count": true,
+      "joint_deg": [
+        25.998852113370493,
+        -94.99753012651051,
+        -124.99672384927543,
+        -1.999002632039369,
+        -6.998201805682395,
+        -140.5416779671782
+      ],
+      "name": "P0_return_repeat_drift_validation",
+      "operator_action": "返回 launch P0 [25.998852113370493, -94.99753012651051, -124.99672384927543, -1.999002632039369, -6.998201805682395, -140.5416779671782] deg 作为 drift validation repeat；不计入 unique-pose count，保持无接触并确认稳定。",
+      "purpose": "drift_validation",
+      "unique_pose": false
+    }
+  ],
+  "purpose": "Kunwei + UR pose payload/CoG and gravity-axis comparison; condition=unfilled_box_89p6g_dual_ft_post_wizard",
+  "reference_builtin": {
+    "cog_mm": [
+      4.0,
+      0.0,
+      74.0
+    ],
+    "payload_kg": 1.57
+  },
+  "safety": [
+    "Operator-guided poses; this script commands no robot motion.",
+    "No UR RTDE inputs, payload/TCP settings, or zero_ftsensor calls are written.",
+    "No Kunwei zero/tare/filter/IP/configuration command is sent.",
+    "Kunwei stream start/stop commands are sent unless disabled by CLI flags.",
+    "Stop on contact, cable tension, unexpected safety mode, or program start."
+  ],
+  "sensor_origin_in_tool_m": null,
+  "unique_pose_count": 4
+}

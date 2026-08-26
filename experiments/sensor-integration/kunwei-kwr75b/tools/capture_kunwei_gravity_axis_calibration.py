@@ -29,7 +29,9 @@ from typing import Any
 
 
 KUNWEI_TOOLS = Path("/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/tools")
-UR_REALSETUP_SCRIPTS = Path("/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts")
+UR_REALSETUP_SCRIPTS = Path("/home/andy/codex-private-skills-shared-main/skills/ur10e-realsetup/scripts")
+if not UR_REALSETUP_SCRIPTS.exists():
+    UR_REALSETUP_SCRIPTS = Path("/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts")
 sys.path.insert(0, str(KUNWEI_TOOLS))
 sys.path.insert(0, str(UR_REALSETUP_SCRIPTS))
 
@@ -48,6 +50,7 @@ RTDE_FIELDS = [
     "actual_q",
     "actual_TCP_pose",
     "actual_TCP_speed",
+    "actual_TCP_force",
     "runtime_state",
     "robot_mode",
     "safety_mode",
@@ -55,6 +58,14 @@ RTDE_FIELDS = [
 POSE_COLS = [f"ur_actual_TCP_pose_{idx}" for idx in range(6)]
 Q_COLS = [f"ur_actual_q_{idx}" for idx in range(6)]
 SPEED_COLS = [f"ur_actual_TCP_speed_{idx}" for idx in range(6)]
+UR_FORCE_COLS = [
+    "ur_actual_TCP_force_fx_n",
+    "ur_actual_TCP_force_fy_n",
+    "ur_actual_TCP_force_fz_n",
+    "ur_actual_TCP_force_tx_nm",
+    "ur_actual_TCP_force_ty_nm",
+    "ur_actual_TCP_force_tz_nm",
+]
 SI_COLS = ["fx_n", "fy_n", "fz_n", "mx_nm", "my_nm", "mz_nm"]
 MANUAL_COLS = [
     "Fx_kg_manual",
@@ -136,6 +147,9 @@ class SharedState:
         self.segment_stats: dict[str, dict[str, OnlineStats]] = defaultdict(
             lambda: {col: OnlineStats() for col in SI_COLS}
         )
+        self.segment_ur_force_stats: dict[str, dict[str, OnlineStats]] = defaultdict(
+            lambda: {col: OnlineStats() for col in UR_FORCE_COLS}
+        )
         self.segment_first_last_rtde: dict[str, dict[str, Any]] = defaultdict(dict)
         self.events: list[dict[str, Any]] = []
 
@@ -202,6 +216,7 @@ def sensor_worker(args: argparse.Namespace, shared: SharedState, csv_path: Path,
         *POSE_COLS,
         *Q_COLS,
         *SPEED_COLS,
+        *UR_FORCE_COLS,
         "ur_runtime_state",
         "ur_robot_mode",
         "ur_safety_mode",
@@ -259,6 +274,11 @@ def sensor_worker(args: argparse.Namespace, shared: SharedState, csv_path: Path,
                             rtde_samples = shared.rtde_samples
                             for col, value in zip(SI_COLS, si_values):
                                 shared.segment_stats[segment][col].push(value)
+                            force_stats = shared.segment_ur_force_stats[segment]
+                            actual_tcp_force = latest_rtde.get("actual_TCP_force")
+                            if actual_tcp_force and len(actual_tcp_force) == len(UR_FORCE_COLS):
+                                for col, value in zip(UR_FORCE_COLS, actual_tcp_force):
+                                    force_stats[col].push(float(value))
                             if latest_rtde:
                                 by_seg = shared.segment_first_last_rtde[segment]
                                 by_seg.setdefault("first", latest_rtde)
@@ -266,6 +286,7 @@ def sensor_worker(args: argparse.Namespace, shared: SharedState, csv_path: Path,
                         pose = latest_rtde.get("actual_TCP_pose") or [""] * 6
                         q = latest_rtde.get("actual_q") or [""] * 6
                         speed = latest_rtde.get("actual_TCP_speed") or [""] * 6
+                        tcp_force = latest_rtde.get("actual_TCP_force") or [""] * 6
                         row = {
                             "sample_index": sample_index,
                             "t_wall": datetime.now().isoformat(timespec="milliseconds"),
@@ -279,6 +300,7 @@ def sensor_worker(args: argparse.Namespace, shared: SharedState, csv_path: Path,
                             **dict(zip(POSE_COLS, pose)),
                             **dict(zip(Q_COLS, q)),
                             **dict(zip(SPEED_COLS, speed)),
+                            **dict(zip(UR_FORCE_COLS, tcp_force)),
                             "ur_runtime_state": latest_rtde.get("runtime_state", ""),
                             "ur_robot_mode": latest_rtde.get("robot_mode", ""),
                             "ur_safety_mode": latest_rtde.get("safety_mode", ""),
@@ -353,6 +375,8 @@ def main() -> int:
             {"name": "P4_return_P0", "operator_action": "return wrist3 to P0; hold still"},
         ],
         "args": vars(args) | {"output_dir": str(args.output_dir)},
+        "rtde_output_fields": RTDE_FIELDS,
+        "ur_actual_tcp_force_columns": UR_FORCE_COLS,
         "outputs": {
             "csv": str(csv_path),
             "raw_frames": str(raw_path),
@@ -435,6 +459,12 @@ def main() -> int:
                 segment: {col: stats.as_dict() for col, stats in stats_by_col.items()}
                 for segment, stats_by_col in shared.segment_stats.items()
             },
+            "segment_ur_actual_tcp_force_stats": {
+                segment: {col: stats.as_dict() for col, stats in stats_by_col.items()}
+                for segment, stats_by_col in shared.segment_ur_force_stats.items()
+            },
+            "rtde_output_fields": RTDE_FIELDS,
+            "ur_actual_tcp_force_columns": UR_FORCE_COLS,
             "segment_rtde_first_last": shared.segment_first_last_rtde,
         }
     write_json(summary_path, summary)

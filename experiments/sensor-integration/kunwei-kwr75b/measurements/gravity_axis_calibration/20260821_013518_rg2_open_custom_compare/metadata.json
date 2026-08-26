@@ -1,0 +1,61 @@
+{
+  "args": {
+    "builtin_cog_mm": [
+      1.0,
+      -4.0,
+      51.0
+    ],
+    "builtin_payload_kg": 1.55,
+    "condition_label": "polyscope_four_pose_compare_recovered_p3",
+    "connect_timeout_s": 4.0,
+    "flush_every": 250,
+    "known_added_mass_kg": null,
+    "measurement_plane": "UR flange -> Kunwei sensor -> QC/RG2 downstream stack",
+    "no_start_command": false,
+    "no_stop_command": false,
+    "output_dir": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260821_013518_rg2_open_custom_compare",
+    "robot_host": "192.168.1.18",
+    "rtde_hz": 125.0,
+    "rtde_timeout_s": 3.0,
+    "segment_duration_s": 8.0,
+    "sensor_ip": "192.168.50.25",
+    "sensor_origin_in_tool_m": null,
+    "sensor_port": 5152,
+    "settle_s": 1.0
+  },
+  "condition": {
+    "known_added_mass_kg": null,
+    "label": "polyscope_four_pose_compare_recovered_p3",
+    "measurement_plane": "UR flange -> Kunwei sensor -> QC/RG2 downstream stack"
+  },
+  "created": "2026-08-21T01:35:18",
+  "outputs": {
+    "csv": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260821_013518_rg2_open_custom_compare/gravity_axis_calibration.csv",
+    "metadata": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260821_013518_rg2_open_custom_compare/metadata.json",
+    "raw_frames": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260821_013518_rg2_open_custom_compare/kunwei_raw_frames.bin",
+    "summary": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260821_013518_rg2_open_custom_compare/summary.json"
+  },
+  "pose_plan": [
+    {
+      "name": "P3_w2_minus_60",
+      "operator_action": "只读补采当前 P3：w1=-2.543°，w2=-67.866°，无接触。"
+    }
+  ],
+  "purpose": "Kunwei + UR pose payload/CoG and gravity-axis comparison; condition=polyscope_four_pose_compare_recovered_p3",
+  "reference_builtin": {
+    "cog_mm": [
+      1.0,
+      -4.0,
+      51.0
+    ],
+    "payload_kg": 1.55
+  },
+  "safety": [
+    "Operator-guided poses; this script commands no robot motion.",
+    "No UR RTDE inputs, payload/TCP settings, or zero_ftsensor calls are written.",
+    "No Kunwei zero/tare/filter/IP/configuration command is sent.",
+    "Kunwei stream start/stop commands are sent unless disabled by CLI flags.",
+    "Stop on contact, cable tension, unexpected safety mode, or program start."
+  ],
+  "sensor_origin_in_tool_m": null
+}

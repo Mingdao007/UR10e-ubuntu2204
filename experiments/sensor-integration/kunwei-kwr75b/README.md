@@ -23,6 +23,17 @@ Use this root for generated logs, parsed CSVs, reports, and tools that operate
 on copied or live-captured data. Do not copy raw Mac originals here unless a
 task explicitly needs local image/video processing.
 
+Current EOAT photo/calibration reference:
+
+`/home/andy/codex-private-skills-shared-main/skills/ur10e-kunwei-kwr75/references/current-eoat-photo-and-calibration.md`
+
+Current user-facing visual report:
+
+`/home/andy/ur10e_ros2_ws/report/kunwei-rg2-payload-calibration-20260821.md`
+
+Current live UR values are `1.33 kg` with CoG `[-2,-6,65] mm`; the current
+wired RG2/QC photo evidence is `IMG_2284.JPG` at about `891.0 g`.
+
 Current deterministic parser:
 
 `/home/andy/codex-private-skills/skills/ur10e-kunwei-kwr75/scripts/parse_kwr75_frame.py`

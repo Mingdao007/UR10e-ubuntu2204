@@ -1,0 +1,88 @@
+{
+  "axis_stats_manual_units": {
+    "Fx_kg_manual": {
+      "first": -0.38648518919944763,
+      "last": -0.38607552647590637,
+      "last_minus_first": 0.00040966272354125977,
+      "max": -0.3681522309780121,
+      "mean": -0.3925803060847279,
+      "min": -0.4167056977748871,
+      "samples": 19999,
+      "std": 0.006639270147373916
+    },
+    "Fy_kg_manual": {
+      "first": 0.32763800024986267,
+      "last": 0.3208823502063751,
+      "last_minus_first": -0.006755650043487549,
+      "max": 0.3461442291736603,
+      "mean": 0.320816069725151,
+      "min": 0.296317994594574,
+      "samples": 19999,
+      "std": 0.00897146535716373
+    },
+    "Fz_kg_manual": {
+      "first": 0.12538331747055054,
+      "last": 0.08908427506685257,
+      "last_minus_first": -0.03629904240369797,
+      "max": 0.14004258811473846,
+      "mean": 0.07951800278496722,
+      "min": 0.01840357296168804,
+      "samples": 19999,
+      "std": 0.02999363187124872
+    },
+    "Mx_kg_m_manual": {
+      "first": 0.025015391409397125,
+      "last": 0.024327650666236877,
+      "last_minus_first": -0.0006877407431602478,
+      "max": 0.025476612150669098,
+      "mean": 0.024327509455586614,
+      "min": 0.02316172793507576,
+      "samples": 19999,
+      "std": 0.00032399378253963375
+    },
+    "My_kg_m_manual": {
+      "first": -0.11663852632045746,
+      "last": -0.1166703850030899,
+      "last_minus_first": -3.185868263244629e-05,
+      "max": -0.11573747545480728,
+      "mean": -0.11642374717512396,
+      "min": -0.1172109842300415,
+      "samples": 19999,
+      "std": 0.0001821373637451724
+    },
+    "Mz_kg_m_manual": {
+      "first": 0.006299997214227915,
+      "last": 0.007378754206001759,
+      "last_minus_first": 0.0010787569917738438,
+      "max": 0.009767265990376472,
+      "mean": 0.007779843196530075,
+      "min": 0.0057813613675534725,
+      "samples": 19999,
+      "std": 0.0010144214628992488
+    }
+  },
+  "bytes_received": 559992,
+  "command_counts": {
+    "0x48": 19999
+  },
+  "dropped_sync_bytes": 0,
+  "duration_first_last_s": 20.00101922202157,
+  "elapsed_wall_s": 20.01725910702953,
+  "finished_at": "2026-08-22T02:02:44",
+  "max_dt_ms": 49.99532597139478,
+  "mean_dt_ms": 1.0001509761986993,
+  "metadata_path": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/sfc_box_sign_check_20n/metadata.json",
+  "min_dt_ms": 0.0061810133047401905,
+  "packets_received": 896,
+  "parse_errors": 0,
+  "paths": {
+    "checkpoint": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/sfc_box_sign_check_20n/checkpoint.json",
+    "csv": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/sfc_box_sign_check_20n/data.csv",
+    "metadata": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/sfc_box_sign_check_20n/metadata.json",
+    "raw_frames": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/sfc_box_sign_check_20n/raw_frames.bin",
+    "summary": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/sfc_box_sign_check_20n/summary.json"
+  },
+  "rate_hz_by_first_last": 999.8490465916735,
+  "samples": 19999,
+  "stop_reason": "duration"
+}

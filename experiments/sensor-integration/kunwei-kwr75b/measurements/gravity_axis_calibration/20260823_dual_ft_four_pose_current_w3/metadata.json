@@ -1,0 +1,69 @@
+{
+  "args": {
+    "connect_timeout_s": 4.0,
+    "flush_every": 250,
+    "no_start_command": false,
+    "no_stop_command": false,
+    "output_dir": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260823_dual_ft_four_pose_current_w3",
+    "robot_host": "192.168.1.18",
+    "rtde_hz": 125.0,
+    "rtde_timeout_s": 3.0,
+    "segment_duration_s": 8.0,
+    "sensor_ip": "192.168.50.25",
+    "sensor_port": 5152
+  },
+  "created": "2026-08-23T19:04:15",
+  "outputs": {
+    "csv": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260823_dual_ft_four_pose_current_w3/gravity_axis_calibration.csv",
+    "metadata": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260823_dual_ft_four_pose_current_w3/metadata.json",
+    "raw_frames": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260823_dual_ft_four_pose_current_w3/kunwei_raw_frames.bin",
+    "summary": "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260823_dual_ft_four_pose_current_w3/summary.json"
+  },
+  "purpose": "Kunwei K raw frame to UR TCP/tool frame gravity-axis calibration",
+  "rtde_output_fields": [
+    "actual_q",
+    "actual_TCP_pose",
+    "actual_TCP_speed",
+    "actual_TCP_force",
+    "runtime_state",
+    "robot_mode",
+    "safety_mode"
+  ],
+  "safety": [
+    "No robot motion is commanded by this script.",
+    "No UR RTDE inputs are written.",
+    "No UR zero_ftsensor call is made.",
+    "No Kunwei zero/tare/config command is sent.",
+    "Kunwei stream start/stop commands are sent unless disabled by CLI flags."
+  ],
+  "segments": [
+    {
+      "name": "P0_wrist3_0_current",
+      "operator_action": "current horizontal pose; hold still"
+    },
+    {
+      "name": "P1_wrist3_plus_90",
+      "operator_action": "rotate only wrist3 +90 deg from P0; hold still"
+    },
+    {
+      "name": "P2_wrist3_plus_180",
+      "operator_action": "rotate only wrist3 +180 deg from P0; hold still"
+    },
+    {
+      "name": "P3_wrist3_plus_270",
+      "operator_action": "rotate only wrist3 +270 deg from P0; hold still"
+    },
+    {
+      "name": "P4_return_P0",
+      "operator_action": "return wrist3 to P0; hold still"
+    }
+  ],
+  "ur_actual_tcp_force_columns": [
+    "ur_actual_TCP_force_fx_n",
+    "ur_actual_TCP_force_fy_n",
+    "ur_actual_TCP_force_fz_n",
+    "ur_actual_TCP_force_tx_nm",
+    "ur_actual_TCP_force_ty_nm",
+    "ur_actual_TCP_force_tz_nm"
+  ]
+}

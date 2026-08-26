@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "created": "2026-08-21T01:08:00+08:00",
+  "purpose": "Separate whole-assembly scale mass from Kunwei measurement-plane payload mass.",
+  "measurement_plane_assumption": "UR flange -> Kunwei sensor -> QC/RG2 downstream stack",
+  "components": [
+    {
+      "name": "RG2/QC wired assembly",
+      "mass_g": 891.0,
+      "source": "Mac /Users/andyl/Downloads/IMG_2284.JPG",
+      "role": "downstream candidate",
+      "notes": "Includes the photographed cable/connector state; wireless comparison is 873.0 g."
+    },
+    {
+      "name": "Kunwei sensor-side stack",
+      "mass_g": 331.0,
+      "source": "Mac /Users/andyl/Documents/UR10e/ft_sensor/kunwei/photo_sets/20260604_kwr75b_mounted_weight_tcp/previews/IMG_1691.jpg",
+      "role": "whole stack bookkeeping only",
+      "notes": "Includes Kunwei body, black flange/adapter, four screws, and two locating pins; do not automatically add its full mass to Kunwei-seen payload."
+    },
+    {
+      "name": "Kunwei sensor body",
+      "mass_g": 258.0,
+      "source": "Mac /Users/andyl/Documents/UR10e/ft_sensor/kunwei/photo_sets/20260604_kwr75b_mounted_weight_tcp/previews/IMG_1689.jpg",
+      "role": "measurement-plane boundary evidence",
+      "notes": "The sensor body is not automatically part of the downstream mass seen through the sensing plane."
+    },
+    {
+      "name": "Black flange/adapter with screws",
+      "mass_g": 67.5,
+      "source": "Mac /Users/andyl/Documents/UR10e/ft_sensor/kunwei/photo_sets/20260604_kwr75b_mounted_weight_tcp/previews/IMG_1695.jpg",
+      "role": "subcomponent of Kunwei stack",
+      "notes": "Already represented inside the 331.0 g IMG_1691 stack; never add a second time."
+    },
+    {
+      "name": "Old Autotuner white adapter/tool",
+      "mass_g": 70.4,
+      "source": "Mac /Users/andyl/Documents/UR10e/ft_sensor/kunwei/photo_sets/20260604_kwr75b_mounted_weight_tcp/previews/IMG_1688.jpg",
+      "role": "excluded",
+      "notes": "Old Autotuner end; not part of the current RG2/Kunwei experiment."
+    }
+  ],
+  "provisional_totals": {
+    "rg2_qc_wired_plus_kunwei_stack_kg": 1.222,
+    "rg2_qc_wireless_plus_kunwei_stack_kg": 1.204,
+    "rg2_qc_wired_only_kg": 0.891,
+    "rg2_qc_wireless_only_kg": 0.873,
+    "kunwei_seen_payload_kg": null
+  },
+  "fit_reference": {
+    "custom_gravity_fit_mass_kg": 1.0504405462464208,
+    "builtin_polyscope_mass_kg": 1.55
+  },
+  "comparison_status": "pending_measurement_plane_validation",
+  "required_next_evidence": [
+    "Known added mass mounted below Kunwei sensing plane.",
+    "Loaded/unloaded differential capture using the same eight static poses.",
+    "Confirmed overlap/non-overlap map for the RG2/QC and Kunwei adapters."
+  ],
+  "writes_performed": false
+}
