@@ -57,13 +57,16 @@ results only. The optional guard is composed through
 set is an exact identity and therefore preserves the no-tube command.
 The BO acceptance domain admits every finite positive `force_damping`; D has
 no policy floor or ceiling. The producer starts from a finite 0.25-octave
-lattice and expands one step beyond observed D boundary points. P, I, and
+lattice and expands one step beyond observed D boundary points. The proposal
+lattice is not the acceptance bound (`proposal_lattice != acceptance_bound`);
+it is only the producer's initial finite proposal mechanism. P, I, and
 filter-tau retain their producer bounds. A producer-only physics soft prior adds a finite
 Gaussian log-weight around
 `zeta = D / (2*sqrt(P*K_e)) = 1/sqrt(2)` using the declared local stiffness
 estimate, plus a separate finite preference for tangential path `Kp=4`.
-Both change qLogNEI ranking only: force MAE remains the sole objective, and
-neither prior is a feasibility, acceptance, or runtime safety gate.
+Both change qLogNEI ranking only: force MAE remains the sole objective. The
+physics prior is soft only; neither prior is a feasibility, acceptance, or
+runtime safety gate.
 Queue admission enforces only positive finite D. Historical observations
 remain readable evidence.
 

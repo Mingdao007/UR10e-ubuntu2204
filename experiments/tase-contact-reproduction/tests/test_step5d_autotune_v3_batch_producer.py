@@ -85,6 +85,8 @@ def _test_launch_profile() -> LaunchProfile:
             policy[field] = {"allowed": [DEFAULT_OVERLAY[field]]}
         elif field == "orientation_ko":
             policy[field] = {"allowed": list(ORIENTATION_KO_LATTICE)}
+        elif field == "force_damping":
+            policy[field] = {"finite_positive": True, "unbounded": True}
         else:
             policy[field] = {"min": 0.0, "max": 100.0}
     return LaunchProfile(

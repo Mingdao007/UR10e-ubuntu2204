@@ -38,7 +38,10 @@
   },
   "search": {
     "coordinate_system": "log10_i_scale_probe_then_log2_native_refine",
-    "force_damping_min": 0.0,
+    "force_damping_policy": {
+      "finite_positive": true,
+      "unbounded": true
+    },
     "orientation_ko_min": 0.1,
     "orientation_ko_max": 0.8,
     "orientation_catalog_mode": "observed_force_anchor_variants",
