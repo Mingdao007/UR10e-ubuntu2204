@@ -22,8 +22,10 @@ from step5c_calibrated_kinematics_audit import (
     build_calibrated_model,
     rotvec_to_matrix,
 )
-from step5c_strict_rnn import StrictRnnConfig, StrictTaseRnnSolver
+from step5c_strict_rnn import StrictTaseRnnSolver
 from step5d_paper_outer_loop import (
+    CONDITIONAL_DOUBLE_CLAMP_POLICY,
+    LEGACY_FORCE_INTEGRAL_POLICY,
     Step5dOuterLoopConfig,
     Step5dOuterLoopInputs,
     Step5dOuterLoopState,
@@ -33,6 +35,11 @@ from step5d_paper_outer_loop import (
 from step5d_autotune_v4.contracts import V4Candidate, V4Contract
 from step5d_autotune_v4_r004.path_controller import derive_force_terms
 from step5d_autotune_v4_r004.path_reference import step5_path_reference
+from step5d_autotune_v4_r014.solver_profile import (
+    LEGACY_R1,
+    SolverProfile,
+    strict_rnn_config,
+)
 
 if TYPE_CHECKING:
     from step5d_autotune_v4_r004.motion_profile import V4MotionProfile
@@ -156,33 +163,136 @@ class V4CalibratedRuntime:
         *,
         motion_profile: V4MotionProfile | None = None,
         force_integral_limit_n_s: float = 1.0,
+        feedforward_enabled: bool = True,
+        internal_setpoint_bounds_n: tuple[float, float] = (1.0, 5.0),
+        force_integral_policy: str = LEGACY_FORCE_INTEGRAL_POLICY,
+        force_integral_authority_error_n: float = 0.5,
+        force_normal_velocity_limit_m_s: float | None = None,
+        solver_profile: SolverProfile = LEGACY_R1,
     ) -> None:
         self.contract = contract
         self.candidate = candidate
         if motion_profile is not None:
             motion_profile = _validate_motion_profile(motion_profile)
         self.motion_profile = motion_profile
+        if type(feedforward_enabled) is not bool:
+            raise CalibratedRuntimeError("feedforward_enabled must be a boolean")
+        self._feedforward_enabled = feedforward_enabled
         limit = float(force_integral_limit_n_s)
         if not math.isfinite(limit) or limit <= 0.0:
             raise CalibratedRuntimeError(
                 "force_integral_limit_n_s must be positive and finite"
             )
         self.force_integral_limit_n_s = limit
+        if (
+            not isinstance(internal_setpoint_bounds_n, (tuple, list))
+            or len(internal_setpoint_bounds_n) != 2
+        ):
+            raise CalibratedRuntimeError(
+                "internal_setpoint_bounds_n must contain two values"
+            )
+        setpoint_low = float(internal_setpoint_bounds_n[0])
+        setpoint_high = float(internal_setpoint_bounds_n[1])
+        if (
+            not math.isfinite(setpoint_low)
+            or not math.isfinite(setpoint_high)
+            or setpoint_low <= 0.0
+            or setpoint_high < setpoint_low
+        ):
+            raise CalibratedRuntimeError(
+                "internal_setpoint_bounds_n is invalid"
+            )
+        self.internal_setpoint_bounds_n = (setpoint_low, setpoint_high)
+        if force_integral_policy not in {
+            LEGACY_FORCE_INTEGRAL_POLICY,
+            CONDITIONAL_DOUBLE_CLAMP_POLICY,
+        }:
+            raise CalibratedRuntimeError("force_integral_policy is unknown")
+        authority_error = float(force_integral_authority_error_n)
+        if not math.isfinite(authority_error) or authority_error < 0.0:
+            raise CalibratedRuntimeError(
+                "force_integral_authority_error_n is invalid"
+            )
+        velocity_limit = None
+        if force_normal_velocity_limit_m_s is not None:
+            velocity_limit = float(force_normal_velocity_limit_m_s)
+            if not math.isfinite(velocity_limit) or velocity_limit <= 0.0:
+                raise CalibratedRuntimeError(
+                    "force_normal_velocity_limit_m_s is invalid"
+                )
+        if force_integral_policy == CONDITIONAL_DOUBLE_CLAMP_POLICY and velocity_limit is None:
+            raise CalibratedRuntimeError(
+                "conditional integral policy requires a normal velocity limit"
+            )
+        self.force_integral_policy = force_integral_policy
+        self.force_integral_authority_error_n = authority_error
+        self.force_normal_velocity_limit_m_s = velocity_limit
+        if not isinstance(solver_profile, SolverProfile):
+            raise CalibratedRuntimeError("solver_profile must be a typed SolverProfile")
+        self.solver_profile = solver_profile
         self.model_hashes = observed_model_hashes(contract)
         self.model = build_calibrated_model()
-        qdot_limit = 0.15 if motion_profile is None else motion_profile.qdot_cap_rad_s
+        motion_qdot_limit = 0.15 if motion_profile is None else motion_profile.qdot_cap_rad_s
+        qdot_limit = min(motion_qdot_limit, solver_profile.qdot_limit_rad_s)
         self.solver = StrictTaseRnnSolver(
-            StrictRnnConfig(
+            strict_rnn_config(
+                solver_profile,
                 paper_truth_path=SOLVER_GATE_PATH,
-                qdot_limit_rad_s=qdot_limit,
-                epsilon=0.022,
-                sigr_exponent_r=1.0,
-                inner_iterations=1,
-                backend="numpy",
+                motion_qdot_limit_rad_s=motion_qdot_limit,
             )
         )
         self._active_mode: str | None = None
         self._outer_state = Step5dOuterLoopState()
+
+    @property
+    def feedforward_enabled(self) -> bool:
+        """Return the immutable feedforward choice bound at construction."""
+
+        return self._feedforward_enabled
+
+    def dynamic_state_snapshot(self) -> dict[str, Any]:
+        """Return the state required for an identity-bound bumpless handoff."""
+
+        return {
+            "schema": "step5d.autotune-v4/calibrated-runtime-state-v1",
+            "outer_state": {
+                "force_integral_n_s": float(self._outer_state.force_integral_n_s),
+                "xdot_p_prev_m_s": [float(value) for value in self._outer_state.xdot_p_prev_m_s],
+            },
+            "solver_state": {
+                "theta_dot_state": [float(value) for value in self.solver.theta_dot_state],
+                "lambda_state": [float(value) for value in self.solver.lambda_state],
+            },
+            "solver_profile_sha256": self.solver_profile.sha256,
+            "active_mode": self._active_mode,
+        }
+
+    def restore_dynamic_state(self, state: Mapping[str, Any]) -> None:
+        """Restore only a validated state snapshot; no sensor or command access."""
+
+        if not isinstance(state, Mapping) or state.get("schema") != "step5d.autotune-v4/calibrated-runtime-state-v1":
+            raise CalibratedRuntimeError("calibrated runtime state schema differs")
+        if state.get("solver_profile_sha256") not in {None, self.solver_profile.sha256}:
+            raise CalibratedRuntimeError("calibrated runtime solver profile differs")
+        outer = state.get("outer_state")
+        solver = state.get("solver_state")
+        if not isinstance(outer, Mapping) or not isinstance(solver, Mapping):
+            raise CalibratedRuntimeError("calibrated runtime state sections are missing")
+        outer_integral = _finite_vector((outer.get("force_integral_n_s"),), 1, "outer integral")[0]
+        outer_prev = _finite_vector(outer.get("xdot_p_prev_m_s"), 3, "outer previous velocity")
+        theta = _finite_vector(solver.get("theta_dot_state"), 6, "solver theta state")
+        lambd = _finite_vector(solver.get("lambda_state"), 6, "solver lambda state")
+        active_mode = state.get("active_mode")
+        if active_mode is not None and active_mode not in {"baseline", "path", "hold", "retract", "stop"}:
+            raise CalibratedRuntimeError("calibrated runtime active mode is invalid")
+        self._outer_state = Step5dOuterLoopState(
+            force_integral_n_s=float(outer_integral),
+            xdot_p_prev_m_s=tuple(float(value) for value in outer_prev),
+        )
+        self.solver.theta_dot_state = np.asarray(theta, dtype=float)
+        self.solver.lambda_state = np.asarray(lambd, dtype=float)
+        self.solver._sync_cupy_state_from_numpy()
+        self._active_mode = None if active_mode is None else str(active_mode)
 
     def path_errors(
         self,
@@ -202,7 +312,11 @@ class V4CalibratedRuntime:
             float(path_time_s),
         )
         error_xy = reference["path_error_xy"]
-        feedforward_xy = reference["desired_velocity_xy"]
+        feedforward_xy = (
+            reference["desired_velocity_xy"]
+            if self.feedforward_enabled
+            else (0.0, 0.0)
+        )
         tangential = (
             float(error_xy[0]) + float(feedforward_xy[0]) / motion_kp,
             float(error_xy[1]) + float(feedforward_xy[1]) / motion_kp,
@@ -235,7 +349,8 @@ class V4CalibratedRuntime:
         if mode not in {"baseline", "path", "hold", "retract", "stop"}:
             raise CalibratedRuntimeError(f"unknown command mode: {mode}")
         jacobian = tcp_jacobian_base(self.model, q)
-        qdot_limit = 0.15 if self.motion_profile is None else self.motion_profile.qdot_cap_rad_s
+        motion_qdot_limit = 0.15 if self.motion_profile is None else self.motion_profile.qdot_cap_rad_s
+        qdot_limit = min(motion_qdot_limit, self.solver_profile.qdot_limit_rad_s)
         lower = np.maximum(self.model.model.lowerPositionLimit - q, -qdot_limit)
         upper = np.minimum(self.model.model.upperPositionLimit - q, qdot_limit)
         if np.any(lower > upper):
@@ -264,8 +379,8 @@ class V4CalibratedRuntime:
                     "omega_minus": lower,
                     "omega_plus": upper,
                     "dt": float(actual_dt_s),
-                    "epsilon": 0.022,
-                    "r": 1.0,
+                    "epsilon": self.solver_profile.epsilon,
+                    "r": self.solver_profile.r,
                     "cmd_valid": True,
                 },
             )
@@ -304,12 +419,32 @@ class V4CalibratedRuntime:
         force_tcp = _finite_vector(force_tcp_n, 3, "force_tcp_n")
         if not math.isfinite(filtered_normal_n):
             raise CalibratedRuntimeError("filtered_normal_n must be finite")
+        setpoint_bounds = self.internal_setpoint_bounds_n
+        try:
+            setpoint_low, setpoint_high = (
+                float(setpoint_bounds[0]),
+                float(setpoint_bounds[1]),
+            )
+        except (IndexError, TypeError, ValueError) as exc:
+            raise CalibratedRuntimeError(
+                "internal_setpoint_bounds_n must contain two finite values"
+            ) from exc
+        if (
+            not math.isfinite(setpoint_low)
+            or not math.isfinite(setpoint_high)
+            or setpoint_low <= 0.0
+            or setpoint_high < setpoint_low
+        ):
+            raise CalibratedRuntimeError("internal_setpoint_bounds_n is invalid")
         if (
             not math.isfinite(internal_setpoint_n)
-            or internal_setpoint_n < 1.0
-            or internal_setpoint_n > 5.0
+            or internal_setpoint_n < setpoint_low
+            or internal_setpoint_n > setpoint_high
         ):
-            raise CalibratedRuntimeError("internal_setpoint_n is outside [1,5]")
+            raise CalibratedRuntimeError(
+                "internal_setpoint_n is outside "
+                f"[{setpoint_low:g},{setpoint_high:g}]"
+            )
         if not math.isfinite(actual_dt_s) or actual_dt_s <= 0.0 or actual_dt_s >= 0.08:
             raise CalibratedRuntimeError("actual_dt_s is outside (0,80ms)")
         if mode not in {"baseline", "path", "hold", "retract", "stop"}:
@@ -324,7 +459,11 @@ class V4CalibratedRuntime:
         )
         if mode == "path":
             desired_xy = reference["desired_xy"]
-            desired_vxy = reference["desired_velocity_xy"]
+            desired_vxy = (
+                reference["desired_velocity_xy"]
+                if self.feedforward_enabled
+                else (0.0, 0.0)
+            )
         else:
             desired_xy = (float(pose[0]), float(pose[1]))
             desired_vxy = (0.0, 0.0)
@@ -351,6 +490,9 @@ class V4CalibratedRuntime:
                 Bd_scalar=terms["Bd"],
                 force_target_n=float(internal_setpoint_n),
                 force_integral_limit_n_s=float(self.force_integral_limit_n_s),
+                force_integral_policy=self.force_integral_policy,
+                force_integral_authority_error_n=self.force_integral_authority_error_n,
+                force_normal_velocity_limit_m_s=self.force_normal_velocity_limit_m_s,
                 delay_T_s=float(actual_dt_s),
                 force_sign_convention="step5_step6_positive_normal_load",
             ),
