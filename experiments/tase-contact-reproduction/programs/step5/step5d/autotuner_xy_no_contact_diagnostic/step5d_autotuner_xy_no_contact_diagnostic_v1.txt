@@ -1,0 +1,8 @@
+Autotuner XY no-contact diagnostic package
+
+Program: step5d_autotuner_xy_no_contact_diagnostic_v1
+Version: 20260815_STEP5D_AUTOTUNER_XY_NO_CONTACT_DIAGNOSTIC_V1
+Claim: single_autotuner_xy_no_contact_diagnostic
+Contact/search/force-control/training/qualification/promotion/tell_exact: inactive
+Normal completion: guarded absolute-origin preposition, one PATH, path origin, startup Home, stationary
+Fault completion: zero/abort, no automatic recovery motion

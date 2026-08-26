@@ -1,0 +1,26 @@
+{
+  "schema": "step5d.autotune-v4/r013-floor-discovery-report-notes-v1",
+  "generated_at": "2026-08-15T19:37:26+00:00",
+  "html": "r013_floor_discovery_offline_report.html",
+  "scope": "offline_preparation_only",
+  "historical_figures_reused_without_data_mutation": true,
+  "historical_progress_png_sha256": "20219276230fc2c29fa4c5214a732de53a2cab87198047600ab8a827fa519a7f",
+  "historical_diagnostics_png_sha256": "e63c41e32856347c1db31143bdcc8099aa14be0fed39b22c419404b8d7e47239",
+  "new_campaign_progress": "0/200",
+  "target_achieved_claim": false,
+  "launch_ready": false,
+  "blockers": [
+    "live_handoff_ab_not_executed",
+    "outward_boundary_runtime_primitive_not_installed",
+    "context_correction_runtime_primitive_not_installed",
+    "cycloid_200_novel_not_executed"
+  ],
+  "report_checkpoints": [
+    100,
+    160,
+    200,
+    "final"
+  ],
+  "checkpoint_receipt_schema": "step5d.autotune-v4/r013-checkpoint-receipt-v1",
+  "checkpoint_manifest_attached": false
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": "step5d.autotuner-report-qa/v1",
+  "validator_version": "1.0.0",
+  "generated_at": "2026-08-15T17:55:58.202000+00:00",
+  "status": "passed",
+  "files": {
+    "evidence": {
+      "path": "reports/r013_floor_discovery_offline_20260815/autotuner_report_evidence.json",
+      "sha256": "1d7f104601e3050c7a566735c67316ef0de9d905a805244d7c5304c3474660a5"
+    },
+    "artifact": {
+      "path": "reports/r013_floor_discovery_offline_20260815/artifact.json",
+      "sha256": "5766d9b8dd4ea848dcc8a2aca1b98bd0058c2d2542d073e5cb87c6a2ce0f5fae"
+    }
+  },
+  "computed": {
+    "evaluation_count": 78,
+    "admitted_count": 77,
+    "best_epoch": 76,
+    "best_sealed_mae_n": 0.3162640181193824,
+    "repeatability_required": true
+  },
+  "errors": [],
+  "warnings": []
+}

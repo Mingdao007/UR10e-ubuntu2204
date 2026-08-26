@@ -1,0 +1,35 @@
+{
+  "candidate": {
+    "force_damping": 188.36079701683204,
+    "force_i_gain": 0.0,
+    "force_p_gain": 0.019027313840405524,
+    "i_off": true,
+    "motion_kp": 2.5226892457611436,
+    "normal_filter_tau_s": 0.04375,
+    "orientation_ko": 0.05,
+    "target_force_n": 5.0
+  },
+  "candidate_token": "1c2e37c0e98d47f40e04d990c073c9d8a4acc39066bf5fed062875f6e10bdc5e",
+  "correction_of": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_stage_confirmation_prep_20260818_053936_05/confirmation.json",
+  "execution_id": "r013-v4-fixed-confirmation-1c2e37c0e98d47f4-b2fe9a54fd53449b8f59c6e064d81ae8",
+  "force_objective": {
+    "complete_bins": 550,
+    "raw_evidence_digest": "b729f7bc68ea76c47592137e3884197f4281ae1e1b12f32e214f8074f1734dab",
+    "required_bins": 550,
+    "semantic_fingerprint": "r005.force-mae-v2|stage=25|formal=[5,60)|legacy-shadow=[0,55)|bin=0.1s|bins=550|stat=mean(abs(mean(force_in_bin)-5N))|legacy=shadow-only",
+    "sufficient_statistics_digest": "a5c15c946cc1d5f36027b250d18c35116b0e30301f1a43761b56c3543a0f9abf",
+    "v2_mae_n": 0.5365978383836498
+  },
+  "home_verified": true,
+  "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_stage_confirmation_prep_20260818_053936_05/000004-r013-v4-fixed-confirmation-1c2e37c0e98d47f4-b2fe9a54fd53449b8f59c6e064d81ae8.r013life.json",
+  "motion_gate": true,
+  "new_trial": false,
+  "original_confirmation_state": "failed",
+  "physical_eligible": true,
+  "physical_ledger": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_stage_confirmation_prep_20260818_053936_05/r006-physical-observations.jsonl",
+  "physical_row_sha256": "ced8aa5b631ef896382ff8cdde058dd5ea57c21542335334994e7fc70eaa6494",
+  "receipt_sha256": "6f07dcd7555bc0b09886ecc04181b3f8cdc7d665051c3776e7d31c24b574308c",
+  "repair_type": "serialization_only",
+  "schema": "step5d.autotune-v4/v4-fixed-confirmation-serialization-correction-v1",
+  "timing_gate": true
+}

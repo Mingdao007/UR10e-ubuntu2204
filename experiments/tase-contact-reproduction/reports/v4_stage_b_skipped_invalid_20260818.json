@@ -1,0 +1,54 @@
+{
+  "schema": "step5d.autotune-v4/v4-stage-skip-receipt-v1",
+  "version": 1,
+  "stage": "V4_FF_ION_6D_100",
+  "status": "SKIPPED_INVALID",
+  "decision": "do_not_resume_or_rerun_stage_b",
+  "reason": "repeated resident-context ARM_ENTRY_to_CONTACT_SEARCH lifecycle/timing seam; user selected Figure-eight as next live round",
+  "search": {
+    "attempt_budget": 100,
+    "closed_attempts": 100,
+    "exact": 1,
+    "ineligible": 99,
+    "censored": 0,
+    "failure": 0,
+    "gp_trainable_rows": 1,
+    "first_repeated_boundary_failure_ordinal": 2,
+    "boundary_scope": "ARM_ENTRY->CONTACT_SEARCH first fresh RTDE frame after resident-context reuse"
+  },
+  "confirmation": {
+    "closed_attempts": 43,
+    "exact": 0,
+    "ineligible": 43,
+    "censored": 0,
+    "failure": 0,
+    "unresolved_dispatch_ordinal": 144,
+    "confirmation_complete": false,
+    "bounded_stop": true
+  },
+  "safety": {
+    "safety_failure": false,
+    "protective_or_emergency_stop": false,
+    "termination_class": "operator_stop_post_budget_liveness_stop",
+    "exit_signal": "SIGINT",
+    "home_boundary_receipt": "runs/v4_stage_b_compat_prep_20260818_060000/000147-r013-v4-stage-0144-fcf0c3255393-f17b88eadfc74ade89e0e317977a2b81.r013life.json"
+  },
+  "identity": {
+    "stage_fingerprint_sha256": "f1beb2c50cc51641b2ee85a4a8b70e7f882ff4baac9a6605b0e689baab4f9a1b",
+    "source_identity": "37529c31d3f1a8d98befde750f795a08bc934397a24ce73bfc5743a3f7e110f2",
+    "ledger_path": "runs/v4_stage_ff_ion_6d_100_20260818_060000.jsonl",
+    "ledger_sha256": "3083c837c306916882bbc7d7b6d2d82b27454735b71ce62f60c69f3fa940a9c5",
+    "ledger_bytes": 309989
+  },
+  "artifact_root": {
+    "path": "runs/v4_stage_b_compat_prep_20260818_060000",
+    "file_count_at_freeze": 319,
+    "bytes_at_freeze": 2085064001
+  },
+  "promotion": {
+    "stage_a_confirmation_is_not_stage_a_search_pass": true,
+    "stage_b_parameter_result_valid": false,
+    "enter_figure8_next": true,
+    "censored_or_ineligible_rows_enter_gp": false
+  }
+}

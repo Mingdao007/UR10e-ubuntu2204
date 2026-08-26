@@ -1,0 +1,13 @@
+{
+  "controller_dir": "/programs/andyl/kunwei/step5",
+  "created_at": "2026-08-15T16:50:37+08:00",
+  "layout_tag": 725.0,
+  "program": "step5d_autotuner_xy_no_contact_diagnostic_v1",
+  "schema": "step5d.autotuner-xy-no-contact-package/v1",
+  "sha256": {
+    "script": "442ef6de4d2a71157c9f396a563aa043df4de855586ee92b3ed6d662bed0f824",
+    "txt": "0d5296f35deebeada07d586693a09b8259b7c67979d4cb290ce8fbe6e4e9cdc0",
+    "urp": "d9d6ee87f1df7764355e74c5af97fe1e751d9ecabf068f794e445d96a06fd20c"
+  },
+  "stamp": "20260815_STEP5D_AUTOTUNER_XY_NO_CONTACT_DIAGNOSTIC_V1"
+}

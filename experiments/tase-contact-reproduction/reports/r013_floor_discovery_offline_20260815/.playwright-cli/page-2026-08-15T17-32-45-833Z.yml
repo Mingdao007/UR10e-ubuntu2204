@@ -1,0 +1,707 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - heading "R013 MAE Floor Discovery｜Offline Readiness Report" [level=1] [ref=e5]
+    - time [ref=e7]: Aug 15, 2026, 5:31 PM UTC
+  - generic [ref=e8]:
+    - generic [ref=e10]:
+      - heading "技术结论" [level=2] [ref=e11]
+      - paragraph [ref=e12]:
+        - strong [ref=e13]: 本轮已完成 offline preparation，但没有启动新的 physical campaign。
+        - text: 新 empirical-floor campaign 当前为
+        - strong [ref=e14]: 0/200 novel candidates
+        - text: 、
+        - code [ref=e15]: launch_ready=false
+        - text: ，并被四项 prerequisite 明确阻断；因此本报告不宣称新 incumbent、empirical floor 或 Figure-eight path-specific result。
+      - paragraph [ref=e16]:
+        - text: 历史证据仍然有效但必须分层：single-trial minimum 是
+        - strong [ref=e17]:
+          - generic [ref=e18]: "0.316264"
+          - text: "N"
+        - text: ；同一 candidate 三次 sealed MAE 为
+        - strong [ref=e19]:
+          - generic [ref=e20]: "0.316264"
+          - text: /
+          - generic [ref=e21]: "0.347462"
+          - text: /
+          - generic [ref=e22]: "0.378504"
+          - text: "N"
+        - text: ，mean/std 是
+        - strong [ref=e23]:
+          - generic [ref=e24]: "0.347410"
+          - text: /
+          - generic [ref=e25]: "0.025409"
+          - text: "N"
+        - text: 。它满足旧 n=3 mean≤
+        - generic [ref=e26]: "0.35"
+        - text: N contract，但不是新的 top
+        - generic [ref=e27]: "-3"
+        - text: n=
+        - generic [ref=e28]: "5"
+        - text: robust incumbent，也不是 attainable floor。
+    - generic [ref=e30]:
+      - article [ref=e31]:
+        - paragraph [ref=e32]: Historical n=3 mean
+        - paragraph [ref=e33]:
+          - generic [ref=e34]: 0.347410 N (historical n=3)
+        - generic [ref=e35]:
+          - generic [ref=e36]:
+            - generic [ref=e37]: Old-contract margin
+            - strong [ref=e38]:
+              - generic [ref=e39]: +0.002590 N (old contract)
+          - generic [ref=e40]:
+            - generic [ref=e41]: Historical repeats
+            - strong [ref=e42]:
+              - generic [ref=e43]: "3"
+      - article [ref=e44]:
+        - paragraph [ref=e45]: Historical single minimum
+        - paragraph [ref=e46]:
+          - generic [ref=e47]: 0.316264 N (historical single)
+      - article [ref=e48]:
+        - paragraph [ref=e49]: Preparation status
+        - paragraph [ref=e50]:
+          - generic [ref=e51]: OFFLINE READY · LIVE BLOCKED
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - generic [ref=e54]: New novel candidates
+            - strong [ref=e55]:
+              - generic [ref=e56]: 0 / 200
+          - generic [ref=e57]:
+            - generic [ref=e58]: Launch blockers
+            - strong [ref=e59]:
+              - generic [ref=e60]: "4"
+    - generic [ref=e62]:
+      - heading "Identity、scope 与 same-function contract" [level=2] [ref=e63]
+      - paragraph [ref=e64]:
+        - text: 本报告把 historical Goal
+        - generic [ref=e65]: "-035"
+        - text: evidence 与 future budgeted-floor campaign 分开：图
+        - generic [ref=e66]: "1"
+        - text: –
+        - generic [ref=e67]: "3"
+        - text: 只呈现已经 sealed 的历史 observations；任何“0/200 之后”的数据都没有被模拟或补画。新 campaign 只有 fingerprint 完全一致的数据才能进入同一 exact function：path、metric、handoff、correction/source SHA、EOAT、Home/tare 与 controller lineage 全部绑定。
+      - paragraph [ref=e68]:
+        - text: Cycloid metric 固定为 force-mae-v2 sealed [
+        - generic [ref=e69]: "5"
+        - text: ","
+        - generic [ref=e70]: "60"
+        - text: )、550 bins；Figure-eight 单独使用 figure8-force-mae-v1 [
+        - generic [ref=e71]: "5"
+        - text: ","
+        - generic [ref=e72]: "30"
+        - text: )、250 bins。
+        - generic [ref=e73]: "5"
+        - text: N 是 force setpoint，
+        - generic [ref=e74]: "0.35"
+        - text: N 在新 campaign 中仅为 checkpoint。Package/read-back、offline tests 或历史 Safety NORMAL 都不构成未来 live acceptance。
+    - generic [ref=e76]:
+      - heading "图 1 ｜历史 BO 进展：真实 78 epochs，不伪造 200 -candidate 进度" [level=2] [ref=e77]:
+        - text: 图
+        - generic [ref=e78]: "1"
+        - text: ｜历史 BO 进展：真实
+        - generic [ref=e79]: "78"
+        - text: epochs，不伪造
+        - generic [ref=e80]: "200"
+        - text: "-candidate 进度"
+      - paragraph [ref=e81]:
+        - text: 实点是 admitted sealed evidence，空心点是 excluded sealed evidence；best-so-far 只对 admitted rows 求 cumulative minimum。历史单次最低值在 epoch
+        - generic [ref=e82]: "76"
+        - text: 降到
+        - strong [ref=e83]:
+          - generic [ref=e84]: "0.316264"
+          - text: "N"
+        - text: ，epoch
+        - generic [ref=e85]: "77"
+        - text: –
+        - generic [ref=e86]: "78"
+        - text: 的 repeats 不会把 best-so-far 错画成 repeated mean。新 empirical-floor campaign 尚未运行，所以图中明确保持
+        - strong [ref=e87]: 0/200
+        - text: ，不外推 posterior 或虚构未来曲线。
+      - paragraph [ref=e88]:
+        - text: 旧
+        - generic [ref=e89]: "120"
+        - text: "-stop 的根因不是固定上限："
+        - generic [ref=e90]: "128"
+        - text: "-point pool 含"
+        - generic [ref=e91]: "1"
+        - text: 个 evaluated overlap，过滤后仅 127/128，第
+        - generic [ref=e92]: "121"
+        - text: 次 exact-pool ask fail closed。offline implementation 已改为持久化 fresh Sobol cursor，每次 ask 要求恰好
+        - generic [ref=e93]: "128"
+        - text: 个 fresh、unevaluated、valid candidates。
+    - iframe [ref=e96]:
+      - 'figure "Figure 1. All 78 epochs are retained: 77 admitted and one excluded sealed canary. The zoom preserves the 0.35 N threshold, epoch-76 best 0.316264 N, and n=3 mean 0.347410 N." [ref=f1e2]':
+        - img "R013 Goal-035 Autotuner progress across 78 evaluation epochs with a decision-region zoom" [ref=f1e3]
+    - generic [ref=e98]:
+      - heading "图 2 ｜历史最佳单次：完整力曲线、位置误差与姿态误差" [level=2] [ref=e99]:
+        - text: 图
+        - generic [ref=e100]: "2"
+        - text: ｜历史最佳单次：完整力曲线、位置误差与姿态误差
+      - paragraph [ref=e101]:
+        - text: 该图对应历史 phase004 attempt
+        - generic [ref=e102]: "6"
+        - text: （sealed MAE
+        - strong [ref=e103]:
+          - generic [ref=e104]: "0.316264"
+          - text: "N"
+        - text: ），不是新 campaign 的 confirmed incumbent。上栏保留 SEARCH、真实 handoff gap、完整
+        - generic [ref=e105]: "60"
+        - text: s PATH 与 safe-return/Home；PATH
+        - generic [ref=e106]: 28,779
+        - text: 个 raw samples，observed rate
+        - generic [ref=e107]: "479.65"
+        - text: Hz，缺口按真实状态显示且不补直线。中栏是 bound cycloid reference 对 TCP XY position error；下栏是 TCP +Z 对 base -Z 的 roll-invariant orientation-axis error。
+    - iframe [ref=e110]:
+      - 'figure "Figure 2. Force: SEARCH 10 Hz + PATH 479.65 Hz observed + safe-return 10 Hz; gaps are never interpolated. Position/orientation: recorded pose sidecar near 10 Hz. Authoritative ledger position p95/max: 0.055799/0.155102 mm." [ref=f2e2]':
+        - 'img "R013 goal-035 best attempt 6: complete force lifecycle, XY tracking error, and roll-invariant orientation-axis error" [ref=f2e3]'
+    - generic [ref=e112]:
+      - heading "图 3 ｜历史 n= 3 repeatability：旧 acceptance 通过，新 robust selection 未完成" [level=2] [ref=e113]:
+        - text: 图
+        - generic [ref=e114]: "3"
+        - text: ｜历史 n=
+        - generic [ref=e115]: "3"
+        - text: repeatability：旧 acceptance 通过，新 robust selection 未完成
+      - paragraph [ref=e116]:
+        - text: 历史三次 mean/std/range 是
+        - strong [ref=e117]:
+          - generic [ref=e118]: "0.347410"
+          - text: /
+          - generic [ref=e119]: "0.025409"
+          - text: /
+          - generic [ref=e120]: "0.316264"
+          - text: –
+          - generic [ref=e121]: "0.378504"
+          - text: "N"
+        - text: 。旧合同用 n=3 mean，因而当时可以记录 target achieved；新 floor campaign 则要求完成
+        - generic [ref=e122]: "200"
+        - text: novel 后 top
+        - generic [ref=e123]: "3"
+        - text: 全部补到 n=
+        - generic [ref=e124]: "5"
+        - text: 。phase003 的
+        - generic [ref=e125]: "0.402891"
+        - text: N 是 excluded evidence，不进入 mean；ext60 未记录。
+    - figure "Historical same-candidate repeatability" [ref=e127]:
+      - strong [ref=e129]: Historical same-candidate repeatability
+      - table [ref=e131]:
+        - caption [ref=e132]: Historical same-candidate repeatability data
+        - rowgroup [ref=e133]:
+          - row [ref=e134]:
+            - columnheader "Repeat" [ref=e135]
+            - columnheader "Sealed MAE" [ref=e136]
+            - columnheader "Attempt" [ref=e137]
+            - columnheader "ext60" [ref=e138]
+        - rowgroup [ref=e139]:
+          - row [ref=e140]:
+            - cell "Repeat 1" [ref=e141]
+            - cell "0.32N" [ref=e142]
+            - cell "6" [ref=e143]
+            - cell "not available" [ref=e144]
+          - row [ref=e145]:
+            - cell "Repeat 2" [ref=e146]
+            - cell "0.35N" [ref=e147]
+            - cell "7" [ref=e148]
+            - cell "not available" [ref=e149]
+          - row [ref=e150]:
+            - cell "Repeat 3" [ref=e151]
+            - cell "0.38N" [ref=e152]
+            - cell "8" [ref=e153]
+            - cell "not available" [ref=e154]
+    - generic [ref=e156]:
+      - heading "历史逐次 sealed evidence 与 admission" [level=2] [ref=e158]
+      - table [ref=e161]:
+        - caption [ref=e162]: 历史逐次 sealed evidence 与 admission
+        - rowgroup [ref=e163]:
+          - row [ref=e164]:
+            - columnheader "Evidence" [ref=e165]
+            - columnheader "Attempt" [ref=e166]
+            - columnheader "Sealed MAE (N)" [ref=e167]
+            - columnheader "Bins" [ref=e168]
+            - columnheader "Timing" [ref=e169]
+            - columnheader "Motion" [ref=e170]
+            - columnheader "Admitted" [ref=e171]
+            - columnheader "Role" [ref=e172]
+        - rowgroup [ref=e173]:
+          - row [ref=e174]:
+            - cell "phase003 sealed candidate" [ref=e175]
+            - cell "4" [ref=e176]
+            - cell "0.4" [ref=e178]
+            - cell "550" [ref=e180]
+            - cell "true" [ref=e182]
+            - cell "true" [ref=e183]
+            - cell "false" [ref=e184]
+            - cell "receipt 缺失，保留但不计入" [ref=e185]
+          - row [ref=e186]:
+            - cell "repeat 1" [ref=e187]
+            - cell "6" [ref=e188]
+            - cell "0.32" [ref=e190]
+            - cell "550" [ref=e192]
+            - cell "true" [ref=e194]
+            - cell "true" [ref=e195]
+            - cell "true" [ref=e196]
+            - cell "canary" [ref=e197]
+          - row [ref=e198]:
+            - cell "repeat 2" [ref=e199]
+            - cell "7" [ref=e200]
+            - cell "0.35" [ref=e202]
+            - cell "550" [ref=e204]
+            - cell "true" [ref=e206]
+            - cell "true" [ref=e207]
+            - cell "true" [ref=e208]
+            - cell "confirmation" [ref=e209]
+          - row [ref=e210]:
+            - cell "repeat 3" [ref=e211]
+            - cell "8" [ref=e212]
+            - cell "0.38" [ref=e214]
+            - cell "550" [ref=e216]
+            - cell "true" [ref=e218]
+            - cell "true" [ref=e219]
+            - cell "true" [ref=e220]
+            - cell "confirmation" [ref=e221]
+    - generic [ref=e223]:
+      - heading "Metric fingerprint、denominator 与新旧 acceptance" [level=2] [ref=e225]
+      - table [ref=e228]:
+        - caption [ref=e229]: Metric fingerprint、denominator 与新旧 acceptance
+        - rowgroup [ref=e230]:
+          - row [ref=e231]:
+            - columnheader "Metric" [ref=e232]
+            - columnheader "Definition" [ref=e233]
+            - columnheader "Denominator" [ref=e234]
+            - columnheader "Acceptance" [ref=e235]
+        - rowgroup [ref=e236]:
+          - row [ref=e237]:
+            - cell "ext60" [ref=e238]
+            - cell "历史正式窗口在 60 s 截止，未生成独立 ext60。" [ref=e239]
+            - cell "not available" [ref=e240]
+            - cell "不以 legacy window 或补线 proxy 替代" [ref=e241]
+          - row [ref=e242]:
+            - cell "Figure-eight force MAE" [ref=e243]
+            - cell "figure8-force-mae-v1；[5,30)，0.1 s bins，250/250。" [ref=e244]
+            - cell "未来冻结架构的独立 Figure-eight campaign" [ref=e245]
+            - cell "与 cycloid 550-bin MAE 分开建模和报告" [ref=e246]
+          - row [ref=e247]:
+            - cell "Historical cycloid sealed MAE" [ref=e248]
+            - cell "force-mae-v2；[5,60)，0.1 s bins，550/550；lower is better。" [ref=e249]
+            - cell "Goal-035 historical admitted exact rows" [ref=e250]
+            - cell "旧合同：同一点 n=3 mean ≤ 0.35 N；仅作历史事实" [ref=e251]
+          - row [ref=e252]:
+            - cell "R013 empirical-floor campaign" [ref=e253]
+            - cell "固定 fingerprint 下 200 个不同、admitted、完整 sealed candidates。" [ref=e254]
+            - cell "novel candidates；A/B、sentinels、repeats、rejections 均预算外" [ref=e255]
+            - cell "top 3 各 n=5；0.35 N 仅 checkpoint，不 early-stop" [ref=e256]
+    - generic [ref=e258]:
+      - heading "历史 candidate 与未来 optimizer contract" [level=2] [ref=e260]
+      - table [ref=e263]:
+        - caption [ref=e264]: 历史 candidate 与未来 optimizer contract
+        - rowgroup [ref=e265]:
+          - row [ref=e266]:
+            - columnheader "#" [ref=e267]
+            - columnheader "Category" [ref=e268]
+            - columnheader "Parameter" [ref=e269]
+            - columnheader "Value" [ref=e270]
+            - columnheader "Bounds / contract" [ref=e271]
+            - columnheader "Unit" [ref=e272]
+            - columnheader "Scope" [ref=e273]
+        - rowgroup [ref=e274]:
+          - row [ref=e275]:
+            - cell "1" [ref=e276]
+            - cell "Candidate" [ref=e278]
+            - cell "force_p_gain (P)" [ref=e279]
+            - cell "0.02" [ref=e280]
+            - cell "[0.00235451, 0.07534432]" [ref=e281]
+            - cell "1/N" [ref=e282]
+            - cell "tunable via p_over_d" [ref=e283]
+          - row [ref=e284]:
+            - cell "2" [ref=e285]
+            - cell "Candidate" [ref=e287]
+            - cell "force_damping (D)" [ref=e288]
+            - cell "188.36" [ref=e289]
+            - cell "[7.0, 224.0]" [ref=e290]
+            - cell "N·s/m" [ref=e291]
+            - cell "tunable" [ref=e292]
+          - row [ref=e293]:
+            - cell "3" [ref=e294]
+            - cell "Candidate" [ref=e296]
+            - cell "force_i_gain (I)" [ref=e297]
+            - cell "0.01" [ref=e298]
+            - cell "[0.00095137, 0.00861078]" [ref=e299]
+            - cell "1/(N·s)" [ref=e300]
+            - cell "tunable via I/P" [ref=e301]
+          - row [ref=e302]:
+            - cell "4" [ref=e303]
+            - cell "Candidate" [ref=e305]
+            - cell "i_off" [ref=e306]
+            - cell "false" [ref=e307]
+            - cell "derived" [ref=e308]
+            - cell "boolean" [ref=e309]
+            - cell "derived" [ref=e310]
+          - row [ref=e311]:
+            - cell "5" [ref=e312]
+            - cell "Candidate" [ref=e314]
+            - cell "normal_filter_tau_s" [ref=e315]
+            - cell "0.04" [ref=e316]
+            - cell "[0.04375, 0.0735784]" [ref=e317]
+            - cell "s" [ref=e318]
+            - cell "tunable" [ref=e319]
+          - row [ref=e320]:
+            - cell "6" [ref=e321]
+            - cell "Candidate" [ref=e323]
+            - cell "orientation_ko" [ref=e324]
+            - cell "0.05" [ref=e325]
+            - cell "[0.05, 0.8]" [ref=e326]
+            - cell "gain" [ref=e327]
+            - cell "tunable" [ref=e328]
+          - row [ref=e329]:
+            - cell "7" [ref=e330]
+            - cell "Candidate" [ref=e332]
+            - cell "motion_kp" [ref=e333]
+            - cell "2.52" [ref=e334]
+            - cell "[1.5, 6.0]" [ref=e335]
+            - cell "gain" [ref=e336]
+            - cell "tunable" [ref=e337]
+          - row [ref=e338]:
+            - cell "8" [ref=e339]
+            - cell "Candidate" [ref=e341]
+            - cell "target_force_n" [ref=e342]
+            - cell "5" [ref=e343]
+            - cell "fixed 5 N" [ref=e344]
+            - cell "N" [ref=e345]
+            - cell "invariant" [ref=e346]
+          - row [ref=e347]:
+            - cell "9" [ref=e348]
+            - cell "Optimizer" [ref=e350]
+            - cell "model" [ref=e351]
+            - cell "botorch.SingleTaskGP" [ref=e352]
+            - cell "versioned implementation" [ref=e353]
+            - cell "—" [ref=e354]
+            - cell "fixed" [ref=e355]
+          - row [ref=e356]:
+            - cell "10" [ref=e357]
+            - cell "Optimizer" [ref=e359]
+            - cell "acquisition" [ref=e360]
+            - cell "qLogNEI" [ref=e361]
+            - cell "q=1" [ref=e362]
+            - cell "—" [ref=e363]
+            - cell "fixed" [ref=e364]
+          - row [ref=e365]:
+            - cell "11" [ref=e366]
+            - cell "Optimizer" [ref=e368]
+            - cell "candidate_pool_size" [ref=e369]
+            - cell "128" [ref=e370]
+            - cell "128 per ask" [ref=e371]
+            - cell "candidates" [ref=e372]
+            - cell "bounded" [ref=e373]
+          - row [ref=e374]:
+            - cell "12" [ref=e375]
+            - cell "Historical termination" [ref=e377]
+            - cell "stop_reason" [ref=e378]
+            - cell "target_achieved after 3 repeats" [ref=e379]
+            - cell "mean ≤ 0.35 N" [ref=e380]
+            - cell "—" [ref=e381]
+            - cell "historical only" [ref=e382]
+          - row [ref=e383]:
+            - cell "13" [ref=e384]
+            - cell "Termination" [ref=e386]
+            - cell "in_flight" [ref=e387]
+            - cell "0" [ref=e388]
+            - cell "serial q=1" [ref=e389]
+            - cell "dispatches" [ref=e390]
+            - cell "recorded" [ref=e391]
+          - row [ref=e392]:
+            - cell "14" [ref=e393]
+            - cell "Floor budget" [ref=e395]
+            - cell "novel split" [ref=e396]
+            - cell "100 core + 60 correction + 40 alternating polish" [ref=e397]
+            - cell "exactly 200 novel" [ref=e398]
+            - cell "candidates" [ref=e399]
+            - cell "offline contract" [ref=e400]
+          - row [ref=e401]:
+            - cell "15" [ref=e402]
+            - cell "Candidate generation" [ref=e404]
+            - cell "fresh pool" [ref=e405]
+            - cell "persistent Sobol cursor" [ref=e406]
+            - cell "128 fresh/unevaluated/valid per ask" [ref=e407]
+            - cell "candidates" [ref=e408]
+            - cell "offline tested" [ref=e409]
+      - paragraph [ref=e410]: 19 results · Showing first 15
+    - generic [ref=e412]:
+      - heading "Historical admission 与 new offline readiness" [level=2] [ref=e413]
+      - paragraph [ref=e414]:
+        - text: 历史 Goal
+        - generic [ref=e415]: "-035"
+        - text: 的 campaign ledger、strategy sidecar 与 physical ledger 能 cold-read crossjoin，图表保持原 admission 和真实 gap。新 campaign 尚无 live receipts；offline config 强制
+        - code [ref=e416]: launch_ready=false
+        - text: ，handoff selection 保持 null，任何 boundary/correction live prerequisite 缺失都在 run-dir 创建或 callback 前失败。
+    - generic [ref=e418]:
+      - heading "Offline readiness acceptance matrix" [level=2] [ref=e420]
+      - table [ref=e423]:
+        - caption [ref=e424]: Offline readiness acceptance matrix
+        - rowgroup [ref=e425]:
+          - row [ref=e426]:
+            - columnheader "Gate" [ref=e427]
+            - columnheader "Result" [ref=e428]
+            - columnheader "Evidence" [ref=e429]
+        - rowgroup [ref=e430]:
+          - row [ref=e431]:
+            - cell "Cross-step parameter table" [ref=e432]
+            - cell "PRE-EXISTING DRIFT" [ref=e433]
+            - cell "worktree retains stale r005 stage ref；canonical tree passes；not hidden by R013 edits" [ref=e434]
+          - row [ref=e435]:
+            - cell "Empirical floor" [ref=e436]
+            - cell "NOT CLAIMED" [ref=e437]
+            - cell "new campaign novel progress=0/200；historical 0.316264 is not a floor" [ref=e438]
+          - row [ref=e439]:
+            - cell "Figure-eight transfer" [ref=e440]
+            - cell "TEMPLATE READY" [ref=e441]
+            - cell "metric/budget/transfer/freeze contracts defined；launch blocked on cycloid prerequisites" [ref=e442]
+          - row [ref=e443]:
+            - cell "Floor campaign config" [ref=e444]
+            - cell "PASS OFFLINE" [ref=e445]
+            - cell "launch_ready=false；0/200；four exact blockers required" [ref=e446]
+          - row [ref=e447]:
+            - cell "Focused regression" [ref=e448]
+            - cell "PASS" [ref=e449]
+            - cell "120 passed in 8.58 s；git diff --check clean" [ref=e450]
+          - row [ref=e451]:
+            - cell "Handoff A/B" [ref=e452]
+            - cell "NOT RUN" [ref=e453]
+            - cell "selection remains null；live A-B-B-A-A-B required before launch" [ref=e454]
+          - row [ref=e455]:
+            - cell "Offline-only scope" [ref=e456]
+            - cell "PASS" [ref=e457]
+            - cell "no bench/controller/network/bridge/motion/contact/Home/tare operation performed" [ref=e458]
+          - row [ref=e459]:
+            - cell "Runtime boundary/correction" [ref=e460]
+            - cell "BLOCKED" [ref=e461]
+            - cell "outward boundary and context-correction runtime primitives not installed" [ref=e462]
+          - row [ref=e463]:
+            - cell "Textbook alignment" [ref=e464]
+            - cell "PASS" [ref=e465]
+            - cell "worktree and canonical Local Control audits pass" [ref=e466]
+    - generic [ref=e468]:
+      - heading "从历史 failure seams 到 budgeted-floor offline primitives" [level=2] [ref=e469]
+      - paragraph [ref=e470]: I 项伤害仍没有 matched repeated A/B 证据。已知可复现问题包括 admission 漂移、timing scope 丢失、hot-path validation、safe-return receipt、exact-pool overlap，以及后续识别出的 early-stop、fixed noise、handoff same-function 与 one-sided correction seams。下表严格区分“历史已修复”“offline 已测试”和“仍需 live prerequisite”。
+    - generic [ref=e472]:
+      - heading "Failure seam、behavior primitive 与 acceptance" [level=2] [ref=e474]
+      - table [ref=e477]:
+        - caption [ref=e478]: Failure seam、behavior primitive 与 acceptance
+        - rowgroup [ref=e479]:
+          - row [ref=e480]:
+            - columnheader "Failure seam" [ref=e481]
+            - columnheader "Observed symptom" [ref=e482]
+            - columnheader "Implemented change" [ref=e483]
+            - columnheader "Acceptance" [ref=e484]
+        - rowgroup [ref=e485]:
+          - row [ref=e486]:
+            - cell "0.31 单次值触发过早停止" [ref=e487]
+            - cell "旧 n=3 target contract 停止，未探索 attainable floor" [ref=e488]
+            - cell "budgeted_floor_v1 固定 200 novel；0.35 仅 checkpoint" [ref=e489]
+            - cell "launch-ready override fail-closed；no MAE early-stop tests" [ref=e490]
+          - row [ref=e491]:
+            - cell "120 次 exact pool overlap stop" [ref=e492]
+            - cell "128 pool 过滤成 127，next ask fail closed" [ref=e493]
+            - cell "persistent fresh Sobol cursor + exactly 128 valid pool" [ref=e494]
+            - cell "99/100/199 resume and >200-generation tests pass" [ref=e495]
+          - row [ref=e496]:
+            - cell "GP admission 漂移" [ref=e497]
+            - cell "physical qualification 与 optimizer-facing eligibility 脱钩" [ref=e498]
+            - cell "tell_exact 只接受 typed physical admission；timing/motion/seal/eligibility fail closed" [ref=e499]
+            - cell "3/3 admitted；0 rejected；cold replay 无漂移" [ref=e500]
+          - row [ref=e501]:
+            - cell "handoff 数据混入 same-function GP" [ref=e502]
+            - cell "blind reset 与 freeze carry 改变 runtime function" [ref=e503]
+            - cell "pending selection + hashed HandoffSelectionReceipt + fingerprint binding" [ref=e504]
+            - cell "no implicit default；mismatch rejected" [ref=e505]
+          - row [ref=e506]:
+            - cell "legacy TP ratio 单点误杀" [ref=e507]
+            - cell "其余 timing evidence 健康，仅 TP/writer ratio 稍低于 0.98" [ref=e508]
+            - cell "typed bounded rescue；仅允许唯一 failure、明确 eligible=false 与固定健康阈值" [ref=e509]
+            - cell "fail-closed inconsistency test；99 passed" [ref=e510]
+          - row [ref=e511]:
+            - cell "one-sided phase correction" [ref=e512]
+            - cell "40–50 s negative signed bias 无法双向纠正" [ref=e513]
+            - cell "six-context residual + clip/slew typed contracts" [ref=e514]
+            - cell "normalization/clip/slew offline tests pass；live runtime remains blocked" [ref=e515]
+          - row [ref=e516]:
+            - cell "qualification timing scope 丢失" [ref=e517]
+            - cell "R008 timing diagnostics 未进入 R013 owner" [ref=e518]
+            - cell "改用 R008LiveWriterAdapter，并仅在 qualification run_60s 周围绑定 timing scope" [ref=e519]
+            - cell "当前 epoch 3/3 qualification_passed" [ref=e520]
+          - row [ref=e521]:
+            - cell "safe-return receipt 未闭合" [ref=e522]
+            - cell "TP 已 Home，但 host last mode 仍停在 PATH" [ref=e523]
+            - cell "新增显式 verified safe-return transition marker，再写 strategy receipt" [ref=e524]
+            - cell "3/3 receipt exit_mode=safe_return；violation_count=0" [ref=e525]
+          - row [ref=e526]:
+            - cell "strategy hot path 反复验证" [ref=e527]
+            - cell "500 Hz path 的 schema validation 进入 per-tick 路径" [ref=e528]
+            - cell "编译 immutable strategy；strict public wrapper 保持不变" [ref=e529]
+            - cell "compiled PATH hot path 约 0.506 μs/tick；60,066-case parity review GO" [ref=e530]
+          - row [ref=e531]:
+            - cell "固定 0.01 N² noise" [ref=e532]
+            - cell "repeat variability 未进入 GP observation noise" [ref=e533]
+            - cell "ObservationGroup + pooled/shrunk variance / n + bounded Yvar" [ref=e534]
+            - cell "repeat/noise/fingerprint unit tests pass" [ref=e535]
+    - generic [ref=e537]:
+      - heading "Offline package 已准备，但 fail-closed 保持生效" [level=2] [ref=e538]
+      - paragraph [ref=e539]:
+        - text: 以下 readiness 只说明代码、typed contracts、resume/cursor/noise tests 和配置已准备。
+        - code [ref=e540]: handoff_policy=null
+        - text: 、
+        - code [ref=e541]: launch_ready=false
+        - text: 与四项 blockers 是刻意的安全状态；不能由 package read-back 或历史 low MAE 自动提升为 live-ready。
+    - generic [ref=e543]:
+      - heading "200-candidate floor campaign offline readiness" [level=2] [ref=e545]
+      - table [ref=e548]:
+        - caption [ref=e549]: 200-candidate floor campaign offline readiness
+        - rowgroup [ref=e550]:
+          - row [ref=e551]:
+            - columnheader "#" [ref=e552]
+            - columnheader "Primitive" [ref=e553]
+            - columnheader "Status" [ref=e554]
+            - columnheader "Contract / evidence" [ref=e555]
+        - rowgroup [ref=e556]:
+          - row [ref=e557]:
+            - cell "1" [ref=e558]
+            - cell "CampaignFingerprint" [ref=e560]
+            - cell "READY OFFLINE" [ref=e561]
+            - cell "path + metric + handoff + correction/source/EOAT/Home-tare + controller lineage；mismatch rejected" [ref=e562]
+          - row [ref=e563]:
+            - cell "2" [ref=e564]
+            - cell "HandoffPolicy" [ref=e566]
+            - cell "PENDING LIVE A/B" [ref=e567]
+            - cell "blind_reset_v0 / freeze_carry_v1 typed + versioned；A-B-B-A-A-B plan ready；selection null" [ref=e568]
+          - row [ref=e569]:
+            - cell "3" [ref=e570]
+            - cell "PhysicalAdmissionReceipt" [ref=e572]
+            - cell "READY OFFLINE" [ref=e573]
+            - cell "epoch qualification、trial admission、motion gate、timing gate 分离；ineligible never tell_exact" [ref=e574]
+          - row [ref=e575]:
+            - cell "4" [ref=e576]
+            - cell "ObservationGroup" [ref=e578]
+            - cell "READY OFFLINE" [ref=e579]
+            - cell "canonical candidate + fingerprint 聚合 n/mean/sample_variance/Yvar；Yvar clipped to [1e-4,2e-2] N²" [ref=e580]
+          - row [ref=e581]:
+            - cell "5" [ref=e582]
+            - cell "PathProvider / correction" [ref=e584]
+            - cell "OFFLINE MODEL READY · RUNTIME BLOCKED" [ref=e585]
+            - cell "progress/speed/signed acceleration/signed curvature + bias/sin/cos；±1.25 N、≤0.5 N/s" [ref=e586]
+          - row [ref=e587]:
+            - cell "6" [ref=e588]
+            - cell "Controller-core block" [ref=e590]
+            - cell "READY OFFLINE" [ref=e591]
+            - cell "100 novel；16 initial (3 boundary + 13 Sobol)，84 serial qLogNEI；每 5 个强制 global Sobol" [ref=e592]
+          - row [ref=e593]:
+            - cell "7" [ref=e594]
+            - cell "Correction block" [ref=e596]
+            - cell "RUNTIME BLOCKED" [ref=e597]
+            - cell "60 novel；12 Sobol + 48 qLogNEI；nonzero correction fail-closed until runtime primitive installed" [ref=e598]
+          - row [ref=e599]:
+            - cell "8" [ref=e600]
+            - cell "Alternating polish" [ref=e602]
+            - cell "READY OFFLINE" [ref=e603]
+            - cell "40 novel；20 core-local / 20 correction-local 交替；每次只改变一个 block" [ref=e604]
+          - row [ref=e605]:
+            - cell "9" [ref=e606]
+            - cell "Fresh candidate cursor" [ref=e608]
+            - cell "READY OFFLINE" [ref=e609]
+            - cell "每次 ask 恰好 128 fresh/unevaluated/valid；覆盖 epoch 99/100/199 resume；不再复现 120 overlap stop" [ref=e610]
+          - row [ref=e611]:
+            - cell "10" [ref=e612]
+            - cell "Offline acceptance" [ref=e614]
+            - cell "PASS" [ref=e615]
+            - cell "120 focused tests passed；worktree + canonical textbook alignment PASS；本轮 live operations=0" [ref=e616]
+    - generic [ref=e618]:
+      - heading "Figure-eight 一次 campaign 的冻结迁移合同" [level=2] [ref=e619]
+      - paragraph [ref=e620]: Cycloid 只迁移 controller-core posterior、handoff/admission/noise primitives；motion Kp、Ko 与 phase correction 保持 path-specific。Figure-eight logger、handoff、controller seam、objective、admission 与 renderer 必须在 campaign 开始前冻结，开始后不得中途修改。
+    - generic [ref=e622]:
+      - heading "Figure-eight one-campaign transfer package" [level=2] [ref=e624]
+      - table [ref=e627]:
+        - caption [ref=e628]: Figure-eight one-campaign transfer package
+        - rowgroup [ref=e629]:
+          - row [ref=e630]:
+            - columnheader "#" [ref=e631]
+            - columnheader "Item" [ref=e632]
+            - columnheader "Frozen decision" [ref=e633]
+            - columnheader "Status" [ref=e634]
+        - rowgroup [ref=e635]:
+          - row [ref=e636]:
+            - cell "1" [ref=e637]
+            - cell "MetricFingerprint" [ref=e639]
+            - cell "figure8-force-mae-v1 = [5,30), 250 bins" [ref=e640]
+            - cell "FROZEN TEMPLATE" [ref=e641]
+          - row [ref=e642]:
+            - cell "2" [ref=e643]
+            - cell "Transferable core" [ref=e645]
+            - cell "P/D, damping, I/P, tau, anti-windup, selected handoff, admission, repeat-noise model" [ref=e646]
+            - cell "AWAITING CYCLOID INCUMBENT" [ref=e647]
+          - row [ref=e648]:
+            - cell "3" [ref=e649]
+            - cell "Path-specific unset" [ref=e651]
+            - cell "motion Kp, Ko, Figure-eight correction" [ref=e652]
+            - cell "INTENTIONALLY UNSET" [ref=e653]
+          - row [ref=e654]:
+            - cell "4" [ref=e655]
+            - cell "Correction prior" [ref=e657]
+            - cell "bias/speed/acceleration/curvature weak prior；sin/cos reset to zero" [ref=e658]
+            - cell "FROZEN TEMPLATE" [ref=e659]
+          - row [ref=e660]:
+            - cell "5" [ref=e661]
+            - cell "Campaign budget" [ref=e663]
+            - cell "24 designed warm starts；minimum 80，maximum 160 novel" [ref=e664]
+            - cell "FROZEN TEMPLATE" [ref=e665]
+          - row [ref=e666]:
+            - cell "6" [ref=e667]
+            - cell "Convergence stop" [ref=e669]
+            - 'cell "after 80: 25 proposals all P(improve ≥0.01 N)<5% and top3 n=5；otherwise 160" [ref=e670]'
+            - cell "FROZEN TEMPLATE" [ref=e671]
+          - row [ref=e672]:
+            - cell "7" [ref=e673]
+            - cell "Campaign seam" [ref=e675]
+            - cell "logger/handoff/controller/objective/admission/report renderer frozen in-campaign" [ref=e676]
+            - cell "FROZEN TEMPLATE" [ref=e677]
+          - row [ref=e678]:
+            - cell "8" [ref=e679]
+            - cell "Launch state" [ref=e681]
+            - cell "cycloid 200 + top3 n=5 + live handoff A/B + Figure-eight runtime correction required" [ref=e682]
+            - cell "BLOCKED" [ref=e683]
+    - generic [ref=e685]:
+      - heading "限制与不确定性" [level=2] [ref=e686]
+      - list [ref=e687]:
+        - listitem [ref=e688]: 新 empirical-floor campaign 尚未运行：0/200，不宣称 floor、new incumbent 或 global optimum。
+        - listitem [ref=e689]:
+          - text: 历史
+          - generic [ref=e690]: "0.316264"
+          - text: N 来自后加 path-phase target correction，不是原始 6D BO 自己发现；原始 6D BO 最低约
+          - generic [ref=e691]: "0.562688"
+          - text: N。
+        - listitem [ref=e692]:
+          - text: 历史 n=
+          - generic [ref=e693]: "3"
+          - text: 不满足新 top
+          - generic [ref=e694]: "-3"
+          - text: n=
+          - generic [ref=e695]: "5"
+          - text: robust selection；跨日、温漂与 EOAT 重装 repeatability 未知。
+        - listitem [ref=e696]: ext60 未记录；不以 legacy window、插值或补线 proxy 替代。
+        - listitem [ref=e697]: outward boundary 与 bidirectional context correction 的 runtime primitive 尚未安装，offline contracts 不能替代 live A/B/acceptance。
+        - listitem [ref=e698]: worktree 的 cross-step validator 有既存 stale r005 stage ref；canonical tree 通过，本轮未修改 authority metadata 来掩盖它。
+    - generic [ref=e700]:
+      - heading "解锁 live scope 后的唯一执行顺序" [level=2] [ref=e701]
+      - list [ref=e702]:
+        - listitem [ref=e703]:
+          - text: 固定 historical candidate/correction/source，执行 handoff
+          - code [ref=e704]: A-B-B-A-A-B
+          - text: matched live A/B，选择策略补到 n=5 并生成 selection receipt。
+        - listitem [ref=e705]: 安装并验证 outward boundary 与 six-context correction runtime primitives；fingerprint 改变时开新 ledger/GP。
+        - listitem [ref=e706]: 执行 200 个 admitted complete novel cycloid candidates：100 core、60 correction、40 alternating polish；sentinels/repeats 预算外，0.35 不 early-stop。
+        - listitem [ref=e707]: top 3 补到 n=5，交付 empirical floor、robust incumbent 与 noise-calibrated posterior。
+        - listitem [ref=e708]: 冻结 Figure-eight seam，按 24 warm starts、80–160 novel 的单次 campaign 执行。
+    - generic [ref=e710]:
+      - heading "仍需 live evidence 回答的问题" [level=2] [ref=e711]
+      - list [ref=e712]:
+        - listitem [ref=e713]:
+          - code [ref=e714]: freeze_carry_v1
+          - text: 是否在 sealed mean 不恶化的前提下降低 transient、settling 与 variance？
+        - listitem [ref=e715]: tau、Ko、I/P 的 outward probes 是否证明当前 search box 截断了 optimum？
+        - listitem [ref=e716]: 40–50 s signed undershoot 是否能由 bidirectional context residual 稳定消除？
+        - listitem [ref=e717]: 200 novel 后的 posterior improvement probability 是否真正收敛，而不是第一次低值触发停止？

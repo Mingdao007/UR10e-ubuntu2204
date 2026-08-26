@@ -1,0 +1,1917 @@
+{
+  "artifact_sample_index_gap_total": 0,
+  "automatic_gate_change": false,
+  "bo_entered": false,
+  "classification": "controller_or_host_timing_failure",
+  "coalescing_ratio_band": [
+    0.95,
+    0.98
+  ],
+  "coalescing_stability_span": 0.01,
+  "controller_modified": false,
+  "fixed_candidate_identity": "ad5bdc5963dc48bf3319147a2db95421d4237c08f99a5b53b7ae533ae997e91a",
+  "fixed_candidate_identity_count": 1,
+  "hard_failures": [
+    {
+      "failures": [
+        "writer_hz_below_460",
+        "rtde_hz_below_460",
+        "tp_hz_below_460"
+      ],
+      "timing": {
+        "distinct_kunwei": 8005,
+        "distinct_rtde": 2952,
+        "distinct_tp": 2864,
+        "distinct_writer": 2952,
+        "duration_s": 8.006115718002548,
+        "feedback_p99_s": 0.009557184996083379,
+        "kunwei_hz": 999.8606417841253,
+        "max_fresh_gap_s": 0.00613934600551147,
+        "rtde_hz": 368.7181279883495,
+        "tp_hz": 357.7265306770437,
+        "tp_writer_ratio": 0.9701897018970189,
+        "writer_hz": 368.7181279883495
+      }
+    },
+    {
+      "failures": [
+        "writer_hz_below_460",
+        "rtde_hz_below_460",
+        "tp_hz_below_460"
+      ],
+      "timing": {
+        "distinct_kunwei": 8008,
+        "distinct_rtde": 2694,
+        "distinct_tp": 2353,
+        "distinct_writer": 2694,
+        "duration_s": 8.00610738901014,
+        "feedback_p99_s": 0.00938812000094913,
+        "kunwei_hz": 1000.2363959035147,
+        "max_fresh_gap_s": 0.004365209999377839,
+        "rtde_hz": 336.49311320730123,
+        "tp_hz": 293.9006293158054,
+        "tp_writer_ratio": 0.8734224201930215,
+        "writer_hz": 336.49311320730123
+      }
+    }
+  ],
+  "hard_gate": {
+    "feedback_p99_max_s": 0.01,
+    "max_fresh_gap_s_exclusive": 0.02,
+    "minimum_rtde_hz": 460.0,
+    "minimum_tp_hz": 460.0,
+    "minimum_writer_hz": 460.0
+  },
+  "lane_id": "V4_CURRENT_FIFO_TIMING_10",
+  "legacy_ratio": 0.98,
+  "legacy_ratio_pass_count": 0,
+  "legacy_ratio_remains_diagnostic": true,
+  "metrics": {
+    "feedback_p99_s": {
+      "ddof": 1,
+      "max": 0.009656820999225602,
+      "mean": 0.009567639598390087,
+      "median": 0.009617502495530061,
+      "min": 0.00938812000094913,
+      "n": 10,
+      "stdev": 0.0001071542104561987
+    },
+    "kunwei_hz": {
+      "ddof": 1,
+      "max": 1004.0849036812697,
+      "mean": 1000.3394353700439,
+      "median": 1000.1430307617203,
+      "min": 998.0393525675139,
+      "n": 10,
+      "stdev": 1.4914985137107102
+    },
+    "max_fresh_gap_s": {
+      "ddof": 1,
+      "max": 0.011734425002941862,
+      "mean": 0.0044945386980543844,
+      "median": 0.004045316993142478,
+      "min": 0.002339894010219723,
+      "n": 10,
+      "stdev": 0.0027968431913287886
+    },
+    "rtde_hz": {
+      "ddof": 1,
+      "max": 500.1429124327995,
+      "mean": 470.44855614182745,
+      "median": 499.92925377027734,
+      "min": 336.49311320730123,
+      "n": 10,
+      "stdev": 62.57181398221274
+    },
+    "tp_hz": {
+      "ddof": 1,
+      "max": 481.14900719843024,
+      "mean": 449.7208270880562,
+      "median": 480.7436763906512,
+      "min": 293.9006293158054,
+      "n": 10,
+      "stdev": 67.01619221990192
+    },
+    "tp_writer_ratio": {
+      "ddof": 1,
+      "max": 0.9701897018970189,
+      "mean": 0.9536169107634278,
+      "median": 0.9615096225943515,
+      "min": 0.8734224201930215,
+      "n": 10,
+      "stdev": 0.02830988383366721
+    },
+    "writer_hz": {
+      "ddof": 1,
+      "max": 500.1429124327995,
+      "mean": 470.44855614182745,
+      "median": 499.92925377027734,
+      "min": 336.49311320730123,
+      "n": 10,
+      "stdev": 62.57181398221274
+    }
+  },
+  "observation_count": 10,
+  "observations": [
+    {
+      "attempt_sequence": 1,
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.008610779292198037,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_01_20260818",
+      "schema": "step5d.autotune-v4/v4-stage-a-timing-characterization-observation-v1",
+      "status": "timing_failure",
+      "timing": {
+        "distinct_kunwei": 8005,
+        "distinct_rtde": 2952,
+        "distinct_tp": 2864,
+        "distinct_writer": 2952,
+        "duration_s": 8.006115718002548,
+        "feedback_p99_s": 0.009557184996083379,
+        "kunwei_hz": 999.8606417841253,
+        "max_fresh_gap_s": 0.00613934600551147,
+        "rtde_hz": 368.7181279883495,
+        "tp_hz": 357.7265306770437,
+        "tp_writer_ratio": 0.9701897018970189,
+        "writer_hz": 368.7181279883495
+      },
+      "timing_decision": {
+        "cadence_failures": [
+          "tp_consumption_ratio_below_0p98"
+        ],
+        "eligible": false,
+        "failures": [
+          "tp_consumption_ratio_below_0p98"
+        ],
+        "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+        "telemetry": {
+          "active_stale_stop_s": 0.08,
+          "average_rate_hz": 368.7181279883495,
+          "average_rate_is_eligibility_gate": false,
+          "cadence_eligible": false,
+          "duration_s": 8.006115718002548,
+          "feedback_age_p99_max_s": 0.01,
+          "feedback_age_p99_s": 0.009557184996083379,
+          "fresh_feedback_ratio": 1.0,
+          "kunwei_distinct": 8005,
+          "layer_rates_hz": {
+            "kunwei_frames": 999.8606417841253,
+            "rtde_frames": 368.7181279883495,
+            "tp_consumed_packet_echoes": 357.7265306770437,
+            "writer_publishes": 368.7181279883495
+          },
+          "max_fresh_gap_limit_s": 0.02,
+          "max_fresh_gap_s": 0.00613934600551147,
+          "nominal_hz": 500.0,
+          "rtde_distinct": 2952,
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "tp_consumption_ratio": 0.9701897018970189,
+          "tp_distinct": 2864,
+          "version": "r007-timing-eligibility-v1",
+          "writer_distinct": 2952
+        },
+        "version": "r007-timing-eligibility-v1"
+      }
+    },
+    {
+      "attempt_sequence": 1,
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.001810193359837562,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "execution_id": "r013-owner-qualification-1-a4fc3f659e994d55bb45763155337b68",
+      "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_02_20260818/000001-r013-owner-qualification-1-a4fc3f659e994d55bb45763155337b68.r013life.json",
+      "packet_sequence": {
+        "artifact_sample_index_gap_count": 0,
+        "consumed_sequence_advance": 7069,
+        "packet_sequence_gap_count": 0,
+        "packet_sequence_regression_count": 1,
+        "sample_count": 7071,
+        "sequence_advance": 7069,
+        "sequence_jump_histogram": {
+          "1": 7069
+        }
+      },
+      "qualification_passed": true,
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_02_20260818",
+      "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+      "timing": {
+        "distinct_kunwei": 8003,
+        "distinct_rtde": 4000,
+        "distinct_tp": 3849,
+        "distinct_writer": 4000,
+        "duration_s": 8.001953116996447,
+        "feedback_p99_s": 0.009632835994125344,
+        "kunwei_hz": 1000.1308284350391,
+        "max_fresh_gap_s": 0.004110362991923466,
+        "rtde_hz": 499.87795998252614,
+        "tp_hz": 481.0075669931858,
+        "tp_writer_ratio": 0.96225,
+        "writer_hz": 499.87795998252614
+      },
+      "timing_decision": {
+        "cadence_failures": [],
+        "eligible": true,
+        "failures": [],
+        "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+        "telemetry": {
+          "active_stale_stop_s": 0.08,
+          "average_rate_hz": 499.87795998252614,
+          "average_rate_is_eligibility_gate": false,
+          "cadence_eligible": false,
+          "duration_s": 8.001953116996447,
+          "feedback_age_p99_max_s": 0.01,
+          "feedback_age_p99_s": 0.009632835994125344,
+          "fresh_feedback_ratio": 1.0,
+          "kunwei_distinct": 8003,
+          "layer_rates_hz": {
+            "kunwei_frames": 1000.1308284350391,
+            "rtde_frames": 499.87795998252614,
+            "tp_consumed_packet_echoes": 481.0075669931858,
+            "writer_publishes": 499.87795998252614
+          },
+          "max_fresh_gap_limit_s": 0.02,
+          "max_fresh_gap_s": 0.004110362991923466,
+          "nominal_hz": 500.0,
+          "r008_tp_hz": 481.0075669931858,
+          "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+          "r008_writer_hz": 499.87795998252614,
+          "rtde_distinct": 4000,
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "tp_consumption_ratio": 0.96225,
+          "tp_distinct": 3849,
+          "version": "r007-timing-eligibility-v1",
+          "writer_distinct": 4000
+        },
+        "version": "r007-timing-eligibility-v1"
+      },
+      "timing_gate": true
+    },
+    {
+      "attempt_sequence": 2,
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.001810193359837562,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "execution_id": "r013-owner-qualification-2-dfe3a8229ac54b438632fab2ce13beb8",
+      "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_02_20260818/000002-r013-owner-qualification-2-dfe3a8229ac54b438632fab2ce13beb8.r013life.json",
+      "packet_sequence": {
+        "artifact_sample_index_gap_count": 0,
+        "consumed_sequence_advance": 15362,
+        "packet_sequence_gap_count": 0,
+        "packet_sequence_regression_count": 1,
+        "sample_count": 15365,
+        "sequence_advance": 15363,
+        "sequence_jump_histogram": {
+          "1": 15363
+        }
+      },
+      "qualification_passed": true,
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_02_20260818",
+      "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+      "timing": {
+        "distinct_kunwei": 8005,
+        "distinct_rtde": 4003,
+        "distinct_tp": 3851,
+        "distinct_writer": 4003,
+        "duration_s": 8.003757551996387,
+        "feedback_p99_s": 0.009602168996934779,
+        "kunwei_hz": 1000.1552330884015,
+        "max_fresh_gap_s": 0.002339894010219723,
+        "rtde_hz": 500.14008720210757,
+        "tp_hz": 481.14900719843024,
+        "tp_writer_ratio": 0.9620284786410193,
+        "writer_hz": 500.14008720210757
+      },
+      "timing_decision": {
+        "cadence_failures": [],
+        "eligible": true,
+        "failures": [],
+        "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+        "telemetry": {
+          "active_stale_stop_s": 0.08,
+          "average_rate_hz": 500.14008720210757,
+          "average_rate_is_eligibility_gate": false,
+          "cadence_eligible": false,
+          "duration_s": 8.003757551996387,
+          "feedback_age_p99_max_s": 0.01,
+          "feedback_age_p99_s": 0.009602168996934779,
+          "fresh_feedback_ratio": 1.0,
+          "kunwei_distinct": 8005,
+          "layer_rates_hz": {
+            "kunwei_frames": 1000.1552330884015,
+            "rtde_frames": 500.14008720210757,
+            "tp_consumed_packet_echoes": 481.14900719843024,
+            "writer_publishes": 500.14008720210757
+          },
+          "max_fresh_gap_limit_s": 0.02,
+          "max_fresh_gap_s": 0.002339894010219723,
+          "nominal_hz": 500.0,
+          "r008_tp_hz": 481.14900719843024,
+          "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+          "r008_writer_hz": 500.14008720210757,
+          "rtde_distinct": 4003,
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "tp_consumption_ratio": 0.9620284786410193,
+          "tp_distinct": 3851,
+          "version": "r007-timing-eligibility-v1",
+          "writer_distinct": 4003
+        },
+        "version": "r007-timing-eligibility-v1"
+      },
+      "timing_gate": true
+    },
+    {
+      "attempt_sequence": 3,
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.001810193359837562,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "execution_id": "r013-owner-qualification-3-abb7cf5c4f6649969c5d723ed205ecae",
+      "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_02_20260818/000003-r013-owner-qualification-3-abb7cf5c4f6649969c5d723ed205ecae.r013life.json",
+      "packet_sequence": {
+        "artifact_sample_index_gap_count": 0,
+        "consumed_sequence_advance": 7089,
+        "packet_sequence_gap_count": 0,
+        "packet_sequence_regression_count": 1,
+        "sample_count": 7092,
+        "sequence_advance": 7090,
+        "sequence_jump_histogram": {
+          "1": 7090
+        }
+      },
+      "qualification_passed": true,
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_02_20260818",
+      "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+      "timing": {
+        "distinct_kunwei": 8004,
+        "distinct_rtde": 3998,
+        "distinct_tp": 3843,
+        "distinct_writer": 3998,
+        "duration_s": 8.003785805994994,
+        "feedback_p99_s": 0.009413055988261476,
+        "kunwei_hz": 1000.026761586354,
+        "max_fresh_gap_s": 0.004164724989095703,
+        "rtde_hz": 499.5136172941333,
+        "tp_hz": 480.1477817061917,
+        "tp_writer_ratio": 0.9612306153076539,
+        "writer_hz": 499.5136172941333
+      },
+      "timing_decision": {
+        "cadence_failures": [],
+        "eligible": true,
+        "failures": [],
+        "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+        "telemetry": {
+          "active_stale_stop_s": 0.08,
+          "average_rate_hz": 499.5136172941333,
+          "average_rate_is_eligibility_gate": false,
+          "cadence_eligible": false,
+          "duration_s": 8.003785805994994,
+          "feedback_age_p99_max_s": 0.01,
+          "feedback_age_p99_s": 0.009413055988261476,
+          "fresh_feedback_ratio": 1.0,
+          "kunwei_distinct": 8004,
+          "layer_rates_hz": {
+            "kunwei_frames": 1000.026761586354,
+            "rtde_frames": 499.5136172941333,
+            "tp_consumed_packet_echoes": 480.1477817061917,
+            "writer_publishes": 499.5136172941333
+          },
+          "max_fresh_gap_limit_s": 0.02,
+          "max_fresh_gap_s": 0.004164724989095703,
+          "nominal_hz": 500.0,
+          "r008_tp_hz": 480.1477817061917,
+          "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+          "r008_writer_hz": 499.5136172941333,
+          "rtde_distinct": 3998,
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "tp_consumption_ratio": 0.9612306153076539,
+          "tp_distinct": 3843,
+          "version": "r007-timing-eligibility-v1",
+          "writer_distinct": 3998
+        },
+        "version": "r007-timing-eligibility-v1"
+      },
+      "timing_gate": true
+    },
+    {
+      "attempt_sequence": 1,
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.001810193359837562,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "execution_id": "r013-owner-qualification-1-f101c46594f246708b9b59d8fa2897a5",
+      "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_03_20260818/000001-r013-owner-qualification-1-f101c46594f246708b9b59d8fa2897a5.r013life.json",
+      "packet_sequence": {
+        "artifact_sample_index_gap_count": 0,
+        "consumed_sequence_advance": 7207,
+        "packet_sequence_gap_count": 0,
+        "packet_sequence_regression_count": 1,
+        "sample_count": 7209,
+        "sequence_advance": 7207,
+        "sequence_jump_histogram": {
+          "1": 7207
+        }
+      },
+      "qualification_passed": true,
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_03_20260818",
+      "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+      "timing": {
+        "distinct_kunwei": 7988,
+        "distinct_rtde": 3998,
+        "distinct_tp": 3842,
+        "distinct_writer": 3998,
+        "duration_s": 8.003692418991704,
+        "feedback_p99_s": 0.009462588001042604,
+        "kunwei_hz": 998.0393525675139,
+        "max_fresh_gap_s": 0.011734425002941862,
+        "rtde_hz": 499.51944561403616,
+        "tp_hz": 480.02844173314827,
+        "tp_writer_ratio": 0.9609804902451224,
+        "writer_hz": 499.51944561403616
+      },
+      "timing_decision": {
+        "cadence_failures": [],
+        "eligible": true,
+        "failures": [],
+        "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+        "telemetry": {
+          "active_stale_stop_s": 0.08,
+          "average_rate_hz": 499.51944561403616,
+          "average_rate_is_eligibility_gate": false,
+          "cadence_eligible": false,
+          "duration_s": 8.003692418991704,
+          "feedback_age_p99_max_s": 0.01,
+          "feedback_age_p99_s": 0.009462588001042604,
+          "fresh_feedback_ratio": 1.0,
+          "kunwei_distinct": 7988,
+          "layer_rates_hz": {
+            "kunwei_frames": 998.0393525675139,
+            "rtde_frames": 499.51944561403616,
+            "tp_consumed_packet_echoes": 480.02844173314827,
+            "writer_publishes": 499.51944561403616
+          },
+          "max_fresh_gap_limit_s": 0.02,
+          "max_fresh_gap_s": 0.011734425002941862,
+          "nominal_hz": 500.0,
+          "r008_tp_hz": 480.02844173314827,
+          "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+          "r008_writer_hz": 499.51944561403616,
+          "rtde_distinct": 3998,
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "tp_consumption_ratio": 0.9609804902451226,
+          "tp_distinct": 3842,
+          "version": "r007-timing-eligibility-v1",
+          "writer_distinct": 3998
+        },
+        "version": "r007-timing-eligibility-v1"
+      },
+      "timing_gate": true
+    },
+    {
+      "attempt_sequence": 2,
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.001810193359837562,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "execution_id": "r013-owner-qualification-2-3d1dda083a60406181a8373330b5aa89",
+      "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_03_20260818/000002-r013-owner-qualification-2-3d1dda083a60406181a8373330b5aa89.r013life.json",
+      "packet_sequence": {
+        "artifact_sample_index_gap_count": 0,
+        "consumed_sequence_advance": 7492,
+        "packet_sequence_gap_count": 0,
+        "packet_sequence_regression_count": 1,
+        "sample_count": 7495,
+        "sequence_advance": 7493,
+        "sequence_jump_histogram": {
+          "1": 7493
+        }
+      },
+      "qualification_passed": true,
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_03_20260818",
+      "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+      "timing": {
+        "distinct_kunwei": 8008,
+        "distinct_rtde": 4002,
+        "distinct_tp": 3849,
+        "distinct_writer": 4002,
+        "duration_s": 8.002344170992728,
+        "feedback_p99_s": 0.009656820999225602,
+        "kunwei_hz": 1000.706771526745,
+        "max_fresh_gap_s": 0.0024782129912637174,
+        "rtde_hz": 500.10345899725695,
+        "tp_hz": 480.9840613894158,
+        "tp_writer_ratio": 0.9617691154422788,
+        "writer_hz": 500.10345899725695
+      },
+      "timing_decision": {
+        "cadence_failures": [],
+        "eligible": true,
+        "failures": [],
+        "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+        "telemetry": {
+          "active_stale_stop_s": 0.08,
+          "average_rate_hz": 500.10345899725695,
+          "average_rate_is_eligibility_gate": false,
+          "cadence_eligible": false,
+          "duration_s": 8.002344170992728,
+          "feedback_age_p99_max_s": 0.01,
+          "feedback_age_p99_s": 0.009656820999225602,
+          "fresh_feedback_ratio": 1.0,
+          "kunwei_distinct": 8008,
+          "layer_rates_hz": {
+            "kunwei_frames": 1000.706771526745,
+            "rtde_frames": 500.10345899725695,
+            "tp_consumed_packet_echoes": 480.9840613894158,
+            "writer_publishes": 500.10345899725695
+          },
+          "max_fresh_gap_limit_s": 0.02,
+          "max_fresh_gap_s": 0.0024782129912637174,
+          "nominal_hz": 500.0,
+          "r008_tp_hz": 480.9840613894158,
+          "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+          "r008_writer_hz": 500.10345899725695,
+          "rtde_distinct": 4002,
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "tp_consumption_ratio": 0.9617691154422788,
+          "tp_distinct": 3849,
+          "version": "r007-timing-eligibility-v1",
+          "writer_distinct": 4002
+        },
+        "version": "r007-timing-eligibility-v1"
+      },
+      "timing_gate": true
+    },
+    {
+      "attempt_sequence": 3,
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.001810193359837562,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "execution_id": "r013-owner-qualification-3-2ea1ca57971f46399fbe5fd10330d864",
+      "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_03_20260818/000003-r013-owner-qualification-3-2ea1ca57971f46399fbe5fd10330d864.r013life.json",
+      "packet_sequence": {
+        "artifact_sample_index_gap_count": 0,
+        "consumed_sequence_advance": 7048,
+        "packet_sequence_gap_count": 0,
+        "packet_sequence_regression_count": 1,
+        "sample_count": 7050,
+        "sequence_advance": 7048,
+        "sequence_jump_histogram": {
+          "1": 7048
+        }
+      },
+      "qualification_passed": true,
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_03_20260818",
+      "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+      "timing": {
+        "distinct_kunwei": 8005,
+        "distinct_rtde": 4003,
+        "distinct_tp": 3848,
+        "distinct_writer": 4003,
+        "duration_s": 8.003712339996127,
+        "feedback_p99_s": 0.009651080996263772,
+        "kunwei_hz": 1000.160882844007,
+        "max_fresh_gap_s": 0.002368037006817758,
+        "rtde_hz": 500.1429124327995,
+        "tp_hz": 480.7768990860386,
+        "tp_writer_ratio": 0.9612790407194605,
+        "writer_hz": 500.1429124327995
+      },
+      "timing_decision": {
+        "cadence_failures": [],
+        "eligible": true,
+        "failures": [],
+        "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+        "telemetry": {
+          "active_stale_stop_s": 0.08,
+          "average_rate_hz": 500.1429124327995,
+          "average_rate_is_eligibility_gate": false,
+          "cadence_eligible": false,
+          "duration_s": 8.003712339996127,
+          "feedback_age_p99_max_s": 0.01,
+          "feedback_age_p99_s": 0.009651080996263772,
+          "fresh_feedback_ratio": 1.0,
+          "kunwei_distinct": 8005,
+          "layer_rates_hz": {
+            "kunwei_frames": 1000.160882844007,
+            "rtde_frames": 500.1429124327995,
+            "tp_consumed_packet_echoes": 480.7768990860386,
+            "writer_publishes": 500.1429124327995
+          },
+          "max_fresh_gap_limit_s": 0.02,
+          "max_fresh_gap_s": 0.002368037006817758,
+          "nominal_hz": 500.0,
+          "r008_tp_hz": 480.7768990860386,
+          "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+          "r008_writer_hz": 500.1429124327995,
+          "rtde_distinct": 4003,
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "tp_consumption_ratio": 0.9612790407194604,
+          "tp_distinct": 3848,
+          "version": "r007-timing-eligibility-v1",
+          "writer_distinct": 4003
+        },
+        "version": "r007-timing-eligibility-v1"
+      },
+      "timing_gate": true
+    },
+    {
+      "attempt_sequence": 1,
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.001810193359837562,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "execution_id": "r013-owner-qualification-1-d2363574787f4f4f829563083ec2a0dd",
+      "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_04_20260818/000001-r013-owner-qualification-1-d2363574787f4f4f829563083ec2a0dd.r013life.json",
+      "packet_sequence": {
+        "artifact_sample_index_gap_count": 0,
+        "consumed_sequence_advance": 6984,
+        "packet_sequence_gap_count": 0,
+        "packet_sequence_regression_count": 1,
+        "sample_count": 6986,
+        "sequence_advance": 6984,
+        "sequence_jump_histogram": {
+          "1": 6984
+        }
+      },
+      "qualification_passed": true,
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_04_20260818",
+      "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+      "timing": {
+        "distinct_kunwei": 8002,
+        "distinct_rtde": 4001,
+        "distinct_tp": 3847,
+        "distinct_writer": 4001,
+        "duration_s": 8.002059357007965,
+        "feedback_p99_s": 0.009656701004132628,
+        "kunwei_hz": 999.9925822834701,
+        "max_fresh_gap_s": 0.00398027099436149,
+        "rtde_hz": 499.99629114173507,
+        "tp_hz": 480.75124519426515,
+        "tp_writer_ratio": 0.9615096225943515,
+        "writer_hz": 499.99629114173507
+      },
+      "timing_decision": {
+        "cadence_failures": [],
+        "eligible": true,
+        "failures": [],
+        "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+        "telemetry": {
+          "active_stale_stop_s": 0.08,
+          "average_rate_hz": 499.99629114173507,
+          "average_rate_is_eligibility_gate": false,
+          "cadence_eligible": false,
+          "duration_s": 8.002059357007965,
+          "feedback_age_p99_max_s": 0.01,
+          "feedback_age_p99_s": 0.009656701004132628,
+          "fresh_feedback_ratio": 1.0,
+          "kunwei_distinct": 8002,
+          "layer_rates_hz": {
+            "kunwei_frames": 999.9925822834701,
+            "rtde_frames": 499.99629114173507,
+            "tp_consumed_packet_echoes": 480.75124519426515,
+            "writer_publishes": 499.99629114173507
+          },
+          "max_fresh_gap_limit_s": 0.02,
+          "max_fresh_gap_s": 0.00398027099436149,
+          "nominal_hz": 500.0,
+          "r008_tp_hz": 480.75124519426515,
+          "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+          "r008_writer_hz": 499.99629114173507,
+          "rtde_distinct": 4001,
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "tp_consumption_ratio": 0.9615096225943515,
+          "tp_distinct": 3847,
+          "version": "r007-timing-eligibility-v1",
+          "writer_distinct": 4001
+        },
+        "version": "r007-timing-eligibility-v1"
+      },
+      "timing_gate": true
+    },
+    {
+      "attempt_sequence": 2,
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.001810193359837562,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "execution_id": "r013-owner-qualification-2-1cbff3781ecb442d801002a623bb8a3a",
+      "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_04_20260818/000002-r013-owner-qualification-2-1cbff3781ecb442d801002a623bb8a3a.r013life.json",
+      "packet_sequence": {
+        "artifact_sample_index_gap_count": 0,
+        "consumed_sequence_advance": 10785,
+        "packet_sequence_gap_count": 0,
+        "packet_sequence_regression_count": 1,
+        "sample_count": 10788,
+        "sequence_advance": 10786,
+        "sequence_jump_histogram": {
+          "1": 10786
+        }
+      },
+      "qualification_passed": true,
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_04_20260818",
+      "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+      "timing": {
+        "distinct_kunwei": 8035,
+        "distinct_rtde": 4001,
+        "distinct_tp": 3847,
+        "distinct_writer": 4001,
+        "duration_s": 8.002311328993528,
+        "feedback_p99_s": 0.009655839006882161,
+        "kunwei_hz": 1004.0849036812697,
+        "max_fresh_gap_s": 0.0032649029890308157,
+        "rtde_hz": 499.9805475580286,
+        "tp_hz": 480.7361075870373,
+        "tp_writer_ratio": 0.9615096225943515,
+        "writer_hz": 499.9805475580286
+      },
+      "timing_decision": {
+        "cadence_failures": [],
+        "eligible": true,
+        "failures": [],
+        "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+        "telemetry": {
+          "active_stale_stop_s": 0.08,
+          "average_rate_hz": 499.9805475580286,
+          "average_rate_is_eligibility_gate": false,
+          "cadence_eligible": false,
+          "duration_s": 8.002311328993528,
+          "feedback_age_p99_max_s": 0.01,
+          "feedback_age_p99_s": 0.009655839006882161,
+          "fresh_feedback_ratio": 1.0,
+          "kunwei_distinct": 8035,
+          "layer_rates_hz": {
+            "kunwei_frames": 1004.0849036812697,
+            "rtde_frames": 499.9805475580286,
+            "tp_consumed_packet_echoes": 480.7361075870373,
+            "writer_publishes": 499.9805475580286
+          },
+          "max_fresh_gap_limit_s": 0.02,
+          "max_fresh_gap_s": 0.0032649029890308157,
+          "nominal_hz": 500.0,
+          "r008_tp_hz": 480.7361075870373,
+          "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+          "r008_writer_hz": 499.9805475580286,
+          "rtde_distinct": 4001,
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "tp_consumption_ratio": 0.9615096225943515,
+          "tp_distinct": 3847,
+          "version": "r007-timing-eligibility-v1",
+          "writer_distinct": 4001
+        },
+        "version": "r007-timing-eligibility-v1"
+      },
+      "timing_gate": true
+    },
+    {
+      "attempt_sequence": 3,
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.008610779292198037,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_04_20260818",
+      "schema": "step5d.autotune-v4/v4-stage-a-timing-characterization-observation-v1",
+      "status": "timing_failure",
+      "timing": {
+        "distinct_kunwei": 8008,
+        "distinct_rtde": 2694,
+        "distinct_tp": 2353,
+        "distinct_writer": 2694,
+        "duration_s": 8.00610738901014,
+        "feedback_p99_s": 0.00938812000094913,
+        "kunwei_hz": 1000.2363959035147,
+        "max_fresh_gap_s": 0.004365209999377839,
+        "rtde_hz": 336.49311320730123,
+        "tp_hz": 293.9006293158054,
+        "tp_writer_ratio": 0.8734224201930215,
+        "writer_hz": 336.49311320730123
+      },
+      "timing_decision": {
+        "cadence_failures": [
+          "tp_consumption_ratio_below_0p98"
+        ],
+        "eligible": false,
+        "failures": [
+          "tp_consumption_ratio_below_0p98"
+        ],
+        "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+        "telemetry": {
+          "active_stale_stop_s": 0.08,
+          "average_rate_hz": 336.49311320730123,
+          "average_rate_is_eligibility_gate": false,
+          "cadence_eligible": false,
+          "duration_s": 8.00610738901014,
+          "feedback_age_p99_max_s": 0.01,
+          "feedback_age_p99_s": 0.00938812000094913,
+          "fresh_feedback_ratio": 1.0,
+          "kunwei_distinct": 8008,
+          "layer_rates_hz": {
+            "kunwei_frames": 1000.2363959035147,
+            "rtde_frames": 336.49311320730123,
+            "tp_consumed_packet_echoes": 293.9006293158054,
+            "writer_publishes": 336.49311320730123
+          },
+          "max_fresh_gap_limit_s": 0.02,
+          "max_fresh_gap_s": 0.004365209999377839,
+          "nominal_hz": 500.0,
+          "rtde_distinct": 2694,
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "tp_consumption_ratio": 0.8734224201930215,
+          "tp_distinct": 2353,
+          "version": "r007-timing-eligibility-v1",
+          "writer_distinct": 2694
+        },
+        "version": "r007-timing-eligibility-v1"
+      }
+    }
+  ],
+  "packet_sequence_regression_total": 8,
+  "pooled_ratio": 0.961569705680185,
+  "pooled_tp_count": 30776.0,
+  "pooled_writer_count": 32006.0,
+  "run_results": [
+    {
+      "campaign_fingerprint_sha256": "1e5788364856408f8810c0186368c99f98996d4fa9e56ce3c7053083a3b01c33",
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.008610779292198037,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "error": "R013OwnerError: R013 owner qualification did not satisfy durable gates: qualification_passed=False, safe_return=True, binding_ok=True, safety_gate=True, contact_gate=True, return_gate=True, timing_gate=False, identity_gate=True; timing_diagnostics={\"qualification_baseline_samples\": 3839, \"qualification_packet_timing_gate\": false, \"r008_timing_decision\": {\"cadence_failures\": [\"tp_consumption_ratio_below_0p98\"], \"eligible\": false, \"failures\": [\"tp_consumption_ratio_below_0p98\"], \"schema\": \"step5d.autotune-v4/r007-timing-eligibility-v1\", \"telemetry\": {\"active_stale_stop_s\": 0.08, \"average_rate_hz\": 368.7181279883495, \"average_rate_is_eligibility_gate\": false, \"cadence_eligible\": false, \"duration_s\": 8.006115718002548, \"feedback_age_p99_max_s\": 0.01, \"feedback_age_p99_s\": 0.009557184996083379, \"fresh_feedback_ratio\": 1.0, \"kunwei_distinct\": 8005, \"layer_rates_hz\": {\"kunwei_frames\": 999.8606417841253, \"rtde_frames\": 368.7181279883495, \"tp_consumed_packet_echoes\": 357.7265306770437, \"writer_publishes\": 368.7181279883495}, \"max_fresh_gap_limit_s\": 0.02, \"max_fresh_gap_s\": 0.00613934600551147, \"nominal_hz\": 500.0, \"rtde_distinct\": 2952, \"schema\": \"step5d.autotune-v4/r007-timing-eligibility-v1\", \"tp_consumption_ratio\": 0.9701897018970189, \"tp_distinct\": 2864, \"version\": \"r007-timing-eligibility-v1\", \"writer_distinct\": 2952}, \"version\": \"r007-timing-eligibility-v1\"}, \"timing_evidence\": {\"distinct_kunwei_frames\": 8005, \"distinct_rtde_frames\": 2952, \"distinct_tp_consumed_packet_echoes\": 2864, \"duration_s\": 8.006115718002548, \"feedback_age_p99_max_s\": 0.01, \"feedback_age_p99_s\": 0.009557184996083379, \"layer_rates_hz\": {\"kunwei_frames\": 999.8606417841253, \"rtde_frames\": 368.7181279883495, \"tp_consumed_packet_echoes\": 357.7265306770437, \"writer_publishes\": 368.7181279883495}, \"max_fresh_gap_limit_s\": 0.02, \"max_fresh_gap_s\": 0.00613934600551147, \"minimum_rate_hz\": 460.0, \"nominal_rate_hz\": 500.0, \"runtime_stale_stop_s\": 0.08, \"schema\": \"step5d.autotune-v4/r004-timing-evidence-v1\", \"successful\": false, \"successful_writer_publishes\": 2952, \"version\": \"step5d.autotune-v4/r004-timing-v1\"}}",
+      "observations": [],
+      "observations_after": 0,
+      "observations_before": 0,
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_01_20260818",
+      "source_identity": "37529c31d3f1a8d98befde750f795a08bc934397a24ce73bfc5743a3f7e110f2",
+      "timing_failure": {
+        "qualification_baseline_samples": 3839,
+        "qualification_packet_timing_gate": false,
+        "r008_timing_decision": {
+          "cadence_failures": [
+            "tp_consumption_ratio_below_0p98"
+          ],
+          "eligible": false,
+          "failures": [
+            "tp_consumption_ratio_below_0p98"
+          ],
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "telemetry": {
+            "active_stale_stop_s": 0.08,
+            "average_rate_hz": 368.7181279883495,
+            "average_rate_is_eligibility_gate": false,
+            "cadence_eligible": false,
+            "duration_s": 8.006115718002548,
+            "feedback_age_p99_max_s": 0.01,
+            "feedback_age_p99_s": 0.009557184996083379,
+            "fresh_feedback_ratio": 1.0,
+            "kunwei_distinct": 8005,
+            "layer_rates_hz": {
+              "kunwei_frames": 999.8606417841253,
+              "rtde_frames": 368.7181279883495,
+              "tp_consumed_packet_echoes": 357.7265306770437,
+              "writer_publishes": 368.7181279883495
+            },
+            "max_fresh_gap_limit_s": 0.02,
+            "max_fresh_gap_s": 0.00613934600551147,
+            "nominal_hz": 500.0,
+            "rtde_distinct": 2952,
+            "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+            "tp_consumption_ratio": 0.9701897018970189,
+            "tp_distinct": 2864,
+            "version": "r007-timing-eligibility-v1",
+            "writer_distinct": 2952
+          },
+          "version": "r007-timing-eligibility-v1"
+        },
+        "timing_evidence": {
+          "distinct_kunwei_frames": 8005,
+          "distinct_rtde_frames": 2952,
+          "distinct_tp_consumed_packet_echoes": 2864,
+          "duration_s": 8.006115718002548,
+          "feedback_age_p99_max_s": 0.01,
+          "feedback_age_p99_s": 0.009557184996083379,
+          "layer_rates_hz": {
+            "kunwei_frames": 999.8606417841253,
+            "rtde_frames": 368.7181279883495,
+            "tp_consumed_packet_echoes": 357.7265306770437,
+            "writer_publishes": 368.7181279883495
+          },
+          "max_fresh_gap_limit_s": 0.02,
+          "max_fresh_gap_s": 0.00613934600551147,
+          "minimum_rate_hz": 460.0,
+          "nominal_rate_hz": 500.0,
+          "runtime_stale_stop_s": 0.08,
+          "schema": "step5d.autotune-v4/r004-timing-evidence-v1",
+          "successful": false,
+          "successful_writer_publishes": 2952,
+          "version": "step5d.autotune-v4/r004-timing-v1"
+        }
+      },
+      "timing_failure_observation": {
+        "attempt_sequence": 1,
+        "candidate": {
+          "force_damping": 188.36079701683204,
+          "force_i_gain": 0.008610779292198037,
+          "force_p_gain": 0.0226274169984,
+          "i_off": false,
+          "motion_kp": 2.5226892457611436,
+          "normal_filter_tau_s": 0.04375,
+          "orientation_ko": 0.05946035575013606,
+          "target_force_n": 5.0
+        },
+        "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_01_20260818",
+        "schema": "step5d.autotune-v4/v4-stage-a-timing-characterization-observation-v1",
+        "status": "timing_failure",
+        "timing": {
+          "distinct_kunwei": 8005,
+          "distinct_rtde": 2952,
+          "distinct_tp": 2864,
+          "distinct_writer": 2952,
+          "duration_s": 8.006115718002548,
+          "feedback_p99_s": 0.009557184996083379,
+          "kunwei_hz": 999.8606417841253,
+          "max_fresh_gap_s": 0.00613934600551147,
+          "rtde_hz": 368.7181279883495,
+          "tp_hz": 357.7265306770437,
+          "tp_writer_ratio": 0.9701897018970189,
+          "writer_hz": 368.7181279883495
+        },
+        "timing_decision": {
+          "cadence_failures": [
+            "tp_consumption_ratio_below_0p98"
+          ],
+          "eligible": false,
+          "failures": [
+            "tp_consumption_ratio_below_0p98"
+          ],
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "telemetry": {
+            "active_stale_stop_s": 0.08,
+            "average_rate_hz": 368.7181279883495,
+            "average_rate_is_eligibility_gate": false,
+            "cadence_eligible": false,
+            "duration_s": 8.006115718002548,
+            "feedback_age_p99_max_s": 0.01,
+            "feedback_age_p99_s": 0.009557184996083379,
+            "fresh_feedback_ratio": 1.0,
+            "kunwei_distinct": 8005,
+            "layer_rates_hz": {
+              "kunwei_frames": 999.8606417841253,
+              "rtde_frames": 368.7181279883495,
+              "tp_consumed_packet_echoes": 357.7265306770437,
+              "writer_publishes": 368.7181279883495
+            },
+            "max_fresh_gap_limit_s": 0.02,
+            "max_fresh_gap_s": 0.00613934600551147,
+            "nominal_hz": 500.0,
+            "rtde_distinct": 2952,
+            "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+            "tp_consumption_ratio": 0.9701897018970189,
+            "tp_distinct": 2864,
+            "version": "r007-timing-eligibility-v1",
+            "writer_distinct": 2952
+          },
+          "version": "r007-timing-eligibility-v1"
+        }
+      }
+    },
+    {
+      "campaign_fingerprint_sha256": "1e5788364856408f8810c0186368c99f98996d4fa9e56ce3c7053083a3b01c33",
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.008610779292198037,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "error": null,
+      "observations": [
+        {
+          "attempt_sequence": 1,
+          "candidate": {
+            "force_damping": 188.36079701683204,
+            "force_i_gain": 0.001810193359837562,
+            "force_p_gain": 0.0226274169984,
+            "i_off": false,
+            "motion_kp": 2.5226892457611436,
+            "normal_filter_tau_s": 0.04375,
+            "orientation_ko": 0.05946035575013606,
+            "target_force_n": 5.0
+          },
+          "execution_id": "r013-owner-qualification-1-a4fc3f659e994d55bb45763155337b68",
+          "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_02_20260818/000001-r013-owner-qualification-1-a4fc3f659e994d55bb45763155337b68.r013life.json",
+          "packet_sequence": {
+            "artifact_sample_index_gap_count": 0,
+            "consumed_sequence_advance": 7069,
+            "packet_sequence_gap_count": 0,
+            "packet_sequence_regression_count": 1,
+            "sample_count": 7071,
+            "sequence_advance": 7069,
+            "sequence_jump_histogram": {
+              "1": 7069
+            }
+          },
+          "qualification_passed": true,
+          "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_02_20260818",
+          "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+          "timing": {
+            "distinct_kunwei": 8003,
+            "distinct_rtde": 4000,
+            "distinct_tp": 3849,
+            "distinct_writer": 4000,
+            "duration_s": 8.001953116996447,
+            "feedback_p99_s": 0.009632835994125344,
+            "kunwei_hz": 1000.1308284350391,
+            "max_fresh_gap_s": 0.004110362991923466,
+            "rtde_hz": 499.87795998252614,
+            "tp_hz": 481.0075669931858,
+            "tp_writer_ratio": 0.96225,
+            "writer_hz": 499.87795998252614
+          },
+          "timing_decision": {
+            "cadence_failures": [],
+            "eligible": true,
+            "failures": [],
+            "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+            "telemetry": {
+              "active_stale_stop_s": 0.08,
+              "average_rate_hz": 499.87795998252614,
+              "average_rate_is_eligibility_gate": false,
+              "cadence_eligible": false,
+              "duration_s": 8.001953116996447,
+              "feedback_age_p99_max_s": 0.01,
+              "feedback_age_p99_s": 0.009632835994125344,
+              "fresh_feedback_ratio": 1.0,
+              "kunwei_distinct": 8003,
+              "layer_rates_hz": {
+                "kunwei_frames": 1000.1308284350391,
+                "rtde_frames": 499.87795998252614,
+                "tp_consumed_packet_echoes": 481.0075669931858,
+                "writer_publishes": 499.87795998252614
+              },
+              "max_fresh_gap_limit_s": 0.02,
+              "max_fresh_gap_s": 0.004110362991923466,
+              "nominal_hz": 500.0,
+              "r008_tp_hz": 481.0075669931858,
+              "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+              "r008_writer_hz": 499.87795998252614,
+              "rtde_distinct": 4000,
+              "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+              "tp_consumption_ratio": 0.96225,
+              "tp_distinct": 3849,
+              "version": "r007-timing-eligibility-v1",
+              "writer_distinct": 4000
+            },
+            "version": "r007-timing-eligibility-v1"
+          },
+          "timing_gate": true
+        },
+        {
+          "attempt_sequence": 2,
+          "candidate": {
+            "force_damping": 188.36079701683204,
+            "force_i_gain": 0.001810193359837562,
+            "force_p_gain": 0.0226274169984,
+            "i_off": false,
+            "motion_kp": 2.5226892457611436,
+            "normal_filter_tau_s": 0.04375,
+            "orientation_ko": 0.05946035575013606,
+            "target_force_n": 5.0
+          },
+          "execution_id": "r013-owner-qualification-2-dfe3a8229ac54b438632fab2ce13beb8",
+          "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_02_20260818/000002-r013-owner-qualification-2-dfe3a8229ac54b438632fab2ce13beb8.r013life.json",
+          "packet_sequence": {
+            "artifact_sample_index_gap_count": 0,
+            "consumed_sequence_advance": 15362,
+            "packet_sequence_gap_count": 0,
+            "packet_sequence_regression_count": 1,
+            "sample_count": 15365,
+            "sequence_advance": 15363,
+            "sequence_jump_histogram": {
+              "1": 15363
+            }
+          },
+          "qualification_passed": true,
+          "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_02_20260818",
+          "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+          "timing": {
+            "distinct_kunwei": 8005,
+            "distinct_rtde": 4003,
+            "distinct_tp": 3851,
+            "distinct_writer": 4003,
+            "duration_s": 8.003757551996387,
+            "feedback_p99_s": 0.009602168996934779,
+            "kunwei_hz": 1000.1552330884015,
+            "max_fresh_gap_s": 0.002339894010219723,
+            "rtde_hz": 500.14008720210757,
+            "tp_hz": 481.14900719843024,
+            "tp_writer_ratio": 0.9620284786410193,
+            "writer_hz": 500.14008720210757
+          },
+          "timing_decision": {
+            "cadence_failures": [],
+            "eligible": true,
+            "failures": [],
+            "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+            "telemetry": {
+              "active_stale_stop_s": 0.08,
+              "average_rate_hz": 500.14008720210757,
+              "average_rate_is_eligibility_gate": false,
+              "cadence_eligible": false,
+              "duration_s": 8.003757551996387,
+              "feedback_age_p99_max_s": 0.01,
+              "feedback_age_p99_s": 0.009602168996934779,
+              "fresh_feedback_ratio": 1.0,
+              "kunwei_distinct": 8005,
+              "layer_rates_hz": {
+                "kunwei_frames": 1000.1552330884015,
+                "rtde_frames": 500.14008720210757,
+                "tp_consumed_packet_echoes": 481.14900719843024,
+                "writer_publishes": 500.14008720210757
+              },
+              "max_fresh_gap_limit_s": 0.02,
+              "max_fresh_gap_s": 0.002339894010219723,
+              "nominal_hz": 500.0,
+              "r008_tp_hz": 481.14900719843024,
+              "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+              "r008_writer_hz": 500.14008720210757,
+              "rtde_distinct": 4003,
+              "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+              "tp_consumption_ratio": 0.9620284786410193,
+              "tp_distinct": 3851,
+              "version": "r007-timing-eligibility-v1",
+              "writer_distinct": 4003
+            },
+            "version": "r007-timing-eligibility-v1"
+          },
+          "timing_gate": true
+        },
+        {
+          "attempt_sequence": 3,
+          "candidate": {
+            "force_damping": 188.36079701683204,
+            "force_i_gain": 0.001810193359837562,
+            "force_p_gain": 0.0226274169984,
+            "i_off": false,
+            "motion_kp": 2.5226892457611436,
+            "normal_filter_tau_s": 0.04375,
+            "orientation_ko": 0.05946035575013606,
+            "target_force_n": 5.0
+          },
+          "execution_id": "r013-owner-qualification-3-abb7cf5c4f6649969c5d723ed205ecae",
+          "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_02_20260818/000003-r013-owner-qualification-3-abb7cf5c4f6649969c5d723ed205ecae.r013life.json",
+          "packet_sequence": {
+            "artifact_sample_index_gap_count": 0,
+            "consumed_sequence_advance": 7089,
+            "packet_sequence_gap_count": 0,
+            "packet_sequence_regression_count": 1,
+            "sample_count": 7092,
+            "sequence_advance": 7090,
+            "sequence_jump_histogram": {
+              "1": 7090
+            }
+          },
+          "qualification_passed": true,
+          "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_02_20260818",
+          "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+          "timing": {
+            "distinct_kunwei": 8004,
+            "distinct_rtde": 3998,
+            "distinct_tp": 3843,
+            "distinct_writer": 3998,
+            "duration_s": 8.003785805994994,
+            "feedback_p99_s": 0.009413055988261476,
+            "kunwei_hz": 1000.026761586354,
+            "max_fresh_gap_s": 0.004164724989095703,
+            "rtde_hz": 499.5136172941333,
+            "tp_hz": 480.1477817061917,
+            "tp_writer_ratio": 0.9612306153076539,
+            "writer_hz": 499.5136172941333
+          },
+          "timing_decision": {
+            "cadence_failures": [],
+            "eligible": true,
+            "failures": [],
+            "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+            "telemetry": {
+              "active_stale_stop_s": 0.08,
+              "average_rate_hz": 499.5136172941333,
+              "average_rate_is_eligibility_gate": false,
+              "cadence_eligible": false,
+              "duration_s": 8.003785805994994,
+              "feedback_age_p99_max_s": 0.01,
+              "feedback_age_p99_s": 0.009413055988261476,
+              "fresh_feedback_ratio": 1.0,
+              "kunwei_distinct": 8004,
+              "layer_rates_hz": {
+                "kunwei_frames": 1000.026761586354,
+                "rtde_frames": 499.5136172941333,
+                "tp_consumed_packet_echoes": 480.1477817061917,
+                "writer_publishes": 499.5136172941333
+              },
+              "max_fresh_gap_limit_s": 0.02,
+              "max_fresh_gap_s": 0.004164724989095703,
+              "nominal_hz": 500.0,
+              "r008_tp_hz": 480.1477817061917,
+              "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+              "r008_writer_hz": 499.5136172941333,
+              "rtde_distinct": 3998,
+              "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+              "tp_consumption_ratio": 0.9612306153076539,
+              "tp_distinct": 3843,
+              "version": "r007-timing-eligibility-v1",
+              "writer_distinct": 3998
+            },
+            "version": "r007-timing-eligibility-v1"
+          },
+          "timing_gate": true
+        }
+      ],
+      "observations_after": 3,
+      "observations_before": 0,
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_02_20260818",
+      "source_identity": "37529c31d3f1a8d98befde750f795a08bc934397a24ce73bfc5743a3f7e110f2",
+      "timing_failure": null
+    },
+    {
+      "campaign_fingerprint_sha256": "1e5788364856408f8810c0186368c99f98996d4fa9e56ce3c7053083a3b01c33",
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.008610779292198037,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "error": null,
+      "observations": [
+        {
+          "attempt_sequence": 1,
+          "candidate": {
+            "force_damping": 188.36079701683204,
+            "force_i_gain": 0.001810193359837562,
+            "force_p_gain": 0.0226274169984,
+            "i_off": false,
+            "motion_kp": 2.5226892457611436,
+            "normal_filter_tau_s": 0.04375,
+            "orientation_ko": 0.05946035575013606,
+            "target_force_n": 5.0
+          },
+          "execution_id": "r013-owner-qualification-1-f101c46594f246708b9b59d8fa2897a5",
+          "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_03_20260818/000001-r013-owner-qualification-1-f101c46594f246708b9b59d8fa2897a5.r013life.json",
+          "packet_sequence": {
+            "artifact_sample_index_gap_count": 0,
+            "consumed_sequence_advance": 7207,
+            "packet_sequence_gap_count": 0,
+            "packet_sequence_regression_count": 1,
+            "sample_count": 7209,
+            "sequence_advance": 7207,
+            "sequence_jump_histogram": {
+              "1": 7207
+            }
+          },
+          "qualification_passed": true,
+          "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_03_20260818",
+          "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+          "timing": {
+            "distinct_kunwei": 7988,
+            "distinct_rtde": 3998,
+            "distinct_tp": 3842,
+            "distinct_writer": 3998,
+            "duration_s": 8.003692418991704,
+            "feedback_p99_s": 0.009462588001042604,
+            "kunwei_hz": 998.0393525675139,
+            "max_fresh_gap_s": 0.011734425002941862,
+            "rtde_hz": 499.51944561403616,
+            "tp_hz": 480.02844173314827,
+            "tp_writer_ratio": 0.9609804902451224,
+            "writer_hz": 499.51944561403616
+          },
+          "timing_decision": {
+            "cadence_failures": [],
+            "eligible": true,
+            "failures": [],
+            "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+            "telemetry": {
+              "active_stale_stop_s": 0.08,
+              "average_rate_hz": 499.51944561403616,
+              "average_rate_is_eligibility_gate": false,
+              "cadence_eligible": false,
+              "duration_s": 8.003692418991704,
+              "feedback_age_p99_max_s": 0.01,
+              "feedback_age_p99_s": 0.009462588001042604,
+              "fresh_feedback_ratio": 1.0,
+              "kunwei_distinct": 7988,
+              "layer_rates_hz": {
+                "kunwei_frames": 998.0393525675139,
+                "rtde_frames": 499.51944561403616,
+                "tp_consumed_packet_echoes": 480.02844173314827,
+                "writer_publishes": 499.51944561403616
+              },
+              "max_fresh_gap_limit_s": 0.02,
+              "max_fresh_gap_s": 0.011734425002941862,
+              "nominal_hz": 500.0,
+              "r008_tp_hz": 480.02844173314827,
+              "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+              "r008_writer_hz": 499.51944561403616,
+              "rtde_distinct": 3998,
+              "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+              "tp_consumption_ratio": 0.9609804902451226,
+              "tp_distinct": 3842,
+              "version": "r007-timing-eligibility-v1",
+              "writer_distinct": 3998
+            },
+            "version": "r007-timing-eligibility-v1"
+          },
+          "timing_gate": true
+        },
+        {
+          "attempt_sequence": 2,
+          "candidate": {
+            "force_damping": 188.36079701683204,
+            "force_i_gain": 0.001810193359837562,
+            "force_p_gain": 0.0226274169984,
+            "i_off": false,
+            "motion_kp": 2.5226892457611436,
+            "normal_filter_tau_s": 0.04375,
+            "orientation_ko": 0.05946035575013606,
+            "target_force_n": 5.0
+          },
+          "execution_id": "r013-owner-qualification-2-3d1dda083a60406181a8373330b5aa89",
+          "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_03_20260818/000002-r013-owner-qualification-2-3d1dda083a60406181a8373330b5aa89.r013life.json",
+          "packet_sequence": {
+            "artifact_sample_index_gap_count": 0,
+            "consumed_sequence_advance": 7492,
+            "packet_sequence_gap_count": 0,
+            "packet_sequence_regression_count": 1,
+            "sample_count": 7495,
+            "sequence_advance": 7493,
+            "sequence_jump_histogram": {
+              "1": 7493
+            }
+          },
+          "qualification_passed": true,
+          "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_03_20260818",
+          "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+          "timing": {
+            "distinct_kunwei": 8008,
+            "distinct_rtde": 4002,
+            "distinct_tp": 3849,
+            "distinct_writer": 4002,
+            "duration_s": 8.002344170992728,
+            "feedback_p99_s": 0.009656820999225602,
+            "kunwei_hz": 1000.706771526745,
+            "max_fresh_gap_s": 0.0024782129912637174,
+            "rtde_hz": 500.10345899725695,
+            "tp_hz": 480.9840613894158,
+            "tp_writer_ratio": 0.9617691154422788,
+            "writer_hz": 500.10345899725695
+          },
+          "timing_decision": {
+            "cadence_failures": [],
+            "eligible": true,
+            "failures": [],
+            "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+            "telemetry": {
+              "active_stale_stop_s": 0.08,
+              "average_rate_hz": 500.10345899725695,
+              "average_rate_is_eligibility_gate": false,
+              "cadence_eligible": false,
+              "duration_s": 8.002344170992728,
+              "feedback_age_p99_max_s": 0.01,
+              "feedback_age_p99_s": 0.009656820999225602,
+              "fresh_feedback_ratio": 1.0,
+              "kunwei_distinct": 8008,
+              "layer_rates_hz": {
+                "kunwei_frames": 1000.706771526745,
+                "rtde_frames": 500.10345899725695,
+                "tp_consumed_packet_echoes": 480.9840613894158,
+                "writer_publishes": 500.10345899725695
+              },
+              "max_fresh_gap_limit_s": 0.02,
+              "max_fresh_gap_s": 0.0024782129912637174,
+              "nominal_hz": 500.0,
+              "r008_tp_hz": 480.9840613894158,
+              "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+              "r008_writer_hz": 500.10345899725695,
+              "rtde_distinct": 4002,
+              "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+              "tp_consumption_ratio": 0.9617691154422788,
+              "tp_distinct": 3849,
+              "version": "r007-timing-eligibility-v1",
+              "writer_distinct": 4002
+            },
+            "version": "r007-timing-eligibility-v1"
+          },
+          "timing_gate": true
+        },
+        {
+          "attempt_sequence": 3,
+          "candidate": {
+            "force_damping": 188.36079701683204,
+            "force_i_gain": 0.001810193359837562,
+            "force_p_gain": 0.0226274169984,
+            "i_off": false,
+            "motion_kp": 2.5226892457611436,
+            "normal_filter_tau_s": 0.04375,
+            "orientation_ko": 0.05946035575013606,
+            "target_force_n": 5.0
+          },
+          "execution_id": "r013-owner-qualification-3-2ea1ca57971f46399fbe5fd10330d864",
+          "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_03_20260818/000003-r013-owner-qualification-3-2ea1ca57971f46399fbe5fd10330d864.r013life.json",
+          "packet_sequence": {
+            "artifact_sample_index_gap_count": 0,
+            "consumed_sequence_advance": 7048,
+            "packet_sequence_gap_count": 0,
+            "packet_sequence_regression_count": 1,
+            "sample_count": 7050,
+            "sequence_advance": 7048,
+            "sequence_jump_histogram": {
+              "1": 7048
+            }
+          },
+          "qualification_passed": true,
+          "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_03_20260818",
+          "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+          "timing": {
+            "distinct_kunwei": 8005,
+            "distinct_rtde": 4003,
+            "distinct_tp": 3848,
+            "distinct_writer": 4003,
+            "duration_s": 8.003712339996127,
+            "feedback_p99_s": 0.009651080996263772,
+            "kunwei_hz": 1000.160882844007,
+            "max_fresh_gap_s": 0.002368037006817758,
+            "rtde_hz": 500.1429124327995,
+            "tp_hz": 480.7768990860386,
+            "tp_writer_ratio": 0.9612790407194605,
+            "writer_hz": 500.1429124327995
+          },
+          "timing_decision": {
+            "cadence_failures": [],
+            "eligible": true,
+            "failures": [],
+            "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+            "telemetry": {
+              "active_stale_stop_s": 0.08,
+              "average_rate_hz": 500.1429124327995,
+              "average_rate_is_eligibility_gate": false,
+              "cadence_eligible": false,
+              "duration_s": 8.003712339996127,
+              "feedback_age_p99_max_s": 0.01,
+              "feedback_age_p99_s": 0.009651080996263772,
+              "fresh_feedback_ratio": 1.0,
+              "kunwei_distinct": 8005,
+              "layer_rates_hz": {
+                "kunwei_frames": 1000.160882844007,
+                "rtde_frames": 500.1429124327995,
+                "tp_consumed_packet_echoes": 480.7768990860386,
+                "writer_publishes": 500.1429124327995
+              },
+              "max_fresh_gap_limit_s": 0.02,
+              "max_fresh_gap_s": 0.002368037006817758,
+              "nominal_hz": 500.0,
+              "r008_tp_hz": 480.7768990860386,
+              "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+              "r008_writer_hz": 500.1429124327995,
+              "rtde_distinct": 4003,
+              "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+              "tp_consumption_ratio": 0.9612790407194604,
+              "tp_distinct": 3848,
+              "version": "r007-timing-eligibility-v1",
+              "writer_distinct": 4003
+            },
+            "version": "r007-timing-eligibility-v1"
+          },
+          "timing_gate": true
+        }
+      ],
+      "observations_after": 3,
+      "observations_before": 0,
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_03_20260818",
+      "source_identity": "37529c31d3f1a8d98befde750f795a08bc934397a24ce73bfc5743a3f7e110f2",
+      "timing_failure": null
+    },
+    {
+      "campaign_fingerprint_sha256": "1e5788364856408f8810c0186368c99f98996d4fa9e56ce3c7053083a3b01c33",
+      "candidate": {
+        "force_damping": 188.36079701683204,
+        "force_i_gain": 0.008610779292198037,
+        "force_p_gain": 0.0226274169984,
+        "i_off": false,
+        "motion_kp": 2.5226892457611436,
+        "normal_filter_tau_s": 0.04375,
+        "orientation_ko": 0.05946035575013606,
+        "target_force_n": 5.0
+      },
+      "error": "R013OwnerError: R013 owner qualification did not satisfy durable gates: qualification_passed=False, safe_return=True, binding_ok=True, safety_gate=True, contact_gate=True, return_gate=True, timing_gate=False, identity_gate=True; timing_diagnostics={\"qualification_baseline_samples\": 3416, \"qualification_packet_timing_gate\": false, \"r008_timing_decision\": {\"cadence_failures\": [\"tp_consumption_ratio_below_0p98\"], \"eligible\": false, \"failures\": [\"tp_consumption_ratio_below_0p98\"], \"schema\": \"step5d.autotune-v4/r007-timing-eligibility-v1\", \"telemetry\": {\"active_stale_stop_s\": 0.08, \"average_rate_hz\": 336.49311320730123, \"average_rate_is_eligibility_gate\": false, \"cadence_eligible\": false, \"duration_s\": 8.00610738901014, \"feedback_age_p99_max_s\": 0.01, \"feedback_age_p99_s\": 0.00938812000094913, \"fresh_feedback_ratio\": 1.0, \"kunwei_distinct\": 8008, \"layer_rates_hz\": {\"kunwei_frames\": 1000.2363959035147, \"rtde_frames\": 336.49311320730123, \"tp_consumed_packet_echoes\": 293.9006293158054, \"writer_publishes\": 336.49311320730123}, \"max_fresh_gap_limit_s\": 0.02, \"max_fresh_gap_s\": 0.004365209999377839, \"nominal_hz\": 500.0, \"rtde_distinct\": 2694, \"schema\": \"step5d.autotune-v4/r007-timing-eligibility-v1\", \"tp_consumption_ratio\": 0.8734224201930215, \"tp_distinct\": 2353, \"version\": \"r007-timing-eligibility-v1\", \"writer_distinct\": 2694}, \"version\": \"r007-timing-eligibility-v1\"}, \"timing_evidence\": {\"distinct_kunwei_frames\": 8008, \"distinct_rtde_frames\": 2694, \"distinct_tp_consumed_packet_echoes\": 2353, \"duration_s\": 8.00610738901014, \"feedback_age_p99_max_s\": 0.01, \"feedback_age_p99_s\": 0.00938812000094913, \"layer_rates_hz\": {\"kunwei_frames\": 1000.2363959035147, \"rtde_frames\": 336.49311320730123, \"tp_consumed_packet_echoes\": 293.9006293158054, \"writer_publishes\": 336.49311320730123}, \"max_fresh_gap_limit_s\": 0.02, \"max_fresh_gap_s\": 0.004365209999377839, \"minimum_rate_hz\": 460.0, \"nominal_rate_hz\": 500.0, \"runtime_stale_stop_s\": 0.08, \"schema\": \"step5d.autotune-v4/r004-timing-evidence-v1\", \"successful\": false, \"successful_writer_publishes\": 2694, \"version\": \"step5d.autotune-v4/r004-timing-v1\"}}",
+      "observations": [
+        {
+          "attempt_sequence": 1,
+          "candidate": {
+            "force_damping": 188.36079701683204,
+            "force_i_gain": 0.001810193359837562,
+            "force_p_gain": 0.0226274169984,
+            "i_off": false,
+            "motion_kp": 2.5226892457611436,
+            "normal_filter_tau_s": 0.04375,
+            "orientation_ko": 0.05946035575013606,
+            "target_force_n": 5.0
+          },
+          "execution_id": "r013-owner-qualification-1-d2363574787f4f4f829563083ec2a0dd",
+          "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_04_20260818/000001-r013-owner-qualification-1-d2363574787f4f4f829563083ec2a0dd.r013life.json",
+          "packet_sequence": {
+            "artifact_sample_index_gap_count": 0,
+            "consumed_sequence_advance": 6984,
+            "packet_sequence_gap_count": 0,
+            "packet_sequence_regression_count": 1,
+            "sample_count": 6986,
+            "sequence_advance": 6984,
+            "sequence_jump_histogram": {
+              "1": 6984
+            }
+          },
+          "qualification_passed": true,
+          "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_04_20260818",
+          "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+          "timing": {
+            "distinct_kunwei": 8002,
+            "distinct_rtde": 4001,
+            "distinct_tp": 3847,
+            "distinct_writer": 4001,
+            "duration_s": 8.002059357007965,
+            "feedback_p99_s": 0.009656701004132628,
+            "kunwei_hz": 999.9925822834701,
+            "max_fresh_gap_s": 0.00398027099436149,
+            "rtde_hz": 499.99629114173507,
+            "tp_hz": 480.75124519426515,
+            "tp_writer_ratio": 0.9615096225943515,
+            "writer_hz": 499.99629114173507
+          },
+          "timing_decision": {
+            "cadence_failures": [],
+            "eligible": true,
+            "failures": [],
+            "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+            "telemetry": {
+              "active_stale_stop_s": 0.08,
+              "average_rate_hz": 499.99629114173507,
+              "average_rate_is_eligibility_gate": false,
+              "cadence_eligible": false,
+              "duration_s": 8.002059357007965,
+              "feedback_age_p99_max_s": 0.01,
+              "feedback_age_p99_s": 0.009656701004132628,
+              "fresh_feedback_ratio": 1.0,
+              "kunwei_distinct": 8002,
+              "layer_rates_hz": {
+                "kunwei_frames": 999.9925822834701,
+                "rtde_frames": 499.99629114173507,
+                "tp_consumed_packet_echoes": 480.75124519426515,
+                "writer_publishes": 499.99629114173507
+              },
+              "max_fresh_gap_limit_s": 0.02,
+              "max_fresh_gap_s": 0.00398027099436149,
+              "nominal_hz": 500.0,
+              "r008_tp_hz": 480.75124519426515,
+              "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+              "r008_writer_hz": 499.99629114173507,
+              "rtde_distinct": 4001,
+              "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+              "tp_consumption_ratio": 0.9615096225943515,
+              "tp_distinct": 3847,
+              "version": "r007-timing-eligibility-v1",
+              "writer_distinct": 4001
+            },
+            "version": "r007-timing-eligibility-v1"
+          },
+          "timing_gate": true
+        },
+        {
+          "attempt_sequence": 2,
+          "candidate": {
+            "force_damping": 188.36079701683204,
+            "force_i_gain": 0.001810193359837562,
+            "force_p_gain": 0.0226274169984,
+            "i_off": false,
+            "motion_kp": 2.5226892457611436,
+            "normal_filter_tau_s": 0.04375,
+            "orientation_ko": 0.05946035575013606,
+            "target_force_n": 5.0
+          },
+          "execution_id": "r013-owner-qualification-2-1cbff3781ecb442d801002a623bb8a3a",
+          "lifecycle_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_04_20260818/000002-r013-owner-qualification-2-1cbff3781ecb442d801002a623bb8a3a.r013life.json",
+          "packet_sequence": {
+            "artifact_sample_index_gap_count": 0,
+            "consumed_sequence_advance": 10785,
+            "packet_sequence_gap_count": 0,
+            "packet_sequence_regression_count": 1,
+            "sample_count": 10788,
+            "sequence_advance": 10786,
+            "sequence_jump_histogram": {
+              "1": 10786
+            }
+          },
+          "qualification_passed": true,
+          "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_04_20260818",
+          "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+          "timing": {
+            "distinct_kunwei": 8035,
+            "distinct_rtde": 4001,
+            "distinct_tp": 3847,
+            "distinct_writer": 4001,
+            "duration_s": 8.002311328993528,
+            "feedback_p99_s": 0.009655839006882161,
+            "kunwei_hz": 1004.0849036812697,
+            "max_fresh_gap_s": 0.0032649029890308157,
+            "rtde_hz": 499.9805475580286,
+            "tp_hz": 480.7361075870373,
+            "tp_writer_ratio": 0.9615096225943515,
+            "writer_hz": 499.9805475580286
+          },
+          "timing_decision": {
+            "cadence_failures": [],
+            "eligible": true,
+            "failures": [],
+            "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+            "telemetry": {
+              "active_stale_stop_s": 0.08,
+              "average_rate_hz": 499.9805475580286,
+              "average_rate_is_eligibility_gate": false,
+              "cadence_eligible": false,
+              "duration_s": 8.002311328993528,
+              "feedback_age_p99_max_s": 0.01,
+              "feedback_age_p99_s": 0.009655839006882161,
+              "fresh_feedback_ratio": 1.0,
+              "kunwei_distinct": 8035,
+              "layer_rates_hz": {
+                "kunwei_frames": 1004.0849036812697,
+                "rtde_frames": 499.9805475580286,
+                "tp_consumed_packet_echoes": 480.7361075870373,
+                "writer_publishes": 499.9805475580286
+              },
+              "max_fresh_gap_limit_s": 0.02,
+              "max_fresh_gap_s": 0.0032649029890308157,
+              "nominal_hz": 500.0,
+              "r008_tp_hz": 480.7361075870373,
+              "r008_tp_ratio_rescued_when_layers_ge_460hz": true,
+              "r008_writer_hz": 499.9805475580286,
+              "rtde_distinct": 4001,
+              "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+              "tp_consumption_ratio": 0.9615096225943515,
+              "tp_distinct": 3847,
+              "version": "r007-timing-eligibility-v1",
+              "writer_distinct": 4001
+            },
+            "version": "r007-timing-eligibility-v1"
+          },
+          "timing_gate": true
+        }
+      ],
+      "observations_after": 2,
+      "observations_before": 0,
+      "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_04_20260818",
+      "source_identity": "37529c31d3f1a8d98befde750f795a08bc934397a24ce73bfc5743a3f7e110f2",
+      "timing_failure": {
+        "qualification_baseline_samples": 3416,
+        "qualification_packet_timing_gate": false,
+        "r008_timing_decision": {
+          "cadence_failures": [
+            "tp_consumption_ratio_below_0p98"
+          ],
+          "eligible": false,
+          "failures": [
+            "tp_consumption_ratio_below_0p98"
+          ],
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "telemetry": {
+            "active_stale_stop_s": 0.08,
+            "average_rate_hz": 336.49311320730123,
+            "average_rate_is_eligibility_gate": false,
+            "cadence_eligible": false,
+            "duration_s": 8.00610738901014,
+            "feedback_age_p99_max_s": 0.01,
+            "feedback_age_p99_s": 0.00938812000094913,
+            "fresh_feedback_ratio": 1.0,
+            "kunwei_distinct": 8008,
+            "layer_rates_hz": {
+              "kunwei_frames": 1000.2363959035147,
+              "rtde_frames": 336.49311320730123,
+              "tp_consumed_packet_echoes": 293.9006293158054,
+              "writer_publishes": 336.49311320730123
+            },
+            "max_fresh_gap_limit_s": 0.02,
+            "max_fresh_gap_s": 0.004365209999377839,
+            "nominal_hz": 500.0,
+            "rtde_distinct": 2694,
+            "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+            "tp_consumption_ratio": 0.8734224201930215,
+            "tp_distinct": 2353,
+            "version": "r007-timing-eligibility-v1",
+            "writer_distinct": 2694
+          },
+          "version": "r007-timing-eligibility-v1"
+        },
+        "timing_evidence": {
+          "distinct_kunwei_frames": 8008,
+          "distinct_rtde_frames": 2694,
+          "distinct_tp_consumed_packet_echoes": 2353,
+          "duration_s": 8.00610738901014,
+          "feedback_age_p99_max_s": 0.01,
+          "feedback_age_p99_s": 0.00938812000094913,
+          "layer_rates_hz": {
+            "kunwei_frames": 1000.2363959035147,
+            "rtde_frames": 336.49311320730123,
+            "tp_consumed_packet_echoes": 293.9006293158054,
+            "writer_publishes": 336.49311320730123
+          },
+          "max_fresh_gap_limit_s": 0.02,
+          "max_fresh_gap_s": 0.004365209999377839,
+          "minimum_rate_hz": 460.0,
+          "nominal_rate_hz": 500.0,
+          "runtime_stale_stop_s": 0.08,
+          "schema": "step5d.autotune-v4/r004-timing-evidence-v1",
+          "successful": false,
+          "successful_writer_publishes": 2694,
+          "version": "step5d.autotune-v4/r004-timing-v1"
+        }
+      },
+      "timing_failure_observation": {
+        "attempt_sequence": 3,
+        "candidate": {
+          "force_damping": 188.36079701683204,
+          "force_i_gain": 0.008610779292198037,
+          "force_p_gain": 0.0226274169984,
+          "i_off": false,
+          "motion_kp": 2.5226892457611436,
+          "normal_filter_tau_s": 0.04375,
+          "orientation_ko": 0.05946035575013606,
+          "target_force_n": 5.0
+        },
+        "run_dir": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_timing_fifo_current_prep_04_20260818",
+        "schema": "step5d.autotune-v4/v4-stage-a-timing-characterization-observation-v1",
+        "status": "timing_failure",
+        "timing": {
+          "distinct_kunwei": 8008,
+          "distinct_rtde": 2694,
+          "distinct_tp": 2353,
+          "distinct_writer": 2694,
+          "duration_s": 8.00610738901014,
+          "feedback_p99_s": 0.00938812000094913,
+          "kunwei_hz": 1000.2363959035147,
+          "max_fresh_gap_s": 0.004365209999377839,
+          "rtde_hz": 336.49311320730123,
+          "tp_hz": 293.9006293158054,
+          "tp_writer_ratio": 0.8734224201930215,
+          "writer_hz": 336.49311320730123
+        },
+        "timing_decision": {
+          "cadence_failures": [
+            "tp_consumption_ratio_below_0p98"
+          ],
+          "eligible": false,
+          "failures": [
+            "tp_consumption_ratio_below_0p98"
+          ],
+          "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+          "telemetry": {
+            "active_stale_stop_s": 0.08,
+            "average_rate_hz": 336.49311320730123,
+            "average_rate_is_eligibility_gate": false,
+            "cadence_eligible": false,
+            "duration_s": 8.00610738901014,
+            "feedback_age_p99_max_s": 0.01,
+            "feedback_age_p99_s": 0.00938812000094913,
+            "fresh_feedback_ratio": 1.0,
+            "kunwei_distinct": 8008,
+            "layer_rates_hz": {
+              "kunwei_frames": 1000.2363959035147,
+              "rtde_frames": 336.49311320730123,
+              "tp_consumed_packet_echoes": 293.9006293158054,
+              "writer_publishes": 336.49311320730123
+            },
+            "max_fresh_gap_limit_s": 0.02,
+            "max_fresh_gap_s": 0.004365209999377839,
+            "nominal_hz": 500.0,
+            "rtde_distinct": 2694,
+            "schema": "step5d.autotune-v4/r007-timing-eligibility-v1",
+            "tp_consumption_ratio": 0.8734224201930215,
+            "tp_distinct": 2353,
+            "version": "r007-timing-eligibility-v1",
+            "writer_distinct": 2694
+          },
+          "version": "r007-timing-eligibility-v1"
+        }
+      }
+    }
+  ],
+  "schema": "step5d.autotune-v4/r013-timing-characterization-v1",
+  "sequence_jump_histogram": {
+    "1": 69040
+  },
+  "sequence_jump_observation_distribution": {
+    "0": 8
+  },
+  "source_identities": [
+    "37529c31d3f1a8d98befde750f795a08bc934397a24ce73bfc5743a3f7e110f2"
+  ],
+  "source_identity_count": 1,
+  "statistics_ddof": 1,
+  "target_met": true,
+  "target_observations": 10,
+  "tell_exact_called": false,
+  "timing_observation_count": 10,
+  "version": 1
+}

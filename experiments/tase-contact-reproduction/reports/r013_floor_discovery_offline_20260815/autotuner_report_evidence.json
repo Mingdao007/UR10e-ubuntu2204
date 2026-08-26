@@ -1,0 +1,1770 @@
+{
+  "schema_version": "step5d.autotuner-report/v1",
+  "report": {
+    "mode": "audit",
+    "language": "zh-CN",
+    "generated_at": "2026-08-15T19:37:26+00:00",
+    "target_achieved_claim": false,
+    "scope": "offline_preparation_only"
+  },
+  "campaign": {
+    "campaign_id": "r013-budgeted-floor-v1-offline-preparation",
+    "lineage": "R013 empirical-floor offline preparation with historical Goal-035 evidence",
+    "revision": 13,
+    "source_commit": {
+      "available": false,
+      "reason": "run receipts recorded repository_head/source_commit as unknown"
+    },
+    "target_force_n": 5.0,
+    "state": "offline_prepared_awaiting_live_prerequisites",
+    "authority_state": "NOT_REQUESTED",
+    "safety_state": "no live operations performed in this offline turn"
+  },
+  "metric_contract": {
+    "sealed": {
+      "signal": "filtered_normal_n normal-force scalar",
+      "window_s": [
+        5.0,
+        60.0
+      ],
+      "bin_seconds": 0.1,
+      "bin_count": 550,
+      "aggregation": "mean_absolute_error",
+      "unit": "N",
+      "threshold_n": 0.35
+    },
+    "ext60": {
+      "available": false,
+      "reason": "formal objective ends at 60 s; no independent ext60 metric was recorded"
+    },
+    "figure8": {
+      "schema": "step5d.autotune-v4/r013-metric-fingerprint-v1",
+      "version": 1,
+      "metric_id": "figure8-force-mae-v1",
+      "target_force_n": 5.0,
+      "formal_start_s": 5.0,
+      "formal_end_s": 30.0,
+      "bin_width_s": 0.1,
+      "required_bin_count": 250,
+      "statistic": "mean_abs(mean(normal_load_n_in_bin)-target_force_n)_over_bins"
+    }
+  },
+  "optimizer": {
+    "model": "botorch.SingleTaskGP",
+    "acquisition": "qLogNEI",
+    "q": 1,
+    "dimensions": [
+      {
+        "name": "p_over_d",
+        "bounds": [
+          1.25e-05,
+          0.0004
+        ],
+        "unit": "1/(N·s/m)"
+      },
+      {
+        "name": "force_damping",
+        "bounds": [
+          7.0,
+          224.0
+        ],
+        "unit": "N·s/m"
+      },
+      {
+        "name": "normal_filter_tau_s",
+        "bounds": [
+          0.04375,
+          0.0735784
+        ],
+        "unit": "s"
+      },
+      {
+        "name": "orientation_ko",
+        "bounds": [
+          0.05,
+          0.8
+        ],
+        "unit": "gain"
+      },
+      {
+        "name": "motion_kp",
+        "bounds": [
+          1.5,
+          6.0
+        ],
+        "unit": "gain"
+      },
+      {
+        "name": "force_i_over_p",
+        "bounds": [
+          0.05,
+          0.5
+        ],
+        "unit": "1/s"
+      }
+    ],
+    "budget": {
+      "available": false,
+      "reason": "campaign terminated on repeated target achievement rather than a total epoch cap"
+    },
+    "pool_size": 128,
+    "stop_reason": "target_achieved_after_three_same-candidate_admitted_repeats",
+    "in_flight": 0,
+    "historical_120_stop": {
+      "stop_epoch": 120,
+      "bo_round_index": 108,
+      "sobol_seed": 6122,
+      "required_candidate_count": 128,
+      "pre_repair_pool_count": 128,
+      "evaluated_overlap_count": 1,
+      "pre_repair_admissible_count": 127,
+      "repaired_pool_count": 128,
+      "repaired_overlap_count": 0,
+      "overlap_candidate_tokens": [
+        "4a5d525fd758691b1cd9723918011dd0e3a3b9980630ede87a5e12f5d77063d1"
+      ],
+      "historical_status_error": "owner: R013GPError: R013 ask must score exactly 128 unevaluated valid lattice candidates"
+    },
+    "planned_floor_campaign": {
+      "novel_exact_candidate_target": 200,
+      "controller_core": 100,
+      "path_conditioned_correction": 60,
+      "alternating_polish": 40,
+      "candidate_pool_size": 128,
+      "fresh_unevaluated_valid_pool_required": true,
+      "persistent_sobol_cursor": true,
+      "no_mae_early_stop": true,
+      "checkpoint_mae_n": 0.35,
+      "sentinel_interval": 10,
+      "final_top_k": 3,
+      "final_repeat_target_n": 5,
+      "report_checkpoints": [
+        100,
+        160,
+        200,
+        "final"
+      ],
+      "numeric_checkpoint_requires_exact_observed_count": true,
+      "final_checkpoint_requires_complete_top3_n5": true
+    }
+  },
+  "evaluations": [
+    {
+      "epoch": 1,
+      "attempt_id": "r013-0001-bac640d6997a",
+      "phase": "WARM_FIXED_KI",
+      "candidate_token": "bac640d6997afda27752c59af2c77f6533c4e6f9ece9031f7de19c71effc3c3b",
+      "objective_n": 0.6270192579930597,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 2,
+      "attempt_id": "r013-0002-bac640d6997a",
+      "phase": "WARM_FIXED_KI",
+      "candidate_token": "bac640d6997afda27752c59af2c77f6533c4e6f9ece9031f7de19c71effc3c3b",
+      "objective_n": 0.6541967222318192,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 3,
+      "attempt_id": "r013-0003-bac640d6997a",
+      "phase": "WARM_FIXED_KI",
+      "candidate_token": "bac640d6997afda27752c59af2c77f6533c4e6f9ece9031f7de19c71effc3c3b",
+      "objective_n": 0.6319420757652553,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 4,
+      "attempt_id": "r013-0004-708c5c760619",
+      "phase": "WARM_FIXED_KI",
+      "candidate_token": "708c5c76061987833b38f592b6a9e74b945c4883617794770829ddefd68588df",
+      "objective_n": 0.7897313050074501,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 5,
+      "attempt_id": "r013-0005-708c5c760619",
+      "phase": "WARM_FIXED_KI",
+      "candidate_token": "708c5c76061987833b38f592b6a9e74b945c4883617794770829ddefd68588df",
+      "objective_n": 0.6058326220005186,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 6,
+      "attempt_id": "r013-0006-708c5c760619",
+      "phase": "WARM_FIXED_KI",
+      "candidate_token": "708c5c76061987833b38f592b6a9e74b945c4883617794770829ddefd68588df",
+      "objective_n": 0.6139533926861066,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 7,
+      "attempt_id": "r013-0007-a53d0105a838",
+      "phase": "WARM_SOBOL",
+      "candidate_token": "a53d0105a83880938709a6379475370f1a451c9a2c8aac4af7b6c013f911d07e",
+      "objective_n": 3.444423677331641,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 8,
+      "attempt_id": "r013-0008-963cf17ba40d",
+      "phase": "WARM_SOBOL",
+      "candidate_token": "963cf17ba40d88083555690ef11775c16919c3eba5a9379f83c81db43b5cc36c",
+      "objective_n": 0.979185283222734,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 9,
+      "attempt_id": "r013-0009-d85462fed82e",
+      "phase": "WARM_SOBOL",
+      "candidate_token": "d85462fed82e825dce416c45a5b0a24dd94893fc79493754c94f6b83b5fa605d",
+      "objective_n": 5.616921730739547,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 10,
+      "attempt_id": "r013-0010-32088e7a7b54",
+      "phase": "WARM_SOBOL",
+      "candidate_token": "32088e7a7b5405cb0b1300ab8b7fa9017001af4446a8c651250a95b697044c0e",
+      "objective_n": 1.116662197729244,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 11,
+      "attempt_id": "r013-0011-f01309540390",
+      "phase": "WARM_SOBOL",
+      "candidate_token": "f01309540390af0fbfcf2d01c2b504038192ff9ec2439d13bc478554b548382a",
+      "objective_n": 1.8097021503934607,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 12,
+      "attempt_id": "r013-0012-01cdc6b13fef",
+      "phase": "WARM_SOBOL",
+      "candidate_token": "01cdc6b13fefad0732a1f2d4eddf31dd2a82a8ee936af75b98c4d2342d92e1a1",
+      "objective_n": 2.7652533933901036,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 13,
+      "attempt_id": "r013-0013-31054c425912",
+      "phase": "BO_TRIAL",
+      "candidate_token": "31054c425912c73c584b75b21a79e6483bd65c5e8258650917fd65d62125fd51",
+      "objective_n": 1.0682212834875213,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 14,
+      "attempt_id": "r013-0015-acbdfa518f03",
+      "phase": "BO_TRIAL",
+      "candidate_token": "acbdfa518f0347c032f7febf8403244a3f8061468593032574a88ef4507e40ac",
+      "objective_n": 1.347169572268458,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 15,
+      "attempt_id": "r013-0016-d39fae1379e4",
+      "phase": "BO_TRIAL",
+      "candidate_token": "d39fae1379e483e27eca3e5c3c3f79c5c1eeea600ec37e32bdb6411f189281cc",
+      "objective_n": 1.591977750488621,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 16,
+      "attempt_id": "r013-0017-7cdc22587060",
+      "phase": "BO_TRIAL",
+      "candidate_token": "7cdc225870601891f5daccd6306235e4cbe75bbdbeeb700c76da2efecadbaa69",
+      "objective_n": 1.239793660732175,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 17,
+      "attempt_id": "r013-0018-7b051a7b6052",
+      "phase": "BO_TRIAL",
+      "candidate_token": "7b051a7b6052802d3933a1ac50133c98bf7ac926446d7451f5a47a437093e9fd",
+      "objective_n": 4.579781387471369,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 18,
+      "attempt_id": "r013-0019-10633a3f822a",
+      "phase": "BO_TRIAL",
+      "candidate_token": "10633a3f822a6f9352f2db05d029887b2af500f1b6cc6c1643dbccf40efe33bf",
+      "objective_n": 0.9630999879497769,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 19,
+      "attempt_id": "r013-0020-cad060b95ab9",
+      "phase": "BO_TRIAL",
+      "candidate_token": "cad060b95ab91e9ceee3668818156c1045ecb9f50ced1062cb43c1a32d60de03",
+      "objective_n": 0.6010103392495902,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 20,
+      "attempt_id": "r013-0021-153695c4e008",
+      "phase": "BO_TRIAL",
+      "candidate_token": "153695c4e0089256d5980f3a34515e9e0f26880fad661c6bcad41bf0a08d4c99",
+      "objective_n": 0.6652660272740871,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 21,
+      "attempt_id": "r013-0022-8960d6db1698",
+      "phase": "BO_TRIAL",
+      "candidate_token": "8960d6db1698f3cdbc3205e7cd125c79d6f9a39f93429b96d743245374de804d",
+      "objective_n": 0.7821149124360619,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 22,
+      "attempt_id": "r013-0023-acb234fd033d",
+      "phase": "BO_TRIAL",
+      "candidate_token": "acb234fd033d8a063fab32b39628007ae71de54fec44ffa3701f134a886e735e",
+      "objective_n": 1.1222032084530513,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 23,
+      "attempt_id": "r013-0025-8184d9c6cd5f",
+      "phase": "BO_TRIAL",
+      "candidate_token": "8184d9c6cd5f22bebdc0fa0b195d209dc808dba39a80c2e40ce8dda5fe98e423",
+      "objective_n": 0.9889892935122783,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 24,
+      "attempt_id": "r013-0026-991160c356f2",
+      "phase": "BO_TRIAL",
+      "candidate_token": "991160c356f25f86e5ced75b41e39393be6de42aa87104a819a187e776f2e4ad",
+      "objective_n": 0.7801055404608529,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 25,
+      "attempt_id": "r013-0030-dab5fcc6dfb0",
+      "phase": "BO_TRIAL",
+      "candidate_token": "dab5fcc6dfb0f65a29a5f8d8d0ed7392032881c3100e4bff99763e6779d7636d",
+      "objective_n": 0.6475226390627906,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 26,
+      "attempt_id": "r013-0031-65570ebd3c33",
+      "phase": "BO_TRIAL",
+      "candidate_token": "65570ebd3c33d986cdd715fbe3df60db708027660539c68d937eec90d8297615",
+      "objective_n": 0.8754174036271885,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 27,
+      "attempt_id": "r013-0032-aa6bb6bbc027",
+      "phase": "BO_TRIAL",
+      "candidate_token": "aa6bb6bbc02754e77cc7cf5c3a8237befee1edccb58ebd16c3358c83435773cf",
+      "objective_n": 0.7196113154040374,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 28,
+      "attempt_id": "r013-0034-d23a98fa6a0f",
+      "phase": "BO_TRIAL",
+      "candidate_token": "d23a98fa6a0fb2e649482b929833665fa7e17d36ee7990e3c8df102c08ca631b",
+      "objective_n": 0.7448736297322206,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 29,
+      "attempt_id": "r013-0035-57f994cdb61f",
+      "phase": "BO_TRIAL",
+      "candidate_token": "57f994cdb61f176072c187e16fd8bf6af3627a8cfde5b4affff35c5b01bc217f",
+      "objective_n": 0.6841421646438315,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 30,
+      "attempt_id": "r013-0036-36fe6ee401e6",
+      "phase": "BO_TRIAL",
+      "candidate_token": "36fe6ee401e6df84c2bbff4f9f2649e8969dbc555a86f90fe49bf850c9f0f2a8",
+      "objective_n": 0.7702123227632273,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 31,
+      "attempt_id": "r013-0037-69059c893594",
+      "phase": "BO_TRIAL",
+      "candidate_token": "69059c893594f81bd166e97af9e8191af3ffcf2e57113083a4d60e425b7beb7d",
+      "objective_n": 0.7280885246965514,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 32,
+      "attempt_id": "r013-0038-71781dd2d96f",
+      "phase": "BO_TRIAL",
+      "candidate_token": "71781dd2d96f825aa362474a0a7fbd9a1a3876215d56a3070659937329503321",
+      "objective_n": 0.6498211667860403,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 33,
+      "attempt_id": "r013-0039-572caf63d0e5",
+      "phase": "BO_TRIAL",
+      "candidate_token": "572caf63d0e5029b9a029ef0f6d85341ab271a162e7083d58660425e3844bdf5",
+      "objective_n": 0.8032896792562189,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 34,
+      "attempt_id": "r013-0040-9354ddd8759f",
+      "phase": "BO_TRIAL",
+      "candidate_token": "9354ddd8759fb2de3dc3e2b7682ae1be5480d46cd7f667d1405c60167f5b4fe4",
+      "objective_n": 0.9756318205486884,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 35,
+      "attempt_id": "r013-0042-b7d3b8326ff8",
+      "phase": "ANCHOR_RETEST",
+      "candidate_token": "b7d3b8326ff8cf11f792db84c4ad6fe2aa0f416a3b3fc153ea7854a1b23dfb1f",
+      "objective_n": 0.5790241352109919,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 36,
+      "attempt_id": "r013-0043-92be24771a77",
+      "phase": "ANCHOR_RETEST",
+      "candidate_token": "92be24771a77a5e4f43239d03580d42546e22004c43a14ee627d8ac2ace52064",
+      "objective_n": 0.5720008473826484,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 37,
+      "attempt_id": "r013-0044-77270d77cf45",
+      "phase": "ANCHOR_RETEST",
+      "candidate_token": "77270d77cf4565fd91df9d11dffa0b47cafe406343f268484cf71b9ad9d9369f",
+      "objective_n": 0.5709881727754695,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 38,
+      "attempt_id": "r013-0046-c5574fd0c8e4",
+      "phase": "BO_TRIAL",
+      "candidate_token": "c5574fd0c8e4c65bb0cadaca86425c9bdb1170ed767833b6ecaca8aec73add3a",
+      "objective_n": 0.6669535367134085,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 39,
+      "attempt_id": "r013-0047-c257c3470fdc",
+      "phase": "BO_TRIAL",
+      "candidate_token": "c257c3470fdca2892f97a0cc37a7ef29f6e403181173a2739c922e4d6520dc9e",
+      "objective_n": 0.717545741137729,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 40,
+      "attempt_id": "r013-0048-4a5d525fd758",
+      "phase": "BO_TRIAL",
+      "candidate_token": "4a5d525fd758691b1cd9723918011dd0e3a3b9980630ede87a5e12f5d77063d1",
+      "objective_n": 0.6540383354453947,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 41,
+      "attempt_id": "r013-0049-2edf83afe59c",
+      "phase": "BO_TRIAL",
+      "candidate_token": "2edf83afe59c378e1b3da9022168c574021e6138a0e58aa4c3a8850c04afe895",
+      "objective_n": 0.8630924903594559,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 42,
+      "attempt_id": "r013-0050-df44bd1aab9b",
+      "phase": "BO_TRIAL",
+      "candidate_token": "df44bd1aab9b7988170498b1ee402422fee1de339d38312cc8bb0696f5701a8c",
+      "objective_n": 0.9743367847913805,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 43,
+      "attempt_id": "r013-0051-d5d109695c08",
+      "phase": "BO_TRIAL",
+      "candidate_token": "d5d109695c0846389d917439b90b6f1edb7732445833ea5e20ba7972e051faac",
+      "objective_n": 0.8647286008367271,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 44,
+      "attempt_id": "r013-0052-2a632e89297d",
+      "phase": "BO_TRIAL",
+      "candidate_token": "2a632e89297d306dcd682669816f7bd99569aa21ca3e17c9aa02263028781e89",
+      "objective_n": 0.6611735773753533,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 45,
+      "attempt_id": "r013-0053-82ff1ce04646",
+      "phase": "BO_TRIAL",
+      "candidate_token": "82ff1ce04646e87136db64a2ec68127a99f45e8eadb65209bdfb985a12a0f6ef",
+      "objective_n": 0.8449083060207482,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 46,
+      "attempt_id": "r013-0054-a36cfc05e43b",
+      "phase": "BO_TRIAL",
+      "candidate_token": "a36cfc05e43b5b8ec210d5eb21da0712d7f7868812794ae2d12323bc84235311",
+      "objective_n": 0.7939131797742837,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 47,
+      "attempt_id": "r013-0055-a4de8fc707fe",
+      "phase": "BO_TRIAL",
+      "candidate_token": "a4de8fc707fe9961dcbd2b6c034fbd1c8c6c3c067469e9fb3afd91d922256c35",
+      "objective_n": 0.9380536648694874,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 48,
+      "attempt_id": "r013-0056-3174fd5c5415",
+      "phase": "LOCAL_REFINEMENT",
+      "candidate_token": "3174fd5c54154d15fbe79efea33f059bad94fac6cec51109442788563e05ab4d",
+      "objective_n": 0.5543627056209287,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 49,
+      "attempt_id": "r013-0057-e6dd42d4a348",
+      "phase": "LOCAL_REFINEMENT",
+      "candidate_token": "e6dd42d4a34849bf157e494d38f8d4da0a335b791aabb52e8929b157ac612270",
+      "objective_n": 0.5706137010643115,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 50,
+      "attempt_id": "r013-0059-02ae1cd4f2fe",
+      "phase": "LOCAL_REFINEMENT",
+      "candidate_token": "02ae1cd4f2fe8fc01e8e75e96bc230db050ab62e64975255ce2a79361eeeaa46",
+      "objective_n": 0.5523026053922394,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 51,
+      "attempt_id": "r013-0060-9987100ae2b6",
+      "phase": "LOCAL_REFINEMENT",
+      "candidate_token": "9987100ae2b624abddd1d119922e2a12a01a2fb51b31786f54816dca4c61ed94",
+      "objective_n": 0.600112149200994,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 52,
+      "attempt_id": "r013-0061-1779c73dbad3",
+      "phase": "LOCAL_REFINEMENT",
+      "candidate_token": "1779c73dbad313d8f9311e050660e1e163eba6c2d412c8fa8b7424eb14744c2c",
+      "objective_n": 0.5689298161966014,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 53,
+      "attempt_id": "r013-0062-15e5517cf3d0",
+      "phase": "LOCAL_REFINEMENT",
+      "candidate_token": "15e5517cf3d08e1cd0bbc776c3a91d8c3c2c316b9db5e591319f2c6a01d015c3",
+      "objective_n": 0.6156043947042061,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 54,
+      "attempt_id": "r013-0063-61bdacd9f90a",
+      "phase": "BO_TRIAL",
+      "candidate_token": "61bdacd9f90a5395c73938b78876a290b4d1d3fb5832756d880e9f25bd1977cd",
+      "objective_n": 0.6629820827213094,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 55,
+      "attempt_id": "r013-0064-c736211e5eb8",
+      "phase": "BO_TRIAL",
+      "candidate_token": "c736211e5eb8fcb8a6bc9c3e51283d59fcf9c6ce16c41218cbd518faed4e1212",
+      "objective_n": 0.8983529972022694,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 56,
+      "attempt_id": "r013-0065-d79b1e12c431",
+      "phase": "BO_TRIAL",
+      "candidate_token": "d79b1e12c431d549ab30d1635f60df87e28ce0f7417e12d0672bc7d04579ae36",
+      "objective_n": 0.5626878013576869,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 57,
+      "attempt_id": "r013-0066-26e1d5608d6c",
+      "phase": "BO_TRIAL",
+      "candidate_token": "26e1d5608d6cc82aa8e24589a5e2e068cbefa473e17d9e851b224e5842b7f69f",
+      "objective_n": 0.6916073522409799,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 58,
+      "attempt_id": "r013-0067-4e2348b5fd8a",
+      "phase": "BO_TRIAL",
+      "candidate_token": "4e2348b5fd8a234d8359076e72c9ade5766de967288b5d6b869d850025f7f6f3",
+      "objective_n": 0.7582861958035397,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 59,
+      "attempt_id": "r013-0068-3adeb64eb197",
+      "phase": "BO_TRIAL",
+      "candidate_token": "3adeb64eb197b06ae48fccb6ee80fec4b60da73296ab40d6fde746acad54e8dd",
+      "objective_n": 0.8264441799452642,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 60,
+      "attempt_id": "r013-0069-16baef6365ac",
+      "phase": "BO_TRIAL",
+      "candidate_token": "16baef6365acfb0ab4b183bdc98b9e038f682cf8cc7f4f81c47e152de467559d",
+      "objective_n": 1.1611849999054622,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 61,
+      "attempt_id": "r013-0070-3ef751fe9d11",
+      "phase": "HIGH_KI_PROBE",
+      "candidate_token": "3ef751fe9d118bd49795ecab50dc909c9529c750953e0560be24bf4cbfb46663",
+      "objective_n": 0.5283624254914774,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 62,
+      "attempt_id": "r013-0071-fa90efcec5a1",
+      "phase": "HIGH_KI_PROBE",
+      "candidate_token": "fa90efcec5a11b47372ca8386bc758e6e2a5ec9bbf82c23f2b73d87daae84cff",
+      "objective_n": 0.5277824310621138,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 63,
+      "attempt_id": "r013-0073-d3b0b40436af",
+      "phase": "HIGH_KI_PROBE",
+      "candidate_token": "d3b0b40436af2d925e0b708629cb4119b89ed1897f964b48f6a0b45f4b7eefce",
+      "objective_n": 0.522087010573597,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 64,
+      "attempt_id": "r013-0074-86d0405e5169",
+      "phase": "HIGH_KI_PROBE",
+      "candidate_token": "86d0405e51696ba8b666ea52bec2698b6306b9c2d82058bf5e68900fc5e5ae3d",
+      "objective_n": 0.5238500287933671,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 65,
+      "attempt_id": "r013-0075-40475b7afc5c",
+      "phase": "HIGH_KI_PROBE",
+      "candidate_token": "40475b7afc5ccb8f05db6cc420b65bba2c3c06087b3c1d37a74d19ec03f0e784",
+      "objective_n": 0.597427025397939,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 66,
+      "attempt_id": "r013-0076-194e173bd771",
+      "phase": "HIGH_KI_PROBE",
+      "candidate_token": "194e173bd77196b0ab62b1ac48f70d8e5a9b616f43c93dd9f80492743ccdebfd",
+      "objective_n": 0.5225049281971695,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 67,
+      "attempt_id": "r013-0077-2ce41cdb9440",
+      "phase": "HIGH_KI_PROBE",
+      "candidate_token": "2ce41cdb94406b9c8b3868c70cb4bbf655b9056ca6035b10390a1a8f264b7576",
+      "objective_n": 0.5737256084268131,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 68,
+      "attempt_id": "r013-0078-3b3c0b209aef",
+      "phase": "HIGH_KI_PROBE",
+      "candidate_token": "3b3c0b209aef531aecfc88fdaed36ac72f0632e316fb646948a59edfad667dd4",
+      "objective_n": 0.54001677877292,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 69,
+      "attempt_id": "r013-0079-9fd3ab7623f6",
+      "phase": "BO_TRIAL",
+      "candidate_token": "9fd3ab7623f6486f7d7aba88f4ceb43760360b8c1183ba20655488226e27d22d",
+      "objective_n": 0.6981222960002931,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 70,
+      "attempt_id": "r013-0080-4bc21ce5cb5b",
+      "phase": "NORMAL_VELOCITY_GAIN_PROBE",
+      "candidate_token": "4bc21ce5cb5bd1da53cb2b351f29b5b5fb9a5df4414427b72c8435674b054cfb",
+      "objective_n": 0.7279520604913682,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 71,
+      "attempt_id": "r013-0081-fdec843814eb",
+      "phase": "NORMAL_VELOCITY_GAIN_PROBE",
+      "candidate_token": "fdec843814ebddd67fe18c50e328b6d810f4d67cca38ffb52692b9a1b6493f6b",
+      "objective_n": 1.5322866673667557,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 72,
+      "attempt_id": "r013-0083-6220e7568df7",
+      "phase": "LOWER_P_OVER_D_PROBE",
+      "candidate_token": "6220e7568df7a3ea5415cff4022f9d9fbc0c63983c2eb9f41cc72e30564d2c25",
+      "objective_n": 0.5737254731201019,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 73,
+      "attempt_id": "r013-0084-8aee4d542140",
+      "phase": "LOWER_P_OVER_D_PROBE",
+      "candidate_token": "8aee4d5421408c83327c05771c85986bd9f38816c685725f7da1167c80e1ee86",
+      "objective_n": 0.6124375932975655,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 74,
+      "attempt_id": "r013-0085-fcf0c3255393",
+      "phase": "LOWER_P_OVER_D_PROBE",
+      "candidate_token": "fcf0c3255393f2ccc3474865568893556dc7ff3566d7bbca728b51b357aa8da2",
+      "objective_n": 0.517507521080191,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 75,
+      "attempt_id": "phase003-attempt-4",
+      "phase": "PHASE_STRATEGY_EXCLUDED",
+      "candidate_token": "c04c6c621ad9dd7fb29acbe9a2d815b28618201da52a7ba047f9d6aa3e99d5fc",
+      "objective_n": 0.40289107166762983,
+      "admitted": false,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": "phase003 strategy receipt missing; sealed physical evidence excluded from campaign admission"
+    },
+    {
+      "epoch": 76,
+      "attempt_id": "r013-0001-fcf0c3255393",
+      "phase": "PHASE_STRATEGY_CANARY",
+      "candidate_token": "fcf0c3255393f2ccc3474865568893556dc7ff3566d7bbca728b51b357aa8da2",
+      "objective_n": 0.3162640181193824,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 77,
+      "attempt_id": "r013-0002-fcf0c3255393",
+      "phase": "CONFIRMATION",
+      "candidate_token": "fcf0c3255393f2ccc3474865568893556dc7ff3566d7bbca728b51b357aa8da2",
+      "objective_n": 0.34746167184823024,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    },
+    {
+      "epoch": 78,
+      "attempt_id": "r013-0003-fcf0c3255393",
+      "phase": "CONFIRMATION",
+      "candidate_token": "fcf0c3255393f2ccc3474865568893556dc7ff3566d7bbca728b51b357aa8da2",
+      "objective_n": 0.3785035110775007,
+      "admitted": true,
+      "sealed": true,
+      "physical_qualification": true,
+      "motion_gate": true,
+      "timing_gate": true,
+      "safety_gate": true,
+      "complete_bins": 550,
+      "exclusion_reason": null
+    }
+  ],
+  "incumbent": {
+    "single_trial": {
+      "candidate_token": "fcf0c3255393f2ccc3474865568893556dc7ff3566d7bbca728b51b357aa8da2",
+      "epoch": 76,
+      "sealed_mae_n": 0.3162640181193824,
+      "evidence_scope": "historical_goal035"
+    },
+    "repeated": {
+      "available": true,
+      "candidate_token": "fcf0c3255393f2ccc3474865568893556dc7ff3566d7bbca728b51b357aa8da2",
+      "epochs": [
+        76,
+        77,
+        78
+      ],
+      "n": 3,
+      "acceptance_statistic": "mean",
+      "mean_n": 0.3474097336817044,
+      "std_n": 0.025409193140813836,
+      "min_n": 0.3162640181193824,
+      "max_n": 0.3785035110775007,
+      "target_margin_n": 0.0025902663182955643,
+      "evidence_scope": "historical_goal035_old_n3_acceptance_not_new_floor_incumbent"
+    }
+  },
+  "best_trial": {
+    "epoch": 76,
+    "candidate_token": "fcf0c3255393f2ccc3474865568893556dc7ff3566d7bbca728b51b357aa8da2",
+    "force": {
+      "raw_signal": "normal_load_n at recorded 10 Hz SEARCH/PATH sidecar rate",
+      "filtered_signal": "filtered_normal_n; PATH objective source at observed 479.65 Hz",
+      "target_n": 5.0,
+      "formal_window_s": [
+        5.0,
+        60.0
+      ],
+      "segments": [
+        {
+          "name": "SEARCH",
+          "start_s": -12.53691306791734,
+          "end_s": -8.636884907959029
+        },
+        {
+          "name": "handoff",
+          "start_s": -8.636884907959029,
+          "end_s": 0.0
+        },
+        {
+          "name": "PATH",
+          "start_s": 0.0,
+          "end_s": 59.99799999999959
+        },
+        {
+          "name": "Home",
+          "start_s": 59.99799999999959,
+          "end_s": 61.65529093297664
+        }
+      ],
+      "gaps": [
+        {
+          "start_s": -8.636884907959029,
+          "end_s": 0.0,
+          "interpolated": false
+        }
+      ]
+    },
+    "position": {
+      "metric": "bound cycloid reference versus TCP XY tracking error",
+      "unit": "mm",
+      "sample_count": 599,
+      "summary": {
+        "displayed_rows_10hz": 599,
+        "displayed_p95_mm": 0.05110061104206663,
+        "displayed_max_mm": 0.10887423291680312,
+        "authoritative_ledger_p95_mm_500hz": 0.05579944182267922,
+        "authoritative_ledger_max_mm_500hz": 0.1551018364590269
+      }
+    },
+    "orientation": {
+      "metric": "angle between actual TCP +Z and base -Z; roll-invariant",
+      "unit": "deg",
+      "sample_count": 599,
+      "summary": {
+        "definition": "angle between actual TCP +Z and base -Z; roll-invariant",
+        "displayed_rows_10hz": 599,
+        "displayed_start_deg": 2.767237549202059,
+        "displayed_p95_deg": 2.5702041064618313,
+        "displayed_max_deg": 2.767237549202059,
+        "displayed_end_deg": 0.6177900442250902
+      }
+    },
+    "sampling": {
+      "nominal_hz": 500.0,
+      "observed_hz": 479.65
+    },
+    "return_home": {
+      "observed": true,
+      "source_id": "r013_physical"
+    }
+  },
+  "sources": [
+    {
+      "id": "report_snapshot",
+      "type": "json",
+      "path": "runs/step5d_autotune_v4_r013/live_20260815_goal035_phase_004/r013_goal035_report_source_snapshot.json",
+      "sha256": "7e5f298989e014b329f26538a5be7a82aa45f97a13895f4876855e134158611d"
+    },
+    {
+      "id": "r013_status",
+      "type": "json",
+      "path": "runs/step5d_autotune_v4_r013/live_20260815_goal035_phase_004/r013_campaign_status.json",
+      "sha256": "0d02e620acc7d2656a2a8ba64467dea8a22ced56bee332680337cb3d3067082b"
+    },
+    {
+      "id": "r013_ledger",
+      "type": "jsonl",
+      "path": "runs/step5d_autotune_v4_r013/live_20260815_goal035_phase_004/r013_ledger.jsonl",
+      "sha256": "adb845e978e10d928ca08eeced3a0b69bc51515227415559c2065e5cef4ef48b"
+    },
+    {
+      "id": "r013_physical",
+      "type": "jsonl",
+      "path": "runs/step5d_autotune_v4_r013/live_20260815_goal035_phase_004/r006-physical-observations.jsonl",
+      "sha256": "56b058231f278e1b479334096216b740bf0e5bed83ea55dbb252a0d63337268d"
+    },
+    {
+      "id": "r013_strategy",
+      "type": "jsonl",
+      "path": "runs/step5d_autotune_v4_r013/live_20260815_goal035_phase_004/r013-runtime-strategy-receipts.jsonl",
+      "sha256": "c673aed7067abcf5be53fa562224c560f3847db1f64e0b345a7738511e4cccef"
+    },
+    {
+      "id": "r013_authority",
+      "type": "json",
+      "path": "runs/step5d_autotune_v4_r013/live_20260815_goal035_phase_004/authority/owner-authority.json",
+      "sha256": "0f01340c1373a2b639011f96c690e8dd063c46a3bfcf79bcd27209852d25a946"
+    },
+    {
+      "id": "r013_implementation",
+      "type": "python_tree",
+      "path": "tools/step5d_autotune_v4_r013",
+      "sha256": "1253af731141ef826a140f03facc27a565627938a287c3c54a19ff792ddca4d9"
+    },
+    {
+      "id": "r013_best_diagnostics",
+      "type": "json",
+      "path": "runs/step5d_autotune_v4_r013/live_20260815_goal035_phase_004/r013_goal035_best_attempt6_diagnostics.json",
+      "sha256": "8a997bc36bf742c42122743870e6edbfb10d4e39ee01ca8e4921763a35c4cc55"
+    },
+    {
+      "id": "goal035_progress",
+      "type": "source_set",
+      "path": "runs/step5d_autotune_v4_r013",
+      "sha256": "4ffd4b2abfab7b89a8cc3d0174bd6946aba437a57ad806323361efaff1e45971"
+    },
+    {
+      "id": "historical_r013_bo",
+      "type": "jsonl",
+      "path": "runs/step5d_autotune_v4_r013/live_20260813T045240Z_r013_stride50b/r013_ledger.jsonl",
+      "sha256": "01e15e903ca0e8b9d9b219961579b3a3ed47ffe700bc5e9be1b09d82ff83414a"
+    },
+    {
+      "id": "r013_floor_config",
+      "type": "json",
+      "path": "config/step5d/r013_budgeted_floor_v1.json",
+      "sha256": "857b8dc6599a9b5013c2136621fcc60509fc31bdf200c65dc92de6880777414f"
+    },
+    {
+      "id": "r013_figure8_template",
+      "type": "json",
+      "path": "config/step5d/r013_figure8_transfer_template_v1.json",
+      "sha256": "d0c61bc0c035a494a003e5f46994cfa25eb27c4627e5871f54d8820be32781ee"
+    },
+    {
+      "id": "r013_offline_implementation",
+      "type": "python_tree",
+      "path": "tools/step5d_autotune_v4_r013",
+      "sha256": "6f365bfddd58074e5abae90f53eb19ecd8068e37e63deccb9b8df9046bac4c15"
+    },
+    {
+      "id": "r013_offline_acceptance",
+      "type": "json",
+      "path": "reports/r013_floor_discovery_offline_20260815/r013_offline_acceptance.json",
+      "sha256": "e3d83f19bc688da00b30f6865392b0d2de58e7c441330d86126adbc4519cb2f3"
+    }
+  ],
+  "offline_preparation": {
+    "status": "offline_prepared_awaiting_live_prerequisites",
+    "launch_ready": false,
+    "novel_progress": {
+      "completed": 0,
+      "target": 200
+    },
+    "blockers": [
+      "live_handoff_ab_not_executed",
+      "outward_boundary_runtime_primitive_not_installed",
+      "context_correction_runtime_primitive_not_installed",
+      "cycloid_200_novel_not_executed"
+    ],
+    "floor_config": {
+      "schema": "step5d.autotune-v4/r013-budgeted-floor-config-v1",
+      "version": 1,
+      "status": "offline_prepared_awaiting_live_prerequisites",
+      "launch_ready": false,
+      "blockers": [
+        "live_handoff_ab_not_executed",
+        "outward_boundary_runtime_primitive_not_installed",
+        "context_correction_runtime_primitive_not_installed",
+        "cycloid_200_novel_not_executed"
+      ],
+      "completion_policy": {
+        "schema": "step5d.autotune-v4/r013-completion-policy-v1",
+        "version": 1,
+        "policy": "budgeted_floor_v1",
+        "target_mae_n": 0.35,
+        "novel_exact_candidate_target": 200,
+        "checkpoint_only_target": true
+      },
+      "handoff_policy": null,
+      "selected_handoff_policy": null,
+      "handoff_plan": {
+        "schema": "step5d.autotune-v4/r013-handoff-ab-plan-v1",
+        "version": 1,
+        "sequence": [
+          "A",
+          "B",
+          "B",
+          "A",
+          "A",
+          "B"
+        ],
+        "arm_policy": {
+          "A": "blind_reset_v0",
+          "B": "freeze_carry_v1"
+        },
+        "evidence": [],
+        "provisional_policy": null,
+        "selected_policy": null,
+        "selected_repeat_count": 0,
+        "complete_initial": false,
+        "complete": false,
+        "next_arm": "A",
+        "selection_receipt": null
+      },
+      "handoff_selection_receipt": null,
+      "floor_discovery_policy": {
+        "schema": "step5d.autotune-v4/r013-floor-discovery-policy-v1",
+        "version": 1,
+        "novel_target": 200,
+        "controller_core_target": 100,
+        "correction_target": 60,
+        "polish_target": 40,
+        "core_initial_block_size": 16,
+        "core_boundary_probe_count": 3,
+        "core_initial_sobol_count": 13,
+        "core_remaining_target": 84,
+        "core_every_fifth_global_sobol": true,
+        "correction_sobol_count": 12,
+        "correction_qlognei_count": 48,
+        "polish_core_local_count": 20,
+        "polish_correction_local_count": 20,
+        "candidate_pool_size": 128,
+        "sentinel_interval": 10,
+        "adaptive_repeat_target_n": 3,
+        "final_top_k": 3,
+        "final_repeat_target_n": 5,
+        "target_mae_n": 0.35,
+        "checkpoint_only": true,
+        "no_mae_early_stop": true,
+        "same_failure_pause_after": 3,
+        "sentinel_drift_threshold_n": 0.05,
+        "sentinel_drift_sigma_multiplier": 3.0,
+        "fixed_orientation_ko": 0.05,
+        "fixed_motion_kp": 1.5,
+        "target_force_n": 5.0,
+        "correction_weight_bounds_schema": "step5d.autotune-v4/r013-correction-weight-bounds-v1",
+        "correction_weight_bounds": [
+          [
+            -0.5,
+            0.5
+          ],
+          [
+            -0.5,
+            0.5
+          ],
+          [
+            -0.5,
+            0.5
+          ],
+          [
+            -0.5,
+            0.5
+          ],
+          [
+            -0.5,
+            0.5
+          ],
+          [
+            -0.5,
+            0.5
+          ]
+        ],
+        "correction_normalization_schema": "step5d.autotune-v4/r013-correction-normalization-v1",
+        "correction_normalization_scales": [
+          1.0,
+          0.01,
+          0.002,
+          100.0,
+          1.0,
+          1.0
+        ],
+        "local_radius_policy": {
+          "schema": "step5d.autotune-v4/r013-local-radius-policy-v1",
+          "version": 1,
+          "core_radius": [
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          "correction_radius": [
+            0.125,
+            0.125,
+            0.125,
+            0.125,
+            0.125,
+            0.125
+          ],
+          "candidate_pool_size": 128,
+          "fresh_pool_required": true,
+          "q": 1
+        },
+        "boundary_challenges": [
+          {
+            "schema": "step5d.autotune-v4/r013-boundary-challenge-v1",
+            "version": 1,
+            "name": "tau",
+            "axis": "normal_filter_tau_s",
+            "baseline_value": 0.04375,
+            "outward_value": 0.03094
+          },
+          {
+            "schema": "step5d.autotune-v4/r013-boundary-challenge-v1",
+            "version": 1,
+            "name": "Ko",
+            "axis": "orientation_ko",
+            "baseline_value": 0.05,
+            "outward_value": 0.03536
+          },
+          {
+            "schema": "step5d.autotune-v4/r013-boundary-challenge-v1",
+            "version": 1,
+            "name": "I/P",
+            "axis": "force_i_gain_over_force_p_gain",
+            "baseline_value": 0.5,
+            "outward_value": 0.7071
+          }
+        ]
+      },
+      "campaign_fingerprint": {
+        "schema": "step5d.autotune-v4/r013-campaign-fingerprint-v1",
+        "version": 1,
+        "path_id": "r013_state25_force_mae_v2_path",
+        "metric_fingerprint": "force-mae-v2-sealed|formal=[5,60)|bin=0.1s|target=5N",
+        "handoff_policy": "pending_handoff_selection_v1",
+        "correction_runtime_strategy_identity": "r013_runtime_strategy_profile_v1",
+        "source_identity": "r012_confirmed_coordinates_only_fresh_r013_ledger",
+        "eoat_identity": "new_eoat_v4_profile",
+        "home_tare_identity": "script1_fixed_home_plus_read_only_kunwei_baseline_v1",
+        "controller_lineage": "step5d_strict_rnn_autotune_v4_r013"
+      }
+    },
+    "figure8_transfer": {
+      "schema": "step5d.autotune-v4/r013-figure8-transfer-package-v1",
+      "version": 1,
+      "status": "awaiting_cycloid_empirical_floor",
+      "launch_ready": false,
+      "path_id": "r013_figure8_v1",
+      "geometry_status": "offline_geometry_only_not_live_acceptance",
+      "metric_fingerprint": {
+        "schema": "step5d.autotune-v4/r013-metric-fingerprint-v1",
+        "version": 1,
+        "metric_id": "figure8-force-mae-v1",
+        "target_force_n": 5.0,
+        "formal_start_s": 5.0,
+        "formal_end_s": 30.0,
+        "bin_width_s": 0.1,
+        "required_bin_count": 250,
+        "statistic": "mean_abs(mean(normal_load_n_in_bin)-target_force_n)_over_bins"
+      },
+      "transferable": [
+        "P/D",
+        "damping",
+        "I/P",
+        "tau",
+        "anti_windup",
+        "selected_handoff",
+        "admission",
+        "repeat_noise_model"
+      ],
+      "path_specific_unset": [
+        "motion_Kp",
+        "Ko",
+        "figure8_correction"
+      ],
+      "weak_prior_fields": [
+        "correction_bias_weight",
+        "correction_speed_weight",
+        "correction_signed_acceleration_weight",
+        "correction_signed_curvature_weight"
+      ],
+      "sin_cos_weights": [
+        0.0,
+        0.0
+      ],
+      "max_novel": 160,
+      "min_novel": 80,
+      "designed_warm_start_count": 24,
+      "convergence_rule": {
+        "after_novel": 80,
+        "fresh_valid_proposal_count": 25,
+        "max_posterior_probability_strict_less_than": 0.05,
+        "improvement_threshold_n": 0.01,
+        "top3_count": 3,
+        "top3_repeat_min_n": 5,
+        "budget_stop_novel": 160,
+        "no_absolute_mae_early_stop": true
+      },
+      "blockers": [
+        "cycloid_200_novel_empirical_floor_not_executed",
+        "cycloid_final_top3_n5_not_completed",
+        "live_handoff_ab_not_executed",
+        "figure8_correction_runtime_not_installed",
+        "figure8_controller_logger_admission_objective_seam_frozen_for_future_campaign",
+        "figure8_geometry_is_offline_only_not_live_acceptance"
+      ],
+      "frozen_future_campaign_components": [
+        "logger",
+        "handoff",
+        "controller_seam",
+        "objective",
+        "admission",
+        "report_renderer"
+      ]
+    },
+    "no_live_operations_performed": true
+  }
+}

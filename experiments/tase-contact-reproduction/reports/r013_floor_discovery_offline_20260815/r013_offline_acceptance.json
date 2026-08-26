@@ -1,0 +1,74 @@
+{
+  "schema": "step5d.autotune-v4/r013-offline-acceptance-v1",
+  "version": 1,
+  "generated_at": "2026-08-15T19:37:26+00:00",
+  "scope": "offline_preparation_only",
+  "no_live_operations_performed": true,
+  "launch_ready": false,
+  "status": "offline_prepared_awaiting_live_prerequisites",
+  "blockers": [
+    "live_handoff_ab_not_executed",
+    "outward_boundary_runtime_primitive_not_installed",
+    "context_correction_runtime_primitive_not_installed",
+    "cycloid_200_novel_not_executed"
+  ],
+  "focused_tests": {
+    "result": "pass",
+    "count": 130,
+    "duration_s": 12.42,
+    "command_scope": "seven R013 focused pytest modules with plugin autoload disabled and PYTHONPATH=."
+  },
+  "live_transition_contract": {
+    "result": "pass_offline_only",
+    "entrypoint": "materialize_r013_live_ready_config",
+    "receipt_gated": true,
+    "live_io_performed": false
+  },
+  "local_control_textbook_alignment": {
+    "worktree": "pass",
+    "canonical_tree": "pass"
+  },
+  "cross_step_parameter_table": {
+    "worktree": "pre_existing_branch_drift",
+    "detail": "bridge_startup_policy.applies_to_stage_ids retains stale step5d_strict_rnn_autotune_v4_r005",
+    "canonical_tree": "pass",
+    "r013_files_modified_to_hide_drift": false
+  },
+  "report_truth_contract": {
+    "new_campaign_novel_progress": "0/200",
+    "empirical_floor_claimed": false,
+    "mae_0_35_is_checkpoint_only": true,
+    "historical_single_min_n": 0.3162640181193824,
+    "historical_n3_mean_n": 0.3474097336817044,
+    "report_checkpoints": [
+      100,
+      160,
+      200,
+      "final"
+    ],
+    "checkpoint_receipt_schema": "step5d.autotune-v4/r013-checkpoint-receipt-v1",
+    "checkpoint_manifest_attached": false
+  },
+  "checkpoint_contract": {
+    "schema": "step5d.autotune-v4/r013-checkpoint-plan-v1",
+    "version": 1,
+    "checkpoints": [
+      100,
+      160,
+      200,
+      "final"
+    ],
+    "numeric_requires_exact_observed_novel_count": true,
+    "final_requires_complete_top3_n5": true,
+    "empirical_floor_claimed_only_at_complete_final": true
+  },
+  "figure8_launch_package": {
+    "schema": "step5d.autotune-v4/r013-figure8-launch-package-v1",
+    "status": "offline_transfer_package_ready",
+    "launch_ready": false,
+    "campaign_entrypoint": "tools/run_step5d_autotune_v4_r013_live.py",
+    "receipt_gated": true,
+    "required_receipt_count": 6,
+    "live_io_performed": false
+  }
+}

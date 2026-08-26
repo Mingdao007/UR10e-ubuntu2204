@@ -1,0 +1,258 @@
+{
+  "observations": {
+    "attempt105": {
+      "baseline_state21": {
+        "host_gap": {
+          "ge_20ms": 0,
+          "ge_4ms": 0,
+          "max_s": 0.003411742000025697,
+          "n": 4131,
+          "p99_s": 0.002809829995385371
+        },
+        "host_rate_hz": 499.9685139648496,
+        "host_span_s": 8.262520308009698,
+        "max_writer_minus_tp": 130,
+        "mean_writer_minus_tp": 6.302516940948693,
+        "rows": 4132,
+        "rtde_gap": {
+          "ge_20ms": 0,
+          "ge_4ms": 0,
+          "max_s": 0.0020000000076834112,
+          "n": 4131,
+          "p99_s": 0.0020000000076834112
+        },
+        "rtde_rate_hz": 499.9685139648496,
+        "source_identity": "762c13b5dd55e04e3517ea57bae848c5c0fd6d3215fef5354dce4553468e2ec5",
+        "state_set": [
+          21
+        ],
+        "tp_consumed": {
+          "delta_eq0": 280,
+          "delta_gt1": 152,
+          "delta_lt0": 0,
+          "first": 3671382,
+          "last": 3675387,
+          "max_delta": 4,
+          "n": 4132,
+          "unique": 3852
+        },
+        "writer_packet": {
+          "delta_eq0": 0,
+          "delta_gt1": 0,
+          "delta_lt0": 0,
+          "first": 3671386,
+          "last": 3675517,
+          "max_delta": 1,
+          "n": 4132,
+          "unique": 4132
+        }
+      },
+      "path_state25": {
+        "host_gap": {
+          "ge_20ms": 1,
+          "ge_4ms": 1501,
+          "max_s": 0.37805700801254716,
+          "n": 27277,
+          "p99_s": 0.004092714996659197
+        },
+        "host_rate_hz": 451.77145759817614,
+        "host_span_s": 60.37787368200952,
+        "max_writer_minus_tp": 5,
+        "mean_writer_minus_tp": 4.07280592418799,
+        "rows": 27278,
+        "rtde_gap": {
+          "ge_20ms": 0,
+          "ge_4ms": 2572,
+          "max_s": 0.0060000000084983185,
+          "n": 27277,
+          "p99_s": 0.004000000000814907
+        },
+        "rtde_rate_hz": 451.7548952395004,
+        "source_identity": "762c13b5dd55e04e3517ea57bae848c5c0fd6d3215fef5354dce4553468e2ec5",
+        "state_set": [
+          25
+        ],
+        "tp_consumed": {
+          "delta_eq0": 1571,
+          "delta_gt1": 1557,
+          "delta_lt0": 0,
+          "first": 3675514,
+          "last": 3702790,
+          "max_delta": 3,
+          "n": 27278,
+          "unique": 25707
+        },
+        "writer_packet": {
+          "delta_eq0": 1,
+          "delta_gt1": 0,
+          "delta_lt0": 0,
+          "first": 3675518,
+          "last": 3702794,
+          "max_delta": 1,
+          "n": 27278,
+          "unique": 27277
+        }
+      }
+    },
+    "confirmation1": {
+      "baseline_state21": {
+        "host_gap": {
+          "ge_20ms": 0,
+          "ge_4ms": 0,
+          "max_s": 0.0030943320016376674,
+          "n": 4131,
+          "p99_s": 0.0028720359987346455
+        },
+        "host_rate_hz": 500.02114795343215,
+        "host_span_s": 8.261650565997115,
+        "max_writer_minus_tp": 130,
+        "mean_writer_minus_tp": 6.054453049370765,
+        "rows": 4132,
+        "rtde_gap": {
+          "ge_20ms": 0,
+          "ge_4ms": 0,
+          "max_s": 0.0020000000076834112,
+          "n": 4131,
+          "p99_s": 0.0020000000076834112
+        },
+        "rtde_rate_hz": 500.02114795343215,
+        "source_identity": "81891c30df1dfd56e119656e8972ffea400138cf35e3d0e37370b66424990231",
+        "state_set": [
+          21
+        ],
+        "tp_consumed": {
+          "delta_eq0": 279,
+          "delta_gt1": 151,
+          "delta_lt0": 0,
+          "first": 26663,
+          "last": 30668,
+          "max_delta": 4,
+          "n": 4132,
+          "unique": 3853
+        },
+        "writer_packet": {
+          "delta_eq0": 0,
+          "delta_gt1": 0,
+          "delta_lt0": 0,
+          "first": 26667,
+          "last": 30798,
+          "max_delta": 1,
+          "n": 4132,
+          "unique": 4132
+        }
+      },
+      "path_state25": {
+        "host_gap": {
+          "ge_20ms": 0,
+          "ge_4ms": 2,
+          "max_s": 0.0061535379936685786,
+          "n": 30854,
+          "p99_s": 0.0028276430093683302
+        },
+        "host_rate_hz": 499.9163736831171,
+        "host_span_s": 61.718322551998426,
+        "max_writer_minus_tp": 865,
+        "mean_writer_minus_tp": 16.123383568303353,
+        "rows": 30855,
+        "rtde_gap": {
+          "ge_20ms": 0,
+          "ge_4ms": 4,
+          "max_s": 0.005999999993946403,
+          "n": 30854,
+          "p99_s": 0.0020000000076834112
+        },
+        "rtde_rate_hz": 499.9163736831171,
+        "source_identity": "81891c30df1dfd56e119656e8972ffea400138cf35e3d0e37370b66424990231",
+        "state_set": [
+          25
+        ],
+        "tp_consumed": {
+          "delta_eq0": 1996,
+          "delta_gt1": 1133,
+          "delta_lt0": 0,
+          "first": 30795,
+          "last": 60788,
+          "max_delta": 4,
+          "n": 30855,
+          "unique": 28859
+        },
+        "writer_packet": {
+          "delta_eq0": 0,
+          "delta_gt1": 0,
+          "delta_lt0": 0,
+          "first": 30799,
+          "last": 61653,
+          "max_delta": 1,
+          "n": 30855,
+          "unique": 30855
+        }
+      }
+    },
+    "qualification2_retry": {
+      "baseline_state21": {
+        "host_gap": {
+          "ge_20ms": 0,
+          "ge_4ms": 413,
+          "max_s": 0.004640561994165182,
+          "n": 4106,
+          "p99_s": 0.004158670999458991
+        },
+        "host_rate_hz": 416.2494862958403,
+        "host_span_s": 9.864276438005618,
+        "max_writer_minus_tp": 639,
+        "mean_writer_minus_tp": 53.04480155831507,
+        "rows": 4107,
+        "rtde_gap": {
+          "ge_20ms": 0,
+          "ge_4ms": 778,
+          "max_s": 0.004000000000814907,
+          "n": 4106,
+          "p99_s": 0.004000000000814907
+        },
+        "rtde_rate_hz": 416.2494862958403,
+        "source_identity": "05785999218c6939be86f2daa2abe8847fba8a172e574a6f97060395b0a758f7",
+        "state_set": [
+          21
+        ],
+        "tp_consumed": {
+          "delta_eq0": 852,
+          "delta_gt1": 212,
+          "delta_lt0": 0,
+          "first": 8507,
+          "last": 11978,
+          "max_delta": 4,
+          "n": 4107,
+          "unique": 3255
+        },
+        "writer_packet": {
+          "delta_eq0": 0,
+          "delta_gt1": 0,
+          "delta_lt0": 0,
+          "first": 8511,
+          "last": 12617,
+          "max_delta": 1,
+          "n": 4107,
+          "unique": 4107
+        }
+      },
+      "path_state25": {
+        "rows": 0
+      }
+    }
+  },
+  "schema": "step5d.autotune-v4/v4-rtde-timing-attribution-v1",
+  "source": {
+    "attempt105": {
+      "path": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_stage_compat_prep_20260818_031500/000103-r013-v4-stage-0105-1c2e37c0e98d-eb00de59e50645fca9adef94bc88fc7c.r013life",
+      "receipt_path": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_stage_compat_prep_20260818_031500/000103-r013-v4-stage-0105-1c2e37c0e98d-eb00de59e50645fca9adef94bc88fc7c.r013life.json"
+    },
+    "confirmation1": {
+      "path": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_stage_confirmation_prep_20260818_053936_01/000004-r013-v4-fixed-confirmation-1c2e37c0e98d47f4-8071dfd698414510b783ac9966020ed5.r013life",
+      "receipt_path": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_stage_confirmation_prep_20260818_053936_01/000004-r013-v4-fixed-confirmation-1c2e37c0e98d47f4-8071dfd698414510b783ac9966020ed5.r013life.json"
+    },
+    "qualification2_retry": {
+      "path": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_stage_confirmation_prep_20260818_053936_02/000002-r013-owner-qualification-2-82837c81936b46138349a1b908315883.r013life",
+      "receipt_path": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/v4_stage_confirmation_prep_20260818_053936_02/000002-r013-owner-qualification-2-82837c81936b46138349a1b908315883.r013life.json"
+    }
+  }
+}

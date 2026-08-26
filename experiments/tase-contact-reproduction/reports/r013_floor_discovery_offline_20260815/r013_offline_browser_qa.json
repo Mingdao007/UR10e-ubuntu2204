@@ -1,0 +1,68 @@
+{
+  "schema": "step5d.autotune-v4/r013-offline-browser-qa-v1",
+  "version": 1,
+  "browser": "Google Chrome 150.0.7871.128 via playwright-cli chrome channel",
+  "url": "http://127.0.0.1:34243/r013_floor_discovery_offline_report.html",
+  "http_status": 200,
+  "visible_chrome_open": {
+        "url": "http://127.0.0.1:41691/r013_floor_discovery_offline_report.html",
+    "http_status": 200,
+        "window_id": "0x05e00028",
+    "window_title": "andy7 R013 MAE Floor Discovery｜Offline Readiness Report - Google Chrome",
+    "visible_verified": true
+  },
+    "html_bytes": 2382549,
+    "html_sha256": "5e2ef7d0b256fa167d11d0ff4202f42e9fdb3c407525236f534ba207cb84c1ac",
+  "bound_files": {
+        "evidence_sha256": "1bcbf79aa1be11cbddd382cd23fbecfb2273cdc44c11ab803d534e13f031a820",
+        "artifact_sha256": "64d5cd9388cc5f6fb1f6b07055361607c19b6b8315242ecd186a9356fff0c526",
+        "acceptance_sha256": "e3d83f19bc688da00b30f6865392b0d2de58e7c441330d86126adbc4519cb2f3"
+  },
+  "desktop": {
+    "viewport": [1280, 720],
+    "horizontal_document_overflow": false,
+    "document_scroll_width": 1265,
+    "window_inner_width": 1280,
+    "console_errors": 0,
+    "screenshot": "output/playwright/r013_offline_desktop.png",
+        "screenshot_sha256": "f3ef958ebe3d9828aa9aaf506a051d0083fbe220b2bcf437497abd605ab00941"
+  },
+  "narrow": {
+    "viewport": [390, 844],
+    "horizontal_document_overflow": false,
+    "document_scroll_width": 375,
+    "window_inner_width": 390,
+    "console_errors": 0,
+    "visible_tables": 8,
+    "screenshot": "output/playwright/r013_offline_narrow.png",
+        "screenshot_sha256": "c462919869b94acfc1bbfe9e0d939751b8230f2ac0615477b9ea7e5947df460f"
+  },
+  "embedded_figures": {
+    "frame_count": 4,
+    "image_count": 2,
+    "broken_image_count": 0,
+    "responsive_at_narrow_viewport": true
+  },
+  "semantic_checks": {
+    "title_matches": true,
+    "shows_new_campaign_0_of_200": true,
+    "shows_empirical_floor_not_claimed": true,
+    "shows_live_blocked": true,
+        "shows_figure8_transfer_package": true,
+        "shows_launch_package_contract": true,
+        "shows_checkpoint_contract": true,
+        "shows_seed_manifest_contract": true,
+        "source_metadata_rendered": true
+  },
+  "visual_inspection": {
+    "desktop": "pass",
+    "narrow": "pass",
+    "notes": "Both historical figures render without invented joins; the checkpoint contract table is visible, and the local viewport compatibility patch removes page-level overflow while eight enhanced table regions remain contained and horizontally scrollable on narrow layout."
+  },
+  "viewport_compatibility": {
+    "patch": "r013-offline-report-viewport-compat-v1",
+    "scope": "report-local html,body overflow-x:clip; inner table-wrap overflow:auto remains enabled",
+    "source": "reports/r013_floor_discovery_offline_20260815/postprocess_r013_report.py"
+  },
+  "status": "passed"
+}
