@@ -1,0 +1,718 @@
+{
+  "attempts": {},
+  "claims": [
+    "phase-correction/ILC rows are excluded before identification and tuning",
+    "raw force bins are recomputed with a gap-preserving rule; no interpolation is used",
+    "the trace can bound measured force-rate and saturation behavior but cannot identify contact stiffness",
+    "the synthetic certificate is conditional on declared stiffness and sector bounds, not on this unknown-surface trace"
+  ],
+  "identification": {
+    "features": [
+      "filtered_force",
+      "finite_difference_force_rate",
+      "tcp_linear_speed_proxy",
+      "raw_minus_filtered_force",
+      "saturation_flags"
+    ],
+    "holdout": {
+      "attempt_count": 0,
+      "attempt_formal_mae_n_quantiles": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "median_attempt_abs_force_rate_medians_n_per_s": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "median_attempt_force_medians_n": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "median_attempt_force_rate_medians_n_per_s": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "median_attempt_raw_minus_filtered_medians_n": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "median_attempt_tcp_speed_medians_m_per_s": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "raw_force_n_quantiles": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "raw_force_rate_abs_n_per_s_quantiles": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "raw_force_rate_n_per_s_quantiles": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "raw_saturation_fraction": 0.0,
+      "saturation_fraction_quantiles": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      }
+    },
+    "not_identified": [
+      "effective_normal_stiffness_n_per_m",
+      "contact_damping_n_s_per_m",
+      "normal_velocity_command",
+      "transport_delay_s"
+    ],
+    "reason": "path_trace_has_no_commanded_normal_displacement_and_no_authoritative_contact_model",
+    "status": "no_leakage_free_attempts",
+    "train": {
+      "attempt_count": 0,
+      "attempt_formal_mae_n_quantiles": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "median_attempt_abs_force_rate_medians_n_per_s": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "median_attempt_force_medians_n": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "median_attempt_force_rate_medians_n_per_s": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "median_attempt_raw_minus_filtered_medians_n": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "median_attempt_tcp_speed_medians_m_per_s": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "raw_force_n_quantiles": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "raw_force_rate_abs_n_per_s_quantiles": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "raw_force_rate_n_per_s_quantiles": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      },
+      "raw_saturation_fraction": 0.0,
+      "saturation_fraction_quantiles": {
+        "max": null,
+        "p01": null,
+        "p05": null,
+        "p50": null,
+        "p95": null,
+        "p99": null
+      }
+    }
+  },
+  "phase_leakage_audit": {
+    "excluded_attempt_count": 3,
+    "excluded_attempts": {
+      "6": [
+        "nonzero_phase_target_correction_n",
+        "runtime_strategy_enabled"
+      ],
+      "7": [
+        "nonzero_phase_target_correction_n",
+        "runtime_strategy_enabled"
+      ],
+      "8": [
+        "nonzero_phase_target_correction_n",
+        "runtime_strategy_enabled"
+      ]
+    },
+    "excluded_row_count": 1850,
+    "policy": "exclude_entire_attempt_if_any_row_has_runtime_strategy_or_phase_correction",
+    "used_for_identification_or_tuning": false
+  },
+  "schema": "step5d.offline/generalized-force-study-v1",
+  "source": {
+    "attempt_count": 3,
+    "leakage_reason_row_counts": {
+      "nonzero_phase_target_correction_n": 1176,
+      "runtime_strategy_enabled": 1850
+    },
+    "leakage_row_count": 1850,
+    "malformed_row_count": 0,
+    "path": "experiments/tase-contact-reproduction/runs/step5d_autotune_v4_r013/live_20260815_goal035_phase_004/r008-state25-path-trace.jsonl",
+    "row_count": 1850,
+    "schema_counts": {
+      "step5d.autotune-v4/r008-state25-path-trace-v1": 1850
+    },
+    "sha256": "190fefdeebecf68b8fc72d73b99a2ce00d668fb3a7ab1ad29cdd84c1577138fd",
+    "trace_schema_expected": "step5d.autotune-v4/r008-state25-path-trace-v1",
+    "truncated": false
+  },
+  "split": {
+    "eligible_holdout_attempts": [],
+    "eligible_train_attempts": [],
+    "holdout_attempts": [],
+    "rule": "attempt_ordinal % 5 == 0 is holdout",
+    "train_attempts": [
+      6,
+      7,
+      8
+    ]
+  },
+  "synthetic_study": {
+    "candidates": {
+      "baseline_zero_extension": {
+        "config": {
+          "force_rate_deadband_n_per_s": 0.0,
+          "force_rate_gain_m_s2": 0.0,
+          "force_rate_scale_n_per_s": 1.0,
+          "nonlinear_i_ratio": 0.0
+        },
+        "controller_schema": "step5d.offline/generalized-force-outer-loop-v1",
+        "nominal_holdout_mae_n": 0.08928950982908104,
+        "nominal_holdout_target_0p1_pass": true,
+        "robust_holdout_mean_mae_n": 0.5089869816896817,
+        "scenario_results": [
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.0,
+            "final_force_n": 4.9954272542067875,
+            "final_penetration_m": 0.049954337869104026,
+            "final_velocity_m_s": 6.53270361481323e-06,
+            "force_max_n": 5.55805254067757,
+            "force_min_n": 4.0,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.08928950982908104,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "nominal_holdout",
+            "split": "holdout_nominal",
+            "stiffness_n_per_m": 100.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.2,
+            "final_force_n": 4.2709618812605115,
+            "final_penetration_m": 0.08212220196968681,
+            "final_velocity_m_s": 0.0009674480509745772,
+            "force_max_n": 6.461194715899278,
+            "force_min_n": 3.5431281573946283,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.42123461003823875,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "soft_contact_train",
+            "split": "train",
+            "stiffness_n_per_m": 60.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.2,
+            "final_force_n": 4.257593017974502,
+            "final_penetration_m": 0.0491423990864523,
+            "final_velocity_m_s": 0.000857122580614881,
+            "force_max_n": 6.337154306280739,
+            "force_min_n": 3.5767494336336854,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.40762079607074825,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "nominal_disturbed_train",
+            "split": "train",
+            "stiffness_n_per_m": 100.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.3,
+            "final_force_n": 3.7958723667583967,
+            "final_penetration_m": 0.029887425552088488,
+            "final_velocity_m_s": 0.0015194184003698966,
+            "force_max_n": 6.520074082900155,
+            "force_min_n": 3.350774332718957,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.5967393533411247,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "hard_contact_holdout",
+            "split": "holdout_robust",
+            "stiffness_n_per_m": 160.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.2,
+            "final_force_n": 4.2709618812605115,
+            "final_penetration_m": 0.08212220196968681,
+            "final_velocity_m_s": 0.0009674480509745772,
+            "force_max_n": 6.461194715899278,
+            "force_min_n": 3.5431281573946283,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.42123461003823875,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "soft_contact_holdout",
+            "split": "holdout_robust",
+            "stiffness_n_per_m": 60.0
+          }
+        ],
+        "train_mean_mae_n": 0.4144277030544935
+      },
+      "combined_i_and_rate": {
+        "config": {
+          "force_rate_deadband_n_per_s": 2.0,
+          "force_rate_gain_m_s2": 0.5,
+          "force_rate_scale_n_per_s": 2.0,
+          "nonlinear_i_ratio": 0.25
+        },
+        "controller_schema": "step5d.offline/generalized-force-outer-loop-v1",
+        "nominal_holdout_mae_n": 0.0877151771378391,
+        "nominal_holdout_target_0p1_pass": true,
+        "robust_holdout_mean_mae_n": 0.43379872965745236,
+        "scenario_results": [
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.0,
+            "final_force_n": 4.997709649629838,
+            "final_penetration_m": 0.04997727667072245,
+            "final_velocity_m_s": 1.801744240699687e-05,
+            "force_max_n": 5.581730101334606,
+            "force_min_n": 4.0,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.0877151771378391,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "nominal_holdout",
+            "split": "holdout_nominal",
+            "stiffness_n_per_m": 100.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.2,
+            "final_force_n": 4.320886931747912,
+            "final_penetration_m": 0.08300233487774944,
+            "final_velocity_m_s": 0.005772321378234965,
+            "force_max_n": 6.259302951321009,
+            "force_min_n": 3.5786462455971595,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.38200737741672547,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "soft_contact_train",
+            "split": "train",
+            "stiffness_n_per_m": 60.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.2,
+            "final_force_n": 4.357582612382652,
+            "final_penetration_m": 0.05018008516412397,
+            "final_velocity_m_s": 0.00463613593963154,
+            "force_max_n": 6.226595061901561,
+            "force_min_n": 3.628764427397479,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.3646030902659993,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "nominal_disturbed_train",
+            "split": "train",
+            "stiffness_n_per_m": 100.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.3,
+            "final_force_n": 4.093262358706706,
+            "final_penetration_m": 0.031816488068826865,
+            "final_velocity_m_s": 0.00855692510651421,
+            "force_max_n": 6.396676234864268,
+            "force_min_n": 3.4379943023128017,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.4855900818981793,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "hard_contact_holdout",
+            "split": "holdout_robust",
+            "stiffness_n_per_m": 160.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.2,
+            "final_force_n": 4.320886931747912,
+            "final_penetration_m": 0.08300233487774944,
+            "final_velocity_m_s": 0.005772321378234965,
+            "force_max_n": 6.259302951321009,
+            "force_min_n": 3.5786462455971595,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.38200737741672547,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "soft_contact_holdout",
+            "split": "holdout_robust",
+            "stiffness_n_per_m": 60.0
+          }
+        ],
+        "train_mean_mae_n": 0.3733052338413624
+      },
+      "gated_force_rate": {
+        "config": {
+          "force_rate_deadband_n_per_s": 2.0,
+          "force_rate_gain_m_s2": 0.5,
+          "force_rate_scale_n_per_s": 2.0,
+          "nonlinear_i_ratio": 0.0
+        },
+        "controller_schema": "step5d.offline/generalized-force-outer-loop-v1",
+        "nominal_holdout_mae_n": 0.08928950982908104,
+        "nominal_holdout_target_0p1_pass": true,
+        "robust_holdout_mean_mae_n": 0.4326711382294946,
+        "scenario_results": [
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.0,
+            "final_force_n": 4.9954272542067875,
+            "final_penetration_m": 0.049954337869104026,
+            "final_velocity_m_s": 6.53270361481323e-06,
+            "force_max_n": 5.55805254067757,
+            "force_min_n": 4.0,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.08928950982908104,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "nominal_holdout",
+            "split": "holdout_nominal",
+            "stiffness_n_per_m": 100.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.2,
+            "final_force_n": 4.328241778304417,
+            "final_penetration_m": 0.08312314944192065,
+            "final_velocity_m_s": 0.005595700201180909,
+            "force_max_n": 6.218378804727481,
+            "force_min_n": 3.578222181563782,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.3802924834079078,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "soft_contact_train",
+            "split": "train",
+            "stiffness_n_per_m": 60.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.2,
+            "final_force_n": 4.372600419862602,
+            "final_penetration_m": 0.050330393045317154,
+            "final_velocity_m_s": 0.004649116579000006,
+            "force_max_n": 6.224998540733857,
+            "force_min_n": 3.6278201482841834,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.3634303898953325,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "nominal_disturbed_train",
+            "split": "train",
+            "stiffness_n_per_m": 100.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.3,
+            "final_force_n": 4.09304434871671,
+            "final_penetration_m": 0.03181527229111836,
+            "final_velocity_m_s": 0.008571603579412017,
+            "force_max_n": 6.402852534127028,
+            "force_min_n": 3.437697063471598,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.4850497930510814,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "hard_contact_holdout",
+            "split": "holdout_robust",
+            "stiffness_n_per_m": 160.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.2,
+            "final_force_n": 4.328241778304417,
+            "final_penetration_m": 0.08312314944192065,
+            "final_velocity_m_s": 0.005595700201180909,
+            "force_max_n": 6.218378804727481,
+            "force_min_n": 3.578222181563782,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.3802924834079078,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "soft_contact_holdout",
+            "split": "holdout_robust",
+            "stiffness_n_per_m": 60.0
+          }
+        ],
+        "train_mean_mae_n": 0.37186143665162014
+      },
+      "nonlinear_i_ratio_025": {
+        "config": {
+          "force_rate_deadband_n_per_s": 0.0,
+          "force_rate_gain_m_s2": 0.0,
+          "force_rate_scale_n_per_s": 1.0,
+          "nonlinear_i_ratio": 0.25
+        },
+        "controller_schema": "step5d.offline/generalized-force-outer-loop-v1",
+        "nominal_holdout_mae_n": 0.0877151771378391,
+        "nominal_holdout_target_0p1_pass": true,
+        "robust_holdout_mean_mae_n": 0.5122238731784718,
+        "scenario_results": [
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.0,
+            "final_force_n": 4.997709649629838,
+            "final_penetration_m": 0.04997727667072245,
+            "final_velocity_m_s": 1.801744240699687e-05,
+            "force_max_n": 5.581730101334606,
+            "force_min_n": 4.0,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.0877151771378391,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "nominal_holdout",
+            "split": "holdout_nominal",
+            "stiffness_n_per_m": 100.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.2,
+            "final_force_n": 4.319155034771956,
+            "final_penetration_m": 0.08292507668114092,
+            "final_velocity_m_s": 0.0009329966773104725,
+            "force_max_n": 6.495694565852021,
+            "force_min_n": 3.543818391327993,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.42351241529738204,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "soft_contact_train",
+            "split": "train",
+            "stiffness_n_per_m": 60.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.2,
+            "final_force_n": 4.257135529361996,
+            "final_penetration_m": 0.0491376652446525,
+            "final_velocity_m_s": 0.0008412270131407404,
+            "force_max_n": 6.3023197271591105,
+            "force_min_n": 3.577788585762384,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.4095872257427446,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "nominal_disturbed_train",
+            "split": "train",
+            "stiffness_n_per_m": 100.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.3,
+            "final_force_n": 3.7699951157488,
+            "final_penetration_m": 0.029725480816041688,
+            "final_velocity_m_s": 0.001498226676687889,
+            "force_max_n": 6.459802782253673,
+            "force_min_n": 3.35174886869947,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.6009353310595617,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "hard_contact_holdout",
+            "split": "holdout_robust",
+            "stiffness_n_per_m": 160.0
+          },
+          {
+            "bounded": true,
+            "disturbance_amplitude_n": 0.2,
+            "final_force_n": 4.319155034771956,
+            "final_penetration_m": 0.08292507668114092,
+            "final_velocity_m_s": 0.0009329966773104725,
+            "force_max_n": 6.495694565852021,
+            "force_min_n": 3.543818391327993,
+            "formal_metric": {
+              "complete_bin_count": 550,
+              "formal_mae_n": 0.42351241529738204,
+              "required_bin_count": 550,
+              "status": "sealed"
+            },
+            "scenario_id": "soft_contact_holdout",
+            "split": "holdout_robust",
+            "stiffness_n_per_m": 60.0
+          }
+        ],
+        "train_mean_mae_n": 0.4165498205200633
+      }
+    },
+    "certificate_assumptions": {
+      "disturbance_treated_as_bounded_input": true,
+      "effective_stiffness_bounds_n_per_m": [
+        90.0,
+        110.0
+      ],
+      "inner_robot_or_RNN_residual": "not included in outer-loop certificate; use ISS cascade corollary",
+      "integral_slope_bounds_m_s2_per_n_s": [
+        0.08333333333333333,
+        0.10416666666666666
+      ]
+    },
+    "conditional_stability_certificate": {
+      "continuous_margin": 7.323612581567636e-05,
+      "controller_schema": "step5d.offline/generalized-force-outer-loop-v1",
+      "discrete_margin": null,
+      "feasible": true,
+      "matrix_p": [
+        [
+          0.004597569909168046,
+          -0.007907421038225353,
+          0.0004162840570124395
+        ],
+        [
+          -0.007907421038225353,
+          0.9944038612438884,
+          -0.0030063425057291642
+        ],
+        [
+          0.0004162840570124395,
+          -0.0030063425057291642,
+          0.0009985688469436216
+        ]
+      ],
+      "message": "Maximum number of iterations has been exceeded.",
+      "p_eigen_min": 0.0009465671654252666,
+      "q_eigen_min": 7.323612581567636e-05,
+      "sampled_period_bound_s": 3.5467961101696994e-08,
+      "schema": "step5d.offline/generalized-force-stability-v1",
+      "solver": "scipy_differential_evolution",
+      "vertex_count": 4
+    },
+    "dt_s": 0.01,
+    "duration_s": 60.0,
+    "model_role": "offline_stress_test_only_no_runtime_CAD_or_STL_prior",
+    "nominal_target_interpretation": "held_out_nominal_simulation_target_not_physical_acceptance",
+    "selected_by": "minimum_robust_holdout_mean_mae_then_train_mean_mae",
+    "selected_candidate": "gated_force_rate",
+    "simulator": "synthetic_kelvin_voigt_contact_v1",
+    "target_force_n": 5.0
+  },
+  "version": 1
+}
