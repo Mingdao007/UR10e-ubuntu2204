@@ -1,0 +1,63 @@
+{
+  "contact": {
+    "default": "two-stage",
+    "formal": "two-stage"
+  },
+  "feedforward": "on",
+  "host_source": {
+    "host_source_manifest_path": "config/step5d/autotuner_strategies/source-closures/80dcb3ee538140eb747598d2769d4b3168fd69f54e10b6e07158e7e5b6a94792/manifest.json",
+    "host_source_manifest_sha256": "80dcb3ee538140eb747598d2769d4b3168fd69f54e10b6e07158e7e5b6a94792",
+    "source_capture_manifest_sha256": "083ab3cd551aa32e7806e1f21b078ae68a0261ee1c01a210b8a4487fdb23ecbb",
+    "source_capture_path": "config/step5d/r014_source_capture.json"
+  },
+  "metric": {
+    "bin_width_s": 0.1,
+    "metric_fingerprint": "d25f3dcb41da0f200063594cc890cb82764abb30c7c57c06f920733ea118d9c7",
+    "primary": "force_bin_mae_0_60_v1",
+    "secondary": "force_bin_mae_5_60_v1",
+    "target_n": 5.0
+  },
+  "name": "finite-time-r08-formal-v1",
+  "optimizer": {
+    "catalog": "qafs-bo-130-seed-20260821-v1",
+    "catalog_sha256": "d15b67d8c4d16c9045b881e0737ebe588afe9998730f99c3eb1ffe1521a67134",
+    "rnn_fields_in_bo": false
+  },
+  "paper_eligible": true,
+  "qualification": {
+    "receipts": [],
+    "status": "pending"
+  },
+  "release": {
+    "manifest_path": "config/step5d/releases/9adf3791ec322bacbddce0c16a7fcfd588c9f232cde3ccb438baa9e9c97e2df5/manifest.json",
+    "manifest_sha256": "9adf3791ec322bacbddce0c16a7fcfd588c9f232cde3ccb438baa9e9c97e2df5"
+  },
+  "safety": {
+    "force_cbf_claim": false,
+    "force_veto": "independent_hard_veto",
+    "geometric_filter": "fixed_path_filter",
+    "optimizer_configurable": false
+  },
+  "schema": "step5d.autotuner-strategy-profile-v1",
+  "solver": {
+    "backend": "cupy",
+    "epsilon": 0.01,
+    "id": "finite-time-r08",
+    "iterations": 512,
+    "preconstruct_outside_tick": true,
+    "qdot_limit_rad_s": 0.05,
+    "r": 0.8
+  },
+  "target": {
+    "force_n": 5.0,
+    "phase_correction": "off"
+  },
+  "trajectory": {
+    "allowed": [
+      "cycloid",
+      "figure8"
+    ],
+    "default": "cycloid"
+  },
+  "version": 1
+}

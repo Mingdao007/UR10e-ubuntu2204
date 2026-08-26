@@ -1,0 +1,19 @@
+{
+  "files": {
+    "autotuner.sh": "0a96002c12f062c413bb80c532ec9491e70d54053d8c9694ed65f465c3bce712",
+    "tools/r014_capture_source.py": "3cff8c496347d800d601f1a4adf4e5e5b21fef4c1f7c70df1c429d3b3e2d4b20",
+    "tools/run_step5d_autotuner_r014.py": "e76a32211ae3c10e8ee953d802bf862cb495da8db60ee60c74d4d5a08bd8e68a",
+    "tools/step5d_autotune_v4_r013/contact_search_strategy.py": "5d7cad351d5622f7692fd6313d2286d50bb66857910015757ae7bef0e384f15d",
+    "tools/step5d_autotune_v4_r013/controller_triplet.py": "bb55131f5ee0b16acbfd1215b00489c0c86bc482785fbc02fec895e46ae10972",
+    "tools/step5d_autotune_v4_r014/__init__.py": "076d3944e3aff6c52f16dad7e2dc838258db21d90b021646528b8401387cdf0f",
+    "tools/step5d_autotune_v4_r014/assets.py": "69907d9da0a4d4d09258f966721393589b0ea23eb7f857c4fb0e8813dccf7a6f",
+    "tools/step5d_autotune_v4_r014/catalog.py": "e3faf2f761b8c4a0f6b301394109b091221c5d91b77b72472c85b7ac5b2419d2",
+    "tools/step5d_autotune_v4_r014/certification.py": "52a5a564510c3f5e286ee16a215f4372e7c293f78edd2152d9b20cd8e4c85f45",
+    "tools/step5d_autotune_v4_r014/common.py": "89f4285a62be7a6de3c822d2e760ed1b65d6b4c16bac33856c83f9927d73b3b4",
+    "tools/step5d_autotune_v4_r014/dispatcher.py": "d4e3acc760a7058e34663f1e90dab76271c405e40daa0988c791d12bb5ac4db0",
+    "tools/step5d_autotune_v4_r014/profiles.py": "7cb547191ebb5f18b703eb51fc228fcb24ec59c9b81f4e4c9aa5ebcf2085e42d"
+  },
+  "schema": "step5d.autotuner-r014/host-source-closure-v1",
+  "source_capture": "config/step5d/r014_source_capture.json",
+  "version": 1
+}

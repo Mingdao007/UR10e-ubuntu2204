@@ -1,0 +1,2061 @@
+{
+  "files": [
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/config/step5/step5d_autotune_v4_r012_launch_profile.json",
+      "path": "experiments/tase-contact-reproduction/config/step5/step5d_autotune_v4_r012_launch_profile.json",
+      "sha256": "e330a65b2526de5c533fb8dd1178065e7fa74d21dbf5860b148eac40344ab460",
+      "size_bytes": 2377
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/config/step5/step5d_autotune_v4_r013_launch_profile.json",
+      "path": "experiments/tase-contact-reproduction/config/step5/step5d_autotune_v4_r013_launch_profile.json",
+      "sha256": "070685033638c3d34a3a54708c390979ff046dfe64694b36a9f408a70814f005",
+      "size_bytes": 2909
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/config/step5d/autotune_v4_r012_censoring.json",
+      "path": "experiments/tase-contact-reproduction/config/step5d/autotune_v4_r012_censoring.json",
+      "sha256": "151d3aba3a37aa3b1864e7f1e1c249a580963251326ac4fb7af07a71d345a9e1",
+      "size_bytes": 692
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/config/step5d/autotune_v4_r012_observation_noise.json",
+      "path": "experiments/tase-contact-reproduction/config/step5d/autotune_v4_r012_observation_noise.json",
+      "sha256": "5444a04bda536dcec2de1e0fe0207fbca6d963ce1153cb60d9cb16ff5ba716d8",
+      "size_bytes": 692
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/config/step5d/autotune_v4_r012_safety_filter.json",
+      "path": "experiments/tase-contact-reproduction/config/step5d/autotune_v4_r012_safety_filter.json",
+      "sha256": "b976adafef265c85b6490251c64e3eeb417cfe14ed3633eda280e36840a95fcc",
+      "size_bytes": 472
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/config/step5d/autotune_v4_r012_wave_schedule.json",
+      "path": "experiments/tase-contact-reproduction/config/step5d/autotune_v4_r012_wave_schedule.json",
+      "sha256": "e2b5554468ab8a18612da523c7c34d27902a88be02786cf8c9bf09fa2ae0b0e0",
+      "size_bytes": 1065
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/config/step5d/current.json",
+      "sha256": "646edefaf6fbbd76b0cbfe86bc00b5d8ac26b787231f9ac345425256bbc78f5e",
+      "size_bytes": 264
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/config/step5d/r013_0p31_bounded_bo_seed_v1.json",
+      "path": "experiments/tase-contact-reproduction/config/step5d/r013_0p31_bounded_bo_seed_v1.json",
+      "sha256": "287fcacae501f54dd2ba5a637b027f0cdd17c9709ef1c3651aeece4cb7653b3a",
+      "size_bytes": 3367
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/config/step5d/r013_budgeted_floor_v1.json",
+      "path": "experiments/tase-contact-reproduction/config/step5d/r013_budgeted_floor_v1.json",
+      "sha256": "857b8dc6599a9b5013c2136621fcc60509fc31bdf200c65dc92de6880777414f",
+      "size_bytes": 4303
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/config/step5d/r013_figure8_transfer_template_v1.json",
+      "path": "experiments/tase-contact-reproduction/config/step5d/r013_figure8_transfer_template_v1.json",
+      "sha256": "205661ff46a6c239ccadc9fa9d4ba0f3ab44f4b8590419f89d822f87f2e497ba",
+      "size_bytes": 2199
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/config/step5d/v4_two_stage_campaign_v1.json",
+      "path": "experiments/tase-contact-reproduction/config/step5d/v4_two_stage_campaign_v1.json",
+      "sha256": "79a01e31538934f0969e4c6c557ebf60c980d7293316c6c292befb72435b5f25",
+      "size_bytes": 1816
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v4_r012.script",
+      "path": "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v4_r012.script",
+      "sha256": "0fccfb7304104777b375f7250e192ec83640c5b8192411db36bd05de7d05ec34",
+      "size_bytes": 36663
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v4_r012.txt",
+      "path": "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v4_r012.txt",
+      "sha256": "4ae36c9a6cd727836e4e55a66c2fa8aed79e32bf467e6f3013742ea308a5d625",
+      "size_bytes": 641
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v4_r012.urp",
+      "path": "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v4_r012.urp",
+      "sha256": "1e68755a66a817c09cf6818a1bc5bb88bf7ed3d0afbe5f20ec08584722706ae4",
+      "size_bytes": 7811
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tests/conftest.py",
+      "path": "experiments/tase-contact-reproduction/tests/conftest.py",
+      "sha256": "cc44d7f17c90d0f31118baa3f96006c17c61c7a19a2ccef1197b541c4cff37c2",
+      "size_bytes": 2295
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013.py",
+      "sha256": "8f0daca16cf2f89b3d6530fd00e5a164ffb436bd5988d6b2c374fe291daabcf5",
+      "size_bytes": 131072
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_bounded_bo.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_bounded_bo.py",
+      "sha256": "5b9369125b23f3922903dc35011c75e26317fe0d90458582b0603809de302dcc",
+      "size_bytes": 13476
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_checkpoint.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_checkpoint.py",
+      "sha256": "f5c8303c038d77e90fe7380e2d29b3c1ef1f24a0cd739d986933e5fad99d47d8",
+      "size_bytes": 7240
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_contact_search.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_contact_search.py",
+      "sha256": "3cbb19b319c85e8fdfcf22e0bd1283a915f3de4c28bdc746a9ec9564112a6eaa",
+      "size_bytes": 5839
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_feedforward.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_feedforward.py",
+      "sha256": "e57e4769a9a0de0f6fce27c591f82028a8e177bb466c190dd8f21b2f7b130a97",
+      "size_bytes": 23283
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_handoff.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_handoff.py",
+      "sha256": "36161da6f3d435e85d8865cf2521dbabc6f70ecc8f8681da6af4c90c590ecb1e",
+      "size_bytes": 6328
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_lifecycle_trace.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_lifecycle_trace.py",
+      "sha256": "5c67c930ec9517f20871c69c3a26d7454dc4a19b9308cba30e695fad9de85ffb",
+      "size_bytes": 10827
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_repairs.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_repairs.py",
+      "sha256": "5424e9023fa05fbebeb18725cfec98bb0ec7f44fda0da0d01f33056237ed21b9",
+      "size_bytes": 30636
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_strategy.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_strategy.py",
+      "sha256": "d769fada74f096abc440f6e3071de0a4a7b0d98af659e94a5306ea358a6bb1e1",
+      "size_bytes": 26644
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_timing_characterization.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_timing_characterization.py",
+      "sha256": "cf3049ece13cb52caaa0ede04816c90657a32671fb5d36d25a44800096a7002e",
+      "size_bytes": 4026
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_timing_scheduler.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_r013_timing_scheduler.py",
+      "sha256": "31bc1218f5704bd4ad80d4710742a9febce70e4c273e52048489f25fc2161aac",
+      "size_bytes": 6366
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_recovery_supervisor.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_recovery_supervisor.py",
+      "sha256": "cce25b32461f33be90d5e0e66a20f3f3b5a9caf5c662a3d2299929158d1ee94a",
+      "size_bytes": 3067
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_two_stage_campaign.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v4_two_stage_campaign.py",
+      "sha256": "9efaad8ffeef08f9fe890404a87c5e3e38b3fa8a3979e23bf0a43e538eae70a5",
+      "size_bytes": 35309
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_camera_observer.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_camera_observer.py",
+      "sha256": "e84c09f933717281162046200cc1d174b1979989e8f6d07769ed9b69cd428bf3",
+      "size_bytes": 5954
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_campaign.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_campaign.py",
+      "sha256": "13ffd8140aba8cf5a734847d10d7f214ef499100f1af864bb6484df8ceb81239",
+      "size_bytes": 36901
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_campaign_runner.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_campaign_runner.py",
+      "sha256": "03ad562c9aee588cf9cf6500f4268688b03d68809d5cdb8d0025a53e3d6e73d3",
+      "size_bytes": 16712
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_capability_acceptance.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_capability_acceptance.py",
+      "sha256": "5316871921028a0dcee6a2ac4ba810984df74c6a80094e766ade526b2390fa65",
+      "size_bytes": 8034
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_composition_contract.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_composition_contract.py",
+      "sha256": "aee36933aeab6942565b99835e777212e53786d0c538cff5d44a6ed7ddae2e83",
+      "size_bytes": 7418
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_extension.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_extension.py",
+      "sha256": "ffc63b1fc2f082d964b3109b4366419884d1624dfa6bfe227ba3605d35fe5a86",
+      "size_bytes": 5849
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_filter_shadow.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_filter_shadow.py",
+      "sha256": "a4d07865917cae57f0340a7c3701b6374263d1c28fe7d533497d8d764e921130",
+      "size_bytes": 5148
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_kernel_contract.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_kernel_contract.py",
+      "sha256": "fa2bf70bf7babce1c47534ecedfd666d6e711b6e80c9d40300f6a5fdf68f9778",
+      "size_bytes": 2711
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_lifecycle_ledger.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_lifecycle_ledger.py",
+      "sha256": "78a06cc332698257c22a701f55624b3c6c9bfcedface953b2cf3467332d64177",
+      "size_bytes": 52917
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_live_owner.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_live_owner.py",
+      "sha256": "cd5555aee612a7aceb2f36a30c02558d117d885276fb866eeff51ad9fb657146",
+      "size_bytes": 62684
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_live_runtime.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_live_runtime.py",
+      "sha256": "2695db41ab163a3629562685e8f695d11552940bfff5367b7a89f1bf41441410",
+      "size_bytes": 11706
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_optimizer_journal.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_optimizer_journal.py",
+      "sha256": "807d25fc90d1f4f109dd2fecfc5963769e58451ba6dbe34ddf3e45386a2ff246",
+      "size_bytes": 4330
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_package_builder.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_package_builder.py",
+      "sha256": "b477e7df67e5a54b186d4ec9544f466bf685ee3e489ea5ab8b03b5045103ab84",
+      "size_bytes": 14968
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_production_bundle.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_production_bundle.py",
+      "sha256": "446a876c05021a901c14e377e0b6c5c65af43269133d2fb4578efee46302a6f4",
+      "size_bytes": 8864
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_register_transport.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_register_transport.py",
+      "sha256": "31952b43a0f49fb65855ade7943b3ce5a3736afcdb7b4ad8b97a7111c85188c2",
+      "size_bytes": 13373
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_report.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_report.py",
+      "sha256": "89894568542e545cc1234f69611adb0620966b6cd0b35ec8f3d2c57fc4ff13ff",
+      "size_bytes": 7736
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_resident_protocol.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_resident_protocol.py",
+      "sha256": "10f4fb2e96839dedea165664cabf143986d7b39478d0d53f26b2b2661ce68282",
+      "size_bytes": 11773
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_rollover.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_rollover.py",
+      "sha256": "889f225e8e8912b60480ccfc57e7d9387532d583f2f36a9beae302868fb303a8",
+      "size_bytes": 11350
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_ros2_observation_mirror.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_ros2_observation_mirror.py",
+      "sha256": "2683f33070c58031292ff0cd43b3a5722dfcaf2965eacecad1d38580cd23a361",
+      "size_bytes": 4318
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_sidecar_bundle.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_autotuner_v5_sidecar_bundle.py",
+      "sha256": "c882c7710162fdd8c0e221760bff0262cdec6bb9221cc3614f08c21ab032c47c",
+      "size_bytes": 4850
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_figure8_autotune_v1.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_figure8_autotune_v1.py",
+      "sha256": "84d5c340e51c612fc1864d617d12ac75a1c21f2cb1944ddb6ba875b34fe769d9",
+      "size_bytes": 87363
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_figure8_optimizer_worker.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_figure8_optimizer_worker.py",
+      "sha256": "27a3419c3cf30fbf787d5496abf09d80cd79efcb776576492d5c7965ed6ec31c",
+      "size_bytes": 3796
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_figure8_start_home_v1.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_figure8_start_home_v1.py",
+      "sha256": "d6535f5bcc33f1e52c5c687fa232f4b19ecc73c52580d9e0c9b545c370d9dacf",
+      "size_bytes": 2984
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tests/test_step6_v5_entry_comparison.py",
+      "path": "experiments/tase-contact-reproduction/tests/test_step6_v5_entry_comparison.py",
+      "sha256": "620bba7ae2b9d766fcc7d00354d18ae4e8fbaf59ea5664a57677ea560e4e72ba",
+      "size_bytes": 5214
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/contact_semantics.py",
+      "sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+      "size_bytes": 6219
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/run_step5d_autotune_v4_r013_demo.py",
+      "path": "experiments/tase-contact-reproduction/tools/run_step5d_autotune_v4_r013_demo.py",
+      "sha256": "ed5c9577ab797230dc895f9c4ca9dda3e57f36a680e036607462dee9da38fccd",
+      "size_bytes": 12613
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/run_step5d_autotune_v4_r013_live.py",
+      "path": "experiments/tase-contact-reproduction/tools/run_step5d_autotune_v4_r013_live.py",
+      "sha256": "31d32136878b99ad466184f5d8fa3c69c1a54e449c246b975cee8a2b1c5ec437",
+      "size_bytes": 47215
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/run_step6_figure8_autotune_v1_live.py",
+      "path": "experiments/tase-contact-reproduction/tools/run_step6_figure8_autotune_v1_live.py",
+      "sha256": "1ccb17febb0b84d13a12a0f533d4b1a83f9fddd8edaa1b9013d121a81bcd9154",
+      "size_bytes": 39900
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/run_step6_figure8_no_contact_canary_v1_live.py",
+      "path": "experiments/tase-contact-reproduction/tools/run_step6_figure8_no_contact_canary_v1_live.py",
+      "sha256": "701adfe37e2939c4a05aad65d6d8a65dd5a51be92e15bb154e0b6cb305c38c38",
+      "size_bytes": 25713
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/run_v4_fixed_confirmation.py",
+      "path": "experiments/tase-contact-reproduction/tools/run_v4_fixed_confirmation.py",
+      "sha256": "bcc81998a98345d284a0e7dc9f5594a74eae089d93429dfef7eddaaabf053bde",
+      "size_bytes": 5989
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/run_v4_stage_live.py",
+      "path": "experiments/tase-contact-reproduction/tools/run_v4_stage_live.py",
+      "sha256": "6c45b0b5d8fb70cf103aa1693bdde6b2bad25f3a1f6d020c8c2ef212be2c889b",
+      "size_bytes": 41450
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/run_v4_stage_recovery_supervisor.py",
+      "path": "experiments/tase-contact-reproduction/tools/run_v4_stage_recovery_supervisor.py",
+      "sha256": "57239b2511482097bb9642737a49265f2047a2eca90e3b6094b2fb79a005476f",
+      "size_bytes": 7159
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/run_v4_two_stage_campaign.py",
+      "path": "experiments/tase-contact-reproduction/tools/run_v4_two_stage_campaign.py",
+      "sha256": "b2c387704767098a2a1da443362cfd94c335e2035f12d8b863c0d962cc293f80",
+      "size_bytes": 2402
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5c_strict_rnn.py",
+      "sha256": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7",
+      "size_bytes": 40127
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/__init__.py",
+      "sha256": "11c0cd540f964ed1836fcaa3df1090ddf79b62dd4b3eb7b86526759244f25ccf",
+      "size_bytes": 1019
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/admission.py",
+      "sha256": "b242dc72d6804c8f35735f0679075ff05caa214fcac5d2483beffccd7d9b6994",
+      "size_bytes": 9990
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/arming.py",
+      "sha256": "9dfd42e0c9f2a83faedbb22ed3b1f36d4e22d1656bb8bf76bdb048411e8d3194",
+      "size_bytes": 24479
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/atomic_io.py",
+      "sha256": "214105e1d09012e32f9fd86c1fcc5cd6439cc4ff3790a291bee814709821e083",
+      "size_bytes": 1123
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/atomic_release.py",
+      "sha256": "198b67a21399a3568312ec76cc3429058e16fb6b76017556406cdba181a88b34",
+      "size_bytes": 16757
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/batch_producer.py",
+      "sha256": "5e3667173be060b2ec1d991085324486dbb19f75c79e525f6be05514ad5eaa65",
+      "size_bytes": 79197
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/bridge_admission.py",
+      "sha256": "6ab467ffaea8524c4e4cc91d722b6d44c2d3eecfc388cc313addea4b9fba27f9",
+      "size_bytes": 11818
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/campaign_basis.py",
+      "sha256": "325815b1875539acffe8910375df398b9a19e8e4923400ae5164677047263585",
+      "size_bytes": 5579
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/campaign_prepare.py",
+      "sha256": "e0a6c1ff3fec47de152763bf89475c88259f77eeef689d8c23a6514dc15897b5",
+      "size_bytes": 35877
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/certification.py",
+      "sha256": "27fd2c6f46bc1ad1337661fb8d97eb3901c2d4826a3fb97b28c97863301d2527",
+      "size_bytes": 12029
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/cli.py",
+      "sha256": "f4bcbe7c93159cf4d1c50c1196cdcc6713fa56814246bada555860c33c3a5cf6",
+      "size_bytes": 35713
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/control_policy.py",
+      "sha256": "344daa8f006024bce2a581d9d35554ef851016f9f8b861bfb2570695f909c6ed",
+      "size_bytes": 7796
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/dashboard.py",
+      "sha256": "c0a2d1f23e50872d71ef0b74cacdd9e5bb276a774fe54e4d62dc2c6cd2eab05a",
+      "size_bytes": 2386
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/delivery_observation.py",
+      "sha256": "8a3c950e5b2d80e8dfa286042c7aa2a22c46be02c732dc85e5fe3ac95050c83b",
+      "size_bytes": 17653
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/governance.py",
+      "sha256": "6d43cd91b80b5960500ef38c16df05ceb6a44340fd607bedacd0c255b19b76f9",
+      "size_bytes": 111947
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/guard_policy.py",
+      "sha256": "4d2788f6d94cbafedb3cf0881b50ec2739daa8bd4a074f24355367919ad7207b",
+      "size_bytes": 3480
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/identity_layers.py",
+      "sha256": "4dc8efd8152c6610f2833e9f94b7daca7baafbe35ca6f55355f53e7fededcd43",
+      "size_bytes": 21512
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/launch_basis.py",
+      "sha256": "cbb58b790debb0342dbf97ab69b621d1961e3391fbb9847fac845ae1678849d8",
+      "size_bytes": 14450
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/launcher.py",
+      "sha256": "39aa3f2eff1f5bc94d2dc71494f10bd42c5e140571dd735958b640817488b63d",
+      "size_bytes": 15759
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/optimizer_deployment.py",
+      "sha256": "bb553a092fc761e2011fd504e755c159b8830ac9b9007e7be1bcf3619206b0e0",
+      "size_bytes": 5280
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/optimizer_payloads.py",
+      "sha256": "5c516f03668d9e4f26b3bb9d0286603f01ecaa8a8b117f84f0bf2dcdb32b14bd",
+      "size_bytes": 9748
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/optimizer_policy.py",
+      "sha256": "c68631ba03d529c0cb7d7d22bae217f666d8df8045a0f86a58c4985f24eab777",
+      "size_bytes": 17256
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/optimizer_protocol.py",
+      "sha256": "49c8fa59fc154f0d6199fe623f27dfa0ce67e2edf58602762eac252e18d2f4c4",
+      "size_bytes": 14442
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/optimizer_types.py",
+      "sha256": "fa1f5d3546fdcbd476a969f5e546af88dd0074c8f07c41a91668e2e326fd8743",
+      "size_bytes": 2610
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/optimizer_wire.py",
+      "sha256": "cc3175889abe28750cc6ce14d9947c325ed99c4ff475e84ac737fa44e3348964",
+      "size_bytes": 1826
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/optimizer_worker.py",
+      "sha256": "c2826e7c2625736a6c022e977ff0d6c2d755fbc6985aeed51f4f6115108af04f",
+      "size_bytes": 6176
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/postprocess.py",
+      "sha256": "bb89312806f9787472a9b5d218f9148d1c3a3bcc1b24a5e8f160350932d02bb9",
+      "size_bytes": 18099
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/preflight_support.py",
+      "sha256": "2bf3d0f83a34969f37e19dfdf2804405dbdb0141960e6615e3bdc8c5b0bb5a6c",
+      "size_bytes": 4697
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/profile.py",
+      "sha256": "6e994cc74360ca8bc203820d04e64dd43b4aafd2d86870901b5401ccd0e8ce57",
+      "size_bytes": 36875
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/public_state.py",
+      "sha256": "9d92d547424591761ec4d15f957d5c56f0bcb266fc9df3e303fbefff39e245b7",
+      "size_bytes": 11475
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/readiness.py",
+      "sha256": "2047290ef9fb7f5457b669520c0c9f40a289d9cb0a230c5d2c8fe7d84f7cfdb3",
+      "size_bytes": 19400
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/release_certificate.py",
+      "sha256": "17edd2b2182330c9bc6f69d0c0a8dace7559a16849df303894147ea9b4e3cb07",
+      "size_bytes": 10673
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/release_contract.py",
+      "sha256": "0d014182933eb13b51b12542efbe7c8ac59db430b60f9185a3bd0e5dc8b509bf",
+      "size_bytes": 19066
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/release_identity.py",
+      "sha256": "79955f77ab02fc44f74b47521e29603b291733c2609036c0cd2a55278d5b849f",
+      "size_bytes": 35032
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/release_transition.py",
+      "sha256": "43caca1538df15af1248ce3e95008da6d7343d4201b75fdbbdd22a73ae93b47f",
+      "size_bytes": 39658
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/release_verifier.py",
+      "sha256": "ca0dcda95faf0c0a84ddc520985f1db674aa2cf327bd38013e58d4adfc157f36",
+      "size_bytes": 14191
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/remote_play.py",
+      "sha256": "87505e6b6380b60c41be4bd09a60ba1ebb64592ddbfb07a2f91d4bc513bba30c",
+      "size_bytes": 12227
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/rtde_client.py",
+      "sha256": "5c7d44a9258486516744de766345dd63a2d9473d661cf252493feccb9d9fefa7",
+      "size_bytes": 4736
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/runtime_calibration.py",
+      "sha256": "883cfc184f42f2246511ab335178b0254ef187b4fb06d7656de5c7ba5e3f4d98",
+      "size_bytes": 10447
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/runtime_environment.py",
+      "sha256": "e5e3b69cc38a4dd719025a60487367bc8defb51616d3183b7d462064046a918f",
+      "size_bytes": 7754
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/runtime_functional_gates.py",
+      "sha256": "bf1000111c0ed699fbda65bd1d293b00d72935fe5f1d10b63873a3e8da420c76",
+      "size_bytes": 14633
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/runtime_gate.py",
+      "sha256": "5d130551b749426c33ab7133d2e1fafebb44de4ca5d1a63f3614b204244a93ae",
+      "size_bytes": 57886
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/runtime_identity.py",
+      "sha256": "6222ae89449f9ab43c9f448bf2c9d42d06407192d494cfa6993a9c26c6041563",
+      "size_bytes": 10934
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/runtime_installation.py",
+      "sha256": "f027907c92a8cacc4de750b1a584d821c22e82d1e9a12c89ff9f1709f1a29e4b",
+      "size_bytes": 88766
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/runtime_observation.py",
+      "sha256": "51552359110da02b23fc847c1cd69b939d4449710d804e7a9ec4c136a63f8456",
+      "size_bytes": 45713
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/runtime_profile.py",
+      "sha256": "230614e68f54f5b9d0a6d9bd2fe527f3bfb552812fba0753f8772a3bfdc069b9",
+      "size_bytes": 22275
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/service.py",
+      "sha256": "487451f5968bf9b96aadd513ab282e233a93fff55830b12ec8f36027c7e8b0ae",
+      "size_bytes": 15261
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/shared_contracts.py",
+      "sha256": "cbc8b1163f80695fc8441559f67858b228a381a9a06d59ff47fd9e75cbcede81",
+      "size_bytes": 29402
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/source_closure.py",
+      "sha256": "1446176926f60ca95cc9832a625f07676063bfbb615a46eb59bc63dc714f9488",
+      "size_bytes": 30487
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/source_fingerprint_contract.py",
+      "sha256": "47cf2059cdb8eb9df028ea53a46e696b2366a5b7916cbadc9310a1bd7e035c29",
+      "size_bytes": 8117
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/state.py",
+      "sha256": "2e1611b2c2496cd3836a510eb673d037be60399e6794a036a9677b1bbe9c137f",
+      "size_bytes": 24269
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/trial_contract_admission.py",
+      "sha256": "74f819e7c0f8c6cf4e043555c56de33bf3a4ef955711b14c388877d010c4ab03",
+      "size_bytes": 13174
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_live_writer.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_live_writer.py",
+      "sha256": "06e795bdf849489d0a1ae45a3c09168c454d0804f9a6176d1a500d0aa8881ba1",
+      "size_bytes": 68384
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/__init__.py",
+      "sha256": "f9d1ae9ab5432d25546f4a8a54aa588de58e2f28e7bb2c6f8bd5ff5fa7f96f8d",
+      "size_bytes": 566
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/arm_transition.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/arm_transition.py",
+      "sha256": "c9133cc5acaee3d1a05d2c73d5c54dcb02c3b9cfceed8a78684b37f733105d30",
+      "size_bytes": 18727
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/baseline.py",
+      "sha256": "21d1a1b8f7ac11981951449f8a9dc1a8ae8a78ad49606c69da38e59e89bf3b55",
+      "size_bytes": 8910
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/baseline_runtime.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/baseline_runtime.py",
+      "sha256": "d3d0ef065a6773afd1039d47635bdb069347d95fed58eb83ae839bf51928b546",
+      "size_bytes": 12867
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/calibrated_runtime.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/calibrated_runtime.py",
+      "sha256": "fc4e3e41c83e025131567ea9384bc77715cdedc1295bf8bcd91e6da1e93b4bab",
+      "size_bytes": 23657
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/campaign.py",
+      "sha256": "245fb5c6ea01df554755eb0c1ee76b632f938cf216d9c063b01d2453d1c849ea",
+      "size_bytes": 18872
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/contracts.py",
+      "sha256": "5ad0a48b29695a54b09c4b28ad3a3ba0ccb90cbb287c35ac19b6bc8392797dbb",
+      "size_bytes": 20649
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/evidence.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/evidence.py",
+      "sha256": "6162f67b4047bf8ecce4ea41e8c739cd78e50d027dc27c0a7965af38f6168be9",
+      "size_bytes": 57112
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/fake_rtde.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/fake_rtde.py",
+      "sha256": "98e08699cd58e20fac4df2769a2f6be34644221e74aabdb0b0d84aca97dbdf9b",
+      "size_bytes": 10204
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/freshness.py",
+      "sha256": "c41dbcdc8d47c5844124dc9bff062664cd93609e32783405ff5df59b43dd7967",
+      "size_bytes": 4551
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/home.py",
+      "sha256": "03229190c2ec898a7b1d8b01a4df167d97931bedbf61efeca77fdbac9f404fc0",
+      "size_bytes": 5820
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/home_profile.py",
+      "sha256": "7b9e7ab2b92347c00673704725baf2b5b530ebd2f8e88d6d7fc167de6ffe263d",
+      "size_bytes": 8457
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/identity.py",
+      "sha256": "0c203b61b241aa1559db7dc69fa14c8fa25747a1284f4ee5f0728d3a67f4b27a",
+      "size_bytes": 13008
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/ledger.py",
+      "sha256": "a9f3289ed413b7aa78fdc1f0be3c9c0df436ff614f34d7eccb939a0934387d70",
+      "size_bytes": 22597
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/live_campaign.py",
+      "sha256": "6084cd6029874af7a3f8744dba5fc70a62a9803475de941649e10cfd72218cb2",
+      "size_bytes": 13785
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/motion_profile.py",
+      "sha256": "de6cb1a6814bbc29d9f55796e90fbfa18b97a6ae09a3e95926f835471da226c5",
+      "size_bytes": 10009
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/path_controller.py",
+      "sha256": "ec5c3d316a559f463ee3bb67b770b7e7dc9dddea2fd6747130721c05d300d22b",
+      "size_bytes": 10929
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/path_reference.py",
+      "sha256": "e12679d291b3ae069ff1c61add49364a7df094901f838079a7271cbe59abb7bf",
+      "size_bytes": 5376
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/policies.py",
+      "sha256": "d0630f6b912e46f3bc5598941c8102c90124762c1ef0b795131f9aa065c6661b",
+      "size_bytes": 4261
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/prerequisites.py",
+      "sha256": "0bd04c21509e5ea4eec496ba6c23dbbe9ae37ff0b83a613f842fef2239881571",
+      "size_bytes": 9887
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/qualification.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/qualification.py",
+      "sha256": "c245f9c4a3b56f5bfb8e3d1bfd571779fee244bfcb934369c23f52a5d685fd8d",
+      "size_bytes": 29974
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/runtime.py",
+      "sha256": "b039cea22b98976c5025f7ae1ff80eed207e32870bbad6182f861623f157cccf",
+      "size_bytes": 11553
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/session.py",
+      "sha256": "45331978f5f0ce063b936db83873ba35f935cef03dd6c61957439073b7bd7923",
+      "size_bytes": 8039
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/timing.py",
+      "sha256": "e91842863a2021348c28609abc8b25f7a1050f7dfa0242da703710dd51ae0a1b",
+      "size_bytes": 26897
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/tp.py",
+      "sha256": "1a3719d606e6e5f8020eb602e99086658e00fd75ee1c2f3f89fc8eff3666233a",
+      "size_bytes": 31939
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/transport.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/transport.py",
+      "sha256": "ccdfa48268555201045654aba329d68c43fdd7ac2050c5000594f6186494bf86",
+      "size_bytes": 20802
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/wire.py",
+      "sha256": "59acaf204884840f17c667d1e047d03fee0aa7c8d4f09798ec018b2a05904270",
+      "size_bytes": 14082
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004_live_writer.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004_live_writer.py",
+      "sha256": "c5878fa24d5c752a19822d446032875f8223305862383a642426648db449845d",
+      "size_bytes": 91400
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/__init__.py",
+      "sha256": "d9d384f3dbaa0351881a3fcc52d1399037800a1d73377846bfc87c4d9dbb1a5a",
+      "size_bytes": 1027
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/alignment.py",
+      "sha256": "14073f4e7e06d7d77937c0bc4b34947091c04d323284d248a70b5c847f54d1a9",
+      "size_bytes": 3803
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/contracts.py",
+      "sha256": "c135fee3103a0b93730e36982fcb3c44b98c459eb81b5a98f5e9db61f62710cf",
+      "size_bytes": 25894
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/control_runtime.py",
+      "sha256": "f89727c57c585ff6cc33b2800016fb5a93412959d6979d8e1c0872e04c8590ad",
+      "size_bytes": 2335
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/fake_rtde.py",
+      "sha256": "b38870efe9422590c0eb333b664d864a6784c4957175bdabfaccbd7b44a9c242",
+      "size_bytes": 6968
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/live_adapter.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/live_adapter.py",
+      "sha256": "7f7f0a25dbe38645217ee280c1675bb141bb3681de33f6effd6d76338a7c8324",
+      "size_bytes": 59390
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/observations.py",
+      "sha256": "21880fc7537be2c5fdd657fd2dd7c138abf2de21243684173b7de9d9e612ea9f",
+      "size_bytes": 56135
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/offline_test_factory.py",
+      "sha256": "98791273a664492d35c81cd226670eab34df9a267851cb7197b8e0d7ecd3bd6d",
+      "size_bytes": 1454
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/optimizer.py",
+      "sha256": "f8bb361ad8bbcb4ac99cce11901edb4324b3dc1ed162cf6196ee23bc7104a2fc",
+      "size_bytes": 18094
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/optimizer_worker.py",
+      "sha256": "cf5f161741d66edf8f0ba8703c4219f07bde6d2a2c9a6f76465257417ca00647",
+      "size_bytes": 13634
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/packet_pacing.py",
+      "sha256": "5435158421198c2c0229f54edf2de34919f211ea2759da6816bc4f8540b91ec9",
+      "size_bytes": 6254
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/queue.py",
+      "sha256": "56cbc23353749e32da9790ac6b35adbfde2410d8b63c11128a550d29172e6463",
+      "size_bytes": 40484
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/runtime.py",
+      "sha256": "3ea5ad52156bd07ba34d292cd8288d4ac3d9ded0c2af03ff62aa493dd01f5c12",
+      "size_bytes": 26474
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/timing.py",
+      "sha256": "8388a33995ac6b5c6cce11fe4e74a86448c794f5f44809e306a0092588c5aa4b",
+      "size_bytes": 5102
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r005/tp.py",
+      "sha256": "48d4821e5c579453aac96414e316790c1928f2e65b07aa67e4135712eb27ca96",
+      "size_bytes": 10653
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/__init__.py",
+      "sha256": "18906f33e467fa68bc50b497f3c8462c7da736323292733a97194608cd36cf2d",
+      "size_bytes": 379
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/contracts.py",
+      "sha256": "72a78d212a8bd09db3b7ee0a101bcf569416b7e560af88e506c85aa79e20cb3d",
+      "size_bytes": 17372
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/fake_rtde.py",
+      "sha256": "09ce45f6b0ad61d08cb4989457c4e18e4e46ba5a51601cf991a3e78fcb5becd2",
+      "size_bytes": 6634
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/lattice.py",
+      "sha256": "d7a6a10f0f2ce6076b29248e06b0d047d62d040a65ff04ef391aa783924c13d3",
+      "size_bytes": 15508
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/live_adapter.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/live_adapter.py",
+      "sha256": "a53a1ea4e6cd192e6c9209c96646826ca9bd048402c265463661834217bd2ea8",
+      "size_bytes": 119769
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/managed.py",
+      "sha256": "4085d971eccbcfefc35ec9dca04560f53a53e9d301545ee84c59689a61342cf2",
+      "size_bytes": 1269
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/motion_profile.py",
+      "sha256": "1c238c5af33a23aa2d3846bdbc41a9668959cd8d75934932565e6d3852ccc4a8",
+      "size_bytes": 11113
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/objective.py",
+      "sha256": "2b3f05dabe101ec24d3caf126c8e41ac44858174e5a85ec4af39dd7e6406e8c6",
+      "size_bytes": 25940
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/optimizer.py",
+      "sha256": "102ceb6bc9aa51626abd5b01074b7894ffa4248b2efe5093e9a45259c9b7027d",
+      "size_bytes": 23275
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/optimizer_worker.py",
+      "sha256": "7dd719f08e7d067b131213d24e631f106294aa98081a1ab5483e2307677790bd",
+      "size_bytes": 23938
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/parent.py",
+      "sha256": "040a4fc58e0064aa36922b10e44d3b73a5e1daa92b6e6a4b717ed83b70314f26",
+      "size_bytes": 3033
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/qualification.py",
+      "sha256": "6f386089823aa62ee98575f092e7b2313ffafb240036f4141ded9c344ed822db",
+      "size_bytes": 1900
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/queue.py",
+      "sha256": "e4a6f1c758af3400d598ad0a00e672c080d628d95b8cdc985f1a77543a0feed8",
+      "size_bytes": 11663
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/runtime.py",
+      "sha256": "c9bb0eeca0331eae9cdc879faa32de077f5bdf71ba6a698a435ac2c95e294517",
+      "size_bytes": 23237
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/sidecar.py",
+      "sha256": "112fb8ce7b592df9b726f38d48747d2b20b3648800e3c39bc22167f0865df2cd",
+      "size_bytes": 12612
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/thresholds.py",
+      "sha256": "e848d8c74aef951f3fd290cc9730464c50536874700e00a68927338d6ec0179f",
+      "size_bytes": 4928
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/tp.py",
+      "sha256": "ac1a3195fc663feed35b136ead1252252a769da050b3f84068b154ad31677160",
+      "size_bytes": 17030
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/__init__.py",
+      "sha256": "6fcd7acd2a95e198f7ab2db10d07db6ba45f7762cd7e0d67d474bd1fed831608",
+      "size_bytes": 560
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/async_seal.py",
+      "sha256": "665aa24f2c9d6ce4e789ec945f534648fe2929c3a23b3c71871755511ebf07de",
+      "size_bytes": 16474
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/b3_identity.py",
+      "sha256": "cbff1d695fbac0d24bc2c232deb7dc11a16e8abf67482be5af5344997c22be09",
+      "size_bytes": 5510
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/bench_batched_qlognei.py",
+      "sha256": "baf02aaacb15184ac657bff0f322a68e2188d3f70767b03883bcc8028994af4a",
+      "size_bytes": 8688
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/binary_seal.py",
+      "sha256": "e3a76119d5ca5f259d934050e5b93197d7c248eb5b8e4b583f9d1e9aae2ebd27",
+      "size_bytes": 13862
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/body_observer.py",
+      "sha256": "054c9b3e98345ee78f93874335e459964db363b3ca0769914292b293dfa650f2",
+      "size_bytes": 19489
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/body_reconcile.py",
+      "sha256": "f3192415c9e73ebff78d52fdf711d2c410c8a43d44aed5b7c9a0d5798c10d305",
+      "size_bytes": 6345
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/bounded_resume_ledger.py",
+      "sha256": "1b6c778deda40141b2f79564aabe9a3e9d3991784a7f0f78d7c99a82bc01c28c",
+      "size_bytes": 7092
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/bounded_sidecar_verify.py",
+      "sha256": "5f90ecdae3a50186c0c90bb8ce5a9c91e4667727917618e03451a359075ea664",
+      "size_bytes": 20883
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/bounded_worker_artifact_binding.py",
+      "sha256": "0aa3f4ff52b08f17fadc954ca9250f2eee469ba16367a3c972add7adeba11ddb",
+      "size_bytes": 17749
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/canary_body_gate.py",
+      "sha256": "6baa9f0ab26a46e7e91c2ec873521a2434ef56a83210d0d2409c1607ca59e6b6",
+      "size_bytes": 5165
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/cashier_finance.py",
+      "sha256": "adb2f8a3818f792eb322850e5fadc38f557f85f16189e51eb311cded1ddf77c2",
+      "size_bytes": 3011
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/contact_search_schedule.py",
+      "sha256": "27ed0c8220fe7bf8d6d932bc464538c23346f434d5aecaa350ac70bd6de4d65f",
+      "size_bytes": 15728
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/controller_seam.py",
+      "sha256": "18c2a00d3379a863f9f142e575f21975473f2b98a78ecc70d41d739aa6cdb9b4",
+      "size_bytes": 6553
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/design.py",
+      "sha256": "cc8d22d18cda3cf8a898ca3158f63e43fadcf84e6c861eb554eb5fa6e688f473",
+      "size_bytes": 12351
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/design_binding.py",
+      "sha256": "19a78e7c8700bae56e2374b6efac9ab0456335e61085d3cbd485ca29d01097b3",
+      "size_bytes": 2933
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/early_abort_kappa.py",
+      "sha256": "10b14bc163685443cae7d9e49f77d416b9769cebeaf5be3df4116c0fb4b404d4",
+      "size_bytes": 1490
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/early_abort_penalty.py",
+      "sha256": "f484c6121a9e7757d59e8eae8b93c3c48b50c80d2816482c426d3dc1b179ae90",
+      "size_bytes": 6883
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/early_abort_shadow.py",
+      "sha256": "f7dfa30989cd56ba26f4103e3cda35bfc5ab20f90597a35413e7a1049695c7a9",
+      "size_bytes": 2116
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/force_objective_columnar.py",
+      "sha256": "2c98204c990d9c8abea21ed9d3ff8da2ac766b360968d63dc306b77ccd34947a",
+      "size_bytes": 10619
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/fresh_verify.py",
+      "sha256": "14b85e16d1ee8024a93e91dcebb400d5ba99f226c9e63d2d5b9d4879f063ad9d",
+      "size_bytes": 3882
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/geometry_calibration.py",
+      "sha256": "9ebdbe8cd959e35d19a0fbaad02b3b1428830c9b2ebeba69962874d7b14dfc64",
+      "size_bytes": 12145
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/gil_isolation.py",
+      "sha256": "5aca61a482b26e0e2bfa5eb28760ae84af13eb55a90d563fdd99d52ef850dabd",
+      "size_bytes": 2279
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/greybox/__init__.py",
+      "sha256": "0900e369cf89b5284e895cee72d3fbc63a4a4d70d2b63c0f9a6fe2ce39d25402",
+      "size_bytes": 2239
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/greybox/identify.py",
+      "sha256": "f13618a7ef1def96813941f6add4cad2488d422f6014aa66af6ec50c6fa61587",
+      "size_bytes": 18923
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/greybox/plant.py",
+      "sha256": "d8e902ac22c2a056c81773d61786c30faebf9771a602c71b862af2aff06968af",
+      "size_bytes": 10388
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/greybox/receipt.py",
+      "sha256": "3eac39f5532706572e64d9fe967618ed0fa45dbfcbd1f090797b5370801142ea",
+      "size_bytes": 6016
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/greybox/reconstruct.py",
+      "sha256": "3d4beacba5f6a475aacb1612a329454ed5d5776162e33c621145b00eeb6f6399",
+      "size_bytes": 13087
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/hard_stop_penalty.py",
+      "sha256": "c051e6cec7dfe901bd7427b4349cc1caa4c8898963c642eee5660b071d6a6d91",
+      "size_bytes": 13915
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/host_hard_tube.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/host_hard_tube.py",
+      "sha256": "a7b8dbf256b71b86de4f05d9d2adb9bb5ce3690452ff77cef6a74127cf8513cf",
+      "size_bytes": 8232
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/lattice.py",
+      "sha256": "cf83dc410bfca685ab84af6be9e525a62c8a4613e60e2cf0cd2fa6571b7686c9",
+      "size_bytes": 16485
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/ledger_raw_artifact.py",
+      "sha256": "adeac53320aea668bd5ec2bf90599cd719f720e63d648127e999d005901a932f",
+      "size_bytes": 10794
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/live_adapter.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/live_adapter.py",
+      "sha256": "db2dc5a738b5f1a8cd3d5add69abcb96e400b723eef3ea3b66b3aec9a66ade2d",
+      "size_bytes": 126094
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/optimizer.py",
+      "sha256": "6def70399e3a79f9736562073fe52acc259688d6ff52286dfdfa00054e9d4610",
+      "size_bytes": 2260
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/optimizer_keepalive.py",
+      "sha256": "1835b7870acfad4dbd1373c21d287af58c5dabaf395ae7fbc5a17b3b1e99dc98",
+      "size_bytes": 12574
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/optimizer_timeout.py",
+      "sha256": "7774e960147bd5f798bd0480e872659fabe40690052e027d089e1856de79e086",
+      "size_bytes": 2075
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/optimizer_worker_batched.py",
+      "sha256": "72ff453b121083b40c493194e2171d8631ec786f6db81cfa873dd641ce4b0607",
+      "size_bytes": 20437
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/optimizer_worker_loop.py",
+      "sha256": "82b27bb9bd2c7a6a361b215eefca991116e9707dffffa0a0c359f18136326090",
+      "size_bytes": 5429
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/path_entry_rate_limit.py",
+      "sha256": "49befd3836ce076efcdf51594eb84d8a4ff1c0ba4a51879f939463bf2eea7bf5",
+      "size_bytes": 13705
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/path_xy.py",
+      "sha256": "5ce622084dd63e1b203928dfae279de11a6bed368d50f01643146eb16fb1bf6e",
+      "size_bytes": 4970
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/phase_timings.py",
+      "sha256": "291690720ae1054442170b97a96aa6a7ecd28a6580f6a724cf0046bc5c25e27e",
+      "size_bytes": 9084
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/qlognei_compile.py",
+      "sha256": "c391d8bd6b269c8522bf772af715fcc1ec721e0e63d859c57ff62c4305c43af8",
+      "size_bytes": 3847
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/queue.py",
+      "sha256": "013272f2f8f35ece87e9b5e355fad2e93f28fbe06ac29d92fea6bfad4f8d36df",
+      "size_bytes": 1161
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/raw_force_binary.py",
+      "sha256": "7ed4db6d7c05fc82a8b1531acf06e10d9403f062cc6bfa690bf5438d8aa3d009",
+      "size_bytes": 12215
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/raw_force_binary_v2.py",
+      "sha256": "1b8b79d6ddeccaed489128adfe4305772be8af2fa3093180da53fa35f16d21db",
+      "size_bytes": 8375
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/raw_force_columnar_verify.py",
+      "sha256": "43bdfd65005a02475e731774b04ccd5c88b8a25f4d4ed2e251d1e3988a87a090",
+      "size_bytes": 10963
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/robot_body_truth.py",
+      "sha256": "0252e9dbb113ef1f82663f8aad0442f74fec58f64ec29f2104157ac6f5e7f15a",
+      "size_bytes": 23135
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/schedule_planner.py",
+      "sha256": "c679a3b3959ae16c250d15d38525545626ee5f50bb9fa005f1097154e7401a86",
+      "size_bytes": 9733
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/seal_client.py",
+      "sha256": "1da26cfef82c71172503e1482455d83f96cccac238c2d199f30437c8a2242fee",
+      "size_bytes": 8677
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/seal_daemon.py",
+      "sha256": "5b79029965c1309cd675524ce4443a3bcec3e6177091666749d4c6c29747cac3",
+      "size_bytes": 12239
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/seal_protocol.py",
+      "sha256": "9a14d9511863a871b91f1fe5973ea2d10d7c6422d985c3e995fed385c03feb52",
+      "size_bytes": 268
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/staircase.py",
+      "sha256": "f5bfb15173293d5860ac6a53536cc8d82430a6aff678b0a53355358242e08bb3",
+      "size_bytes": 7242
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/state20_search_trace.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/state20_search_trace.py",
+      "sha256": "33cbc3789686a7cb9928d9ebcfaed211e3686b33df73efb4f796a0939f4f81f1",
+      "size_bytes": 15536
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/state25_path_trace.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/state25_path_trace.py",
+      "sha256": "49d59e28f05e87a5b31bc758e6e57bf25b9cc8a0edd92f269c05610c0b9e9da9",
+      "size_bytes": 23688
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/timing.py",
+      "sha256": "0be81137a68a99bc7e6b5e0e46f9c1676abe1795e895a825f1a916df83a3e9e1",
+      "size_bytes": 5927
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/tp_two_stage_search.py",
+      "sha256": "4589fc4c25a88e36761f37ce6e447d462defad1be96da52a26cc5869a70a089e",
+      "size_bytes": 20169
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/tube_cbf.py",
+      "sha256": "4ac3ee69b393f6c76285475ee166d5e537d9514391571c6999851efc7eb8cdca",
+      "size_bytes": 13548
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/tube_cbf_live.py",
+      "sha256": "b9324235db3e1d37e3cd22770d7a680485d33f1e49bd52dc1cb23b33f7ea0212",
+      "size_bytes": 6444
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r008/tube_cbf_shadow.py",
+      "sha256": "576245d092daf2ed0aa1e93e10df1a81c77d88298e61688d8aaacf07e4540773",
+      "size_bytes": 9938
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/__init__.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/__init__.py",
+      "sha256": "f03734a5f8c2a412df5ccf70676982a765d62bf741b1cef551339d9e8a1f8967",
+      "size_bytes": 3245
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/async_ts.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/async_ts.py",
+      "sha256": "9e0c453f5a9d2af028698ae2c8592f19b2f8b9667c1937f2c713379fda930b92",
+      "size_bytes": 20072
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/backtest.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/backtest.py",
+      "sha256": "e26ea66e59958cd8b811da697ca0083014c33e66f8e942599199d729f5624983",
+      "size_bytes": 18394
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/behavior.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/behavior.py",
+      "sha256": "d66f94d2a7f7da5813bc86c0ccf2aa62c0d783c105144d2f6e01594a25238bdf",
+      "size_bytes": 8400
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/calibration.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/calibration.py",
+      "sha256": "01c5cd2b9d30e0edc638280dfe9b1e8e09e17f2b069d440099075376a2241391",
+      "size_bytes": 11023
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/censor.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/censor.py",
+      "sha256": "fd64fc57ce92960b3829d6ebc96cfa430a9ebee639b7b70b766f3381cfe04e5d",
+      "size_bytes": 21725
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/common.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/common.py",
+      "sha256": "2a7ab481abd71cab0e8119b63dec583309ea2c0f0d339529f3738ea131a43eb9",
+      "size_bytes": 2762
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/compat_identity.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/compat_identity.py",
+      "sha256": "48a0c5d808457d155c61490222319ba969a96760590626eb479ab79e37480f79",
+      "size_bytes": 1813
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/controller_triplet.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/controller_triplet.py",
+      "sha256": "65a1cc399f0a586acf2f0dae81d4783734281d5609513e74ec0e95d5f431fea4",
+      "size_bytes": 11999
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/descriptor.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/descriptor.py",
+      "sha256": "e773c9c053ce794bff215523cdec0e8092e309472932f5fef5e11d3248342dba",
+      "size_bytes": 3202
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/ledger.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/ledger.py",
+      "sha256": "cef2365736a1e72c254f442192e4ea48e867e8a5bb8a0dfd7b2cbe801a1fa7dd",
+      "size_bytes": 9786
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/live_adapter.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/live_adapter.py",
+      "sha256": "5f019d57e8e3c1823347b29efbf5673054fd11a9dc4ec32ab08d2f41e524a27f",
+      "size_bytes": 15188
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/live_host.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/live_host.py",
+      "sha256": "9c584f1c8ed720a0b949964d8413dbd05950b97a79f0349d81a31f01b314be72",
+      "size_bytes": 29624
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/live_owner.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/live_owner.py",
+      "sha256": "549dd1665f933470f3e5f9c2b301c2e32455d7d223bf0d88b65252bbc6f1d585",
+      "size_bytes": 16876
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/noise.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/noise.py",
+      "sha256": "f04f96cb3dd9dfd097e00615d113a80b6d0e6dae4224772e8bd3f853bfd96be6",
+      "size_bytes": 13231
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/offline_checksums.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/offline_checksums.py",
+      "sha256": "d0d137fa113f47d756236ab444af6ca95dad6d55a8b58d5584aeb3a44eaa3c75",
+      "size_bytes": 705
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/optimizer_worker.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/optimizer_worker.py",
+      "sha256": "fe5846d998653266f74f9ad7b0e1521dd2dde17fee97bebed0253beb7c61267f",
+      "size_bytes": 2815
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/path_cbf_live.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/path_cbf_live.py",
+      "sha256": "871413f5778dfa493fba28432fdf281dde483656ef8a2cd0281a476952a7cb4b",
+      "size_bytes": 12951
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/qlognei.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/qlognei.py",
+      "sha256": "329facd7ba3b7c64caabb758fce6443e0dde44ef93501c27c1f1e18072ee5b0d",
+      "size_bytes": 32904
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/register_transport.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/register_transport.py",
+      "sha256": "24e0fca3f9a6133a772e644e26afeaabfd8f9c9a6f3e3dbf1bfe124b75bc91f6",
+      "size_bytes": 10389
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/runtime_composition.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/runtime_composition.py",
+      "sha256": "d910600055bea4279971929e98b659759d0829674d67ac0b313632f68d355e3d",
+      "size_bytes": 13657
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/safety_filter.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/safety_filter.py",
+      "sha256": "27cc86419428276e2ed60e618b41dbc460c60797a16a85a2fed1bece4c2c5c99",
+      "size_bytes": 42598
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/scheduler.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/scheduler.py",
+      "sha256": "a68b71aa6652f2436dc5fd428bec02d94528c80a91cb58d64b4565b52a253c57",
+      "size_bytes": 16063
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/serial_queue.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/serial_queue.py",
+      "sha256": "e64c6fba7c49eceead6d2ce3d488f349e3bc8d5c65e710dba8df03d3a618d0d4",
+      "size_bytes": 5970
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/snapshot.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/snapshot.py",
+      "sha256": "2cd4fa88e11f6b773a17f9ac14db8ad3ad0360975bc83d878f2695cdd8d00874",
+      "size_bytes": 11272
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/stars_admission.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/stars_admission.py",
+      "sha256": "5a3e392067be2cfe3f0a5961e0920d87831b7b00d71afaa7bea8fbe5b5078bc5",
+      "size_bytes": 6105
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/wave.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r012/wave.py",
+      "sha256": "088c9f89155c99c0e6bf8a2b224cf5b78286ce3d4be343779b92a0c06c4c346b",
+      "size_bytes": 16777
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/__init__.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/__init__.py",
+      "sha256": "94e3226132b3ba136fe845dc63c42abf0493fe39eb8d758b38fb1d23cb56d837",
+      "size_bytes": 9126
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/baseline_policy.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/baseline_policy.py",
+      "sha256": "8afccf7e3161bc7423574ac979aae0649e07999cfce534a2e2878fc21b3d54fe",
+      "size_bytes": 23523
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/bounded_bo.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/bounded_bo.py",
+      "sha256": "d45c17628fc181c18f8488722add64bd1ae920641cb5ce7ae704fa920cc5a7b1",
+      "size_bytes": 9568
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/build_lifecycle_figures.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/build_lifecycle_figures.py",
+      "sha256": "96b6757ede0cc3739207b00d0c5649165d88c6fba501934d3d5fe4e0c7dd4bf3",
+      "size_bytes": 30006
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/campaign.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/campaign.py",
+      "sha256": "f5719b0c5a5d233c116c129f884e179c2f8cdd519353200138da243528838b13",
+      "size_bytes": 156324
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/campaign_config.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/campaign_config.py",
+      "sha256": "dfea4976c4c8378f1e66f81e1b3f46511b7ec69d317c658921f3dd1b007361cb",
+      "size_bytes": 45848
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/checkpoint.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/checkpoint.py",
+      "sha256": "f4542709bb315117f89f638b1f2333f49ae04d3676784a0668e8a6371bfa4815",
+      "size_bytes": 19261
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/checkpoint_manifest.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/checkpoint_manifest.py",
+      "sha256": "cfa22efa530b1008e75d93be55d4535169493ce42a1172b6d932071ca0938abd",
+      "size_bytes": 10572
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/contact_search_strategy.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/contact_search_strategy.py",
+      "sha256": "5d7cad351d5622f7692fd6313d2286d50bb66857910015757ae7bef0e384f15d",
+      "size_bytes": 6166
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/contact_transient.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/contact_transient.py",
+      "sha256": "f25bf5564329f34653430fdeb49d7f7cfb6843c8431879860f3b8e321a2b240b",
+      "size_bytes": 6590
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/controller_triplet.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/controller_triplet.py",
+      "sha256": "a555a38a936da7d189fa5c569cde84ed03ccb25f3a44b302124077031733f39b",
+      "size_bytes": 16255
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/demo_profile.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/demo_profile.py",
+      "sha256": "e8858eec600c2bf78527a6e85f16f18b9b50ebc92869d3e6511c3e18676f2138",
+      "size_bytes": 2989
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/domain.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/domain.py",
+      "sha256": "943abbb043b553ef5be4663070a4f404d651c7527de262b4cf7a78ec356faf61",
+      "size_bytes": 9665
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/feedforward.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/feedforward.py",
+      "sha256": "57fb62f05b0ebb326fd1b69d14abbd6e631761d02f7969daf545eba084d4aa26",
+      "size_bytes": 2743
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/figure8_transfer.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/figure8_transfer.py",
+      "sha256": "0b41b49ecd06898531eeabb2ee7e8a00fd6298f8c11cb18726e52680939d24fb",
+      "size_bytes": 29200
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/floor_coordinator.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/floor_coordinator.py",
+      "sha256": "cb48f7ee9a616de2bb435308696f1b21ed2a7349b063d9bc6ecf34b792a71795",
+      "size_bytes": 146593
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/force_correction.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/force_correction.py",
+      "sha256": "107ed03694f756c36fb8b60cf00717f9c06f3684f75403124fe274b209e58716",
+      "size_bytes": 16395
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/gp.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/gp.py",
+      "sha256": "a9154114e6a82a138e64ac0e33884038574419741d470ce255eabe61d54b6b78",
+      "size_bytes": 52658
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/handoff.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/handoff.py",
+      "sha256": "a52c601443377a5266d24a5d543257c246acb4bc5a74da3d5ab7a71f21ba6d27",
+      "size_bytes": 12490
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/historical_replay.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/historical_replay.py",
+      "sha256": "93c8677010553cc969efc676dbf799999038dbe619823bcde07d93899f2b9a3e",
+      "size_bytes": 6446
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/identity.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/identity.py",
+      "sha256": "b57ac591e94937ececc4f10a5443a13c65a6c6de601ed18e709a39e48ed388c5",
+      "size_bytes": 9848
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/ledger.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/ledger.py",
+      "sha256": "83ef65de2c2a7e71fd55c51e615ac87c77bbc761e494255d0ac4bca59201e220",
+      "size_bytes": 6988
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/lifecycle_trace.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/lifecycle_trace.py",
+      "sha256": "093bbc5cd3ef5866dd9e2aeaa0faf61d01361ef69b87085ef9cf125a6262c03b",
+      "size_bytes": 42054
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/live_owner.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/live_owner.py",
+      "sha256": "510a65123d31886d526a6fe99ea14eb403b3e2d291b73e1bdd96628a3058c03c",
+      "size_bytes": 113580
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/live_runtime.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/live_runtime.py",
+      "sha256": "84cbc2edbaf2251930ee0a02f3bf1878cdb5710c804a58c797e3417c23f096c9",
+      "size_bytes": 50649
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/metrics.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/metrics.py",
+      "sha256": "1a33f74e0d3661fdd5295076a35d0f4aa5951fd66a5eb9478816ae891a3e1c22",
+      "size_bytes": 11574
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/path_context.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/path_context.py",
+      "sha256": "b7e0b4b228612e6e824d683d31eba77082d67fca68bba6f5561d95493eab730f",
+      "size_bytes": 24775
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/prepare_live.py",
+      "sha256": "0efc45ff2e593758668c48c6b3d64ac1f11147b2529dd7f597a9cb9f1ab52a41",
+      "size_bytes": 66314
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/recovery.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/recovery.py",
+      "sha256": "9d9ff0bde0e26aa71970438b6110cab31b05b27c648c816fd4e2b7be4a4c0d31",
+      "size_bytes": 6032
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/runtime_contract.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/runtime_contract.py",
+      "sha256": "293d566b3418f18c5cac680ea9fe84ca1799a1c2f6a59cc14b8611081b6f4adb",
+      "size_bytes": 4129
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/runtime_strategy.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/runtime_strategy.py",
+      "sha256": "c64c10ebd606e993bd3b02b14dcf0b2358ef6b668853e065ace562070943be1c",
+      "size_bytes": 23987
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/state21_baseline_trace.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/state21_baseline_trace.py",
+      "sha256": "b5f26c4a52756dceaad507d7d394300cd19044e5c960cd2397261a40649b9b97",
+      "size_bytes": 10996
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/timing_characterization.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/timing_characterization.py",
+      "sha256": "857cf6cd813ace8d6786f454e0b74eeb879b3ef4bb7253101b2464e74a372536",
+      "size_bytes": 14981
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/timing_scheduler.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/timing_scheduler.py",
+      "sha256": "e597e97fe3d39720b62aaaafe22a81b8f5b5de5218b193144f0b388788a27fff",
+      "size_bytes": 12822
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/v4_stage_censor.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/v4_stage_censor.py",
+      "sha256": "dbd101f65845a7ef436e78bd89af6875d51303aca2b68f377dc866af9805825c",
+      "size_bytes": 16551
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/v4_stage_live_adapter.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/v4_stage_live_adapter.py",
+      "sha256": "a756850f23427eac230c5427af5a12ef0d05c7c0c6575ed747b17f0921dd9d64",
+      "size_bytes": 3952
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/v4_stage_optimizer.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/v4_stage_optimizer.py",
+      "sha256": "bfae1562086391b6af27948f616bc612cd78690ed74e0071d550c907ddce7756",
+      "size_bytes": 11547
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/v4_stage_optimizer_worker.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/v4_stage_optimizer_worker.py",
+      "sha256": "adafb4def5c95d8aca12dc44cb581dc19294c402942f912b04468f9e585fd6e4",
+      "size_bytes": 8015
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/v4_two_stage_campaign.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/v4_two_stage_campaign.py",
+      "sha256": "6398765df29ee16003c660960f2618ef3640a3202cbc5f21ffc8a7f6b10e11e9",
+      "size_bytes": 72525
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/whole_flow_dry_run.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/whole_flow_dry_run.py",
+      "sha256": "5d5cb497899ed2b0074fe048859c3b375f218e558323a5a38b7e7f97cab42686",
+      "size_bytes": 16687
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_bridge_authority.py",
+      "sha256": "989b636bd7968ca53836596da533034cb156e0b53fb53be816e39457e5ae1a80",
+      "size_bytes": 34398
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_eoat_profiles.py",
+      "sha256": "e2396db961818929b78f24bd63b270754d6a662dca5978a4ae947a2147b72906",
+      "size_bytes": 11172
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/step5d_paper_outer_loop.py",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_paper_outer_loop.py",
+      "sha256": "5a8c60701b043beb108446ad7b95624d1904a56cd45e2f17ea0076885de38016",
+      "size_bytes": 27279
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/step5d_remote_startup.py",
+      "sha256": "e5d25c9a9631dea5875982a4f8b7692ec8b9cdd8cd884b99d51a28e0d9926e64",
+      "size_bytes": 51085
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/__init__.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/__init__.py",
+      "sha256": "041f257a65962c5d6f7d7be746cfb9d8a6302ca0a7cf274494037b2079821f82",
+      "size_bytes": 4889
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/campaign_runner.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/campaign_runner.py",
+      "sha256": "0e9ffc7c98d34de6a31951f2e5c459f0356c8eec52d9d64a44138fdcb9c8dd57",
+      "size_bytes": 82514
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/core.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/core.py",
+      "sha256": "5746047402f574c919b3d8a9f7c23bc74c90448e6fb90235cec035ed6f5056da",
+      "size_bytes": 153104
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/live_composition.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/live_composition.py",
+      "sha256": "37ac40f133842192697dba0f161297a9123a31f2b787394c8d88bc9dda4c9aab",
+      "size_bytes": 38259
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/optimizer_bridge.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/optimizer_bridge.py",
+      "sha256": "927c49d442cfa2754a9f197d82d3f2cb2eb9ca32d7cf188586fa9daba767e47b",
+      "size_bytes": 10830
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/optimizer_worker.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/optimizer_worker.py",
+      "sha256": "a658fec1188b4d7e8bf79d1c5c20b01beccee47f48ce257c5b1f32160ac85a78",
+      "size_bytes": 16675
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/physical_candidate.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/physical_candidate.py",
+      "sha256": "8ce2d80268da4a94897e975ae7f9e7f88edbb6005ec230d3024f59619c20d64a",
+      "size_bytes": 5476
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/physical_censor.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/physical_censor.py",
+      "sha256": "57fd2a014d4d48951602e753a47e3c948f305d57ebdd321d5fe663edb8db7df0",
+      "size_bytes": 12431
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/physical_ledger.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/physical_ledger.py",
+      "sha256": "4c8d461aedc81bdb0a746724ad1ab37998868ca138c77f1af831156ca38fe79c",
+      "size_bytes": 22334
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/prepare_live.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/prepare_live.py",
+      "sha256": "21e77bf10b08d04ff106c1ca4e179b2bf985e5b4a8562126b72e6b1441309c27",
+      "size_bytes": 31322
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/report.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/report.py",
+      "sha256": "b408e7da20d85f3609c4ca8b70f2b1d80509a4093f8fc811328916efdc415186",
+      "size_bytes": 80419
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/source_identity.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/source_identity.py",
+      "sha256": "6fcd3c8b150bedb3f2c613b4d9c4254da3929e2cab960a07dc5def0dec293875",
+      "size_bytes": 8445
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v4_isaturation_plan.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v4_isaturation_plan.py",
+      "sha256": "336d3c0aa95bd5eec3240577b8c68b12d75313810bcd500729792e174ae446e4",
+      "size_bytes": 4022
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_camera_observer.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_camera_observer.py",
+      "sha256": "df0ee4756c70541f90e029aae05c59091f7f7a338133266f8733957e17f4ca89",
+      "size_bytes": 24538
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_campaign.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_campaign.py",
+      "sha256": "91b18c89447f63e8e938288c457eb3a715c482557a6054a76575e116f985e5f3",
+      "size_bytes": 120400
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_campaign_runner.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_campaign_runner.py",
+      "sha256": "1ec7cb5b20f8729ce242ffb3059f68d3fae53f7245452b8275062cde403887df",
+      "size_bytes": 68949
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_capability_acceptance.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_capability_acceptance.py",
+      "sha256": "16547be2aff36808f49de23a8e12e0ca6f628492dec30e308b99364c69340c4d",
+      "size_bytes": 50665
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_composition_contract.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_composition_contract.py",
+      "sha256": "75ca433fa67dd39a1c6d42a762d7e8374f977d8aaa6cd766779ca3c56370bd02",
+      "size_bytes": 12855
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_design_domain.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_design_domain.py",
+      "sha256": "c28c5a6c614fb2bf87fa7e1c2010339091297694986c027fe509f3ecb3fd4a0d",
+      "size_bytes": 2294
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_extension.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_extension.py",
+      "sha256": "b9bdf414b5b7abe10a8238d57e2971f3ebec5cfb28aab8b403b50f18f6d4a808",
+      "size_bytes": 15745
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_extension_runner.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_extension_runner.py",
+      "sha256": "198d9bb2a3cce3b77462cc73e0b35176a7891bf152cdde1b083ef3ddd401bc70",
+      "size_bytes": 6871
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_filter_shadow.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_filter_shadow.py",
+      "sha256": "1b2981ba3eb8c207d333ada212669a649e67ac29029006686155ce5d1ee38e2c",
+      "size_bytes": 24471
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_kernel_selection.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_kernel_selection.py",
+      "sha256": "8a36fe8388aafa0a7765adc387a8e5f1d306f3b429794a41d59567664bf9fdf1",
+      "size_bytes": 6505
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_lifecycle_ledger.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_lifecycle_ledger.py",
+      "sha256": "c045393cab5e7548946b1dce7b2e289ac01fc3df9e1020894e6fe97008c039b7",
+      "size_bytes": 150040
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_live_owner.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_live_owner.py",
+      "sha256": "a61a6732bce8be8ab0c051fa9448750438bee11b0e40b6c5533b916d9e1bf2dd",
+      "size_bytes": 150347
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_live_runtime.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_live_runtime.py",
+      "sha256": "0ce1910b1beb342df1aa087ab5e6c9f5f739aec2aeecee0f41f3a2b82aaaea67",
+      "size_bytes": 44459
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_optimizer_journal.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_optimizer_journal.py",
+      "sha256": "b0004192f5e6b7956222e87117dc4a780fe54c5a143e8f01398f4e9ebaafe0c0",
+      "size_bytes": 9579
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_production_bundle.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_production_bundle.py",
+      "sha256": "d77b2f99407ae54b833b6295bcc8901cc856459d6f2c2c093898fff78837cccc",
+      "size_bytes": 61420
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_raw_archive.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_raw_archive.py",
+      "sha256": "0d1b56cb87aad982157bbebcf25cc962ac28c26bf718a8a454c197cce569b8f5",
+      "size_bytes": 6423
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_register_transport.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_register_transport.py",
+      "sha256": "b5dfaa1ed109765bdaa2b47815366083fca9f897441b76404f466cd80ba549bd",
+      "size_bytes": 19236
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_report.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_report.py",
+      "sha256": "e746867a290474029be423309b5213a8edbaf0c0e31008405b139d626eed7f61",
+      "size_bytes": 26287
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_resident_protocol.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_resident_protocol.py",
+      "sha256": "322070ba577253ed84c160390b91cd926a0875a61f978aaf61c1cd65c6b9e333",
+      "size_bytes": 29604
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_rollover.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_rollover.py",
+      "sha256": "21c68a166579b80cd1309197f45546080f5ea9ffeda4b8889a25b5b8975481c1",
+      "size_bytes": 40480
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_ros2_observation_mirror.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_ros2_observation_mirror.py",
+      "sha256": "bd0df2e64a7498e01ea6a3f1b032578048676a69a17154e29730e7b8b39004c6",
+      "size_bytes": 18965
+    },
+    {
+      "git_status": "?? experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_sidecar_bundle.py",
+      "path": "experiments/tase-contact-reproduction/tools/step6_figure8_autotune_v1/v5_sidecar_bundle.py",
+      "sha256": "f881cc193e4b6dbeff7f8ca6b64cf88ea709fc862259266ee1aae96db0a09abe",
+      "size_bytes": 18584
+    },
+    {
+      "git_status": "clean",
+      "path": "experiments/tase-contact-reproduction/tools/upload_ur_tp_package.py",
+      "sha256": "9240acff7a52c4d6511ed491c979c9260345ff59036c91b162c7635d10c083b7",
+      "size_bytes": 117953
+    },
+    {
+      "git_status": "M experiments/tase-contact-reproduction/tools/ur10e_parallel.py",
+      "path": "experiments/tase-contact-reproduction/tools/ur10e_parallel.py",
+      "sha256": "0cb82cb6876d3755e492f9bb77dba9f4fe57dc5d648cd859cfe03e988c2a0546",
+      "size_bytes": 36699
+    }
+  ],
+  "manifest_sha256": "083ab3cd551aa32e7806e1f21b078ae68a0261ee1c01a210b8a4487fdb23ecbb",
+  "schema": "step5d.r014/source-capture-v1",
+  "source_head": "e6a52d21944ded59ce71125128b72a359a453eb6",
+  "source_repo": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813",
+  "version": 1
+}

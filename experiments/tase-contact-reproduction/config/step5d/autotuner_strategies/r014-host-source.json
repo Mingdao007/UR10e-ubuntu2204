@@ -1,0 +1,6 @@
+{
+  "manifest_path": "source-closures/f18b3cbc89a18baa5c0fae600017b990e652fe62c49ad79dfe3b5d82181bc720/manifest.json",
+  "manifest_sha256": "f18b3cbc89a18baa5c0fae600017b990e652fe62c49ad79dfe3b5d82181bc720",
+  "schema": "step5d.autotuner-r014/host-source-pointer-v1",
+  "version": 1
+}
