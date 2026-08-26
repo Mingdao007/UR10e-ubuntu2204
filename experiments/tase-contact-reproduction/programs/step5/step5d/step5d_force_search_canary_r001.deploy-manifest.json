@@ -1,0 +1,43 @@
+{
+  "artifacts": [
+    {
+      "filename": "step5d_force_search_canary_r001.script",
+      "sha256": "31b0157da5b0cb0ca168a84a4d982752e91ea7809bda90fbb5b96163864227e7",
+      "source": "step5d_force_search_canary_r001.script"
+    },
+    {
+      "filename": "step5d_force_search_canary_r001.txt",
+      "sha256": "5878761560a4d50ba5f33a7db9cded8309fcf7430e06b9e9eb3038d10b4bb5be",
+      "source": "step5d_force_search_canary_r001.txt"
+    },
+    {
+      "filename": "step5d_force_search_canary_r001.urp",
+      "sha256": "0bfadbe32828a803182a10c2a079a8af9513c8e6266ebfa40cb6d28a92e9c2f6",
+      "source": "step5d_force_search_canary_r001.urp"
+    }
+  ],
+  "basename": "step5d_force_search_canary_r001",
+  "builder": "tools/build_step5d_force_search_canary_r001.py",
+  "builder_sha256": "ebe283b381a1bae0c209785f34685e22af24d4fedcaf7098133d59fae32c45c0",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_force_search_canary_r001.urp",
+  "delivery": {
+    "controller_readback": false,
+    "controller_upload": false,
+    "current_release_pointer_changed": false,
+    "local_urp_internal_content_gate": true
+  },
+  "eoat_contract": {
+    "artifact_id": "new-3d-printed-eoat-20260730",
+    "sha256": "ccd88518be8f995d11b2cd90787b41c4fc78789a98c7a417acbf3dcd28f49f16"
+  },
+  "force_search_contract": {
+    "artifact_id": "new-eoat-force-search-canary-20260730",
+    "sha256": "4dde08b1db5bb0494b0f77d70105ca1e7f1b37ec3e99e0d3c066456a9df8532c"
+  },
+  "immutable": true,
+  "schema": "step5d.force-search-canary/local-candidate-v1",
+  "schema_version": 2,
+  "source_stamp": "2026-07-30T0319HKT_STEP5D_FORCE_SEARCH_CANARY_R001",
+  "status": "local_candidate_not_uploaded"
+}

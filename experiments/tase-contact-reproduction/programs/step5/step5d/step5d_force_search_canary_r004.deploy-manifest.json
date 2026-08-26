@@ -1,0 +1,79 @@
+{
+  "artifacts": [
+    {
+      "filename": "step5d_force_search_canary_r004.script",
+      "sha256": "923a182c142c61895178d551d45e9ee80e1a692873a6baf3356bd2b789fdaa79",
+      "source": "step5d_force_search_canary_r004.script"
+    },
+    {
+      "filename": "step5d_force_search_canary_r004.txt",
+      "sha256": "0523ce9cbda83f999c15ec86833c505838d38028db7fb6a4f10e141c5139097a",
+      "source": "step5d_force_search_canary_r004.txt"
+    },
+    {
+      "filename": "step5d_force_search_canary_r004.urp",
+      "sha256": "53ca62b40e37798974990a3def7c957906de50effc3d12e1c66e33e0d4566542",
+      "source": "step5d_force_search_canary_r004.urp"
+    }
+  ],
+  "basename": "step5d_force_search_canary_r004",
+  "bridge_contract": {
+    "argv": [
+      "--robot-host",
+      "192.168.1.18",
+      "--sensor-ip",
+      "192.168.50.25",
+      "--sensor-port",
+      "5152",
+      "--allow-kunwei-stream-command",
+      "--write-rtde-inputs",
+      "--baseline-s",
+      "5.0",
+      "--rezero-s",
+      "1.0",
+      "--duration-s",
+      "180.0",
+      "--rtde-hz",
+      "125.0",
+      "--target-force-n",
+      "1.0",
+      "--normal-axis",
+      "fz",
+      "--normal-sign",
+      "-1.0",
+      "--sensor-stale-s",
+      "0.08",
+      "--max-normal-force-n",
+      "3.0",
+      "--max-force-norm-n",
+      "3.0",
+      "--max-torque-norm-nm",
+      "0.2"
+    ],
+    "artifact_id": "new-eoat-force-search-observer-20260730",
+    "sha256": "968f913f52346bed957a90fefd6f64de3ffc7b5679484ce2b28930fc876dde54"
+  },
+  "builder": "tools/build_step5d_force_search_canary_r002.py",
+  "builder_sha256": "be62318277c15ccda52df06f4390c4cc697599d550e39bd753070bae9de88e8b",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_force_search_canary_r004.urp",
+  "delivery": {
+    "controller_readback": false,
+    "controller_upload": false,
+    "current_release_pointer_changed": false,
+    "local_urp_internal_content_gate": true
+  },
+  "eoat_contract": {
+    "artifact_id": "new-3d-printed-eoat-20260730",
+    "sha256": "ccd88518be8f995d11b2cd90787b41c4fc78789a98c7a417acbf3dcd28f49f16"
+  },
+  "force_search_contract": {
+    "artifact_id": "new-eoat-force-search-canary-20260730",
+    "sha256": "929a3460f93ac9132440a19f4c816b0f53f1c4a388c681267fe2604f2ac6c8c7"
+  },
+  "immutable": true,
+  "schema": "step5d.force-search-canary/local-candidate-v1",
+  "schema_version": 2,
+  "source_stamp": "2026-07-30T0350HKT_STEP5D_FORCE_SEARCH_CANARY_R004",
+  "status": "local_candidate_not_uploaded"
+}

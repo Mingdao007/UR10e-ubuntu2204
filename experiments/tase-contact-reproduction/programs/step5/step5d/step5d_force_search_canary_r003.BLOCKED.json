@@ -1,0 +1,7 @@
+{
+  "schema": "step5d.force-search-candidate-block/v1",
+  "program": "step5d_force_search_canary_r003",
+  "status": "SUPERSEDED_NOT_FOR_LOAD_OR_PLAY",
+  "reason": "The immutable source stamp was accidentally set later than the actual controller time, and the 0.50 N external normal entry gate did not cover the measured trusted no-contact noise envelope of approximately -0.54 to +0.53 N.",
+  "replacement": "step5d_force_search_canary_r004"
+}

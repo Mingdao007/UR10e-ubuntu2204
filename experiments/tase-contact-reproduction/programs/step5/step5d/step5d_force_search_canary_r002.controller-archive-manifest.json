@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "source_controller_directory": "/programs/andyl/kunwei/step5",
+  "archive_controller_directory": "/programs/andyl/kunwei/step5/archive_revoked_20260730",
+  "triplets": [
+    {
+      "basename": "step5d_force_search_canary_r002",
+      "sha256": {
+        ".urp": "392f206d189774b989fb34d8bbaf4ce74c9ee1542d834965e1775f5f20a16165",
+        ".txt": "0e65ca972f16ebd2b6b35d556622d92cac02200e84116ea6ed2dbb2ba052b702",
+        ".script": "aa74b4792da964757fca3b4bdd9626b19ffc8de62aa30e4c3c1fb77aed7e7faa"
+      }
+    }
+  ]
+}

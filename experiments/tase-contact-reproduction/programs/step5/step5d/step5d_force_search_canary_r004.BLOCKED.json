@@ -1,0 +1,7 @@
+{
+  "schema": "step5d.force-search-candidate-block/v1",
+  "program": "step5d_force_search_canary_r004",
+  "status": "REVOKED_NOT_FOR_LOAD_OR_PLAY",
+  "reason": "The package incorrectly used UR get_tcp_force as an entry and hard-stop authority. The user requires Kunwei to be the sole force and torque source.",
+  "replacement": "step5d_force_search_canary_r005"
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "basename": "step5d_force_search_canary_r004",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "artifacts": [
+    {
+      "filename": "step5d_force_search_canary_r004.urp",
+      "source": "step5d_force_search_canary_r004.urp",
+      "sha256": "53ca62b40e37798974990a3def7c957906de50effc3d12e1c66e33e0d4566542"
+    },
+    {
+      "filename": "step5d_force_search_canary_r004.txt",
+      "source": "step5d_force_search_canary_r004.txt",
+      "sha256": "0523ce9cbda83f999c15ec86833c505838d38028db7fb6a4f10e141c5139097a"
+    },
+    {
+      "filename": "step5d_force_search_canary_r004.script",
+      "source": "step5d_force_search_canary_r004.script",
+      "sha256": "923a182c142c61895178d551d45e9ee80e1a692873a6baf3356bd2b789fdaa79"
+    }
+  ]
+}
