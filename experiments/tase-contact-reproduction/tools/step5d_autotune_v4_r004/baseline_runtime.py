@@ -60,6 +60,88 @@ class BaselineReadinessGate:
             raise ValueError("baseline readiness torque norm must remain below hard stop")
 
 
+PATH_ENTRY_RELEASE_HOLD_S = 0.5
+
+
+@dataclass(frozen=True)
+class PathEntryReleaseGate:
+    """Bounded fresh/stationary release required before requesting PATH."""
+
+    filtered_min_n: float = 4.0
+    filtered_max_n: float = 5.5
+    raw_min_n: float = 3.0
+    raw_max_n: float = 7.0
+    force_norm_max_n: float = 7.0
+    torque_norm_max_nm: float = 0.30
+    hold_s: float = PATH_ENTRY_RELEASE_HOLD_S
+
+    def __post_init__(self) -> None:
+        values = (
+            self.filtered_min_n,
+            self.filtered_max_n,
+            self.raw_min_n,
+            self.raw_max_n,
+            self.force_norm_max_n,
+            self.torque_norm_max_nm,
+            self.hold_s,
+        )
+        if not all(math.isfinite(float(value)) for value in values):
+            raise ValueError("PATH entry release gate must be finite")
+        if not 0.0 <= self.filtered_min_n <= self.filtered_max_n:
+            raise ValueError("PATH entry filtered release range is invalid")
+        if not 0.0 <= self.raw_min_n <= self.raw_max_n:
+            raise ValueError("PATH entry raw release range is invalid")
+        if self.force_norm_max_n <= 0.0 or self.torque_norm_max_nm <= 0.0:
+            raise ValueError("PATH entry release norm bounds must be positive")
+        if not 0.0 < self.hold_s <= 1.0:
+            raise ValueError("PATH entry release hold must be within (0,1] seconds")
+
+
+@dataclass(frozen=True)
+class PathEntryReleaseState:
+    dwell_s: float = 0.0
+    opened: bool = False
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(float(self.dwell_s)) or self.dwell_s < 0.0:
+            raise ValueError("PATH entry release dwell must be finite and nonnegative")
+        if not isinstance(self.opened, bool):
+            raise TypeError("PATH entry release opened flag must be bool")
+
+
+def step_path_entry_release(
+    state: PathEntryReleaseState,
+    observation: BaselineObservation,
+    *,
+    gate: PathEntryReleaseGate | None = None,
+) -> PathEntryReleaseState:
+    """Advance the post-baseline release dwell without interpolating samples."""
+
+    if not isinstance(state, PathEntryReleaseState):
+        raise TypeError("PATH entry release state must be PathEntryReleaseState")
+    if not isinstance(observation, BaselineObservation):
+        raise TypeError("PATH entry release observation must be BaselineObservation")
+    selected = gate if gate is not None else PathEntryReleaseGate()
+    if not isinstance(selected, PathEntryReleaseGate):
+        raise TypeError("PATH entry release gate must be PathEntryReleaseGate")
+    if not _finite_observation(observation) or not 0.0 < observation.dt_s < 0.080:
+        raise ValueError("PATH entry release observation dt/data is invalid")
+    if state.opened:
+        return PathEntryReleaseState(dwell_s=selected.hold_s, opened=True)
+    ready = (
+        observation.sensor_fresh
+        and observation.stationary
+        and selected.filtered_min_n <= observation.filtered_normal_n <= selected.filtered_max_n
+        and selected.raw_min_n <= observation.raw_normal_n <= selected.raw_max_n
+        and observation.force_norm_n <= selected.force_norm_max_n
+        and observation.torque_norm_nm <= selected.torque_norm_max_nm
+    )
+    if not ready:
+        return PathEntryReleaseState()
+    dwell = min(selected.hold_s, state.dwell_s + observation.dt_s)
+    return PathEntryReleaseState(dwell_s=dwell, opened=dwell >= selected.hold_s - 1e-12)
+
+
 @dataclass(frozen=True)
 class BaselineHardLimits:
     max_abs_normal_n: float = 15.0
@@ -268,6 +350,10 @@ __all__ = [
     "BaselineReadinessGate",
     "BaselinePhase",
     "BaselineState",
+    "PATH_ENTRY_RELEASE_HOLD_S",
+    "PathEntryReleaseGate",
+    "PathEntryReleaseState",
     "baseline_unlock_allowed",
+    "step_path_entry_release",
     "step_baseline",
 ]

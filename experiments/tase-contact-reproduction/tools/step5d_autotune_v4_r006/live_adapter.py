@@ -15,11 +15,12 @@ import sys
 import threading
 import time
 import contextlib
-from dataclasses import dataclass
-from pathlib import Path
+from dataclasses import dataclass, field
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 import step5d_autotune_v4_r004_live_writer as r004_writer_module
+import step5d_autotune_v4_r004.session as r004_session_module
 import step5d_autotune_v4_r004.wire as r004_wire_module
 from step5d_autotune_v4_r004.contracts import runtime_identity_limbs
 from step5d_autotune_v4_r004.evidence import (
@@ -31,6 +32,7 @@ from step5d_autotune_v4_r004.identity import (
     Script1StartReceipt,
 )
 from step5d_autotune_v4_r004.motion_profile import R004_MOTION_PROFILE
+from step5d_autotune_v4_r004.transport import FreshFrameWaitPolicyV1
 from step5d_autotune_v4_r004.prerequisites import (
     load_controller_receipt,
     load_runtime_evidence,
@@ -128,6 +130,130 @@ R006_LIVE_ACK = "RUN_LIVE_R006_WITH_EXPLICIT_ACK"
 R006_LIVE_ADAPTER_SCHEMA = "step5d.autotune-v4/r006-live-adapter-v1"
 
 
+def _controller_target_for_contract(contract: Any) -> str:
+    """Resolve an allowlisted TP target from the versioned contract."""
+
+    script2 = contract.raw.get("script2", {})
+    configured = script2.get("controller_target") if isinstance(script2, Mapping) else None
+    target = str(configured or f"{CONTROLLER_DIRECTORY}/{contract.program}.urp")
+    path = PurePosixPath(target)
+    if (
+        not path.is_absolute()
+        or ".." in path.parts
+        or tuple(path.parts[:3]) != ("/", "programs", "andyl")
+        or path.name != f"{contract.program}.urp"
+    ):
+        raise R006LiveAdapterError(
+            "r006 contract controller target is outside the allowlisted program lineage"
+        )
+    return target
+
+
+@dataclass(frozen=True)
+class R006HomeStartReceiptV1:
+    """Typed stationary Home evidence accepted by an injected path profile.
+
+    The mature writer historically called this evidence ``Script1``.  New
+    path lineages may establish Home with another reviewed, no-contact
+    program, but they must still provide the same immutable fields and bind
+    the exact Home profile which the writer will enforce at every ARM.
+    """
+
+    receipt_sha256: str
+    script_sha256: str
+    observed_at_s: float
+    final_pose: tuple[float, float, float, float, float, float]
+    final_q: tuple[float, float, float, float, float, float]
+    stationary: bool
+    safety_mode: str
+    eoat_identity_sha256: str
+    home_profile_id: str
+
+    def __post_init__(self) -> None:
+        for role, value in (
+            ("Home-start receipt", self.receipt_sha256),
+            ("Home-start script", self.script_sha256),
+            ("Home-start EOAT", self.eoat_identity_sha256),
+        ):
+            _digest(value, role)
+        observed = float(self.observed_at_s)
+        if not math.isfinite(observed):
+            raise R006LiveAdapterError("Home-start timestamp is nonfinite")
+        object.__setattr__(self, "observed_at_s", observed)
+        for role, value in (("pose", self.final_pose), ("q", self.final_q)):
+            parsed = tuple(float(item) for item in value)
+            if len(parsed) != 6 or not all(math.isfinite(item) for item in parsed):
+                raise R006LiveAdapterError(
+                    f"Home-start final {role} must contain six finite values"
+                )
+            object.__setattr__(self, f"final_{role}", parsed)
+        if self.stationary is not True or self.safety_mode != "NORMAL":
+            raise R006LiveAdapterError(
+                "Home-start receipt is not stationary Safety NORMAL"
+            )
+        if not isinstance(self.home_profile_id, str) or not self.home_profile_id:
+            raise R006LiveAdapterError("Home-start profile identity is missing")
+
+
+@dataclass(frozen=True)
+class R006HomeBindingV1:
+    """Scoped Home/profile dependency for one mature writer lifetime."""
+
+    profile: Any
+    reference_type: type
+    entry_receipt: R006HomeStartReceiptV1
+
+    def __post_init__(self) -> None:
+        profile_id = getattr(self.profile, "home_profile_id", None)
+        pose = tuple(float(value) for value in getattr(self.profile, "pose", ()))
+        position_tolerance = float(
+            getattr(self.profile, "position_tolerance_m", float("nan"))
+        )
+        orientation_tolerance = float(
+            getattr(self.profile, "orientation_tolerance_rad", float("nan"))
+        )
+        joint_tolerance = float(
+            getattr(self.profile, "joint_tolerance_rad", float("nan"))
+        )
+        if not isinstance(profile_id, str) or not profile_id:
+            raise R006LiveAdapterError("injected Home profile identity is missing")
+        if len(pose) != 6 or not all(math.isfinite(value) for value in pose):
+            raise R006LiveAdapterError("injected Home pose must contain six finite values")
+        if not all(
+            math.isfinite(value) and value > 0.0
+            for value in (position_tolerance, orientation_tolerance, joint_tolerance)
+        ):
+            raise R006LiveAdapterError("injected Home tolerances are invalid")
+        if not isinstance(self.reference_type, type):
+            raise R006LiveAdapterError("injected Home reference is not a type")
+        receipt = self.entry_receipt
+        if receipt.home_profile_id != profile_id:
+            raise R006LiveAdapterError("Home-start profile identity differs")
+        if receipt.script_sha256 == "0" * 64:
+            raise R006LiveAdapterError("Home-start source digest is a placeholder")
+        if (
+            receipt.eoat_identity_sha256
+            != getattr(self.profile, "eoat_profile_sha256", None)
+        ):
+            raise R006LiveAdapterError("Home-start EOAT binding differs")
+        if math.dist(receipt.final_pose[:3], pose[:3]) > position_tolerance:
+            raise R006LiveAdapterError("Home-start position differs from injected Home")
+        if math.dist(receipt.final_pose[3:], pose[3:]) > orientation_tolerance:
+            raise R006LiveAdapterError("Home-start orientation differs from injected Home")
+        # Construction is part of validation: a reference type which silently
+        # accepts another Home cannot cross this seam.
+        reference = self.reference_type(pose, receipt.final_q)
+        if tuple(reference.pose) != pose or tuple(reference.q or ()) != receipt.final_q:
+            raise R006LiveAdapterError("injected Home reference did not preserve identity")
+
+    @property
+    def entry_script_sha256(self) -> str:
+        return self.entry_receipt.script_sha256
+
+    def load_profile(self) -> Any:
+        return self.profile
+
+
 class R006LiveAdapterError(RuntimeError):
     """The r006 live route failed closed before or during the parent stack."""
 
@@ -143,6 +269,10 @@ class R006Candidate(R005Candidate):
     """
 
     i_mode: IMode = IMode.OFF
+    # Host-side V4 limit-aware trials carry this typed parameter through the
+    # mature candidate object without changing the legacy physical canonical
+    # key.  Stage receipts bind the full V4 candidate identity separately.
+    integral_state_limit_n_s: float = field(default=1.0, compare=False, hash=False)
 
     @staticmethod
     def _finite_positive(value: Any, role: str, *, allow_zero: bool = False) -> float:
@@ -188,6 +318,14 @@ class R006Candidate(R005Candidate):
             "motion_kp": self._finite_positive(self.motion_kp, "Kp"),
             "target_force_n": self._finite_positive(self.target_force_n, "target_force_n", allow_zero=True),
         }
+        limit = self._finite_positive(
+            self.integral_state_limit_n_s,
+            "integral_state_limit_n_s",
+        )
+        if not 0.5 <= limit <= 5.0:
+            raise R006LiveAdapterError(
+                "r006 integral_state_limit_n_s must be within [0.5, 5.0]"
+            )
         if not math.isclose(values["target_force_n"], TARGET_FORCE_N, rel_tol=0.0, abs_tol=1e-12):
             raise R006LiveAdapterError("r006 target force is immutable at 5 N")
         if self.i_mode is IMode.OFF and values["force_i_gain"] != 0.0:
@@ -203,6 +341,7 @@ class R006Candidate(R005Candidate):
             self._quarter_step(values["force_i_gain"], I_ON_ANCHOR, "I")
         for field, value in values.items():
             object.__setattr__(self, field, value)
+        object.__setattr__(self, "integral_state_limit_n_s", limit)
 
     @classmethod
     def from_point(cls, point: ParameterPoint) -> "R006Candidate":
@@ -237,7 +376,8 @@ class R006Candidate(R005Candidate):
             "target_force_n",
             "i_off",
         }
-        if set(payload) != required:
+        allowed = required | {"integral_state_limit_n_s"}
+        if set(payload) - allowed or not required.issubset(payload):
             raise R006LiveAdapterError("r006 candidate canonical fields differ")
         i_off = payload["i_off"]
         if not isinstance(i_off, bool):
@@ -251,6 +391,7 @@ class R006Candidate(R005Candidate):
             motion_kp=payload["motion_kp"],
             target_force_n=payload["target_force_n"],
             i_mode=IMode.OFF if i_off else IMode.ON,
+            integral_state_limit_n_s=payload.get("integral_state_limit_n_s", 1.0),
         )
 
     @property
@@ -313,6 +454,18 @@ class _R006NativeCanonicalQualificationControl(_R004CanonicalQualificationContro
             raise _R004QualificationControlError("canonical runtime-only policy is not typed")
         if self.motion_profile is not None and not isinstance(self.motion_profile, type(R004_MOTION_PROFILE)):
             raise _R004QualificationControlError("qualification motion profile is not typed")
+        if self.r013_baseline_transition_profile is not None:
+            from step5d_autotune_v4_r013.baseline_policy import (
+                R013BaselineTransitionProfileV1,
+            )
+
+            if not isinstance(
+                self.r013_baseline_transition_profile,
+                R013BaselineTransitionProfileV1,
+            ):
+                raise _R004QualificationControlError(
+                    "R013 baseline transition profile is not typed"
+                )
         policy = self.release_contract.raw["live_boundary"][
             "canonical_calibrated_numeric_residual_policy"
         ]
@@ -333,6 +486,8 @@ class _R006NativeCanonicalQualificationControl(_R004CanonicalQualificationContro
             from step5d_autotune_v4_r004.baseline_runtime import (
                 BaselineReadinessGate,
                 BaselineState,
+                PathEntryReleaseGate,
+                PathEntryReleaseState,
             )
             from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime
             from step5d_autotune_v4_r004.path_controller import V4PathController
@@ -365,6 +520,10 @@ class _R006NativeCanonicalQualificationControl(_R004CanonicalQualificationContro
                 if self.path_requested
                 else BaselineReadinessGate()
             )
+            self._path_entry_release_gate = (
+                PathEntryReleaseGate() if self.path_requested else None
+            )
+            self._path_entry_release_state = PathEntryReleaseState()
             self._timing = TimingGuard()
             self._startup = StartupHeartbeatGate()
             try:
@@ -811,6 +970,16 @@ class R006LiveWriter(LiveR004Writer):
             build_state25_row,
             read_live_force_integral,
         )
+        try:
+            from step5d_autotune_v4_r013.state21_baseline_trace import (
+                State21BaselineTrace,
+                build_state21_row,
+            )
+            from step5d_autotune_v4_r013.live_runtime import active_runtime
+        except ImportError:
+            State21BaselineTrace = None  # type: ignore[assignment,misc]
+            build_state21_row = None  # type: ignore[assignment]
+            active_runtime = None  # type: ignore[assignment]
 
         sensor = args[0] if args else kwargs.get("sensor")
         command_mode = kwargs.get("command_mode")
@@ -835,6 +1004,11 @@ class R006LiveWriter(LiveR004Writer):
         path_trace = getattr(self, "_state25_trace", None)
         if not isinstance(path_trace, State25PathTrace):
             path_trace = None
+        baseline_trace = getattr(self, "_state21_trace", None)
+        if State21BaselineTrace is not None and not isinstance(
+            baseline_trace, State21BaselineTrace
+        ):
+            baseline_trace = None
         if trace is not None and tp_state == 20 and sensor is not None and output is not None:
             try:
                 mono = float(self._mono_clock())
@@ -880,14 +1054,105 @@ class R006LiveWriter(LiveR004Writer):
                         command_mode=mode_int,
                         packet_sequence=int(getattr(self, "_packet_sequence", 0)),
                         rtde_timestamp_s=float(output.timestamp),
+                        path_time_s=(
+                            max(0.0, float(output.timestamp) - float(self._path_rtde_origin_s))
+                            if self._path_rtde_origin_s is not None
+                            else None
+                        ),
                         attempt_ordinal=int(getattr(self, "_ordinal", 0) or 0) or None,
                         session_epoch=int(self.prerequisites.session_epoch),
                     )
                 )
             except (TypeError, ValueError, AttributeError, OSError):
                 pass
+        if (
+            baseline_trace is not None
+            and build_state21_row is not None
+            and tp_state == 21
+            and sensor is not None
+            and output is not None
+        ):
+            try:
+                mono = float(self._mono_clock())
+                integral_n_s, integral_limit_n_s = read_live_force_integral(self)
+                runtime = active_runtime() if active_runtime is not None else None
+                diagnostics = getattr(runtime, "_r013_last_diagnostics", {})
+                qualification_control = getattr(
+                    self, "_qualification_control", None
+                )
+                baseline_transition = getattr(
+                    qualification_control, "last_baseline_transition", None
+                )
+                baseline_trace.observe(
+                    build_state21_row(
+                        monotonic_s=mono,
+                        tcp_pose_m_rad=tuple(output.tcp_pose_m_rad),
+                        tcp_speed_m_s_rad_s=tuple(output.tcp_speed_m_s_rad_s),
+                        normal_load_n=float(sensor.normal_load_n),
+                        force_norm_n=float(sensor.force_norm_n),
+                        filtered_normal_n=float(sensor.filtered_normal_n),
+                        torque_norm_nm=float(sensor.torque_norm_nm),
+                        sensor_fresh=bool(sensor.sensor_fresh),
+                        wrench=tuple(sensor.wrench),
+                        command_mode=mode_int,
+                        packet_sequence=int(getattr(self, "_packet_sequence", 0)),
+                        rtde_timestamp_s=float(output.timestamp),
+                        attempt_ordinal=int(getattr(self, "_ordinal", 0) or 0) or None,
+                        attempt_id=str(getattr(self, "attempt_id", "")) or None,
+                        session_epoch=int(self.prerequisites.session_epoch),
+                        setpoint_n=kwargs.get("internal_setpoint_n"),
+                        qdot=kwargs.get("proposed_qdot"),
+                        force_integral_n_s=integral_n_s,
+                        force_integral_limit_n_s=integral_limit_n_s,
+                        force_error_n=diagnostics.get("e_f"),
+                        handoff_policy=(
+                            getattr(runtime, "_r013_handoff", None).policy
+                            if getattr(runtime, "_r013_handoff", None) is not None
+                            else None
+                        ),
+                        baseline_transition=(
+                            baseline_transition
+                            if isinstance(baseline_transition, Mapping)
+                            else None
+                        ),
+                    )
+                )
+            except (TypeError, ValueError, AttributeError, OSError):
+                pass
 
         packet = super()._send_packet(*args, **kwargs)
+
+        # R013's canonical full-lifecycle recorder is intentionally duck
+        # typed here.  The mature R006/R008 writer remains reusable, while
+        # the R013 owner can attach a fixed-size binary observer without
+        # putting JSON or filesystem work on the 500 Hz send path.
+        lifecycle_trace = getattr(self, "_r013_lifecycle_trace", None)
+        if lifecycle_trace is not None and tp_state is not None and tp_state not in {78, 80, 90}:
+            try:
+                lifecycle_trace.observe_tick(
+                    monotonic_s=float(self._mono_clock()),
+                    output=output,
+                    sensor=sensor,
+                    tp_state=tp_state,
+                    command_mode=mode_int,
+                    qdot=kwargs.get("proposed_qdot", (0.0,) * 6),
+                    setpoint_n=kwargs.get("internal_setpoint_n", float("nan")),
+                    packet_sequence=int(getattr(packet, "sequence", getattr(self, "_packet_sequence", 0))),
+                    consumed_packet_sequence=int(
+                        getattr(output, "consumed_packet_sequence", -1)
+                    ),
+                    path_end_requested=bool(
+                        getattr(self, "_r013_path_end_requested", False)
+                    ),
+                )
+            except (TypeError, ValueError, AttributeError, OSError, OverflowError) as exc:
+                # Lifecycle evidence must fail closed at the owner receipt;
+                # it must never turn a sensor/control exception into a
+                # blocking action inside the motion writer.
+                try:
+                    lifecycle_trace.mark_observer_error(str(exc))
+                except AttributeError:
+                    pass
         if packet.stop_dominant and not self._stopped:
             context_kwargs = {
                 "reason_code": int(packet.reason_code),
@@ -964,6 +1229,7 @@ class R006LiveInputs:
         *,
         contract: R006Contract,
         parent_contract: R005Contract,
+        home_binding: R006HomeBindingV1 | None = None,
     ) -> ThresholdReceipt:
         if self.contract_sha256 != contract.sha256:
             raise R006LiveAdapterError("r006 contract digest differs")
@@ -1009,18 +1275,30 @@ class R006LiveInputs:
             raise R006LiveAdapterError("r006 EOAT identity differs from the frozen V4 parent")
         mature_raw = dict(mature_parent.raw)
         script2 = dict(mature_raw.get("script2", {}))
-        script2["controller_target"] = f"{CONTROLLER_DIRECTORY}/{contract.program}.urp"
+        script2["controller_target"] = _controller_target_for_contract(contract)
         mature_raw.update(program=contract.program, script2=script2)
+        entry_script_sha256 = (
+            mature_parent.script1_sha256["script"]
+            if home_binding is None
+            else home_binding.entry_script_sha256
+        )
         identity_contract = _R005MatureIdentityContract(
             path=contract.path,
             sha256=contract.sha256,
             campaign_fingerprint=contract.campaign_fingerprint,
             eoat_sha256=expected_eoat,
-            script1_sha256=mature_parent.script1_sha256,
+            script1_sha256={
+                **dict(mature_parent.script1_sha256),
+                "script": entry_script_sha256,
+            },
             raw=mature_raw,
         )
         controller = load_controller_receipt(parent.controller_receipt)
-        script1_receipt = load_script1_receipt(parent.script1_receipt)
+        script1_receipt = (
+            load_script1_receipt(parent.script1_receipt)
+            if home_binding is None
+            else home_binding.entry_receipt
+        )
         runtime = load_runtime_evidence(parent.runtime_evidence)
         try:
             _validate_controller_receipt_content(
@@ -1030,7 +1308,7 @@ class R006LiveInputs:
             )
             _validate_script1_receipt_content(
                 script1_receipt,
-                expected_script_sha256=mature_parent.script1_sha256["script"],
+                expected_script_sha256=entry_script_sha256,
                 expected_eoat_sha256=expected_eoat,
             )
         except R005LiveAdapterError as exc:
@@ -1894,16 +2172,32 @@ class _R006ScopedRuntimeInjection:
         *,
         motion_profile: Any,
         path_reference: Callable[..., Any],
-        force_integral_limit_n_s: float = 1.0,
+        path_evidence_collector_type: type = R006PathEvidenceCollector,
+            force_integral_limit_n_s: float = 1.0,
+            home_binding: R006HomeBindingV1 | None = None,
+            qualification_profile: Any | None = None,
     ) -> None:
         self.motion_profile = motion_profile
         self.path_reference = path_reference
+        if not isinstance(path_evidence_collector_type, type) or not issubclass(
+            path_evidence_collector_type, R004PathEvidenceCollector
+        ):
+            raise R006LiveAdapterError(
+                "r006 PATH evidence collector must extend the mature collector"
+            )
+        self.path_evidence_collector_type = path_evidence_collector_type
         limit = float(force_integral_limit_n_s)
         if not math.isfinite(limit) or limit <= 0.0:
             raise R006LiveAdapterError(
                 "force_integral_limit_n_s must be positive and finite"
             )
         self.force_integral_limit_n_s = limit
+        if home_binding is not None and not isinstance(
+            home_binding, R006HomeBindingV1
+        ):
+            raise R006LiveAdapterError("r006 Home binding is not typed")
+        self.home_binding = home_binding
+        self.qualification_profile = qualification_profile
         self._saved: dict[tuple[Any, str], Any] = {}
         self._original_control: Callable[..., Any] | None = None
         self._prepared_control: Any | None = None
@@ -1982,6 +2276,31 @@ class _R006ScopedRuntimeInjection:
         self._prepared_control = None
         self._prepared_key = None
 
+    def _require_qualification_profile_binding(self, control: Any) -> None:
+        """Attest the optional R013 profile on the exact prepared object.
+
+        The campaign fingerprint says which profile is intended, but motion is
+        driven by this in-process control instance.  Keep those two layers
+        joined at the factory boundary and again at consume time so an alias,
+        wrapper, or future constructor change cannot silently fall back to the
+        legacy narrow readiness behavior.
+        """
+
+        expected = self.qualification_profile
+        observed = getattr(control, "r013_baseline_transition_profile", None)
+        if observed is not expected:
+            raise R006LiveAdapterError(
+                "r006 prepared canonical control qualification profile binding differs"
+            )
+        if expected is None:
+            return
+        expected_id = getattr(expected, "profile_id", None)
+        observed_id = getattr(observed, "profile_id", None)
+        if not isinstance(expected_id, str) or not expected_id or observed_id != expected_id:
+            raise R006LiveAdapterError(
+                "r006 prepared canonical control qualification profile identity differs"
+            )
+
     def prepare_control(
         self,
         *,
@@ -2019,7 +2338,9 @@ class _R006ScopedRuntimeInjection:
             motion_profile=self.motion_profile,
             canonical_runtime_only=canonical_runtime_only,
             force_integral_limit_n_s=float(self.force_integral_limit_n_s),
+            r013_baseline_transition_profile=self.qualification_profile,
         )
+        self._require_qualification_profile_binding(control)
         # Keep the existing r006 path snapshot patching semantics, but do it
         # while the expensive object is still being prepared at Home.
         self._patch_path_reference()
@@ -2047,6 +2368,11 @@ class _R006ScopedRuntimeInjection:
         ):
             self.clear_prepared_control()
             raise R006LiveAdapterError("r006 prepared canonical control key mismatch")
+        try:
+            self._require_qualification_profile_binding(prepared_control)
+        except Exception:
+            self.clear_prepared_control()
+            raise
         self.clear_prepared_control()
         return prepared_control
 
@@ -2069,7 +2395,7 @@ class _R006ScopedRuntimeInjection:
             candidate: Any,
             target_force_n: float = TARGET_FORCE_N,
         ) -> None:
-            if type(candidate) is R006Candidate:
+            if isinstance(candidate, R006Candidate):
                 if (
                     candidate.target_force_n != TARGET_FORCE_N
                     or target_force_n != TARGET_FORCE_N
@@ -2086,9 +2412,32 @@ class _R006ScopedRuntimeInjection:
             (r004_writer_module, "R004_MOTION_PROFILE", self.motion_profile),
             (r004_writer_module, "step5_path_reference", self.path_reference),
             (r004_wire_module, "assert_target", wire_assert_target),
-            (r004_writer_module, "PathEvidenceCollector", R006PathEvidenceCollector),
+            (
+                r004_writer_module,
+                "PathEvidenceCollector",
+                self.path_evidence_collector_type,
+            ),
             (r004_writer_module, "CanonicalQualificationControl", qualification_control),
         )
+        if self.home_binding is not None:
+            replacements = (
+                *replacements,
+                (
+                    r004_writer_module,
+                    "load_fixed_home_profile",
+                    self.home_binding.load_profile,
+                ),
+                (
+                    r004_writer_module,
+                    "HomeReference",
+                    self.home_binding.reference_type,
+                ),
+                (
+                    r004_session_module,
+                    "HomeReference",
+                    self.home_binding.reference_type,
+                ),
+            )
         try:
             for module, name, value in replacements:
                 self._saved[(module, name)] = getattr(module, name)
@@ -2192,6 +2541,12 @@ def build_verified_mature_r006_writer(
     parent_contract: R005Contract,
     path_sample_sink: Callable[..., Any] | None = None,
     force_integral_limit_n_s: float = 1.0,
+    motion_profile: Any | None = None,
+    path_reference: Callable[..., Any] | None = None,
+    path_evidence_collector_type: type | None = None,
+    home_binding: R006HomeBindingV1 | None = None,
+    fresh_frame_wait_policy: FreshFrameWaitPolicyV1 | None = None,
+    qualification_profile: Any | None = None,
 ) -> R006MatureWriter:
     """Construct the r006 writer after admission without opening transport."""
 
@@ -2199,20 +2554,32 @@ def build_verified_mature_r006_writer(
     mature_parent = _r004_parent_contract(parent_contract)
     mature_raw = dict(mature_parent.raw)
     script2 = dict(mature_raw.get("script2", {}))
-    script2["controller_target"] = f"{CONTROLLER_DIRECTORY}/{contract.program}.urp"
+    script2["controller_target"] = _controller_target_for_contract(contract)
     mature_raw.update(program=contract.program, script2=script2)
+    entry_script_sha256 = (
+        mature_parent.script1_sha256["script"]
+        if home_binding is None
+        else home_binding.entry_script_sha256
+    )
     identity_contract = _R005MatureIdentityContract(
         path=contract.path,
         sha256=contract.sha256,
         campaign_fingerprint=contract.campaign_fingerprint,
         eoat_sha256=parent.eoat_sha256,
-        script1_sha256=mature_parent.script1_sha256,
+        script1_sha256={
+            **dict(mature_parent.script1_sha256),
+            "script": entry_script_sha256,
+        },
         raw=mature_raw,
     )
     prerequisites = _R006MaturePrerequisites(
         contract=identity_contract,
         controller=load_controller_receipt(parent.controller_receipt),
-        script1=load_script1_receipt(parent.script1_receipt),
+        script1=(
+            load_script1_receipt(parent.script1_receipt)
+            if home_binding is None
+            else home_binding.entry_receipt
+        ),
         runtime=load_runtime_evidence(parent.runtime_evidence),
         expected_triplet=dict(inputs.expected_triplet),
         route_id=inputs.route_id,
@@ -2222,6 +2589,13 @@ def build_verified_mature_r006_writer(
             Path(parent.software_baseline_receipt).read_bytes()
         ).hexdigest(),
     )
+    resolved_fresh_frame_wait_policy = (
+        FreshFrameWaitPolicyV1.legacy()
+        if fresh_frame_wait_policy is None
+        else fresh_frame_wait_policy
+    )
+    if not isinstance(resolved_fresh_frame_wait_policy, FreshFrameWaitPolicyV1):
+        raise R006LiveAdapterError("r006 fresh-frame wait policy is not typed")
     writer = R006LiveWriter(
         prerequisites,  # type: ignore[arg-type]
         authority_root=parent.authority_root,
@@ -2235,12 +2609,26 @@ def build_verified_mature_r006_writer(
         runtime_protocol=R006_RUNTIME_PROTOCOL,
         canonical_runtime_only=True,
         path_sample_sink=path_sample_sink,
+        fresh_frame_wait_policy=resolved_fresh_frame_wait_policy,
     )
     writer.session.identity = _R005SessionIdentityGate(identity_contract)
     injection = _R006ScopedRuntimeInjection(
-        motion_profile=ACTIVE_MOTION_ENVELOPE_V2.mature_profile,
-        path_reference=r006_runtime_path_reference,
+        motion_profile=(
+            ACTIVE_MOTION_ENVELOPE_V2.mature_profile
+            if motion_profile is None
+            else motion_profile
+        ),
+        path_reference=(
+            r006_runtime_path_reference if path_reference is None else path_reference
+        ),
+        path_evidence_collector_type=(
+            R006PathEvidenceCollector
+            if path_evidence_collector_type is None
+            else path_evidence_collector_type
+        ),
         force_integral_limit_n_s=float(force_integral_limit_n_s),
+        home_binding=home_binding,
+        qualification_profile=qualification_profile,
     )
     return R006MatureWriter(writer, injection=injection)
 
@@ -2386,6 +2774,8 @@ __all__ = [
     "R006LiveAdapterError",
     "R006LiveInputs",
     "R006LiveWriter",
+    "R006HomeBindingV1",
+    "R006HomeStartReceiptV1",
     "R006PathEvidenceCollector",
     "R006ObservationLedger",
     "R006Candidate",

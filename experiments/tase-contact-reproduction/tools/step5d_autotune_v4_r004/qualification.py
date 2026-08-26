@@ -9,7 +9,7 @@ the single live writer.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .contracts import Candidate, R004Contract
@@ -48,6 +48,7 @@ class CanonicalQualificationControl:
     motion_profile: V4MotionProfile | None = R004_MOTION_PROFILE
     canonical_runtime_only: bool = False
     force_integral_limit_n_s: float = 1.0
+    r013_baseline_transition_profile: Any | None = field(default=None, kw_only=True)
     _setpoint_n: float = 1.0
     _sticky_latched: int = 0
     _last_monotonic_s: float | None = None
@@ -65,6 +66,8 @@ class CanonicalQualificationControl:
     _angular_tolerance_rad_s: float = field(init=False, repr=False)
     _required_hold_s: float = field(init=False, repr=False)
     _readiness_gate: Any = field(init=False, repr=False)
+    _path_entry_release_gate: Any = field(init=False, repr=False)
+    _path_entry_release_state: Any = field(init=False, repr=False)
     _qualification_retract_issued: bool = field(default=False, init=False, repr=False)
     _previous_qdot: tuple[float, float, float, float, float, float] = field(
         default=(0.0,) * 6, init=False, repr=False
@@ -78,6 +81,12 @@ class CanonicalQualificationControl:
     last_path_entry_rate_limit: dict[str, Any] | None = field(
         default=None, init=False, repr=False
     )
+    last_baseline_transition: dict[str, Any] | None = field(
+        default=None, init=False, repr=False
+    )
+    last_baseline_residual: dict[str, Any] | None = field(
+        default=None, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(self.attempt_id, str) or not self.attempt_id:
@@ -86,6 +95,18 @@ class CanonicalQualificationControl:
             raise QualificationControlError("canonical runtime-only policy is not typed")
         if self.motion_profile is not None and not isinstance(self.motion_profile, V4MotionProfile):
             raise QualificationControlError("qualification motion profile is not typed")
+        if self.r013_baseline_transition_profile is not None:
+            from step5d_autotune_v4_r013.baseline_policy import (
+                R013BaselineTransitionProfileV1,
+            )
+
+            if not isinstance(
+                self.r013_baseline_transition_profile,
+                R013BaselineTransitionProfileV1,
+            ):
+                raise QualificationControlError(
+                    "R013 baseline transition profile is not typed"
+                )
         policy = self.release_contract.raw["live_boundary"][
             "canonical_calibrated_numeric_residual_policy"
         ]
@@ -114,6 +135,8 @@ class CanonicalQualificationControl:
             from step5d_autotune_v4_r004.baseline_runtime import (
                 BaselineReadinessGate,
                 BaselineState,
+                PathEntryReleaseGate,
+                PathEntryReleaseState,
             )
             from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime
             from step5d_autotune_v4_r004.runtime import StartupHeartbeatGate, TimingGuard
@@ -149,6 +172,10 @@ class CanonicalQualificationControl:
                 if self.path_requested
                 else BaselineReadinessGate()
             )
+            self._path_entry_release_gate = (
+                PathEntryReleaseGate() if self.path_requested else None
+            )
+            self._path_entry_release_state = PathEntryReleaseState()
             self._timing = TimingGuard()
             self._startup = StartupHeartbeatGate()
         except QualificationControlError:
@@ -175,6 +202,7 @@ class CanonicalQualificationControl:
                 BaselineHardLimits,
                 BaselineObservation,
                 BaselinePhase,
+                step_path_entry_release,
                 step_baseline,
             )
             from step5d_autotune_v4_r004.policies import V4InvariantEnvelope
@@ -230,19 +258,20 @@ class CanonicalQualificationControl:
                     canonical_phase="startup",
                     canonical_reason="startup_two_increments_pending",
                 )
+            baseline_observation = BaselineObservation(
+                dt_s=actual_dt_s,
+                one_newton_latched=bool(self._sticky_latched),
+                filtered_normal_n=tick_log.filtered_normal_n,
+                raw_normal_n=sensor.normal_load_n,
+                force_norm_n=sensor.force_norm_n,
+                torque_norm_nm=sensor.torque_norm_nm,
+                sensor_fresh=sensor.sensor_fresh,
+                stationary=output.stationary,
+            )
             self._baseline_state, baseline_command = step_baseline(
                 self._canonical_candidate,
                 self._baseline_state,
-                BaselineObservation(
-                    dt_s=actual_dt_s,
-                    one_newton_latched=bool(self._sticky_latched),
-                    filtered_normal_n=tick_log.filtered_normal_n,
-                    raw_normal_n=sensor.normal_load_n,
-                    force_norm_n=sensor.force_norm_n,
-                    torque_norm_nm=sensor.torque_norm_nm,
-                    sensor_fresh=sensor.sensor_fresh,
-                    stationary=output.stationary,
-                ),
+                baseline_observation,
                 required_hold_s=self._required_hold_s,
                 readiness_gate=self._readiness_gate,
                 hard_limits=BaselineHardLimits(
@@ -251,6 +280,42 @@ class CanonicalQualificationControl:
                     max_torque_norm_nm=3.0,
                 ),
             )
+            self.last_baseline_transition = None
+            if self.r013_baseline_transition_profile is not None:
+                transition = self.r013_baseline_transition_profile.evaluate(
+                    baseline_state=self._baseline_state,
+                    observation=baseline_observation,
+                    timing_gate_passed=(
+                        observed_dt is not None and not self._timing.stopped
+                    ),
+                    safety_normal=bool(output.safety_normal),
+                )
+                self.last_baseline_transition = transition.as_dict()
+                # This is a state edge, not a level-triggered command rewrite.
+                # On the opening sample we publish one stationary BASELINE
+                # boundary.  On the next fresh sample ``step_baseline`` owns
+                # the already-SUCCESS state and may open RETRACT.  Rewriting
+                # an existing SUCCESS on every tick would reset
+                # ``retract_allowed`` forever and leave qualification waiting
+                # until the TP's independent 30 s watchdog stopped it.
+                if (
+                    transition.path_request_allowed
+                    and self._baseline_state.phase
+                    not in {BaselinePhase.SUCCESS, BaselinePhase.FAILED}
+                ):
+                    self._baseline_state = replace(
+                        self._baseline_state,
+                        phase=BaselinePhase.SUCCESS,
+                        stop_reason="",
+                    )
+                    baseline_command = replace(
+                        baseline_command,
+                        phase=BaselinePhase.SUCCESS,
+                        approach_speed_m_s=0.0,
+                        stop=False,
+                        retract_allowed=False,
+                        reason="",
+                    )
             if self._baseline_state.phase is BaselinePhase.FAILED or baseline_command.stop:
                 raise QualificationControlError(
                     baseline_command.reason or "canonical baseline failed"
@@ -293,9 +358,56 @@ class CanonicalQualificationControl:
                         canonical_phase=self._baseline_state.phase.value,
                         canonical_reason="",
                     )
-                if self._path_origin_monotonic_s is None:
-                    self._path_origin_monotonic_s = now
-                path_time_s = now - self._path_origin_monotonic_s
+                self._path_entry_release_state = step_path_entry_release(
+                    self._path_entry_release_state,
+                    baseline_observation,
+                    gate=self._path_entry_release_gate,
+                )
+                tp_state = int(output.integer_echoes[26])
+                r013_transition_open = self.r013_baseline_transition_profile is not None
+                if r013_transition_open:
+                    if self.last_baseline_transition is not None:
+                        self.last_baseline_transition.update(
+                            {
+                                "narrow_readiness_passed": self._path_entry_release_state.dwell_s > 0.0,
+                                "narrow_path_release_opened": self._path_entry_release_state.opened,
+                            }
+                        )
+                if not r013_transition_open and not self._path_entry_release_state.opened:
+                    self._previous_qdot = (0.0,) * 6
+                    return QualificationCommand(
+                        command_mode=CommandMode.BASELINE,
+                        qdot=(0.0,) * 6,
+                        internal_setpoint_n=self._setpoint_n,
+                        filtered_normal_n=tick_log.filtered_normal_n,
+                        sticky_one_newton_latched=self._sticky_latched,
+                        canonical_phase="success_path_release",
+                        canonical_reason="path_entry_release_dwell_pending",
+                    )
+                if tp_state != 25:
+                    self._previous_qdot = (0.0,) * 6
+                    return QualificationCommand(
+                        command_mode=CommandMode.PATH,
+                        qdot=(0.0,) * 6,
+                        internal_setpoint_n=self._setpoint_n,
+                        filtered_normal_n=tick_log.filtered_normal_n,
+                        sticky_one_newton_latched=self._sticky_latched,
+                        canonical_phase="success_path_release",
+                        canonical_reason=(
+                            "r013_tp_stationary_seam_pending"
+                            if r013_transition_open
+                            else "path_entry_release_open"
+                        ),
+                    )
+                # State 21 is only the zero-tangential transition command. The
+                # PATH controller starts here, after the TP reports state 25.
+                # Preserve the path-clock origin owned by PathEvidenceCollector.
+                if tp_state == 25:
+                    if self._path_origin_monotonic_s is None:
+                        self._path_origin_monotonic_s = now
+                    path_time_s = now - self._path_origin_monotonic_s
+                else:
+                    path_time_s = 0.0
                 tangential_error, orientation_error = self._runtime.path_errors(
                     actual_tcp_pose=output.tcp_pose_m_rad,
                     path_time_s=path_time_s,
@@ -396,7 +508,46 @@ class CanonicalQualificationControl:
                 mode=mode,
                 path_time_s=path_time_s,
             )
-            if self.motion_profile is not None:
+            self.last_baseline_residual = None
+            if (
+                self.r013_baseline_transition_profile is not None
+                and mode == "baseline"
+            ):
+                from step5d_autotune_v4_r013.baseline_policy import (
+                    R013BaselineResidualPolicyV1,
+                )
+
+                residual = R013BaselineResidualPolicyV1().apply(
+                    contract=self._contract,
+                    strict_qdot=calibrated.qdot,
+                    jacobian_6x6=calibrated.jacobian_6x6,
+                    normal_base=(0.0, 0.0, 1.0),
+                    previous_qdot=self._previous_qdot,
+                    actual_dt_s=actual_dt_s,
+                    observed_model_hashes=calibrated.observed_model_hashes,
+                    motion_profile=self.motion_profile,
+                )
+                self.last_baseline_residual = residual.as_dict()
+                if residual.failed_closed:
+                    self._previous_qdot = (0.0,) * 6
+                    return QualificationCommand(
+                        command_mode=CommandMode.BASELINE,
+                        qdot=(0.0,) * 6,
+                        internal_setpoint_n=self._setpoint_n,
+                        filtered_normal_n=tick_log.filtered_normal_n,
+                        sticky_one_newton_latched=self._sticky_latched,
+                        canonical_phase=self._baseline_state.phase.value,
+                        canonical_reason="r013_baseline_residual_zero_fail_closed",
+                    )
+                pre_gate = gate_qdot(
+                    self._contract,
+                    qdot=residual.qdot,
+                    jacobian_6x6=calibrated.jacobian_6x6,
+                    normal_base=(0.0, 0.0, 1.0),
+                    observed_model_hashes=calibrated.observed_model_hashes,
+                    motion_profile=self.motion_profile,
+                )
+            elif self.motion_profile is not None:
                 pre_gate, _slew_scale = rescale_qdot_to_gate(
                     self._contract,
                     qdot=calibrated.qdot,
@@ -428,9 +579,13 @@ class CanonicalQualificationControl:
             ).enforce_gate(pre_gate)
             if not pre_gate.allowed:
                 raise QualificationControlError(pre_gate.reason or "canonical qdot gate blocked")
-            if mode == "baseline" and (
+            if (
+                self.r013_baseline_transition_profile is None
+                and mode == "baseline"
+                and (
                 pre_gate.tangential_m_s > self._tangential_tolerance_m_s
                 or pre_gate.angular_rad_s > self._angular_tolerance_rad_s
+                )
             ):
                 # The strict-RNN warm start can have a tiny Cartesian residual.
                 # Never publish that residual during the one-dimensional

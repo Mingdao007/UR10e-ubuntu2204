@@ -14,6 +14,8 @@ import hashlib
 import json
 import math
 import os
+import resource
+import threading
 import time
 import sys
 from dataclasses import dataclass, replace
@@ -29,6 +31,7 @@ from step5d_autotune_v4_r004.campaign import Attempt, build_campaign_plan  # noq
 from step5d_autotune_v4_r004.contracts import Candidate, PACKET_STALE_S, load_contract, RUNTIME_PROTOCOL, runtime_identity_limbs  # noqa: E402
 from step5d_autotune_v4_r004.evidence import (  # noqa: E402
     AttemptEvidence,
+    CensoredPathEvidence,
     PathEvidenceCollector,
     PathSample,
     QualificationEvidence,
@@ -52,6 +55,7 @@ from step5d_autotune_v4_r004.session import ArmRequest, ResidentSession, Session
 from step5d_autotune_v4_r004.transport import (  # noqa: E402
     LiveR004KunweiTransport,
     LiveR004RTDETransport,
+    FreshFrameWaitPolicyV1,
     R004KunweiTransport,
     R004OutputSnapshot,
     R004RTDETransport,
@@ -90,6 +94,12 @@ PREARM_FIRST_FRAME_POLL_S = 0.002
 PREARM_FIRST_FRAME_MAX_POLLS = math.ceil(
     PREARM_FIRST_FRAME_WAIT_S / PREARM_FIRST_FRAME_POLL_S
 )
+# Four seconds at the 500 Hz writer cadence is fifty times the controller's
+# authoritative 80 ms packet-freshness window.  Keep only this bounded recent
+# history so a long resident campaign cannot accumulate tens of thousands of
+# dead packet records and inject allocation latency into later trials.
+PACKET_HISTORY_LIMIT = 2048
+DEFAULT_PATH_DURATION_S = 60.0
 
 
 @dataclass(frozen=True)
@@ -219,6 +229,62 @@ class LiveWriterError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class PacketHistoryEntry:
+    published_at_s: float
+    qdot: tuple[float, float, float, float, float, float]
+
+
+class BoundedPacketHistory:
+    """Paired packet evidence with fail-closed consumed-sequence lookup."""
+
+    def __init__(self, limit: int = PACKET_HISTORY_LIMIT) -> None:
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+            raise LiveWriterError("packet history limit is invalid")
+        self.limit = limit
+        self._entries: dict[int, PacketHistoryEntry] = {}
+        self._last_recorded_sequence = -1
+        self._last_consumed_sequence = -1
+
+    def record(
+        self,
+        sequence: int,
+        *,
+        published_at_s: float,
+        qdot: Sequence[float],
+    ) -> None:
+        if sequence <= self._last_recorded_sequence:
+            raise LiveWriterError("packet history record sequence did not advance")
+        values = tuple(float(value) for value in qdot)
+        if len(values) != 6 or not all(math.isfinite(value) for value in values):
+            raise LiveWriterError("packet history qdot is invalid")
+        published = float(published_at_s)
+        if not math.isfinite(published):
+            raise LiveWriterError("packet history publish time is invalid")
+        self._entries[sequence] = PacketHistoryEntry(published, values)  # type: ignore[arg-type]
+        self._last_recorded_sequence = sequence
+        while len(self._entries) > self.limit:
+            self._entries.pop(next(iter(self._entries)))
+
+    def consumed(self, sequence: int) -> PacketHistoryEntry:
+        if sequence < 0:
+            raise LiveWriterError("TP consumed packet sequence is unavailable")
+        if sequence < self._last_consumed_sequence:
+            raise LiveWriterError("TP consumed packet sequence regressed")
+        entry = self._entries.get(sequence)
+        if entry is None:
+            raise LiveWriterError("TP consumed packet evidence is outside bounded history")
+        self._last_consumed_sequence = sequence
+        return entry
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    @property
+    def oldest_sequence(self) -> int | None:
+        return next(iter(self._entries), None)
+
+
+@dataclass(frozen=True)
 class LiveWriterTick:
     packet_sequence: int
     session_command_sequence: int
@@ -255,6 +321,7 @@ class LiveR004Writer:
         identity_namespace: str = "r004",
         runtime_protocol: int = RUNTIME_PROTOCOL,
         canonical_runtime_only: bool = False,
+        fresh_frame_wait_policy: FreshFrameWaitPolicyV1 = FreshFrameWaitPolicyV1(),
     ) -> None:
         if route_id != prerequisites.route_id:
             raise LiveWriterError(f"{identity_namespace} route id differs from receipt bundle")
@@ -268,6 +335,8 @@ class LiveR004Writer:
             raise LiveWriterError("writer runtime protocol is invalid")
         if not isinstance(canonical_runtime_only, bool):
             raise LiveWriterError("canonical runtime-only policy is not typed")
+        if not isinstance(fresh_frame_wait_policy, FreshFrameWaitPolicyV1):
+            raise LiveWriterError("fresh-frame wait policy is not typed")
         baseline = tuple(float(value) for value in software_baseline_n)
         if len(baseline) != 6 or not all(math.isfinite(value) for value in baseline):
             raise LiveWriterError("software baseline must contain six finite SI values")
@@ -279,6 +348,7 @@ class LiveR004Writer:
         self.identity_namespace = identity_namespace
         self._runtime_protocol = runtime_protocol
         self._canonical_runtime_only = canonical_runtime_only
+        self._fresh_frame_wait_policy = fresh_frame_wait_policy
         self.controller_host = controller_host
         self.kunwei_host = kunwei_host
         self.kunwei_port = kunwei_port
@@ -292,6 +362,11 @@ class LiveR004Writer:
         # Additive r005 evidence seam.  The default is None, so the mature
         # r004 writer retains its existing evidence and timing behavior.
         self._path_sample_sink = path_sample_sink
+        self._path_duration_s = DEFAULT_PATH_DURATION_S
+        self._r013_path_early_end_controller: Any | None = None
+        self._r013_path_end_requested = False
+        self._r013_path_end_request_sequence: int | None = None
+        self._r013_path_end_request_mono_s: float | None = None
         self.authority: canonical_authority.AuthorityFence | None = None
         self._authority_owner_pid: int | None = None
         self._authority_owner_starttime_ticks: int | None = None
@@ -318,8 +393,7 @@ class LiveR004Writer:
         self._qualification_control: CanonicalQualificationControl | None = None
         self._last_writer_publish_mono_s: float | None = None
         self._last_writer_sequence: int | None = None
-        self._writer_publish_times: dict[int, float] = {}
-        self._qdot_by_packet_sequence: dict[int, tuple[float, ...]] = {}
+        self._packet_history = BoundedPacketHistory()
         self._last_rtde_frame_mono_s: float | None = None
         self._last_rtde_frame_sequence: float | None = None
         self._last_poll_was_fresh = False
@@ -335,6 +409,16 @@ class LiveR004Writer:
             # Host-side hard-tube guard must never block writer construction; stay off.
             self._host_hard_tube = None
         self._last_host_hard_tube: dict[str, Any] | None = None
+        self._poll_telemetry: list[dict[str, Any]] = []
+        self._arm_transition_telemetry: list[dict[str, Any]] = []
+        self._arm_transition_markers: list[dict[str, Any]] = []
+        self._timing_scheduler_lease: Any | None = None
+        self._timing_scheduler_lease_entered = False
+        # R013/V5 owners perform the explicit collection while still at Home
+        # and SCHED_OTHER.  The one-shot token prevents arm() from repeating
+        # that collection after the timing lease has promoted the control
+        # thread, which would recreate the ARM seam stall.
+        self._prearm_gc_collected = False
 
     @property
     def active(self) -> bool:
@@ -355,6 +439,96 @@ class LiveR004Writer:
     @property
     def input_baseline_ledger_sha256(self) -> str:
         return self.prerequisites.input_baseline_ledger_sha256
+
+    @property
+    def fresh_frame_wait_policy(self) -> FreshFrameWaitPolicyV1:
+        return self._fresh_frame_wait_policy
+
+    @property
+    def arm_transition_telemetry(self) -> tuple[dict[str, Any], ...]:
+        """Bounded in-memory RTDE poll evidence for the current attempt."""
+
+        return tuple(self._arm_transition_telemetry)
+
+    @property
+    def arm_transition_markers(self) -> tuple[dict[str, Any], ...]:
+        """Low-rate ARM boundary markers; no filesystem work occurs here."""
+
+        return tuple(self._arm_transition_markers)
+
+    @property
+    def timing_scheduler_receipt(self) -> Mapping[str, Any] | None:
+        lease = getattr(self, "_timing_scheduler_lease", None)
+        if lease is None or not callable(getattr(lease, "receipt", None)):
+            return None
+        receipt = lease.receipt()
+        return dict(receipt) if isinstance(receipt, Mapping) else None
+
+    def install_timing_scheduler_lease(self, lease: Any) -> None:
+        """Install a typed lease that enters after pre-ARM preparation."""
+
+        if lease is None or not callable(getattr(lease, "enter", None)):
+            raise LiveWriterError("timing scheduler lease is not typed")
+        if getattr(self, "_timing_scheduler_lease", None) is not None:
+            raise LiveWriterError("timing scheduler lease is already installed")
+        self._timing_scheduler_lease = lease
+        self._timing_scheduler_lease_entered = False
+
+    def release_timing_scheduler_lease(self) -> Mapping[str, Any] | None:
+        """Restore the caller thread after safe-return handling."""
+
+        lease = getattr(self, "_timing_scheduler_lease", None)
+        self._timing_scheduler_lease = None
+        self._timing_scheduler_lease_entered = False
+        if lease is None:
+            return None
+        result = lease.exit()
+        return dict(result) if isinstance(result, Mapping) else None
+
+    def prepare_timing_scheduler_lease(self) -> None:
+        """Collect once before the timing lease and ARM/session mutation.
+
+        The mature ARM path retains its legacy pre-ARM ``gc.collect`` for
+        direct callers.  A reviewed owner can call this seam while the
+        resident is verified at Home; ``arm`` then consumes the one-shot token
+        instead of forcing a second collection under FIFO.
+        """
+
+        if getattr(self, "_timing_scheduler_lease_entered", False):
+            raise LiveWriterError(
+                "pre-ARM GC preparation is too late after timing lease entry"
+            )
+        gc.collect()
+        self._prearm_gc_collected = True
+
+    def record_arm_transition_marker(self, name: str) -> None:
+        """Record a bounded boundary marker with thread/CS evidence."""
+
+        if not str(name):
+            raise LiveWriterError("ARM transition marker name is empty")
+        try:
+            usage = resource.getrusage(resource.RUSAGE_THREAD)
+            voluntary = int(usage.ru_nvcsw)
+            involuntary = int(usage.ru_nivcsw)
+        except (AttributeError, OSError, ValueError):
+            voluntary = None
+            involuntary = None
+        self._arm_transition_markers.append(
+            {
+                "schema": "step5d.autotune-v4/r004-arm-transition-marker-v1",
+                "name": str(name),
+                "monotonic_s": time.monotonic(),
+                "thread_time_ns": time.thread_time_ns(),
+                "native_tid": threading.get_native_id(),
+                # One-based count makes the marker bind exactly to the most
+                # recent poll row without relying on timestamp proximity.
+                "poll_count": len(self._poll_telemetry),
+                "voluntary_context_switches": voluntary,
+                "involuntary_context_switches": involuntary,
+            }
+        )
+        if len(self._arm_transition_markers) > 16:
+            del self._arm_transition_markers[:-16]
 
     @property
     def authority_active(self) -> bool:
@@ -539,12 +713,41 @@ class LiveR004Writer:
         published_at = self._mono_clock()
         self._last_writer_publish_mono_s = published_at
         self._last_writer_sequence = packet.sequence
-        self._writer_publish_times[packet.sequence] = published_at
-        self._qdot_by_packet_sequence[packet.sequence] = tuple(
-            float(value) for value in packet.double_values[13:19]
+        self._packet_history.record(
+            packet.sequence,
+            published_at_s=published_at,
+            qdot=packet.double_values[13:19],
         )
         self._packet_sequence += 1
         return packet
+
+    def _request_r013_path_end(self, sequence: int) -> None:
+        """Request the typed register35/36 PATH completion once at 60 s."""
+
+        controller = self._r013_path_early_end_controller
+        if controller is None or self._r013_path_end_requested:
+            return
+        if not controller.request_early_end(int(sequence)):
+            raise LiveWriterError(
+                "R013 normal PATH-end handshake rejected the current sequence"
+            )
+        self._r013_path_end_requested = True
+        self._r013_path_end_request_sequence = int(sequence)
+        self._r013_path_end_request_mono_s = self._mono_clock()
+
+    def _r013_external_path_end_requested(self) -> bool:
+        """Return the typed active-censor request without doing I/O."""
+
+        controller = self._r013_path_early_end_controller
+        # The same register is also used by the normal 60 s PATH-end fence;
+        # that path is already represented by the writer-owned request flag
+        # and must still pass the strict 550-bin finalizer.  Only a controller
+        # request not initiated by that normal fence denotes active censoring.
+        return bool(
+            controller is not None
+            and getattr(controller, "requested", False)
+            and not self._r013_path_end_requested
+        )
 
     def _send_safe_stop(self) -> None:
         rtde = self._controller_transport
@@ -591,7 +794,16 @@ class LiveR004Writer:
         )
         if output.integer_echoes.get(24) != self.prerequisites.session_epoch and not prearm_ready:
             raise LiveWriterError("runtime epoch echo differs")
-        if output.integer_echoes.get(32) != self._runtime_protocol or output.integer_echoes.get(33) != hi or output.integer_echoes.get(34) != lo:
+        # R013 (and the prior R012 owner) publish a readable revision/extension
+        # pair in the TP registers.  The admitted receipt still carries the
+        # canonical SHA-derived limbs, so only the wire echo interpretation is
+        # overridden for this resident writer instance.
+        readable_identity = getattr(self, "_readable_runtime_identity", None)
+        expected_echo = (hi, lo) if readable_identity is None else tuple(readable_identity)
+        if (
+            output.integer_echoes.get(32) != self._runtime_protocol
+            or (output.integer_echoes.get(33), output.integer_echoes.get(34)) != expected_echo
+        ):
             raise LiveWriterError("runtime digest echo differs")
         if output.integer_echoes.get(26) == 90:
             raise LiveWriterError(
@@ -605,12 +817,15 @@ class LiveR004Writer:
             return
         if output.observed_at_s <= self._last_identity_observed_s:
             return
+        hi, lo = runtime_identity_limbs(
+            self.contract.raw["program"], self.contract.sha256, self.contract.campaign_fingerprint
+        )
         evidence = RuntimeIdentityEvidence(
             program=self.contract.raw["program"],
             script_sha256=self.prerequisites.controller.script_sha256,
             runtime_protocol=output.integer_echoes[32],
-            runtime_digest_hi=output.integer_echoes[33],
-            runtime_digest_lo=output.integer_echoes[34],
+            runtime_digest_hi=hi,
+            runtime_digest_lo=lo,
             session_epoch=output.integer_echoes[24],
             resident_session_id=self.prerequisites.resident_session_id,
             program_running=output.program_running,
@@ -627,11 +842,40 @@ class LiveR004Writer:
         require_stationary: bool = False,
         allow_prearm_epoch: bool = False,
         allow_empty_cache: bool = False,
+        wait_s: float = 0.0,
     ) -> R004OutputSnapshot | None:
         if allow_empty_cache and not allow_prearm_epoch:
             raise LiveWriterError("empty RTDE output allowance is pre-ARM only")
         rtde, _kunwei = self._transport_pair()
-        output = rtde.poll_output()
+        poll_start = self._mono_clock()
+        poll_thread_start_ns = time.thread_time_ns()
+        output = rtde.poll_output(wait_s=wait_s)
+        poll_thread_end_ns = time.thread_time_ns()
+        recv_telemetry = getattr(rtde, "last_recv_telemetry", {})
+        if isinstance(recv_telemetry, Mapping):
+            if not hasattr(self, "_poll_telemetry"):
+                self._poll_telemetry = []
+            if not hasattr(self, "_arm_transition_telemetry"):
+                self._arm_transition_telemetry = []
+            self._poll_telemetry.append(
+                {
+                    "schema": "step5d.autotune-v4/r004-arm-poll-telemetry-v1",
+                    "poll_start_mono_s": poll_start,
+                    "poll_end_mono_s": self._mono_clock(),
+                    "poll_thread_start_ns": poll_thread_start_ns,
+                    "poll_thread_end_ns": poll_thread_end_ns,
+                    "fresh": output is not None,
+                    "output_timestamp": None if output is None else float(output.timestamp),
+                    "consumed_packet_sequence": (
+                        None if output is None else int(output.consumed_packet_sequence)
+                    ),
+                    "recv": dict(recv_telemetry),
+                }
+            )
+            if len(self._poll_telemetry) > 256:
+                del self._poll_telemetry[:-256]
+            if len(self._arm_transition_telemetry) < 64:
+                self._arm_transition_telemetry.append(dict(self._poll_telemetry[-1]))
         if output is None:
             self._last_poll_was_fresh = False
             if self._wall_clock() - self._last_output_seen_wall_s >= RUNTIME_OUTPUT_MAX_AGE_S:
@@ -970,6 +1214,27 @@ class LiveR004Writer:
                 raise LiveWriterError("r004 ARM ordinal/kind differs from the 16-slot campaign")
         if not self.active:
             raise LiveWriterError("r004 writer is not active")
+        # R013 path-end state is attempt-local.  The owner starts the
+        # lifecycle trace before ARM so the pre-ARM echo is part of the same
+        # receipt; clear the previous attempt before the first ARM packet is
+        # published, otherwise the old request can mark the new receipt as
+        # already-ended at its first row.
+        self._r013_path_end_requested = False
+        self._r013_path_end_request_sequence = None
+        self._r013_path_end_request_mono_s = None
+        # A few focused seam fixtures construct the writer through a minimal
+        # probe object rather than the production __init__.  Keep telemetry
+        # ownership fail-closed without making those fixtures depend on
+        # unrelated transport setup.
+        if not hasattr(self, "_poll_telemetry"):
+            self._poll_telemetry = []
+        if not hasattr(self, "_arm_transition_telemetry"):
+            self._arm_transition_telemetry = []
+        if not hasattr(self, "_arm_transition_markers"):
+            self._arm_transition_markers = []
+        self._poll_telemetry.clear()
+        self._arm_transition_telemetry.clear()
+        self._arm_transition_markers.clear()
         try:
             if not unbounded and ledger is None:
                 raise LiveWriterError("r004 ARM requires its durable campaign ledger")
@@ -983,13 +1248,28 @@ class LiveR004Writer:
                     raise LedgerError("resume ARM requires the verified interrupted row boundary")
             # Match the proven V3 lifecycle: finish any explicit cyclic GC
             # collection while still at the verified pre-ARM Home boundary.
-            # This must remain before every ARM/session-command mutation; a
-            # long collection after ARM can consume the TP freshness window.
-            gc.collect()
+            # Reviewed R013/V5 owners use prepare_timing_scheduler_lease()
+            # before entering FIFO; direct callers retain this fallback.
+            prearm_gc_collected = bool(
+                getattr(self, "_prearm_gc_collected", False)
+            )
+            self._prearm_gc_collected = False
+            if not prearm_gc_collected:
+                gc.collect()
             # This is deliberately before any ARM/session command mutation.
             # Once the session enters ARMING, all later faults remain
             # fail-closed and never reconnect.
             output = self._prearm_output(allow_reconnect=allow_prearm_reconnect)
+            # Keep all ledger verification, allocation, and GC work in
+            # SCHED_OTHER.  The lease enters only after that preparation and
+            # remains installed through execute_attempt and verified Home.
+            if not hasattr(self, "_timing_scheduler_lease"):
+                self._timing_scheduler_lease = None
+            if not hasattr(self, "_timing_scheduler_lease_entered"):
+                self._timing_scheduler_lease_entered = False
+            if self._timing_scheduler_lease is not None:
+                self._timing_scheduler_lease.enter()
+                self._timing_scheduler_lease_entered = True
             self._session_command_sequence += 1
             self._session_command = SessionCommand.ARM
             self._ordinal = ordinal
@@ -1041,6 +1321,7 @@ class LiveR004Writer:
                             raise LiveWriterError("ARM output echo differs")
                         # The echo frame itself also needs a fresh HOLD before
                         # execute_attempt starts its TP stationary dwell.
+                        self.record_arm_transition_marker("arm_echo_observed")
                         break
                 if self._mono_clock() >= echo_deadline:
                     raise LiveWriterError("ARM output echo timeout")
@@ -1049,6 +1330,11 @@ class LiveR004Writer:
             self._entry_angular_speed_rad_s = math.sqrt(sum(value * value for value in output.tcp_speed_m_s_rad_s[3:]))
             return LiveWriterTick(self._packet_sequence - 1, self._session_command_sequence, output, packet)
         except Exception as exc:
+            if getattr(self, "_timing_scheduler_lease_entered", False):
+                try:
+                    self.release_timing_scheduler_lease()
+                except Exception as lease_error:
+                    exc = LiveWriterError(f"{exc}; timing scheduler restore failed: {lease_error}")
             self._fail_closed(str(exc))
             raise LiveWriterError(str(exc)) from exc
 
@@ -1084,6 +1370,7 @@ class LiveR004Writer:
         if attempt.kind is not self._kind:
             raise LiveWriterError("armed attempt kind differs from campaign plan")
         self.candidate = attempt.candidate
+        self.record_arm_transition_marker("execute_attempt_entered")
         path_requested = attempt.kind is not AttemptKind.QUALIFICATION
         self._qualification_control = CanonicalQualificationControl(
             self.candidate,
@@ -1097,6 +1384,9 @@ class LiveR004Writer:
         )
         qualification_collector = QualificationEvidenceCollector() if not path_requested else None
         qualification_timing = TimingEvidenceCollector()
+        self._r013_path_end_requested = False
+        self._r013_path_end_request_sequence = None
+        self._r013_path_end_request_mono_s = None
         baseline_diag: dict[str, Any] = {
             "samples": 0,
             "readiness_samples": 0,
@@ -1116,11 +1406,17 @@ class LiveR004Writer:
         next_publish_s = start
         seen_states: set[int] = set()
         terminal: R004OutputSnapshot | None = None
+        first_hot_loop_poll = True
         try:
             while True:
                 if self._mono_clock() - start >= timeout_s:
                     raise LiveWriterError("r004 attempt execution timeout")
-                output = self._poll_checked()
+                output = self._poll_checked(
+                    wait_s=self._fresh_frame_wait_policy.wait_s
+                )
+                if first_hot_loop_poll:
+                    self.record_arm_transition_marker("first_hot_loop_poll")
+                    first_hot_loop_poll = False
                 state = output.integer_echoes[26]
                 seen_states.add(state)
                 if not self._last_poll_was_fresh:
@@ -1149,11 +1445,12 @@ class LiveR004Writer:
                 path_end_fence = False
                 if state == 25 and self._path_command_started_mono_s is not None:
                     path_elapsed_s = max(0.0, now - self._path_command_started_mono_s)
-                    path_end_fence = path_elapsed_s >= 60.0
+                    path_end_fence = path_elapsed_s >= self._path_duration_s
                 if state == 25 and self._path_rtde_origin_s is not None:
                     path_clock_time_s = max(0.0, output.timestamp - self._path_rtde_origin_s)
                 if state in {21, 25}:
                     if path_end_fence:
+                        self._request_r013_path_end(attempt.ordinal)
                         mode = CommandMode.PATH
                         setpoint = 5.0
                         qdot = (0.0,) * 6
@@ -1269,10 +1566,11 @@ class LiveR004Writer:
                     source_sequences["kunwei"] = self._last_kunwei_frame_sequence
                     source_ages["kunwei"] = max(0.0, now - self._last_kunwei_observed_s)
                 consumed_sequence = output.consumed_packet_sequence
-                consumed_at = self._writer_publish_times.get(consumed_sequence)
-                if consumed_sequence >= 0 and consumed_at is not None:
+                consumed_entry: PacketHistoryEntry | None = None
+                if state in {21, 25}:
+                    consumed_entry = self._packet_history.consumed(consumed_sequence)
                     source_sequences["tp"] = consumed_sequence
-                    source_ages["tp"] = max(0.0, now - consumed_at)
+                    source_ages["tp"] = max(0.0, now - consumed_entry.published_at_s)
 
                 if qualification_collector is not None:
                     qualification_collector.observe(
@@ -1309,9 +1607,9 @@ class LiveR004Writer:
                         state == 25
                         and self._path_command_started_mono_s is not None
                         and path_elapsed_s is not None
-                        and path_elapsed_s < 60.0
+                        and path_elapsed_s < self._path_duration_s
                         and path_clock_time_s is not None
-                        and path_clock_time_s < 60.0
+                        and path_clock_time_s < self._path_duration_s
                         and len(source_sequences) == 4
                         and len(source_ages) == 4
                     ):
@@ -1328,9 +1626,7 @@ class LiveR004Writer:
                             "path_phase": min(6, max(0, int(round(float(reference["phase_rad"]))))),
                             "desired_velocity_m_s": tuple(reference["desired_velocity_xy"]),
                             "actual_velocity_m_s": tuple(output.tcp_speed_m_s_rad_s[:2]),
-                            "qdot": self._qdot_by_packet_sequence.get(
-                                consumed_sequence, tuple(float(value) for value in qdot)
-                            ),
+                            "qdot": consumed_entry.qdot,
                             "actual_qd": tuple(output.qd_rad_s),
                             "source_ages_s": source_ages,
                             "source_sequences": source_sequences,
@@ -1343,7 +1639,7 @@ class LiveR004Writer:
                     if state != 25 or (
                         sample_kwargs
                         and sample_kwargs.get("path_time_s") is not None
-                        and float(sample_kwargs["path_time_s"]) < 60.0
+                        and float(sample_kwargs["path_time_s"]) < self._path_duration_s
                     ):
                         observed_path_sample = PathSample(
                             observed_at_s=now,
@@ -1361,7 +1657,7 @@ class LiveR004Writer:
                             and self._path_sample_sink is not None
                             and observed_path_sample.state == 25
                             and observed_path_sample.path_time_s is not None
-                            and observed_path_sample.path_time_s < 60.0
+                            and observed_path_sample.path_time_s < self._path_duration_s
                         ):
                             self._path_sample_sink(observed_path_sample)
                 if state in {78, 80, 90}:
@@ -1415,11 +1711,22 @@ class LiveR004Writer:
                     timing_evidence=qualification_timing.finalize(),
                 )
             elif path_collector is not None:
-                evidence = path_collector.finalize(
-                    return_gate_passed=decision.passed,
-                    home_proof=home_proof,
-                    contact_gate_passed={20, 21, 25}.issubset(seen_states),
-                )
+                if self._r013_external_path_end_requested():
+                    # Active V4 censoring owns a sequence-matched graceful
+                    # PATH end.  Preserve the partial raw trace as a typed,
+                    # non-trainable receipt instead of sending it through the
+                    # exact 550-bin constructor (which must remain strict).
+                    evidence = path_collector.finalize_censored(
+                        return_gate_passed=decision.passed,
+                        home_proof=home_proof,
+                        contact_gate_passed={20, 21, 25}.issubset(seen_states),
+                    )
+                else:
+                    evidence = path_collector.finalize(
+                        return_gate_passed=decision.passed,
+                        home_proof=home_proof,
+                        contact_gate_passed={20, 21, 25}.issubset(seen_states),
+                    )
             else:  # pragma: no cover - exhaustive construction above
                 raise LiveWriterError("r004 attempt evidence collector is unavailable")
             if not decision.passed or (not evidence.eligible and not allow_safe_nontrainable):
@@ -1471,6 +1778,10 @@ class LiveR004Writer:
         revoke_reason = "failed" if self._failed_closed else "completed"
         try:
             self._send_safe_stop()
+        except Exception as exc:  # pragma: no cover - defensive cleanup path
+            errors.append(exc)
+        try:
+            self.release_timing_scheduler_lease()
         except Exception as exc:  # pragma: no cover - defensive cleanup path
             errors.append(exc)
         # STOP/HOLD-safe RTDE input must be attempted while RTDE is still open;

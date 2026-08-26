@@ -1,0 +1,74 @@
+{
+  "schema": "step5d.autotune-v4/r013-figure8-transfer-config-v1",
+  "version": 1,
+  "transfer_package": {
+    "schema": "step5d.autotune-v4/r013-figure8-transfer-package-v1",
+    "version": 1,
+    "status": "awaiting_cycloid_empirical_floor",
+    "launch_ready": false,
+    "path_id": "r013_figure8_v1",
+    "geometry_status": "offline_geometry_only_not_live_acceptance",
+    "metric_fingerprint": {
+      "schema": "step5d.autotune-v4/r013-metric-fingerprint-v1",
+      "version": 1,
+      "metric_id": "figure8-force-mae-v1",
+      "target_force_n": 5.0,
+      "formal_start_s": 5.0,
+      "formal_end_s": 60.0,
+      "bin_width_s": 0.1,
+      "required_bin_count": 550,
+      "statistic": "mean_abs(mean(normal_load_n_in_bin)-target_force_n)_over_bins"
+    },
+    "transferable": [
+      "P/D",
+      "damping",
+      "I/P",
+      "tau",
+      "anti_windup",
+      "selected_handoff",
+      "admission",
+      "repeat_noise_model"
+    ],
+    "path_specific_unset": [
+      "motion_Kp",
+      "Ko",
+      "figure8_correction"
+    ],
+    "weak_prior_fields": [
+      "correction_bias_weight",
+      "correction_speed_weight",
+      "correction_signed_acceleration_weight",
+      "correction_signed_curvature_weight"
+    ],
+    "sin_cos_weights": [0.0, 0.0],
+    "max_novel": 160,
+    "min_novel": 80,
+    "designed_warm_start_count": 24,
+    "convergence_rule": {
+      "after_novel": 80,
+      "fresh_valid_proposal_count": 25,
+      "max_posterior_probability_strict_less_than": 0.05,
+      "improvement_threshold_n": 0.01,
+      "top3_count": 3,
+      "top3_repeat_min_n": 5,
+      "budget_stop_novel": 160,
+      "no_absolute_mae_early_stop": true
+    },
+    "blockers": [
+      "cycloid_200_novel_empirical_floor_not_executed",
+      "cycloid_final_top3_n5_not_completed",
+      "live_handoff_ab_not_executed",
+      "figure8_correction_runtime_not_installed",
+      "figure8_controller_logger_admission_objective_seam_frozen_for_future_campaign",
+      "figure8_geometry_is_offline_only_not_live_acceptance"
+    ],
+    "frozen_future_campaign_components": [
+      "logger",
+      "handoff",
+      "controller_seam",
+      "objective",
+      "admission",
+      "report_renderer"
+    ]
+  }
+}

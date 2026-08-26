@@ -21,6 +21,11 @@ STATE25_PATH_TRACE_SIDECAR_NAME = "r008-state25-path-trace.jsonl"
 STATE25_STOP_DOMINANT_SCHEMA = "step5d.autotune-v4/r008-state25-stop-dominant-v1"
 STATE25_STOP_DOMINANT_NAME = "r008-state25-stop-dominant.json"
 STATE25_RING_DEFAULT = 256
+# Keep the complete current attempt in memory for consumers that need to
+# compute a per-attempt receipt.  A 60 s trial at the 500 Hz PATH rate is
+# about 30,000 rows; this bounded carrier avoids rescanning a multi-GB,
+# append-only audit sidecar from the motion owner after every trial.
+STATE25_ATTEMPT_ROWS_MAX = 40_000
 # Bound async disk backlog so a slow filesystem cannot stall the 500 Hz loop.
 # Live 170124: per-tick open/append/close on a 337 MB sidecar caused ~129 ms
 # host monotonic gaps (qualification dt gate) while RTDE stayed at 2 ms.
@@ -53,6 +58,8 @@ STATE25_PATH_TRACE_OPTIONAL_LIVE_FIELDS: tuple[str, ...] = (
     "attempt_ordinal",
     "attempt_id",
     "session_epoch",
+    "path_time_s",
+    "relative_path_time_s",
 )
 
 # Additive optional fields for future Ki-pocket / integral diagnostics.
@@ -133,6 +140,7 @@ def build_state25_row(
     command_mode: int | None = None,
     packet_sequence: int | None = None,
     rtde_timestamp_s: float | None = None,
+    path_time_s: float | None = None,
     attempt_ordinal: int | None = None,
     attempt_id: str | None = None,
     session_epoch: int | None = None,
@@ -193,6 +201,9 @@ def build_state25_row(
     rtde_ts = _finite_or_none(rtde_timestamp_s)
     if rtde_ts is not None:
         row["rtde_timestamp_s"] = rtde_ts
+    path_time = _finite_or_none(path_time_s)
+    if path_time is not None:
+        row["path_time_s"] = path_time
     if attempt_ordinal is not None:
         row["attempt_ordinal"] = int(attempt_ordinal)
     if attempt_id:
@@ -407,15 +418,33 @@ class State25PathTrace:
         *,
         ring_size: int = STATE25_RING_DEFAULT,
         write_queue_max: int = STATE25_WRITE_QUEUE_MAX,
+        attempt_rows_max: int = STATE25_ATTEMPT_ROWS_MAX,
+        persistence_stride: int = 1,
     ) -> None:
         if isinstance(ring_size, bool) or not isinstance(ring_size, int) or ring_size < 1:
             raise ValueError("ring_size must be a positive integer")
+        if (
+            isinstance(attempt_rows_max, bool)
+            or not isinstance(attempt_rows_max, int)
+            or attempt_rows_max < 1
+        ):
+            raise ValueError("attempt_rows_max must be a positive integer")
+        if (
+            isinstance(persistence_stride, bool)
+            or not isinstance(persistence_stride, int)
+            or persistence_stride < 1
+        ):
+            raise ValueError("persistence_stride must be a positive integer")
         self.run_dir = Path(run_dir) if run_dir is not None else None
         self._ring: deque[dict[str, Any]] = deque(maxlen=ring_size)
         self._sidecar_path: Path | None = None
         self._rows_written = 0
         self._abs_force_integral_max_n_s: float | None = None
         self._active_attempt_ordinal: int | None = None
+        self._attempt_rows: deque[dict[str, Any]] = deque(maxlen=attempt_rows_max)
+        self._persistence_stride = int(persistence_stride)
+        self._attempt_observation_count = 0
+        self._attempt_path_time_origin_s: float | None = None
         self._writer: _State25SidecarWriter | None = None
         if self.run_dir is not None:
             self._sidecar_path = self.run_dir / STATE25_PATH_TRACE_SIDECAR_NAME
@@ -447,6 +476,29 @@ class State25PathTrace:
             return rows
         return rows[-n:]
 
+    def attempt_rows(self, ordinal: int | None = None) -> list[dict[str, Any]]:
+        """Return the current attempt rows without reading the sidecar.
+
+        The JSONL sidecar remains the durable audit trail.  This bounded,
+        in-memory view is the realtime consumer seam: it prevents a long
+        campaign from repeatedly scanning the entire historical sidecar on
+        the live owner thread between trials.
+        """
+
+        if ordinal is not None and self._active_attempt_ordinal != int(ordinal):
+            return []
+        return list(self._attempt_rows)
+
+    def begin_attempt(self, ordinal: int) -> None:
+        """Flush/reset the prior trace at Home, before the next ARM."""
+
+        if isinstance(ordinal, bool) or not isinstance(ordinal, int) or ordinal <= 0:
+            raise ValueError("attempt ordinal must be a positive integer")
+        if self._active_attempt_ordinal == ordinal:
+            return
+        self.reset_attempt()
+        self._active_attempt_ordinal = ordinal
+
     def observe(self, row: Mapping[str, Any]) -> dict[str, Any]:
         """Record one state-25 tick; enqueue sidecar write off the motion thread."""
 
@@ -456,15 +508,29 @@ class State25PathTrace:
         ordinal = payload.get("attempt_ordinal")
         if isinstance(ordinal, int) and not isinstance(ordinal, bool):
             if self._active_attempt_ordinal is not None and ordinal != self._active_attempt_ordinal:
-                self.reset_attempt()
+                raise ValueError("state25 trace attempt changed without a Home begin_attempt")
             self._active_attempt_ordinal = int(ordinal)
+        path_time = _finite_or_none(payload.get("path_time_s"))
+        if path_time is not None:
+            if self._attempt_path_time_origin_s is None:
+                self._attempt_path_time_origin_s = path_time
+            relative_path_time = path_time - self._attempt_path_time_origin_s
+            if not math.isfinite(relative_path_time) or relative_path_time < 0.0:
+                raise ValueError("state25 authoritative path time regressed")
+            payload["relative_path_time_s"] = relative_path_time
         integral = _finite_or_none(payload.get("force_integral_n_s"))
         if integral is not None:
             abs_i = abs(integral)
             if self._abs_force_integral_max_n_s is None or abs_i > self._abs_force_integral_max_n_s:
                 self._abs_force_integral_max_n_s = abs_i
         self._ring.append(payload)
-        if self._writer is not None:
+        self._attempt_rows.append(payload)
+        self._attempt_observation_count += 1
+        persist = (
+            self._attempt_observation_count == 1
+            or self._attempt_observation_count % self._persistence_stride == 0
+        )
+        if self._writer is not None and persist:
             self._writer.enqueue(payload)
             self._rows_written += 1
         return payload
@@ -510,17 +576,25 @@ class State25PathTrace:
 
         self.flush()
         self._ring.clear()
+        self._attempt_rows.clear()
         self._abs_force_integral_max_n_s = None
         self._active_attempt_ordinal = None
+        self._attempt_observation_count = 0
+        self._attempt_path_time_origin_s = None
 
 
-def attach_state25_trace(owner: Any, run_dir: Path | None) -> State25PathTrace:
+def attach_state25_trace(
+    owner: Any,
+    run_dir: Path | None,
+    *,
+    persistence_stride: int = 1,
+) -> State25PathTrace:
     """Bind a fresh PATH trace onto a live writer (r008 host plumbing)."""
 
     prior = getattr(owner, "_state25_trace", None)
     if isinstance(prior, State25PathTrace):
         prior.close()
-    trace = State25PathTrace(run_dir)
+    trace = State25PathTrace(run_dir, persistence_stride=persistence_stride)
     setattr(owner, "_state25_trace", trace)
     return trace
 

@@ -11,7 +11,9 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import shlex
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -340,6 +342,136 @@ def throughput_lease(
         exclusive=exclusive,
         blocking=blocking,
     )
+
+
+FORMAL_TIMING_OWNER_SCHEMA = "ur10e/formal-timing-lease-owner-v1"
+
+
+def _formal_timing_owner_path(profile: ResourceProfile) -> Path:
+    return profile.lock_root / "formal-timing.owner.json"
+
+
+def _formal_timing_owner_payload(*, task: str) -> dict[str, Any]:
+    starttime = _process_starttime_ticks(os.getpid())
+    if starttime is None:
+        raise RuntimeError("formal timing lease process identity is unavailable")
+    try:
+        tty = os.ttyname(0)
+    except OSError:
+        tty = None
+    return {
+        "schema": FORMAL_TIMING_OWNER_SCHEMA,
+        "pid": os.getpid(),
+        "starttime_ticks": starttime,
+        "task": str(task),
+        "acquired_at": utc_now(),
+        "tty": tty,
+        "cwd": str(Path.cwd()),
+        "command": " ".join(shlex.quote(value) for value in [sys.executable, *sys.argv]),
+    }
+
+
+def formal_timing_owner(profile: ResourceProfile) -> dict[str, Any] | None:
+    """Return the live formal-timing owner, rejecting stale PID reuse."""
+
+    path = _formal_timing_owner_path(profile)
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    required = {
+        "schema",
+        "pid",
+        "starttime_ticks",
+        "task",
+        "acquired_at",
+        "tty",
+        "cwd",
+        "command",
+    }
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != required
+        or payload.get("schema") != FORMAL_TIMING_OWNER_SCHEMA
+        or isinstance(payload.get("pid"), bool)
+        or not isinstance(payload.get("pid"), int)
+        or isinstance(payload.get("starttime_ticks"), bool)
+        or not isinstance(payload.get("starttime_ticks"), int)
+        or not isinstance(payload.get("task"), str)
+        or not payload["task"]
+        or not isinstance(payload.get("acquired_at"), str)
+        or not payload["acquired_at"]
+        or payload.get("tty") is not None
+        and not isinstance(payload.get("tty"), str)
+        or not isinstance(payload.get("cwd"), str)
+        or not payload["cwd"]
+        or not isinstance(payload.get("command"), str)
+        or not payload["command"]
+        or _process_starttime_ticks(payload["pid"]) != payload["starttime_ticks"]
+    ):
+        return None
+    return payload
+
+
+def notify_formal_timing_owner(
+    owner: Mapping[str, Any] | None,
+    message: str,
+) -> bool:
+    """Best-effort TTY notice; never kills or signals another process."""
+
+    if not isinstance(owner, Mapping):
+        return False
+    tty = owner.get("tty")
+    if not isinstance(tty, str) or not tty.startswith("/dev/pts/"):
+        return False
+    try:
+        descriptor = os.open(
+            tty,
+            os.O_WRONLY | os.O_NOCTTY | os.O_NONBLOCK,
+        )
+        try:
+            os.write(descriptor, (f"\n[ur10e formal_timing] {message}\n").encode())
+        finally:
+            os.close(descriptor)
+    except OSError:
+        return False
+    return True
+
+
+@contextmanager
+def formal_timing_lease(
+    profile: ResourceProfile,
+    task: str,
+    *,
+    blocking: bool = True,
+):
+    """Serialize formal timing and live host throughput across processes."""
+
+    with exclusive_lane(profile, "formal-timing", task, blocking=blocking):
+        with throughput_lease(profile, exclusive=True, blocking=blocking):
+            owner_path = _formal_timing_owner_path(profile)
+            # A prior process can die after publishing its metadata but before
+            # unlinking it.  The flock above proves this process owns the lane;
+            # remove only metadata that fails the PID/starttime identity check.
+            if owner_path.exists() and formal_timing_owner(profile) is None:
+                owner_path.unlink(missing_ok=True)
+            owner = _formal_timing_owner_payload(task=task)
+            temporary = owner_path.with_name(
+                f".{owner_path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+            )
+            temporary.write_text(
+                json.dumps(owner, sort_keys=True, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            temporary.replace(owner_path)
+            try:
+                yield owner
+            finally:
+                current = formal_timing_owner(profile)
+                if current == owner:
+                    owner_path.unlink(missing_ok=True)
 
 
 def gpu_memory_usage_pct(device: str | None = None) -> float:

@@ -534,6 +534,10 @@ def _atomic_text(path: Path, text: str) -> None:
 class WritableRTDEClient(RTDEClient):
     """Minimal RTDE v2 input writer with nonblocking latest-output reads."""
 
+    def __init__(self, host: str, port: int = 30004, timeout: float = 3.0) -> None:
+        super().__init__(host, port=port, timeout=timeout)
+        self.last_recv_telemetry: dict[str, Any] = {}
+
     def setup_inputs(self, fields: Sequence[str]) -> tuple[int, list[str]]:
         self._send_packet("I", ",".join(fields).encode())
         packet_type, payload = self._recv_packet()
@@ -577,23 +581,44 @@ class WritableRTDEClient(RTDEClient):
         if self.sock is None:
             raise LiveWriterError("RTDE socket is unavailable")
         latest: dict[str, Any] | None = None
-        while select.select([self.sock], [], [], 0.0)[0]:
-            packet_type, payload = self._recv_packet()
-            if packet_type != ord("U") or not payload or payload[0] != recipe_id:
-                continue
-            cursor = 1
-            values: list[Any] = []
-            for type_name in type_names:
-                fmt = RTDE_TYPES.get(type_name)
-                if fmt is None:
-                    raise LiveWriterError(f"unsupported RTDE output type {type_name}")
-                width = struct.calcsize("!" + fmt)
-                unpacked = struct.unpack("!" + fmt, payload[cursor : cursor + width])
-                cursor += width
-                values.append(unpacked[0] if len(unpacked) == 1 else list(unpacked))
-            if cursor != len(payload):
-                raise LiveWriterError("RTDE output sample has trailing bytes")
-            latest = dict(zip(fields, values, strict=True))
+        drained = 0
+        timestamps: list[float] = []
+        wall_start = time.monotonic_ns()
+        thread_start = time.thread_time_ns()
+        ready = False
+        try:
+            ready = bool(select.select([self.sock], [], [], 0.0)[0])
+            while ready and select.select([self.sock], [], [], 0.0)[0]:
+                packet_type, payload = self._recv_packet()
+                drained += 1
+                if packet_type != ord("U") or not payload or payload[0] != recipe_id:
+                    continue
+                cursor = 1
+                values: list[Any] = []
+                for type_name in type_names:
+                    fmt = RTDE_TYPES.get(type_name)
+                    if fmt is None:
+                        raise LiveWriterError(f"unsupported RTDE output type {type_name}")
+                    width = struct.calcsize("!" + fmt)
+                    unpacked = struct.unpack("!" + fmt, payload[cursor : cursor + width])
+                    cursor += width
+                    values.append(unpacked[0] if len(unpacked) == 1 else list(unpacked))
+                if cursor != len(payload):
+                    raise LiveWriterError("RTDE output sample has trailing bytes")
+                latest = dict(zip(fields, values, strict=True))
+                timestamp = latest.get("timestamp")
+                if isinstance(timestamp, (int, float)) and math.isfinite(float(timestamp)):
+                    timestamps.append(float(timestamp))
+        finally:
+            self.last_recv_telemetry = {
+                "schema": "step5d.autotune-v4/r004-rtde-recv-telemetry-v1",
+                "ready": ready,
+                "drained_packet_count": drained,
+                "oldest_timestamp": min(timestamps) if timestamps else None,
+                "latest_timestamp": max(timestamps) if timestamps else None,
+                "wall_duration_ns": time.monotonic_ns() - wall_start,
+                "thread_duration_ns": time.thread_time_ns() - thread_start,
+            }
         return latest
 
 

@@ -371,6 +371,79 @@ class AttemptEvidence:
 
 
 @dataclass(frozen=True)
+class CensoredPathEvidence:
+    """Typed, deliberately non-trainable evidence for an early PATH end.
+
+    Active V4 censoring returns to verified Home before the 550-bin/60 s
+    exact-path contract is complete.  It must therefore not be represented as
+    :class:`AttemptEvidence` (whose constructor is intentionally fail-closed
+    for full coverage).  The owner consumes this receipt only to seal a
+    typed censored observation; it can never satisfy ``eligible`` or a GP
+    admission gate.
+    """
+
+    complete_bins: int
+    path_samples: int
+    path_bin_ids: tuple[int, ...]
+    path_duration_s: float
+    safety_gate_passed: bool
+    contact_gate_passed: bool
+    return_gate_passed: bool
+    home_proof: Mapping[str, Any]
+    evidence_sha256: str
+    metrics: Mapping[str, Any] = field(default_factory=dict)
+    timing_evidence: TimingEvidence | None = None
+    schema: str = "step5d.autotune-v4/r004-censored-path-evidence-v1"
+    version: int = 1
+
+    def __post_init__(self) -> None:
+        if self.schema != "step5d.autotune-v4/r004-censored-path-evidence-v1" or self.version != 1:
+            raise EvidenceError("censored PATH evidence schema/version differs")
+        if isinstance(self.complete_bins, bool) or not isinstance(self.complete_bins, int) or self.complete_bins < 1 or self.complete_bins >= 550:
+            raise EvidenceError("censored PATH bin count must be partial")
+        if isinstance(self.path_samples, bool) or not isinstance(self.path_samples, int) or self.path_samples < 2:
+            raise EvidenceError("censored PATH sample count is invalid")
+        if not isinstance(self.path_bin_ids, tuple) or len(self.path_bin_ids) != self.complete_bins:
+            raise EvidenceError("censored PATH bin IDs do not match coverage")
+        if any(isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 550 for value in self.path_bin_ids):
+            raise EvidenceError("censored PATH bin ID is invalid")
+        if not math.isfinite(float(self.path_duration_s)) or float(self.path_duration_s) <= 0.0:
+            raise EvidenceError("censored PATH duration is invalid")
+        if not all(isinstance(value, bool) for value in (self.safety_gate_passed, self.contact_gate_passed, self.return_gate_passed)):
+            raise EvidenceError("censored PATH gates are not typed")
+        if not isinstance(self.home_proof, Mapping) or not isinstance(self.metrics, Mapping):
+            raise EvidenceError("censored PATH receipts must be mappings")
+        if len(self.evidence_sha256) != 64 or any(char not in "0123456789abcdef" for char in self.evidence_sha256):
+            raise EvidenceError("censored PATH evidence SHA is invalid")
+        if self.timing_evidence is not None and not isinstance(self.timing_evidence, TimingEvidence):
+            raise EvidenceError("censored PATH timing evidence is not typed")
+
+    @property
+    def eligible(self) -> bool:
+        """Early-ended evidence is never exact/optimizer eligible."""
+
+        return False
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "version": self.version,
+            "complete_bins": self.complete_bins,
+            "path_samples": self.path_samples,
+            "path_bin_ids": list(self.path_bin_ids),
+            "path_duration_s": self.path_duration_s,
+            "safety_gate_passed": self.safety_gate_passed,
+            "contact_gate_passed": self.contact_gate_passed,
+            "return_gate_passed": self.return_gate_passed,
+            "home_proof": dict(self.home_proof),
+            "evidence_sha256": self.evidence_sha256,
+            "metrics": dict(self.metrics),
+            "timing_evidence": None if self.timing_evidence is None else self.timing_evidence.as_dict(),
+            "eligible": False,
+        }
+
+
+@dataclass(frozen=True)
 class QualificationSample:
     observed_at_s: float
     filtered_normal_n: float
@@ -969,6 +1042,91 @@ class PathEvidenceCollector:
             ),
         }
 
+    def finalize_censored(
+        self,
+        *,
+        return_gate_passed: bool,
+        home_proof: Mapping[str, Any],
+        contact_gate_passed: bool | None = None,
+    ) -> CensoredPathEvidence:
+        """Seal partial PATH coverage after a sequence-matched early end.
+
+        This method intentionally does not call ``_motion_metrics`` or the
+        full timing finalizer: those routines enforce the 60 s exact-path
+        contract.  The returned receipt is only a typed non-trainable bridge
+        to the V4 censor protocol and is never admissible to the optimizer.
+        """
+
+        if self.path_started_at_s is None or len(self._bins) <= 0 or len(self._bins) >= self.REQUIRED_BINS:
+            raise EvidenceError("censored PATH requires strictly partial coverage")
+        if len(self._path_samples) < 2:
+            raise EvidenceError("censored PATH has insufficient timing samples")
+        if not isinstance(home_proof, Mapping):
+            raise EvidenceError("censored PATH Home proof is not a mapping")
+        timestamps = [sample.observed_at_s for sample in self._path_samples]
+        intervals = [right - left for left, right in zip(timestamps, timestamps[1:])]
+        if any(not math.isfinite(value) or value <= 0.0 for value in intervals):
+            raise EvidenceError("censored PATH timing is not strictly increasing")
+        if self._path_start_rtde_timestamp_s is not None:
+            if self._last_common_clock is None or not self._rtde_intervals_s:
+                raise EvidenceError("censored PATH common clock evidence is missing")
+            physical_span = self._last_common_clock[0] - self._path_start_rtde_timestamp_s
+            coverage_interval_s = statistics.median(self._rtde_intervals_s)
+        else:
+            physical_span = timestamps[-1] - timestamps[0]
+            coverage_interval_s = statistics.median(intervals)
+        if not math.isfinite(physical_span) or physical_span <= 0.0:
+            raise EvidenceError("censored PATH physical span is invalid")
+        if not math.isfinite(coverage_interval_s) or coverage_interval_s <= 0.0:
+            raise EvidenceError("censored PATH cadence is invalid")
+        path_duration_s = physical_span + coverage_interval_s
+        material = _json_safe(
+            {
+                "schema": "step5d.autotune-v4/r004-censored-path-evidence-v1",
+                "complete_bins": len(self._bins),
+                "path_bin_ids": sorted(self._bins),
+                "path_samples": len(self._path_samples),
+                "path_duration_s": path_duration_s,
+                "safety_gate_passed": self.safety_gate_passed,
+                "contact_gate_passed": bool(
+                    contact_gate_passed
+                    if contact_gate_passed is not None
+                    else {20, 21, 25}.issubset(self._states)
+                ),
+                "return_gate_passed": bool(return_gate_passed),
+                "home_proof": dict(home_proof),
+            }
+        )
+        digest = hashlib.sha256(
+            json.dumps(material, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        ).hexdigest()
+        metrics: dict[str, Any] = {
+            "state_codes": sorted(self._states),
+            "complete_bins": len(self._bins),
+            "path_bin_ids": sorted(self._bins),
+            "path_duration_s": path_duration_s,
+            "path_coverage_interval_s": coverage_interval_s,
+            "path_cadence_hz": 1.0 / coverage_interval_s,
+            "timing_observation_error": self._timing_observation_error,
+            "censored": True,
+        }
+        return CensoredPathEvidence(
+            complete_bins=len(self._bins),
+            path_samples=len(self._path_samples),
+            path_bin_ids=tuple(sorted(self._bins)),
+            path_duration_s=path_duration_s,
+            safety_gate_passed=self.safety_gate_passed,
+            contact_gate_passed=bool(
+                contact_gate_passed
+                if contact_gate_passed is not None
+                else {20, 21, 25}.issubset(self._states)
+            ),
+            return_gate_passed=bool(return_gate_passed),
+            home_proof=dict(home_proof),
+            evidence_sha256=digest,
+            metrics=metrics,
+        )
+
     def finalize(
         self,
         *,
@@ -1076,6 +1234,7 @@ class PathEvidenceCollector:
 
 __all__ = [
     "AttemptEvidence",
+    "CensoredPathEvidence",
     "ENDPOINT_ERROR_MAX_M",
     "EvidenceError",
     "PATH_DURATION_MIN_S",

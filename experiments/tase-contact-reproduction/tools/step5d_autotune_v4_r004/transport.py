@@ -9,6 +9,7 @@ path and never performs Load, Play, zero, tare, or sensor configuration.
 from __future__ import annotations
 
 import math
+import select
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -57,6 +58,77 @@ OUTPUT_FIELDS = (
 
 class TransportError(RuntimeError):
     """A canonical transport or r004 recipe failed closed."""
+
+
+FRESH_FRAME_WAIT_POLICY_SCHEMA = "step5d.autotune-v5/fresh-frame-wait-policy-v1"
+FRESH_FRAME_WAIT_POLICY_VERSION = 1
+FRESH_FRAME_WAIT_MAX_S = 0.004
+
+
+def validate_fresh_frame_wait_s(wait_s: float) -> float:
+    if isinstance(wait_s, bool) or not isinstance(wait_s, (int, float)):
+        raise TransportError("fresh-frame wait must be a numeric float")
+    value = float(wait_s)
+    if not math.isfinite(value) or not 0.0 <= value <= FRESH_FRAME_WAIT_MAX_S:
+        raise TransportError(
+            f"fresh-frame wait must be finite in [0.0, {FRESH_FRAME_WAIT_MAX_S}] seconds"
+        )
+    return value
+
+
+@dataclass(frozen=True)
+class FreshFrameWaitPolicyV1:
+    """Bounded controller-frame rendezvous policy for the V5 hot loop."""
+
+    wait_s: float = 0.0
+    schema: str = FRESH_FRAME_WAIT_POLICY_SCHEMA
+    version: int = FRESH_FRAME_WAIT_POLICY_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema != FRESH_FRAME_WAIT_POLICY_SCHEMA:
+            raise TransportError("fresh-frame wait policy schema differs")
+        if (
+            isinstance(self.version, bool)
+            or not isinstance(self.version, int)
+            or self.version != FRESH_FRAME_WAIT_POLICY_VERSION
+        ):
+            raise TransportError("fresh-frame wait policy version differs")
+        object.__setattr__(self, "wait_s", validate_fresh_frame_wait_s(self.wait_s))
+
+    @classmethod
+    def legacy(cls) -> "FreshFrameWaitPolicyV1":
+        return cls(wait_s=0.0)
+
+    @classmethod
+    def v5(cls) -> "FreshFrameWaitPolicyV1":
+        return cls(wait_s=FRESH_FRAME_WAIT_MAX_S)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "FreshFrameWaitPolicyV1":
+        if not isinstance(value, Mapping):
+            raise TransportError("fresh-frame wait policy must be an object")
+        return cls(
+            wait_s=value.get("wait_s", 0.0),
+            schema=value.get("schema", FRESH_FRAME_WAIT_POLICY_SCHEMA),
+            version=value.get("version", FRESH_FRAME_WAIT_POLICY_VERSION),
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "version": self.version,
+            "wait_s": self.wait_s,
+        }
+
+
+def _wait_for_rtde_readable(client: Any, wait_s: float) -> bool:
+    wait = validate_fresh_frame_wait_s(wait_s)
+    if wait == 0.0:
+        return True
+    socket = getattr(client, "sock", None)
+    if socket is None:
+        raise TransportError("RTDE socket is unavailable for fresh-frame wait")
+    return bool(select.select([socket], [], [], wait)[0])
 
 
 @dataclass(frozen=True)
@@ -153,7 +225,7 @@ class R004RTDETransport(Protocol):
     def open(self) -> None: ...
     def close(self) -> None: ...
     def send_packet(self, double_values: Sequence[float], integer_values: Sequence[int]) -> None: ...
-    def poll_output(self) -> R004OutputSnapshot | None: ...
+    def poll_output(self, *, wait_s: float = 0.0) -> R004OutputSnapshot | None: ...
 
 
 class R004KunweiTransport(Protocol):
@@ -233,6 +305,7 @@ class LiveR004RTDETransport:
         self.output_types: list[str] = []
         self.latest: R004OutputSnapshot | None = None
         self._last_controller_timestamp: float | None = None
+        self.last_recv_telemetry: dict[str, Any] = {}
 
     def open(self) -> None:
         if self.client is not None:
@@ -261,6 +334,7 @@ class LiveR004RTDETransport:
             client.__exit__(None, None, None)
         self.latest = None
         self._last_controller_timestamp = None
+        self.last_recv_telemetry = {}
 
     def send_packet(self, double_values: Sequence[float], integer_values: Sequence[int]) -> None:
         client = self.client
@@ -291,12 +365,31 @@ class LiveR004RTDETransport:
         except Exception as exc:
             raise TransportError(f"canonical r004 RTDE input write failed: {exc}") from exc
 
-    def poll_output(self) -> R004OutputSnapshot | None:
+    def poll_output(self, *, wait_s: float = 0.0) -> R004OutputSnapshot | None:
         client = self.client
         if client is None:
             raise TransportError("r004 RTDE transport is not open")
+        poll_start_ns = time.monotonic_ns()
+        poll_thread_start_ns = time.thread_time_ns()
         try:
+            ready = _wait_for_rtde_readable(client, wait_s)
+            if not ready:
+                self.last_recv_telemetry = {
+                    "schema": "step5d.autotune-v4/r004-rtde-poll-telemetry-v1",
+                    "ready": False,
+                    "drained_packet_count": 0,
+                    "wall_duration_ns": time.monotonic_ns() - poll_start_ns,
+                    "thread_duration_ns": time.thread_time_ns() - poll_thread_start_ns,
+                }
+                return None
             raw = client.recv_latest_sample(self.output_recipe, self.output_types, OUTPUT_FIELDS)
+            self.last_recv_telemetry = {
+                "schema": "step5d.autotune-v4/r004-rtde-poll-telemetry-v1",
+                "ready": True,
+                "poll_wall_duration_ns": time.monotonic_ns() - poll_start_ns,
+                "poll_thread_duration_ns": time.thread_time_ns() - poll_thread_start_ns,
+                "recv": dict(getattr(client, "last_recv_telemetry", {})),
+            }
             if raw is None:
                 return None
             candidate = R004OutputSnapshot.from_mapping(time.time(), raw)
@@ -396,6 +489,10 @@ def expected_eoat() -> tuple[float, tuple[float, float, float], tuple[float, flo
 
 
 __all__ = [
+    "FRESH_FRAME_WAIT_MAX_S",
+    "FRESH_FRAME_WAIT_POLICY_SCHEMA",
+    "FRESH_FRAME_WAIT_POLICY_VERSION",
+    "FreshFrameWaitPolicyV1",
     "INPUT_DOUBLE_FIELDS",
     "INPUT_INTEGER_FIELDS",
     "OUTPUT_FIELDS",
@@ -406,6 +503,7 @@ __all__ = [
     "LiveR004RTDETransport",
     "KunweiSample",
     "TransportError",
+    "validate_fresh_frame_wait_s",
     "expected_eoat",
     "expected_runtime_identity",
 ]

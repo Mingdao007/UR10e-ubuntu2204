@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 import math
+import queue
+import threading
 from collections import deque
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Sequence
@@ -19,6 +21,11 @@ STATE20_SEARCH_TRACE_SIDECAR_NAME = "r008-state20-search-trace.jsonl"
 STATE20_STOP_DOMINANT_SCHEMA = "step5d.autotune-v4/r008-state20-stop-dominant-v1"
 STATE20_STOP_DOMINANT_NAME = "r008-state20-stop-dominant.json"
 STATE20_RING_DEFAULT = 64
+# State20 is called from the same host loop as the 500 Hz writer.  Keep its
+# observation-only sidecar off that loop; synchronous open/append/close can
+# create a host gap larger than the TP freshness bound.
+STATE20_WRITE_QUEUE_MAX = 4096
+_STATE20_WRITER_SENTINEL = object()
 
 
 def _finite_or_none(value: Any) -> float | None:
@@ -179,21 +186,108 @@ def dump_stop_dominant_json(run_dir: Path, context: Mapping[str, Any]) -> Path:
     return path
 
 
+class _State20SidecarWriter:
+    """Background JSONL writer; the motion thread only enqueues rows."""
+
+    def __init__(self, path: Path, *, maxsize: int = STATE20_WRITE_QUEUE_MAX) -> None:
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._queue: queue.Queue[Any] = queue.Queue(maxsize=max(1, int(maxsize)))
+        self._dropped = 0
+        self._closed = False
+        self._thread = threading.Thread(
+            target=self._run,
+            name="r008-state20-sidecar-writer",
+            daemon=True,
+        )
+        self._thread.start()
+
+    @property
+    def dropped(self) -> int:
+        return int(self._dropped)
+
+    def enqueue(self, row: Mapping[str, Any]) -> None:
+        if self._closed:
+            return
+        payload = dict(row)
+        while True:
+            try:
+                self._queue.put_nowait(payload)
+                return
+            except queue.Full:
+                try:
+                    self._queue.get_nowait()
+                    self._dropped += 1
+                    self._queue.task_done()
+                except queue.Empty:
+                    pass
+
+    def flush(self, timeout_s: float = 30.0) -> None:
+        if self._closed:
+            return
+        done = threading.Event()
+
+        def mark() -> None:
+            done.set()
+
+        self._queue.put(mark)
+        if not done.wait(timeout=float(timeout_s)):
+            raise TimeoutError("state20 sidecar writer flush timed out")
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._queue.put(_STATE20_WRITER_SENTINEL)
+        self._thread.join(timeout=30.0)
+
+    def _run(self) -> None:
+        with self.path.open("a", encoding="utf-8") as handle:
+            while True:
+                item = self._queue.get()
+                try:
+                    if item is _STATE20_WRITER_SENTINEL:
+                        handle.flush()
+                        return
+                    if callable(item):
+                        handle.flush()
+                        item()
+                        continue
+                    handle.write(json.dumps(item, sort_keys=True, allow_nan=False) + "\n")
+                finally:
+                    self._queue.task_done()
+
+
 class State20SearchTrace:
-    """In-process ring + optional run-dir sidecar for state-20 ticks."""
+    """In-process ring + optional asynchronous run-dir sidecar for state-20 ticks."""
 
     def __init__(
         self,
         run_dir: Path | None = None,
         *,
         ring_size: int = STATE20_RING_DEFAULT,
+        async_write: bool = False,
+        persistence_stride: int = 1,
     ) -> None:
         if isinstance(ring_size, bool) or not isinstance(ring_size, int) or ring_size < 1:
             raise ValueError("ring_size must be a positive integer")
+        if (
+            isinstance(persistence_stride, bool)
+            or not isinstance(persistence_stride, int)
+            or persistence_stride < 1
+        ):
+            raise ValueError("persistence_stride must be a positive integer")
         self.run_dir = Path(run_dir) if run_dir is not None else None
         self._ring: deque[dict[str, Any]] = deque(maxlen=ring_size)
         self._sidecar_path: Path | None = None
         self._rows_written = 0
+        self._persistence_stride = int(persistence_stride)
+        self._observation_count = 0
+        self._writer: _State20SidecarWriter | None = None
+        if self.run_dir is not None:
+            self._sidecar_path = self.run_dir / STATE20_SEARCH_TRACE_SIDECAR_NAME
+            if async_write:
+                self._writer = _State20SidecarWriter(self._sidecar_path)
 
     @property
     def rows_written(self) -> int:
@@ -202,6 +296,12 @@ class State20SearchTrace:
     @property
     def sidecar_path(self) -> Path | None:
         return self._sidecar_path
+
+    @property
+    def sidecar_dropped(self) -> int:
+        if self._writer is None:
+            return 0
+        return int(self._writer.dropped)
 
     def recent_rows(self, n: int | None = None) -> list[dict[str, Any]]:
         rows = list(self._ring)
@@ -216,12 +316,38 @@ class State20SearchTrace:
         if payload.get("schema") != STATE20_SEARCH_TRACE_SCHEMA:
             payload["schema"] = STATE20_SEARCH_TRACE_SCHEMA
         self._ring.append(payload)
-        if self.run_dir is not None:
+        self._observation_count += 1
+        persist = (
+            self._observation_count == 1
+            or self._observation_count % self._persistence_stride == 0
+        )
+        if self._writer is not None and persist:
+            self._writer.enqueue(payload)
+            self._rows_written += 1
+        elif self.run_dir is not None and persist:
             self._sidecar_path = append_state20_sidecar(self.run_dir, payload)
             self._rows_written += 1
         return payload
 
+    def flush(self, timeout_s: float = 30.0) -> None:
+        """Drain queued observation rows at a non-motion boundary."""
+
+        if self._writer is not None:
+            self._writer.flush(timeout_s=timeout_s)
+
+    def close(self) -> None:
+        """Flush and stop the background sidecar writer."""
+
+        if self._writer is not None:
+            try:
+                self._writer.flush(timeout_s=30.0)
+            except TimeoutError:
+                pass
+            self._writer.close()
+            self._writer = None
+
     def stop_dominant_context(self, **kwargs: Any) -> dict[str, Any]:
+        self.flush()
         sidecar = str(self._sidecar_path) if self._sidecar_path is not None else None
         if sidecar is None and self.run_dir is not None:
             sidecar = str(self.run_dir / STATE20_SEARCH_TRACE_SIDECAR_NAME)
@@ -234,13 +360,26 @@ class State20SearchTrace:
     def dump_stop_dominant(self, context: Mapping[str, Any]) -> Path | None:
         if self.run_dir is None:
             return None
+        self.flush()
         return dump_stop_dominant_json(self.run_dir, context)
 
 
-def attach_state20_trace(owner: Any, run_dir: Path | None) -> State20SearchTrace:
+def attach_state20_trace(
+    owner: Any,
+    run_dir: Path | None,
+    *,
+    persistence_stride: int = 1,
+) -> State20SearchTrace:
     """Bind a fresh trace onto a live writer (r008 host plumbing)."""
 
-    trace = State20SearchTrace(run_dir)
+    # The live writer shares this trace's call site with the 500 Hz control
+    # loop.  Keep disk I/O asynchronous there; direct helper users retain the
+    # historical synchronous constructor behavior.
+    trace = State20SearchTrace(
+        run_dir,
+        async_write=True,
+        persistence_stride=persistence_stride,
+    )
     setattr(owner, "_state20_trace", trace)
     return trace
 

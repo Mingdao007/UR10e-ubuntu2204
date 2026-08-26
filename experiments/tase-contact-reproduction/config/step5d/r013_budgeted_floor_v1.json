@@ -1,0 +1,129 @@
+{
+  "schema": "step5d.autotune-v4/r013-budgeted-floor-config-v1",
+  "version": 1,
+  "status": "offline_prepared_awaiting_live_prerequisites",
+  "launch_ready": false,
+  "blockers": [
+    "live_handoff_ab_not_executed",
+    "outward_boundary_runtime_primitive_not_installed",
+    "context_correction_runtime_primitive_not_installed",
+    "cycloid_200_novel_not_executed"
+  ],
+  "completion_policy": {
+    "schema": "step5d.autotune-v4/r013-completion-policy-v1",
+    "version": 1,
+    "policy": "budgeted_floor_v1",
+    "target_mae_n": 0.35,
+    "novel_exact_candidate_target": 200,
+    "checkpoint_only_target": true
+  },
+  "handoff_policy": null,
+  "selected_handoff_policy": null,
+  "handoff_plan": {
+    "schema": "step5d.autotune-v4/r013-handoff-ab-plan-v1",
+    "version": 1,
+    "sequence": ["A", "B", "B", "A", "A", "B"],
+    "arm_policy": {
+      "A": "blind_reset_v0",
+      "B": "freeze_carry_v1"
+    },
+    "evidence": [],
+    "provisional_policy": null,
+    "selected_policy": null,
+    "selected_repeat_count": 0,
+    "complete_initial": false,
+    "complete": false,
+    "next_arm": "A",
+    "selection_receipt": null
+  },
+  "handoff_selection_receipt": null,
+  "floor_discovery_policy": {
+    "schema": "step5d.autotune-v4/r013-floor-discovery-policy-v1",
+    "version": 1,
+    "novel_target": 200,
+    "controller_core_target": 100,
+    "correction_target": 60,
+    "polish_target": 40,
+    "core_initial_block_size": 16,
+    "core_boundary_probe_count": 3,
+    "core_initial_sobol_count": 13,
+    "core_remaining_target": 84,
+    "core_every_fifth_global_sobol": true,
+    "correction_sobol_count": 12,
+    "correction_qlognei_count": 48,
+    "polish_core_local_count": 20,
+    "polish_correction_local_count": 20,
+    "candidate_pool_size": 128,
+    "sentinel_interval": 10,
+    "adaptive_repeat_target_n": 3,
+    "final_top_k": 3,
+    "final_repeat_target_n": 5,
+    "target_mae_n": 0.35,
+    "checkpoint_only": true,
+    "no_mae_early_stop": true,
+    "same_failure_pause_after": 3,
+    "sentinel_drift_threshold_n": 0.05,
+    "sentinel_drift_sigma_multiplier": 3.0,
+    "fixed_orientation_ko": 0.05,
+    "fixed_motion_kp": 1.5,
+    "target_force_n": 5.0,
+    "correction_weight_bounds_schema": "step5d.autotune-v4/r013-correction-weight-bounds-v1",
+    "correction_weight_bounds": [
+      [-0.5, 0.5],
+      [-0.5, 0.5],
+      [-0.5, 0.5],
+      [-0.5, 0.5],
+      [-0.5, 0.5],
+      [-0.5, 0.5]
+    ],
+    "correction_normalization_schema": "step5d.autotune-v4/r013-correction-normalization-v1",
+    "correction_normalization_scales": [1.0, 0.01, 0.002, 100.0, 1.0, 1.0],
+    "local_radius_policy": {
+      "schema": "step5d.autotune-v4/r013-local-radius-policy-v1",
+      "version": 1,
+      "core_radius": [0.5, 0.5, 0.5, 0.5],
+      "correction_radius": [0.125, 0.125, 0.125, 0.125, 0.125, 0.125],
+      "candidate_pool_size": 128,
+      "fresh_pool_required": true,
+      "q": 1
+    },
+    "boundary_challenges": [
+      {
+        "schema": "step5d.autotune-v4/r013-boundary-challenge-v1",
+        "version": 1,
+        "name": "tau",
+        "axis": "normal_filter_tau_s",
+        "baseline_value": 0.04375,
+        "outward_value": 0.03094
+      },
+      {
+        "schema": "step5d.autotune-v4/r013-boundary-challenge-v1",
+        "version": 1,
+        "name": "Ko",
+        "axis": "orientation_ko",
+        "baseline_value": 0.05,
+        "outward_value": 0.03536
+      },
+      {
+        "schema": "step5d.autotune-v4/r013-boundary-challenge-v1",
+        "version": 1,
+        "name": "I/P",
+        "axis": "force_i_gain_over_force_p_gain",
+        "baseline_value": 0.5,
+        "outward_value": 0.7071
+      }
+    ]
+  },
+  "campaign_fingerprint": {
+    "schema": "step5d.autotune-v4/r013-campaign-fingerprint-v1",
+    "version": 1,
+    "path_id": "r013_state25_force_mae_v2_path",
+    "metric_fingerprint": "force-mae-v2-sealed|formal=[5,60)|bin=0.1s|target=5N",
+    "handoff_policy": "pending_handoff_selection_v1",
+    "correction_runtime_strategy_identity": "r013_runtime_strategy_profile_v1",
+    "source_identity": "r012_confirmed_coordinates_only_fresh_r013_ledger",
+    "eoat_identity": "new_eoat_v4_profile",
+    "home_tare_identity": "script1_fixed_home_plus_read_only_kunwei_baseline_v1",
+    "controller_lineage": "step5d_strict_rnn_autotune_v4_r013"
+  }
+}

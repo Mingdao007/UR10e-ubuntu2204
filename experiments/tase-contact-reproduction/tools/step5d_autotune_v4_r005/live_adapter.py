@@ -38,7 +38,12 @@ from step5d_autotune_v4_r004.transport import (
 )
 from step5d_autotune_v4_r004_live_writer import LIVE_ACK as R004_LIVE_ACK
 from step5d_autotune_v4_r004_live_writer import LiveR004Writer
-from step5d_autotune_v4_r004.evidence import AttemptEvidence, PathSample, QualificationEvidence
+from step5d_autotune_v4_r004.evidence import (
+    AttemptEvidence,
+    CensoredPathEvidence,
+    PathSample,
+    QualificationEvidence,
+)
 from step5d_autotune_v4_r004.wire import AttemptKind as R004AttemptKind
 from step5d_eoat_profiles import load_new_eoat_profile
 
@@ -696,6 +701,7 @@ class R005MatureWriter:
         self.writer = writer
         self._attempt: Attempt | None = None
         self._ticket: Any = None
+        self._prepared_mature_attempt: _R005MatureAttempt | None = None
 
     @property
     def _path_sample_sink(self) -> Callable[[PathSample], None] | None:
@@ -763,11 +769,28 @@ class R005MatureWriter:
             raise R005LiveAdapterError("r005 mature writer has two dispatched attempts")
         self._attempt = attempt
         self._ticket = ticket
+        self._prepared_mature_attempt = None
+
+    def prepare_attempt(self, attempt: Attempt) -> None:
+        """Prebuild the mature attempt DTO before the ARM timing lease."""
+
+        if self._attempt != attempt or self._ticket is None:
+            raise R005LiveAdapterError("r005 preparation does not match the dispatched ticket")
+        self._prepared_mature_attempt = _R005MatureAttempt(
+            ordinal=attempt.attempt_sequence,
+            kind=self._kind(attempt.kind),
+            candidate=self._candidate(attempt.candidate),
+        )
 
     def arm(self, attempt: Attempt) -> None:
         if self._attempt != attempt or self._ticket is None:
             raise R005LiveAdapterError("r005 ARM does not match the dispatched ticket")
-        mature_candidate = self._candidate(attempt.candidate)
+        prepared = self._prepared_mature_attempt
+        if prepared is None:
+            self.prepare_attempt(attempt)
+            prepared = self._prepared_mature_attempt
+        assert prepared is not None
+        mature_candidate = prepared.candidate
         self.writer.candidate = mature_candidate
         self.writer.arm_unbounded(
             ordinal=attempt.attempt_sequence,
@@ -778,11 +801,11 @@ class R005MatureWriter:
     def run_60s(self, attempt: Attempt) -> AttemptEvidence | QualificationEvidence:
         if self._attempt != attempt:
             raise R005LiveAdapterError("r005 run does not match the dispatched ticket")
-        mature_attempt = _R005MatureAttempt(
-            ordinal=attempt.attempt_sequence,
-            kind=self._kind(attempt.kind),
-            candidate=self._candidate(attempt.candidate),
-        )
+        mature_attempt = self._prepared_mature_attempt
+        if mature_attempt is None:
+            self.prepare_attempt(attempt)
+            mature_attempt = self._prepared_mature_attempt
+        assert mature_attempt is not None
         try:
             return self.writer.execute_attempt(
                 mature_attempt,
@@ -792,6 +815,7 @@ class R005MatureWriter:
         finally:
             self._attempt = None
             self._ticket = None
+            self._prepared_mature_attempt = None
 
     def safe_return(self, attempt: Attempt, result: AttemptResult) -> AttemptResult:
         del attempt
@@ -901,6 +925,9 @@ class R005LiveRuntimePort:
 
     def dispatch(self, attempt: Attempt, ticket: Any) -> None:
         self.writer.dispatch(attempt, ticket)
+        prepare = getattr(self.writer, "prepare_attempt", None)
+        if callable(prepare):
+            prepare(attempt)
 
     def arm(self, attempt: Attempt) -> None:
         self.writer.arm(attempt)
@@ -945,6 +972,32 @@ class R005LiveWriterAdapter:
         self._last_joint_evidence = None
         self._last_rtde_frame_identity: float | int | None = None
         self._rtde_sequence = 0
+        self._prepared_attempt_ordinal: int | None = None
+
+    def _reset_attempt_buffers(self) -> None:
+        self._objective_builder = ForceObjectiveBuilder()
+        self._path_samples.clear()
+        self._last_joint_evidence = None
+        self._last_rtde_frame_identity = None
+        self._rtde_sequence = 0
+
+    def prepare_attempt(self, attempt: Attempt) -> None:
+        """Move post-Home buffer cleanup before ARM/lease timing begins."""
+
+        attempt_sequence = getattr(attempt, "attempt_sequence", None)
+        if isinstance(attempt_sequence, bool) or not isinstance(attempt_sequence, int):
+            raise R005LiveAdapterError("r005 prepared attempt sequence is untyped")
+        self._reset_attempt_buffers()
+        self._prepared_attempt_ordinal = attempt_sequence
+        prepare = getattr(self.writer, "prepare_attempt", None)
+        if callable(prepare):
+            prepare(attempt)
+
+    def _consume_prepared_attempt(self, attempt: Attempt) -> None:
+        attempt_sequence = getattr(attempt, "attempt_sequence", None)
+        if self._prepared_attempt_ordinal != attempt_sequence:
+            self._reset_attempt_buffers()
+        self._prepared_attempt_ordinal = None
 
     def observe_r004_path_sample(self, sample: PathSample) -> None:
         if sample.path_time_s is None or sample.path_phase is None:
@@ -1054,11 +1107,7 @@ class R005LiveWriterAdapter:
         method(count)
 
     def run_60s(self, attempt: Attempt) -> AttemptResult:
-        self._objective_builder = ForceObjectiveBuilder()
-        self._path_samples.clear()
-        self._last_joint_evidence = None
-        self._last_rtde_frame_identity = None
-        self._rtde_sequence = 0
+        self._consume_prepared_attempt(attempt)
         raw = self.writer.run_60s(attempt)
         if isinstance(raw, AttemptResult):
             if (
@@ -1084,6 +1133,38 @@ class R005LiveWriterAdapter:
                     "production objective was returned without durable raw PATH samples"
                 )
             return raw
+        if isinstance(raw, CensoredPathEvidence):
+            binding = None if self._last_joint_evidence is None else self._last_joint_evidence.as_dict()
+            metrics = {
+                "mature_evidence_sha256": raw.evidence_sha256,
+                "raw_path_sample_count": len(self._path_samples),
+                "censored_path_evidence": raw.as_dict(),
+                "censored": True,
+            }
+            if binding is not None:
+                metrics["joint_velocity_binding"] = binding
+            return AttemptResult(
+                epoch=attempt.epoch,
+                attempt_sequence=attempt.attempt_sequence,
+                kind=attempt.kind,
+                candidate=attempt.candidate,
+                safe_return=raw.return_gate_passed,
+                binding_ok=binding is not None,
+                safety_gate=raw.safety_gate_passed,
+                contact_gate=raw.contact_gate_passed,
+                return_gate=raw.return_gate_passed,
+                motion_gate=False,
+                timing_gate=False,
+                identity_gate=True,
+                qualification_passed=False,
+                duration_s=float(raw.path_duration_s),
+                force_objective=None,
+                alignment_ok=binding is not None,
+                metrics=metrics,
+                execution_id=attempt.execution_id,
+                joint_evidence=self._last_joint_evidence,
+                raw_path_samples=tuple(self._path_samples),
+            )
         if not isinstance(raw, (AttemptEvidence, QualificationEvidence)):
             raise R005LiveAdapterError("mature writer returned an unknown evidence type")
         if isinstance(raw, QualificationEvidence):
