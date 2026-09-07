@@ -162,6 +162,18 @@ class ProfileRegistry:
             installed[str(document["name"])] = self.load_profile(path, expected_sha=identity)
         return installed
 
+    def _default_profile(self, document: Mapping[str, Any]) -> StrategyProfile:
+        """Build/read a default without making lookup mutate the registry."""
+
+        identity = sha256_value(document)
+        path = self.root / "profiles" / identity / "profile.json"
+        if path.is_file():
+            return self.load_profile(path, expected_sha=identity)
+        # Dry-run planning must remain useful in a fresh registry.  The
+        # content-addressed path is retained in the plan, while installation
+        # remains an explicit operation through install_defaults().
+        return StrategyProfile(path=path, sha256=identity, raw=dict(document))
+
     def load_profile(self, path: Path, *, expected_sha: str | None = None) -> StrategyProfile:
         path = path.resolve()
         raw = load_json(path)
@@ -175,11 +187,10 @@ class ProfileRegistry:
         return StrategyProfile(path=path, sha256=identity, raw=raw)
 
     def by_name(self, name: str) -> StrategyProfile:
-        defaults = self.install_defaults()
         if name == "finite-time":
-            return defaults[FORMAL_PROFILE_NAME]
+            return self._default_profile(self.formal_document())
         if name == "legacy-r1":
-            return defaults[LEGACY_PROFILE_NAME]
+            return self._default_profile(self.legacy_document())
         if name != "current":
             raise R014Error(f"unknown strategy selection: {name}")
         return self.current_qualified()

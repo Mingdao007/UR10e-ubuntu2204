@@ -1033,9 +1033,11 @@ test-hermetic = [
     { name = "jsonschema" },
     { name = "mujoco" },
     { name = "numpy" },
+    { name = "pandas" },
     { name = "pytest" },
     { name = "pytest-xdist" },
     { name = "pyyaml" },
+    { name = "scipy" },
 ]
 
 [package.metadata]
@@ -1068,9 +1070,11 @@ test-hermetic = [
     { name = "jsonschema", specifier = "==4.26.0" },
     { name = "mujoco", specifier = "==3.8.1" },
     { name = "numpy", specifier = "==1.24.4" },
+    { name = "pandas", specifier = "==2.3.3" },
     { name = "pytest", specifier = "==8.4.1" },
     { name = "pytest-xdist", specifier = "==3.8.0" },
     { name = "pyyaml", specifier = "==6.0.3" },
+    { name = "scipy", specifier = "==1.15.3" },
 ]
 
 [[package]]

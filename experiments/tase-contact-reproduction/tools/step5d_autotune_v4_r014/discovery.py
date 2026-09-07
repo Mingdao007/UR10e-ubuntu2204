@@ -25,11 +25,14 @@ CENSOR_MULTIPLIER = 2.0
 
 
 def warm_start_arm_ids() -> tuple[str, ...]:
-    return (
+    arm_ids = (
         "human-anchor",
         "r013-incumbent-coordinates",
         *deterministic_maximin_sobol(6),
     )
+    if len(arm_ids) != WARM_START_ATTEMPTS or len(set(arm_ids)) != WARM_START_ATTEMPTS:
+        raise R014Error("warm-start requires eight distinct frozen-catalog arms")
+    return arm_ids
 
 
 @dataclass(frozen=True)
@@ -90,8 +93,15 @@ class DiscreteQLogNEISelector:
         excluded_arm_ids: Iterable[str] = (),
     ) -> str:
         training = gp_training_rows(attempts)
-        if len(training) < WARM_START_ATTEMPTS:
-            raise R014Error("qLogNEI requires the eight forced-full warm-start attempts")
+        required_warm_start = set(warm_start_arm_ids())
+        observed_warm_start = {attempt.arm_id for attempt in training}
+        if not required_warm_start.issubset(observed_warm_start):
+            missing = sorted(required_warm_start - observed_warm_start)
+            raise R014Error(
+                "qLogNEI requires the eight forced-full warm-start attempts "
+                "from distinct arms; "
+                f"missing={missing}"
+            )
         try:
             import torch
             from botorch.acquisition.logei import qLogNoisyExpectedImprovement

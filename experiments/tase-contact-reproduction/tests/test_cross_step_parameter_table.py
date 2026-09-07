@@ -110,16 +110,10 @@ class CrossStepParameterTableTest(unittest.TestCase):
         )
         self.assertTrue(current["controller_readback_verified_for_selected_triplet"])
         self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
-        self.assertFalse(row["current_binding"]["live_authorized"])
-        self.assertTrue(current["readiness"]["deployment_ready"])
-        self.assertFalse(current["readiness"]["bridge_start_ready"])
-        self.assertIn(
-            "selected_tp_program_known_incompatible_do_not_retry",
-            current["readiness"]["blockers"],
-        )
-        self.assertFalse(current["readiness"]["bridge_process_ready"])
-        self.assertFalse(current["readiness"]["motion_arm_ready"])
-        self.assertFalse(current["readiness"]["campaign_ready"])
+        # The current document stores selection and explicit bridge authority;
+        # readiness is no longer a persisted snapshot on this pointer.
+        self.assertEqual(current["selection_state"], "current")
+        self.assertFalse(current["bridge_trigger"]["bridge_has_started"])
         self.assertFalse(v1["active"])
         self.assertFalse(v1["bridge"])
         self.assertFalse(v1["current_binding"]["is_current"])

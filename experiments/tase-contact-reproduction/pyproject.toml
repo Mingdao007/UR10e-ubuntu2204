@@ -26,9 +26,11 @@ test-hermetic = [
   "jsonschema==4.26.0",
   "mujoco==3.8.1",
   "numpy==1.24.4",
+  "pandas==2.3.3",
   "pytest==8.4.1",
   "pytest-xdist==3.8.0",
   "pyyaml==6.0.3",
+  "scipy==1.15.3",
 ]
 analysis = [
   "matplotlib==3.10.8",

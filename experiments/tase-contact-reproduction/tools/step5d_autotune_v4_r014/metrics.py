@@ -51,7 +51,14 @@ def force_bin_metric(rows: Iterable[tuple[float, float]]) -> ForceMetric:
         force_n = finite(raw_force, "force_n")
         if not 0.0 <= time_s < DURATION_S:
             continue
-        index = min(PRIMARY_BINS - 1, int(math.floor(time_s / BIN_WIDTH_S)))
+        # The decimal boundary is represented slightly below its mathematical
+        # value by binary floating point (for example 2.1 / 0.1).  Match the
+        # established R013 time-domain tolerance, then preserve the half-open
+        # [0, 60) interval with the final clamp.
+        index = min(
+            PRIMARY_BINS - 1,
+            int(math.floor((time_s + 1e-12) / BIN_WIDTH_S)),
+        )
         sums[index] += force_n
         counts[index] += 1
     missing = [index for index, count in enumerate(counts) if count == 0]

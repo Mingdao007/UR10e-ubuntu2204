@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 import math
 from typing import Any, Iterable
 
@@ -81,7 +82,8 @@ def _sobol_arm(index: int, row: Iterable[float]) -> CatalogArm:
     )
 
 
-def build_frozen_catalog() -> tuple[CatalogArm, ...]:
+@lru_cache(maxsize=1)
+def _cached_frozen_catalog() -> tuple[CatalogArm, ...]:
     sampler = qmc.Sobol(d=6, scramble=True, seed=FROZEN_CATALOG_SEED)
     rows = sampler.random_base2(m=7)
     arms = [_sobol_arm(index, row) for index, row in enumerate(rows)]
@@ -111,6 +113,12 @@ def build_frozen_catalog() -> tuple[CatalogArm, ...]:
     )
     validate_catalog(arms)
     return tuple(arms)
+
+
+def build_frozen_catalog() -> tuple[CatalogArm, ...]:
+    """Return the immutable deterministic catalog shared by all callers."""
+
+    return _cached_frozen_catalog()
 
 
 def validate_catalog(arms: Iterable[CatalogArm]) -> None:
@@ -176,6 +184,7 @@ def normalized_log_coordinates(arm: CatalogArm) -> np.ndarray:
     )
 
 
+@lru_cache(maxsize=None)
 def deterministic_maximin_sobol(count: int = 6) -> tuple[str, ...]:
     if count < 1 or count > SOBOL_ARMS:
         raise R014Error("maximin count is outside the Sobol catalog")

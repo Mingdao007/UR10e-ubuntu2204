@@ -55,6 +55,14 @@ _CORE_SOBOL_POINTS: list[tuple[float, ...]] = []
 _CORE_SOBOL_ENGINE: Any | None = None
 
 
+def _fast_forward_if_needed(engine: Any, skip: int) -> None:
+    """Advance a Sobol engine while avoiding SciPy's zero-skip edge case."""
+
+    skip_value = int(skip)
+    if skip_value != 0:
+        engine.fast_forward(skip_value)
+
+
 def _core_sobol_points(start: int, count: int) -> tuple[tuple[float, ...], ...]:
     """Generate the deterministic stream once; cursors remain ledger state."""
     end = int(start) + int(count)
@@ -1243,7 +1251,7 @@ def core_candidate_pool(
 
 def _correction_vector_pool(*, cursor: int, policy: FloorDiscoveryPolicyV1, excluded: set[str]) -> tuple[tuple[float, ...], ...]:
     engine = qmc.Sobol(d=6, scramble=True, seed=FLOOR_SOBOL_SEED + 1)
-    engine.fast_forward(int(cursor))
+    _fast_forward_if_needed(engine, cursor)
     result: list[tuple[float, ...]] = []
     for point in engine.random(256):
         block = CorrectionBlockV1.from_unit_coordinates(
@@ -1296,7 +1304,7 @@ def _local_core_candidate_pool(
     bounds = _local_box(center, policy.local_radius_policy.core_radius, CORE_LOG_BOUNDS)
     excluded = {tuple(key) for key in excluded_keys}
     engine = qmc.Sobol(d=4, scramble=True, seed=FLOOR_SOBOL_SEED + 2)
-    engine.fast_forward(int(cursor))
+    _fast_forward_if_needed(engine, cursor)
     selected: list[dict[str, Any]] = []
     selected_keys = set(excluded)
     draws = 0
@@ -1353,7 +1361,7 @@ def _local_correction_weight_pool(
     )
     excluded = set(excluded_tokens)
     engine = qmc.Sobol(d=6, scramble=True, seed=FLOOR_SOBOL_SEED + 3)
-    engine.fast_forward(int(cursor))
+    _fast_forward_if_needed(engine, cursor)
     selected: list[tuple[float, ...]] = []
     selected_tokens: set[str] = set(excluded)
     draws = 0

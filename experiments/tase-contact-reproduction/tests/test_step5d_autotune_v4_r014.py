@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import itertools
 from pathlib import Path
 import sys
 
@@ -17,6 +18,7 @@ from step5d_autotune_v4_r014.catalog import (  # noqa: E402
     build_frozen_catalog,
     catalog_document,
     deterministic_maximin_sobol,
+    normalized_log_coordinates,
 )
 from step5d_autotune_v4_r014.certification import (  # noqa: E402
     AttemptAdmission,
@@ -35,6 +37,7 @@ from step5d_autotune_v4_r014.common import (  # noqa: E402
 from step5d_autotune_v4_r014.dispatcher import (  # noqa: E402
     Dispatcher,
     WriterLock,
+    _validate_closed_backend_state,
     parse_request,
 )
 from step5d_autotune_v4_r014.discovery import (  # noqa: E402
@@ -45,6 +48,7 @@ from step5d_autotune_v4_r014.discovery import (  # noqa: E402
     warm_start_proposal,
 )
 from step5d_autotune_v4_r014.profiles import (  # noqa: E402
+    FORMAL_PROFILE_NAME,
     POINTER_SCHEMA,
     ProfileRegistry,
 )
@@ -66,6 +70,9 @@ from step5d_autotune_v4_r014.solver_profile import (  # noqa: E402
 import step5d_autotune_v4_r013.live_runtime as r013_live_runtime  # noqa: E402
 
 
+_TEST_ATTEMPTS = itertools.count()
+
+
 def _attempt(
     arm_id: str,
     loss: float | None,
@@ -76,7 +83,10 @@ def _attempt(
     censored: bool = False,
     hard_veto: bool = False,
     certification: bool = False,
+    physical_attempt_id: str | None = None,
 ) -> AttemptAdmission:
+    if physical_attempt_id is None:
+        physical_attempt_id = f"test-attempt-{next(_TEST_ATTEMPTS)}"
     return AttemptAdmission(
         arm_id=arm_id,
         loss_n=loss,
@@ -89,6 +99,7 @@ def _attempt(
         censored=censored,
         hard_safety_veto=hard_veto,
         certification_pull=certification,
+        physical_attempt_id=physical_attempt_id,
     )
 
 
@@ -96,6 +107,7 @@ def test_frozen_catalog_is_deterministic_unique_and_feasible() -> None:
     first = build_frozen_catalog()
     second = build_frozen_catalog()
     assert first == second
+    assert first is second
     assert len(first) == CATALOG_SIZE
     assert len({arm.arm_id for arm in first}) == CATALOG_SIZE
     assert len({tuple(arm.as_dict().values()) for arm in first}) == CATALOG_SIZE
@@ -106,6 +118,12 @@ def test_frozen_catalog_is_deterministic_unique_and_feasible() -> None:
     warm = deterministic_maximin_sobol()
     assert len(warm) == 6 and len(set(warm)) == 6
     assert all(arm_id.startswith("sobol-") for arm_id in warm)
+    document = catalog_document()
+    document["arms"][0]["force_p_gain"] = -1.0
+    assert catalog_document()["arms"][0]["force_p_gain"] != -1.0
+    coordinates = normalized_log_coordinates(first[0])
+    coordinates[0] = -999.0
+    assert normalized_log_coordinates(first[0])[0] != -999.0
 
 
 def test_gp_and_certificate_admission_exclude_censored_and_ineligible() -> None:
@@ -163,9 +181,91 @@ def test_certificate_hard_veto_qualification_failure_and_cap_are_terminal() -> N
                 exact=False,
                 sealed=False,
                 full_duration=False,
+                physical_attempt_id="cap-attempt-" + str(index),
             )
         )
     assert snapshot.outcome is CertificationOutcome.INCONCLUSIVE_CAP
+
+
+def test_attempt_identity_is_idempotent_and_distinct_trials_count_separately() -> None:
+    engine = CertificationEngine()
+    arm_id = next(iter(engine.arms))
+    first = _attempt(
+        arm_id, 0.2, certification=True, physical_attempt_id="physical-1"
+    )
+    snapshot = engine.record(first)
+    assert engine.record(first) == snapshot
+    assert engine.attempt_count == 1
+    assert engine.certification_pulls == 1
+    assert engine.arms[arm_id].n == 1
+    with pytest.raises(R014Error, match="payload conflicts"):
+        engine.record(
+            _attempt(
+                arm_id, 0.3, certification=True, physical_attempt_id="physical-1"
+            )
+        )
+    assert engine.attempt_count == 1 and engine.arms[arm_id].n == 1
+    engine.record(
+        _attempt(arm_id, 0.3, certification=True, physical_attempt_id="physical-2")
+    )
+    assert engine.attempt_count == 2 and engine.arms[arm_id].n == 2
+
+
+def test_attempt_validation_precedes_counters_and_requires_identity() -> None:
+    engine = CertificationEngine()
+    arm_id = next(iter(engine.arms))
+    missing_id = AttemptAdmission(
+        arm_id=arm_id,
+        loss_n=0.2,
+        motion_gate=True,
+        timing_gate=True,
+        qualification=True,
+        exact=True,
+        sealed=True,
+        full_duration=True,
+    )
+    with pytest.raises(R014Error, match="physical attempt id"):
+        engine.record(missing_id)
+    assert engine.attempt_count == 0
+    bad = _attempt(arm_id, float("nan"), physical_attempt_id="nan-loss")
+    with pytest.raises(R014Error, match="finite"):
+        engine.record(bad)
+    assert engine.attempt_count == 0
+    negative = _attempt(arm_id, -0.1, physical_attempt_id="negative-loss")
+    with pytest.raises(R014Error, match="nonnegative"):
+        engine.record(negative)
+    assert engine.attempt_count == 0
+    strict = _attempt(arm_id, 0.2, physical_attempt_id="strict-flag")
+    object.__setattr__(strict, "timing_gate", 1)
+    with pytest.raises(R014Error, match="strict boolean"):
+        engine.record(strict)
+    assert engine.attempt_count == 0
+
+
+def test_discovery_loss_never_enters_certificate_and_hard_veto_is_terminal() -> None:
+    engine = CertificationEngine()
+    arm_id = next(iter(engine.arms))
+    engine.record(
+        _attempt(arm_id, 0.2, physical_attempt_id="discovery-1", certification=False)
+    )
+    assert engine.arms[arm_id].n == 0
+    assert engine.certification_pulls == 0
+    engine.record(
+        _attempt(arm_id, 0.3, physical_attempt_id="certification-1", certification=True)
+    )
+    assert engine.arms[arm_id].n == 1
+    veto = CertificationEngine()
+    outcome = veto.record(
+        _attempt(
+            arm_id,
+            None,
+            exact=False,
+            full=False,
+            hard_veto=True,
+            physical_attempt_id="early-veto",
+        )
+    )
+    assert outcome.outcome is CertificationOutcome.INVALID_SAFETY
 
 
 def test_anytime_radius_decreases_on_practical_range() -> None:
@@ -173,7 +273,9 @@ def test_anytime_radius_decreases_on_practical_range() -> None:
     assert all(left > right for left, right in zip(radii, radii[1:]))
 
 
-def test_cli_contract_rejects_invalid_combinations_and_reports_home_first(capsys) -> None:
+def test_cli_contract_rejects_invalid_combinations_and_reports_home_first(
+    capsys, tmp_path: Path
+) -> None:
     with pytest.raises(SystemExit):
         parse_request(["--trajectory", "arc", "--dry-run"])
     assert "unsupported trajectory" in capsys.readouterr().err
@@ -182,16 +284,19 @@ def test_cli_contract_rejects_invalid_combinations_and_reports_home_first(capsys
     with pytest.raises(R014Error, match="forces early-stop=off"):
         parse_request(["--mode", "certify", "--early-stop", "on", "--dry-run"])
 
+    registry = _minimal_registry(tmp_path)
+    registry.install_defaults()
     request = parse_request(["--strategy", "finite-time", "--dry-run"])
-    plan = Dispatcher(ROOT).dispatch(request)
+    plan = Dispatcher(registry.experiment_root, state_root=tmp_path / "state").dispatch(request)
     assert plan["motion"] is False
     assert plan["home_before_arm"] is True
     assert plan["state_machine"].index("HOME_VERIFIED") < plan["state_machine"].index("RUNNING")
     assert "profile-not-qualified:pending" in plan["blockers"]
 
 
-def test_bare_live_command_fails_closed_without_current_qualified_pointer() -> None:
-    dispatcher = Dispatcher(ROOT)
+def test_bare_live_command_fails_closed_without_current_qualified_pointer(tmp_path: Path) -> None:
+    registry = _minimal_registry(tmp_path)
+    dispatcher = Dispatcher(registry.experiment_root, state_root=tmp_path / "state")
     with pytest.raises(R014Error, match="current-qualified pointer is absent"):
         dispatcher.dispatch(parse_request([]))
 
@@ -298,6 +403,57 @@ def _minimal_registry(tmp_path: Path) -> ProfileRegistry:
     return registry
 
 
+def _qualified_registry(tmp_path: Path) -> tuple[ProfileRegistry, object]:
+    registry = _minimal_registry(tmp_path)
+    pending = registry.install_defaults()["finite-time-r08-formal-v1"]
+    qualified = dict(pending.raw)
+    qualified["qualification"] = {"status": "qualified", "receipts": ["test"]}
+    qualified_path = registry.root / "profiles" / sha256_value(qualified) / "profile.json"
+    atomic_write_json(qualified_path, qualified)
+    return registry, registry.promote(qualified_path)
+
+
+def _tree_snapshot(root: Path) -> dict[str, bytes | None]:
+    snapshot: dict[str, bytes | None] = {}
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root).as_posix()
+        snapshot[relative] = path.read_bytes() if path.is_file() else None
+    return snapshot
+
+
+def _run_state_from_plan(
+    plan: dict[str, object], run_id: str, *, state_name: str = "CLOSED"
+) -> dict[str, object]:
+    command = plan["command"]
+    assert isinstance(command, dict)
+    transitions = ["CREATED", "PREFLIGHT_OK", "HOME_VERIFIED", "RUNNING"]
+    if state_name == "STOPPED_HOME":
+        transitions.extend(("RETURN_HOME", "STOPPED_HOME"))
+    else:
+        transitions.extend(("RETURN_HOME", "STOPPED_HOME", "CLOSED"))
+    return {
+        "schema": "step5d.autotuner-r014/run-state-v1",
+        "version": 1,
+        "run_id": run_id,
+        "state": state_name,
+        "profile_path": command["profile_path"],
+        "profile_sha256": command["profile_sha256"],
+        "source_identity": command["source_identity"],
+        "catalog_sha256": command["catalog_sha256"],
+        "metric": command["metric"],
+        "campaign_fingerprint": plan["campaign_fingerprint"],
+        "home_before_arm": True,
+        "home_verified": True,
+        "closed_home": True,
+        "terminal_home": {
+            "state": "STOPPED_HOME",
+            "home_verified": True,
+            "closed_home": True,
+        },
+        "transitions": transitions,
+    }
+
+
 def test_profile_promotion_requires_qualified_content_address(tmp_path: Path) -> None:
     registry = _minimal_registry(tmp_path)
     pending = registry.install_defaults()["finite-time-r08-formal-v1"]
@@ -317,6 +473,166 @@ def test_profile_promotion_requires_qualified_content_address(tmp_path: Path) ->
     pointer = json.loads(registry.pointer_path.read_text(encoding="utf-8"))
     assert pointer["schema"] == POINTER_SCHEMA
     assert registry.current_qualified().sha256 == identity
+
+
+def test_profile_lookup_and_all_dry_runs_are_read_only(tmp_path: Path) -> None:
+    registry = _minimal_registry(tmp_path)
+    dispatcher = Dispatcher(registry.experiment_root, state_root=tmp_path / "state")
+    before = _tree_snapshot(tmp_path)
+
+    profile = registry.by_name("finite-time")
+    assert profile.name == FORMAL_PROFILE_NAME
+    start = dispatcher.dispatch(
+        parse_request(["--strategy", "finite-time", "--dry-run"])
+    )
+    assert start["dry_run"] is True
+    status = dispatcher.dispatch(parse_request(["status", "--dry-run"]))
+    assert status["ok"] is True
+    with pytest.raises(R014Error):
+        dispatcher.dispatch(parse_request(["stop", "--run", "missing", "--dry-run"]))
+    with pytest.raises(R014Error):
+        dispatcher.dispatch(parse_request(["resume", "--dry-run"]))
+    assert _tree_snapshot(tmp_path) == before
+
+
+def test_dry_run_plan_is_not_live_ready_without_backend_contract(tmp_path: Path) -> None:
+    registry, _profile = _qualified_registry(tmp_path)
+    dispatcher = Dispatcher(registry.experiment_root, state_root=tmp_path / "state")
+    before = _tree_snapshot(tmp_path)
+    plan = dispatcher.dispatch(parse_request(["--strategy", "current", "--dry-run"]))
+    assert plan["ready_for_live"] is False
+    assert "live backend contract is absent" in plan["blockers"]
+    assert plan["backend_validation"]["status"] == "absent"
+    assert _tree_snapshot(tmp_path) == before
+
+
+def test_stop_only_publishes_idempotent_marker_and_preserves_owner_state(
+    tmp_path: Path,
+) -> None:
+    registry = _minimal_registry(tmp_path)
+    dispatcher = Dispatcher(registry.experiment_root, state_root=tmp_path / "state")
+    run_dir = dispatcher.runs_root / "active-run"
+    state = {
+        "schema": "step5d.autotuner-r014/run-state-v1",
+        "version": 1,
+        "run_id": "active-run",
+        "state": "RUNNING",
+        "owner_counter": 7,
+    }
+    atomic_write_json(run_dir / "state.json", state)
+    state_before = (run_dir / "state.json").read_bytes()
+
+    first = dispatcher.dispatch(parse_request(["stop", "--run", "active-run"]))
+    assert first["request_submitted"] is True
+    assert (run_dir / "state.json").read_bytes() == state_before
+    assert (run_dir / "stop.requested").read_bytes() == b"graceful\n"
+
+    state["state"] = "RETURN_HOME"
+    atomic_write_json(run_dir / "state.json", state)
+    state_before_second = (run_dir / "state.json").read_bytes()
+    second = dispatcher.dispatch(parse_request(["stop", "--run", "active-run"]))
+    assert second["request_submitted"] is False
+    assert (run_dir / "state.json").read_bytes() == state_before_second
+
+
+def test_late_stop_on_terminal_run_is_noop(tmp_path: Path) -> None:
+    registry = _minimal_registry(tmp_path)
+    dispatcher = Dispatcher(registry.experiment_root, state_root=tmp_path / "state")
+    run_dir = dispatcher.runs_root / "closed-run"
+    state = {
+        "schema": "step5d.autotuner-r014/run-state-v1",
+        "version": 1,
+        "run_id": "closed-run",
+        "state": "CLOSED",
+    }
+    atomic_write_json(run_dir / "state.json", state)
+    before = (run_dir / "state.json").read_bytes()
+    result = dispatcher.dispatch(parse_request(["stop", "--run", "closed-run"]))
+    assert result["late"] is True
+    assert result["state"] == "CLOSED"
+    assert not (run_dir / "stop.requested").exists()
+    assert (run_dir / "state.json").read_bytes() == before
+
+
+def test_run_id_is_safe_and_status_reports_qualification_backend_without_writes(
+    tmp_path: Path,
+) -> None:
+    registry = _minimal_registry(tmp_path)
+    dispatcher = Dispatcher(registry.experiment_root, state_root=tmp_path / "state")
+    for unsafe in ("../escape", str(tmp_path / "absolute"), ""):
+        with pytest.raises(R014Error, match="run id"):
+            dispatcher.dispatch(parse_request(["stop", "--run", unsafe, "--dry-run"]))
+    before = _tree_snapshot(tmp_path)
+    status = dispatcher.dispatch(parse_request(["status", "--dry-run"]))
+    assert status["qualification"]["current_qualified"] is False
+    assert status["backend"]["resume_capability"] is False
+    assert _tree_snapshot(tmp_path) == before
+
+
+def test_closed_validator_accepts_acknowledged_and_late_stop_marker(tmp_path: Path) -> None:
+    registry, _profile = _qualified_registry(tmp_path)
+    dispatcher = Dispatcher(registry.experiment_root, state_root=tmp_path / "state")
+    plan = dispatcher.dispatch(
+        parse_request(["--strategy", "current", "--dry-run"])
+    )
+    base = _run_state_from_plan(plan, "validator-run")
+    run_dir = dispatcher.runs_root / "validator-run"
+    marker = run_dir / "stop.requested"
+    atomic_write_json(run_dir / "state.json", base)
+    marker.write_text("graceful\n", encoding="utf-8")
+    _validate_closed_backend_state(
+        base,
+        run_id="validator-run",
+        plan=plan,
+        stop_marker=marker,
+    )
+    acknowledged = dict(base)
+    acknowledged["transitions"] = [
+        "CREATED",
+        "PREFLIGHT_OK",
+        "HOME_VERIFIED",
+        "RUNNING",
+        "STOP_REQUESTED",
+        "RETURN_HOME",
+        "STOPPED_HOME",
+        "CLOSED",
+    ]
+    _validate_closed_backend_state(
+        acknowledged,
+        run_id="validator-run",
+        plan=plan,
+        stop_marker=marker,
+    )
+
+
+def test_resume_accepts_closed_or_stopped_home_but_normal_is_blocked(
+    tmp_path: Path,
+) -> None:
+    registry, _profile = _qualified_registry(tmp_path)
+    dispatcher = Dispatcher(registry.experiment_root, state_root=tmp_path / "state")
+    plan = dispatcher.dispatch(
+        parse_request(["--strategy", "current", "--dry-run"])
+    )
+    for state_name in ("STOPPED_HOME", "CLOSED"):
+        run_dir = dispatcher.runs_root / "resume-run"
+        atomic_write_json(
+            run_dir / "state.json",
+            _run_state_from_plan(plan, "resume-run", state_name=state_name),
+        )
+        atomic_write_json(run_dir / "dispatch-plan.json", plan)
+        before = _tree_snapshot(tmp_path)
+        dry = dispatcher.dispatch(
+            parse_request(["resume", "--run", "resume-run", "--dry-run"])
+        )
+        assert dry["status"] == "ELIGIBLE"
+        assert dry["dispatched"] is False
+        assert _tree_snapshot(tmp_path) == before
+        blocked = dispatcher.dispatch(
+            parse_request(["resume", "--run", "resume-run"])
+        )
+        assert blocked["status"] == "BLOCKED"
+        assert blocked["ok"] is False
+        assert blocked["dispatched"] is False
 
 
 def _qualification_bundle(registry: ProfileRegistry, tmp_path: Path) -> Path:
@@ -382,7 +698,9 @@ def test_qualification_failure_preserves_pointer_and_valid_bundle_promotes(tmp_p
 
 
 def test_whole_flow_falsifiers_cover_figure8_writer_stop_and_resume(tmp_path: Path) -> None:
-    dispatcher = Dispatcher(ROOT, state_root=tmp_path / "state")
+    registry = _minimal_registry(tmp_path)
+    registry.install_defaults()
+    dispatcher = Dispatcher(registry.experiment_root, state_root=tmp_path / "state")
     figure8 = dispatcher.dispatch(
         parse_request(["--trajectory", "figure8", "--strategy", "finite-time", "--dry-run"])
     )
@@ -433,6 +751,7 @@ def test_timing_ineligible_attempt_can_be_retried_exactly() -> None:
         sealed=True,
         full_duration=True,
         certification_pull=True,
+        physical_attempt_id="timing-bad",
     )
     engine.record(timing_bad)
     assert engine.arms[arm_id].n == 0
@@ -470,11 +789,52 @@ def test_discovery_schedule_and_early_censor_boundary_are_exact() -> None:
 
 def test_censored_arm_is_revisited_but_never_trained_and_no_qlognei_fallback() -> None:
     arms = build_frozen_catalog()
-    censored = _attempt(arms[0].arm_id, 1.0, censored=True, full=False)
+    censored = _attempt(
+        arms[0].arm_id,
+        1.0,
+        censored=True,
+        full=False,
+        physical_attempt_id="censored-1",
+    )
     assert censored_revisit_ids([censored]) == (arms[0].arm_id,)
     assert gp_training_rows([censored]) == []
     with pytest.raises(R014Error, match="eight forced-full"):
         DiscreteQLogNEISelector().select([])
+
+
+def test_gp_training_deduplicates_identity_and_requires_valid_physical_id() -> None:
+    arm_id = build_frozen_catalog()[0].arm_id
+    eligible = _attempt(arm_id, 0.2, physical_attempt_id="gp-1")
+    assert gp_training_rows([eligible, eligible]) == [eligible]
+    with pytest.raises(R014Error, match="payload conflicts"):
+        gp_training_rows(
+            [
+                eligible,
+                _attempt(arm_id, 0.4, physical_attempt_id="gp-1"),
+            ]
+        )
+    no_id = AttemptAdmission(
+        arm_id=arm_id,
+        loss_n=0.2,
+        motion_gate=True,
+        timing_gate=True,
+        qualification=True,
+        exact=True,
+        sealed=True,
+        full_duration=True,
+    )
+    with pytest.raises(R014Error, match="physical attempt id"):
+        gp_training_rows([no_id])
+
+
+def test_qlognei_requires_the_actual_eight_warm_start_arms() -> None:
+    arm_id = build_frozen_catalog()[0].arm_id
+    attempts = [
+        _attempt(arm_id, 0.2, physical_attempt_id=f"same-arm-{index}")
+        for index in range(8)
+    ]
+    with pytest.raises(R014Error, match="distinct arms"):
+        DiscreteQLogNEISelector().select(attempts)
 
 
 def test_primary_and_secondary_metrics_use_exact_declared_bins() -> None:

@@ -26,7 +26,6 @@
       "step5d_strict_rnn_ablation_v34",
       "step5d_strict_rnn_ablation_v35",
       "step5d_strict_rnn_autotune_v3",
-      "step5d_strict_rnn_autotune_v4_r005",
       "step5d_strict_rnn_autotune_v4_r006"
     ],
     "cache_policy": {
