@@ -1,0 +1,11 @@
+{
+  "duration_s": 62.83185307179586,
+  "span_m": [
+    0.08,
+    0.02
+  ],
+  "speed_upper_bound_m_s": 0.00447213595499958,
+  "acceleration_upper_bound_m_s2": 0.0005656854249492381,
+  "force_setpoint_n": 5.0,
+  "qualification": "geometry only; actual joint trajectory, frame, limits and package require separate checks"
+}

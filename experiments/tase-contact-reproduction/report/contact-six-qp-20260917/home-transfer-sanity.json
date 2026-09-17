@@ -1,0 +1,8 @@
+{
+  "scope": "offline IK for original-height XY transfer then descent; no live collision qualification",
+  "nominal_translation_time_lower_bound_s": 5.904392098838373,
+  "maximum_translation_joint_speed_rad_s": 0.029558009896247663,
+  "pose_residual": 7.400365895435914e-12,
+  "pass": true,
+  "stationary_receipt": "2026-09-17T16:08:21.851260+00:00"
+}

@@ -1,0 +1,29 @@
+{
+  "schema": "contact-offline-geometry-v1",
+  "claim_scope": "IK at observed height, not contact-plane clearance, collision checking or live qualification",
+  "sample_count": 629,
+  "max_joint_speed_rad_s": 0.008715268580655078,
+  "max_joint_acceleration_rad_s2": 0.0011005632991234401,
+  "max_jacobian_condition": 8.912920388432877,
+  "max_pose_residual": 7.399965701397093e-12,
+  "qdot_limit_rad_s": 0.05,
+  "qdot_check_pass": true,
+  "joint_path_closed_rad": 1.309063968335522e-11,
+  "tool_axis_approach_dot": 0.9999999980591017,
+  "task": {
+    "duration_s": 62.83185307179586,
+    "span_m": [
+      0.08,
+      0.02
+    ],
+    "speed_upper_bound_m_s": 0.00447213595499958,
+    "acceleration_upper_bound_m_s2": 0.0005656854249492381,
+    "force_setpoint_n": 5.0,
+    "qualification": "geometry only; actual joint trajectory, frame, limits and package require separate checks"
+  },
+  "calibration_hash": "calib_7367377276742883610",
+  "observed_at": "2026-09-17T15:49:23.983640+00:00",
+  "contact_frame_qualified": false,
+  "collision_qualified": false,
+  "input_sha256": "14610cb216c59d31fc17046d296c4383d4458a5a870b89a0450f4a3a91bc4f5d"
+}

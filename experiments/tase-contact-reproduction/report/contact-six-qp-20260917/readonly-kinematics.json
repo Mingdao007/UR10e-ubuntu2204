@@ -1,0 +1,61 @@
+{
+  "schema": "contact-readonly-kinematics-v1",
+  "observed_at": "2026-09-17T15:49:23.983640+00:00",
+  "read_only": true,
+  "rtde": {
+    "actual_q": [
+      0.6957247257232666,
+      -1.786079546014303,
+      -2.529254674911499,
+      -0.39643676698718266,
+      1.5725001096725464,
+      3.676314353942871
+    ],
+    "actual_TCP_pose": [
+      0.4737553586893596,
+      0.16948690403836264,
+      0.04946976885094452,
+      -2.033111141643383,
+      -2.3950012280387987,
+      9.752700581418614e-05
+    ],
+    "actual_TCP_speed": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "tcp_offset": [
+      0.0,
+      0.0,
+      0.0874,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "payload": 0.413,
+    "payload_cog": [
+      0.0011,
+      0.0031,
+      0.0163
+    ]
+  },
+  "dashboard": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "safetymode": "Safetymode: NORMAL",
+    "running": "Program running: false",
+    "programState": "STOPPED 1.urp",
+    "is in remote control": "false"
+  },
+  "position_error_m": 1.8360348167241365e-06,
+  "rotation_error_rad": 6.279809711546589e-06,
+  "calibration_hash": "calib_7367377276742883610",
+  "sources": {
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/src/ur10e_bringup/config/ur10e_calibration.yaml": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
+    "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro": "00891217ae0912468ef625996b259d58c1aac4d348bc468a9306d0b0bf8d3810"
+  },
+  "generated_urdf_sha256": "c0891c0df47664230c6f4f2c621c1022484131e7f7a7dba8efb2ec7c3fc4a9dc",
+  "claim_scope": "single stationary pose only; no workspace or live-control qualification"
+}

@@ -1,0 +1,1206 @@
+{
+  "seed": 20260917,
+  "frozen_parameters_required": true,
+  "rows": [
+    {
+      "ordinal": 0,
+      "block": 0,
+      "controller": "SFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 1,
+      "block": 0,
+      "controller": "MSFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 2,
+      "block": 0,
+      "controller": "LAC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 3,
+      "block": 0,
+      "controller": "LAC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 4,
+      "block": 0,
+      "controller": "MSFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 5,
+      "block": 0,
+      "controller": "MSFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 6,
+      "block": 0,
+      "controller": "MSFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 7,
+      "block": 0,
+      "controller": "NAC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 8,
+      "block": 0,
+      "controller": "ISFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 9,
+      "block": 0,
+      "controller": "DSFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 10,
+      "block": 0,
+      "controller": "SFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 11,
+      "block": 0,
+      "controller": "ISFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 12,
+      "block": 0,
+      "controller": "SFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 13,
+      "block": 0,
+      "controller": "LAC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 14,
+      "block": 0,
+      "controller": "DSFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 15,
+      "block": 0,
+      "controller": "NAC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 16,
+      "block": 0,
+      "controller": "DSFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 17,
+      "block": 0,
+      "controller": "SFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 18,
+      "block": 0,
+      "controller": "ISFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 19,
+      "block": 0,
+      "controller": "SFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 20,
+      "block": 0,
+      "controller": "MSFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 21,
+      "block": 0,
+      "controller": "LAC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 22,
+      "block": 0,
+      "controller": "NAC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 23,
+      "block": 0,
+      "controller": "DSFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 24,
+      "block": 0,
+      "controller": "NAC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 25,
+      "block": 0,
+      "controller": "NAC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 26,
+      "block": 0,
+      "controller": "ISFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 27,
+      "block": 0,
+      "controller": "ISFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 28,
+      "block": 0,
+      "controller": "LAC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 29,
+      "block": 0,
+      "controller": "DSFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 30,
+      "block": 1,
+      "controller": "SFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 31,
+      "block": 1,
+      "controller": "LAC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 32,
+      "block": 1,
+      "controller": "ISFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 33,
+      "block": 1,
+      "controller": "DSFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 34,
+      "block": 1,
+      "controller": "SFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 35,
+      "block": 1,
+      "controller": "LAC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 36,
+      "block": 1,
+      "controller": "LAC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 37,
+      "block": 1,
+      "controller": "MSFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 38,
+      "block": 1,
+      "controller": "SFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 39,
+      "block": 1,
+      "controller": "DSFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 40,
+      "block": 1,
+      "controller": "SFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 41,
+      "block": 1,
+      "controller": "ISFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 42,
+      "block": 1,
+      "controller": "LAC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 43,
+      "block": 1,
+      "controller": "ISFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 44,
+      "block": 1,
+      "controller": "ISFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 45,
+      "block": 1,
+      "controller": "NAC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 46,
+      "block": 1,
+      "controller": "NAC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 47,
+      "block": 1,
+      "controller": "NAC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 48,
+      "block": 1,
+      "controller": "SFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 49,
+      "block": 1,
+      "controller": "NAC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 50,
+      "block": 1,
+      "controller": "DSFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 51,
+      "block": 1,
+      "controller": "DSFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 52,
+      "block": 1,
+      "controller": "MSFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 53,
+      "block": 1,
+      "controller": "MSFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 54,
+      "block": 1,
+      "controller": "ISFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 55,
+      "block": 1,
+      "controller": "DSFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 56,
+      "block": 1,
+      "controller": "LAC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 57,
+      "block": 1,
+      "controller": "MSFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 58,
+      "block": 1,
+      "controller": "MSFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 59,
+      "block": 1,
+      "controller": "NAC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 60,
+      "block": 2,
+      "controller": "ISFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 61,
+      "block": 2,
+      "controller": "SFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 62,
+      "block": 2,
+      "controller": "NAC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 63,
+      "block": 2,
+      "controller": "SFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 64,
+      "block": 2,
+      "controller": "DSFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 65,
+      "block": 2,
+      "controller": "NAC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 66,
+      "block": 2,
+      "controller": "DSFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 67,
+      "block": 2,
+      "controller": "SFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 68,
+      "block": 2,
+      "controller": "DSFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 69,
+      "block": 2,
+      "controller": "ISFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 70,
+      "block": 2,
+      "controller": "LAC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 71,
+      "block": 2,
+      "controller": "SFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 72,
+      "block": 2,
+      "controller": "MSFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 73,
+      "block": 2,
+      "controller": "NAC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 74,
+      "block": 2,
+      "controller": "ISFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 75,
+      "block": 2,
+      "controller": "MSFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 76,
+      "block": 2,
+      "controller": "ISFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 77,
+      "block": 2,
+      "controller": "LAC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 78,
+      "block": 2,
+      "controller": "DSFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 79,
+      "block": 2,
+      "controller": "SFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 80,
+      "block": 2,
+      "controller": "NAC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 81,
+      "block": 2,
+      "controller": "ISFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 82,
+      "block": 2,
+      "controller": "MSFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 83,
+      "block": 2,
+      "controller": "MSFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 84,
+      "block": 2,
+      "controller": "DSFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 85,
+      "block": 2,
+      "controller": "LAC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 86,
+      "block": 2,
+      "controller": "NAC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 87,
+      "block": 2,
+      "controller": "MSFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 88,
+      "block": 2,
+      "controller": "LAC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 89,
+      "block": 2,
+      "controller": "LAC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 90,
+      "block": 3,
+      "controller": "LAC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 91,
+      "block": 3,
+      "controller": "LAC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 92,
+      "block": 3,
+      "controller": "SFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 93,
+      "block": 3,
+      "controller": "NAC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 94,
+      "block": 3,
+      "controller": "DSFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 95,
+      "block": 3,
+      "controller": "NAC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 96,
+      "block": 3,
+      "controller": "NAC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 97,
+      "block": 3,
+      "controller": "ISFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 98,
+      "block": 3,
+      "controller": "SFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 99,
+      "block": 3,
+      "controller": "SFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 100,
+      "block": 3,
+      "controller": "NAC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 101,
+      "block": 3,
+      "controller": "LAC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 102,
+      "block": 3,
+      "controller": "ISFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 103,
+      "block": 3,
+      "controller": "ISFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 104,
+      "block": 3,
+      "controller": "NAC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 105,
+      "block": 3,
+      "controller": "LAC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 106,
+      "block": 3,
+      "controller": "MSFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 107,
+      "block": 3,
+      "controller": "MSFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 108,
+      "block": 3,
+      "controller": "DSFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 109,
+      "block": 3,
+      "controller": "ISFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 110,
+      "block": 3,
+      "controller": "MSFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 111,
+      "block": 3,
+      "controller": "MSFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 112,
+      "block": 3,
+      "controller": "LAC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 113,
+      "block": 3,
+      "controller": "DSFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 114,
+      "block": 3,
+      "controller": "MSFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 115,
+      "block": 3,
+      "controller": "ISFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 116,
+      "block": 3,
+      "controller": "SFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 117,
+      "block": 3,
+      "controller": "DSFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 118,
+      "block": 3,
+      "controller": "SFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 119,
+      "block": 3,
+      "controller": "DSFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 120,
+      "block": 4,
+      "controller": "MSFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 121,
+      "block": 4,
+      "controller": "MSFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 122,
+      "block": 4,
+      "controller": "DSFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 123,
+      "block": 4,
+      "controller": "DSFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 124,
+      "block": 4,
+      "controller": "SFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 125,
+      "block": 4,
+      "controller": "NAC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 126,
+      "block": 4,
+      "controller": "NAC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 127,
+      "block": 4,
+      "controller": "LAC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 128,
+      "block": 4,
+      "controller": "ISFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 129,
+      "block": 4,
+      "controller": "DSFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 130,
+      "block": 4,
+      "controller": "SFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 131,
+      "block": 4,
+      "controller": "SFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 132,
+      "block": 4,
+      "controller": "DSFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 133,
+      "block": 4,
+      "controller": "ISFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 134,
+      "block": 4,
+      "controller": "SFC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 135,
+      "block": 4,
+      "controller": "MSFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 136,
+      "block": 4,
+      "controller": "LAC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 137,
+      "block": 4,
+      "controller": "SFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 138,
+      "block": 4,
+      "controller": "MSFC",
+      "scenario": "normal_pulse",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 139,
+      "block": 4,
+      "controller": "LAC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 140,
+      "block": 4,
+      "controller": "LAC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 141,
+      "block": 4,
+      "controller": "MSFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 142,
+      "block": 4,
+      "controller": "ISFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 143,
+      "block": 4,
+      "controller": "NAC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 144,
+      "block": 4,
+      "controller": "ISFC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 145,
+      "block": 4,
+      "controller": "NAC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 146,
+      "block": 4,
+      "controller": "DSFC",
+      "scenario": "oblique_double",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 147,
+      "block": 4,
+      "controller": "ISFC",
+      "scenario": "tangent_release",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 148,
+      "block": 4,
+      "controller": "NAC",
+      "scenario": "human_push",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    },
+    {
+      "ordinal": 149,
+      "block": 4,
+      "controller": "LAC",
+      "scenario": "nominal",
+      "stage": "frozen_holdout",
+      "human_force_matching_claim": false
+    }
+  ]
+}

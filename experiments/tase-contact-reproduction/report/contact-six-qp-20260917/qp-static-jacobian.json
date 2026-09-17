@@ -1,0 +1,12 @@
+{
+  "claim_scope": "offline synthetic twists at one observed stationary Jacobian; not full writer timing or path IK feasibility",
+  "samples": 1200,
+  "jacobian_condition_number": 8.007174567063034,
+  "solve_seconds": {
+    "p50": 2.847399446181953e-05,
+    "p99": 6.175640010042116e-05,
+    "max": 8.268500096164644e-05
+  },
+  "deadline_1ms_misses": 0,
+  "maximum_equality_residual": 5.835787416134074e-09
+}

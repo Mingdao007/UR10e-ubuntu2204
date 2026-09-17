@@ -1,0 +1,83 @@
+{
+  "schema": "contact-preserved-home-v1",
+  "observed_at": "2026-09-17T16:08:21.851260+00:00",
+  "user_home_confirmed": true,
+  "user_instruction": "preserve original Home XYZ; retain current yaw/roll and align tool +Z with base -Z",
+  "rtde": {
+    "actual_q": [
+      0.6957201361656189,
+      -1.786110063592428,
+      -2.529184579849243,
+      -0.39641840875659184,
+      1.5724998712539673,
+      3.676326274871826
+    ],
+    "actual_TCP_pose": [
+      0.47379514150974644,
+      0.16951736144421242,
+      0.049481471655764137,
+      2.0331311761081254,
+      2.3949848110051737,
+      -7.867288978215451e-06
+    ],
+    "actual_TCP_speed": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "tcp_offset": [
+      0.0,
+      0.0,
+      0.0874,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "payload": 0.413,
+    "payload_cog": [
+      0.0011,
+      0.0031,
+      0.0163
+    ]
+  },
+  "dashboard": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "safetymode": "Safetymode: NORMAL",
+    "running": "Program running: false",
+    "programState": "STOPPED 1.urp",
+    "is in remote control": "false"
+  },
+  "home_pose": [
+    0.487834547,
+    0.129337053,
+    0.033,
+    2.0331342431227566,
+    2.3949884238824652,
+    -2.2711768777011217e-22
+  ],
+  "home_q": [
+    0.6101629800919246,
+    -1.8313255076001176,
+    -2.531593875035473,
+    -0.3487834932705095,
+    1.572307365971778,
+    3.5908756317344017
+  ],
+  "original_home_pose": [
+    0.487834547,
+    0.129337053,
+    0.033,
+    3.120752062,
+    0.0,
+    0.068626833
+  ],
+  "original_source": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r012.script",
+  "original_source_sha256": "0fccfb7304104777b375f7250e192ec83640c5b8192411db36bd05de7d05ec34",
+  "orientation_correction_rad": 6.895232580336552e-06,
+  "ik_residual": 9.74917291500802e-12,
+  "actual_motion_performed": false,
+  "path_collision_qualified": false
+}

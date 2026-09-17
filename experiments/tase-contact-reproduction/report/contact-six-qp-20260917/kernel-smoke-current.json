@@ -1,0 +1,106 @@
+{
+  "schema": "contact-kernel-prescribed-input-smoke-v1",
+  "claim_scope": "full task clock on prescribed observations at one fixed Jacobian; NOT plant simulation, live timing qualification or controller comparison",
+  "raw_guard_limits_are_fixture_values": true,
+  "live_authority": false,
+  "results": [
+    {
+      "controller": "LAC",
+      "samples": 31416,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.011889891506402715,
+      "capped_ticks": 563,
+      "maximum_qp_equality_residual": 4.329316407973571e-09,
+      "kernel_seconds": {
+        "p50": 0.00013276899699121714,
+        "p99": 0.00018377185479039323,
+        "max": 0.007946955010993406
+      },
+      "over_2ms_ticks": 1
+    },
+    {
+      "controller": "NAC",
+      "samples": 31416,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.011908745059404466,
+      "capped_ticks": 605,
+      "maximum_qp_equality_residual": 4.53737598795495e-09,
+      "kernel_seconds": {
+        "p50": 0.0001333499967586249,
+        "p99": 0.00018468685157131405,
+        "max": 0.00021738800569437444
+      },
+      "over_2ms_ticks": 0
+    },
+    {
+      "controller": "SFC",
+      "samples": 31416,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.019489882261380945,
+      "capped_ticks": 23028,
+      "maximum_qp_equality_residual": 4.9203038954080496e-09,
+      "kernel_seconds": {
+        "p50": 0.0001348429941572249,
+        "p99": 0.0001873703527962789,
+        "max": 0.00023813598090782762
+      },
+      "over_2ms_ticks": 0
+    },
+    {
+      "controller": "DSFC",
+      "samples": 31416,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.011990970514381116,
+      "capped_ticks": 363,
+      "maximum_qp_equality_residual": 3.301117120189048e-09,
+      "kernel_seconds": {
+        "p50": 0.0001335199922323227,
+        "p99": 0.00018593665008665992,
+        "max": 0.00022064399672672153
+      },
+      "over_2ms_ticks": 0
+    },
+    {
+      "controller": "ISFC",
+      "samples": 31416,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.019246799310608194,
+      "capped_ticks": 3123,
+      "maximum_qp_equality_residual": 4.656852187888706e-09,
+      "kernel_seconds": {
+        "p50": 0.0001344720076303929,
+        "p99": 0.00018832149798981844,
+        "max": 0.010843354015378281
+      },
+      "over_2ms_ticks": 1
+    },
+    {
+      "controller": "MSFC",
+      "samples": 31416,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.010574364418722712,
+      "capped_ticks": 260,
+      "maximum_qp_equality_residual": 3.30111712127325e-09,
+      "kernel_seconds": {
+        "p50": 0.00013373000547289848,
+        "p99": 0.00018382350099273024,
+        "max": 0.00021649498376064003
+      },
+      "over_2ms_ticks": 0
+    }
+  ],
+  "started_at": "2026-09-17T16:17:32.859689+00:00",
+  "ended_at": "2026-09-17T16:18:00.300514+00:00",
+  "sources": {
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/check_contact_kernel.py": "65a50ee4f0c77eb210c5f387332cf8f9625c771ff89f498a8b41fdad0fff70f3",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/contact_benchmark_kernel.py": "85e1df380f7f3252ffd32a2ee0c8fa2aa68278bfbe3d04717adde33f47333fbb",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/contact_benchmark_outer.py": "49fc85dbe364314755d7b9bdbea9d489b69671f678f03de22df0cb12560c9f8a",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/contact_benchmark_protocol.py": "37c320b8455869e41500968a686f2d8d83be70b0f63c03c60ecc534abcaf24ae",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/contact_laws.py": "0d1e5e57f85b975fe980c58a632915af407c9641e7350ea104dd833009d02e04",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/contact_qp.py": "673b7ff00b6f09cd1498017fd6aec2473f94a5a4ca2b925952236ceb9f423618",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/build_contact_laws.py": "d75649609880e427c8bd686ae22ac3e43ee3fa253f8e641b801ccb009e28a14a",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/build/contact-qp/libcontact_qp.so": "a38ba13dee8efc52dd3eed623c3d2d5cf8020c03dfeb2b4c068d9d3366480878",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/report/contact-six-qp-20260917/readonly-kinematics.json": "14610cb216c59d31fc17046d296c4383d4458a5a870b89a0450f4a3a91bc4f5d"
+  },
+  "sources_unchanged": true
+}

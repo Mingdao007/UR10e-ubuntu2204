@@ -1,0 +1,92 @@
+{
+  "schema": "contact-kernel-prescribed-input-smoke-v1",
+  "claim_scope": "full task clock on prescribed observations at one fixed Jacobian; NOT plant simulation, live timing qualification or controller comparison",
+  "raw_guard_limits_are_fixture_values": true,
+  "live_authority": false,
+  "results": [
+    {
+      "controller": "LAC",
+      "samples": 31416,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.011889891506402715,
+      "capped_ticks": 563,
+      "maximum_qp_equality_residual": 4.329316407973571e-09,
+      "kernel_seconds": {
+        "p50": 0.00013108502025716007,
+        "p99": 0.00019785784243140367,
+        "max": 0.010688838985515758
+      },
+      "over_2ms_ticks": 1
+    },
+    {
+      "controller": "NAC",
+      "samples": 31416,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.011908745059404466,
+      "capped_ticks": 605,
+      "maximum_qp_equality_residual": 4.53737598795495e-09,
+      "kernel_seconds": {
+        "p50": 0.0001331389939878136,
+        "p99": 0.00018824152066372333,
+        "max": 0.00021025401656515896
+      },
+      "over_2ms_ticks": 0
+    },
+    {
+      "controller": "SFC",
+      "samples": 31416,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.019489882261380945,
+      "capped_ticks": 23028,
+      "maximum_qp_equality_residual": 4.9203038954080496e-09,
+      "kernel_seconds": {
+        "p50": 0.00013433099957183003,
+        "p99": 0.000190194504102692,
+        "max": 0.0002080999838653952
+      },
+      "over_2ms_ticks": 0
+    },
+    {
+      "controller": "DSFC",
+      "samples": 31416,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.011990970514381116,
+      "capped_ticks": 363,
+      "maximum_qp_equality_residual": 3.301117120189048e-09,
+      "kernel_seconds": {
+        "p50": 0.0001331999956164509,
+        "p99": 0.00018893248343374578,
+        "max": 0.00022160497610457242
+      },
+      "over_2ms_ticks": 0
+    },
+    {
+      "controller": "ISFC",
+      "samples": 31416,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.019246799310608194,
+      "capped_ticks": 3123,
+      "maximum_qp_equality_residual": 4.656852187888706e-09,
+      "kernel_seconds": {
+        "p50": 0.00013399097952060401,
+        "p99": 0.00019164748809998854,
+        "max": 0.000235441024415195
+      },
+      "over_2ms_ticks": 0
+    },
+    {
+      "controller": "MSFC",
+      "samples": 31416,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.010574364418722712,
+      "capped_ticks": 260,
+      "maximum_qp_equality_residual": 3.30111712127325e-09,
+      "kernel_seconds": {
+        "p50": 0.00013399100862443447,
+        "p99": 0.00018826301238732411,
+        "max": 0.008244933997048065
+      },
+      "over_2ms_ticks": 1
+    }
+  ]
+}

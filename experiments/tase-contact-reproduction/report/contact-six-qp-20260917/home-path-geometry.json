@@ -1,0 +1,29 @@
+{
+  "schema": "contact-offline-geometry-v1",
+  "claim_scope": "offline IK at original Home XYZ with new attitude; synthetic start pose derived by IK, not a robot observation; no collision/contact qualification",
+  "sample_count": 629,
+  "max_joint_speed_rad_s": 0.00833626808202581,
+  "max_joint_acceleration_rad_s2": 0.001103703967586276,
+  "max_jacobian_condition": 9.010034738741705,
+  "max_pose_residual": 9.749171984483268e-12,
+  "qdot_limit_rad_s": 0.05,
+  "qdot_check_pass": true,
+  "joint_path_closed_rad": 1.80793158222059e-11,
+  "tool_axis_approach_dot": 1.0,
+  "task": {
+    "duration_s": 62.83185307179586,
+    "span_m": [
+      0.08,
+      0.02
+    ],
+    "speed_upper_bound_m_s": 0.00447213595499958,
+    "acceleration_upper_bound_m_s2": 0.0005656854249492381,
+    "force_setpoint_n": 5.0,
+    "qualification": "geometry only; actual joint trajectory, frame, limits and package require separate checks"
+  },
+  "calibration_hash": "calib_7367377276742883610",
+  "observed_at": "2026-09-17T16:08:21.851260+00:00",
+  "contact_frame_qualified": false,
+  "collision_qualified": false,
+  "home_receipt": "report/contact-six-qp-20260917/preserved-home.json"
+}

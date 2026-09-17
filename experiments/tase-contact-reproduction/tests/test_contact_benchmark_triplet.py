@@ -1,0 +1,46 @@
+from pathlib import Path
+import sys,json,gzip,xml.etree.ElementTree as ET
+import pytest
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
+from build_contact_benchmark_triplet import transform,SOURCE,BASENAME,build
+
+
+def receipt():
+    return {'user_home_confirmed':True,'home_pose':[.487834547,.129337053,.033,2.033134243,2.394988424,0],
+            'home_q':[.61,-1.83,-2.53,-.35,1.57,3.59],
+            'rtde':{'actual_TCP_pose':[.474,.17,.05,2.03,2.4,0],'actual_q':[.7,-1.79,-2.53,-.39,1.57,3.68],
+                    'actual_TCP_speed':[0]*6,'tcp_offset':[0,0,.0874,0,0,0],'payload':.413,'payload_cog':[.0011,.0031,.0163]}}
+
+
+def test_triplet_preserves_home_xyz_and_has_narrow_common_caps(tmp_path):
+    p=tmp_path/'home.json';p.write_text(json.dumps(receipt()));out=tmp_path/'package';r=build(p,out)
+    s=(out/f'{BASENAME}.script').read_text();assert '62.831853071796' in s
+    assert 'codex_r006_finite(qdot, 0.050000000)' in s
+    assert 'local force_fuse_n = 20.000000000' in s
+    assert 'travel >= 0.015000000' in s
+    assert 'local v_far_m_s = 0.000200000' in s
+    assert 'local v_near_m_s = 0.000200000' in s
+    assert 'p[0.487834547000, 0.129337053000, 0.033000000000' in s
+    assert 'pose_trans(pose_inv(expected), actual)' in s
+    xml=ET.fromstring(gzip.decompress((out/f'{BASENAME}.urp').read_bytes()))
+    cache=next(n.text for n in xml.iter() if n.tag.endswith('cachedContents'))
+    assert cache==s
+    assert r['numeric_sanity']['full_search_travel_time_s']<r['numeric_sanity']['search_timeout_s']
+
+
+def test_tool_change_or_unconfirmed_home_fails_closed():
+    h=receipt();h['rtde']['payload']=1.56
+    with pytest.raises(ValueError,match='mass'):transform(SOURCE.read_text(),h,'2026-09-18T0000Z_TEST')
+    h=receipt();h['user_home_confirmed']=False
+    with pytest.raises(ValueError,match='Home receipt'):transform(SOURCE.read_text(),h,'2026-09-18T0000Z_TEST')
+
+
+def test_home_package_preserves_xyz_and_bounds_initial_pose(tmp_path):
+    from build_contact_home import build as build_home, BASENAME as home_name
+    p=tmp_path/'home.json';p.write_text(json.dumps(receipt()));out=tmp_path/'home-package'
+    result=build_home(p,out);s=(out/f'{home_name}.script').read_text()
+    assert result['home_pose'][:3]==[.487834547,.129337053,.033]
+    assert 'initial_xyz_error > 0.002' in s
+    assert 'a=0.050, v=0.010' in s
+    assert 'set_tcp(' not in s and 'zero_ftsensor(' not in s
+    assert 'local delta_pose = pose_trans(pose_inv(target_pose), actual_pose)' in s

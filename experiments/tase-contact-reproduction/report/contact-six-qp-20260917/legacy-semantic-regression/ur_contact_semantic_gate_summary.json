@@ -1,0 +1,54 @@
+{
+  "contract": "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/UR_FORCE_FRAME_CONTRACT.md",
+  "generated_at": "2026-09-18T00:17:00",
+  "overall_pass": true,
+  "replay_summaries": [
+    {
+      "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_liveprep_v4_20260614_234951/bridge_rtde_500hz.csv",
+      "failure_contrast_pass": true,
+      "failure_contrast_required": false,
+      "failure_contrast_thresholds": {
+        "bad_logged_orientation_rad": 0.9,
+        "fixed_outer_orientation_rad": 0.1
+      },
+      "logged_bad_fixed_good_rows": 2,
+      "max_logged_step4e_orientation_error_rad": 0.999953818,
+      "max_orientation_error_abs_diff_rad": 0.0,
+      "max_outer_xdot_norm": 0.3536221915227442,
+      "min_R_d_z_dot_R_cur_z": 0.9900021171749082,
+      "pass": true,
+      "records_csv": "report/contact-six-qp-20260917/legacy-semantic-regression/bridge_step5d_strict_rnn_liveprep_v4_20260614_234951_semantic_rows.csv",
+      "rows": 80
+    }
+  ],
+  "safety_boundary": [
+    "offline analysis only",
+    "no bridge start",
+    "no controller upload",
+    "no TP play",
+    "no robot motion"
+  ],
+  "static_scan": {
+    "forbidden_tokens": [
+      "rotation_matrix_from_z_axis",
+      "u_force_base",
+      "force_along_normal_n"
+    ],
+    "hits": [],
+    "pass": true,
+    "source": "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/step5d_paper_outer_loop.py"
+  },
+  "strict_rnn_eq23_sign_gate": {
+    "claim_tier": "virtual/software force-loop",
+    "current_variant": "current_positive_projection_negative_lambda_update",
+    "final_residual_norm": 2.7755575615628914e-17,
+    "gate": "strict_rnn_eq23_sign_gate",
+    "initial_residual_norm": 0.05,
+    "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+    "pass": true,
+    "projection_input_form": "J.T @ lambda_state",
+    "safety_boundary": "offline identity-J sign probe only",
+    "sign_sensitivity_status": "local_discrete_sign_gate_passed_current_variant",
+    "status": "local_discrete_sign_gate_passed_current_variant"
+  }
+}
