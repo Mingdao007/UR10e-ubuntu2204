@@ -1,0 +1,179 @@
+{
+  "schema": "ur10e.contact-benchmark-laws-v1",
+  "version": 1,
+  "offline_only": true,
+  "hardware_qualified": false,
+  "endpoint": "none",
+  "dimension_default": 3,
+  "dt_s": 0.002,
+  "public_laws": [
+    "LAC",
+    "NAC",
+    "SFC",
+    "DSFC",
+    "ISFC",
+    "MSFC"
+  ],
+  "laws": {
+    "LAC": {
+      "native_law": "lac_step",
+      "parameter_order": ["m", "mu", "g"],
+      "parameter_status": "current_m4_offline",
+      "parameters": {
+        "m": 4.0,
+        "mu": 17.0,
+        "g": 0.17
+      }
+    },
+    "NAC": {
+      "native_law": "nac_step",
+      "parameter_order": ["m", "mu", "g", "alpha", "sigma"],
+      "parameter_status": "current_m4_offline",
+      "parameters": {
+        "m": 4.0,
+        "mu": 15.5,
+        "g": 0.16506030529419027,
+        "alpha": 25.0,
+        "sigma": 20.0
+      }
+    },
+    "SFC": {
+      "native_law": "sfc_step",
+      "parameter_order": ["m", "mu", "n", "g"],
+      "parameter_status": "current_m4_offline",
+      "parameters": {
+        "m": 4.0,
+        "mu": 393.0,
+        "n": 3.0,
+        "g": 0.17375608707138326
+      }
+    },
+    "DSFC": {
+      "native_law": "ysfc_step",
+      "parameter_order": [
+        "m",
+        "g",
+        "p",
+        "a",
+        "n",
+        "mu",
+        "max_iterations",
+        "residual_tolerance_n",
+        "relative_radius_tolerance"
+      ],
+      "parameter_status": "current_m4_offline",
+      "description": "Radial YSFC resolvent exposed under the benchmark DSFC label",
+      "parameters": {
+        "m": 4.0,
+        "g": 0.214,
+        "p": 0.1,
+        "a": 1.2,
+        "n": 3.0,
+        "mu": 310.66177089084647,
+        "max_iterations": 32,
+        "residual_tolerance_n": 1e-9,
+        "relative_radius_tolerance": 1e-10
+      }
+    },
+    "ISFC": {
+      "native_law": "isfc_step",
+      "parameter_order": ["m", "mu", "n", "eta0", "g", "v_ref", "substeps"],
+      "parameter_status": "current_m4_offline",
+      "parameters": {
+        "m": 4.0,
+        "mu": 391.0,
+        "n": 3.0,
+        "eta0": 5.0,
+        "g": 0.18953311208562978,
+        "v_ref": 1.0,
+        "substeps": 2
+      }
+    },
+    "MSFC": {
+      "native_law": "smysfc_step",
+      "parameter_order": [
+        "m",
+        "g",
+        "p",
+        "a",
+        "n",
+        "mu",
+        "force_scale_n",
+        "tau_force_s",
+        "tau_recovery_s",
+        "kappa_per_n2_s",
+        "max_iterations",
+        "residual_tolerance_n",
+        "structure_tolerance",
+        "minimum_metric_eigenvalue"
+      ],
+      "parameter_status": "latest_lac_matching_selected_offline_candidate",
+      "parameters": {
+        "m": 4.0,
+        "g": 0.17166683818219516,
+        "p": 0.07,
+        "a": 1.2,
+        "n": 3.0,
+        "mu": 1228.1391393367705,
+        "force_scale_n": 2.1095928078033372,
+        "tau_force_s": 0.19236795686399732,
+        "tau_recovery_s": 0.20212720757006053,
+        "kappa_per_n2_s": 0.6334129092862626,
+        "max_iterations": 32,
+        "residual_tolerance_n": 1e-9,
+        "structure_tolerance": 1e-12,
+        "minimum_metric_eigenvalue": 0.026926929041248004
+      }
+    }
+  },
+  "metric_definition": {
+    "formula": "B = beta I + (1 - beta) exp(S)",
+    "beta_parameter": "minimum_metric_eigenvalue",
+    "native_metric_verified": true
+  },
+  "provenance": {
+    "native_sources": {
+      "source_dir": "/home/andy/.codex-worktrees/smysfc-tro-ubuntu-followup-20260906/cpp/controller_suite",
+      "files": {
+        "controller_suite.hpp": "1451725e0b8c8e9096cf7a9a654caa4f9fb064f7250547ccd8148d7769fb4b4f",
+        "controller_suite.cpp": "105f3cc3903eedeb7ea31a3b8b4df915a2fe5eb568d813e4f8ae7514d5b6d9e8",
+        "native_seven_laws.hpp": "5ebc768e83153e98cea5a50b1d7868408794e0dcf9eca723f5865bac6f88e562",
+        "native_seven_laws.cpp": "5a63d33de7e0ef51ca2ac177e843e68193e5d8a4826d25cba4720b4f11292bcf"
+      },
+      "copy_before_build": true,
+      "wrapper_has_network_or_robot_endpoint": false
+    },
+    "current_m4_parameters": {
+      "source": "/home/andy/CodexReport/Library/source/reports/sfc-traction-20260908/story/parameters.json",
+      "sha256": "fd0333e5ec7e60b4b438f0908d1eeda56b3d333a363ee0233a5a505a08766581",
+      "comparison_builder": "/home/andy/CodexReport/Library/source/reports/sfc-traction-20260908/build_force_protocol_comparison.py",
+      "comparison_builder_sha256": "bc7781a91639063e912d44e58e016e3505b733759021ffe779c774ca1bf9db6b"
+    },
+    "latest_msfc_candidate": {
+      "source": "/home/andy/CodexReport/Library/source/reports/msfc-research-20260912/guidance/lac-matching/search.json",
+      "sha256": "0c2fafb4894ac0f5cba82b53595736e67a424b81a27920f2ee73a652b487d833",
+      "binding_study": "/home/andy/CodexReport/Library/source/reports/msfc-research-20260912/study_lac_matching.py",
+      "binding_study_sha256": "a67a10a79c9b770a23b607898ceaa6f9748268767178c37871490a86dc70790f",
+      "selection": "selected_parameters",
+      "contact_retune_or_hardware_qualification": false
+    },
+    "frozen_baseline": {
+      "source": "/home/andy/CodexReport/Library/source/reports/msfc-research-20260912/baseline_parameters.json",
+      "sha256": "f974db3b4f089e81012051e79a5e4030ef3456cd40224ca7310cfa7092af1a23",
+      "status": "frozen_reference_only",
+      "msfc_parameters": {
+        "m": 4.0,
+        "g": 0.17166683818219516,
+        "p": 0.07,
+        "a": 1.2,
+        "n": 3.0,
+        "mu": 1228.1391393367705,
+        "force_scale_n": 5.0,
+        "tau_force_s": 0.26249999999999996,
+        "tau_recovery_s": 0.5249999999999999,
+        "kappa_per_n2_s": 0.5707895590437251,
+        "minimum_metric_eigenvalue": 0.3548768152670558
+      }
+    }
+  }
+}
