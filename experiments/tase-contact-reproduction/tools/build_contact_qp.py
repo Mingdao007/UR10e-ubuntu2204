@@ -49,6 +49,8 @@ int contact_qp_solve(const double *J, const double *v,
     }
     if (osqp_update_data_mat(&contact_solver, 0, 0, 0, A, 0, 42)) return -1;
     if (osqp_update_data_vec(&contact_solver, 0, l, u)) return -2;
+    /* Prevent hidden adaptive-rho state leaking between law instances/trials. */
+    if (osqp_update_rho(&contact_solver, 0.1)) return -5;
     if (osqp_warm_start(&contact_solver, warm_x, warm_y)) return -3;
     if (osqp_solve(&contact_solver)) return -4;
     diagnostics[0] = contact_solver.info->iter;

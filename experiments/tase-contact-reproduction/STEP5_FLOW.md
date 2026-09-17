@@ -1,5 +1,31 @@
 # Step5 Flow
 
+## Six-controller contact benchmark preparation
+
+The isolated `contact_six_qp_v1` preparation uses LAC, NAC, SFC, DSFC, ISFC,
+and MSFC with one native equality/box QP, fixed orientation, and a complete
+62.831853-second 80 x 20 mm figure eight at 5 N. The protocol is
+`config/contact_benchmark_protocol.json`. RPSFC is not selectable.
+Research law parameters are initialization candidates, not contact-qualified
+settings. Disturbance injection never changes the raw-sensor guard input.
+Nominal, injected, and actual hand-push evidence remain distinct.
+
+This preparation does not promote the historical active release or authorize
+its use with a new solver. Fresh model/tool binding, task-frame and joint-path
+checks, a distinct TP package with full-period timing, upload/read-back, Remote
+Control, observer barrier, and complete writer timing are required before live
+dispatch. Existing installed autotuner remains unmodified. Retained old
+RNN runs are not evidence of the new QP route.
+
+The new `step5d_contact_six_qp_v1` and `step5d_contact_home_v1` triplets
+are controller-read-back verified under `/programs/andyl/kunwei/step5`.
+Neither has been played. The Home keeps XYZ `[0.487834547, 0.129337053,
+0.033]` metres, adopts the current tool yaw, and aligns tool +Z with base -Z.
+The resident caps joint speed at 0.05 rad/s and initial search at 0.2 mm/s;
+raw force/torque limits are 20 N/2 Nm. It carries protocol 618001, distinct
+from historical R013. Live owner integration and full writer timing remain
+pending; file delivery is not dispatch admission.
+
 ## Governed Step5d route
 
 Prose is not the current-release authority. The content-addressed manifest named

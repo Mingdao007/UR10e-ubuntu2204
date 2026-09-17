@@ -11646,5 +11646,40 @@
     ],
     "tool": "tools/validate_cross_step_parameter_table.py"
   },
-  "version": 1
+  "version": 1,
+  "contact_six_qp_preparation": {
+    "id": "contact_six_qp_v1",
+    "status": "package_readback_verified_owner_integration_pending",
+    "active": false,
+    "protocol": "config/contact_benchmark_protocol.json",
+    "controllers": [
+      "LAC",
+      "NAC",
+      "SFC",
+      "DSFC",
+      "ISFC",
+      "MSFC"
+    ],
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
+    "bridge_contact_contract": "existing single-writer owner; new protocol 618001 is delivered but host dispatch integration is not admitted",
+    "guards": {
+      "path_hard_tube_axes_m": [
+        0.025,
+        0.015
+      ],
+      "path_soft_cbf_axes_m": [
+        0.022,
+        0.012
+      ],
+      "raw_sensor_guard_independent_of_injection": true,
+      "same_limits_for_all_controllers": true
+    },
+    "timing": {
+      "requested_hz": 500,
+      "duration_s": 62.83185307179586,
+      "whole_writer_qualified": false
+    },
+    "retained_evidence": "prior RNN releases remain historical evidence only",
+    "success_condition": "frozen equal-budget tuning followed by independent complete nominal/disturbance holdout; no claim from unit tests"
+  }
 }

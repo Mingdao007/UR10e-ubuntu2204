@@ -1,0 +1,141 @@
+"""Common contact task for six laws, independent of transport and device access.
+
+A law consumes environment-on-tool force minus the desired reaction wrench.
+Tangential tracking and fixed posture are shared. The law never switches at a
+perturbation. Research law seeds require contact tuning and physical validation.
+"""
+from __future__ import annotations
+from dataclasses import dataclass
+import math
+import hashlib
+import json
+from typing import Callable
+import numpy as np
+import pinocchio as pin
+from contact_semantics import approach_normal_from_reaction, signed_normal_load_n, force_error_n
+from contact_benchmark_protocol import Task
+from step5d_autotune_v4_r012.safety_filter import SafetyFilterConfig, filter_path_error_twist
+
+
+def finite(value, shape, role):
+    a=np.asarray(value,dtype=float)
+    if a.shape != shape or not np.isfinite(a).all():
+        raise ValueError(f"invalid {role}")
+    return a
+
+
+@dataclass(frozen=True)
+class CommonSettings:
+    path_kp_s_inv: float = 4.
+    orientation_kp_s_inv: float = .1
+    filter_tau_s: float = .02
+    normal_speed_cap_m_s: float = .003
+    tangent_speed_cap_m_s: float = .01
+    angular_speed_cap_rad_s: float = .05
+    # Guards are mandatory explicit inputs from the bound bench contract.
+
+    def __post_init__(self):
+        if any(not math.isfinite(v) or v <= 0 for v in self.__dict__.values()):
+            raise ValueError('common settings must be finite positive values')
+
+
+class ContactOuterLoop:
+    def __init__(self, *, law_step: Callable, anchor_m, task_basis, target_rotation,
+                 raw_force_limit_n: float, raw_torque_limit_nm: float,
+                 settings=CommonSettings()):
+        self.law_step=law_step; self.settings=settings; self.task=Task()
+        self.anchor=finite(anchor_m,(3,),'anchor').copy()
+        self.basis=finite(task_basis,(3,3),'task basis').copy()
+        self.target=finite(target_rotation,(3,3),'target rotation').copy()
+        for R in (self.basis,self.target):
+            if not np.allclose(R.T@R,np.eye(3),atol=1e-8) or np.linalg.det(R)<.999999:
+                raise ValueError('task/target must be right-handed orthonormal rotations')
+        self.reaction=self.basis[:,2]
+        self.approach=approach_normal_from_reaction(self.reaction)
+        if float(self.target[:,2]@self.approach)<.999:
+            raise ValueError('fixed tool +Z disagrees with contact-search approach')
+        if any(not math.isfinite(v) or v<=0 for v in (raw_force_limit_n,raw_torque_limit_nm)):
+            raise ValueError('raw guard limits must be explicit finite positive values')
+        self.force_limit=raw_force_limit_n;self.torque_limit=raw_torque_limit_nm
+        self.filtered=np.zeros(3);self.initialized=False;self.previous_xy=(0.,0.)
+        self.last_time=None
+        self.safety=SafetyFilterConfig()
+        binding={'settings':settings.__dict__,'anchor':self.anchor.tolist(),
+                 'basis':self.basis.tolist(),'target':self.target.tolist(),
+                 'force_limit':self.force_limit,'torque_limit':self.torque_limit}
+        self.identity=hashlib.sha256(json.dumps(binding,sort_keys=True).encode()).hexdigest()
+
+    def snapshot(self):
+        # Native law history is separately mandatory in the composed snapshot.
+        return {'identity':self.identity,'filtered_force_base_n':self.filtered.tolist(),'initialized':self.initialized,
+                'previous_xy_m_s':list(self.previous_xy),'last_time_s':self.last_time}
+
+    def restore(self, state):
+        if state.get('identity') != self.identity or not isinstance(state.get('initialized'),bool):
+            raise ValueError('outer state identity differs')
+        f=finite(state['filtered_force_base_n'],(3,),'filtered state').copy()
+        v=finite(state['previous_xy_m_s'],(2,),'previous command').copy()
+        t=state['last_time_s']
+        if t is not None and (not math.isfinite(t) or not 0 <= t <= self.task.duration_s):
+            raise ValueError('invalid snapshot time')
+        self.filtered=f;self.previous_xy=tuple(v);self.last_time=t;self.initialized=state['initialized']
+
+    def step(self, *, time_s, dt_s, position_m, rotation, raw_force_base_n,
+             raw_torque_base_nm, injection_task_n=(0.,0.,0.), state_age_s=0.):
+        if not math.isfinite(dt_s) or not math.isclose(dt_s, .002, rel_tol=0., abs_tol=1e-12):
+            raise ValueError('this preparation binds the existing 2ms safety projection')
+        if not math.isfinite(state_age_s) or not 0 <= state_age_s <= self.safety.max_state_age_s:
+            raise ValueError('stale observation')
+        if self.last_time is not None and time_s <= self.last_time:
+            raise ValueError('task clock must advance; no implicit state reset')
+        reference=self.task.reference(time_s)
+        pos=finite(position_m,(3,),'position'); R=finite(rotation,(3,3),'rotation')
+        if not np.allclose(R.T@R,np.eye(3),atol=1e-6) or np.linalg.det(R)<.999:
+            raise ValueError('invalid observed rotation')
+        raw=finite(raw_force_base_n,(3,),'raw force')
+        torque=finite(raw_torque_base_nm,(3,),'raw torque')
+        injection=finite(injection_task_n,(3,),'software disturbance')
+        # Mandatory guard BEFORE filtering or adding a software disturbance.
+        if np.linalg.norm(raw)>self.force_limit or np.linalg.norm(torque)>self.torque_limit:
+            raise ValueError('raw sensor guard rejected observation')
+        local_pos=self.basis.T@(pos-self.anchor)
+        ref=np.asarray(reference['position_m']); ref_v=np.asarray(reference['velocity_m_s'])
+        error=local_pos-ref
+        rho=float((error[0]/.025)**2+(error[1]/.015)**2)
+        if rho >= 1.:
+            raise ValueError('hard PATH error ellipse violated')
+        alpha=-math.expm1(-dt_s/self.settings.filter_tau_s)
+        filtered=raw.copy() if not self.initialized else self.filtered+alpha*(raw-self.filtered)
+        force_input=self.basis.T@filtered - np.array([0.,0.,self.task.normal_force_n])+injection
+        law_velocity=finite(self.law_step(force_input,dt_s),(3,),'law velocity')
+        proposal=law_velocity.copy()
+        proposal[:2]+=ref_v[:2]-self.settings.path_kp_s_inv*error[:2]
+        capped=proposal.copy();capped[2]=np.clip(capped[2],-self.settings.normal_speed_cap_m_s,self.settings.normal_speed_cap_m_s)
+        speed=np.linalg.norm(capped[:2])
+        if speed>self.settings.tangent_speed_cap_m_s:
+            capped[:2]*=self.settings.tangent_speed_cap_m_s/speed
+        cap_intervention=float(np.linalg.norm(capped-proposal))
+        soft_rho=sum((error[i]/self.safety.tightened_axes_m[i])**2 for i in range(2))
+        intervention=0.
+        if soft_rho >= self.safety.engage_deadband:
+            filtered_twist,outcome=filter_path_error_twist(tuple(local_pos[:2]),tuple(ref[:2]),
+                tuple(ref_v[:2]),tuple(capped)+(0.,0.,0.),self.previous_xy,
+                state_age_s=state_age_s,config=self.safety)
+            if not outcome.valid: raise ValueError('PATH safety projection infeasible')
+            capped[:2]=filtered_twist[:2];intervention=outcome.intervention_norm_m_s
+        omega=self.settings.orientation_kp_s_inv*np.asarray(pin.log3(self.target@R.T))
+        wn=np.linalg.norm(omega)
+        if wn>self.settings.angular_speed_cap_rad_s: omega*=self.settings.angular_speed_cap_rad_s/wn
+        self.filtered=filtered;self.initialized=True;self.previous_xy=tuple(capped[:2]);self.last_time=time_s
+        return {'twist_base':tuple(self.basis@capped)+tuple(omega),
+                'raw_force_base_n':tuple(raw),'filtered_force_base_n':tuple(filtered),
+                'injection_task_n':tuple(injection),'law_input_task_n':tuple(force_input),
+                'reference_force_n':self.task.normal_force_n,
+                'normal_load_n':signed_normal_load_n(raw,self.reaction),
+                'force_error_n':force_error_n(target_load_n=self.task.normal_force_n,
+                                              normal_load_n=signed_normal_load_n(raw,self.reaction)),
+                'reference_position_base_m':tuple(self.anchor+self.basis@ref),
+                'path_error_task_m':tuple(error),'law_velocity_task_m_s':tuple(law_velocity),
+                'unconstrained_task_velocity_m_s':tuple(proposal),
+                'capped_task_velocity_m_s':tuple(capped),'path_cbf_intervention_m_s':intervention,
+                'velocity_cap_intervention_m_s':cap_intervention}

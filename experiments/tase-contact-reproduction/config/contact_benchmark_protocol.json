@@ -1,0 +1,48 @@
+{
+  "schema": "contact-six-benchmark-v1",
+  "controllers": [
+    "LAC",
+    "NAC",
+    "SFC",
+    "DSFC",
+    "ISFC",
+    "MSFC"
+  ],
+  "task": {
+    "normal_force_n": 5.0,
+    "along_amplitude_m": 0.04,
+    "lateral_amplitude_m": 0.01,
+    "omega_rad_s": 0.1,
+    "duration_s": 62.83185307179586,
+    "orientation": "fixed_task_frame"
+  },
+  "scenarios": [
+    "nominal",
+    "normal_pulse",
+    "tangent_release",
+    "oblique_double",
+    "human_push"
+  ],
+  "budget": {
+    "per_controller_units": 24,
+    "initial_units": 8,
+    "bo_units": 12,
+    "repeat_units": 4,
+    "trials_per_unit": [
+      "nominal",
+      "disturbed"
+    ],
+    "failed_attempt_consumes_unit": true,
+    "reuse_physical_attempt_id_for_metrics": true,
+    "new_retry_requires_new_attempt_id": true,
+    "holdout_used_for_tuning": false
+  },
+  "repeats": 5,
+  "controller_switching_within_trial": false,
+  "raw_sensor_guard_precedes_injection": true,
+  "synthetic_disturbance_is_physical_impact": false,
+  "rpsfc_selectable": false,
+  "research_parameters_are_contact_qualified": false,
+  "free_guidance_5_to_30_50_70_is_separate": true,
+  "sha256": "f1c7f0b20059be5846d580a38f59f4b348681e5aa3e252516cac2f8cd420b68c"
+}
