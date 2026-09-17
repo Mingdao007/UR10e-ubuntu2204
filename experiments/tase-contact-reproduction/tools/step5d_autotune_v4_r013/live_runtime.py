@@ -49,6 +49,7 @@ from .handoff import (
 from .feedforward import FeedforwardMode, FeedforwardProfile
 from .path_context import FIGURE8_DURATION_S
 from step5d_autotune_v4_r014.solver_profile import LEGACY_R1, SolverProfile
+from contact_qp import QpSolverProfile
 
 
 R013_NORMAL_VELOCITY_LIMIT_M_S = 0.003
@@ -648,7 +649,7 @@ def install_r013_runtime_patch(
     *,
     path_provider: Any | None = None,
     feedforward_mode: FeedforwardMode | str | None = None,
-    solver_profile: SolverProfile = LEGACY_R1,
+    solver_profile: SolverProfile | QpSolverProfile = LEGACY_R1,
 ) -> None:
     """Install the process-local runtime and State25 diagnostic seams."""
 
@@ -658,7 +659,7 @@ def install_r013_runtime_patch(
     parsed_strategy = validate_runtime_strategy(runtime_strategy)
     parsed_handoff_policy = validate_handoff_policy(handoff_policy)
     parsed_feedforward_profile = FeedforwardProfile.from_value(feedforward_mode)
-    if not isinstance(solver_profile, SolverProfile):
+    if not isinstance(solver_profile, (SolverProfile, QpSolverProfile)):
         raise ValueError("R013 runtime patch requires a typed solver profile")
     provider_identity = _provider_identity_sha256(path_provider)
     if path_provider is not None and parsed_strategy.get("enabled") is True:
@@ -752,6 +753,9 @@ def install_r013_runtime_patch(
         ):
             if source in diagnostics:
                 row[target] = diagnostics[source]
+        solver_diagnostics = getattr(runtime, "last_solver_diagnostics", {})
+        if solver_diagnostics:
+            row["solver_diagnostics"] = dict(solver_diagnostics)
         handoff = diagnostics.get("handoff")
         if isinstance(handoff, Mapping):
             row["handoff_policy"] = str(diagnostics.get("handoff_policy", FREEZE_CARRY_V1))

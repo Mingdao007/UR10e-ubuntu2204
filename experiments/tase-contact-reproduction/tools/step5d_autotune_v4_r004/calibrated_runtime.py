@@ -1,4 +1,4 @@
-"""Hash-bound calibrated Jacobian and strict-RNN command primitive for V4.
+"""Hash-bound calibrated Jacobian and explicitly selected motion solver for V4.
 
 This module is side-effect free with respect to the controller.  It consumes a
 fresh RTDE kinematic observation and returns a proposed joint velocity plus the
@@ -23,6 +23,7 @@ from step5c_calibrated_kinematics_audit import (
     rotvec_to_matrix,
 )
 from step5c_strict_rnn import StrictTaseRnnSolver
+from contact_qp import NativeContactQp, QpSolverProfile
 from step5d_paper_outer_loop import (
     CONDITIONAL_DOUBLE_CLAMP_POLICY,
     LEGACY_FORCE_INTEGRAL_POLICY,
@@ -168,7 +169,7 @@ class V4CalibratedRuntime:
         force_integral_policy: str = LEGACY_FORCE_INTEGRAL_POLICY,
         force_integral_authority_error_n: float = 0.5,
         force_normal_velocity_limit_m_s: float | None = None,
-        solver_profile: SolverProfile = LEGACY_R1,
+        solver_profile: SolverProfile | QpSolverProfile = LEGACY_R1,
     ) -> None:
         self.contract = contract
         self.candidate = candidate
@@ -227,20 +228,24 @@ class V4CalibratedRuntime:
         self.force_integral_policy = force_integral_policy
         self.force_integral_authority_error_n = authority_error
         self.force_normal_velocity_limit_m_s = velocity_limit
-        if not isinstance(solver_profile, SolverProfile):
-            raise CalibratedRuntimeError("solver_profile must be a typed SolverProfile")
+        if not isinstance(solver_profile, (SolverProfile, QpSolverProfile)):
+            raise CalibratedRuntimeError("solver_profile must be a typed motion solver profile")
         self.solver_profile = solver_profile
         self.model_hashes = observed_model_hashes(contract)
         self.model = build_calibrated_model()
         motion_qdot_limit = 0.15 if motion_profile is None else motion_profile.qdot_cap_rad_s
         qdot_limit = min(motion_qdot_limit, solver_profile.qdot_limit_rad_s)
-        self.solver = StrictTaseRnnSolver(
-            strict_rnn_config(
-                solver_profile,
-                paper_truth_path=SOLVER_GATE_PATH,
-                motion_qdot_limit_rad_s=motion_qdot_limit,
+        if isinstance(solver_profile, QpSolverProfile):
+            self.solver = NativeContactQp(solver_profile.library, deadline_s=solver_profile.deadline_s)
+        else:
+            self.solver = StrictTaseRnnSolver(
+                strict_rnn_config(
+                    solver_profile,
+                    paper_truth_path=SOLVER_GATE_PATH,
+                    motion_qdot_limit_rad_s=motion_qdot_limit,
+                )
             )
-        )
+        self.last_solver_diagnostics: dict[str, Any] = {}
         self._active_mode: str | None = None
         self._outer_state = Step5dOuterLoopState()
 
@@ -259,7 +264,7 @@ class V4CalibratedRuntime:
                 "force_integral_n_s": float(self._outer_state.force_integral_n_s),
                 "xdot_p_prev_m_s": [float(value) for value in self._outer_state.xdot_p_prev_m_s],
             },
-            "solver_state": {
+            "solver_state": self.solver.snapshot() if isinstance(self.solver_profile, QpSolverProfile) else {
                 "theta_dot_state": [float(value) for value in self.solver.theta_dot_state],
                 "lambda_state": [float(value) for value in self.solver.lambda_state],
             },
@@ -280,8 +285,12 @@ class V4CalibratedRuntime:
             raise CalibratedRuntimeError("calibrated runtime state sections are missing")
         outer_integral = _finite_vector((outer.get("force_integral_n_s"),), 1, "outer integral")[0]
         outer_prev = _finite_vector(outer.get("xdot_p_prev_m_s"), 3, "outer previous velocity")
-        theta = _finite_vector(solver.get("theta_dot_state"), 6, "solver theta state")
-        lambd = _finite_vector(solver.get("lambda_state"), 6, "solver lambda state")
+        if isinstance(self.solver_profile, QpSolverProfile):
+            theta = _finite_vector(solver.get("x"), 6, "QP primal state")
+            lambd = _finite_vector(solver.get("y"), 12, "QP dual state")
+        else:
+            theta = _finite_vector(solver.get("theta_dot_state"), 6, "solver theta state")
+            lambd = _finite_vector(solver.get("lambda_state"), 6, "solver lambda state")
         active_mode = state.get("active_mode")
         if active_mode is not None and active_mode not in {"baseline", "path", "hold", "retract", "stop"}:
             raise CalibratedRuntimeError("calibrated runtime active mode is invalid")
@@ -289,9 +298,12 @@ class V4CalibratedRuntime:
             force_integral_n_s=float(outer_integral),
             xdot_p_prev_m_s=tuple(float(value) for value in outer_prev),
         )
-        self.solver.theta_dot_state = np.asarray(theta, dtype=float)
-        self.solver.lambda_state = np.asarray(lambd, dtype=float)
-        self.solver._sync_cupy_state_from_numpy()
+        if isinstance(self.solver_profile, QpSolverProfile):
+            self.solver.restore({"x": theta, "y": lambd})
+        else:
+            self.solver.theta_dot_state = np.asarray(theta, dtype=float)
+            self.solver.lambda_state = np.asarray(lambd, dtype=float)
+            self.solver._sync_cupy_state_from_numpy()
         self._active_mode = None if active_mode is None else str(active_mode)
 
     def path_errors(
@@ -356,10 +368,33 @@ class V4CalibratedRuntime:
         if np.any(lower > upper):
             raise CalibratedRuntimeError("joint velocity bounds are inverted")
         if mode in {"hold", "retract", "stop"}:
-            self.solver.freeze()
+            if isinstance(self.solver_profile, QpSolverProfile):
+                self.solver.reset()
+            else:
+                self.solver.freeze()
             qdot = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
             status = 0.0
             self._active_mode = None
+            self.last_solver_diagnostics = {"backend": self.solver_profile.as_dict().get("backend", "strict-rnn"), "state": "stopped"}
+        elif isinstance(self.solver_profile, QpSolverProfile):
+            if self._active_mode != mode:
+                self.solver.reset()
+                self._active_mode = mode
+            result = self.solver.solve(jacobian, twist, lower, upper)
+            qdot = result.qdot
+            # Preserve the legacy transport code; this is NOT an RNN qualification.
+            # Backend identity is explicit in the solver profile/diagnostics.
+            status = 40.0
+            self.last_solver_diagnostics = {
+                "backend": "osqp-codegen-c", "iterations": result.iterations,
+                "equality_residual": result.equality_residual,
+                "bound_violation": result.bound_violation,
+                "primal_residual": result.primal_residual,
+                "dual_residual": result.dual_residual,
+                "solve_wall_s": result.elapsed_s,
+                "requested_twist": tuple(map(float, twist)),
+                "achieved_twist": tuple(map(float, jacobian @ np.asarray(qdot))),
+            }
         else:
             if self._active_mode != mode:
                 self.solver.reset_state()
