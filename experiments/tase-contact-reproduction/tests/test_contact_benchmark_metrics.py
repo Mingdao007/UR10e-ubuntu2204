@@ -233,3 +233,20 @@ def test_mapping_and_tuple_inputs_use_the_same_validated_api() -> None:
     result = compute_contact_metrics(rows, CONFIG)
     assert result.complete is True
     assert result.sample_count == 3
+
+
+def test_runtime_stale_or_geometric_reject_censors_metric_objective() -> None:
+    freshness = {
+        "stale_stop_count": 1,
+        "geometric_latency_reject_count": 0,
+    }
+    result = compute_contact_metrics(
+        [sample(0.0, 0.0), sample(0.5, 0.0), sample(1.0, 0.0)],
+        CONFIG,
+        freshness=freshness,
+    )
+    assert result.coverage_complete is True
+    assert result.complete is False
+    assert result.objective_eligible is False
+    assert result.stale_stop_count == 1
+    assert result.as_dict()["stale_stop_count"] == 1

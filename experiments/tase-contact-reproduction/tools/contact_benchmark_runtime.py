@@ -13,6 +13,7 @@ import numpy as np
 from contact_benchmark_kernel import ContactKernel, KernelDeadlineError
 from contact_qp import QpSolverProfile
 from contact_benchmark_outer import finite
+from contact_benchmark_protocol import STALE_AGE_S, SensorFreshnessTracker, classify_sensor_age
 from step5c_calibrated_kinematics_audit import build_calibrated_model, rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import tcp_jacobian_base
 
@@ -34,6 +35,13 @@ class ContactRuntime:
         self.last_controller_timestamp=None
         self.last_sensor_timestamp=None
         self.paused_s=0.
+        # Evidence counters are intentionally outside controller state.  A
+        # failed observation must still be visible in the trial report, while
+        # kernel rollback remains byte-for-byte compatible with old snapshots.
+        self.freshness=SensorFreshnessTracker()
+
+    def freshness_summary(self):
+        return self.freshness.as_dict()
 
     def snapshot(self):
         return {'kernel':self.kernel.snapshot(),'last_sample_s':self.last_sample_s,
@@ -46,8 +54,13 @@ class ContactRuntime:
         if not all(math.isfinite(t) for t in (now,sensor_t,robot_t,controller_t)):
             raise ValueError('nonfinite acquisition clock')
         age=max(now-sensor_t,now-robot_t)
-        if min(now-sensor_t,now-robot_t)<0 or age>.020:
-            raise ValueError('robot/sensor observation older than 20ms or from future')
+        if min(now-sensor_t,now-robot_t)<0:
+            raise ValueError('robot/sensor observation is from the future')
+        if age >= STALE_AGE_S:
+            self.freshness.stale_stop(age)
+            raise ValueError('robot/sensor observation older than 80ms (stale)')
+        age_band=classify_sensor_age(age)
+        self.freshness.observe(age)
         if self.last_controller_timestamp is not None and controller_t<self.last_controller_timestamp:
             raise ValueError('controller timestamp regressed')
         if self.last_sensor_timestamp is not None and sensor_t<self.last_sensor_timestamp:
@@ -77,7 +90,7 @@ class ContactRuntime:
             raise ValueError('observed joint position exceeds limit')
         if np.linalg.norm(wrench[:3])>=20. or np.linalg.norm(wrench[3:])>=2.:
             raise ValueError('raw sensor guard rejected observation')
-        return dict(now=now,sensor_t=sensor_t,controller_t=controller_t,age=age,dt=dt,
+        return dict(now=now,sensor_t=sensor_t,controller_t=controller_t,age=age,age_band=age_band,dt=dt,
                     tcp=tcp,q=q,qd=qd,pose=pose,wrench=wrench,lower=lower,upper=upper)
 
     def pause(self, *, robot,wrench_tcp,sensor_observed_at_s,sample_time_s,reason):
@@ -95,7 +108,9 @@ class ContactRuntime:
         self.last_sample_s=obs['now'];self.last_controller_timestamp=obs['controller_t'];self.last_sensor_timestamp=obs['sensor_t']
         self.paused_s+=obs['dt']
         return {'policy':'pre_path_stationary_freeze_carry','reason':reason,
-                'paused_s':self.paused_s,'sample_time_s':obs['now'],'observation_age_s':obs['age']}
+                'paused_s':self.paused_s,'sample_time_s':obs['now'],
+                'observation_age_s':obs['age'],'age_band':obs['age_band'],
+                'freshness':self.freshness_summary()}
 
     def step(self, *, robot, wrench_tcp, sensor_observed_at_s, sample_time_s,
              phase, path_time_s=None, force_reference_n=None,
@@ -123,10 +138,14 @@ class ContactRuntime:
             elapsed=time.perf_counter()-started
             if self.deadline_s is not None and elapsed>self.deadline_s:
                 raise KernelDeadlineError(f'observation-to-command deadline exceeded: {elapsed:.6f}s')
-        except Exception:
+        except Exception as exc:
+            if isinstance(exc, ValueError) and str(exc) == 'latency uncertainty exceeds safety tightening':
+                self.freshness.geometric_latency_reject()
             self.kernel.restore(before)
             raise
         self.last_sample_s=now;self.last_controller_timestamp=controller_t;self.last_sensor_timestamp=sensor_t
-        return {**result,'pre_path_paused_s':self.paused_s,'runtime_wall_s':elapsed,'observation_age_s':age,
+        return {**result,'pre_path_paused_s':self.paused_s,'runtime_wall_s':elapsed,
+                'observation_age_s':age,'age_band':obs['age_band'],
+                'freshness':self.freshness_summary(),
                 'raw_wrench_tcp':tuple(wrench),'jacobian_6x6':tuple(tuple(row) for row in J),'jacobian_calibration_hash':self.model.calibration_hash,
                 'claim_scope':'measured-observation command proposal; physical owner admission and transport required'}

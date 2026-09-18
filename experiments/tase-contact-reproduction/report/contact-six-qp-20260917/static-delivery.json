@@ -1,0 +1,195 @@
+{
+  "schema": "contact-static-delivery-v2",
+  "captures": [
+    {
+      "source_directory": "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/runs/contact-six-static-20260918/sensor",
+      "raw_frames_sha256": "81f5dfa56c6ca4243644ab2d30f32538110b0a028447952acac21e51cf320c6b",
+      "csv_sha256": "8a9f228051b2c1e34562d6fcd23ab5f5b68a87a1b4711edb7466e8a3e2c4004a",
+      "samples": 30036,
+      "elapsed_first_last_s": 30.013405906007392,
+      "average_frame_rate_hz": 1000.7194816229866,
+      "host_frame_gap_ms": {
+        "50": 0.018755003111436963,
+        "90": 0.023674994008615613,
+        "95": 0.03857499978039413,
+        "99": 49.18594818271231,
+        "100": 49.75642298813909
+      },
+      "gaps_over_20ms": 600,
+      "gaps_at_or_over_80ms": 0,
+      "time_over_20ms_sample_age_s": 17.49344188795658,
+      "fresh_gap_diagnostic_pass": false,
+      "continuous_20ms_delivery_pass": false,
+      "delivery_gap_bands": {
+        "fresh": {
+          "count": 29435,
+          "duration_s": 0.519964018050814,
+          "fraction_of_gap_duration": 0.01732439229586868
+        },
+        "held": {
+          "count": 600,
+          "duration_s": 29.49344188795658,
+          "fraction_of_gap_duration": 0.9826756077041313
+        },
+        "stale": {
+          "count": 0,
+          "duration_s": 0.0,
+          "fraction_of_gap_duration": 0.0
+        }
+      },
+      "delivery_gap_cutoff_bands": {
+        "lt_20ms": {
+          "count": 29435,
+          "duration_s": 0.519964018050814
+        },
+        "20_to_40ms": {
+          "count": 2,
+          "duration_s": 0.07903726698714308
+        },
+        "40_to_60ms": {
+          "count": 598,
+          "duration_s": 29.414404620969435
+        },
+        "60_to_80ms": {
+          "count": 0,
+          "duration_s": 0.0
+        },
+        "ge_80ms": {
+          "count": 0,
+          "duration_s": 0.0
+        }
+      },
+      "delivery_gap_duration_s": 30.013405906007392,
+      "held_fraction": 0.9826756077041313,
+      "longest_hold_s": 0.04975642298813909,
+      "stale_stop_count": 0,
+      "geometric_latency_reject_count": 0,
+      "observation_age_source": "host_delivery_gap_only",
+      "observation_age_ms": null,
+      "observation_age_bands": null,
+      "freshness_policy": {
+        "fresh_age_s": 0.02,
+        "stale_age_s": 0.08,
+        "held_policy": "latest_value_zero_order_hold_no_interpolation",
+        "stale_policy": "fail_closed_stop_zero_and_censor_trial"
+      },
+      "raw_wrench_mean_si": {
+        "Fx_N": 7.150813786853751,
+        "Fy_N": 4.323921174032488,
+        "Fz_N": 2.1257475295928385,
+        "Mx_Nm": 0.2404395882568245,
+        "My_Nm": -0.25814024506518796,
+        "Mz_Nm": 0.08425239295276273
+      },
+      "raw_wrench_std_si": {
+        "Fx_N": 0.07312924393978933,
+        "Fy_N": 0.0708620018845047,
+        "Fz_N": 0.2726444336209802,
+        "Mx_Nm": 0.0023706505261930147,
+        "My_Nm": 0.0011425183858627718,
+        "Mz_Nm": 0.008921134906554844
+      },
+      "tcp_quickack": false,
+      "parse_errors": 0,
+      "dropped_sync_bytes": 0,
+      "claim_scope": "host parser timestamps and delivery gaps only unless observation_age_source says otherwise; not sensor-internal sampling timestamps or packet capture; raw values include bias/gravity; no controller comparison",
+      "sensor_stop_claim": "logger sent the existing STOP command and closed; sensor conversion stop not independently proven"
+    },
+    {
+      "source_directory": "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/runs/contact-six-static-20260918/sensor-quickack",
+      "raw_frames_sha256": "51e984abddf8047d9740e67202366a46316ff3c296bd68042789bc8a8d253ef5",
+      "csv_sha256": "5fbd0621df3f4eb12f933457f8e86fb93cb30e1473d7e29dad7d226fa8ed6a10",
+      "samples": 30033,
+      "elapsed_first_last_s": 30.048109954979736,
+      "average_frame_rate_hz": 999.4638612876525,
+      "host_frame_gap_ms": {
+        "50": 0.01296499976888299,
+        "90": 0.02354398020543158,
+        "95": 0.034679507371038164,
+        "99": 49.33801004837733,
+        "100": 49.832150019938126
+      },
+      "gaps_over_20ms": 602,
+      "gaps_at_or_over_80ms": 0,
+      "time_over_20ms_sample_age_s": 17.56369648266351,
+      "fresh_gap_diagnostic_pass": false,
+      "continuous_20ms_delivery_pass": false,
+      "delivery_gap_bands": {
+        "fresh": {
+          "count": 29430,
+          "duration_s": 0.44441347231622785,
+          "fraction_of_gap_duration": 0.014790064099941077
+        },
+        "held": {
+          "count": 602,
+          "duration_s": 29.60369648266351,
+          "fraction_of_gap_duration": 0.9852099359000589
+        },
+        "stale": {
+          "count": 0,
+          "duration_s": 0.0,
+          "fraction_of_gap_duration": 0.0
+        }
+      },
+      "delivery_gap_cutoff_bands": {
+        "lt_20ms": {
+          "count": 29430,
+          "duration_s": 0.44441347231622785
+        },
+        "20_to_40ms": {
+          "count": 4,
+          "duration_s": 0.12583593596355058
+        },
+        "40_to_60ms": {
+          "count": 598,
+          "duration_s": 29.477860546699958
+        },
+        "60_to_80ms": {
+          "count": 0,
+          "duration_s": 0.0
+        },
+        "ge_80ms": {
+          "count": 0,
+          "duration_s": 0.0
+        }
+      },
+      "delivery_gap_duration_s": 30.048109954979736,
+      "held_fraction": 0.9852099359000589,
+      "longest_hold_s": 0.049832150019938126,
+      "stale_stop_count": 0,
+      "geometric_latency_reject_count": 0,
+      "observation_age_source": "host_delivery_gap_only",
+      "observation_age_ms": null,
+      "observation_age_bands": null,
+      "freshness_policy": {
+        "fresh_age_s": 0.02,
+        "stale_age_s": 0.08,
+        "held_policy": "latest_value_zero_order_hold_no_interpolation",
+        "stale_policy": "fail_closed_stop_zero_and_censor_trial"
+      },
+      "raw_wrench_mean_si": {
+        "Fx_N": 7.131645819713651,
+        "Fy_N": 4.320369733558089,
+        "Fz_N": 2.1183836159234875,
+        "Mx_Nm": 0.24019834999873516,
+        "My_Nm": -0.2578460619072009,
+        "Mz_Nm": 0.08430961820799507
+      },
+      "raw_wrench_std_si": {
+        "Fx_N": 0.07358157507559716,
+        "Fy_N": 0.07092795786670703,
+        "Fz_N": 0.2730998146883809,
+        "Mx_Nm": 0.0023804659814841765,
+        "My_Nm": 0.0011590383822835744,
+        "Mz_Nm": 0.008931099303667223
+      },
+      "tcp_quickack": true,
+      "parse_errors": 0,
+      "dropped_sync_bytes": 0,
+      "claim_scope": "host parser timestamps and delivery gaps only unless observation_age_source says otherwise; not sensor-internal sampling timestamps or packet capture; raw values include bias/gravity; no controller comparison",
+      "sensor_stop_claim": "logger sent the existing STOP command and closed; sensor conversion stop not independently proven"
+    }
+  ],
+  "motion_dispatched": false,
+  "live_contact_qualified": false
+}

@@ -103,6 +103,16 @@ rollback. The proposer and ledger consume only sealed paired training units;
 failed units consume budget without scores. Unmeasured candidate feasibility
 is unknown, never true. None of these interfaces admits live dispatch.
 
+The contact freshness contract now follows the SFC-compatible three bands:
+`fresh` for age `<20 ms`, latest-value/ZOH `held` for `20 ms <= age <80 ms`,
+and fail-closed `stale` at `>=80 ms`. The 20 ms boundary is a diagnostic, not
+a per-sample hard stop. The contact outer loop keeps the separate geometric
+latency budget, and a stale stop or geometric latency rejection censors the
+metric objective. See `CONTACT_BENCHMARK_FRESHNESS.md` and the generated
+`static-delivery.json` for the policy and host-gap evidence. The current
+static capture has no host gaps at or above 80 ms; its roughly 50 ms gaps are
+held-delivery evidence only, not sensor-internal age or controller acceptance.
+
 Historical R004 suite: 8 failures / 9 passes, reproduced identically in the
 clean base worktree at 9a9af59f. These concern old TP strings, baseline budget,
 ledger/transport fixtures and promotion assumptions, not a passing regression

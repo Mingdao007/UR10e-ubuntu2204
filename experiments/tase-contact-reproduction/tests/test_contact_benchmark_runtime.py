@@ -34,15 +34,30 @@ def test_measured_frame_and_actual_jacobian_produce_contact_command(lib):
         assert out['qp_equality_residual']<1e-7
 
 
-def test_sensor_age_raw_force_and_tool_binding_reject_before_state_mutation(lib):
+def test_sensor_age_held_is_admitted_but_stale_raw_force_and_tool_binding_reject(lib):
     with ContactLaw.from_config('MSFC') as law:
-        runtime,robot=fixture(law,lib);before=runtime.snapshot()
+        runtime,robot=fixture(law,lib)
         args=dict(robot=robot,wrench_tcp=[0,0,-5,0,0,0],sensor_observed_at_s=100.,sample_time_s=100.,phase='baseline')
-        with pytest.raises(ValueError,match='older'):runtime.step(**{**args,'sensor_observed_at_s':99.97})
+        held=runtime.step(**{**args,'sensor_observed_at_s':99.97})
+        assert held['age_band']=='held'
+        assert held['observation_age_s']==pytest.approx(.03)
+        assert runtime.freshness_summary()['held_count']==1
+        before=runtime.snapshot()
+        robot['observed_at_s']=100.003
+        robot['timestamp']=1234.001
+        args={**args,'sample_time_s':100.003,'sensor_observed_at_s':100.003}
         with pytest.raises(ValueError,match='raw sensor'):runtime.step(**{**args,'wrench_tcp':[0,0,-21,0,0,0]})
         robot['payload']=1.56
         with pytest.raises(ValueError,match='tool'):runtime.step(**args)
         assert runtime.snapshot()==before
+
+        with ContactLaw.from_config('MSFC') as stale_law:
+            stale_runtime,stale_robot=fixture(stale_law,lib)
+            stale_args=dict(robot=stale_robot,wrench_tcp=[0,0,-5,0,0,0],
+                             sensor_observed_at_s=99.9,sample_time_s=100.,phase='baseline')
+            with pytest.raises(ValueError,match='older than 80ms'):
+                stale_runtime.step(**stale_args)
+            assert stale_runtime.freshness_summary()['stale_stop_count']==1
 
 
 def test_complete_adapter_deadline_rolls_back_state_and_clocks(lib):

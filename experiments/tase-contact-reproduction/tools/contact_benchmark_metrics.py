@@ -7,6 +7,10 @@ interval is no longer than ``max_gap_s``.  The hold is a bookkeeping rule for
 the sampled signal; it does not interpolate a missing interval.  Leading and
 trailing intervals, and gaps larger than ``max_gap_s``, remain uncovered.
 
+``max_gap_s`` is deliberately independent from the contact runtime sensor-age
+policy (fresh below 20 ms, stale at 80 ms).  It describes metric coverage; it
+does not redefine observation age or authorize interpolation.
+
 The interval is half-open, ``[start_s, end_s)``.  A sample at ``end_s`` can
 close the preceding interval but contributes no duration of its own.  A
 complete result therefore needs an in-range sample at the start and a sample
@@ -238,6 +242,8 @@ class ContactMetrics:
     objective_eligible: bool
     schema: str = METRIC_SCHEMA
     version: int = METRIC_VERSION
+    stale_stop_count: int = 0
+    geometric_latency_reject_count: int = 0
 
     @property
     def status(self) -> str:
@@ -280,6 +286,8 @@ class ContactMetrics:
             "objective_eligible": self.objective_eligible,
             "objective": self.objective,
             "status": self.status,
+            "stale_stop_count": self.stale_stop_count,
+            "geometric_latency_reject_count": self.geometric_latency_reject_count,
         }
 
 
@@ -327,6 +335,8 @@ class ContactMetricsAccumulator:
         self._path_peak_m: float | None = None
         self._missing_intervals: list[tuple[float, float]] = []
         self._large_gap_count = 0
+        self._stale_stop_count = 0
+        self._geometric_latency_reject_count = 0
         self._finalized_result: ContactMetrics | None = None
         self._finalized_interrupted: bool | None = None
 
@@ -438,6 +448,20 @@ class ContactMetricsAccumulator:
             self.add_sample(sample)
         return self
 
+    def record_freshness(self, summary: Mapping[str, Any]) -> "ContactMetricsAccumulator":
+        """Bind runtime freshness evidence before finalizing metric admission."""
+        if not isinstance(summary, Mapping):
+            raise ContactMetricError("freshness summary must be a mapping")
+        for name in ("stale_stop_count", "geometric_latency_reject_count"):
+            value = summary.get(name, 0)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ContactMetricError(f"{name} must be a non-negative integer")
+        self._stale_stop_count = int(summary.get("stale_stop_count", 0))
+        self._geometric_latency_reject_count = int(
+            summary.get("geometric_latency_reject_count", 0)
+        )
+        return self
+
     def finalize(self, *, interrupted: bool = False) -> ContactMetrics:
         if not isinstance(interrupted, bool):
             raise ContactMetricError("interrupted must be a bool")
@@ -498,7 +522,12 @@ class ContactMetricsAccumulator:
             force_rmse_n = None
             path_rms_m = None
 
-        complete = coverage_complete and not interrupted
+        complete = (
+            coverage_complete
+            and not interrupted
+            and self._stale_stop_count == 0
+            and self._geometric_latency_reject_count == 0
+        )
         result = ContactMetrics(
             interval_start_s=self.config.start_s,
             interval_end_s=self.config.end_s,
@@ -523,6 +552,8 @@ class ContactMetricsAccumulator:
             complete=complete,
             censored=not complete,
             objective_eligible=complete,
+            stale_stop_count=self._stale_stop_count,
+            geometric_latency_reject_count=self._geometric_latency_reject_count,
         )
         self._finalized_result = result
         self._finalized_interrupted = interrupted
@@ -534,12 +565,14 @@ def compute_contact_metrics(
     config: ContactBenchmarkConfig,
     *,
     interrupted: bool = False,
+    freshness: Mapping[str, Any] | None = None,
 ) -> ContactMetrics:
     """Compute offline metrics through the same path as streaming updates."""
 
-    return ContactMetricsAccumulator(config).add_samples(samples).finalize(
-        interrupted=interrupted
-    )
+    accumulator = ContactMetricsAccumulator(config).add_samples(samples)
+    if freshness is not None:
+        accumulator.record_freshness(freshness)
+    return accumulator.finalize(interrupted=interrupted)
 
 
 # Descriptive aliases keep call sites readable without creating a second metric

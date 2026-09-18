@@ -16,6 +16,23 @@
     "duration_s": 62.83185307179586,
     "orientation": "fixed_task_frame"
   },
+  "entry": {
+    "profile": "quintic_h=-4s^3+7s^4-3s^5",
+    "duration_s": 1.0,
+    "terminal_velocity_m_s": [
+      0.004,
+      0.002,
+      0.0
+    ]
+  },
+  "execution": {
+    "entry_duration_s": 1.0,
+    "formal_start_s": 1.0,
+    "formal_duration_s": 62.83185307179586,
+    "duration_s": 63.83185307179586,
+    "formal_metrics_start_s": 1.0,
+    "formal_metrics_duration_s": 62.83185307179586
+  },
   "scenarios": [
     "nominal",
     "normal_pulse",
@@ -44,5 +61,24 @@
   "rpsfc_selectable": false,
   "research_parameters_are_contact_qualified": false,
   "free_guidance_5_to_30_50_70_is_separate": true,
-  "sha256": "f1c7f0b20059be5846d580a38f59f4b348681e5aa3e252516cac2f8cd420b68c"
+  "freshness": {
+    "fresh_age_s": 0.02,
+    "stale_age_s": 0.08,
+    "bands": {
+      "fresh": "0 <= age < 0.020",
+      "held": "0.020 <= age < 0.080",
+      "stale": "age >= 0.080"
+    },
+    "held_policy": "latest_value_zero_order_hold_no_interpolation",
+    "stale_policy": "fail_closed_stop_zero_and_censor_trial",
+    "comparison_policy": "same_capture_session_and_raw_sensor_stream",
+    "geometric_latency_guard_is_independent": true
+  },
+  "freshness_sensitivity_cutoffs_s": [
+    0.02,
+    0.04,
+    0.06,
+    0.08
+  ],
+  "sha256": "8a5d84e6e0f11fda734f3a9227aa1d44ea3b703658ad443d0f33e44e2b35f008"
 }

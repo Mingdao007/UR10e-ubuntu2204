@@ -78,3 +78,18 @@ def test_path_projection_cannot_exceed_shared_velocity_cap():
     out=o.step(time_s=0.,dt_s=.003,position_m=[.018,0,0],rotation=R,
                raw_force_base_n=[0,0,5],raw_torque_base_nm=[0,0,0])
     assert np.linalg.norm(out['capped_task_velocity_m_s'][:2])<=.01+1e-12
+
+
+def test_contact_age_policy_allows_held_and_keeps_geometry_guard_separate():
+    common=dict(position_m=[0,0,0],rotation=R,raw_force_base_n=[0,0,5],
+                raw_torque_base_nm=[0,0,0],phase='baseline')
+    held=make().step(time_s=0.,dt_s=.002,state_age_s=.05,**common)
+    assert held['age_band']=='held'
+    assert held['observation_age_s']==pytest.approx(.05)
+
+    # The 80 ms freshness stop is distinct from the existing 1 mm geometric
+    # uncertainty budget, which rejects this faster-age case first.
+    with pytest.raises(ValueError,match='latency uncertainty'):
+        make().step(time_s=0.,dt_s=.002,state_age_s=.07,**common)
+    with pytest.raises(ValueError,match='stale observation'):
+        make().step(time_s=0.,dt_s=.002,state_age_s=.08,**common)

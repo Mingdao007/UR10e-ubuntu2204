@@ -61,8 +61,13 @@ class ContactCommandProvider:
         return tuple(error[:2]),tuple(omega_error)
 
     def _observation(self,output,sensor,monotonic_s,actual_dt_s):
-        if not sensor.sensor_fresh or sensor.stop_request or sensor.observed_at_s is None:
-            raise ValueError('fresh timestamped sensor observation required')
+        # ``sensor_fresh`` is the legacy writer flag and already uses the
+        # 80-ms transport boundary.  Admission here only requires a finite
+        # timestamp; ContactRuntime owns the shared age classification so a
+        # 20--80 ms packet is retained as held evidence and >=80 ms is counted
+        # as a stale stop rather than being rejected as an opaque flag.
+        if sensor.stop_request or sensor.observed_at_s is None:
+            raise ValueError('timestamped sensor observation required')
         if not output.safety_normal:raise ValueError('robot not Safety NORMAL')
         if self.runtime.last_sample_s is not None and not math.isclose(
                 monotonic_s-self.runtime.last_sample_s,actual_dt_s,rel_tol=0,abs_tol=1e-7):
@@ -81,16 +86,49 @@ class ContactCommandProvider:
         return self.last_pause
 
     def command(self, *, output, sensor, monotonic_s, actual_dt_s, mode,
-                path_time_s, internal_setpoint_n):
+                path_time_s=None, internal_setpoint_n, entry_time_s=None):
+        if mode not in ('baseline', 'entry', 'path'):
+            raise ValueError('invalid contact phase')
+        if mode == 'entry':
+            # ContactRuntime has one existing phase-local clock slot.  The
+            # outer loop interprets it as the explicit entry clock only when
+            # phase='entry'; callers may use the clearer entry_time_s alias.
+            if entry_time_s is not None and path_time_s is not None and not math.isclose(
+                    entry_time_s, path_time_s, rel_tol=0., abs_tol=1e-12):
+                raise ValueError('entry clocks disagree')
+            entry_clock = entry_time_s if entry_time_s is not None else path_time_s
+            if entry_clock is None:
+                raise ValueError('entry clock is required')
+            runtime_path_time_s = entry_clock
+        else:
+            if entry_time_s is not None:
+                raise ValueError('entry clock is valid only for entry phase')
+            if mode == 'path' and path_time_s is None:
+                raise ValueError('formal PATH clock is required')
+            runtime_path_time_s = path_time_s if mode == 'path' else None
         robot=self._observation(output,sensor,monotonic_s,actual_dt_s)
         result=self.runtime.step(robot=robot,wrench_tcp=sensor.wrench,
             sensor_observed_at_s=sensor.observed_at_s,sample_time_s=monotonic_s,
-            phase=mode,path_time_s=path_time_s if mode=='path' else None,
+            phase=mode,path_time_s=runtime_path_time_s,
             force_reference_n=internal_setpoint_n,
             injection_task_n=disturbance(self.scenario,path_time_s,amplitude_n=self.amplitude_n) if mode=='path' else (0.,0.,0.))
         result['filtered_normal_n']=float(np.dot(result['filtered_force_base_n'],self.runtime.kernel.outer.reaction))
         self.last_result=result
+        # CalibratedCommand predates the explicit entry phase and requires a
+        # float path_time_s.  Its value is retained as an ABI field; formal
+        # time is authoritative in result['formal_time_s'], which is None
+        # during entry and starts at zero after the one-second seam.
+        result_entry_time_s = result.get('entry_time_s')
+        if mode == 'path':
+            command_path_time_s = path_time_s
+        elif mode == 'entry':
+            command_path_time_s = (0. if result_entry_time_s is None
+                                   else float(result_entry_time_s))
+        else:
+            # Preserve the legacy baseline packet field even though its
+            # runtime phase has no formal path clock.
+            command_path_time_s = 0. if path_time_s is None else path_time_s
         return CalibratedCommand(qdot=result['qdot_rad_s'],jacobian_6x6=result['jacobian_6x6'],
             observed_model_hashes=self.model_hashes,tangential_error_m=tuple(result['path_error_task_m'][:2]),
-            orientation_error_rad=tuple(pin.log3(self.runtime.kernel.outer.target@rotvec_to_matrix(np.asarray(output.tcp_pose_m_rad[3:])).T)),path_time_s=path_time_s,
+            orientation_error_rad=tuple(pin.log3(self.runtime.kernel.outer.target@rotvec_to_matrix(np.asarray(output.tcp_pose_m_rad[3:])).T)),path_time_s=command_path_time_s,
             solver_status=40.) # Legacy packet ABI only; explicit profile identifies QP.

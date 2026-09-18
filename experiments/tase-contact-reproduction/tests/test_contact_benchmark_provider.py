@@ -49,6 +49,19 @@ def test_provider_rejects_missing_sensor_timestamp_and_unbound_pause(lib):
         assert before==runtime.snapshot()
 
 
+def test_provider_routes_stale_timestamp_to_runtime_stop_counter(lib):
+    from dataclasses import replace
+    with ContactLaw.from_config('MSFC') as law:
+        runtime,robot=fixture(law,lib);output,sensor=inputs(robot)
+        provider=ContactCommandProvider(runtime=runtime,model_hashes={})
+        with pytest.raises(ValueError,match='older than 80ms'):
+            provider.command(output=output,
+                sensor=replace(sensor,sensor_fresh=False,observed_at_s=99.9),
+                monotonic_s=100.,actual_dt_s=.002,mode='baseline',
+                path_time_s=0.,internal_setpoint_n=5.)
+        assert runtime.freshness_summary()['stale_stop_count']==1
+
+
 def test_stationary_seam_carries_complete_msfc_state_without_clock_gap(lib):
     from dataclasses import replace
     with ContactLaw.from_config('MSFC') as law:
