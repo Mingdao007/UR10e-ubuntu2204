@@ -1,0 +1,93 @@
+{
+  "requested_action": "noncontact Home only",
+  "started_at": "2026-09-18T01:33:41.664640+00:00",
+  "load": {
+    "action": "LOAD",
+    "accepted": true,
+    "program_id": "step5d_contact_home_v1",
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_home_v1.urp",
+    "safety_mode": "NORMAL",
+    "program_running": false,
+    "remote_control": true,
+    "robot_mode": "RUNNING",
+    "dashboard_before": {
+      "remote_control": true,
+      "safety_mode": "NORMAL",
+      "robot_mode": "RUNNING",
+      "program_running": false,
+      "program_state": "STOPPED 1.urp",
+      "controller_target": "/programs/andyl/aim/1.urp",
+      "dashboard": {
+        "is in remote control": "true",
+        "safetymode": "Safetymode: NORMAL",
+        "robotmode": "Robotmode: RUNNING",
+        "running": "Program running: false",
+        "programState": "STOPPED 1.urp",
+        "get loaded program": "Loaded program: /programs/andyl/aim/1.urp"
+      }
+    },
+    "dashboard_write_response": "Loading program: /programs/andyl/kunwei/step5/step5d_contact_home_v1.urp, /programs/default.installation",
+    "dashboard_after": {
+      "remote_control": true,
+      "safety_mode": "NORMAL",
+      "robot_mode": "RUNNING",
+      "program_running": false,
+      "program_state": "STOPPED step5d_contact_home_v1.urp",
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_home_v1.urp",
+      "dashboard": {
+        "is in remote control": "true",
+        "safetymode": "Safetymode: NORMAL",
+        "robotmode": "Robotmode: RUNNING",
+        "running": "Program running: false",
+        "programState": "STOPPED step5d_contact_home_v1.urp",
+        "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_home_v1.urp"
+      }
+    }
+  },
+  "play": {
+    "action": "PLAY",
+    "accepted": true,
+    "program_id": "step5d_contact_home_v1",
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_home_v1.urp",
+    "safety_mode": "NORMAL",
+    "program_running": true,
+    "remote_control": true,
+    "robot_mode": "RUNNING",
+    "dashboard_before": {
+      "is in remote control": "true",
+      "safetymode": "Safetymode: NORMAL",
+      "robotmode": "Robotmode: RUNNING",
+      "running": "Program running: false",
+      "programState": "STOPPED step5d_contact_home_v1.urp",
+      "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_home_v1.urp"
+    },
+    "dashboard_write_response": "Starting program",
+    "dashboard_after": {
+      "remote_control": true,
+      "safety_mode": "NORMAL",
+      "robot_mode": "RUNNING",
+      "program_running": true,
+      "program_state": "PLAYING step5d_contact_home_v1.urp",
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_home_v1.urp",
+      "dashboard": {
+        "is in remote control": "true",
+        "safetymode": "Safetymode: NORMAL",
+        "robotmode": "Robotmode: RUNNING",
+        "running": "Program running: true",
+        "programState": "PLAYING step5d_contact_home_v1.urp",
+        "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_home_v1.urp"
+      }
+    }
+  },
+  "success": true,
+  "final_position_error_m": 3.0013293117483226e-05,
+  "final_orientation_error_rad": 4.459307820500167e-05,
+  "dashboard_after": {
+    "safetymode": "Safetymode: NORMAL",
+    "running": "Program running: false",
+    "programState": "STOPPED step5d_contact_home_v1.urp",
+    "is in remote control": "true",
+    "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_home_v1.urp"
+  },
+  "ended_at": "2026-09-18T01:33:53.785079+00:00"
+}

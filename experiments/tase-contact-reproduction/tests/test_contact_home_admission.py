@@ -26,3 +26,13 @@ def test_home_stale_start_and_safety_stop_rejected():
     with pytest.raises(ValueError,match='stationary'):admit_sample(sample,home,initial=True)
     sample,home=fixture();sample['safety_status_bits']=4
     with pytest.raises(ValueError,match='NORMAL'):admit_sample(sample,home,initial=False)
+
+
+def test_normal_with_3pe_input_is_not_a_stop():
+    sample,home=fixture();sample['safety_status_bits']=2049
+    admit_sample(sample,home,initial=True)
+    for bit in range(1,11):
+        sample['safety_status_bits']=2049 | (1 << bit)
+        with pytest.raises(ValueError,match='NORMAL'):admit_sample(sample,home,initial=True)
+    sample['safety_status_bits']=4097
+    with pytest.raises(ValueError,match='NORMAL'):admit_sample(sample,home,initial=True)

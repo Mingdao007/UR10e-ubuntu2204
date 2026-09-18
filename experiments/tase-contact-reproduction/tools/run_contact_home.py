@@ -23,7 +23,9 @@ def admit_sample(sample,home, *, initial):
     for key,n in [('actual_TCP_pose',6),('actual_TCP_speed',6),('actual_q',6),('actual_qd',6),('tcp_offset',6),('payload_cog',3)]:
         value=np.asarray(sample[key]);
         if value.shape!=(n,) or not np.isfinite(value).all():raise ValueError(f'invalid {key}')
-    if sample['safety_status_bits']!=1:raise ValueError('RTDE safety is not NORMAL')
+    # UR RTDE bit 11 is informational 3PE input active; bits 1-10 remain forbidden.
+    # https://docs.universal-robots.com/tutorials/communication-protocol-tutorials/rtde-guide.html
+    if sample['safety_status_bits'] not in (1, 2049):raise ValueError('RTDE safety is not NORMAL')
     if not np.isclose(sample['payload'],.413,atol=1e-6) or not np.allclose(sample['payload_cog'],[.0011,.0031,.0163],atol=1e-6) or not np.allclose(sample['tcp_offset'],[0,0,.0874,0,0,0],atol=1e-9):raise ValueError('active tool binding changed')
     current=np.asarray(sample['actual_TCP_pose']);start=np.asarray(home['rtde']['actual_TCP_pose']);target=np.asarray(home['home_pose'])
     low=np.minimum(start[:3],target[:3])-.003;high=np.maximum(start[:3],target[:3])+.003
@@ -73,7 +75,7 @@ def run(args):
     adapter=_ExactLoadAdapter(host=args.host,target=TARGET,program_id=BASENAME,dashboard_observer=dashboard_exchange,writer=writer,dashboard_port=29999,dashboard_timeout_s=2.,observe_timeout_s=5.,poll_interval_s=.05,monotonic=time.monotonic,sleeper=time.sleep)
     with WriterLock(INSTALLED_LOCK):
         try:
-            video=subprocess.Popen(['ffmpeg','-hide_banner','-loglevel','error','-rtsp_transport','tcp','-stimeout','8000000','-i','rtsp://127.0.0.1:8554/arm','-c','copy','-t','40',str(args.output/'home.mkv')],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+            video=subprocess.Popen(['ffmpeg','-hide_banner','-loglevel','error','-rtsp_transport','tcp','-stimeout','8000000','-i','rtsp://127.0.0.1:8554/arm','-c','copy','-flush_packets','1','-cluster_time_limit','500','-t','40',str(args.output/'home.mkv')],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
             obs.start()
             barrier_deadline=time.monotonic()+8.
             while time.monotonic()<barrier_deadline:

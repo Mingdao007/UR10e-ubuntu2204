@@ -1,5 +1,8 @@
 # Step5 Flow
 
+The historical compatibility projection remains `step5d_strict_rnn_autotune_v3`.
+The contact-six preparation below is inactive and does not promote that release.
+
 ## Six-controller contact benchmark preparation
 
 The isolated `contact_six_qp_v1` preparation uses LAC, NAC, SFC, DSFC, ISFC,
@@ -19,7 +22,9 @@ RNN runs are not evidence of the new QP route.
 
 The new `step5d_contact_six_qp_v1` and `step5d_contact_home_v1` triplets
 are controller-read-back verified under `/programs/andyl/kunwei/step5`.
-Neither has been played. The Home keeps XYZ `[0.487834547, 0.129337053,
+The Home program completed on 2026-09-18 with 0.030 mm position error and
+Safety NORMAL; see `report/contact-six-qp-20260917/home-live-result.json`.
+The contact resident has not been played. The Home keeps XYZ `[0.487834547, 0.129337053,
 0.033]` metres, adopts the current tool yaw, and aligns tool +Z with base -Z.
 The resident caps joint speed at 0.05 rad/s and initial search at 0.2 mm/s;
 raw force/torque limits are 20 N/2 Nm. It carries protocol 618001, distinct
