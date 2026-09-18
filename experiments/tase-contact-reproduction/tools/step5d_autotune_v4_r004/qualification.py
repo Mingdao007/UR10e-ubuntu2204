@@ -479,14 +479,15 @@ class CanonicalQualificationControl:
                             motion_kp=self.candidate.motion_kp,
                         )
                     )
-                tick_log = self._path_controller.step(
-                    actual_dt_s=actual_dt_s,
-                    raw_normal_n=sensor.normal_load_n,
-                    setpoint_n=self._setpoint_n,
-                    mode="path",
-                    orientation_error_rad=orientation_error,
-                    tangential_error_m=tangential_error,
-                )
+                if self.contact_command_provider is None:
+                    tick_log = self._path_controller.step(
+                        actual_dt_s=actual_dt_s,
+                        raw_normal_n=sensor.normal_load_n,
+                        setpoint_n=self._setpoint_n,
+                        mode="path",
+                        orientation_error_rad=orientation_error,
+                        tangential_error_m=tangential_error,
+                    )
                 mode = "path"
             else:
                 path_time_s = 0.0

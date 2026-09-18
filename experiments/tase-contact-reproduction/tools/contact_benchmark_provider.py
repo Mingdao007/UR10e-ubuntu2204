@@ -1,10 +1,45 @@
 """Explicit adapter for the mature qualification control's contact-only branch."""
 import math
+from dataclasses import dataclass
 import numpy as np
 import pinocchio as pin
 from contact_benchmark_protocol import disturbance
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import CalibratedCommand
+
+
+@dataclass(frozen=True)
+class ContactForceObservation:
+    filtered_normal_n: float
+    actual_dt_s: float
+    role: str = 'readiness_observation_only'
+
+
+class ContactReadinessObserver:
+    """Scalar readiness filter; has no PID, native-law or command state.
+
+    It observes every acquisition tick, including stationary seams. The native
+    controller's separate vector filter follows the explicit freeze-carry policy.
+    """
+    def __init__(self, tau_s):
+        if not math.isfinite(tau_s) or tau_s <= 0:
+            raise ValueError('invalid readiness filter time constant')
+        self.tau_s=tau_s
+        self.filtered_normal_n=None
+        self.last_log=None
+
+    def step(self, *, actual_dt_s, raw_normal_n, setpoint_n, mode,
+             orientation_error_rad=(0.,0.,0.), tangential_error_m=(0.,0.)):
+        if not math.isfinite(actual_dt_s) or not 0 < actual_dt_s <= .004:
+            raise ValueError('readiness observation interval outside (0,4ms]')
+        if not math.isfinite(raw_normal_n):
+            raise ValueError('nonfinite readiness force')
+        if self.filtered_normal_n is None:
+            self.filtered_normal_n=float(raw_normal_n)
+        else:
+            self.filtered_normal_n += -math.expm1(-actual_dt_s/self.tau_s)*(raw_normal_n-self.filtered_normal_n)
+        self.last_log=ContactForceObservation(self.filtered_normal_n,actual_dt_s)
+        return self.last_log
 
 
 class ContactCommandProvider:
@@ -13,6 +48,7 @@ class ContactCommandProvider:
         disturbance(scenario,0.,amplitude_n=amplitude_n)
         self.runtime=runtime;self.model_hashes=dict(model_hashes)
         self.solver_profile=runtime.solver_profile
+        self.lifecycle_observer=ContactReadinessObserver(runtime.kernel.outer.settings.filter_tau_s)
         self.scenario=scenario;self.amplitude_n=amplitude_n;self.last_result=None
 
     def path_errors(self, *, actual_tcp_pose, path_time_s, motion_kp):

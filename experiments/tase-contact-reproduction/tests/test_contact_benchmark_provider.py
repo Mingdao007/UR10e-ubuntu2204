@@ -69,3 +69,18 @@ def test_stationary_seam_carries_complete_msfc_state_without_clock_gap(lib):
         with pytest.raises(ValueError,match='active PATH'):
             provider.pause(output=output,sensor=replace(sensor,observed_at_s=100.014),monotonic_s=100.014,
                            actual_dt_s=.002,reason='unexpected')
+
+
+def test_readiness_observer_uses_common_tau_once_without_pid_state():
+    import math
+    from contact_benchmark_provider import ContactReadinessObserver
+    observer=ContactReadinessObserver(.02)
+    observer.step(actual_dt_s=.002,raw_normal_n=1.,setpoint_n=1.,mode='baseline')
+    result=observer.step(actual_dt_s=.004,raw_normal_n=5.,setpoint_n=5.,mode='path')
+    assert result.filtered_normal_n==pytest.approx(1.+4.*(1.-math.exp(-.004/.02)))
+    assert result.role=='readiness_observation_only'
+    before=observer.last_log
+    with pytest.raises(ValueError):
+        observer.step(actual_dt_s=.01,raw_normal_n=5.,setpoint_n=5.,mode='path')
+    assert observer.last_log==before
+    assert not hasattr(observer,'integral_error_n_s')

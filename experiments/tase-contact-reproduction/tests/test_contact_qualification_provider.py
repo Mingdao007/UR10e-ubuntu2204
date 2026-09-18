@@ -265,6 +265,7 @@ def test_contact_provider_bypasses_legacy_outer_and_post_qp_transforms(monkeypat
     assert result.qdot == pytest.approx(provider.qdot)
     assert result.filtered_normal_n == pytest.approx(4.75)
     assert len(provider.command_calls) == 1
+    assert len(control._path_controller.calls) == 1
     assert len(provider.path_errors_calls) == 1
     assert control._runtime.path_errors_calls == 0
     assert control._runtime.desired_twist_calls == 0

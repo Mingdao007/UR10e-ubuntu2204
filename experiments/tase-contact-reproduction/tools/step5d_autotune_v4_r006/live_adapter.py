@@ -505,9 +505,13 @@ class _R006NativeCanonicalQualificationControl(_R004CanonicalQualificationContro
                     motion_profile=self.motion_profile,
                     force_integral_limit_n_s=float(self.force_integral_limit_n_s),
                 )
-            self._path_controller = V4PathController(
-                self._canonical_candidate,
-                motion_profile=self.motion_profile,
+            self._path_controller = (
+                self.contact_command_provider.lifecycle_observer
+                if self.contact_command_provider is not None
+                else V4PathController(
+                    self._canonical_candidate,
+                    motion_profile=self.motion_profile,
+                )
             )
             self._baseline_state = BaselineState()
             self._readiness_gate = (
