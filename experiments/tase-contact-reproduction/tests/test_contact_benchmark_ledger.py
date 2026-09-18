@@ -27,3 +27,25 @@ def test_conflicting_identity_and_false_success_rejected(tmp_path):
     with pytest.raises(ValueError,match='identity'):l.begin(attempt_id='a',controller='MSFC',candidate={'m':5},condition='nominal')
     with pytest.raises(ValueError,match='uncensored'):l.seal('a',status='complete',evidence={'artifact_sha256':'b'*64,'objective_eligible':False})
     with pytest.raises(ValueError,match='six'):l.freeze({'MSFC':{'m':4}})
+
+
+def test_freeze_uses_successful_repeat_and_requires_measured_nominal_feasibility(tmp_path):
+    from contact_benchmark_protocol import CONTROLLERS
+    l=ledger(tmp_path)
+    for c in CONTROLLERS:
+        for n in range(24):
+            for condition in ('nominal','disturbed'):
+                attempt=f'{c}-{n}-{condition}'
+                l.begin(attempt_id=attempt,controller=c,candidate={'m':4 if n in (0,23) else 5},
+                        condition=condition,unit=n if condition=='disturbed' else None)
+                failed=n==0
+                l.seal(attempt,status='failed' if failed else 'complete',evidence={
+                    'artifact_sha256':'a'*64,'objective_eligible':not failed,
+                    'nominal_feasible':n==23,'objective':1.})
+    # Completed but measured infeasible candidates must not become holdout picks.
+    with pytest.raises(ValueError,match='feasible'):
+        l.freeze({c:{'m':5} for c in CONTROLLERS})
+    # First occurrence failed; the later same-candidate pair is valid evidence.
+    selected={c:{'m':4} for c in CONTROLLERS}
+    assert l.freeze(selected)==l.freeze(selected)
+    l.close()

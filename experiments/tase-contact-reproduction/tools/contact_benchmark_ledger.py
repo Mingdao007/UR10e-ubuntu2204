@@ -101,10 +101,20 @@ class ContactLedger:
                 count=self.db.execute('SELECT COUNT(*) FROM units WHERE controller=?',(c,)).fetchone()[0]
                 trials=self.db.execute('SELECT COUNT(*) FROM attempts WHERE controller=?',(c,)).fetchone()[0]
                 if count!=24 or trials!=48:raise ValueError('equal paired tuning budgets not complete')
-                found=self.db.execute('SELECT number FROM units WHERE controller=? AND candidate=?',(c,canonical(selected_candidates[c]))).fetchone()
+                found=self.db.execute('SELECT number FROM units WHERE controller=? AND candidate=?',(c,canonical(selected_candidates[c]))).fetchall()
                 if not found:raise ValueError('selected candidate was not evaluated')
-                admitted=self.db.execute("SELECT COUNT(*) FROM attempts WHERE controller=? AND unit=? AND status='complete'",(c,found[0])).fetchone()[0]
-                if admitted!=2:raise ValueError('selected candidate lacks a complete nominal/disturbed pair')
+                admitted=False
+                for (number,) in found:
+                    pair={condition:json.loads(evidence) for condition,evidence in self.db.execute(
+                        "SELECT condition,evidence FROM attempts WHERE controller=? AND unit=? AND status='complete'",(c,number))}
+                    if set(pair)!={'nominal','disturbed'}:continue
+                    objective=pair['disturbed'].get('objective')
+                    if (pair['nominal'].get('nominal_feasible') is True
+                            and not isinstance(objective,bool) and isinstance(objective,(int,float))
+                            and math.isfinite(objective) and objective>=0):
+                        admitted=True
+                        break
+                if not admitted:raise ValueError('selected candidate lacks a complete feasible nominal/disturbed pair')
             value=canonical(selected_candidates)
             prior=self.db.execute("SELECT value FROM metadata WHERE key='frozen'").fetchone()
             if prior and prior[0]!=value:raise ValueError('frozen parameters cannot change')
