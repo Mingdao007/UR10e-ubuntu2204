@@ -137,8 +137,11 @@ class SensorPacket:
     torque_norm_nm: float
     wrench: tuple[float, float, float, float, float, float]
     filtered_normal_n: float
+    observed_at_s: float | None = None
 
     def __post_init__(self) -> None:
+        if self.observed_at_s is not None and not math.isfinite(float(self.observed_at_s)):
+            raise ValueError('sensor acquisition timestamp must be finite')
         if not all(isinstance(value, bool) for value in (self.sensor_fresh, self.stop_request, self.eoat_get_ack)):
             raise TypeError("sensor flags must be bool")
         if len(self.wrench) != 6 or not all(math.isfinite(float(value)) for value in self.wrench):

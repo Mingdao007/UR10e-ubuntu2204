@@ -6,7 +6,7 @@ Sealing the same evidence is idempotent; conflicting rewrites are rejected.
 """
 from __future__ import annotations
 from contextlib import contextmanager
-import hashlib,json
+import hashlib,json,math
 from pathlib import Path
 import sqlite3
 from contact_benchmark_protocol import CONTROLLERS,evaluation_budget
@@ -112,3 +112,33 @@ class ContactLedger:
             return hashlib.sha256(value.encode()).hexdigest()
 
     def close(self):self.db.close()
+
+    def training_observations(self, controller):
+        """Read sealed paired units for the proposer; never infer missing scores.
+
+        The nominal evidence must carry its measured acceptance decision;
+        disturbed evidence must carry the caller's preregistered objective.
+        Failed/censored pairs consume one row with no invented objective.
+        """
+        from contact_benchmark_tuner import TrainingObservation
+        if controller not in CONTROLLERS:raise ValueError('unknown controller')
+        rows=[]
+        with self.transaction():
+            units=self.db.execute('SELECT number,candidate FROM units WHERE controller=? ORDER BY number',(controller,)).fetchall()
+            for number,candidate in units:
+                pair={condition:(status,json.loads(evidence) if evidence else None)
+                      for condition,status,evidence in self.db.execute(
+                          'SELECT condition,status,evidence FROM attempts WHERE controller=? AND unit=?',(controller,number))}
+                if set(pair)!={'nominal','disturbed'} or any(status=='running' for status,_ in pair.values()):
+                    raise ValueError('paired unit is not sealed; no next proposal')
+                successful=all(status=='complete' for status,_ in pair.values())
+                feasible=None;objective=None
+                if successful:
+                    feasible=pair['nominal'][1].get('nominal_feasible')
+                    objective=pair['disturbed'][1].get('objective')
+                    if type(feasible) is not bool or isinstance(objective,bool) or not isinstance(objective,(int,float)) or not math.isfinite(objective) or objective<0:
+                        raise ValueError('complete pair lacks measured feasibility/objective')
+                rows.append(TrainingObservation(law=controller,candidate=json.loads(candidate),
+                    status='completed' if successful else 'failed',
+                    nominal_feasible=feasible if successful else False,objective=objective))
+        return rows

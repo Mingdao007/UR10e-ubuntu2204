@@ -1,0 +1,124 @@
+{
+  "schema": "contact-kernel-prescribed-input-smoke-v1",
+  "claim_scope": "full task clock on prescribed observations at one fixed Jacobian; NOT plant simulation, live timing qualification or controller comparison",
+  "raw_guard_limits_are_fixture_values": true,
+  "live_authority": false,
+  "results": [
+    {
+      "controller": "LAC",
+      "samples": 31917,
+      "scheduled_samples": 31917,
+      "baseline_samples": 500,
+      "path_endpoint_s": 62.83185307179586,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.011613098036233137,
+      "capped_ticks": 491,
+      "maximum_qp_equality_residual": 4.1115510549796685e-09,
+      "kernel_seconds": {
+        "p50": 0.0001323280157521367,
+        "p99": 0.0001794359995983541,
+        "max": 0.008430716989096254
+      },
+      "over_2ms_ticks": 1
+    },
+    {
+      "controller": "NAC",
+      "samples": 31917,
+      "scheduled_samples": 31917,
+      "baseline_samples": 500,
+      "path_endpoint_s": 62.83185307179586,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.011830507728675301,
+      "capped_ticks": 522,
+      "maximum_qp_equality_residual": 4.1837765891268485e-09,
+      "kernel_seconds": {
+        "p50": 0.00013245802256278694,
+        "p99": 0.0001791949907783419,
+        "max": 0.0002599360013846308
+      },
+      "over_2ms_ticks": 0
+    },
+    {
+      "controller": "SFC",
+      "samples": 31917,
+      "scheduled_samples": 31917,
+      "baseline_samples": 500,
+      "path_endpoint_s": 62.83185307179586,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.019484560922188084,
+      "capped_ticks": 22888,
+      "maximum_qp_equality_residual": 4.844977028145421e-09,
+      "kernel_seconds": {
+        "p50": 0.00013403099728748202,
+        "p99": 0.00018222100334241986,
+        "max": 0.0002506689925212413
+      },
+      "over_2ms_ticks": 0
+    },
+    {
+      "controller": "DSFC",
+      "samples": 31917,
+      "scheduled_samples": 31917,
+      "baseline_samples": 500,
+      "path_endpoint_s": 62.83185307179586,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.01161122196757726,
+      "capped_ticks": 322,
+      "maximum_qp_equality_residual": 3.3012047240353167e-09,
+      "kernel_seconds": {
+        "p50": 0.00013201701221987605,
+        "p99": 0.00018072883249260486,
+        "max": 0.00023898802464827895
+      },
+      "over_2ms_ticks": 0
+    },
+    {
+      "controller": "ISFC",
+      "samples": 31917,
+      "scheduled_samples": 31917,
+      "baseline_samples": 500,
+      "path_endpoint_s": 62.83185307179586,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.019277945169483335,
+      "capped_ticks": 3013,
+      "maximum_qp_equality_residual": 6.100005515898704e-09,
+      "kernel_seconds": {
+        "p50": 0.00013354999828152359,
+        "p99": 0.00018287040060386062,
+        "max": 0.010948639013804495
+      },
+      "over_2ms_ticks": 1
+    },
+    {
+      "controller": "MSFC",
+      "samples": 31917,
+      "scheduled_samples": 31917,
+      "baseline_samples": 500,
+      "path_endpoint_s": 62.83185307179586,
+      "failure": null,
+      "maximum_qdot_rad_s": 0.010304974498498834,
+      "capped_ticks": 227,
+      "maximum_qp_equality_residual": 3.726084131408365e-09,
+      "kernel_seconds": {
+        "p50": 0.0001326180063188076,
+        "p99": 0.00017925340100191533,
+        "max": 0.0002463409909978509
+      },
+      "over_2ms_ticks": 0
+    }
+  ],
+  "started_at": "2026-09-18T01:54:37.436504+00:00",
+  "ended_at": "2026-09-18T01:55:05.074042+00:00",
+  "sources": {
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/check_contact_kernel.py": "cc28d7a72ddad33fd731a479edb006f287bd4e84d94106d36061794317af9da0",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/contact_benchmark_kernel.py": "4457d818cd0164407c8eb7ca086c5efbf9b24abaece33d368b9f29fc6ce0f767",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/contact_benchmark_outer.py": "8fb2c2c9a07a8f75d285e4684ad16e624cce8b63f04c877151235a618f9836bb",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/contact_benchmark_protocol.py": "37c320b8455869e41500968a686f2d8d83be70b0f63c03c60ecc534abcaf24ae",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/contact_laws.py": "b660eab0863013fb8456d9b29757122dfdacdb46506329dd5cd71a1f315b1b19",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/contact_qp.py": "673b7ff00b6f09cd1498017fd6aec2473f94a5a4ca2b925952236ceb9f423618",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/tools/build_contact_laws.py": "52a13124b37efae2f6b2435de5ac18c7c479a5548ce5e2a84506f37a50c72792",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/build/contact-qp/libcontact_qp.so": "a38ba13dee8efc52dd3eed623c3d2d5cf8020c03dfeb2b4c068d9d3366480878",
+    "/home/andy/.codex-worktrees/contact-six-qp-20260917/experiments/tase-contact-reproduction/report/contact-six-qp-20260917/preserved-home.json": "887e592c7361f9ef6e01613a3d64f7623a0a6b8b3a291587b1fa5f8cd9df03e5"
+  },
+  "sources_unchanged": true
+}

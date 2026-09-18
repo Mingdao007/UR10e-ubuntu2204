@@ -47,8 +47,9 @@ Both triplets were uploaded and read back byte-equal under
   2 mm initial-position guard, proper relative-rotation comparison.
 
 See `tp-package-validation.json` and `home-package-validation.json` for local
-and fetched-back cache validation. No package has been played in the evidence
-recorded here; update this statement only after a real run artifact exists.
+and fetched-back cache validation. Home executed successfully on 2026-09-18:
+`home-live-result.json` records 0.030 mm position error, 0.0026 degree attitude
+error, stopped program and Safety NORMAL. The contact resident has not played.
 No payload, CoG, TCP, hardware zero, or sensor configuration was written.
 
 ## Tests and diagnostic results
@@ -77,9 +78,32 @@ rewrite the historical contract.
 
 ## Remaining execution work
 
-Home Remote/observer gate and actual Home verification; integration of the new
-six-law kernel and protocol into the physical owner, including continuous
-baseline-to-PATH state and the full-period clock; complete-writer real-time
+Integration of the new six-law provider and protocol into the physical owner,
+including the stationary State21-to-State25 seam; complete-writer real-time
 qualification; contact-specific equal-budget tuning; parameter freeze and
 independent randomized repeated nominal/disturbed trials. No offline or file
 read-back result establishes those outcomes.
+
+## September 18 implementation update
+
+The native adapters now integrate explicit measured intervals in (0,4ms].
+Baseline and PATH use one law/filter/QP state and separate sample/path clocks.
+The inner projection obeys the common XY speed norm cap, and raw force guards
+reject at (not only above) the package limit.
+
+`kernel-preload-path-smoke.json` covers 500 prescribed preload ticks plus a
+complete path including its exact endpoint, 31,917 steps per law. All six
+remained QP-feasible. This is prescribed-input replay, not a plant or live test.
+Ordinary scheduling still produced 8.4ms and 10.9ms outliers; real-time writer
+qualification is outstanding. SFC seed saturation persists (22,888 ticks).
+
+The new measured-observation runtime uses calibrated Jacobians, timestamped
+sensor/RTDE age checks, current tool binding and complete computation deadline
+rollback. The proposer and ledger consume only sealed paired training units;
+failed units consume budget without scores. Unmeasured candidate feasibility
+is unknown, never true. None of these interfaces admits live dispatch.
+
+Historical R004 suite: 8 failures / 9 passes, reproduced identically in the
+clean base worktree at 9a9af59f. These concern old TP strings, baseline budget,
+ledger/transport fixtures and promotion assumptions, not a passing regression
+suite. New behavior is checked separately with focused tests.

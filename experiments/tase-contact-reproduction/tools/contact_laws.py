@@ -8,7 +8,8 @@ there is no network or robot endpoint in this module.
 The constructor fixes ``dt_s`` for the lifetime of an instance.  ``step``
 accepts an optional ``dt_s`` only as an explicit consistency check, so a
 caller cannot silently change the integration interval at a disturbance
-boundary.  ``snapshot`` and ``restore`` include the complete mechanical
+boundary. ``step_elapsed`` explicitly integrates a measured interval in (0, 4ms]
+without changing the nominal identity.  ``snapshot`` and ``restore`` include the complete mechanical
 state and the MSFC structural memory needed for fair replay.
 """
 

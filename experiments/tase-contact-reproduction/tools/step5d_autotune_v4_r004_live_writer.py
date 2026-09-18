@@ -672,6 +672,7 @@ class LiveR004Writer:
             torque_norm_nm=torque_norm,
             wrench=wrench,
             filtered_normal_n=normal,
+            observed_at_s=observed_at_s,
         )
 
     def _session_input(self, command_mode: CommandMode) -> SessionInput:
