@@ -1,0 +1,62 @@
+{
+  "projected_fields": [
+    "t_monotonic_s",
+    "normal_force_n",
+    "force_norm_n",
+    "step4e_cmd_valid",
+    "_step4e_path_error_x_m",
+    "_step4e_path_error_y_m",
+    "_step4e_normal_load_n",
+    "ur_actual_TCP_pose_0",
+    "ur_actual_TCP_pose_1",
+    "ur_actual_TCP_pose_2",
+    "_step4e_actual_speed_norm_m_s",
+    "ur_actual_TCP_speed_0",
+    "ur_actual_TCP_speed_1",
+    "ur_actual_TCP_speed_2",
+    "_step4e_desired_x_m",
+    "_step4e_desired_y_m",
+    "_step4e_desired_vx_m_s",
+    "_step4e_desired_vy_m_s",
+    "step4e_cmd_vx_m_s",
+    "step4e_cmd_vy_m_s",
+    "step4e_cmd_vz_m_s",
+    "step4e_cmd_wx_rad_s",
+    "step4e_cmd_wy_rad_s",
+    "step4e_cmd_wz_rad_s",
+    "step4e_progress_m",
+    "_step4e_path_time_s"
+  ],
+  "purpose": "portable Step5b contact-cycloid shadow replay plumbing test",
+  "runs": [
+    {
+      "fixture_path": "bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv.gz",
+      "fixture_rows": 67507,
+      "fixture_sha256": "7123f6c482e7a9cf9e472eea3d3983d5d3e61d070a518c9aeb944ba6ce74c835",
+      "run_name": "bridge_step5b_contact_cycloid_baseline_v1_20260612_082352",
+      "source_path": "bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv",
+      "source_rows": 67507,
+      "source_sha256": "9129521b870069895e139dd91a7b9c3103ba028001a5d94e58e112bc7934dab2"
+    },
+    {
+      "fixture_path": "bridge_step5b_contact_cycloid_baseline_v1_20260614_222058/bridge_rtde_500hz.csv.gz",
+      "fixture_rows": 22594,
+      "fixture_sha256": "2d4e2be54a0081e39e83144669605a17f1769ab605b05e63042e02f5c2ff3596",
+      "run_name": "bridge_step5b_contact_cycloid_baseline_v1_20260614_222058",
+      "source_path": "bridge_step5b_contact_cycloid_baseline_v1_20260614_222058/bridge_rtde_500hz.csv",
+      "source_rows": 22594,
+      "source_sha256": "e91ab76fd595041c06887d8365dd5d4df89f88e26175e93a592732404298e698"
+    },
+    {
+      "fixture_path": "bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv.gz",
+      "fixture_rows": 59555,
+      "fixture_sha256": "4287ac943ad960e4e808b6430362b269ffc3bf262ae66a5b515765cd451d3db5",
+      "run_name": "bridge_step5b_contact_cycloid_baseline_v1_20260614_222309",
+      "source_path": "bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv",
+      "source_rows": 59555,
+      "source_sha256": "4bfbc089498a9fd445a6225831f13f249660c0956fde31a17bed4cfe7018abd1"
+    }
+  ],
+  "schema": "ur10e.step5b-shadow-derived-fixture-v1",
+  "source_policy": "derived projection; raw historical evidence remains external"
+}

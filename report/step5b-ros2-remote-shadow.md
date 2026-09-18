@@ -59,6 +59,17 @@ command-valid active rows in this replay window. It is still included as
 retained evidence and is reported separately in `summary.json`; it does not
 cause fail-fast classification.
 
+## Reproducible fixture fallback
+
+The three raw bridge CSVs remain the preferred replay source when the ignored
+historical `runs/` archive is present. A checkout without that archive now
+falls back automatically to the compressed derived projections under
+`experiments/tase-contact-reproduction/tests/fixtures/step5b_contact_cycloid/`.
+`manifest.json` records the source-relative path, source SHA256, row count, and
+projected fields for each fixture. The projections contain only the columns
+consumed by the no-motion shadow; they are plumbing-test fixtures and do not
+replace the raw physical evidence.
+
 ## Commands Run
 
 ```bash

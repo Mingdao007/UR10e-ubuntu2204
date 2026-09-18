@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import gzip
 import json
 import math
 from collections import Counter
@@ -77,7 +78,30 @@ def run_contact_cycloid_shadow(
     if bool(raw_config.get("enable_motion", False)):
         raise RuntimeError("Step5b remote shadow refuses enable_motion=true; live motion is not implemented")
 
-    csv_paths = replay_csvs or _paths_from_config(raw_config, "step5b_replay_csvs")
+    if replay_csvs is not None:
+        csv_paths = list(replay_csvs)
+        source_mode = "explicit_replay_paths"
+    else:
+        historical_paths = _paths_from_config(raw_config, "step5b_replay_csvs")
+        fixture_paths = _paths_from_config(raw_config, "step5b_replay_fixture_csvs")
+        if historical_paths and all(path.is_file() for path in historical_paths):
+            csv_paths = historical_paths
+            source_mode = "historical_raw"
+        elif fixture_paths and all(path.is_file() for path in fixture_paths):
+            csv_paths = fixture_paths
+            source_mode = "portable_derived_fixture"
+        else:
+            # Preserve the original paths in the error so a missing archive is
+            # actionable when neither the raw evidence nor the committed
+            # derived fixture is available.
+            csv_paths = historical_paths
+            source_mode = "historical_raw_missing"
+    fixture_manifest = raw_config.get("step5b_replay_fixture_manifest")
+    if fixture_manifest is not None:
+        fixture_manifest = str(
+            fixture_manifest if Path(str(fixture_manifest)).is_absolute()
+            else WORKSPACE_ROOT / str(fixture_manifest)
+        )
     created_at = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = output_dir or RUNS_ROOT / f"step5b_ros2_remote_shadow_{created_at}"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -98,7 +122,7 @@ def run_contact_cycloid_shadow(
         writer.writeheader()
         for csv_path in csv_paths:
             summary = _empty_source_summary(csv_path)
-            with csv_path.open(newline="", encoding="utf-8") as source:
+            with _open_replay_csv(csv_path) as source:
                 reader = csv.DictReader(source)
                 first_t: float | None = None
                 for row_index, row in enumerate(reader):
@@ -154,6 +178,8 @@ def run_contact_cycloid_shadow(
         "live_motion_authorized": False,
         "tp_action_required": "none_no_tp_play_no_program_load",
         "source_csvs": [str(path) for path in csv_paths],
+        "source_mode": source_mode,
+        "fixture_manifest": fixture_manifest,
         "source_summaries": source_summaries,
         "rows_replayed": total_rows,
         "active_contact_rows": total_active_rows,
@@ -257,6 +283,14 @@ def _paths_from_config(raw_config: dict[str, Any], key: str) -> list[Path]:
         path = Path(str(value))
         paths.append(path if path.is_absolute() else WORKSPACE_ROOT / path)
     return paths
+
+
+def _open_replay_csv(path: Path):
+    """Open a raw CSV or the deterministic gzip fixture projection."""
+
+    if path.suffix == ".gz":
+        return gzip.open(path, mode="rt", newline="", encoding="utf-8")
+    return path.open(newline="", encoding="utf-8")
 
 
 def _first_finite(row: dict[str, str], keys: list[str]) -> float:

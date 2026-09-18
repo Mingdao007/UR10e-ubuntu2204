@@ -6,3 +6,10 @@ step5b_replay_csvs:
   - experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv
   - experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222058/bridge_rtde_500hz.csv
   - experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv
+# Raw runs remain the preferred source.  These compact projections keep the
+# no-motion shadow replay reproducible when the ignored raw archive is absent.
+step5b_replay_fixture_csvs:
+  - experiments/tase-contact-reproduction/tests/fixtures/step5b_contact_cycloid/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv.gz
+  - experiments/tase-contact-reproduction/tests/fixtures/step5b_contact_cycloid/bridge_step5b_contact_cycloid_baseline_v1_20260614_222058/bridge_rtde_500hz.csv.gz
+  - experiments/tase-contact-reproduction/tests/fixtures/step5b_contact_cycloid/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv.gz
+step5b_replay_fixture_manifest: experiments/tase-contact-reproduction/tests/fixtures/step5b_contact_cycloid/manifest.json

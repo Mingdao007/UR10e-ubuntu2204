@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import sys
 import tempfile
@@ -24,10 +25,22 @@ from ur10e_example_controllers.contact_cycloid_shadow import (  # noqa: E402
 
 
 RUNS = ROOT / "runs"
-STEP5B_CSVS = [
+_HISTORICAL_STEP5B_CSVS = [
     RUNS / "bridge_step5b_contact_cycloid_baseline_v1_20260612_082352" / "bridge_rtde_500hz.csv",
     RUNS / "bridge_step5b_contact_cycloid_baseline_v1_20260614_222058" / "bridge_rtde_500hz.csv",
     RUNS / "bridge_step5b_contact_cycloid_baseline_v1_20260614_222309" / "bridge_rtde_500hz.csv",
+]
+FIXTURE_ROOT = ROOT / "tests" / "fixtures" / "step5b_contact_cycloid"
+_FIXTURE_STEP5B_CSVS = [
+    FIXTURE_ROOT / "bridge_step5b_contact_cycloid_baseline_v1_20260612_082352" / "bridge_rtde_500hz.csv.gz",
+    FIXTURE_ROOT / "bridge_step5b_contact_cycloid_baseline_v1_20260614_222058" / "bridge_rtde_500hz.csv.gz",
+    FIXTURE_ROOT / "bridge_step5b_contact_cycloid_baseline_v1_20260614_222309" / "bridge_rtde_500hz.csv.gz",
+]
+# Keep raw evidence preferred when the ignored archive is present, while
+# making this repository's default tests independent of that local archive.
+STEP5B_CSVS = [
+    historical if historical.is_file() else fixture
+    for historical, fixture in zip(_HISTORICAL_STEP5B_CSVS, _FIXTURE_STEP5B_CSVS)
 ]
 
 
@@ -51,6 +64,7 @@ class Step5bRos2RemoteShadowTest(unittest.TestCase):
     def test_full_step5b_replay_not_mostly_fail_fast_and_no_motion(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             summary = run_contact_cycloid_shadow(config_path=DEFAULT_CONFIG, output_dir=Path(tmp))
+        self.assertIn(summary["source_mode"], {"historical_raw", "portable_derived_fixture"})
         self.assertTrue(summary["acceptance"]["not_mostly_fail_fast"])
         self.assertEqual(summary["fail_fast_ratio"], 0.0)
         self.assertFalse(summary["cmd_enabled_any"])
@@ -59,6 +73,18 @@ class Step5bRos2RemoteShadowTest(unittest.TestCase):
         self.assertGreater(summary["active_contact_rows"], 0)
         self.assertEqual(len(summary["source_csvs"]), 3)
         self.assertEqual(summary["role"], "remote_control_plumbing_validation_before_step5d")
+
+    def test_portable_fixture_manifest_is_complete_and_hash_bound(self) -> None:
+        manifest_path = FIXTURE_ROOT / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["schema"], "ur10e.step5b-shadow-derived-fixture-v1")
+        self.assertEqual(len(manifest["runs"]), 3)
+        self.assertIn("_step4e_desired_x_m", manifest["projected_fields"])
+        for entry, fixture in zip(manifest["runs"], _FIXTURE_STEP5B_CSVS):
+            self.assertEqual(FIXTURE_ROOT / entry["fixture_path"], fixture)
+            self.assertEqual(entry["fixture_rows"], entry["source_rows"])
+            digest = hashlib.sha256(fixture.read_bytes()).hexdigest()
+            self.assertEqual(entry["fixture_sha256"], digest)
 
     def test_replay_emits_required_summary_and_trace_schema(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
