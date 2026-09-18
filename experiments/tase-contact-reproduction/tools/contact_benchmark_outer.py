@@ -58,8 +58,11 @@ class ContactOuterLoop:
             raise ValueError('raw guard limits must be explicit finite positive values')
         self.force_limit=raw_force_limit_n;self.torque_limit=raw_torque_limit_nm
         self.filtered=np.zeros(3);self.initialized=False;self.previous_xy=(0.,0.)
-        self.last_time=None
-        self.safety=SafetyFilterConfig()
+        self.last_time=None;self.phase=None;self.last_path_time=None
+        # Inscribed box makes every projected XY command obey the norm cap.
+        xy_cap=settings.tangent_speed_cap_m_s/math.sqrt(2.)
+        self.safety=SafetyFilterConfig(velocity_min_m_s=(-xy_cap,-xy_cap),
+                                       velocity_max_m_s=(xy_cap,xy_cap))
         binding={'settings':settings.__dict__,'anchor':self.anchor.tolist(),
                  'basis':self.basis.tolist(),'target':self.target.tolist(),
                  'force_limit':self.force_limit,'torque_limit':self.torque_limit}
@@ -68,7 +71,8 @@ class ContactOuterLoop:
     def snapshot(self):
         # Native law history is separately mandatory in the composed snapshot.
         return {'identity':self.identity,'filtered_force_base_n':self.filtered.tolist(),'initialized':self.initialized,
-                'previous_xy_m_s':list(self.previous_xy),'last_time_s':self.last_time}
+                'previous_xy_m_s':list(self.previous_xy),'last_time_s':self.last_time,
+                'phase':self.phase,'last_path_time_s':self.last_path_time}
 
     def restore(self, state):
         if state.get('identity') != self.identity or not isinstance(state.get('initialized'),bool):
@@ -76,27 +80,58 @@ class ContactOuterLoop:
         f=finite(state['filtered_force_base_n'],(3,),'filtered state').copy()
         v=finite(state['previous_xy_m_s'],(2,),'previous command').copy()
         t=state['last_time_s']
-        if t is not None and (not math.isfinite(t) or not 0 <= t <= self.task.duration_s):
+        if t is not None and (not math.isfinite(t) or t < 0):
             raise ValueError('invalid snapshot time')
+        phase=state['phase'];path_t=state['last_path_time_s']
+        if phase not in (None,'baseline','path'):
+            raise ValueError('invalid snapshot phase')
+        if (phase=='path') != (path_t is not None):
+            raise ValueError('snapshot path clock differs from phase')
+        if path_t is not None:self.task.reference(path_t)
         self.filtered=f;self.previous_xy=tuple(v);self.last_time=t;self.initialized=state['initialized']
+        self.phase=phase;self.last_path_time=path_t
 
     def step(self, *, time_s, dt_s, position_m, rotation, raw_force_base_n,
-             raw_torque_base_nm, injection_task_n=(0.,0.,0.), state_age_s=0.):
-        if not math.isfinite(dt_s) or not math.isclose(dt_s, .002, rel_tol=0., abs_tol=1e-12):
-            raise ValueError('this preparation binds the existing 2ms safety projection')
+             raw_torque_base_nm, injection_task_n=(0.,0.,0.), state_age_s=0.,
+             phase='path', path_time_s=None, force_reference_n=None):
+        if not math.isfinite(dt_s) or not 0 < dt_s <= .004:
+            raise ValueError('elapsed sample interval must be in (0, 4ms]')
+        if not math.isfinite(time_s) or time_s < 0:
+            raise ValueError('invalid sample clock')
         if not math.isfinite(state_age_s) or not 0 <= state_age_s <= self.safety.max_state_age_s:
             raise ValueError('stale observation')
         if self.last_time is not None and time_s <= self.last_time:
             raise ValueError('task clock must advance; no implicit state reset')
-        reference=self.task.reference(time_s)
+        if phase not in ('baseline','path') or (self.phase=='path' and phase!='path'):
+            raise ValueError('invalid phase transition; no return from path to baseline')
+        target_force=self.task.normal_force_n if force_reference_n is None else float(force_reference_n)
+        if not math.isfinite(target_force) or not 1. <= target_force <= self.task.normal_force_n:
+            raise ValueError('contact reference must remain within 1 to 5 N')
+        if phase=='path':
+            if target_force != self.task.normal_force_n:raise ValueError('PATH requires 5 N reference')
+            path_t=time_s if path_time_s is None else path_time_s
+            if self.last_path_time is not None and path_t <= self.last_path_time:
+                raise ValueError('path clock must advance')
+            reference=self.task.reference(path_t)
+        else:
+            if path_time_s is not None:raise ValueError('baseline has no path clock')
+            path_t=None
+            reference={'position_m':(0.,0.,0.),'velocity_m_s':(0.,0.,0.)}
+        # R012 predicts 2ms; reserve its existing 1mm latency tightening for
+        # sample age and at most 2ms extra hold. Both robot/reference speeds
+        # are bounded here; this is a geometric bound, not timing qualification.
+        relative_speed=self.settings.tangent_speed_cap_m_s+self.task.sanity()['speed_upper_bound_m_s']
+        if (state_age_s+.002)*relative_speed > self.safety.latency_error_bound_m:
+            raise ValueError('latency uncertainty exceeds safety tightening')
         pos=finite(position_m,(3,),'position'); R=finite(rotation,(3,3),'rotation')
         if not np.allclose(R.T@R,np.eye(3),atol=1e-6) or np.linalg.det(R)<.999:
             raise ValueError('invalid observed rotation')
         raw=finite(raw_force_base_n,(3,),'raw force')
         torque=finite(raw_torque_base_nm,(3,),'raw torque')
         injection=finite(injection_task_n,(3,),'software disturbance')
+        if phase=='baseline' and np.any(injection):raise ValueError('disturbance requires PATH phase')
         # Mandatory guard BEFORE filtering or adding a software disturbance.
-        if np.linalg.norm(raw)>self.force_limit or np.linalg.norm(torque)>self.torque_limit:
+        if np.linalg.norm(raw)>=self.force_limit or np.linalg.norm(torque)>=self.torque_limit:
             raise ValueError('raw sensor guard rejected observation')
         local_pos=self.basis.T@(pos-self.anchor)
         ref=np.asarray(reference['position_m']); ref_v=np.asarray(reference['velocity_m_s'])
@@ -106,7 +141,7 @@ class ContactOuterLoop:
             raise ValueError('hard PATH error ellipse violated')
         alpha=-math.expm1(-dt_s/self.settings.filter_tau_s)
         filtered=raw.copy() if not self.initialized else self.filtered+alpha*(raw-self.filtered)
-        force_input=self.basis.T@filtered - np.array([0.,0.,self.task.normal_force_n])+injection
+        force_input=self.basis.T@filtered - np.array([0.,0.,target_force])+injection
         law_velocity=finite(self.law_step(force_input,dt_s),(3,),'law velocity')
         proposal=law_velocity.copy()
         proposal[:2]+=ref_v[:2]-self.settings.path_kp_s_inv*error[:2]
@@ -127,12 +162,14 @@ class ContactOuterLoop:
         wn=np.linalg.norm(omega)
         if wn>self.settings.angular_speed_cap_rad_s: omega*=self.settings.angular_speed_cap_rad_s/wn
         self.filtered=filtered;self.initialized=True;self.previous_xy=tuple(capped[:2]);self.last_time=time_s
+        self.phase=phase;self.last_path_time=path_t
         return {'twist_base':tuple(self.basis@capped)+tuple(omega),
                 'raw_force_base_n':tuple(raw),'filtered_force_base_n':tuple(filtered),
                 'injection_task_n':tuple(injection),'law_input_task_n':tuple(force_input),
-                'reference_force_n':self.task.normal_force_n,
+                'phase':phase,'sample_time_s':time_s,'path_time_s':path_t,
+                'elapsed_dt_s':dt_s,'reference_force_n':target_force,
                 'normal_load_n':signed_normal_load_n(raw,self.reaction),
-                'force_error_n':force_error_n(target_load_n=self.task.normal_force_n,
+                'force_error_n':force_error_n(target_load_n=target_force,
                                               normal_load_n=signed_normal_load_n(raw,self.reaction)),
                 'reference_position_base_m':tuple(self.anchor+self.basis@ref),
                 'path_error_task_m':tuple(error),'law_velocity_task_m_s':tuple(law_velocity),

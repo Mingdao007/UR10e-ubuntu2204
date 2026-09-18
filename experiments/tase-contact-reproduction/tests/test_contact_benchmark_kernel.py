@@ -45,3 +45,17 @@ def test_full_kernel_deadline_rejects_and_restores_complete_state(lib):
         k=make(lib,law);k.kernel_deadline_s=1e-12;before=k.snapshot()
         with pytest.raises(KernelDeadlineError):tick(k)
         assert k.snapshot()==before
+
+
+def test_jittered_baseline_path_replay_preserves_msfc_memory(lib):
+    with ContactLaw.from_config('MSFC') as law:
+        k=make(lib,law)
+        common=dict(jacobian=np.eye(6),joint_velocity_lower=np.full(6,-.05),joint_velocity_upper=np.full(6,.05),
+                    position_m=[0,0,0],rotation=np.diag([1.,-1.,-1.]),raw_torque_base_nm=[0,0,0])
+        k.step(time_s=70.,dt_s=.0015,phase='baseline',force_reference_n=1.,raw_force_base_n=[1,0,1],**common)
+        snap=k.snapshot()
+        a=k.step(time_s=70.003,dt_s=.003,phase='path',path_time_s=0.,raw_force_base_n=[1,0,5],**common)
+        k.restore(snap)
+        b=k.step(time_s=70.003,dt_s=.003,phase='path',path_time_s=0.,raw_force_base_n=[1,0,5],**common)
+        assert a['law_velocity_task_m_s']==b['law_velocity_task_m_s']
+        np.testing.assert_allclose(a['qdot_rad_s'],b['qdot_rad_s'],atol=1e-10)

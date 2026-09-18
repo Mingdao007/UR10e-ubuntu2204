@@ -307,3 +307,18 @@ def test_dimension_is_active_and_nonfinite_unknown_laws_are_rejected(tmp_path: P
         ContactLaw("RPSFC", (1.0,), build_root=tmp_path / "build")
     with pytest.raises(ContactLawError, match="finite"):
         ContactLaw("LAC", (2.0, float("nan"), 0.5), build_root=tmp_path / "build")
+
+
+def test_elapsed_dt_integrates_actual_interval_without_changing_nominal_identity():
+    with ContactLaw('LAC',{'m':4.,'mu':17.,'g':.17}) as law:
+        state=(0.,0.,0.)
+        for dt in (.001,.003,.0025,.004):
+            force=(2.,-1.,.5)
+            acceleration,state,command=_step_componentwise(state,force,m=4.,mu=17.,g=.17,dt=dt,damping=lambda v:17.*v)
+            result=law.step_elapsed(force,dt_s=dt)
+            _close(result.state,state);_close(result.command,command)
+            assert result.dt_s==dt and law.dt_s==.002
+        before=law.snapshot()
+        for dt in (0.,-.001,.004001,float('nan')):
+            with pytest.raises(ContactLawError):law.step_elapsed((1,0,0),dt_s=dt)
+            assert law.snapshot()==before

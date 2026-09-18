@@ -392,30 +392,30 @@ void restore_snapshot(contact_law_handle* handle, const double* input) {
 KernelStep run_step(
     contact_law_handle* handle,
     const Vector3& force,
-    SmysfcMemory& next_memory) {
+    SmysfcMemory& next_memory, double step_dt_s) {
     switch (handle->kind) {
     case Kind::Lac:
         return sfc_controller_suite::lac_step(
-            force, handle->state, handle->lac, handle->dt_s, handle->dimension);
+            force, handle->state, handle->lac, step_dt_s, handle->dimension);
     case Kind::Nac:
         return sfc_controller_suite::nac_step(
-            force, handle->state, handle->nac, handle->dt_s, handle->dimension);
+            force, handle->state, handle->nac, step_dt_s, handle->dimension);
     case Kind::Sfc:
         return sfc_controller_suite::sfc_step(
-            force, handle->state, handle->sfc, handle->dt_s, handle->dimension);
+            force, handle->state, handle->sfc, step_dt_s, handle->dimension);
     case Kind::Dsfc:
         return sfc_controller_suite::ysfc_step(
-            force, handle->state, handle->dsfc, handle->dt_s, handle->dimension);
+            force, handle->state, handle->dsfc, step_dt_s, handle->dimension);
     case Kind::Isfc:
         return sfc_controller_suite::isfc_step(
-            force, handle->state, handle->isfc, handle->dt_s, handle->dimension);
+            force, handle->state, handle->isfc, step_dt_s, handle->dimension);
     case Kind::Msfc:
         next_memory = handle->msfc_memory;
         return sfc_controller_suite::smysfc_step(
             force,
             handle->state,
             handle->msfc,
-            handle->dt_s,
+            step_dt_s,
             handle->dimension,
             next_memory);
     }
@@ -531,14 +531,16 @@ CONTACT_LAW_EXPORT contact_law_handle* contact_law_create(
     return nullptr;
 }
 
-CONTACT_LAW_EXPORT int contact_law_step(
+CONTACT_LAW_EXPORT int contact_law_step_elapsed(
     contact_law_handle* handle,
     const double* force,
+    double step_dt_s,
     double* state,
     double* command,
     double* acceleration) noexcept {
     return guarded(handle, [&]() {
         require_handle(handle);
+        if (!std::isfinite(step_dt_s) || step_dt_s <= 0.0) reject("step dt must be finite positive");
         require_pointer(force, "force");
         require_pointer(state, "state output");
         require_pointer(command, "command output");
@@ -550,7 +552,7 @@ CONTACT_LAW_EXPORT int contact_law_step(
         // MSFC owns a mutable memory object.  Work on a copy and commit both
         // state and memory only after the complete native step succeeds.
         SmysfcMemory next_memory = handle->msfc_memory;
-        const KernelStep result = run_step(handle, input_force, next_memory);
+        const KernelStep result = run_step(handle, input_force, next_memory, step_dt_s);
         require_finite_vector(result.xd_next_d_m_s, "native state");
         require_finite_vector(result.command_d_m_s, "native command");
         require_finite_vector(result.xdd_d_m_s2, "native acceleration");
@@ -562,6 +564,13 @@ CONTACT_LAW_EXPORT int contact_law_step(
         copy_vector(command, result.command_d_m_s);
         copy_vector(acceleration, result.xdd_d_m_s2);
     });
+}
+
+CONTACT_LAW_EXPORT int contact_law_step(
+    contact_law_handle* handle, const double* force, double* state,
+    double* command, double* acceleration) noexcept {
+    return contact_law_step_elapsed(handle, force, handle ? handle->dt_s : 0.0,
+                                    state, command, acceleration);
 }
 
 CONTACT_LAW_EXPORT std::size_t contact_law_snapshot_size() noexcept {

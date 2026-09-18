@@ -27,7 +27,7 @@ class ContactKernel:
         self.kernel_deadline_s=kernel_deadline_s
         self.law=law
         self.qp=NativeContactQp(qp_library,deadline_s=qp_deadline_s)
-        self.outer=ContactOuterLoop(law_step=lambda f,dt:law.step(f,dt_s=dt).command,
+        self.outer=ContactOuterLoop(law_step=lambda f,dt:law.step_elapsed(f,dt_s=dt).command,
                 anchor_m=anchor_m,task_basis=task_basis,target_rotation=target_rotation,
                 raw_force_limit_n=raw_force_limit_n,raw_torque_limit_nm=raw_torque_limit_nm)
         identity={'law':law.law,'parameters':law.parameters,'outer':self.outer.identity,

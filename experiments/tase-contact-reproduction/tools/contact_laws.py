@@ -259,6 +259,9 @@ def _configure_library(library: ctypes.CDLL) -> None:
         c_double_p,
     ]
     library.contact_law_step.restype = ctypes.c_int
+    library.contact_law_step_elapsed.argtypes = [ctypes.c_void_p, c_double_p, ctypes.c_double,
+                                                c_double_p, c_double_p, c_double_p]
+    library.contact_law_step_elapsed.restype = ctypes.c_int
     library.contact_law_snapshot_size.argtypes = []
     library.contact_law_snapshot_size.restype = ctypes.c_size_t
     library.contact_law_snapshot.argtypes = [ctypes.c_void_p, c_double_p, ctypes.c_size_t]
@@ -425,15 +428,31 @@ class ContactLaw:
                 raise ContactLawError(
                     f"ContactLaw uses fixed dt_s={self.dt_s:.17g}; step received {checked_dt:.17g}"
                 )
+        return self._step_at_dt(force, self.dt_s)
+
+    def step_elapsed(self, force: Sequence[Any], *, dt_s: float) -> ContactLawStep:
+        """Integrate actual elapsed dt in (0,4ms], without changing nominal identity.
+
+        The physical writer separately owns sample freshness and full-cycle
+        deadline admission. This method does not resample or conceal a gap.
+        """
+        elapsed = _finite_float(dt_s, "elapsed dt_s")
+        if not 0 < elapsed <= .004:
+            raise ContactLawError("elapsed dt_s outside (0,4ms]")
+        return self._step_at_dt(force, elapsed)
+
+    def _step_at_dt(self, force, elapsed):
+        handle = self._require_open()
         force_full = _vector3(force, self.dimension, "force")
         force_array = (ctypes.c_double * 3)(*force_full)
         state_array = (ctypes.c_double * 3)()
         command_array = (ctypes.c_double * 3)()
         acceleration_array = (ctypes.c_double * 3)()
         previous = _active(self._state_full, self.dimension)
-        status = self._library.contact_law_step(
+        status = self._library.contact_law_step_elapsed(
             handle,
             force_array,
+            elapsed,
             state_array,
             command_array,
             acceleration_array,
@@ -447,7 +466,7 @@ class ContactLaw:
         return ContactLawStep(
             law=self.law,
             dimension=self.dimension,
-            dt_s=self.dt_s,
+            dt_s=elapsed,
             force=_active(force_full, self.dimension),
             previous_state=previous,
             state=_active(state_full, self.dimension),
