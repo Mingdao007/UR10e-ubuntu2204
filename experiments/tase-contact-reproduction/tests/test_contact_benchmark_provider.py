@@ -12,7 +12,7 @@ from test_contact_benchmark_runtime import lib,fixture
 
 def inputs(robot):
     output=SimpleNamespace(observed_at_s=robot['observed_at_s'],timestamp=robot['timestamp'],
-        safety_mode=1,safety_normal=True,tcp_offset_m_rad=robot['tcp_offset'],payload_kg=robot['payload'],
+        safety_mode=1,safety_normal=True,tcp_speed_m_s_rad_s=[0.]*6,tcp_offset_m_rad=robot['tcp_offset'],payload_kg=robot['payload'],
         payload_cog_m=robot['payload_cog'],q_rad=robot['actual_q'],qd_rad_s=robot['actual_qd'],
         tcp_pose_m_rad=robot['actual_TCP_pose'])
     sensor=SensorPacket(normal_load_n=5.,force_norm_n=5.,heartbeat=1.,sensor_fresh=True,
@@ -47,3 +47,25 @@ def test_provider_rejects_missing_sensor_timestamp_and_unbound_pause(lib):
         before=runtime.snapshot()
         with pytest.raises(ValueError,match='discontinuity'):provider.command(**{**args,'monotonic_s':100.01})
         assert before==runtime.snapshot()
+
+
+def test_stationary_seam_carries_complete_msfc_state_without_clock_gap(lib):
+    from dataclasses import replace
+    with ContactLaw.from_config('MSFC') as law:
+        runtime,robot=fixture(law,lib);output,sensor=inputs(robot)
+        provider=ContactCommandProvider(runtime=runtime,model_hashes={})
+        provider.command(output=output,sensor=sensor,monotonic_s=100.,actual_dt_s=.002,
+                         mode='baseline',path_time_s=0.,internal_setpoint_n=1.)
+        kernel_before=runtime.kernel.snapshot()
+        for i in range(1,6):
+            now=100.+i*.002;output.observed_at_s=now;output.timestamp+=.002
+            provider.pause(output=output,sensor=replace(sensor,observed_at_s=now),monotonic_s=now,
+                           actual_dt_s=.002,reason='r013_tp_stationary_seam_pending')
+            assert runtime.kernel.snapshot()==kernel_before
+        assert runtime.paused_s==pytest.approx(.01)
+        now=100.012;output.observed_at_s=now;output.timestamp+=.002
+        provider.command(output=output,sensor=replace(sensor,observed_at_s=now),monotonic_s=now,
+                         actual_dt_s=.002,mode='path',path_time_s=0.,internal_setpoint_n=5.)
+        with pytest.raises(ValueError,match='active PATH'):
+            provider.pause(output=output,sensor=replace(sensor,observed_at_s=100.014),monotonic_s=100.014,
+                           actual_dt_s=.002,reason='unexpected')

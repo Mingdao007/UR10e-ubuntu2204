@@ -49,6 +49,7 @@ class CanonicalQualificationControl:
     canonical_runtime_only: bool = False
     force_integral_limit_n_s: float = 1.0
     r013_baseline_transition_profile: Any | None = field(default=None, kw_only=True)
+    contact_command_provider: Any | None = field(default=None, kw_only=True)
     _setpoint_n: float = 1.0
     _sticky_latched: int = 0
     _last_monotonic_s: float | None = None
@@ -122,12 +123,17 @@ class CanonicalQualificationControl:
             or self._angular_tolerance_rad_s != BASELINE_ANGULAR_NUMERIC_TOLERANCE_RAD_S
         ):
             raise QualificationControlError("qualification residual policy differs")
-        try:
-            from step5d_autotune_v4_r008.tube_cbf_live import TubeCbfLiveFilter
+        if self.contact_command_provider is None:
+            try:
+                from step5d_autotune_v4_r008.tube_cbf_live import TubeCbfLiveFilter
 
-            self._tube_cbf = TubeCbfLiveFilter.from_environ()
-        except Exception:
-            # Soft seam must never block qualification construction; stay off.
+                self._tube_cbf = TubeCbfLiveFilter.from_environ()
+            except Exception:
+                # Soft seam must never block qualification construction; stay off.
+                self._tube_cbf = None
+        else:
+            # The provider owns the complete contact command; do not even
+            # construct a legacy Tube+CBF filter on this branch.
             self._tube_cbf = None
         try:
             from step5d_autotune_v4.contracts import V4Candidate, load_contract
@@ -189,6 +195,32 @@ class CanonicalQualificationControl:
     def sticky_one_newton_latched(self) -> int:
         return self._sticky_latched
 
+    def _pause_contact_provider(
+        self,
+        *,
+        output: R004OutputSnapshot,
+        sensor: SensorPacket,
+        monotonic_s: float,
+        actual_dt_s: float,
+        reason: str,
+    ) -> None:
+        """Freeze-and-carry a contact provider across a zero-command seam."""
+
+        if self.contact_command_provider is None:
+            return
+        pause = getattr(self.contact_command_provider, "pause", None)
+        if not callable(pause):
+            raise QualificationControlError(
+                "contact provider lacks the required pause seam"
+            )
+        pause(
+            output=output,
+            sensor=sensor,
+            monotonic_s=monotonic_s,
+            actual_dt_s=actual_dt_s,
+            reason=reason,
+        )
+
     def step(
         self,
         *,
@@ -248,6 +280,13 @@ class CanonicalQualificationControl:
                 mode="baseline",
             )
             if observed_dt is None or not self._startup_ready_latched:
+                self._pause_contact_provider(
+                    output=output,
+                    sensor=sensor,
+                    monotonic_s=now,
+                    actual_dt_s=actual_dt_s,
+                    reason="startup_two_increments_pending",
+                )
                 self._previous_qdot = (0.0,) * 6
                 return QualificationCommand(
                     command_mode=CommandMode.BASELINE,
@@ -374,6 +413,13 @@ class CanonicalQualificationControl:
                             }
                         )
                 if not r013_transition_open and not self._path_entry_release_state.opened:
+                    self._pause_contact_provider(
+                        output=output,
+                        sensor=sensor,
+                        monotonic_s=now,
+                        actual_dt_s=actual_dt_s,
+                        reason="path_entry_release_dwell_pending",
+                    )
                     self._previous_qdot = (0.0,) * 6
                     return QualificationCommand(
                         command_mode=CommandMode.BASELINE,
@@ -385,6 +431,17 @@ class CanonicalQualificationControl:
                         canonical_reason="path_entry_release_dwell_pending",
                     )
                 if tp_state != 25:
+                    self._pause_contact_provider(
+                        output=output,
+                        sensor=sensor,
+                        monotonic_s=now,
+                        actual_dt_s=actual_dt_s,
+                        reason=(
+                            "r013_tp_stationary_seam_pending"
+                            if r013_transition_open
+                            else "path_entry_release_open"
+                        ),
+                    )
                     self._previous_qdot = (0.0,) * 6
                     return QualificationCommand(
                         command_mode=CommandMode.PATH,
@@ -408,11 +465,20 @@ class CanonicalQualificationControl:
                     path_time_s = now - self._path_origin_monotonic_s
                 else:
                     path_time_s = 0.0
-                tangential_error, orientation_error = self._runtime.path_errors(
-                    actual_tcp_pose=output.tcp_pose_m_rad,
-                    path_time_s=path_time_s,
-                    motion_kp=self.candidate.motion_kp,
-                )
+                if self.contact_command_provider is None:
+                    tangential_error, orientation_error = self._runtime.path_errors(
+                        actual_tcp_pose=output.tcp_pose_m_rad,
+                        path_time_s=path_time_s,
+                        motion_kp=self.candidate.motion_kp,
+                    )
+                else:
+                    tangential_error, orientation_error = (
+                        self.contact_command_provider.path_errors(
+                            actual_tcp_pose=output.tcp_pose_m_rad,
+                            path_time_s=path_time_s,
+                            motion_kp=self.candidate.motion_kp,
+                        )
+                    )
                 tick_log = self._path_controller.step(
                     actual_dt_s=actual_dt_s,
                     raw_normal_n=sensor.normal_load_n,
@@ -425,155 +491,214 @@ class CanonicalQualificationControl:
             else:
                 path_time_s = 0.0
                 mode = "baseline"
-            desired_twist = self._runtime.desired_twist(
-                actual_tcp_pose=output.tcp_pose_m_rad,
-                actual_tcp_speed=output.tcp_speed_m_s_rad_s,
-                force_tcp_n=sensor.wrench[:3],
-                filtered_normal_n=tick_log.filtered_normal_n,
-                internal_setpoint_n=baseline_command.internal_setpoint_n,
-                actual_dt_s=actual_dt_s,
-                mode=mode,
-                path_time_s=path_time_s,
-            )
-            # PATH entry rate-limit (HOOK_POINT): post outer-loop normal xdot,
-            # pre command / ActiveMotionEnvelopeV3. Default OFF unless
-            # R008_PATH_ENTRY_RATE_LIMIT=1.
-            if (
-                self._path_entry_rate_limit is None
-                and not self._path_entry_rate_limit_init_failed
-            ):
-                try:
-                    from step5d_autotune_v4_r008.path_entry_rate_limit import (
-                        PathEntryRateLimitConfig,
-                        PathEntryRateLimitRamp,
-                    )
-
-                    self._path_entry_rate_limit = PathEntryRateLimitRamp(
-                        config=PathEntryRateLimitConfig.from_environ()
-                    )
-                except Exception:
-                    self._path_entry_rate_limit_init_failed = True
-            self.last_path_entry_rate_limit = None
-            if self._path_entry_rate_limit is not None:
-                # Reaction normal is +Z; into-surface commanded normal is −vz.
-                commanded_normal = -float(desired_twist[2])
-                ramp_out = self._path_entry_rate_limit.apply(
-                    commanded_normal_m_s=commanded_normal,
-                    mode=mode,
-                    dt_s=float(actual_dt_s),
+            if self.contact_command_provider is not None:
+                # A contact provider owns the complete outer loop and QP.  The
+                # mature post-QP transforms are deliberately bypassed: they
+                # would silently change the provider's transactional command.
+                self.last_path_entry_rate_limit = None
+                self.last_tube_cbf = None
+                self.last_baseline_residual = None
+                calibrated = self.contact_command_provider.command(
+                    output=output,
+                    sensor=sensor,
                     monotonic_s=now,
-                )
-                self.last_path_entry_rate_limit = {
-                    "active": bool(ramp_out.active),
-                    "clipped": bool(ramp_out.clipped),
-                    "reason": str(ramp_out.reason),
-                    "commanded_normal_m_s": float(ramp_out.commanded_normal_m_s),
-                    "limited_normal_m_s": float(ramp_out.limited_normal_m_s),
-                    "amp_ceiling_m_s": float(ramp_out.amp_ceiling_m_s),
-                    "elapsed_s": ramp_out.elapsed_s,
-                }
-                if ramp_out.limited_normal_m_s != commanded_normal:
-                    desired_twist = (
-                        float(desired_twist[0]),
-                        float(desired_twist[1]),
-                        -float(ramp_out.limited_normal_m_s),
-                        float(desired_twist[3]),
-                        float(desired_twist[4]),
-                        float(desired_twist[5]),
-                    )
-            # Soft Tube+CBF: after desired_twist, before command(). Default OFF.
-            if self._tube_cbf is None and not getattr(self, "_tube_cbf_init_failed", False):
-                try:
-                    from step5d_autotune_v4_r008.tube_cbf_live import TubeCbfLiveFilter
-
-                    self._tube_cbf = TubeCbfLiveFilter.from_environ()
-                except Exception:
-                    self._tube_cbf_init_failed = True
-            self.last_tube_cbf = None
-            if self._tube_cbf is not None:
-                cbf_out = self._tube_cbf.apply(
-                    desired_twist,
-                    mode=mode,
-                    actual_tcp_pose=output.tcp_pose_m_rad,
-                    path_time_s=path_time_s,
-                )
-                self.last_tube_cbf = cbf_out.as_dict()
-                desired_twist = cbf_out.desired_twist
-            calibrated = self._runtime.command(
-                actual_q=output.q_rad,
-                actual_qd=output.qd_rad_s,
-                actual_tcp_pose=output.tcp_pose_m_rad,
-                desired_twist=desired_twist,
-                actual_dt_s=actual_dt_s,
-                mode=mode,
-                path_time_s=path_time_s,
-            )
-            self.last_baseline_residual = None
-            if (
-                self.r013_baseline_transition_profile is not None
-                and mode == "baseline"
-            ):
-                from step5d_autotune_v4_r013.baseline_policy import (
-                    R013BaselineResidualPolicyV1,
-                )
-
-                residual = R013BaselineResidualPolicyV1().apply(
-                    contract=self._contract,
-                    strict_qdot=calibrated.qdot,
-                    jacobian_6x6=calibrated.jacobian_6x6,
-                    normal_base=(0.0, 0.0, 1.0),
-                    previous_qdot=self._previous_qdot,
                     actual_dt_s=actual_dt_s,
-                    observed_model_hashes=calibrated.observed_model_hashes,
-                    motion_profile=self.motion_profile,
+                    mode=mode,
+                    path_time_s=path_time_s,
+                    internal_setpoint_n=baseline_command.internal_setpoint_n,
                 )
-                self.last_baseline_residual = residual.as_dict()
-                if residual.failed_closed:
-                    self._previous_qdot = (0.0,) * 6
-                    return QualificationCommand(
-                        command_mode=CommandMode.BASELINE,
-                        qdot=(0.0,) * 6,
-                        internal_setpoint_n=self._setpoint_n,
-                        filtered_normal_n=tick_log.filtered_normal_n,
-                        sticky_one_newton_latched=self._sticky_latched,
-                        canonical_phase=self._baseline_state.phase.value,
-                        canonical_reason="r013_baseline_residual_zero_fail_closed",
+                from step5d_autotune_v4_r004.calibrated_runtime import (
+                    CalibratedCommand,
+                )
+
+                if not isinstance(calibrated, CalibratedCommand):
+                    raise QualificationControlError(
+                        "contact provider returned an untyped calibrated command"
                     )
+                if self.motion_profile is not None:
+                    try:
+                        provider_qdot = tuple(float(value) for value in calibrated.qdot)
+                        previous_qdot = tuple(float(value) for value in self._previous_qdot)
+                    except (TypeError, ValueError, OverflowError) as exc:
+                        raise QualificationControlError(
+                            "contact provider qdot is not numeric"
+                        ) from exc
+                    if len(provider_qdot) != 6 or len(previous_qdot) != 6 or not all(
+                        math.isfinite(value)
+                        for value in (*provider_qdot, *previous_qdot)
+                    ):
+                        raise QualificationControlError(
+                            "contact provider qdot slew input is invalid"
+                        )
+                    slew_limit = float(self.motion_profile.host_slew_rad_s2) * min(
+                        float(actual_dt_s), 0.02
+                    )
+                    max_delta = max(
+                        abs(provider_qdot[index] - previous_qdot[index])
+                        for index in range(6)
+                    )
+                    if not math.isfinite(slew_limit) or max_delta > slew_limit:
+                        raise QualificationControlError(
+                            "contact provider qdot exceeds mandatory host slew limit"
+                        )
                 pre_gate = gate_qdot(
                     self._contract,
-                    qdot=residual.qdot,
-                    jacobian_6x6=calibrated.jacobian_6x6,
-                    normal_base=(0.0, 0.0, 1.0),
-                    observed_model_hashes=calibrated.observed_model_hashes,
-                    motion_profile=self.motion_profile,
-                )
-            elif self.motion_profile is not None:
-                pre_gate, _slew_scale = rescale_qdot_to_gate(
-                    self._contract,
-                    qdot=calibrated.qdot,
-                    previous_qdot=self._previous_qdot,
-                    jacobian_6x6=calibrated.jacobian_6x6,
-                    normal_base=(0.0, 0.0, 1.0),
-                    observed_model_hashes=calibrated.observed_model_hashes,
-                    actual_dt_s=actual_dt_s,
-                    motion_profile=self.motion_profile,
-                )
-            elif mode == "path":
-                pre_gate, _projection_scale = project_qdot_to_gate(
-                    self._contract,
                     qdot=calibrated.qdot,
                     jacobian_6x6=calibrated.jacobian_6x6,
                     normal_base=(0.0, 0.0, 1.0),
                     observed_model_hashes=calibrated.observed_model_hashes,
+                    motion_profile=self.motion_profile,
                 )
             else:
-                pre_gate = gate_qdot(
-                    self._contract,
-                    qdot=calibrated.qdot,
-                    jacobian_6x6=calibrated.jacobian_6x6,
-                    normal_base=(0.0, 0.0, 1.0),
-                    observed_model_hashes=calibrated.observed_model_hashes,
+                desired_twist = self._runtime.desired_twist(
+                    actual_tcp_pose=output.tcp_pose_m_rad,
+                    actual_tcp_speed=output.tcp_speed_m_s_rad_s,
+                    force_tcp_n=sensor.wrench[:3],
+                    filtered_normal_n=tick_log.filtered_normal_n,
+                    internal_setpoint_n=baseline_command.internal_setpoint_n,
+                    actual_dt_s=actual_dt_s,
+                    mode=mode,
+                    path_time_s=path_time_s,
                 )
+                # PATH entry rate-limit (HOOK_POINT): post outer-loop normal xdot,
+                # pre command / ActiveMotionEnvelopeV3. Default OFF unless
+                # R008_PATH_ENTRY_RATE_LIMIT=1.
+                if (
+                    self._path_entry_rate_limit is None
+                    and not self._path_entry_rate_limit_init_failed
+                ):
+                    try:
+                        from step5d_autotune_v4_r008.path_entry_rate_limit import (
+                            PathEntryRateLimitConfig,
+                            PathEntryRateLimitRamp,
+                        )
+
+                        self._path_entry_rate_limit = PathEntryRateLimitRamp(
+                            config=PathEntryRateLimitConfig.from_environ()
+                        )
+                    except Exception:
+                        self._path_entry_rate_limit_init_failed = True
+                self.last_path_entry_rate_limit = None
+                if self._path_entry_rate_limit is not None:
+                    # Reaction normal is +Z; into-surface commanded normal is −vz.
+                    commanded_normal = -float(desired_twist[2])
+                    ramp_out = self._path_entry_rate_limit.apply(
+                        commanded_normal_m_s=commanded_normal,
+                        mode=mode,
+                        dt_s=float(actual_dt_s),
+                        monotonic_s=now,
+                    )
+                    self.last_path_entry_rate_limit = {
+                        "active": bool(ramp_out.active),
+                        "clipped": bool(ramp_out.clipped),
+                        "reason": str(ramp_out.reason),
+                        "commanded_normal_m_s": float(ramp_out.commanded_normal_m_s),
+                        "limited_normal_m_s": float(ramp_out.limited_normal_m_s),
+                        "amp_ceiling_m_s": float(ramp_out.amp_ceiling_m_s),
+                        "elapsed_s": ramp_out.elapsed_s,
+                    }
+                    if ramp_out.limited_normal_m_s != commanded_normal:
+                        desired_twist = (
+                            float(desired_twist[0]),
+                            float(desired_twist[1]),
+                            -float(ramp_out.limited_normal_m_s),
+                            float(desired_twist[3]),
+                            float(desired_twist[4]),
+                            float(desired_twist[5]),
+                        )
+                # Soft Tube+CBF: after desired_twist, before command(). Default OFF.
+                if self._tube_cbf is None and not getattr(self, "_tube_cbf_init_failed", False):
+                    try:
+                        from step5d_autotune_v4_r008.tube_cbf_live import TubeCbfLiveFilter
+
+                        self._tube_cbf = TubeCbfLiveFilter.from_environ()
+                    except Exception:
+                        self._tube_cbf_init_failed = True
+                self.last_tube_cbf = None
+                if self._tube_cbf is not None:
+                    cbf_out = self._tube_cbf.apply(
+                        desired_twist,
+                        mode=mode,
+                        actual_tcp_pose=output.tcp_pose_m_rad,
+                        path_time_s=path_time_s,
+                    )
+                    self.last_tube_cbf = cbf_out.as_dict()
+                    desired_twist = cbf_out.desired_twist
+                calibrated = self._runtime.command(
+                    actual_q=output.q_rad,
+                    actual_qd=output.qd_rad_s,
+                    actual_tcp_pose=output.tcp_pose_m_rad,
+                    desired_twist=desired_twist,
+                    actual_dt_s=actual_dt_s,
+                    mode=mode,
+                    path_time_s=path_time_s,
+                )
+                self.last_baseline_residual = None
+                if (
+                    self.r013_baseline_transition_profile is not None
+                    and mode == "baseline"
+                ):
+                    from step5d_autotune_v4_r013.baseline_policy import (
+                        R013BaselineResidualPolicyV1,
+                    )
+
+                    residual = R013BaselineResidualPolicyV1().apply(
+                        contract=self._contract,
+                        strict_qdot=calibrated.qdot,
+                        jacobian_6x6=calibrated.jacobian_6x6,
+                        normal_base=(0.0, 0.0, 1.0),
+                        previous_qdot=self._previous_qdot,
+                        actual_dt_s=actual_dt_s,
+                        observed_model_hashes=calibrated.observed_model_hashes,
+                        motion_profile=self.motion_profile,
+                    )
+                    self.last_baseline_residual = residual.as_dict()
+                    if residual.failed_closed:
+                        self._previous_qdot = (0.0,) * 6
+                        return QualificationCommand(
+                            command_mode=CommandMode.BASELINE,
+                            qdot=(0.0,) * 6,
+                            internal_setpoint_n=self._setpoint_n,
+                            filtered_normal_n=tick_log.filtered_normal_n,
+                            sticky_one_newton_latched=self._sticky_latched,
+                            canonical_phase=self._baseline_state.phase.value,
+                            canonical_reason="r013_baseline_residual_zero_fail_closed",
+                        )
+                    pre_gate = gate_qdot(
+                        self._contract,
+                        qdot=residual.qdot,
+                        jacobian_6x6=calibrated.jacobian_6x6,
+                        normal_base=(0.0, 0.0, 1.0),
+                        observed_model_hashes=calibrated.observed_model_hashes,
+                        motion_profile=self.motion_profile,
+                    )
+                elif self.motion_profile is not None:
+                    pre_gate, _slew_scale = rescale_qdot_to_gate(
+                        self._contract,
+                        qdot=calibrated.qdot,
+                        previous_qdot=self._previous_qdot,
+                        jacobian_6x6=calibrated.jacobian_6x6,
+                        normal_base=(0.0, 0.0, 1.0),
+                        observed_model_hashes=calibrated.observed_model_hashes,
+                        actual_dt_s=actual_dt_s,
+                        motion_profile=self.motion_profile,
+                    )
+                elif mode == "path":
+                    pre_gate, _projection_scale = project_qdot_to_gate(
+                        self._contract,
+                        qdot=calibrated.qdot,
+                        jacobian_6x6=calibrated.jacobian_6x6,
+                        normal_base=(0.0, 0.0, 1.0),
+                        observed_model_hashes=calibrated.observed_model_hashes,
+                    )
+                else:
+                    pre_gate = gate_qdot(
+                        self._contract,
+                        qdot=calibrated.qdot,
+                        jacobian_6x6=calibrated.jacobian_6x6,
+                        normal_base=(0.0, 0.0, 1.0),
+                        observed_model_hashes=calibrated.observed_model_hashes,
+                    )
             pre_gate = V4InvariantEnvelope(
                 motion_profile=self.motion_profile,
             ).enforce_gate(pre_gate)
@@ -581,6 +706,7 @@ class CanonicalQualificationControl:
                 raise QualificationControlError(pre_gate.reason or "canonical qdot gate blocked")
             if (
                 self.r013_baseline_transition_profile is None
+                and self.contact_command_provider is None
                 and mode == "baseline"
                 and (
                 pre_gate.tangential_m_s > self._tangential_tolerance_m_s
@@ -601,12 +727,27 @@ class CanonicalQualificationControl:
                     canonical_phase=self._baseline_state.phase.value,
                     canonical_reason="calibrated_numeric_residual_hold",
                 )
+            filtered_normal_n = tick_log.filtered_normal_n
+            if self.contact_command_provider is not None:
+                provider_result = getattr(self.contact_command_provider, "last_result", None)
+                if (
+                    not isinstance(provider_result, dict)
+                    or "filtered_normal_n" not in provider_result
+                ):
+                    raise QualificationControlError(
+                        "contact provider did not publish filtered_normal_n"
+                    )
+                filtered_normal_n = float(provider_result["filtered_normal_n"])
+                if not math.isfinite(filtered_normal_n):
+                    raise QualificationControlError(
+                        "contact provider filtered_normal_n is nonfinite"
+                    )
             self._previous_qdot = tuple(float(value) for value in pre_gate.qdot)
             return QualificationCommand(
                 command_mode=CommandMode.PATH if mode == "path" else CommandMode.BASELINE,
                 qdot=tuple(float(value) for value in pre_gate.qdot),
                 internal_setpoint_n=self._setpoint_n,
-                filtered_normal_n=tick_log.filtered_normal_n,
+                filtered_normal_n=filtered_normal_n,
                 sticky_one_newton_latched=self._sticky_latched,
                 canonical_phase=self._baseline_state.phase.value,
                 canonical_reason="",

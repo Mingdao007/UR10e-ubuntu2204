@@ -564,6 +564,14 @@ def _validate_resident_ready_binding(
 ) -> dict[str, str]:
     """Require the physical RTDE READY tuple before constructing any writer."""
 
+    identities = {
+        "step5d_strict_rnn_autotune_v4_r013": (13, 613013, "r013_legacy_runtime_limbs"),
+        "step6_figure8_autotune_v1": (13, 613013, "r013_legacy_runtime_limbs"),
+        "step5d_contact_six_qp_v1": (18, 618001, "contact_six_legacy_wire_abi"),
+    }
+    if expected_program not in identities:
+        raise R013OwnerError("resident program has no registered physical identity")
+    revision, extension_protocol, projection_kind = identities[expected_program]
     if ready.get("status") != "resident_ready_no_arm":
         raise R013OwnerError("R013 resident receipt is not READY/no-ARM")
     if ready.get("program") != expected_program:
@@ -627,12 +635,12 @@ def _validate_resident_ready_binding(
         raise R013OwnerError("R013 resident-ready contract differs")
     if evidence.get("campaign_fingerprint") != contract.campaign_fingerprint:
         raise R013OwnerError("R013 resident-ready campaign differs")
-    if evidence.get("runtime_output_registers") != {"32": 606006, "33": 13, "34": 613013}:
+    if evidence.get("runtime_output_registers") != {"32": 606006, "33": revision, "34": extension_protocol}:
         raise R013OwnerError("R013 resident-ready physical output identity is not exact")
     if (
         evidence.get("runtime_protocol") != 606006
-        or evidence.get("runtime_revision") != 13
-        or evidence.get("runtime_extension_protocol") != 613013
+        or evidence.get("runtime_revision") != revision
+        or evidence.get("runtime_extension_protocol") != extension_protocol
         or evidence.get("program_running") is not True
         or evidence.get("stationary") is not True
         or evidence.get("safety_normal") is not True
@@ -668,7 +676,7 @@ def _validate_resident_ready_binding(
     runtime = _read_json(run_dir / "runtime_evidence.json")
     projection = runtime.get("runtime_identity_projection")
     if not isinstance(projection, Mapping) or (
-        projection.get("kind") != "r013_legacy_runtime_limbs"
+        projection.get("kind") != projection_kind
         or projection.get("physically_read") is not False
         or projection.get("source_evidence") != "resident_ready_evidence.json"
     ):

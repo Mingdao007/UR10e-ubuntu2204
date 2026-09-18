@@ -497,12 +497,14 @@ class _R006NativeCanonicalQualificationControl(_R004CanonicalQualificationContro
             # the mature runtime primitives.  No r004 V4Candidate is built.
             self._contract = load_contract(runtime_only=self.canonical_runtime_only)
             self._canonical_candidate = self.candidate
-            self._runtime = V4CalibratedRuntime(
-                self._contract,
-                self._canonical_candidate,
-                motion_profile=self.motion_profile,
-                force_integral_limit_n_s=float(self.force_integral_limit_n_s),
-            )
+            self._runtime = self.contact_command_provider
+            if self._runtime is None:
+                self._runtime = V4CalibratedRuntime(
+                    self._contract,
+                    self._canonical_candidate,
+                    motion_profile=self.motion_profile,
+                    force_integral_limit_n_s=float(self.force_integral_limit_n_s),
+                )
             self._path_controller = V4PathController(
                 self._canonical_candidate,
                 motion_profile=self.motion_profile,
@@ -2176,6 +2178,7 @@ class _R006ScopedRuntimeInjection:
             force_integral_limit_n_s: float = 1.0,
             home_binding: R006HomeBindingV1 | None = None,
             qualification_profile: Any | None = None,
+            contact_command_provider_factory: Callable[..., Any] | None = None,
     ) -> None:
         self.motion_profile = motion_profile
         self.path_reference = path_reference
@@ -2198,9 +2201,13 @@ class _R006ScopedRuntimeInjection:
             raise R006LiveAdapterError("r006 Home binding is not typed")
         self.home_binding = home_binding
         self.qualification_profile = qualification_profile
+        if contact_command_provider_factory is not None and not callable(contact_command_provider_factory):
+            raise R006LiveAdapterError('contact command provider factory must be callable')
+        self.contact_command_provider_factory=contact_command_provider_factory
         self._saved: dict[tuple[Any, str], Any] = {}
         self._original_control: Callable[..., Any] | None = None
         self._prepared_control: Any | None = None
+        self._prepared_contact_provider: Any | None = None
         self._prepared_key: _R006PreparedControlKey | None = None
         self.active = False
         self._owns_lock = False
@@ -2274,6 +2281,7 @@ class _R006ScopedRuntimeInjection:
         """Drop any candidate-specific object before the next lifecycle edge."""
 
         self._prepared_control = None
+        self._prepared_contact_provider = None
         self._prepared_key = None
 
     def _require_qualification_profile_binding(self, control: Any) -> None:
@@ -2330,6 +2338,15 @@ class _R006ScopedRuntimeInjection:
             if isinstance(candidate, R006Candidate)
             else self._original_control
         )
+        contact_provider=None
+        if self.contact_command_provider_factory is not None:
+            if release_contract.raw.get('program')!='step5d_contact_six_qp_v1':
+                raise R006LiveAdapterError('contact provider requires its dedicated TP contract')
+            from contact_benchmark_provider import ContactCommandProvider
+            contact_provider=self.contact_command_provider_factory(
+                candidate=candidate,attempt_id=attempt_id,release_contract=release_contract)
+            if not isinstance(contact_provider,ContactCommandProvider):
+                raise R006LiveAdapterError('contact factory returned a different command provider')
         control = control_factory(
             candidate,
             attempt_id=attempt_id,
@@ -2339,13 +2356,17 @@ class _R006ScopedRuntimeInjection:
             canonical_runtime_only=canonical_runtime_only,
             force_integral_limit_n_s=float(self.force_integral_limit_n_s),
             r013_baseline_transition_profile=self.qualification_profile,
+            **({"contact_command_provider":contact_provider} if contact_provider is not None else {}),
         )
+        if getattr(control,'contact_command_provider',None) is not contact_provider:
+            raise R006LiveAdapterError('prepared control lost its exact contact provider')
         self._require_qualification_profile_binding(control)
         # Keep the existing r006 path snapshot patching semantics, but do it
         # while the expensive object is still being prepared at Home.
         self._patch_path_reference()
         self._prepared_key = key
         self._prepared_control = control
+        self._prepared_contact_provider = contact_provider
         return control
 
     def consume_prepared_control(self, key: _R006PreparedControlKey) -> Any:
@@ -2369,6 +2390,8 @@ class _R006ScopedRuntimeInjection:
             self.clear_prepared_control()
             raise R006LiveAdapterError("r006 prepared canonical control key mismatch")
         try:
+            if getattr(prepared_control,'contact_command_provider',None) is not self._prepared_contact_provider:
+                raise R006LiveAdapterError('prepared contact provider changed before consume')
             self._require_qualification_profile_binding(prepared_control)
         except Exception:
             self.clear_prepared_control()
@@ -2547,6 +2570,7 @@ def build_verified_mature_r006_writer(
     home_binding: R006HomeBindingV1 | None = None,
     fresh_frame_wait_policy: FreshFrameWaitPolicyV1 | None = None,
     qualification_profile: Any | None = None,
+    contact_command_provider_factory: Callable[..., Any] | None = None,
 ) -> R006MatureWriter:
     """Construct the r006 writer after admission without opening transport."""
 
@@ -2629,6 +2653,7 @@ def build_verified_mature_r006_writer(
         force_integral_limit_n_s=float(force_integral_limit_n_s),
         home_binding=home_binding,
         qualification_profile=qualification_profile,
+        contact_command_provider_factory=contact_command_provider_factory,
     )
     return R006MatureWriter(writer, injection=injection)
 

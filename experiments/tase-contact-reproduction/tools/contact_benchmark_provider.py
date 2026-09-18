@@ -24,8 +24,7 @@ class ContactCommandProvider:
         omega_error=pin.log3(outer.target@rotvec_to_matrix(pose[3:]).T)
         return tuple(error[:2]),tuple(omega_error)
 
-    def command(self, *, output, sensor, monotonic_s, actual_dt_s, mode,
-                path_time_s, internal_setpoint_n):
+    def _observation(self,output,sensor,monotonic_s,actual_dt_s):
         if not sensor.sensor_fresh or sensor.stop_request or sensor.observed_at_s is None:
             raise ValueError('fresh timestamped sensor observation required')
         if not output.safety_normal:raise ValueError('robot not Safety NORMAL')
@@ -36,7 +35,18 @@ class ContactCommandProvider:
                'safety_mode':output.safety_mode,'tcp_offset':output.tcp_offset_m_rad,
                'payload':output.payload_kg,'payload_cog':output.payload_cog_m,
                'actual_q':output.q_rad,'actual_qd':output.qd_rad_s,
-               'actual_TCP_pose':output.tcp_pose_m_rad}
+               'actual_TCP_pose':output.tcp_pose_m_rad,'actual_TCP_speed':output.tcp_speed_m_s_rad_s}
+        return robot
+
+    def pause(self, *, output,sensor,monotonic_s,actual_dt_s,reason):
+        robot=self._observation(output,sensor,monotonic_s,actual_dt_s)
+        self.last_pause=self.runtime.pause(robot=robot,wrench_tcp=sensor.wrench,
+            sensor_observed_at_s=sensor.observed_at_s,sample_time_s=monotonic_s,reason=reason)
+        return self.last_pause
+
+    def command(self, *, output, sensor, monotonic_s, actual_dt_s, mode,
+                path_time_s, internal_setpoint_n):
+        robot=self._observation(output,sensor,monotonic_s,actual_dt_s)
         result=self.runtime.step(robot=robot,wrench_tcp=sensor.wrench,
             sensor_observed_at_s=sensor.observed_at_s,sample_time_s=monotonic_s,
             phase=mode,path_time_s=path_time_s if mode=='path' else None,
