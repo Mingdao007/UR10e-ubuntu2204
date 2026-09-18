@@ -1,0 +1,543 @@
+{
+  "claim_scope": "offline synthetic owner input; measured CPU composition only; no live 500 Hz qualification",
+  "config_sha256": "b670815a9736c1621e400b457be8301ffe66caea07630f3dd8292ae97cc87e3b",
+  "controllers": [
+    "LAC",
+    "NAC",
+    "SFC",
+    "DSFC",
+    "ISFC",
+    "MSFC"
+  ],
+  "controllers_results": [
+    {
+      "controller": "LAC",
+      "errors": [],
+      "freshness": {
+        "age_max_s": 0.04999999999999716,
+        "age_p50_s": 0.04999999999999716,
+        "age_p95_s": 0.04999999999999716,
+        "age_p99_s": 0.04999999999999716,
+        "fresh_age_s": 0.02,
+        "fresh_count": 110,
+        "fresh_fraction": 0.107421875,
+        "geometric_latency_reject_count": 0,
+        "held_count": 914,
+        "held_fraction": 0.892578125,
+        "longest_hold_s": 0.04999999999999716,
+        "longest_hold_samples": 914,
+        "observation_count": 1024,
+        "policy": "fresh_lt_20ms_held_lt_80ms_stale_ge_80ms",
+        "stale_age_s": 0.08,
+        "stale_count": 0,
+        "stale_fraction": 0.0,
+        "stale_stop_count": 0
+      },
+      "kernel_timing": {
+        "max_ms": 0.26447500567883253,
+        "p50_ms": 0.1455519814044237,
+        "p95_ms": 0.1609309925697744,
+        "p99_ms": 0.1918913819827139,
+        "sample_count": 1023
+      },
+      "path_first_formal_time_s": 0.0,
+      "phase_counts": {
+        "baseline": 1,
+        "entry": 501,
+        "path": 521,
+        "pause": 1
+      },
+      "qp_timing": {
+        "max_ms": 0.1190630136989057,
+        "p50_ms": 0.03194902092218399,
+        "p95_ms": 0.035579007817432284,
+        "p99_ms": 0.07656320056412369,
+        "sample_count": 1023
+      },
+      "seam": {
+        "claim_scope": "offline synthetic owner input; no transport or live qualification",
+        "entry_duration_s": 1.0,
+        "path_started": true,
+        "state21_tick_count": 1,
+        "state25_first_formal_time_s": 0.0,
+        "stationary_freeze_carry": true
+      },
+      "state21_pause_count": 1,
+      "state21_tick_count": 1,
+      "state25_tick_count": 521,
+      "steady_state_timing": {
+        "max_ms": 0.44184699072502553,
+        "p50_ms": 0.29635499231517315,
+        "p95_ms": 0.3265180974267423,
+        "p99_ms": 0.35725197347346693,
+        "sample_count": 1023
+      },
+      "ticks_completed": 1024,
+      "ticks_requested": 1024,
+      "timing": {
+        "deadline_policy": "observed_only_offline; no live writer admission",
+        "deadline_reject_count": 0,
+        "deadline_s": 0.0015,
+        "max_ms": 0.6447269988711923,
+        "observed_over_deadline_count": 0,
+        "p50_ms": 0.29635499231517315,
+        "p95_ms": 0.3266663334215991,
+        "p99_ms": 0.3596320541691966,
+        "sample_count": 1024
+      },
+      "warmup": {
+        "tick_count": 1,
+        "timing": {
+          "max_ms": 0.6447269988711923,
+          "p50_ms": 0.6447269988711923,
+          "p95_ms": 0.6447269988711923,
+          "p99_ms": 0.6447269988711923,
+          "sample_count": 1
+        }
+      }
+    },
+    {
+      "controller": "NAC",
+      "errors": [],
+      "freshness": {
+        "age_max_s": 0.04999999999999716,
+        "age_p50_s": 0.04999999999999716,
+        "age_p95_s": 0.04999999999999716,
+        "age_p99_s": 0.04999999999999716,
+        "fresh_age_s": 0.02,
+        "fresh_count": 110,
+        "fresh_fraction": 0.107421875,
+        "geometric_latency_reject_count": 0,
+        "held_count": 914,
+        "held_fraction": 0.892578125,
+        "longest_hold_s": 0.04999999999999716,
+        "longest_hold_samples": 914,
+        "observation_count": 1024,
+        "policy": "fresh_lt_20ms_held_lt_80ms_stale_ge_80ms",
+        "stale_age_s": 0.08,
+        "stale_count": 0,
+        "stale_fraction": 0.0,
+        "stale_stop_count": 0
+      },
+      "kernel_timing": {
+        "max_ms": 0.2723490179050714,
+        "p50_ms": 0.14218600699678063,
+        "p95_ms": 0.15719189832452685,
+        "p99_ms": 0.1891095848986879,
+        "sample_count": 1023
+      },
+      "path_first_formal_time_s": 0.0,
+      "phase_counts": {
+        "baseline": 1,
+        "entry": 501,
+        "path": 521,
+        "pause": 1
+      },
+      "qp_timing": {
+        "max_ms": 0.1574649941176176,
+        "p50_ms": 0.031128001864999533,
+        "p95_ms": 0.03459990839473903,
+        "p99_ms": 0.07933458837214857,
+        "sample_count": 1023
+      },
+      "seam": {
+        "claim_scope": "offline synthetic owner input; no transport or live qualification",
+        "entry_duration_s": 1.0,
+        "path_started": true,
+        "state21_tick_count": 1,
+        "state25_first_formal_time_s": 0.0,
+        "stationary_freeze_carry": true
+      },
+      "state21_pause_count": 1,
+      "state21_tick_count": 1,
+      "state25_tick_count": 521,
+      "steady_state_timing": {
+        "max_ms": 0.4194350040052086,
+        "p50_ms": 0.29280802118591964,
+        "p95_ms": 0.32259101571980864,
+        "p99_ms": 0.35500011756084854,
+        "sample_count": 1023
+      },
+      "ticks_completed": 1024,
+      "ticks_requested": 1024,
+      "timing": {
+        "deadline_policy": "observed_only_offline; no live writer admission",
+        "deadline_reject_count": 0,
+        "deadline_s": 0.0015,
+        "max_ms": 0.47330601955763996,
+        "observed_over_deadline_count": 0,
+        "p50_ms": 0.29285301570780575,
+        "p95_ms": 0.32298584555974225,
+        "p99_ms": 0.35899632377549995,
+        "sample_count": 1024
+      },
+      "warmup": {
+        "tick_count": 1,
+        "timing": {
+          "max_ms": 0.47330601955763996,
+          "p50_ms": 0.47330601955763996,
+          "p95_ms": 0.47330601955763996,
+          "p99_ms": 0.47330601955763996,
+          "sample_count": 1
+        }
+      }
+    },
+    {
+      "controller": "SFC",
+      "errors": [],
+      "freshness": {
+        "age_max_s": 0.04999999999999716,
+        "age_p50_s": 0.04999999999999716,
+        "age_p95_s": 0.04999999999999716,
+        "age_p99_s": 0.04999999999999716,
+        "fresh_age_s": 0.02,
+        "fresh_count": 110,
+        "fresh_fraction": 0.107421875,
+        "geometric_latency_reject_count": 0,
+        "held_count": 914,
+        "held_fraction": 0.892578125,
+        "longest_hold_s": 0.04999999999999716,
+        "longest_hold_samples": 914,
+        "observation_count": 1024,
+        "policy": "fresh_lt_20ms_held_lt_80ms_stale_ge_80ms",
+        "stale_age_s": 0.08,
+        "stale_count": 0,
+        "stale_fraction": 0.0,
+        "stale_stop_count": 0
+      },
+      "kernel_timing": {
+        "max_ms": 0.442108022980392,
+        "p50_ms": 0.14224601909518242,
+        "p95_ms": 0.15417002141475677,
+        "p99_ms": 0.1984383974922821,
+        "sample_count": 1023
+      },
+      "path_first_formal_time_s": 0.0,
+      "phase_counts": {
+        "baseline": 1,
+        "entry": 501,
+        "path": 521,
+        "pause": 1
+      },
+      "qp_timing": {
+        "max_ms": 0.31371699878945947,
+        "p50_ms": 0.031108007533475757,
+        "p95_ms": 0.03459200670477003,
+        "p99_ms": 0.08082580287009478,
+        "sample_count": 1023
+      },
+      "seam": {
+        "claim_scope": "offline synthetic owner input; no transport or live qualification",
+        "entry_duration_s": 1.0,
+        "path_started": true,
+        "state21_tick_count": 1,
+        "state25_first_formal_time_s": 0.0,
+        "stationary_freeze_carry": true
+      },
+      "state21_pause_count": 1,
+      "state21_tick_count": 1,
+      "state25_tick_count": 521,
+      "steady_state_timing": {
+        "max_ms": 0.5668910162057728,
+        "p50_ms": 0.29289801022969186,
+        "p95_ms": 0.3253159811720252,
+        "p99_ms": 0.35924418771173805,
+        "sample_count": 1023
+      },
+      "ticks_completed": 1024,
+      "ticks_requested": 1024,
+      "timing": {
+        "deadline_policy": "observed_only_offline; no live writer admission",
+        "deadline_reject_count": 0,
+        "deadline_s": 0.0015,
+        "max_ms": 0.5668910162057728,
+        "observed_over_deadline_count": 0,
+        "p50_ms": 0.29291800456121564,
+        "p95_ms": 0.3255323463235982,
+        "p99_ms": 0.36134321562713007,
+        "sample_count": 1024
+      },
+      "warmup": {
+        "tick_count": 1,
+        "timing": {
+          "max_ms": 0.38576201768592,
+          "p50_ms": 0.38576201768592,
+          "p95_ms": 0.38576201768592,
+          "p99_ms": 0.38576201768592,
+          "sample_count": 1
+        }
+      }
+    },
+    {
+      "controller": "DSFC",
+      "errors": [],
+      "freshness": {
+        "age_max_s": 0.04999999999999716,
+        "age_p50_s": 0.04999999999999716,
+        "age_p95_s": 0.04999999999999716,
+        "age_p99_s": 0.04999999999999716,
+        "fresh_age_s": 0.02,
+        "fresh_count": 110,
+        "fresh_fraction": 0.107421875,
+        "geometric_latency_reject_count": 0,
+        "held_count": 914,
+        "held_fraction": 0.892578125,
+        "longest_hold_s": 0.04999999999999716,
+        "longest_hold_samples": 914,
+        "observation_count": 1024,
+        "policy": "fresh_lt_20ms_held_lt_80ms_stale_ge_80ms",
+        "stale_age_s": 0.08,
+        "stale_count": 0,
+        "stale_fraction": 0.0,
+        "stale_stop_count": 0
+      },
+      "kernel_timing": {
+        "max_ms": 0.2944519801530987,
+        "p50_ms": 0.14293802087195218,
+        "p95_ms": 0.15283700777217746,
+        "p99_ms": 0.1945599552709609,
+        "sample_count": 1023
+      },
+      "path_first_formal_time_s": 0.0,
+      "phase_counts": {
+        "baseline": 1,
+        "entry": 501,
+        "path": 521,
+        "pause": 1
+      },
+      "qp_timing": {
+        "max_ms": 0.17867499263957143,
+        "p50_ms": 0.03104802453890443,
+        "p95_ms": 0.034232091275043786,
+        "p99_ms": 0.07818640151526779,
+        "sample_count": 1023
+      },
+      "seam": {
+        "claim_scope": "offline synthetic owner input; no transport or live qualification",
+        "entry_duration_s": 1.0,
+        "path_started": true,
+        "state21_tick_count": 1,
+        "state25_first_formal_time_s": 0.0,
+        "stationary_freeze_carry": true
+      },
+      "state21_pause_count": 1,
+      "state21_tick_count": 1,
+      "state25_tick_count": 521,
+      "steady_state_timing": {
+        "max_ms": 0.4181329859420657,
+        "p50_ms": 0.2933899813797325,
+        "p95_ms": 0.32532879267819226,
+        "p99_ms": 0.35655580926686525,
+        "sample_count": 1023
+      },
+      "ticks_completed": 1024,
+      "ticks_requested": 1024,
+      "timing": {
+        "deadline_policy": "observed_only_offline; no live writer admission",
+        "deadline_reject_count": 0,
+        "deadline_s": 0.0015,
+        "max_ms": 0.4722949815914035,
+        "observed_over_deadline_count": 0,
+        "p50_ms": 0.2933999930974096,
+        "p95_ms": 0.32551766198594123,
+        "p99_ms": 0.3570977778872475,
+        "sample_count": 1024
+      },
+      "warmup": {
+        "tick_count": 1,
+        "timing": {
+          "max_ms": 0.4722949815914035,
+          "p50_ms": 0.4722949815914035,
+          "p95_ms": 0.4722949815914035,
+          "p99_ms": 0.4722949815914035,
+          "sample_count": 1
+        }
+      }
+    },
+    {
+      "controller": "ISFC",
+      "errors": [],
+      "freshness": {
+        "age_max_s": 0.04999999999999716,
+        "age_p50_s": 0.04999999999999716,
+        "age_p95_s": 0.04999999999999716,
+        "age_p99_s": 0.04999999999999716,
+        "fresh_age_s": 0.02,
+        "fresh_count": 110,
+        "fresh_fraction": 0.107421875,
+        "geometric_latency_reject_count": 0,
+        "held_count": 914,
+        "held_fraction": 0.892578125,
+        "longest_hold_s": 0.04999999999999716,
+        "longest_hold_samples": 914,
+        "observation_count": 1024,
+        "policy": "fresh_lt_20ms_held_lt_80ms_stale_ge_80ms",
+        "stale_age_s": 0.08,
+        "stale_count": 0,
+        "stale_fraction": 0.0,
+        "stale_stop_count": 0
+      },
+      "kernel_timing": {
+        "max_ms": 0.3847310144919902,
+        "p50_ms": 0.14303700299933553,
+        "p95_ms": 0.15345101128332317,
+        "p99_ms": 0.19904442189726979,
+        "sample_count": 1023
+      },
+      "path_first_formal_time_s": 0.0,
+      "phase_counts": {
+        "baseline": 1,
+        "entry": 501,
+        "path": 521,
+        "pause": 1
+      },
+      "qp_timing": {
+        "max_ms": 0.2696349984034896,
+        "p50_ms": 0.03118798485957086,
+        "p95_ms": 0.034554905141703784,
+        "p99_ms": 0.08136761200148612,
+        "sample_count": 1023
+      },
+      "seam": {
+        "claim_scope": "offline synthetic owner input; no transport or live qualification",
+        "entry_duration_s": 1.0,
+        "path_started": true,
+        "state21_tick_count": 1,
+        "state25_first_formal_time_s": 0.0,
+        "stationary_freeze_carry": true
+      },
+      "state21_pause_count": 1,
+      "state21_tick_count": 1,
+      "state25_tick_count": 521,
+      "steady_state_timing": {
+        "max_ms": 0.5130299832671881,
+        "p50_ms": 0.2950119960587472,
+        "p95_ms": 0.32735700078774244,
+        "p99_ms": 0.35976508399471635,
+        "sample_count": 1023
+      },
+      "ticks_completed": 1024,
+      "ticks_requested": 1024,
+      "timing": {
+        "deadline_policy": "observed_only_offline; no live writer admission",
+        "deadline_reject_count": 0,
+        "deadline_s": 0.0015,
+        "max_ms": 0.5130299832671881,
+        "observed_over_deadline_count": 0,
+        "p50_ms": 0.2950269845314324,
+        "p95_ms": 0.3276953575550578,
+        "p99_ms": 0.3605451903422363,
+        "sample_count": 1024
+      },
+      "warmup": {
+        "tick_count": 1,
+        "timing": {
+          "max_ms": 0.38964897976256907,
+          "p50_ms": 0.38964897976256907,
+          "p95_ms": 0.38964897976256907,
+          "p99_ms": 0.38964897976256907,
+          "sample_count": 1
+        }
+      }
+    },
+    {
+      "controller": "MSFC",
+      "errors": [],
+      "freshness": {
+        "age_max_s": 0.04999999999999716,
+        "age_p50_s": 0.04999999999999716,
+        "age_p95_s": 0.04999999999999716,
+        "age_p99_s": 0.04999999999999716,
+        "fresh_age_s": 0.02,
+        "fresh_count": 110,
+        "fresh_fraction": 0.107421875,
+        "geometric_latency_reject_count": 0,
+        "held_count": 914,
+        "held_fraction": 0.892578125,
+        "longest_hold_s": 0.04999999999999716,
+        "longest_hold_samples": 914,
+        "observation_count": 1024,
+        "policy": "fresh_lt_20ms_held_lt_80ms_stale_ge_80ms",
+        "stale_age_s": 0.08,
+        "stale_count": 0,
+        "stale_fraction": 0.0,
+        "stale_stop_count": 0
+      },
+      "kernel_timing": {
+        "max_ms": 0.3217530029360205,
+        "p50_ms": 0.14294800348579884,
+        "p95_ms": 0.1532851019874215,
+        "p99_ms": 0.1931447710376233,
+        "sample_count": 1023
+      },
+      "path_first_formal_time_s": 0.0,
+      "phase_counts": {
+        "baseline": 1,
+        "entry": 501,
+        "path": 521,
+        "pause": 1
+      },
+      "qp_timing": {
+        "max_ms": 0.09014899842441082,
+        "p50_ms": 0.03146901144646108,
+        "p95_ms": 0.034463100018911064,
+        "p99_ms": 0.06931656505912481,
+        "sample_count": 1023
+      },
+      "seam": {
+        "claim_scope": "offline synthetic owner input; no transport or live qualification",
+        "entry_duration_s": 1.0,
+        "path_started": true,
+        "state21_tick_count": 1,
+        "state25_first_formal_time_s": 0.0,
+        "stationary_freeze_carry": true
+      },
+      "state21_pause_count": 1,
+      "state21_tick_count": 1,
+      "state25_tick_count": 521,
+      "steady_state_timing": {
+        "max_ms": 0.4420180048327893,
+        "p50_ms": 0.29338899184949696,
+        "p95_ms": 0.32529701420571655,
+        "p99_ms": 0.3574700420722364,
+        "sample_count": 1023
+      },
+      "ticks_completed": 1024,
+      "ticks_requested": 1024,
+      "timing": {
+        "deadline_policy": "observed_only_offline; no live writer admission",
+        "deadline_reject_count": 0,
+        "deadline_s": 0.0015,
+        "max_ms": 0.48092001816257834,
+        "observed_over_deadline_count": 0,
+        "p50_ms": 0.2933939977083355,
+        "p95_ms": 0.32533300400245935,
+        "p99_ms": 0.35832869209116325,
+        "sample_count": 1024
+      },
+      "warmup": {
+        "tick_count": 1,
+        "timing": {
+          "max_ms": 0.48092001816257834,
+          "p50_ms": 0.48092001816257834,
+          "p95_ms": 0.48092001816257834,
+          "p99_ms": 0.48092001816257834,
+          "sample_count": 1
+        }
+      }
+    }
+  ],
+  "device_io": false,
+  "hardware_qualified": false,
+  "live_qualified": false,
+  "motion_authorized": false,
+  "network_used": false,
+  "protocol_sha256": "8a5d84e6e0f11fda734f3a9227aa1d44ea3b703658ad443d0f33e44e2b35f008",
+  "schema": "ur10e.contact-six-writer-timing-v2",
+  "timing_config": {
+    "deadline_s": 0.0015,
+    "dt_s": 0.002,
+    "held_age_s": 0.05,
+    "ticks": 1024
+  }
+}

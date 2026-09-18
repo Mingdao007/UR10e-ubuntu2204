@@ -1191,6 +1191,7 @@ def build_r013_live_context(
     feedforward_mode: FeedforwardMode | str | None = None,
     solver_profile: Any = None,
     timing_scheduler_profile: str = "late_control_fifo_v1",
+    contact_command_provider_factory: Callable[..., Any] | None = None,
 ) -> R013LiveContext:
     run_dir = Path(run_dir).resolve()
     selected_timing_scheduler_profile = TimingSchedulerProfileV1.from_id(
@@ -1464,6 +1465,7 @@ def build_r013_live_context(
                 if figure8_profile or not r013_profile_bound
                 else baseline_transition_profile
             ),
+            contact_command_provider_factory=contact_command_provider_factory,
         )
         from step5d_autotune_v4_r008.state20_search_trace import attach_state20_trace
         from step5d_autotune_v4_r008.state25_path_trace import attach_state25_trace

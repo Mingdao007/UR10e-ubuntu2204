@@ -76,13 +76,39 @@ June13 kinematics CSV is absent from the isolated checkout. These do not count
 as tests passing. New FK evidence is recorded separately, not used to silently
 rewrite the historical contract.
 
-## Remaining execution work
+## Offline closure and remaining live gates
 
-Integration of the new six-law provider and protocol into the physical owner,
-including the stationary State21-to-State25 seam; complete-writer real-time
-qualification; contact-specific equal-budget tuning; parameter freeze and
-independent randomized repeated nominal/disturbed trials. No offline or file
-read-back result establishes those outcomes.
+The contact provider is now carried through the single mature-writer injection
+seam, with an explicit optional factory hook on the R013 owner. The provider
+owns the contact outer loop and native QP; the mature writer remains the only
+command owner. State21 sends zero qdot through the provider's freeze-carry
+pause seam, and the first State25 tick starts formal PATH at time zero.
+
+`writer-timing.json` is an offline complete-composition receipt. It exercises
+all six laws, baseline, the 1 s smooth entry, the stationary seam, and PATH,
+while recording p50/p95/p99/max tick duration, observed deadline overruns,
+fresh/held/stale counts, held fraction, stale stops and geometric rejects. It
+also separates the first warm-up tick, steady-state ticks, native kernel and
+QP spans, and records State21/State25 tick counts. Its deadline field is
+diagnostic only; it is not a live 500 Hz qualification.
+
+`runs/contact-six-offline-20260918/campaign-summary.json` records the paired
+24-unit budget for every controller: 48 sealed nominal/disturbed trials per
+controller, one shared capture-session identity, a measured feasible candidate
+freeze, and 25 randomized holdout replays per controller. The replay uses a
+fixed-Jacobian native law/QP path with an explicitly named synthetic contact
+plant proxy. It is offline comparison evidence and does not establish physical
+performance. `freshness-sensitivity.json` reports the 20/40/60/80 ms cutoff
+replays; stale rows are censored while held rows remain eligible. In this tape,
+20/40 ms do not yield a complete ranking because the 50 ms held segment is
+censored; 60/80 ms both yield the same complete force-RMSE order
+`ISFC > SFC > LAC > NAC > DSFC > MSFC`. That is a policy-sensitivity result
+for this offline tape, not a physical controller ranking.
+
+Remaining work is live readiness only: fresh Home/tool/package read-back,
+Remote Control and bridge predicates, observer barrier, and a complete writer
+timing receipt from the real transport. No offline receipt authorizes Load,
+Play, ARM, motion, contact, or a physical acceptance claim.
 
 ## September 18 implementation update
 
@@ -102,6 +128,10 @@ sensor/RTDE age checks, current tool binding and complete computation deadline
 rollback. The proposer and ledger consume only sealed paired training units;
 failed units consume budget without scores. Unmeasured candidate feasibility
 is unknown, never true. None of these interfaces admits live dispatch.
+
+The offline timing and campaign receipts are separate from the historical R004
+20 ms qualification gate. They use contact-six's 20 ms fresh / 80 ms stale
+policy and keep geometric-latency rejection as a separate censor reason.
 
 The contact freshness contract now follows the SFC-compatible three bands:
 `fresh` for age `<20 ms`, latest-value/ZOH `held` for `20 ms <= age <80 ms`,

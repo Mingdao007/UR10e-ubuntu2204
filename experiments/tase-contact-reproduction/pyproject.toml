@@ -32,6 +32,16 @@ test-hermetic = [
   "pyyaml==6.0.3",
   "scipy==1.15.3",
 ]
+contact-control = [
+  "jsonschema==4.26.0",
+  "numpy==1.24.4",
+  "osqp==1.1.1",
+  "pytest==8.4.1",
+  "pyyaml==6.0.3",
+  "scipy==1.15.3",
+  "setuptools==81.0.0",
+  "ur10e-experiment-runtime==0.1.0",
+]
 analysis = [
   "matplotlib==3.10.8",
   "mujoco==3.8.1",
@@ -56,3 +66,4 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
+ur10e-experiment-runtime = { path = "../../src/ur10e_experiment_runtime", editable = false }

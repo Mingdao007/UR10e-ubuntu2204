@@ -1,0 +1,167 @@
+{
+  "budget": {
+    "paired_trials_per_unit": 2,
+    "per_controller_units": 24
+  },
+  "capture_session_id": "dc7079b2ea342731053e42221e534bcc44f78ce37350edbff6e10a420ab7f04c",
+  "claim_scope": "offline equal-budget native-law/QP replay with explicit synthetic contact-plant proxy; no live or physical acceptance",
+  "controllers": [
+    "LAC",
+    "NAC",
+    "SFC",
+    "DSFC",
+    "ISFC",
+    "MSFC"
+  ],
+  "device_io": false,
+  "dt_s": 0.002,
+  "freeze_sha256": "12e22fac6872888eaf698073b7620190c4fd41b2061597b4833009ed875aad16",
+  "freshness_sensitivity": "freshness-sensitivity.json",
+  "hardware_qualified": false,
+  "holdout": {
+    "DSFC": {
+      "claim_scope": "offline randomized holdout replay; no physical acceptance",
+      "complete_count": 25,
+      "force_rmse_mean_n": 0.02270622204710751,
+      "path_rms_mean_m": 3.21004037919459e-09,
+      "trial_count": 25
+    },
+    "ISFC": {
+      "claim_scope": "offline randomized holdout replay; no physical acceptance",
+      "complete_count": 25,
+      "force_rmse_mean_n": 0.020536897390015865,
+      "path_rms_mean_m": 2.5993974413367773e-05,
+      "trial_count": 25
+    },
+    "LAC": {
+      "claim_scope": "offline randomized holdout replay; no physical acceptance",
+      "complete_count": 25,
+      "force_rmse_mean_n": 0.020614709791191236,
+      "path_rms_mean_m": 2.5048941345166758e-05,
+      "trial_count": 25
+    },
+    "MSFC": {
+      "claim_scope": "offline randomized holdout replay; no physical acceptance",
+      "complete_count": 25,
+      "force_rmse_mean_n": 0.022706222047111237,
+      "path_rms_mean_m": 3.21004037919459e-09,
+      "trial_count": 25
+    },
+    "NAC": {
+      "claim_scope": "offline randomized holdout replay; no physical acceptance",
+      "complete_count": 25,
+      "force_rmse_mean_n": 0.020996439322379247,
+      "path_rms_mean_m": 2.0261061334782625e-05,
+      "trial_count": 25
+    },
+    "SFC": {
+      "claim_scope": "offline randomized holdout replay; no physical acceptance",
+      "complete_count": 25,
+      "force_rmse_mean_n": 0.020601449378056927,
+      "path_rms_mean_m": 2.543517935521131e-05,
+      "trial_count": 25
+    }
+  },
+  "horizon_ticks": 256,
+  "live_qualified": false,
+  "motion_authorized": false,
+  "network_used": false,
+  "progress": {
+    "DSFC": {
+      "completed_trials": 48,
+      "failed_trials": 0,
+      "used_units": 24
+    },
+    "ISFC": {
+      "completed_trials": 48,
+      "failed_trials": 0,
+      "used_units": 24
+    },
+    "LAC": {
+      "completed_trials": 48,
+      "failed_trials": 0,
+      "used_units": 24
+    },
+    "MSFC": {
+      "completed_trials": 48,
+      "failed_trials": 0,
+      "used_units": 24
+    },
+    "NAC": {
+      "completed_trials": 48,
+      "failed_trials": 0,
+      "used_units": 24
+    },
+    "SFC": {
+      "completed_trials": 48,
+      "failed_trials": 0,
+      "used_units": 24
+    }
+  },
+  "protocol_sha256": "8a5d84e6e0f11fda734f3a9227aa1d44ea3b703658ad443d0f33e44e2b35f008",
+  "rpsfc_selectable": false,
+  "schema": "ur10e.contact-six-offline-campaign-v1",
+  "seed": 20260918,
+  "selected_candidates": {
+    "DSFC": {
+      "a": 1.2,
+      "g": 0.37156232772230463,
+      "law": "DSFC",
+      "m": 15.461799371987581,
+      "max_iterations": 32.0,
+      "mu": 1862.1219025325136,
+      "n": 3.0,
+      "p": 0.1,
+      "relative_radius_tolerance": 1e-10,
+      "residual_tolerance_n": 1e-09
+    },
+    "ISFC": {
+      "eta0": 5.0,
+      "g": 0.3585725024803175,
+      "law": "ISFC",
+      "m": 4.529649689793587,
+      "mu": 2935.015678034151,
+      "n": 3.0,
+      "substeps": 2.0,
+      "v_ref": 1.0
+    },
+    "LAC": {
+      "g": 0.3048404699601157,
+      "law": "LAC",
+      "m": 4.0416052639484406,
+      "mu": 3.9311099796135176
+    },
+    "MSFC": {
+      "a": 1.2,
+      "force_scale_n": 2.1095928078033372,
+      "g": 0.005822363610749752,
+      "kappa_per_n2_s": 0.6334129092862626,
+      "law": "MSFC",
+      "m": 15.934105578809977,
+      "max_iterations": 32.0,
+      "minimum_metric_eigenvalue": 0.026926929041248004,
+      "mu": 1018.0472180135909,
+      "n": 3.0,
+      "p": 0.07,
+      "residual_tolerance_n": 1e-09,
+      "structure_tolerance": 1e-12,
+      "tau_force_s": 0.19236795686399732,
+      "tau_recovery_s": 0.20212720757006053
+    },
+    "NAC": {
+      "alpha": 25.0,
+      "g": 0.27947987989509965,
+      "law": "NAC",
+      "m": 4.490913975983858,
+      "mu": 5.951212527407407,
+      "sigma": 20.0
+    },
+    "SFC": {
+      "g": 0.2965460311500635,
+      "law": "SFC",
+      "m": 4.1645025834441185,
+      "mu": 53.421147416860386,
+      "n": 3.0
+    }
+  }
+}

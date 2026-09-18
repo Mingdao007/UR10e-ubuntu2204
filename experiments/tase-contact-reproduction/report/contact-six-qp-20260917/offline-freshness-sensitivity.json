@@ -1,0 +1,369 @@
+{
+  "claim_scope": "offline replay only; no controller or physical acceptance",
+  "comparisons": [
+    {
+      "controllers": [
+        {
+          "accepted_rows": 2500,
+          "censored": true,
+          "censored_rows": 3900,
+          "controller": "DSFC",
+          "force_mae_n": 0.00025930504974604673,
+          "force_rmse_n": 0.001057549124672548,
+          "held_fraction": 0.0,
+          "objective_eligible": false,
+          "path_rms_m": 6.413278023858646e-10,
+          "total_rows": 6400,
+          "vibration_rms": 0.0004472135242596026
+        },
+        {
+          "accepted_rows": 2500,
+          "censored": true,
+          "censored_rows": 3900,
+          "controller": "ISFC",
+          "force_mae_n": 0.0002592873057790754,
+          "force_rmse_n": 0.0010574595425049704,
+          "held_fraction": 0.0,
+          "objective_eligible": false,
+          "path_rms_m": 1.048778248834453e-09,
+          "total_rows": 6400,
+          "vibration_rms": 0.00044721352767984195
+        },
+        {
+          "accepted_rows": 2500,
+          "censored": true,
+          "censored_rows": 3900,
+          "controller": "LAC",
+          "force_mae_n": 0.0002592881278192678,
+          "force_rmse_n": 0.0010574636912548795,
+          "held_fraction": 0.0,
+          "objective_eligible": false,
+          "path_rms_m": 1.0186528746570452e-09,
+          "total_rows": 6400,
+          "vibration_rms": 0.00044721352737223216
+        },
+        {
+          "accepted_rows": 2500,
+          "censored": true,
+          "censored_rows": 3900,
+          "controller": "MSFC",
+          "force_mae_n": 0.00025930504974604673,
+          "force_rmse_n": 0.001057549124672548,
+          "held_fraction": 0.0,
+          "objective_eligible": false,
+          "path_rms_m": 6.413278023858646e-10,
+          "total_rows": 6400,
+          "vibration_rms": 0.0004472135242596026
+        },
+        {
+          "accepted_rows": 2500,
+          "censored": true,
+          "censored_rows": 3900,
+          "controller": "NAC",
+          "force_mae_n": 0.000259291100968575,
+          "force_rmse_n": 0.0010574787046269242,
+          "held_fraction": 0.0,
+          "objective_eligible": false,
+          "path_rms_m": 9.147721342461304e-10,
+          "total_rows": 6400,
+          "vibration_rms": 0.00044721352632169696
+        },
+        {
+          "accepted_rows": 2500,
+          "censored": true,
+          "censored_rows": 3900,
+          "controller": "SFC",
+          "force_mae_n": 0.00025928903211635656,
+          "force_rmse_n": 0.0010574682471387068,
+          "held_fraction": 0.0,
+          "objective_eligible": false,
+          "path_rms_m": 9.86308195842479e-10,
+          "total_rows": 6400,
+          "vibration_rms": 0.00044721352707244625
+        }
+      ],
+      "cutoff_s": 0.02,
+      "ranking_by_force_rmse": [],
+      "ranking_is_complete": false
+    },
+    {
+      "controllers": [
+        {
+          "accepted_rows": 2500,
+          "censored": true,
+          "censored_rows": 3900,
+          "controller": "DSFC",
+          "force_mae_n": 0.00025930504974604673,
+          "force_rmse_n": 0.001057549124672548,
+          "held_fraction": 0.0,
+          "objective_eligible": false,
+          "path_rms_m": 6.413278023858646e-10,
+          "total_rows": 6400,
+          "vibration_rms": 0.0004472135242596026
+        },
+        {
+          "accepted_rows": 2500,
+          "censored": true,
+          "censored_rows": 3900,
+          "controller": "ISFC",
+          "force_mae_n": 0.0002592873057790754,
+          "force_rmse_n": 0.0010574595425049704,
+          "held_fraction": 0.0,
+          "objective_eligible": false,
+          "path_rms_m": 1.048778248834453e-09,
+          "total_rows": 6400,
+          "vibration_rms": 0.00044721352767984195
+        },
+        {
+          "accepted_rows": 2500,
+          "censored": true,
+          "censored_rows": 3900,
+          "controller": "LAC",
+          "force_mae_n": 0.0002592881278192678,
+          "force_rmse_n": 0.0010574636912548795,
+          "held_fraction": 0.0,
+          "objective_eligible": false,
+          "path_rms_m": 1.0186528746570452e-09,
+          "total_rows": 6400,
+          "vibration_rms": 0.00044721352737223216
+        },
+        {
+          "accepted_rows": 2500,
+          "censored": true,
+          "censored_rows": 3900,
+          "controller": "MSFC",
+          "force_mae_n": 0.00025930504974604673,
+          "force_rmse_n": 0.001057549124672548,
+          "held_fraction": 0.0,
+          "objective_eligible": false,
+          "path_rms_m": 6.413278023858646e-10,
+          "total_rows": 6400,
+          "vibration_rms": 0.0004472135242596026
+        },
+        {
+          "accepted_rows": 2500,
+          "censored": true,
+          "censored_rows": 3900,
+          "controller": "NAC",
+          "force_mae_n": 0.000259291100968575,
+          "force_rmse_n": 0.0010574787046269242,
+          "held_fraction": 0.0,
+          "objective_eligible": false,
+          "path_rms_m": 9.147721342461304e-10,
+          "total_rows": 6400,
+          "vibration_rms": 0.00044721352632169696
+        },
+        {
+          "accepted_rows": 2500,
+          "censored": true,
+          "censored_rows": 3900,
+          "controller": "SFC",
+          "force_mae_n": 0.00025928903211635656,
+          "force_rmse_n": 0.0010574682471387068,
+          "held_fraction": 0.0,
+          "objective_eligible": false,
+          "path_rms_m": 9.86308195842479e-10,
+          "total_rows": 6400,
+          "vibration_rms": 0.00044721352707244625
+        }
+      ],
+      "cutoff_s": 0.04,
+      "ranking_by_force_rmse": [],
+      "ranking_is_complete": false
+    },
+    {
+      "controllers": [
+        {
+          "accepted_rows": 6400,
+          "censored": false,
+          "censored_rows": 0,
+          "controller": "DSFC",
+          "force_mae_n": 0.017363104554961397,
+          "force_rmse_n": 0.02538632800476841,
+          "held_fraction": 0.609375,
+          "objective_eligible": true,
+          "path_rms_m": 3.21004037919459e-09,
+          "total_rows": 6400,
+          "vibration_rms": 0.000279508457334107
+        },
+        {
+          "accepted_rows": 6400,
+          "censored": false,
+          "censored_rows": 0,
+          "controller": "ISFC",
+          "force_mae_n": 0.015684388824728567,
+          "force_rmse_n": 0.02296094930550674,
+          "held_fraction": 0.609375,
+          "objective_eligible": true,
+          "path_rms_m": 2.9061429145447604e-05,
+          "total_rows": 6400,
+          "vibration_rms": 0.00027952493149039417
+        },
+        {
+          "accepted_rows": 6400,
+          "censored": false,
+          "censored_rows": 0,
+          "controller": "LAC",
+          "force_mae_n": 0.01574715187787776,
+          "force_rmse_n": 0.023047946214767048,
+          "held_fraction": 0.609375,
+          "objective_eligible": true,
+          "path_rms_m": 2.8004850056044013e-05,
+          "total_rows": 6400,
+          "vibration_rms": 0.00027952404731780626
+        },
+        {
+          "accepted_rows": 6400,
+          "censored": false,
+          "censored_rows": 0,
+          "controller": "MSFC",
+          "force_mae_n": 0.017363104554964138,
+          "force_rmse_n": 0.025386328004772574,
+          "held_fraction": 0.609375,
+          "objective_eligible": true,
+          "path_rms_m": 3.21004037919459e-09,
+          "total_rows": 6400,
+          "vibration_rms": 0.000279508457334107
+        },
+        {
+          "accepted_rows": 6400,
+          "censored": false,
+          "censored_rows": 0,
+          "controller": "NAC",
+          "force_mae_n": 0.016054162499311575,
+          "force_rmse_n": 0.023474732805144807,
+          "held_fraction": 0.609375,
+          "objective_eligible": true,
+          "path_rms_m": 2.2651837479073615e-05,
+          "total_rows": 6400,
+          "vibration_rms": 0.0002795184768589853
+        },
+        {
+          "accepted_rows": 6400,
+          "censored": false,
+          "censored_rows": 0,
+          "controller": "SFC",
+          "force_mae_n": 0.015733314296876258,
+          "force_rmse_n": 0.02303312062217803,
+          "held_fraction": 0.609375,
+          "objective_eligible": true,
+          "path_rms_m": 2.8436677278462195e-05,
+          "total_rows": 6400,
+          "vibration_rms": 0.000279526538296186
+        }
+      ],
+      "cutoff_s": 0.06,
+      "ranking_by_force_rmse": [
+        "ISFC",
+        "SFC",
+        "LAC",
+        "NAC",
+        "DSFC",
+        "MSFC"
+      ],
+      "ranking_is_complete": true
+    },
+    {
+      "controllers": [
+        {
+          "accepted_rows": 6400,
+          "censored": false,
+          "censored_rows": 0,
+          "controller": "DSFC",
+          "force_mae_n": 0.017363104554961397,
+          "force_rmse_n": 0.02538632800476841,
+          "held_fraction": 0.609375,
+          "objective_eligible": true,
+          "path_rms_m": 3.21004037919459e-09,
+          "total_rows": 6400,
+          "vibration_rms": 0.000279508457334107
+        },
+        {
+          "accepted_rows": 6400,
+          "censored": false,
+          "censored_rows": 0,
+          "controller": "ISFC",
+          "force_mae_n": 0.015684388824728567,
+          "force_rmse_n": 0.02296094930550674,
+          "held_fraction": 0.609375,
+          "objective_eligible": true,
+          "path_rms_m": 2.9061429145447604e-05,
+          "total_rows": 6400,
+          "vibration_rms": 0.00027952493149039417
+        },
+        {
+          "accepted_rows": 6400,
+          "censored": false,
+          "censored_rows": 0,
+          "controller": "LAC",
+          "force_mae_n": 0.01574715187787776,
+          "force_rmse_n": 0.023047946214767048,
+          "held_fraction": 0.609375,
+          "objective_eligible": true,
+          "path_rms_m": 2.8004850056044013e-05,
+          "total_rows": 6400,
+          "vibration_rms": 0.00027952404731780626
+        },
+        {
+          "accepted_rows": 6400,
+          "censored": false,
+          "censored_rows": 0,
+          "controller": "MSFC",
+          "force_mae_n": 0.017363104554964138,
+          "force_rmse_n": 0.025386328004772574,
+          "held_fraction": 0.609375,
+          "objective_eligible": true,
+          "path_rms_m": 3.21004037919459e-09,
+          "total_rows": 6400,
+          "vibration_rms": 0.000279508457334107
+        },
+        {
+          "accepted_rows": 6400,
+          "censored": false,
+          "censored_rows": 0,
+          "controller": "NAC",
+          "force_mae_n": 0.016054162499311575,
+          "force_rmse_n": 0.023474732805144807,
+          "held_fraction": 0.609375,
+          "objective_eligible": true,
+          "path_rms_m": 2.2651837479073615e-05,
+          "total_rows": 6400,
+          "vibration_rms": 0.0002795184768589853
+        },
+        {
+          "accepted_rows": 6400,
+          "censored": false,
+          "censored_rows": 0,
+          "controller": "SFC",
+          "force_mae_n": 0.015733314296876258,
+          "force_rmse_n": 0.02303312062217803,
+          "held_fraction": 0.609375,
+          "objective_eligible": true,
+          "path_rms_m": 2.8436677278462195e-05,
+          "total_rows": 6400,
+          "vibration_rms": 0.000279526538296186
+        }
+      ],
+      "cutoff_s": 0.08,
+      "ranking_by_force_rmse": [
+        "ISFC",
+        "SFC",
+        "LAC",
+        "NAC",
+        "DSFC",
+        "MSFC"
+      ],
+      "ranking_is_complete": true
+    }
+  ],
+  "cutoffs_s": [
+    0.02,
+    0.04,
+    0.06,
+    0.08
+  ],
+  "fresh_age_s": 0.02,
+  "rows": 38400,
+  "schema": "ur10e.contact-benchmark-freshness-sensitivity-v1",
+  "stale_age_s": 0.08
+}

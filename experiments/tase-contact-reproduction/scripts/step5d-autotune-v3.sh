@@ -5,6 +5,13 @@ SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
 EXPERIMENT_ROOT="$(cd -- "$(dirname -- "${SCRIPT_PATH}")/.." && pwd)"
 REPOSITORY_ROOT="$(cd -- "${EXPERIMENT_ROOT}/../.." && pwd)"
 
+# Explicit offline CPU route. Keep this dispatch before the legacy runtime
+# environment/bootstrap checks so contact-six status never inherits a stale
+# Step5d pointer or CUDA environment.
+if [[ "${1:-}" == "contact-status" ]]; then
+  exec "${EXPERIMENT_ROOT}/scripts/contact-six.sh" status "${@:2}"
+fi
+
 bridge_usage() {
   cat <<'EOF'
 Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
@@ -128,6 +135,7 @@ Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
        step5d-autotune-v3.sh tp-deliver [OPTIONS]
        step5d-autotune-v3.sh revalidate-current [OPTIONS]
        step5d-autotune-v3.sh remote-play [OPTIONS]
+       step5d-autotune-v3.sh contact-status
        step5d-autotune-v3.sh status [--json]
        step5d-autotune-v3.sh status --json --assert-state STATE
        step5d-autotune-v3.sh [OPERATOR-CLI-ARGS]
@@ -138,6 +146,7 @@ Use "step5d-autotune-v3.sh release-contract-check --help" for contract options.
 Use "step5d-autotune-v3.sh tp-deliver --help" for delivery options.
 Use "step5d-autotune-v3.sh revalidate-current --help" for runtime revalidation.
 Use "step5d-autotune-v3.sh remote-play --help" for governed Remote Play.
+Use "step5d-autotune-v3.sh contact-status" for the offline contact-six CPU preflight.
 EOF
 }
 
