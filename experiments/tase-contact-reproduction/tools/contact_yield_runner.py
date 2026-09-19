@@ -1,13 +1,14 @@
 """Deterministic closed-loop mechanism experiments; never opens a device."""
 from __future__ import annotations
 from dataclasses import asdict
+from collections.abc import Mapping
 import hashlib, json, math, time
 from pathlib import Path
 import numpy as np
 from contact_semantics import orientation_axis_angle_error
 from contact_yield_controller import YieldController, YieldSettings
 from contact_yield_kinematics import load_kinematics
-from contact_yield_math import projector_tangent
+from contact_yield_math import projector_tangent, finite_scalar
 from contact_yield_normal import NormalEstimator
 from contact_yield_metrics import summarize_trial
 from contact_yield_protocol import (CLAIM_SCOPE, DEFAULT_DT_S, DIAGNOSTIC_DURATION_S,
@@ -24,7 +25,13 @@ def serial(value):
     return value
 
 def make_system(*,method,material,dt_s,timeline,qp_library=QP_LIBRARY_PATH,
-                build_root=None,require_ur10e=True,law_parameters=None,settings=None,plant_substeps=None,estimator_parameters=None):
+                build_root=None,require_ur10e=True,law_parameters=None,settings=None,plant_substeps=None,estimator_parameters=None,surface_parameters=None):
+    if surface_parameters is not None and not isinstance(surface_parameters,Mapping):
+        raise ValueError('surface parameters must be a mapping')
+    surface_options=dict(surface_parameters or {})
+    if set(surface_options)-{'kappa_xx','kappa_yy'}:
+        raise ValueError('unsupported surface parameter; physical origin is not configurable')
+    surface_options={key:finite_scalar(value,key) for key,value in surface_options.items()}
     kinematics=load_kinematics(require_ur10e=require_ur10e)
     home=json.loads(HOME_PATH.read_text())
     q=np.asarray(home['home_q'] if kinematics.kind=='ur10e_calibrated_pinocchio'
@@ -35,7 +42,7 @@ def make_system(*,method,material,dt_s,timeline,qp_library=QP_LIBRARY_PATH,
     # Tool +Z is the preserved contact approach, hence the INWARD direction.
     approach=rotation[:,2].copy()
     plant_type=YieldSimulator if plant_substeps is None else substepped_simulator(plant_substeps)
-    plant=plant_type(kinematics=kinematics,surface=surface_for_contact(origin,material=material),
+    plant=plant_type(kinematics=kinematics,surface=surface_for_contact(origin,material=material,**surface_options),
         material=material,q=q,timeline=timeline,require_ur10e=require_ur10e,seed_sensor_from_contact=True)
     if kinematics.kind!='ur10e_calibrated_pinocchio':plant.rotation=rotation.copy()
     controller=YieldController(method=method,qp_library=qp_library,approach_inward_base=approach,
@@ -47,7 +54,7 @@ def make_system(*,method,material,dt_s,timeline,qp_library=QP_LIBRARY_PATH,
 def run_closed_loop(*,method,scenario='nominal',material='stiff_low_mu',duration_s=DIAGNOSTIC_DURATION_S,
         dt_s=DEFAULT_DT_S,timeline='diagnostic',campaign_kind='mechanism_seed',preparation='cold',
         qp_library=QP_LIBRARY_PATH,build_root=None,require_ur10e=True,record_fullstate=True,
-        law_parameters=None,settings=None,plant_substeps=None,estimator_parameters=None):
+        law_parameters=None,settings=None,plant_substeps=None,estimator_parameters=None,surface_parameters=None):
     if not math.isfinite(duration_s) or not 0<duration_s<=PERIOD_S:raise ValueError('invalid duration')
     if not math.isfinite(dt_s) or not 0<dt_s<=.004:raise ValueError('invalid dt')
     if preparation not in ('cold','warm'):raise ValueError('unknown preparation')
@@ -58,7 +65,7 @@ def run_closed_loop(*,method,scenario='nominal',material='stiff_low_mu',duration
     ctrl,plant,origin=make_system(method=method,material=material,dt_s=dt_s,timeline=timeline,
         qp_library=qp_library,build_root=build_root,require_ur10e=require_ur10e,
         law_parameters=law_parameters,settings=settings,plant_substeps=plant_substeps,
-        estimator_parameters=estimator_parameters)
+        estimator_parameters=estimator_parameters,surface_parameters=surface_parameters)
     initial_controller=ctrl.snapshot();initial_plant=plant.snapshot()
     rows=[];records=[];failed=False;failure=None;wall=[];formal_initial=None
     task=Task();entry_ticks=math.ceil(1./dt_s);warm_ticks=math.ceil(2./dt_s) if preparation=='warm' else 0
@@ -120,5 +127,7 @@ def run_closed_loop(*,method,scenario='nominal',material='stiff_low_mu',duration
         'timing_diagnostic':{'tick_p99_s':float(np.quantile(wall,.99)) if wall else None,'tick_max_s':max(wall) if wall else None,
                              'includes_plant':True,'physical_timing_qualification':False},
         'campaign_kind':campaign_kind,'formal_campaign_complete':False,'claim_scope':CLAIM_SCOPE}
+    if surface_parameters is not None:
+        artifact['surface_parameters']={key:float(value) for key,value in surface_parameters.items()}
     ctrl.close()
     return serial(artifact)

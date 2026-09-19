@@ -1,0 +1,17 @@
+# SE-v1: evaluating genuine surface variation
+
+Status: four new development trials completed; no hardware execution, no holdout, no observer or controller promotion. SFC remains the research baseline, DSFC/MSFC the proposals. DSFC is held fixed in this common-module diagnostic.
+
+The offline runner now accepts explicitly versioned evaluator-only curvature parameters. Initial contact placement, physical approach, robot initial configuration and reference path are preserved. Surface parameters enter plant identity and saved artifacts; replay reconstructs them. Controller observations retain their original whitelist and never contain geometry truth. Defaults and existing artifacts remain supported.
+
+[All eight new/retained results](results.md) and [the development figure](comparison.png) show the tradeoff. The stronger surface changes true-normal excursion along the reference to 10.108 degrees RMS and 13.521 degrees maximum. Frozen-prior normal RMS rises to 7.23-7.93 degrees; measured progress is only 0.531-0.723. The legacy estimator maintains progress near one but has 16.92 degree normal RMS on the compliant/high-friction material. Neither observer is a demonstrated solution to all task objectives.
+
+Visited geometry matters: the legacy trials actually visit true-normal excursions of 9.97/10.14 degrees RMS, whereas frozen-prior trials visit only 7.93/7.23 degrees because their motion differs. Report that together with progress; an estimator must not appear better merely by failing to visit the challenging geometry. A full scheduled cycle is not successful path completion.
+
+Validation: five focused geometry/replay tests and 202 regression tests pass. All raw receipt hashes verified. Four mild/strong pairs match mechanical and observer parameters, initial state and reference samples (numerical state comparison atol 1e-12), apart from evaluator curvature. The explicit constructor prior in P0 is accounted for by its actual initial state; remaining observer parameters match exactly. The compliant/frozen strong-surface case passes all 31916 forward-replay samples. These are same-implementation checks, not independent physical validation.
+
+Raw data and frozen protocol are retained in `runs/yield-surface-excitation-v1/`. `verification.json` covers state/task comparisons and replay; `estimator-bindings.json` covers exact observer parameters. The comparison figure is also exported as PDF and SVG; it was rendered with existing system Python/matplotlib 3.5.1 and visually inspected. One run per cell, no error bars or uncertainty claim.
+
+Fable round 3 is complete: advice and main adjudication are in `../yield-observer-identifiability-v1/discussion/`. Its weak-excitation and tangent-push contamination findings inform the next bounded observer experiment; strict structural-unobservability wording was not accepted. No automatic new 18-cell matrix, changed default or new controller family was introduced.
+
+Next: one versioned combined motion/coplanarity candidate, analytical/focused tests first, then a bounded matrix separating prior correction, stronger-surface tracking and both normal/tangent intervention. Continue recording force, attitude, path, progress and failures jointly. Actual transverse-force contamination, complete real-writer qualification and physical model identification remain open. No simulator result authorizes motion or proves reduced material/human injury.

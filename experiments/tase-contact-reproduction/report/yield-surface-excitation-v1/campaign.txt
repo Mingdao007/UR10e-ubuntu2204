@@ -1,0 +1,4 @@
+stiff_low_mu legacy 6.044711737125881 False
+stiff_low_mu frozen_prior 7.9306669304459705 False
+compliant_high_mu legacy 16.923319120234837 False
+compliant_high_mu frozen_prior 7.225950806646602 False

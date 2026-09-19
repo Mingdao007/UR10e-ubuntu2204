@@ -1,10 +1,10 @@
 {
   "round": 3,
-  "status": "running",
+  "status": "completed",
   "requested_model": "Fable 5.1",
   "requested_effort": "xhigh",
   "launch_route": "ubuntu-homepool",
-  "native_completion_verified": false,
+  "native_completion_verified": true,
   "tool_session_id": 14153,
   "started_utc": "2026-09-19T23:07:26.091459+00:00",
   "prompt": "/tmp/yield-fable-discussion-v3.md",
@@ -15,5 +15,6 @@
   "native_session_id": "fbe7a0d9-c14b-4078-9181-8d6613a55116",
   "native_model": "claude-fable-5-1",
   "native_model_verified": true,
-  "effort_evidence": "xhigh launch flag; not independent server attestation"
+  "effort_evidence": "xhigh launch flag; not independent server attestation",
+  "exit_code": 0
 }

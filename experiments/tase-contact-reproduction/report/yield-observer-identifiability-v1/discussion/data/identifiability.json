@@ -1,0 +1,2331 @@
+{
+ "task": {
+  "gramian_xy": [
+   [
+    0.7031553949731083,
+    9.353718067731076e-07
+   ],
+   [
+    9.353718067731076e-07,
+    0.296844605026894
+   ]
+  ],
+  "eigenvalues": [
+   0.2968446050247407,
+   0.7031553949752616
+  ],
+  "speed_min_mm_s": 2.0,
+  "speed_median_mm_s": 2.828432319466516,
+  "speed_max_mm_s": 4.47213595499958,
+  "excitation_gate_mm_s": 2.0,
+  "lateral_dominant_fraction": 0.23854087089381207,
+  "lateral_windows_s": [
+   [
+    11.96,
+    19.454
+   ],
+   [
+    43.376,
+    50.870000000000005
+   ]
+  ],
+  "speed_in_lateral_windows_mm_s": [
+   2.0,
+   2.07046535681431
+  ],
+  "y_info_weight_per_second": [
+   0.198,
+   0.189,
+   0.17,
+   0.142,
+   0.106,
+   0.066,
+   0.028,
+   0.004,
+   0.012,
+   0.075,
+   0.207,
+   0.4,
+   0.616,
+   0.807,
+   0.939,
+   0.995,
+   0.972,
+   0.871,
+   0.701,
+   0.49,
+   0.282,
+   0.121,
+   0.03,
+   0.002,
+   0.015,
+   0.049,
+   0.09,
+   0.128,
+   0.159,
+   0.182,
+   0.196,
+   0.2,
+   0.194,
+   0.179,
+   0.155,
+   0.122,
+   0.083,
+   0.043,
+   0.011,
+   0.003,
+   0.04,
+   0.143,
+   0.314,
+   0.527,
+   0.733,
+   0.893,
+   0.981,
+   0.991,
+   0.922,
+   0.779,
+   0.581,
+   0.365,
+   0.18,
+   0.06,
+   0.007,
+   0.006,
+   0.034,
+   0.073,
+   0.113,
+   0.147,
+   0.174,
+   0.191,
+   0.199
+  ],
+  "y_info_seconds_ungated": 18.6847536343168,
+  "x_info_seconds_ungated": 44.315246365683194,
+  "note": "reference kinematics only; |v|^2 = 16c^4 + 4 (mm/s)^2 with c = cos(0.1 t), minimum 2 mm/s at the lateral sweeps"
+ },
+ "cells": [
+  {
+   "file": "forceoff-compliant-nominal.npz",
+   "sha256_12": "85c112ce9977",
+   "scenario": "nominal",
+   "material": "compliant_high_mu",
+   "estimator": {
+    "motion_gain": 8.0,
+    "force_correction_gain": 0.0
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.4690603514132926,
+   "both_gates_frac": 0.4690603514132926,
+   "actual_tangent_speed_median_mm_s": 1.8796363415764572,
+   "reference_tangent_speed_median_mm_s": 2.8277413501844073,
+   "direction_gramian_all": [
+    [
+     0.7231097417580685,
+     -0.004193697743272208
+    ],
+    [
+     -0.004193697743272208,
+     0.2768902582419356
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.9386507724210638,
+     0.036743778779045035
+    ],
+    [
+     0.036743778779045035,
+     0.06134922757893194
+    ]
+   ],
+   "x_info_seconds_gated": 27.663915564793715,
+   "y_info_seconds_gated": 1.8080844352062833,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.11828841903862478,
+     "abs_a_over_s_median": 0.06146743646264688,
+     "gate_open_frac": 0.4201,
+     "actual_s_mean_mm_s": 1.8719750386307246,
+     "reference_s_mean_mm_s": 2.811009061394836,
+     "cos_actual_reference_median": 0.8614254415883095,
+     "frac_s_ge_gate": 0.4215,
+     "coplanarity_true_rms": 0.0006976378498412209,
+     "coplanarity_true_p99": 0.001298913069386605
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 9.285606657759028e-06,
+     "abs_a_over_s_median": 0.0022702602981321735,
+     "gate_open_frac": 0.5624516129032258,
+     "actual_s_mean_mm_s": 2.6507846150947056,
+     "reference_s_mean_mm_s": 3.6333186773105393,
+     "cos_actual_reference_median": 0.9015792112337713,
+     "frac_s_ge_gate": 0.5627096774193548,
+     "coplanarity_true_rms": 0.000572319770477044,
+     "coplanarity_true_p99": 0.0009870967881352145
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 1.7489713983908287e-06,
+     "abs_a_over_s_median": 0.0010584685795804213,
+     "gate_open_frac": 0.45192448412117664,
+     "actual_s_mean_mm_s": 2.1332323647551594,
+     "reference_s_mean_mm_s": 2.8385344927671974,
+     "cos_actual_reference_median": 0.775974860735564,
+     "frac_s_ge_gate": 0.45192448412117664,
+     "coplanarity_true_rms": 0.0005694652274900872,
+     "coplanarity_true_p99": 0.000979888263227402
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.0010536296994767438,
+     "abs_a_over_s_median": 0.02166803172681719,
+     "gate_open_frac": 0.04723779023218575,
+     "actual_s_mean_mm_s": 1.5499825219386938,
+     "reference_s_mean_mm_s": 2.0144577756989928,
+     "cos_actual_reference_median": 0.5433846448178948,
+     "frac_s_ge_gate": 0.04643714971977582,
+     "coplanarity_true_rms": 0.0005146218035677279,
+     "coplanarity_true_p99": 0.0008689298537659501
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 2.2366204374946658e-06,
+     "abs_a_over_s_median": 0.0012172987447624636,
+     "gate_open_frac": 0.0,
+     "actual_s_mean_mm_s": 1.5079519780970003,
+     "reference_s_mean_mm_s": 2.0145411957591493,
+     "cos_actual_reference_median": 0.5680961879435088,
+     "frac_s_ge_gate": 0.0,
+     "coplanarity_true_rms": null,
+     "coplanarity_true_p99": null
+    }
+   }
+  },
+  {
+   "file": "forceoff-compliant-normal.npz",
+   "sha256_12": "0a8cbf3c7603",
+   "scenario": "sustained_release_normal",
+   "material": "compliant_high_mu",
+   "estimator": {
+    "motion_gain": 8.0,
+    "force_correction_gain": 0.0
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.540711739241151,
+   "both_gates_frac": 0.540711739241151,
+   "actual_tangent_speed_median_mm_s": 2.1040229824264154,
+   "reference_tangent_speed_median_mm_s": 2.8277503778981923,
+   "direction_gramian_all": [
+    [
+     0.7257915409847547,
+     0.023500922809213502
+    ],
+    [
+     0.023500922809213502,
+     0.27420845901524593
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.867265691688773,
+     0.043599913742613704
+    ],
+    [
+     0.043599913742613704,
+     0.13273430831122665
+    ]
+   ],
+   "x_info_seconds_gated": 29.464484609434393,
+   "y_info_seconds_gated": 4.509515390565606,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.11828841903862478,
+     "abs_a_over_s_median": 0.06146743646264688,
+     "gate_open_frac": 0.4201,
+     "actual_s_mean_mm_s": 1.8719750386307246,
+     "reference_s_mean_mm_s": 2.811009061394836,
+     "cos_actual_reference_median": 0.8614254415883095,
+     "frac_s_ge_gate": 0.4215,
+     "coplanarity_true_rms": 0.0006976378498412209,
+     "coplanarity_true_p99": 0.001298913069386605
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 0.22303130911684524,
+     "abs_a_over_s_median": 0.38229199752335646,
+     "gate_open_frac": 0.8548387096774194,
+     "actual_s_mean_mm_s": 2.9372982309005256,
+     "reference_s_mean_mm_s": 3.6334550218655375,
+     "cos_actual_reference_median": 0.9775683323111768,
+     "frac_s_ge_gate": 0.8482580645161291,
+     "coplanarity_true_rms": 0.000985887825471761,
+     "coplanarity_true_p99": 0.002799424801258761
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 0.03177040654587646,
+     "abs_a_over_s_median": 0.13414083588216674,
+     "gate_open_frac": 0.4508268696033953,
+     "actual_s_mean_mm_s": 2.085004236568435,
+     "reference_s_mean_mm_s": 2.838535930926982,
+     "cos_actual_reference_median": 0.7685435918966051,
+     "frac_s_ge_gate": 0.45104639250695155,
+     "coplanarity_true_rms": 0.0008369207521577367,
+     "coplanarity_true_p99": 0.001553597557585877
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.0010536296994767438,
+     "abs_a_over_s_median": 0.02166803172681719,
+     "gate_open_frac": 0.04723779023218575,
+     "actual_s_mean_mm_s": 1.5499825219386938,
+     "reference_s_mean_mm_s": 2.0144577756989928,
+     "cos_actual_reference_median": 0.5433846448178948,
+     "frac_s_ge_gate": 0.04643714971977582,
+     "coplanarity_true_rms": 0.0005146218035677279,
+     "coplanarity_true_p99": 0.0008689298537659501
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 0.05701171230202762,
+     "abs_a_over_s_median": 0.23170912188943937,
+     "gate_open_frac": 0.0,
+     "actual_s_mean_mm_s": 1.4995632774566017,
+     "reference_s_mean_mm_s": 2.0145411666792032,
+     "cos_actual_reference_median": 0.5653640528152586,
+     "frac_s_ge_gate": 0.0,
+     "coplanarity_true_rms": null,
+     "coplanarity_true_p99": null
+    }
+   }
+  },
+  {
+   "file": "forceoff-stiff-nominal.npz",
+   "sha256_12": "a6157e58437d",
+   "scenario": "nominal",
+   "material": "stiff_low_mu",
+   "estimator": {
+    "motion_gain": 8.0,
+    "force_correction_gain": 0.0
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.6418703845174434,
+   "both_gates_frac": 0.6418703845174434,
+   "actual_tangent_speed_median_mm_s": 2.4489195511052393,
+   "reference_tangent_speed_median_mm_s": 2.8277294009994525,
+   "direction_gramian_all": [
+    [
+     0.7028547588546267,
+     0.003892019105873913
+    ],
+    [
+     0.003892019105873913,
+     0.2971452411453697
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.8991780772490692,
+     0.018239481591917222
+    ],
+    [
+     0.018239481591917222,
+     0.10082192275093164
+    ]
+   ],
+   "x_info_seconds_gated": 36.26385185545495,
+   "y_info_seconds_gated": 4.066148144545047,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.009577527689364417,
+     "abs_a_over_s_median": 0.04099345738321003,
+     "gate_open_frac": 0.5153,
+     "actual_s_mean_mm_s": 2.3948198913106244,
+     "reference_s_mean_mm_s": 2.810904762711376,
+     "cos_actual_reference_median": 0.9532618337923675,
+     "frac_s_ge_gate": 0.5159,
+     "coplanarity_true_rms": 0.0009429356450740969,
+     "coplanarity_true_p99": 0.002248073329120105
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 7.757227287715815e-09,
+     "abs_a_over_s_median": 6.23242129206431e-05,
+     "gate_open_frac": 0.8712258064516128,
+     "actual_s_mean_mm_s": 3.399116053753915,
+     "reference_s_mean_mm_s": 3.633528708975107,
+     "cos_actual_reference_median": 0.9918722809921017,
+     "frac_s_ge_gate": 0.8714838709677419,
+     "coplanarity_true_rms": 0.0003059644949557871,
+     "coplanarity_true_p99": 0.0005327450144549381
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 9.26543953387003e-09,
+     "abs_a_over_s_median": 9.000355120424746e-05,
+     "gate_open_frac": 0.6044197277915996,
+     "actual_s_mean_mm_s": 2.5933522564985982,
+     "reference_s_mean_mm_s": 2.8385504099851033,
+     "cos_actual_reference_median": 0.948930950012584,
+     "frac_s_ge_gate": 0.6045660763939704,
+     "coplanarity_true_rms": 0.0003295536430433328,
+     "coplanarity_true_p99": 0.0005480375936125472
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.00045323346153656584,
+     "abs_a_over_s_median": 0.0032434472233802804,
+     "gate_open_frac": 0.02802241793434748,
+     "actual_s_mean_mm_s": 1.8148859106144632,
+     "reference_s_mean_mm_s": 2.0144606135156926,
+     "cos_actual_reference_median": 0.9009893869471852,
+     "frac_s_ge_gate": 0.02802241793434748,
+     "coplanarity_true_rms": 0.0006562398631780202,
+     "coplanarity_true_p99": 0.000861447964069882
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 1.965467104155882e-08,
+     "abs_a_over_s_median": 0.00015082485876304096,
+     "gate_open_frac": 0.0,
+     "actual_s_mean_mm_s": 1.7903318123701242,
+     "reference_s_mean_mm_s": 2.0144993533969724,
+     "cos_actual_reference_median": 0.9107118292356944,
+     "frac_s_ge_gate": 0.0,
+     "coplanarity_true_rms": null,
+     "coplanarity_true_p99": null
+    }
+   }
+  },
+  {
+   "file": "forceoff-stiff-normal.npz",
+   "sha256_12": "659d36b79f7e",
+   "scenario": "sustained_release_normal",
+   "material": "stiff_low_mu",
+   "estimator": {
+    "motion_gain": 8.0,
+    "force_correction_gain": 0.0
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.6544435956200662,
+   "both_gates_frac": 0.6544435956200662,
+   "actual_tangent_speed_median_mm_s": 2.5154346513042953,
+   "reference_tangent_speed_median_mm_s": 2.827749044356652,
+   "direction_gramian_all": [
+    [
+     0.7005586057751126,
+     0.022604493266556246
+    ],
+    [
+     0.022604493266556246,
+     0.29944139422488725
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.8744122684904897,
+     0.025808868214231367
+    ],
+    [
+     0.025808868214231367,
+     0.12558773150951125
+    ]
+   ],
+   "x_info_seconds_gated": 35.95583248032887,
+   "y_info_seconds_gated": 5.164167519671128,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.009577527689364417,
+     "abs_a_over_s_median": 0.04099345738321003,
+     "gate_open_frac": 0.5153,
+     "actual_s_mean_mm_s": 2.3948198913106244,
+     "reference_s_mean_mm_s": 2.810904762711376,
+     "cos_actual_reference_median": 0.9532618337923675,
+     "frac_s_ge_gate": 0.5159,
+     "coplanarity_true_rms": 0.0009429356450740969,
+     "coplanarity_true_p99": 0.002248073329120105
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 0.03454847728527153,
+     "abs_a_over_s_median": 0.16262641150354018,
+     "gate_open_frac": 0.9188387096774193,
+     "actual_s_mean_mm_s": 3.460647155614515,
+     "reference_s_mean_mm_s": 3.6336003322256865,
+     "cos_actual_reference_median": 0.9963576683445022,
+     "frac_s_ge_gate": 0.9196129032258065,
+     "coplanarity_true_rms": 0.001139109850739765,
+     "coplanarity_true_p99": 0.003041946893004829
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 0.0014400565031647908,
+     "abs_a_over_s_median": 0.0011215131095982924,
+     "gate_open_frac": 0.6063222596224206,
+     "actual_s_mean_mm_s": 2.5954123815712857,
+     "reference_s_mean_mm_s": 2.8385501415217207,
+     "cos_actual_reference_median": 0.9492368632853239,
+     "frac_s_ge_gate": 0.6066149568271623,
+     "coplanarity_true_rms": 0.0005227356115677462,
+     "coplanarity_true_p99": 0.0015058319485865496
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.00045323346153656584,
+     "abs_a_over_s_median": 0.0032434472233802804,
+     "gate_open_frac": 0.02802241793434748,
+     "actual_s_mean_mm_s": 1.8148859106144632,
+     "reference_s_mean_mm_s": 2.0144606135156926,
+     "cos_actual_reference_median": 0.9009893869471852,
+     "frac_s_ge_gate": 0.02802241793434748,
+     "coplanarity_true_rms": 0.0006562398631780202,
+     "coplanarity_true_p99": 0.000861447964069882
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 9.650749235766075e-05,
+     "abs_a_over_s_median": 0.0037941075307988802,
+     "gate_open_frac": 0.0,
+     "actual_s_mean_mm_s": 1.7891966437195457,
+     "reference_s_mean_mm_s": 2.0144993085435816,
+     "cos_actual_reference_median": 0.9108410596765721,
+     "frac_s_ge_gate": 0.0,
+     "coplanarity_true_rms": null,
+     "coplanarity_true_p99": null
+    }
+   }
+  },
+  {
+   "file": "legacy-compliant-nominal.npz",
+   "sha256_12": "21fa73cf68d5",
+   "scenario": "nominal",
+   "material": "compliant_high_mu",
+   "estimator": {
+    "motion_gain": 8.0,
+    "force_correction_gain": 1.5
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.9121466768525592,
+   "both_gates_frac": 0.9121466768525592,
+   "actual_tangent_speed_median_mm_s": 2.9763403160849506,
+   "reference_tangent_speed_median_mm_s": 2.827633807019805,
+   "direction_gramian_all": [
+    [
+     0.6742013112434772,
+     0.006223459673967966
+    ],
+    [
+     0.006223459673967966,
+     0.3257986887565227
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.6879321467957045,
+     -0.011476657597384676
+    ],
+    [
+     -0.011476657597384676,
+     0.31206785320429553
+    ]
+   ],
+   "x_info_seconds_gated": 39.42676719715547,
+   "y_info_seconds_gated": 17.88523280284454,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.026537321384473418,
+     "abs_a_over_s_median": 0.024222327538690504,
+     "gate_open_frac": 0.7996,
+     "actual_s_mean_mm_s": 2.9938623042606354,
+     "reference_s_mean_mm_s": 2.8108731445730695,
+     "cos_actual_reference_median": 0.9963275249242836,
+     "frac_s_ge_gate": 0.8145,
+     "coplanarity_true_rms": 0.001580531886475408,
+     "coplanarity_true_p99": 0.006834930359190183
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 0.006317153397629866,
+     "abs_a_over_s_median": 0.05217586442132602,
+     "gate_open_frac": 1.0,
+     "actual_s_mean_mm_s": 3.8436493570735304,
+     "reference_s_mean_mm_s": 3.633656939627557,
+     "cos_actual_reference_median": 0.9987607528649154,
+     "frac_s_ge_gate": 1.0,
+     "coplanarity_true_rms": 0.001073431406532993,
+     "coplanarity_true_p99": 0.00271602309984023
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 0.0003064748536799033,
+     "abs_a_over_s_median": 0.012484758857494286,
+     "gate_open_frac": 0.9446802283038197,
+     "actual_s_mean_mm_s": 3.027617992468924,
+     "reference_s_mean_mm_s": 2.8385079066328056,
+     "cos_actual_reference_median": 0.9964684265725835,
+     "frac_s_ge_gate": 0.9534611444460706,
+     "coplanarity_true_rms": 0.0011638849509544465,
+     "coplanarity_true_p99": 0.0016188474566337372
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.0008828947769207524,
+     "abs_a_over_s_median": 0.016609961913079497,
+     "gate_open_frac": 0.8041099546303709,
+     "actual_s_mean_mm_s": 2.3102019667352605,
+     "reference_s_mean_mm_s": 2.0144694056520818,
+     "cos_actual_reference_median": 0.9954236202849537,
+     "frac_s_ge_gate": 0.8262610088070457,
+     "coplanarity_true_rms": 0.001192818924677401,
+     "coplanarity_true_p99": 0.00162105633334436
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 0.0007331078367992928,
+     "abs_a_over_s_median": 0.019736524158290195,
+     "gate_open_frac": 0.806778756338404,
+     "actual_s_mean_mm_s": 2.315278471400145,
+     "reference_s_mean_mm_s": 2.0144605931596002,
+     "cos_actual_reference_median": 0.9995242114504456,
+     "frac_s_ge_gate": 0.8302642113690952,
+     "coplanarity_true_rms": 0.0015298393070921263,
+     "coplanarity_true_p99": 0.0016270004953786799
+    }
+   }
+  },
+  {
+   "file": "legacy-compliant-normal.npz",
+   "sha256_12": "a9f6d6cf83e2",
+   "scenario": "sustained_release_normal",
+   "material": "compliant_high_mu",
+   "estimator": {
+    "motion_gain": 8.0,
+    "force_correction_gain": 1.5
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.8369938884644768,
+   "both_gates_frac": 0.8369938884644768,
+   "actual_tangent_speed_median_mm_s": 3.185816372889413,
+   "reference_tangent_speed_median_mm_s": 2.8276194683620637,
+   "direction_gramian_all": [
+    [
+     0.6562556596518022,
+     0.015572362665329794
+    ],
+    [
+     0.015572362665329794,
+     0.34374434034819373
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.6834564418935127,
+     0.01293661751710325
+    ],
+    [
+     0.01293661751710325,
+     0.3165435581064866
+    ]
+   ],
+   "x_info_seconds_gated": 35.94297427917988,
+   "y_info_seconds_gated": 16.647025720820118,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.026537321384473418,
+     "abs_a_over_s_median": 0.024222327538690504,
+     "gate_open_frac": 0.7996,
+     "actual_s_mean_mm_s": 2.9938623042606354,
+     "reference_s_mean_mm_s": 2.8108731445730695,
+     "cos_actual_reference_median": 0.9963275249242836,
+     "frac_s_ge_gate": 0.8145,
+     "coplanarity_true_rms": 0.001580531886475408,
+     "coplanarity_true_p99": 0.006834930359190183
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 0.10102490776492269,
+     "abs_a_over_s_median": 0.24747644500184574,
+     "gate_open_frac": 0.9575483870967741,
+     "actual_s_mean_mm_s": 3.6795355441463564,
+     "reference_s_mean_mm_s": 3.6336507436105907,
+     "cos_actual_reference_median": 0.9954782785654193,
+     "frac_s_ge_gate": 0.9388387096774193,
+     "coplanarity_true_rms": 0.001970033937767451,
+     "coplanarity_true_p99": 0.008264433457431448
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 0.003902588222501072,
+     "abs_a_over_s_median": 0.042677453393311124,
+     "gate_open_frac": 0.7959900482950388,
+     "actual_s_mean_mm_s": 3.1356381703986673,
+     "reference_s_mean_mm_s": 2.838500212705221,
+     "cos_actual_reference_median": 0.9946261970960015,
+     "frac_s_ge_gate": 0.8363090882482073,
+     "coplanarity_true_rms": 0.001451051602111277,
+     "coplanarity_true_p99": 0.006051313774065105
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.0008828947769207524,
+     "abs_a_over_s_median": 0.016609961913079497,
+     "gate_open_frac": 0.8041099546303709,
+     "actual_s_mean_mm_s": 2.3102019667352605,
+     "reference_s_mean_mm_s": 2.0144694056520818,
+     "cos_actual_reference_median": 0.9954236202849537,
+     "frac_s_ge_gate": 0.8262610088070457,
+     "coplanarity_true_rms": 0.001192818924677401,
+     "coplanarity_true_p99": 0.00162105633334436
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 0.009768533713157078,
+     "abs_a_over_s_median": 0.09445536078091227,
+     "gate_open_frac": 0.6002135041366427,
+     "actual_s_mean_mm_s": 2.2297973232373782,
+     "reference_s_mean_mm_s": 2.01446237678568,
+     "cos_actual_reference_median": 0.9951872325859096,
+     "frac_s_ge_gate": 0.7082999733119829,
+     "coplanarity_true_rms": 0.0010755216735905517,
+     "coplanarity_true_p99": 0.0015498833292442284
+    }
+   }
+  },
+  {
+   "file": "legacy-compliant-tangent.npz",
+   "sha256_12": "975ed9ac2843",
+   "scenario": "sustained_release_tangent",
+   "material": "compliant_high_mu",
+   "estimator": {
+    "motion_gain": 8.0,
+    "force_correction_gain": 1.5
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.8484211866564808,
+   "both_gates_frac": 0.8484211866564808,
+   "actual_tangent_speed_median_mm_s": 2.8082793159121033,
+   "reference_tangent_speed_median_mm_s": 2.827624301424344,
+   "direction_gramian_all": [
+    [
+     0.6418612202285066,
+     0.017162674250333423
+    ],
+    [
+     0.017162674250333423,
+     0.35813877977149217
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.6596728562321347,
+     -0.005655648566365525
+    ],
+    [
+     -0.005655648566365525,
+     0.34032714376786827
+    ]
+   ],
+   "x_info_seconds_gated": 35.16584062002251,
+   "y_info_seconds_gated": 18.14215937997749,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.026537321384473418,
+     "abs_a_over_s_median": 0.024222327538690504,
+     "gate_open_frac": 0.7996,
+     "actual_s_mean_mm_s": 2.9938623042606354,
+     "reference_s_mean_mm_s": 2.8108731445730695,
+     "cos_actual_reference_median": 0.9963275249242836,
+     "frac_s_ge_gate": 0.8145,
+     "coplanarity_true_rms": 0.001580531886475408,
+     "coplanarity_true_p99": 0.006834930359190183
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 0.0022724439830256746,
+     "abs_a_over_s_median": 0.022856948123989623,
+     "gate_open_frac": 0.9121290322580645,
+     "actual_s_mean_mm_s": 3.9478775332757636,
+     "reference_s_mean_mm_s": 3.633624898698217,
+     "cos_actual_reference_median": 0.9567260662145622,
+     "frac_s_ge_gate": 0.912258064516129,
+     "coplanarity_true_rms": 0.21182833329906942,
+     "coplanarity_true_p99": 0.44433813216977697
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 0.008892640918939416,
+     "abs_a_over_s_median": 0.04708356469842247,
+     "gate_open_frac": 0.848016976437875,
+     "actual_s_mean_mm_s": 3.1528834258424956,
+     "reference_s_mean_mm_s": 2.8385148868325127,
+     "cos_actual_reference_median": 0.9951974358720226,
+     "frac_s_ge_gate": 0.8766281282013757,
+     "coplanarity_true_rms": 0.0012574946694443121,
+     "coplanarity_true_p99": 0.002689041668500631
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.0008828947769207524,
+     "abs_a_over_s_median": 0.016609961913079497,
+     "gate_open_frac": 0.8041099546303709,
+     "actual_s_mean_mm_s": 2.3102019667352605,
+     "reference_s_mean_mm_s": 2.0144694056520818,
+     "cos_actual_reference_median": 0.9954236202849537,
+     "frac_s_ge_gate": 0.8262610088070457,
+     "coplanarity_true_rms": 0.001192818924677401,
+     "coplanarity_true_p99": 0.00162105633334436
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 0.03644381411630985,
+     "abs_a_over_s_median": 0.1795091381337516,
+     "gate_open_frac": 0.7088337336535896,
+     "actual_s_mean_mm_s": 2.487763151403832,
+     "reference_s_mean_mm_s": 2.0144598479121987,
+     "cos_actual_reference_median": 0.9942476707775955,
+     "frac_s_ge_gate": 0.7614091273018415,
+     "coplanarity_true_rms": 0.0016937044604510816,
+     "coplanarity_true_p99": 0.0027082869506643557
+    }
+   }
+  },
+  {
+   "file": "legacy-stiff-nominal.npz",
+   "sha256_12": "eadaddc8080a",
+   "scenario": "nominal",
+   "material": "stiff_low_mu",
+   "estimator": {
+    "motion_gain": 8.0,
+    "force_correction_gain": 1.5
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.8630634071810542,
+   "both_gates_frac": 0.8630634071810542,
+   "actual_tangent_speed_median_mm_s": 3.032326168292477,
+   "reference_tangent_speed_median_mm_s": 2.8276293128793037,
+   "direction_gramian_all": [
+    [
+     0.6956263093518499,
+     0.01862625019032875
+    ],
+    [
+     0.01862625019032875,
+     0.30437369064814673
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.7120766172184904,
+     0.004904383487909522
+    ],
+    [
+     0.004904383487909522,
+     0.28792338278150886
+    ]
+   ],
+   "x_info_seconds_gated": 38.614490798524294,
+   "y_info_seconds_gated": 15.613509201475711,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.0022056383751121768,
+     "abs_a_over_s_median": 0.025937227786485877,
+     "gate_open_frac": 0.6458,
+     "actual_s_mean_mm_s": 2.9542450908948656,
+     "reference_s_mean_mm_s": 2.810845092969609,
+     "cos_actual_reference_median": 0.9954567835278104,
+     "frac_s_ge_gate": 0.6463,
+     "coplanarity_true_rms": 0.0011004092374635162,
+     "coplanarity_true_p99": 0.004780248078609545
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 0.00034940633637812053,
+     "abs_a_over_s_median": 0.012849297964749522,
+     "gate_open_frac": 0.9019354838709678,
+     "actual_s_mean_mm_s": 3.638440785825164,
+     "reference_s_mean_mm_s": 3.6336617614225393,
+     "cos_actual_reference_median": 0.9990663729611318,
+     "frac_s_ge_gate": 0.9027096774193548,
+     "coplanarity_true_rms": 0.00028161192343514657,
+     "coplanarity_true_p99": 0.0007781719409384906
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 4.4678213204059686e-06,
+     "abs_a_over_s_median": 0.0003696450207170655,
+     "gate_open_frac": 1.0,
+     "actual_s_mean_mm_s": 2.9170712638014114,
+     "reference_s_mean_mm_s": 2.8385218384516175,
+     "cos_actual_reference_median": 0.9996988068271963,
+     "frac_s_ge_gate": 1.0,
+     "coplanarity_true_rms": 0.0004282894262348557,
+     "coplanarity_true_p99": 0.0005831394607308541
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.0012351650844456285,
+     "abs_a_over_s_median": 0.010679527560104006,
+     "gate_open_frac": 0.5871363757672805,
+     "actual_s_mean_mm_s": 2.234767614015824,
+     "reference_s_mean_mm_s": 2.0144631848521892,
+     "cos_actual_reference_median": 0.9892109004729229,
+     "frac_s_ge_gate": 0.5879370162796904,
+     "coplanarity_true_rms": 0.0008231056249575003,
+     "coplanarity_true_p99": 0.0024292457375612647
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 3.929448960170208e-06,
+     "abs_a_over_s_median": 0.0012403182418144261,
+     "gate_open_frac": 1.0,
+     "actual_s_mean_mm_s": 2.139937367327458,
+     "reference_s_mean_mm_s": 2.0144703872249328,
+     "cos_actual_reference_median": 0.9999000242818574,
+     "frac_s_ge_gate": 1.0,
+     "coplanarity_true_rms": 0.0005250775015028885,
+     "coplanarity_true_p99": 0.0005604791240331395
+    }
+   }
+  },
+  {
+   "file": "legacy-stiff-normal.npz",
+   "sha256_12": "a99ed3a75efe",
+   "scenario": "sustained_release_normal",
+   "material": "stiff_low_mu",
+   "estimator": {
+    "motion_gain": 8.0,
+    "force_correction_gain": 1.5
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.8339699516170105,
+   "both_gates_frac": 0.8339699516170105,
+   "actual_tangent_speed_median_mm_s": 2.842281895353219,
+   "reference_tangent_speed_median_mm_s": 2.827629567052117,
+   "direction_gramian_all": [
+    [
+     0.6915811217364728,
+     0.02312547185363768
+    ],
+    [
+     0.02312547185363768,
+     0.30841887826352904
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.7096441495168996,
+     0.009357702010910482
+    ],
+    [
+     0.009357702010910482,
+     0.29035585048310136
+    ]
+   ],
+   "x_info_seconds_gated": 37.18535343468549,
+   "y_info_seconds_gated": 15.214646565314519,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.0022056383751121768,
+     "abs_a_over_s_median": 0.025937227786485877,
+     "gate_open_frac": 0.6458,
+     "actual_s_mean_mm_s": 2.9542450908948656,
+     "reference_s_mean_mm_s": 2.810845092969609,
+     "cos_actual_reference_median": 0.9954567835278104,
+     "frac_s_ge_gate": 0.6463,
+     "coplanarity_true_rms": 0.0011004092374635162,
+     "coplanarity_true_p99": 0.004780248078609545
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 0.041177488195844776,
+     "abs_a_over_s_median": 0.17883491379498961,
+     "gate_open_frac": 0.8438709677419355,
+     "actual_s_mean_mm_s": 3.6036198985892742,
+     "reference_s_mean_mm_s": 3.6336600809667967,
+     "cos_actual_reference_median": 0.9943305496928255,
+     "frac_s_ge_gate": 0.8449032258064516,
+     "coplanarity_true_rms": 0.0016053676361446627,
+     "coplanarity_true_p99": 0.003596173311634055
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 0.0032092718310332215,
+     "abs_a_over_s_median": 0.008591709204202196,
+     "gate_open_frac": 0.9660471242499634,
+     "actual_s_mean_mm_s": 2.944346984526604,
+     "reference_s_mean_mm_s": 2.838521638609857,
+     "cos_actual_reference_median": 0.9996562192442701,
+     "frac_s_ge_gate": 0.972705985657837,
+     "coplanarity_true_rms": 0.0007769790007953843,
+     "coplanarity_true_p99": 0.002460741065145871
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.0012351650844456285,
+     "abs_a_over_s_median": 0.010679527560104006,
+     "gate_open_frac": 0.5871363757672805,
+     "actual_s_mean_mm_s": 2.234767614015824,
+     "reference_s_mean_mm_s": 2.0144631848521892,
+     "cos_actual_reference_median": 0.9892109004729229,
+     "frac_s_ge_gate": 0.5879370162796904,
+     "coplanarity_true_rms": 0.0008231056249575003,
+     "coplanarity_true_p99": 0.0024292457375612647
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 0.002223574454286058,
+     "abs_a_over_s_median": 0.028621577750248994,
+     "gate_open_frac": 0.911128903122498,
+     "actual_s_mean_mm_s": 2.133671664629836,
+     "reference_s_mean_mm_s": 2.0144702169545554,
+     "cos_actual_reference_median": 0.999765565641035,
+     "frac_s_ge_gate": 0.9242060314918602,
+     "coplanarity_true_rms": 0.0006376656995054434,
+     "coplanarity_true_p99": 0.0011539341278841127
+    }
+   }
+  },
+  {
+   "file": "legacy-stiff-tangent.npz",
+   "sha256_12": "41301e4be54a",
+   "scenario": "sustained_release_tangent",
+   "material": "stiff_low_mu",
+   "estimator": {
+    "motion_gain": 8.0,
+    "force_correction_gain": 1.5
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.7358352431881844,
+   "both_gates_frac": 0.7358352431881844,
+   "actual_tangent_speed_median_mm_s": 3.0144462416656386,
+   "reference_tangent_speed_median_mm_s": 2.827635482559541,
+   "direction_gramian_all": [
+    [
+     0.6619752187408579,
+     0.028886171823064338
+    ],
+    [
+     0.028886171823064338,
+     0.3380247812591377
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.726872920343519,
+     -0.02313017917194475
+    ],
+    [
+     -0.02313017917194475,
+     0.2731270796564759
+    ]
+   ],
+   "x_info_seconds_gated": 33.6062425991624,
+   "y_info_seconds_gated": 12.6277574008376,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.0022056383751121768,
+     "abs_a_over_s_median": 0.025937227786485877,
+     "gate_open_frac": 0.6458,
+     "actual_s_mean_mm_s": 2.9542450908948656,
+     "reference_s_mean_mm_s": 2.810845092969609,
+     "cos_actual_reference_median": 0.9954567835278104,
+     "frac_s_ge_gate": 0.6463,
+     "coplanarity_true_rms": 0.0011004092374635162,
+     "coplanarity_true_p99": 0.004780248078609545
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 0.007376843709859751,
+     "abs_a_over_s_median": 0.0358431814959132,
+     "gate_open_frac": 0.8598709677419355,
+     "actual_s_mean_mm_s": 3.621099967741126,
+     "reference_s_mean_mm_s": 3.633632238326991,
+     "cos_actual_reference_median": 0.9829619529051212,
+     "frac_s_ge_gate": 0.8683870967741936,
+     "coplanarity_true_rms": 0.18774766551998265,
+     "coplanarity_true_p99": 0.4785906788860271
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 0.0008551117327107933,
+     "abs_a_over_s_median": 0.01074090701598103,
+     "gate_open_frac": 0.7313771403483097,
+     "actual_s_mean_mm_s": 3.0856318900773023,
+     "reference_s_mean_mm_s": 2.838524934391086,
+     "cos_actual_reference_median": 0.9969707008885218,
+     "frac_s_ge_gate": 0.7302795258305284,
+     "coplanarity_true_rms": 0.0010353964562140152,
+     "coplanarity_true_p99": 0.001776983077082791
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.0012351650844456285,
+     "abs_a_over_s_median": 0.010679527560104006,
+     "gate_open_frac": 0.5871363757672805,
+     "actual_s_mean_mm_s": 2.234767614015824,
+     "reference_s_mean_mm_s": 2.0144631848521892,
+     "cos_actual_reference_median": 0.9892109004729229,
+     "frac_s_ge_gate": 0.5879370162796904,
+     "coplanarity_true_rms": 0.0008231056249575003,
+     "coplanarity_true_p99": 0.0024292457375612647
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 0.003957986612120837,
+     "abs_a_over_s_median": 0.053282065591866795,
+     "gate_open_frac": 0.5057379236722711,
+     "actual_s_mean_mm_s": 2.312148141986335,
+     "reference_s_mean_mm_s": 2.0144720121734814,
+     "cos_actual_reference_median": 0.9767490626657267,
+     "frac_s_ge_gate": 0.5001334400854016,
+     "coplanarity_true_rms": 0.0022678535993472,
+     "coplanarity_true_p99": 0.012289441767293078
+    }
+   }
+  },
+  {
+   "file": "nov2-compliant-nominal.npz",
+   "sha256_12": "d2d4d42741fe",
+   "scenario": "nominal",
+   "material": "compliant_high_mu",
+   "estimator": {
+    "motion_gain": 1.0,
+    "force_correction_gain": 0.0
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.4334733893557423,
+   "both_gates_frac": 0.4334733893557423,
+   "actual_tangent_speed_median_mm_s": 1.8538269094651159,
+   "reference_tangent_speed_median_mm_s": 2.8276714374551335,
+   "direction_gramian_all": [
+    [
+     0.7257021054897235,
+     0.0034071107047650927
+    ],
+    [
+     0.0034071107047650927,
+     0.2742978945102817
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.9374879063343292,
+     0.08385820435599706
+    ],
+    [
+     0.08385820435599706,
+     0.0625120936656731
+    ]
+   ],
+   "x_info_seconds_gated": 25.53342061692172,
+   "y_info_seconds_gated": 1.7025793830782763,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.14462078551279883,
+     "abs_a_over_s_median": 0.11714179671466411,
+     "gate_open_frac": 0.3247,
+     "actual_s_mean_mm_s": 1.8320361915593346,
+     "reference_s_mean_mm_s": 2.8110255777994473,
+     "cos_actual_reference_median": 0.8943969561092933,
+     "frac_s_ge_gate": 0.3263,
+     "coplanarity_true_rms": 0.0030812652947880153,
+     "coplanarity_true_p99": 0.01138631764921396
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 0.010874627216256372,
+     "abs_a_over_s_median": 0.037361807590766,
+     "gate_open_frac": 0.5428387096774193,
+     "actual_s_mean_mm_s": 2.5878179175275533,
+     "reference_s_mean_mm_s": 3.633301017187834,
+     "cos_actual_reference_median": 0.9037778051763612,
+     "frac_s_ge_gate": 0.5463225806451613,
+     "coplanarity_true_rms": 0.0039676344380645745,
+     "coplanarity_true_p99": 0.016958734745979774
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 0.0721967455441855,
+     "abs_a_over_s_median": 0.24224162363495472,
+     "gate_open_frac": 0.45104639250695155,
+     "actual_s_mean_mm_s": 2.3232238129052885,
+     "reference_s_mean_mm_s": 2.8384509947796706,
+     "cos_actual_reference_median": 0.7683504625237276,
+     "frac_s_ge_gate": 0.4615834918776526,
+     "coplanarity_true_rms": 0.005593781670033266,
+     "coplanarity_true_p99": 0.022347685524121873
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.0076797253838152245,
+     "abs_a_over_s_median": 0.06761681005501947,
+     "gate_open_frac": 0.30611155591139577,
+     "actual_s_mean_mm_s": 1.8824427742919316,
+     "reference_s_mean_mm_s": 2.014464091187026,
+     "cos_actual_reference_median": 0.532681376797847,
+     "frac_s_ge_gate": 0.30611155591139577,
+     "coplanarity_true_rms": 0.003396498459854968,
+     "coplanarity_true_p99": 0.012822774972207247
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 0.1714355793291148,
+     "abs_a_over_s_median": 0.4371678982179473,
+     "gate_open_frac": 0.13877768881772085,
+     "actual_s_mean_mm_s": 1.6301450101622164,
+     "reference_s_mean_mm_s": 2.014520957663965,
+     "cos_actual_reference_median": 0.5462718387770632,
+     "frac_s_ge_gate": 0.17854283426741394,
+     "coplanarity_true_rms": 0.004331000972312546,
+     "coplanarity_true_p99": 0.013434890659356177
+    }
+   }
+  },
+  {
+   "file": "nov2-compliant-normal.npz",
+   "sha256_12": "d5831bc28e0e",
+   "scenario": "sustained_release_normal",
+   "material": "compliant_high_mu",
+   "estimator": {
+    "motion_gain": 1.0,
+    "force_correction_gain": 0.0
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.5104405398523045,
+   "both_gates_frac": 0.5104405398523045,
+   "actual_tangent_speed_median_mm_s": 2.0233931413468635,
+   "reference_tangent_speed_median_mm_s": 2.8276815519034653,
+   "direction_gramian_all": [
+    [
+     0.7254161985543393,
+     0.025875947862718067
+    ],
+    [
+     0.025875947862718067,
+     0.2745838014456621
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.8605138105205994,
+     0.06453734688646431
+    ],
+    [
+     0.06453734688646431,
+     0.13948618947940117
+    ]
+   ],
+   "x_info_seconds_gated": 27.598398931016664,
+   "y_info_seconds_gated": 4.473601068983336,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.14462078551279883,
+     "abs_a_over_s_median": 0.11714179671466411,
+     "gate_open_frac": 0.3247,
+     "actual_s_mean_mm_s": 1.8320361915593346,
+     "reference_s_mean_mm_s": 2.8110255777994473,
+     "cos_actual_reference_median": 0.8943969561092933,
+     "frac_s_ge_gate": 0.3263,
+     "coplanarity_true_rms": 0.0030812652947880153,
+     "coplanarity_true_p99": 0.01138631764921396
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 0.21779036856177542,
+     "abs_a_over_s_median": 0.39966669665614796,
+     "gate_open_frac": 0.8058064516129032,
+     "actual_s_mean_mm_s": 3.0116042724304317,
+     "reference_s_mean_mm_s": 3.6334532598395817,
+     "cos_actual_reference_median": 0.9627840130144818,
+     "frac_s_ge_gate": 0.7883870967741935,
+     "coplanarity_true_rms": 0.0029761629363966487,
+     "coplanarity_true_p99": 0.011945340758592795
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 0.11209685773096979,
+     "abs_a_over_s_median": 0.30219644726908335,
+     "gate_open_frac": 0.47885262695741254,
+     "actual_s_mean_mm_s": 2.311395514141547,
+     "reference_s_mean_mm_s": 2.838397679068201,
+     "cos_actual_reference_median": 0.7809152786504169,
+     "frac_s_ge_gate": 0.4882189375091468,
+     "coplanarity_true_rms": 0.005259615470196845,
+     "coplanarity_true_p99": 0.022229648280620188
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.0076797253838152245,
+     "abs_a_over_s_median": 0.06761681005501947,
+     "gate_open_frac": 0.30611155591139577,
+     "actual_s_mean_mm_s": 1.8824427742919316,
+     "reference_s_mean_mm_s": 2.014464091187026,
+     "cos_actual_reference_median": 0.532681376797847,
+     "frac_s_ge_gate": 0.30611155591139577,
+     "coplanarity_true_rms": 0.003396498459854968,
+     "coplanarity_true_p99": 0.012822774972207247
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 0.19217517507705345,
+     "abs_a_over_s_median": 0.4675617570586137,
+     "gate_open_frac": 0.22978382706164932,
+     "actual_s_mean_mm_s": 1.7147620014238834,
+     "reference_s_mean_mm_s": 2.0145141109912443,
+     "cos_actual_reference_median": 0.549028419074324,
+     "frac_s_ge_gate": 0.2524686415799306,
+     "coplanarity_true_rms": 0.0037381678324957587,
+     "coplanarity_true_p99": 0.012867770392230877
+    }
+   }
+  },
+  {
+   "file": "nov2-stiff-nominal.npz",
+   "sha256_12": "d438d62d3db0",
+   "scenario": "nominal",
+   "material": "stiff_low_mu",
+   "estimator": {
+    "motion_gain": 1.0,
+    "force_correction_gain": 0.0
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.5801820728291317,
+   "both_gates_frac": 0.5801820728291317,
+   "actual_tangent_speed_median_mm_s": 2.1594286687676947,
+   "reference_tangent_speed_median_mm_s": 2.8277319538216164,
+   "direction_gramian_all": [
+    [
+     0.6982711490414101,
+     0.011244606617098073
+    ],
+    [
+     0.011244606617098073,
+     0.30172885095858887
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.8845542799708691,
+     0.0770420261256442
+    ],
+    [
+     0.0770420261256442,
+     0.11544572002912926
+    ]
+   ],
+   "x_info_seconds_gated": 32.24554172205811,
+   "y_info_seconds_gated": 4.2084582779418955,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.020271975535197655,
+     "abs_a_over_s_median": 0.09984602493216663,
+     "gate_open_frac": 0.4488,
+     "actual_s_mean_mm_s": 2.3885481499375008,
+     "reference_s_mean_mm_s": 2.810912591575246,
+     "cos_actual_reference_median": 0.9763256396994606,
+     "frac_s_ge_gate": 0.4397,
+     "coplanarity_true_rms": 0.002234803392564701,
+     "coplanarity_true_p99": 0.005300601247481761
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 1.1482077729295273e-05,
+     "abs_a_over_s_median": 0.002364311570022962,
+     "gate_open_frac": 0.7474838709677419,
+     "actual_s_mean_mm_s": 3.3135105625762526,
+     "reference_s_mean_mm_s": 3.6335132663760845,
+     "cos_actual_reference_median": 0.9923384997182381,
+     "frac_s_ge_gate": 0.7772903225806451,
+     "coplanarity_true_rms": 0.00023246559391948776,
+     "coplanarity_true_p99": 0.0005319747412513072
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 0.00021492359455429715,
+     "abs_a_over_s_median": 0.002985734895966981,
+     "gate_open_frac": 0.5814429972193765,
+     "actual_s_mean_mm_s": 2.6450804423961656,
+     "reference_s_mean_mm_s": 2.8385306883582153,
+     "cos_actual_reference_median": 0.9508510946442619,
+     "frac_s_ge_gate": 0.5819552173276745,
+     "coplanarity_true_rms": 0.0003261001067938253,
+     "coplanarity_true_p99": 0.0005855661199260281
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.014145893111653382,
+     "abs_a_over_s_median": 0.0582596977036281,
+     "gate_open_frac": 0.24793167867627436,
+     "actual_s_mean_mm_s": 1.9588883617665227,
+     "reference_s_mean_mm_s": 2.0144662291756257,
+     "cos_actual_reference_median": 0.9137515918719324,
+     "frac_s_ge_gate": 0.24766479850547105,
+     "coplanarity_true_rms": 0.0030548513455898327,
+     "coplanarity_true_p99": 0.005285095720395846
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 1.6468711460927253e-05,
+     "abs_a_over_s_median": 0.0015688248502164672,
+     "gate_open_frac": 0.0,
+     "actual_s_mean_mm_s": 1.7890185707835844,
+     "reference_s_mean_mm_s": 2.0144939769866212,
+     "cos_actual_reference_median": 0.9109996383419163,
+     "frac_s_ge_gate": 0.0,
+     "coplanarity_true_rms": null,
+     "coplanarity_true_p99": null
+    }
+   }
+  },
+  {
+   "file": "nov2-stiff-normal.npz",
+   "sha256_12": "e94215e33472",
+   "scenario": "sustained_release_normal",
+   "material": "stiff_low_mu",
+   "estimator": {
+    "motion_gain": 1.0,
+    "force_correction_gain": 0.0
+   },
+   "contact_gate_frac": 1.0,
+   "excitation_gate_frac": 0.6052330022918259,
+   "both_gates_frac": 0.6052330022918259,
+   "actual_tangent_speed_median_mm_s": 2.19776117508045,
+   "reference_tangent_speed_median_mm_s": 2.827270118866756,
+   "direction_gramian_all": [
+    [
+     0.6219122631218098,
+     0.07677259372953361
+    ],
+    [
+     0.07677259372953361,
+     0.3780877368781789
+    ]
+   ],
+   "direction_gramian_gated": [
+    [
+     0.6918258787211685,
+     0.0788102778319293
+    ],
+    [
+     0.0788102778319293,
+     0.30817412127883165
+    ]
+   ],
+   "x_info_seconds_gated": 26.308754516008563,
+   "y_info_seconds_gated": 11.71924548399144,
+   "windows": {
+    "pre": {
+     "energy_ratio_a2_over_s2": 0.020271975535197655,
+     "abs_a_over_s_median": 0.09984602493216663,
+     "gate_open_frac": 0.4488,
+     "actual_s_mean_mm_s": 2.3885481499375008,
+     "reference_s_mean_mm_s": 2.810912591575246,
+     "cos_actual_reference_median": 0.9763256396994606,
+     "frac_s_ge_gate": 0.4397,
+     "coplanarity_true_rms": 0.002234803392564701,
+     "coplanarity_true_p99": 0.005300601247481761
+    },
+    "int": {
+     "energy_ratio_a2_over_s2": 0.10790664353715528,
+     "abs_a_over_s_median": 0.3106031421024422,
+     "gate_open_frac": 0.748,
+     "actual_s_mean_mm_s": 3.7842651801042244,
+     "reference_s_mean_mm_s": 3.6336913328838807,
+     "cos_actual_reference_median": 0.9917991306033047,
+     "frac_s_ge_gate": 0.7747096774193548,
+     "coplanarity_true_rms": 0.003582588218183805,
+     "coplanarity_true_p99": 0.01175500642314286
+    },
+    "post": {
+     "energy_ratio_a2_over_s2": 0.4694712562096856,
+     "abs_a_over_s_median": 0.6214595084522445,
+     "gate_open_frac": 0.6387384750475633,
+     "actual_s_mean_mm_s": 2.498463348300965,
+     "reference_s_mean_mm_s": 2.837653967278101,
+     "cos_actual_reference_median": 0.8744343378378487,
+     "frac_s_ge_gate": 0.5665886140787355,
+     "coplanarity_true_rms": 0.006440792664935709,
+     "coplanarity_true_p99": 0.02367780194856827
+    },
+    "lat1": {
+     "energy_ratio_a2_over_s2": 0.014145893111653382,
+     "abs_a_over_s_median": 0.0582596977036281,
+     "gate_open_frac": 0.24793167867627436,
+     "actual_s_mean_mm_s": 1.9588883617665227,
+     "reference_s_mean_mm_s": 2.0144662291756257,
+     "cos_actual_reference_median": 0.9137515918719324,
+     "frac_s_ge_gate": 0.24766479850547105,
+     "coplanarity_true_rms": 0.0030548513455898327,
+     "coplanarity_true_p99": 0.005285095720395846
+    },
+    "lat2": {
+     "energy_ratio_a2_over_s2": 0.17925443256689402,
+     "abs_a_over_s_median": 0.3663865393403792,
+     "gate_open_frac": 0.5620496397117695,
+     "actual_s_mean_mm_s": 2.2133496544909654,
+     "reference_s_mean_mm_s": 2.014333597304762,
+     "cos_actual_reference_median": 0.8834325667074128,
+     "frac_s_ge_gate": 0.5641846810781959,
+     "coplanarity_true_rms": 0.002345150563271098,
+     "coplanarity_true_p99": 0.004400113837581443
+    }
+   }
+  }
+ ],
+ "surface": [
+  {
+   "file": "forceoff-compliant-nominal.npz",
+   "prior_error_rms_deg": 1.285769579299536,
+   "prior_error_max_deg": 1.744064632947881,
+   "x_component_rms_deg": 1.2811062964130657,
+   "x_component_max_deg": 1.743795072452043,
+   "y_component_rms_deg": 0.10765646231136142,
+   "y_component_max_deg": 0.1707484864275898,
+   "rotation_rate_rms_deg_s": 0.11303677262133982,
+   "rotation_rate_max_deg_s": 0.26162694294320027,
+   "dominant_freq_hz": [
+    0.01591545709192768,
+    0.03183091418385536,
+    0.047746371275783045
+   ],
+   "dominant_amp_deg": [
+    1.5901717837305247,
+    0.3910231151309937,
+    0.10410424805941645
+   ],
+   "first_order_tracking_bound_at_task_fundamental": {
+    "0.05": {
+     "residual_amplitude_deg": 1.422292881729419,
+     "tracking_gain": 0.4472135954999579
+    },
+    "0.1": {
+     "residual_amplitude_deg": 1.1244212515273622,
+     "tracking_gain": 0.7071067811865476
+    },
+    "0.17": {
+     "residual_amplitude_deg": 0.8062490990445884,
+     "tracking_gain": 0.8619342151577696
+    },
+    "0.3": {
+     "residual_amplitude_deg": 0.5028564707521143,
+     "tracking_gain": 0.9486832980505138
+    },
+    "1.0": {
+     "residual_amplitude_deg": 0.1582280063634428,
+     "tracking_gain": 0.9950371902099893
+    }
+   },
+   "note": "x is the along axis (base +x); y the lateral axis (base -y); approach is (0,0,-1)"
+  },
+  {
+   "file": "forceoff-stiff-nominal.npz",
+   "prior_error_rms_deg": 1.357334532782412,
+   "prior_error_max_deg": 1.784668240893425,
+   "x_component_rms_deg": 1.3490574136319595,
+   "x_component_max_deg": 1.7843793763489169,
+   "y_component_rms_deg": 0.14810456752210188,
+   "y_component_max_deg": 0.2128639146281205,
+   "rotation_rate_rms_deg_s": 0.1367468732460132,
+   "rotation_rate_max_deg_s": 0.25920058476163155,
+   "dominant_freq_hz": [
+    0.01591545709192768,
+    0.03183091418385536,
+    0.047746371275783045
+   ],
+   "dominant_amp_deg": [
+    1.7479383700157418,
+    0.42307338597683447,
+    0.05194102769771875
+   ],
+   "first_order_tracking_bound_at_task_fundamental": {
+    "0.05": {
+     "residual_amplitude_deg": 1.5634036063341514,
+     "tracking_gain": 0.4472135954999579
+    },
+    "0.1": {
+     "residual_amplitude_deg": 1.2359790745342918,
+     "tracking_gain": 0.7071067811865476
+    },
+    "0.17": {
+     "residual_amplitude_deg": 0.8862399335903938,
+     "tracking_gain": 0.8619342151577696
+    },
+    "0.3": {
+     "residual_amplitude_deg": 0.5527466458851911,
+     "tracking_gain": 0.9486832980505138
+    },
+    "1.0": {
+     "residual_amplitude_deg": 0.17392636843606923,
+     "tracking_gain": 0.9950371902099893
+    }
+   },
+   "note": "x is the along axis (base +x); y the lateral axis (base -y); approach is (0,0,-1)"
+  }
+ ],
+ "coplanarity_vs_normal_motion": {
+  "cells": [
+   "forceoff-compliant-nominal.npz",
+   "forceoff-compliant-normal.npz",
+   "forceoff-stiff-nominal.npz",
+   "forceoff-stiff-normal.npz",
+   "legacy-compliant-nominal.npz",
+   "legacy-compliant-normal.npz",
+   "legacy-stiff-nominal.npz",
+   "legacy-stiff-normal.npz",
+   "nov2-compliant-nominal.npz",
+   "nov2-compliant-normal.npz",
+   "nov2-stiff-nominal.npz",
+   "nov2-stiff-normal.npz"
+  ],
+  "gates": "contact and excitation, true normal",
+  "bins": [
+   {
+    "abs_a_over_s_bin": [
+     0,
+     0.05
+    ],
+    "n_ticks": 140045,
+    "filtered_rms": 0.0010869973310532212,
+    "filtered_p99": 0.00342919894187532,
+    "filtered_max": 0.051109410784316314,
+    "raw_rms": 0.00033188659611326925,
+    "raw_p99": 0.000658497245242008
+   },
+   {
+    "abs_a_over_s_bin": [
+     0.05,
+     0.1
+    ],
+    "n_ticks": 29895,
+    "filtered_rms": 0.0020538812737101167,
+    "filtered_p99": 0.007681070448386685,
+    "filtered_max": 0.0511957267842351,
+    "raw_rms": 0.000660898061409797,
+    "raw_p99": 0.002371692875430443
+   },
+   {
+    "abs_a_over_s_bin": [
+     0.1,
+     0.2
+    ],
+    "n_ticks": 31834,
+    "filtered_rms": 0.0026512409071203637,
+    "filtered_p99": 0.010925165535695674,
+    "filtered_max": 0.044757406140278254,
+    "raw_rms": 0.000848277506622931,
+    "raw_p99": 0.003386755318214084
+   },
+   {
+    "abs_a_over_s_bin": [
+     0.2,
+     0.3
+    ],
+    "n_ticks": 15633,
+    "filtered_rms": 0.003437345069241719,
+    "filtered_p99": 0.013295551736800032,
+    "filtered_max": 0.06938690247140963,
+    "raw_rms": 0.0012599169788765547,
+    "raw_p99": 0.00447824568326018
+   },
+   {
+    "abs_a_over_s_bin": [
+     0.3,
+     0.5
+    ],
+    "n_ticks": 18060,
+    "filtered_rms": 0.0035095881523810974,
+    "filtered_p99": 0.012442356952802875,
+    "filtered_max": 0.05972355853449615,
+    "raw_rms": 0.0014361481142286133,
+    "raw_p99": 0.005099319310642731
+   },
+   {
+    "abs_a_over_s_bin": [
+     0.5,
+     0.8
+    ],
+    "n_ticks": 6894,
+    "filtered_rms": 0.004858079395017167,
+    "filtered_p99": 0.018011926178056085,
+    "filtered_max": 0.04288868500656421,
+    "raw_rms": 0.00209300781081383,
+    "raw_p99": 0.00968710682277026
+   },
+   {
+    "abs_a_over_s_bin": [
+     0.8,
+     1.2
+    ],
+    "n_ticks": 2922,
+    "filtered_rms": 0.004944570290708799,
+    "filtered_p99": 0.017566688348440086,
+    "filtered_max": 0.038906060720075415,
+    "raw_rms": 0.0014978488208835503,
+    "raw_p99": 0.00703152796700366
+   },
+   {
+    "abs_a_over_s_bin": [
+     1.2,
+     10.0
+    ],
+    "n_ticks": 2325,
+    "filtered_rms": 0.006047413232373792,
+    "filtered_p99": 0.015961890155126127,
+    "filtered_max": 0.025351946020483913,
+    "raw_rms": 0.0016936747997577007,
+    "raw_p99": 0.005078824438528849
+   }
+  ],
+  "note": "filtered = controller 20 ms force filter as seen by the estimator; raw = 4 ms sensor lag only"
+ },
+ "tangent_cells": [
+  {
+   "file": "legacy-compliant-tangent.npz",
+   "sha256_12": "975ed9ac2843",
+   "window_s": [
+    20.5,
+    30.5
+   ],
+   "coplanarity_total_rms": 0.2608925867625046,
+   "coplanarity_external_part_rms": 0.260335455546034,
+   "coplanarity_contact_part_rms": 0.0024351952722369194,
+   "equivalent_tilt_of_total_deg": 15.12303166778901,
+   "angle_external_push_vs_actual_tangent_velocity_deg_median": 16.87282678495191,
+   "legacy_frame_error_deg_median": 13.130287281855962,
+   "external_force_n_median": 2.5,
+   "energy_ratio_a2_over_s2": 0.00245287017372486,
+   "note": "legacy frame; the push follows the reference tangent while friction follows the actual tangent velocity"
+  },
+  {
+   "file": "legacy-stiff-tangent.npz",
+   "sha256_12": "41301e4be54a",
+   "window_s": [
+    20.5,
+    30.5
+   ],
+   "coplanarity_total_rms": 0.24234014837789133,
+   "coplanarity_external_part_rms": 0.2424759939780239,
+   "coplanarity_contact_part_rms": 0.001601139479558632,
+   "equivalent_tilt_of_total_deg": 14.0246990757152,
+   "angle_external_push_vs_actual_tangent_velocity_deg_median": 17.464340068144267,
+   "legacy_frame_error_deg_median": 22.511618578739515,
+   "external_force_n_median": 2.5,
+   "energy_ratio_a2_over_s2": 0.009769794930239476,
+   "note": "legacy frame; the push follows the reference tangent while friction follows the actual tangent velocity"
+  }
+ ],
+ "frozen_tilt_prediction": {
+  "model": "n_hat = n cos d + e sin d; force loop holds f.(-n_hat)=5 N; path offset = |P_nhat f|/Kp; leak = (P_nhat v_ref).n_true",
+  "cells": [
+   {
+    "file": "forceoff-compliant-nominal.npz",
+    "material": "compliant_high_mu",
+    "mu_eff_measured": 0.31798106715986835,
+    "untilted_friction_offset_mm_predicted": 13.249211131661182,
+    "untilted_path_rms_mm_measured": 11.834251656180728,
+    "normal_speed_cap_mm_s": 3.0,
+    "rows": [
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "x_error",
+      "sliding": "+x",
+      "true_load_n": 4.883248491209727,
+      "path_offset_mm": 9.343905152636166,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.389586170082032
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "x_error",
+      "sliding": "-x",
+      "true_load_n": 5.162724843281122,
+      "path_offset_mm": 17.378024202472584,
+      "feedforward_normal_leak_mm_s_at_max_speed": -0.389586170082032
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "x_error",
+      "sliding": "+y",
+      "true_load_n": 5.019099187716737,
+      "path_offset_mm": 13.790355122244637,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "x_error",
+      "sliding": "-y",
+      "true_load_n": 5.019099187716737,
+      "path_offset_mm": 13.790355122244637,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "y_error",
+      "sliding": "+x",
+      "true_load_n": 5.019099187716737,
+      "path_offset_mm": 13.790355122244637,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "y_error",
+      "sliding": "-x",
+      "true_load_n": 5.019099187716737,
+      "path_offset_mm": 13.790355122244637,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "y_error",
+      "sliding": "+y",
+      "true_load_n": 4.883248491209727,
+      "path_offset_mm": 9.343905152636166,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.389586170082032
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "y_error",
+      "sliding": "-y",
+      "true_load_n": 5.162724843281122,
+      "path_offset_mm": 17.378024202472584,
+      "feedforward_normal_leak_mm_s_at_max_speed": -0.389586170082032
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "x_error",
+      "sliding": "+x",
+      "true_load_n": 4.825772302579787,
+      "path_offset_mm": 6.681138136664294,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.6630227553782723
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "x_error",
+      "sliding": "-x",
+      "true_load_n": 5.309134544815554,
+      "path_offset_mm": 20.475159859487967,
+      "feedforward_normal_leak_mm_s_at_max_speed": -0.6630227553782723
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "x_error",
+      "sliding": "+y",
+      "true_load_n": 5.0559269705818615,
+      "path_offset_mm": 14.783299569868639,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "x_error",
+      "sliding": "-y",
+      "true_load_n": 5.0559269705818615,
+      "path_offset_mm": 14.783299569868639,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "y_error",
+      "sliding": "+x",
+      "true_load_n": 5.0559269705818615,
+      "path_offset_mm": 14.783299569868639,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "y_error",
+      "sliding": "-x",
+      "true_load_n": 5.0559269705818615,
+      "path_offset_mm": 14.783299569868639,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "y_error",
+      "sliding": "+y",
+      "true_load_n": 4.825772302579787,
+      "path_offset_mm": 6.681138136664294,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.6630227553782723
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "y_error",
+      "sliding": "-y",
+      "true_load_n": 5.309134544815554,
+      "path_offset_mm": 20.475159859487967,
+      "feedforward_normal_leak_mm_s_at_max_speed": -0.6630227553782723
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "x_error",
+      "sliding": "+x",
+      "true_load_n": 4.8075786553443836,
+      "path_offset_mm": 5.588892019166275,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.7762073541711787
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "x_error",
+      "sliding": "-x",
+      "true_load_n": 5.378710023437065,
+      "path_offset_mm": 21.81956185224682,
+      "feedforward_normal_leak_mm_s_at_max_speed": -0.7762073541711787
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "x_error",
+      "sliding": "+y",
+      "true_load_n": 5.077133059428725,
+      "path_offset_mm": 15.328965396712531,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "x_error",
+      "sliding": "-y",
+      "true_load_n": 5.077133059428725,
+      "path_offset_mm": 15.328965396712531,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "y_error",
+      "sliding": "+x",
+      "true_load_n": 5.077133059428725,
+      "path_offset_mm": 15.328965396712531,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "y_error",
+      "sliding": "-x",
+      "true_load_n": 5.077133059428725,
+      "path_offset_mm": 15.328965396712531,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "y_error",
+      "sliding": "+y",
+      "true_load_n": 4.8075786553443836,
+      "path_offset_mm": 5.588892019166275,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.7762073541711787
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "y_error",
+      "sliding": "-y",
+      "true_load_n": 5.378710023437065,
+      "path_offset_mm": 21.81956185224682,
+      "feedforward_normal_leak_mm_s_at_max_speed": -0.7762073541711787
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "x_error",
+      "sliding": "+x",
+      "true_load_n": 4.769966539355999,
+      "path_offset_mm": 1.920987952081508,
+      "feedforward_normal_leak_mm_s_at_max_speed": 1.156921131608268
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "x_error",
+      "sliding": "-x",
+      "true_load_n": 5.658500849331504,
+      "path_offset_mm": 26.68761996622771,
+      "feedforward_normal_leak_mm_s_at_max_speed": -1.156921131608268
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "x_error",
+      "sliding": "+y",
+      "true_load_n": 5.176380902050415,
+      "path_offset_mm": 17.685929005542384,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "x_error",
+      "sliding": "-y",
+      "true_load_n": 5.176380902050415,
+      "path_offset_mm": 17.685929005542384,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "y_error",
+      "sliding": "+x",
+      "true_load_n": 5.176380902050415,
+      "path_offset_mm": 17.685929005542384,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "y_error",
+      "sliding": "-x",
+      "true_load_n": 5.176380902050415,
+      "path_offset_mm": 17.685929005542384,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "y_error",
+      "sliding": "+y",
+      "true_load_n": 4.769966539355999,
+      "path_offset_mm": 1.920987952081508,
+      "feedforward_normal_leak_mm_s_at_max_speed": 1.156921131608268
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "y_error",
+      "sliding": "-y",
+      "true_load_n": 5.658500849331504,
+      "path_offset_mm": 26.68761996622771,
+      "feedforward_normal_leak_mm_s_at_max_speed": -1.156921131608268
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "x_error",
+      "sliding": "+x",
+      "true_load_n": 4.777494100355734,
+      "path_offset_mm": 3.0307993185751543,
+      "feedforward_normal_leak_mm_s_at_max_speed": 1.66001422490955
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "x_error",
+      "sliding": "-x",
+      "true_load_n": 6.1698087877529355,
+      "path_offset_mm": 34.2737376785592,
+      "feedforward_normal_leak_mm_s_at_max_speed": -1.66001422490955
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "x_error",
+      "sliding": "+y",
+      "true_load_n": 5.385111818881103,
+      "path_offset_mm": 21.939972416131777,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "x_error",
+      "sliding": "-y",
+      "true_load_n": 5.385111818881103,
+      "path_offset_mm": 21.939972416131777,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "y_error",
+      "sliding": "+x",
+      "true_load_n": 5.385111818881103,
+      "path_offset_mm": 21.939972416131777,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "y_error",
+      "sliding": "-x",
+      "true_load_n": 5.385111818881103,
+      "path_offset_mm": 21.939972416131777,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "y_error",
+      "sliding": "+y",
+      "true_load_n": 4.777494100355734,
+      "path_offset_mm": 3.0307993185751543,
+      "feedforward_normal_leak_mm_s_at_max_speed": 1.66001422490955
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "y_error",
+      "sliding": "-y",
+      "true_load_n": 6.1698087877529355,
+      "path_offset_mm": 34.2737376785592,
+      "feedforward_normal_leak_mm_s_at_max_speed": -1.66001422490955
+     }
+    ]
+   },
+   {
+    "file": "forceoff-stiff-nominal.npz",
+    "material": "stiff_low_mu",
+    "mu_eff_measured": 0.12317680824702207,
+    "untilted_friction_offset_mm_predicted": 5.132367010292586,
+    "untilted_path_rms_mm_measured": 5.044111621224975,
+    "normal_speed_cap_mm_s": 3.0,
+    "rows": [
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "x_error",
+      "sliding": "+x",
+      "true_load_n": 4.965587168498743,
+      "path_offset_mm": 1.4711520506201579,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.389586170082032
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "x_error",
+      "sliding": "-x",
+      "true_load_n": 5.073777124032399,
+      "path_offset_mm": 8.873352331504329,
+      "feedforward_normal_leak_mm_s_at_max_speed": -0.389586170082032
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "x_error",
+      "sliding": "+y",
+      "true_load_n": 5.019099187716737,
+      "path_offset_mm": 6.311217813922057,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "x_error",
+      "sliding": "-y",
+      "true_load_n": 5.019099187716737,
+      "path_offset_mm": 6.311217813922057,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "y_error",
+      "sliding": "+x",
+      "true_load_n": 5.019099187716737,
+      "path_offset_mm": 6.311217813922057,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "y_error",
+      "sliding": "-x",
+      "true_load_n": 5.019099187716737,
+      "path_offset_mm": 6.311217813922057,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "y_error",
+      "sliding": "+y",
+      "true_load_n": 4.965587168498743,
+      "path_offset_mm": 1.4711520506201579,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.389586170082032
+     },
+     {
+      "tilt_deg": 5.0,
+      "tilt_axis": "y_error",
+      "sliding": "-y",
+      "true_load_n": 5.073777124032399,
+      "path_offset_mm": 8.873352331504329,
+      "feedforward_normal_leak_mm_s_at_max_speed": -0.389586170082032
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "x_error",
+      "sliding": "+x",
+      "true_load_n": 4.964213921262591,
+      "path_offset_mm": 1.0968004847518826,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.6630227553782723
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "x_error",
+      "sliding": "-x",
+      "true_load_n": 5.151092572763204,
+      "path_offset_mm": 11.596032542671695,
+      "feedforward_normal_leak_mm_s_at_max_speed": -0.6630227553782723
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "x_error",
+      "sliding": "+y",
+      "true_load_n": 5.0559269705818615,
+      "path_offset_mm": 8.123370243941292,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "x_error",
+      "sliding": "-y",
+      "true_load_n": 5.0559269705818615,
+      "path_offset_mm": 8.123370243941292,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "y_error",
+      "sliding": "+x",
+      "true_load_n": 5.0559269705818615,
+      "path_offset_mm": 8.123370243941292,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "y_error",
+      "sliding": "-x",
+      "true_load_n": 5.0559269705818615,
+      "path_offset_mm": 8.123370243941292,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "y_error",
+      "sliding": "+y",
+      "true_load_n": 4.964213921262591,
+      "path_offset_mm": 1.0968004847518826,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.6630227553782723
+     },
+     {
+      "tilt_deg": 8.53,
+      "tilt_axis": "y_error",
+      "sliding": "-y",
+      "true_load_n": 5.151092572763204,
+      "path_offset_mm": 11.596032542671695,
+      "feedforward_normal_leak_mm_s_at_max_speed": -0.6630227553782723
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "x_error",
+      "sliding": "+x",
+      "true_load_n": 4.969204936118209,
+      "path_offset_mm": 2.167513439338655,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.7762073541711787
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "x_error",
+      "sliding": "-x",
+      "true_load_n": 5.1898535367852565,
+      "path_offset_mm": 12.756385511574825,
+      "feedforward_normal_leak_mm_s_at_max_speed": -0.7762073541711787
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "x_error",
+      "sliding": "+y",
+      "true_load_n": 5.077133059428725,
+      "path_offset_mm": 9.007660929408258,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "x_error",
+      "sliding": "-y",
+      "true_load_n": 5.077133059428725,
+      "path_offset_mm": 9.007660929408258,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "y_error",
+      "sliding": "+x",
+      "true_load_n": 5.077133059428725,
+      "path_offset_mm": 9.007660929408258,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "y_error",
+      "sliding": "-x",
+      "true_load_n": 5.077133059428725,
+      "path_offset_mm": 9.007660929408258,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "y_error",
+      "sliding": "+y",
+      "true_load_n": 4.969204936118209,
+      "path_offset_mm": 2.167513439338655,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.7762073541711787
+     },
+     {
+      "tilt_deg": 10.0,
+      "tilt_axis": "y_error",
+      "sliding": "-y",
+      "true_load_n": 5.1898535367852565,
+      "path_offset_mm": 12.756385511574825,
+      "feedforward_normal_leak_mm_s_at_max_speed": -0.7762073541711787
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "x_error",
+      "sliding": "+x",
+      "true_load_n": 5.010992462942528,
+      "path_offset_mm": 5.839450861165286,
+      "feedforward_normal_leak_mm_s_at_max_speed": 1.156921131608268
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "x_error",
+      "sliding": "-x",
+      "true_load_n": 5.35305930032789,
+      "path_offset_mm": 16.85315727941675,
+      "feedforward_normal_leak_mm_s_at_max_speed": -1.156921131608268
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "x_error",
+      "sliding": "+y",
+      "true_load_n": 5.176380902050415,
+      "path_offset_mm": 12.364447954624751,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "x_error",
+      "sliding": "-y",
+      "true_load_n": 5.176380902050415,
+      "path_offset_mm": 12.364447954624751,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "y_error",
+      "sliding": "+x",
+      "true_load_n": 5.176380902050415,
+      "path_offset_mm": 12.36444795462475,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "y_error",
+      "sliding": "-x",
+      "true_load_n": 5.176380902050415,
+      "path_offset_mm": 12.36444795462475,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "y_error",
+      "sliding": "+y",
+      "true_load_n": 5.010992462942528,
+      "path_offset_mm": 5.839450861165286,
+      "feedforward_normal_leak_mm_s_at_max_speed": 1.156921131608268
+     },
+     {
+      "tilt_deg": 15.0,
+      "tilt_axis": "y_error",
+      "sliding": "-y",
+      "true_load_n": 5.35305930032789,
+      "path_offset_mm": 16.85315727941675,
+      "feedforward_normal_leak_mm_s_at_max_speed": -1.156921131608268
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "x_error",
+      "sliding": "+x",
+      "true_load_n": 5.13225971049669,
+      "path_offset_mm": 10.991585906696532,
+      "feedforward_normal_leak_mm_s_at_max_speed": 1.66001422490955
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "x_error",
+      "sliding": "-x",
+      "true_load_n": 5.664169644814819,
+      "path_offset_mm": 22.927414380955454,
+      "feedforward_normal_leak_mm_s_at_max_speed": -1.66001422490955
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "x_error",
+      "sliding": "+y",
+      "true_load_n": 5.385111818881103,
+      "path_offset_mm": 17.55828369619663,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "x_error",
+      "sliding": "-y",
+      "true_load_n": 5.385111818881103,
+      "path_offset_mm": 17.55828369619663,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "y_error",
+      "sliding": "+x",
+      "true_load_n": 5.385111818881103,
+      "path_offset_mm": 17.55828369619663,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "y_error",
+      "sliding": "-x",
+      "true_load_n": 5.385111818881103,
+      "path_offset_mm": 17.55828369619663,
+      "feedforward_normal_leak_mm_s_at_max_speed": 0.0
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "y_error",
+      "sliding": "+y",
+      "true_load_n": 5.13225971049669,
+      "path_offset_mm": 10.991585906696532,
+      "feedforward_normal_leak_mm_s_at_max_speed": 1.66001422490955
+     },
+     {
+      "tilt_deg": 21.8,
+      "tilt_axis": "y_error",
+      "sliding": "-y",
+      "true_load_n": 5.664169644814819,
+      "path_offset_mm": 22.927414380955454,
+      "feedforward_normal_leak_mm_s_at_max_speed": -1.66001422490955
+     }
+    ]
+   }
+  ],
+  "note": "steady-state, small-error, ideal Coulomb contact; no ringing, no orientation coupling; predictions for the frozen tilted cells"
+ }
+}

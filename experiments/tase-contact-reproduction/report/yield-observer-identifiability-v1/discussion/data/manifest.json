@@ -1,0 +1,73 @@
+{
+ "schema": "yield-observer-identifiability-v1-discussion-round3-manifest",
+ "role": "advisory read-only postprocessing; development data; no closed-loop runs; no controller/test/config edits",
+ "model": "claude-fable-5-1 (xhigh)",
+ "base_commit": "fa961c38",
+ "source_receipts_sha256": {
+  "runs/yield-offset-ablation/DSFC-nominal.json.gz": {
+   "sha256": "eadaddc8080ab312df2b70e349d228021aa2b39153c314598c99aba06e6d674c",
+   "matches_round2_manifest": true
+  },
+  "runs/yield-offset-ablation/DSFC-sustained_release_tangent.json.gz": {
+   "sha256": "41301e4be54a257037eebf30079c52dd3776790a173fa4fd08ea4104bfae4956",
+   "matches_round2_manifest": true
+  },
+  "runs/yield-transfer-v1/DSFC-stiff_low_mu-sustained_release_normal.json.gz": {
+   "sha256": "a99ed3a75efe54c571e2486a9285cc5041d215092aa3bf140dabf98171443b39",
+   "matches_round2_manifest": true
+  },
+  "runs/yield-transfer-v1/DSFC-compliant_high_mu-nominal.json.gz": {
+   "sha256": "21fa73cf68d5d9ace5a3fab58b4102a95f7988886ca7879f25b670f62a8adb9d",
+   "matches_round2_manifest": true
+  },
+  "runs/yield-transfer-v1/DSFC-compliant_high_mu-sustained_release_normal.json.gz": {
+   "sha256": "a9f6d6cf83e285e6c5abfaefe3211a7e59bed96ff2da84b0f72f639ff2321ade",
+   "matches_round2_manifest": true
+  },
+  "runs/yield-transfer-v1/DSFC-compliant_high_mu-sustained_release_tangent.json.gz": {
+   "sha256": "975ed9ac2843b9f4e1f1ef2fa2b7c3bb6e6f463f1c0671acb2362f468753d789",
+   "matches_round2_manifest": true
+  },
+  "runs/yield-normal-v2/DSFC-stiff_low_mu-nominal.json.gz": {
+   "sha256": "d438d62d3db08764bc5113debe4332838e95dd0abb2d5867b0561144d20f1078",
+   "matches_round2_manifest": true
+  },
+  "runs/yield-normal-v2/DSFC-stiff_low_mu-sustained_release_normal.json.gz": {
+   "sha256": "e94215e33472505557ab697cb6bc359109c786f4f143312098320fc9f843cb95",
+   "matches_round2_manifest": true
+  },
+  "runs/yield-normal-v2/DSFC-compliant_high_mu-nominal.json.gz": {
+   "sha256": "d2d4d42741fe6e8aebe53c6ca3ae4e58957f901c23f37261d9de3d2cff289f24",
+   "matches_round2_manifest": true
+  },
+  "runs/yield-normal-v2/DSFC-compliant_high_mu-sustained_release_normal.json.gz": {
+   "sha256": "d5831bc28e0ec0bf1a98cd0a79e4eebe49d1f412a35b3e0dac68aa6a75c7499b",
+   "matches_round2_manifest": true
+  },
+  "runs/yield-normal-forceoff-v1/DSFC-stiff_low_mu-nominal.json.gz": {
+   "sha256": "a6157e58437dbc535f4c58f68703cb7f01ab6dba640768149ee90b8eda6c4986",
+   "matches_round2_manifest": true
+  },
+  "runs/yield-normal-forceoff-v1/DSFC-stiff_low_mu-sustained_release_normal.json.gz": {
+   "sha256": "659d36b79f7e07542f5641bb6b0aca37d6a227f994d2b79283c3b9615b7c9e76",
+   "matches_round2_manifest": true
+  },
+  "runs/yield-normal-forceoff-v1/DSFC-compliant_high_mu-nominal.json.gz": {
+   "sha256": "85c112ce9977bf4d21702eb4da999e0c0646c2ac224d6b5ee7859640b96215b1",
+   "matches_round2_manifest": true
+  },
+  "runs/yield-normal-forceoff-v1/DSFC-compliant_high_mu-sustained_release_normal.json.gz": {
+   "sha256": "0a8cbf3c760390766b8cb5532dfac3c5a17f6ab1165a7b9bc184c1ef9f8cf23a",
+   "matches_round2_manifest": true
+  }
+ },
+ "files_sha256": {
+  "data/identifiability.json": "429b2a66e2646998e01336edf66a4991005ada5166f8ed5438b67c149eb093b4",
+  "data/tilt-replay-binned.json": "4f9e111ac4cb6c8260fe4ab68db79f8ae87fd1b8726668f6563d5e616b703508",
+  "fable-round3.md": "d434a97ced3f02b2481bebb9a0f22dbcd3f495ff18e1a6b0199f6cb4cd4c8d4a",
+  "scripts/identifiability.py": "7008a3ba91ceffb9dd7e62d65ec470c12b42a77facc93cb49fc208d1e43aca67",
+  "scripts/manifest.py": "6ac9ffe4196ca54b2b5ad9640111bf0d2f19f94dba30e8b14328fc2db419f28c",
+  "scripts/tilt_replay_binned.py": "00d23c8d7b2e46da3cf45f3656ea2d2f1873fe146c8921fb8fe6f1c8d7bb3130"
+ },
+ "cache": "/tmp/ynv2 (per-tick npz from report/yield-normal-v2/discussion/scripts/extract_ticks.py; not retained)"
+}
