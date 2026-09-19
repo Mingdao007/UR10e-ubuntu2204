@@ -1,0 +1,8 @@
+{
+  "motion_gain": 0.3,
+  "force_correction_gain": 0.0,
+  "motion_normalization_floor_m_s": 0.002,
+  "motion_rate_cap_rad_s": 0.05,
+  "coplanarity_gain_s_inv": 0.3,
+  "coplanarity_cross_floor_n_m_s": 1e-9
+}

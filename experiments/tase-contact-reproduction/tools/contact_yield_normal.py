@@ -2,8 +2,11 @@
 
 Initialization uses the contact-approach direction.  Updates use the measured
 local motion tangent constraint on the unit sphere, gated by contact load and
-tangential excitation.  A bounded force-direction correction is applied only
-inside a documented friction cone; it is a bias, not a truth update.
+tangential excitation.  An optional coplanarity term uses unit f×v with those
+same gates; |f×v| below coplanarity_cross_floor_n_m_s is numerical degeneracy,
+not a force-noise robustness guarantee.  A bounded force-direction correction
+is applied only inside a documented friction cone; it is a bias, not a truth
+update, and is not covered by the combined motion/coplanarity rate cap.
 """
 from __future__ import annotations
 
@@ -37,6 +40,8 @@ class NormalEstimator:
         min_force_n: float = 0.5,
         motion_normalization_floor_m_s: float | None = None,
         motion_rate_cap_rad_s: float | None = None,
+        coplanarity_gain_s_inv: float = 0.0,
+        coplanarity_cross_floor_n_m_s: float = 1e-9,
     ) -> None:
         self.motion_normalization_floor_m_s = (None if motion_normalization_floor_m_s is None
             else finite_scalar(motion_normalization_floor_m_s, "motion_normalization_floor_m_s"))
@@ -59,6 +64,9 @@ class NormalEstimator:
         self.force_correction_max_rad = finite_scalar(force_correction_max_rad, "force_correction_max_rad")
         self.assumed_friction_mu = finite_scalar(assumed_friction_mu, "assumed_friction_mu")
         self.min_force_n = finite_scalar(min_force_n, "min_force_n")
+        self.coplanarity_gain_s_inv = finite_scalar(coplanarity_gain_s_inv, "coplanarity_gain_s_inv")
+        self.coplanarity_cross_floor_n_m_s = finite_scalar(
+            coplanarity_cross_floor_n_m_s, "coplanarity_cross_floor_n_m_s")
         if any(value <= 0.0 for value in (
             self.contact_force_n,
             self.excitation_m_s,
@@ -67,8 +75,12 @@ class NormalEstimator:
             raise NormalEstimatorError("normal-estimator thresholds must be positive")
         if self.force_correction_max_rad < 0.0 or self.assumed_friction_mu < 0.0:
             raise NormalEstimatorError("friction-bias bounds must be nonnegative")
-        if self.force_correction_gain < 0.0 or self.motion_gain < 0.0:
+        if self.force_correction_gain < 0.0 or self.motion_gain < 0.0 or self.coplanarity_gain_s_inv < 0.0:
             raise NormalEstimatorError("normal-estimator gains must be nonnegative")
+        if self.coplanarity_cross_floor_n_m_s <= 0.0:
+            raise NormalEstimatorError("coplanarity_cross_floor_n_m_s must be positive")
+        if self.coplanarity_gain_s_inv > 0.0 and self.motion_normalization_floor_m_s is None:
+            raise NormalEstimatorError("coplanarity update requires motion_normalization_floor_m_s")
 
     def parameters(self) -> dict[str, Any]:
         parameters = {
@@ -87,6 +99,9 @@ class NormalEstimator:
             parameters["motion_normalization_floor_m_s"] = self.motion_normalization_floor_m_s
         if self.motion_rate_cap_rad_s is not None:
             parameters["motion_rate_cap_rad_s"] = self.motion_rate_cap_rad_s
+        if self.coplanarity_gain_s_inv > 0.0:
+            parameters["coplanarity_gain_s_inv"] = self.coplanarity_gain_s_inv
+            parameters["coplanarity_cross_floor_n_m_s"] = self.coplanarity_cross_floor_n_m_s
         return parameters
 
     def snapshot(self) -> dict[str, Any]:
@@ -121,7 +136,39 @@ class NormalEstimator:
         excitation_gate = tangent_speed >= self.excitation_m_s
         motion_applied = False
         force_applied = False
-        if contact_gate and excitation_gate and self.motion_gain > 0.0:
+        coplanarity_applied = False
+        coplanarity_cross_norm = None
+        coplanarity_residual = None
+        if self.coplanarity_gain_s_inv > 0.0:
+            # Combined motion+coplanarity gradient on one pre-update n.
+            cross = np.cross(force, velocity)
+            coplanarity_cross_norm = float(np.linalg.norm(cross))
+            chat = None
+            if coplanarity_cross_norm > self.coplanarity_cross_floor_n_m_s:
+                chat = cross / coplanarity_cross_norm
+                coplanarity_residual = float(np.dot(self.normal, chat))
+            if contact_gate and excitation_gate:
+                projector = projector_tangent(self.normal)
+                denominator = max(float(velocity @ velocity), self.motion_normalization_floor_m_s**2)
+                gradient = (
+                    self.motion_gain
+                    * float(np.dot(self.normal, velocity))
+                    * (projector @ velocity)
+                    / denominator
+                )
+                if chat is not None:
+                    gradient = (
+                        gradient
+                        + self.coplanarity_gain_s_inv * coplanarity_residual * (projector @ chat)
+                    )
+                    coplanarity_applied = True
+                if self.motion_gain > 0.0 or coplanarity_applied:
+                    rate = float(np.linalg.norm(gradient))
+                    if self.motion_rate_cap_rad_s is not None and rate > self.motion_rate_cap_rad_s:
+                        gradient = gradient * (self.motion_rate_cap_rad_s / rate)
+                    self.normal = normalize_unit(self.normal - dt * gradient, name="updated_normal")
+                    motion_applied = self.motion_gain > 0.0
+        elif contact_gate and excitation_gate and self.motion_gain > 0.0:
             # Projected gradient of 0.5 (n·v)^2 on the unit sphere.
             residual = float(np.dot(self.normal, velocity))
             if self.motion_normalization_floor_m_s is None:
@@ -162,7 +209,7 @@ class NormalEstimator:
                         name="friction_biased_normal",
                     )
                     force_applied = True
-        return {
+        diagnostic = {
             "inward_normal_base": tuple(float(value) for value in self.normal),
             "contact_gate": contact_gate,
             "excitation_gate": excitation_gate,
@@ -179,3 +226,9 @@ class NormalEstimator:
                 ),
             },
         }
+        if self.coplanarity_gain_s_inv > 0.0:
+            # residual is n·(f×v)/|f×v| on the pre-update normal; None if degenerate.
+            diagnostic["coplanarity_update_applied"] = coplanarity_applied
+            diagnostic["coplanarity_cross_norm_n_m_s"] = coplanarity_cross_norm
+            diagnostic["coplanarity_residual"] = coplanarity_residual
+        return diagnostic
