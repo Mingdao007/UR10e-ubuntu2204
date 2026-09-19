@@ -1,0 +1,312 @@
+{
+  "schema": "ur10e.contact-yield-protocol-v1",
+  "version": 1,
+  "offline_only": true,
+  "hardware_qualified": false,
+  "endpoint": "none",
+  "simulation_only": true,
+  "claim_scope": "offline simulation only; not hardware qualification, not a physical contact result, and not a declared winner among SFC/DSFC/MSFC",
+  "methods": [
+    "SFC",
+    "SFC_RADIAL",
+    "DSFC",
+    "MSFC"
+  ],
+  "method_roles": {
+    "SFC": "baseline_geometrically_anisotropic",
+    "SFC_RADIAL": "matched_radial_ablation",
+    "DSFC": "proposal",
+    "MSFC": "proposal"
+  },
+  "native_laws": {
+    "SFC": "SFC",
+    "SFC_RADIAL": "SFC",
+    "DSFC": "DSFC",
+    "MSFC": "MSFC"
+  },
+  "excluded": [
+    "LAC",
+    "NAC",
+    "ISFC",
+    "RNN",
+    "RPSFC"
+  ],
+  "sfc_baseline_geometry": "axis-decoupled componentwise SFC in a fixed base frame; geometrically anisotropic; this label is the baseline",
+  "sfc_radial_ablation": "matched (m, mu, n, g) vector/radial SFC; not the baseline; does not rename original SFC",
+  "task": {
+    "normal_force_n": 5.0,
+    "along_amplitude_m": 0.04,
+    "lateral_amplitude_m": 0.01,
+    "omega_rad_s": 0.1,
+    "duration_s": 62.83185307179586,
+    "span_mm": [
+      80.0,
+      20.0
+    ],
+    "orientation": "compliant_changing_estimated_inward_normal",
+    "unknown_surface": true,
+    "controller_receives_true_normal": false,
+    "controller_receives_true_geometry": false
+  },
+  "entry": {
+    "profile": "quintic_h=-4s^3+7s^4-3s^5",
+    "duration_s": 1.0,
+    "terminal_velocity_m_s": [
+      0.004,
+      0.002,
+      0.0
+    ],
+    "separate_from_formal_path": true
+  },
+  "timing": {
+    "dt_s": 0.002,
+    "refinement_dt_s": 0.001,
+    "full_cycle_s": 62.83185307179586,
+    "diagnostic_duration_s": 0.5,
+    "elapsed_dt_interval_s": [
+      0.0,
+      0.004
+    ],
+    "elapsed_dt_open_at_zero": true,
+    "path_clock_must_advance_by_actual_dt": true
+  },
+  "timelines": {
+    "full_cycle": {
+      "entry_s": 1.0,
+      "path_s": 62.83185307179586,
+      "perturbations": {
+        "short_pulse": {
+          "start_s": 20.0,
+          "width_s": 0.5,
+          "hold_s": 0.0,
+          "release_s": 0.0,
+          "amplitude_n": 3.0
+        },
+        "sustained_release": {
+          "start_s": 20.0,
+          "width_s": 0.5,
+          "hold_s": 10.0,
+          "release_s": 5.0,
+          "amplitude_n": 2.5
+        }
+      },
+      "note": "PATH-time schedule; entry is separate; sustained hold is 10 s"
+    },
+    "diagnostic": {
+      "entry_s": 0.0,
+      "path_s": 0.5,
+      "starts_in_contact": true,
+      "perturbations": {
+        "short_pulse": {
+          "start_s": 0.24,
+          "width_s": 0.08,
+          "hold_s": 0.0,
+          "release_s": 0.0,
+          "amplitude_n": 3.0
+        },
+        "sustained_release": {
+          "start_s": 0.22,
+          "width_s": 0.04,
+          "hold_s": 0.12,
+          "release_s": 0.04,
+          "amplitude_n": 2.5
+        }
+      },
+      "note": "short seed only; not the scientific 62.83 s cycle"
+    }
+  },
+  "scenarios": [
+    {
+      "name": "nominal",
+      "kind": "nominal",
+      "direction": null,
+      "timeline": "full_cycle",
+      "start_s": null,
+      "width_s": null,
+      "hold_s": null,
+      "release_s": null,
+      "amplitude_n": 0.0
+    },
+    {
+      "name": "sustained_release_normal",
+      "kind": "sustained_release",
+      "direction": "normal",
+      "timeline": "full_cycle",
+      "start_s": 20.0,
+      "width_s": 0.5,
+      "hold_s": 10.0,
+      "release_s": 5.0,
+      "amplitude_n": 2.5
+    },
+    {
+      "name": "sustained_release_tangent",
+      "kind": "sustained_release",
+      "direction": "tangent",
+      "timeline": "full_cycle",
+      "start_s": 20.0,
+      "width_s": 0.5,
+      "hold_s": 10.0,
+      "release_s": 5.0,
+      "amplitude_n": 2.5
+    },
+    {
+      "name": "sustained_release_oblique",
+      "kind": "sustained_release",
+      "direction": "oblique",
+      "timeline": "full_cycle",
+      "start_s": 20.0,
+      "width_s": 0.5,
+      "hold_s": 10.0,
+      "release_s": 5.0,
+      "amplitude_n": 2.5
+    },
+    {
+      "name": "short_pulse_normal",
+      "kind": "short_pulse",
+      "direction": "normal",
+      "timeline": "full_cycle",
+      "start_s": 20.0,
+      "width_s": 0.5,
+      "hold_s": 0.0,
+      "release_s": 0.0,
+      "amplitude_n": 3.0
+    },
+    {
+      "name": "short_pulse_tangent",
+      "kind": "short_pulse",
+      "direction": "tangent",
+      "timeline": "full_cycle",
+      "start_s": 20.0,
+      "width_s": 0.5,
+      "hold_s": 0.0,
+      "release_s": 0.0,
+      "amplitude_n": 3.0
+    },
+    {
+      "name": "short_pulse_oblique",
+      "kind": "short_pulse",
+      "direction": "oblique",
+      "timeline": "full_cycle",
+      "start_s": 20.0,
+      "width_s": 0.5,
+      "hold_s": 0.0,
+      "release_s": 0.0,
+      "amplitude_n": 3.0
+    }
+  ],
+  "materials": [
+    {
+      "name": "stiff_low_mu",
+      "stiffness_n_per_m": 8000.0,
+      "damping_n_s_per_m": 80.0,
+      "friction_mu": 0.15,
+      "regularization_m_s": 0.002
+    },
+    {
+      "name": "compliant_high_mu",
+      "stiffness_n_per_m": 2000.0,
+      "damping_n_s_per_m": 40.0,
+      "friction_mu": 0.4,
+      "regularization_m_s": 0.002
+    }
+  ],
+  "freshness": {
+    "fresh_age_s": 0.02,
+    "stale_age_s": 0.08,
+    "held_policy": "latest_value_zero_order_hold_no_interpolation",
+    "stale_policy": "fail_closed_rollback_tick",
+    "cached_held_is_not_marked_fresh": true
+  },
+  "geometric_latency": {
+    "bound_m": 0.001,
+    "extra_hold_s": 0.002,
+    "independent_from_freshness_80ms": true,
+    "speed_model": "conservative_cap_plus_reference"
+  },
+  "guards": {
+    "raw_force_limit_n": 20.0,
+    "raw_torque_limit_nm": 2.0,
+    "raw_sensor_guard_precedes_injection": true
+  },
+  "normal_estimator": {
+    "initialize_from": "contact_approach",
+    "update": "measured_local_motion_tangent_constraint",
+    "manifold": "projected_gradient_unit_sphere",
+    "gating": [
+      "excitation",
+      "contact"
+    ],
+    "force_direction_correction": "bounded_friction_bias_only",
+    "true_normal_available_to_controller": false
+  },
+  "law_frame": "fixed_base",
+  "law_input": "full_base_force_residual_plus_tangent_restoring",
+  "independent_normal_p_controller": false,
+  "feedforward_in_nonlinear_damping": false,
+  "reset_memory_on_perturbation": false,
+  "msfc_memory_through_release": true,
+  "integral_default": 0.0,
+  "qp": {
+    "backend": "native_equality_box",
+    "infeasible_fallback": "measured_task_scaling",
+    "priorities": [
+      "preserve_normal_unloading",
+      "scale_tangent_progress"
+    ],
+    "clock_frozen_on_scaling": false,
+    "feasibility_force_guarantee": false,
+    "deadline_or_nonfinite_is_not_infeasibility": true
+  },
+  "plant": {
+    "prefer_ur10e_kinematics_jacobian": true,
+    "cartesian_fallback_label": "simplified Cartesian servo; not full robot qualification",
+    "unilateral_contact": true,
+    "regularized_coulomb_friction": true,
+    "finite_servo_lag": true,
+    "software_injection_is_human_evidence": false
+  },
+  "campaign": {
+    "diagnostic_seed": "uses_frozen_seed_parameters_short_horizon",
+    "formal_tuned": "24_paired_units_then_separate_holdout",
+    "budget": {
+      "per_method_units": 24,
+      "initial_units": 8,
+      "bo_units": 12,
+      "repeat_units": 4,
+      "trials_per_unit": [
+        "nominal",
+        "disturbed"
+      ],
+      "failed_attempt_consumes_unit": true,
+      "holdout_used_for_tuning": false,
+      "holdout_repeats": 5,
+      "diagnostic_seed_consumes_formal_budget": false
+    },
+    "no_pretend_closure": true,
+    "no_cherry_pick": true,
+    "no_declared_winner": true
+  },
+  "metrics": [
+    "mae",
+    "rmse",
+    "peak",
+    "overlimit_duration",
+    "path_error",
+    "planned_progress",
+    "measured_progress",
+    "orientation",
+    "yield",
+    "recoil",
+    "residual",
+    "recovery",
+    "contact_loss",
+    "saturation",
+    "qp_intervention",
+    "failures"
+  ],
+  "rpsfc_selectable": false,
+  "rnn_selectable": false,
+  "research_parameters_are_contact_qualified": false,
+  "synthetic_disturbance_is_physical_impact": false,
+  "sha256": "bb4fe89b35a0fa8766be5290424dc6514e98f1558c5f3991253734a59a918494"
+}
