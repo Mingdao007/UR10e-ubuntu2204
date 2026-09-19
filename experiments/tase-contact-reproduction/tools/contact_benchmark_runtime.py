@@ -17,6 +17,80 @@ from contact_benchmark_protocol import STALE_AGE_S, SensorFreshnessTracker, clas
 from step5c_calibrated_kinematics_audit import build_calibrated_model, rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import tcp_jacobian_base
 
+REQUIRED_TCP_OFFSET_M_RAD = (0.0, 0.0, 0.0874, 0.0, 0.0, 0.0)
+REQUIRED_PAYLOAD_KG = 0.413
+REQUIRED_PAYLOAD_COG_M = (0.0011, 0.0031, 0.0163)
+RAW_FORCE_LIMIT_N = 20.0
+RAW_TORQUE_LIMIT_NM = 2.0
+
+
+def validate_measured_observation(
+    *,
+    robot,
+    wrench_tcp,
+    sensor_observed_at_s,
+    sample_time_s,
+    last_sample_s,
+    last_controller_timestamp,
+    last_sensor_timestamp,
+    freshness,
+    model,
+):
+    """Shared robot/sensor admission used by the sole measured-observation runtimes.
+
+    Host monotonic receive times are caller-supplied.  This helper never
+    refreshes a cached receive clock.  The 80 ms stale stop and the raw F/T
+    guard run before any controller injection or memory update.
+    """
+    now = float(sample_time_s)
+    sensor_t = float(sensor_observed_at_s)
+    robot_t = float(robot['observed_at_s'])
+    controller_t = float(robot['timestamp'])
+    if not all(math.isfinite(t) for t in (now, sensor_t, robot_t, controller_t)):
+        raise ValueError('nonfinite acquisition clock')
+    age = max(now - sensor_t, now - robot_t)
+    if min(now - sensor_t, now - robot_t) < 0:
+        raise ValueError('robot/sensor observation is from the future')
+    if age >= STALE_AGE_S:
+        freshness.stale_stop(age)
+        raise ValueError('robot/sensor observation older than 80ms (stale)')
+    age_band = classify_sensor_age(age)
+    freshness.observe(age)
+    if last_controller_timestamp is not None and controller_t < last_controller_timestamp:
+        raise ValueError('controller timestamp regressed')
+    if last_sensor_timestamp is not None and sensor_t < last_sensor_timestamp:
+        raise ValueError('sensor timestamp regressed')
+    dt = .002 if last_sample_s is None else now - last_sample_s
+    if not 0 < dt <= .004:
+        raise ValueError('writer sample interval outside (0,4ms]')
+    if 'safety_status_bits' in robot:
+        normal = robot['safety_status_bits'] in (1, 2049)
+    else:
+        normal = robot.get('safety_mode') in (1, 'NORMAL')
+    if not normal:
+        raise ValueError('robot not Safety NORMAL')
+    tcp = finite(robot['tcp_offset'], (6,), 'active TCP')
+    cog = finite(robot['payload_cog'], (3,), 'active CoG')
+    if (not np.allclose(tcp, REQUIRED_TCP_OFFSET_M_RAD, rtol=0, atol=1e-9)
+            or not np.allclose(cog, REQUIRED_PAYLOAD_COG_M, rtol=0, atol=1e-6)
+            or not math.isclose(float(robot['payload']), REQUIRED_PAYLOAD_KG, rel_tol=0, abs_tol=1e-6)):
+        raise ValueError('active tool binding changed')
+    q = finite(robot['actual_q'], (6,), 'joint position')
+    qd = finite(robot['actual_qd'], (6,), 'joint velocity')
+    pose = finite(robot['actual_TCP_pose'], (6,), 'TCP pose')
+    wrench = finite(wrench_tcp, (6,), 'raw TCP wrench')
+    if np.max(np.abs(qd)) > .06:
+        raise ValueError('observed joint speed exceeds envelope')
+    # Limit all possible commands for a maximum 4ms hold at joint limits.
+    lower = np.maximum((model.model.lowerPositionLimit - q) / .004, -.05)
+    upper = np.minimum((model.model.upperPositionLimit - q) / .004, .05)
+    if np.any(q < model.model.lowerPositionLimit) or np.any(q > model.model.upperPositionLimit):
+        raise ValueError('observed joint position exceeds limit')
+    if np.linalg.norm(wrench[:3]) >= RAW_FORCE_LIMIT_N or np.linalg.norm(wrench[3:]) >= RAW_TORQUE_LIMIT_NM:
+        raise ValueError('raw sensor guard rejected observation')
+    return dict(now=now, sensor_t=sensor_t, controller_t=controller_t, age=age, age_band=age_band, dt=dt,
+                tcp=tcp, q=q, qd=qd, pose=pose, wrench=wrench, lower=lower, upper=upper)
+
 
 class ContactRuntime:
     def __init__(self, *, law, qp_library, anchor_m, task_basis, target_rotation,
@@ -49,49 +123,13 @@ class ContactRuntime:
                 'last_sensor_timestamp':self.last_sensor_timestamp,'paused_s':self.paused_s}
 
     def _validate_observation(self,robot,wrench_tcp,sensor_observed_at_s,sample_time_s):
-        now=float(sample_time_s);sensor_t=float(sensor_observed_at_s)
-        robot_t=float(robot['observed_at_s']);controller_t=float(robot['timestamp'])
-        if not all(math.isfinite(t) for t in (now,sensor_t,robot_t,controller_t)):
-            raise ValueError('nonfinite acquisition clock')
-        age=max(now-sensor_t,now-robot_t)
-        if min(now-sensor_t,now-robot_t)<0:
-            raise ValueError('robot/sensor observation is from the future')
-        if age >= STALE_AGE_S:
-            self.freshness.stale_stop(age)
-            raise ValueError('robot/sensor observation older than 80ms (stale)')
-        age_band=classify_sensor_age(age)
-        self.freshness.observe(age)
-        if self.last_controller_timestamp is not None and controller_t<self.last_controller_timestamp:
-            raise ValueError('controller timestamp regressed')
-        if self.last_sensor_timestamp is not None and sensor_t<self.last_sensor_timestamp:
-            raise ValueError('sensor timestamp regressed')
-        dt=.002 if self.last_sample_s is None else now-self.last_sample_s
-        if not 0<dt<=.004:raise ValueError('writer sample interval outside (0,4ms]')
-        if 'safety_status_bits' in robot:
-            normal=robot['safety_status_bits'] in (1,2049)
-        else:
-            normal=robot.get('safety_mode') in (1,'NORMAL')
-        if not normal:raise ValueError('robot not Safety NORMAL')
-        tcp=finite(robot['tcp_offset'],(6,),'active TCP')
-        cog=finite(robot['payload_cog'],(3,),'active CoG')
-        if (not np.allclose(tcp,[0,0,.0874,0,0,0],rtol=0,atol=1e-9)
-                or not np.allclose(cog,[.0011,.0031,.0163],rtol=0,atol=1e-6)
-                or not math.isclose(float(robot['payload']),.413,rel_tol=0,abs_tol=1e-6)):
-            raise ValueError('active tool binding changed')
-        q=finite(robot['actual_q'],(6,),'joint position')
-        qd=finite(robot['actual_qd'],(6,),'joint velocity')
-        pose=finite(robot['actual_TCP_pose'],(6,),'TCP pose')
-        wrench=finite(wrench_tcp,(6,),'raw TCP wrench')
-        if np.max(np.abs(qd))>.06:raise ValueError('observed joint speed exceeds envelope')
-        # Limit all possible commands for a maximum 4ms hold at joint limits.
-        lower=np.maximum((self.model.model.lowerPositionLimit-q)/.004,-.05)
-        upper=np.minimum((self.model.model.upperPositionLimit-q)/.004,.05)
-        if np.any(q<self.model.model.lowerPositionLimit) or np.any(q>self.model.model.upperPositionLimit):
-            raise ValueError('observed joint position exceeds limit')
-        if np.linalg.norm(wrench[:3])>=20. or np.linalg.norm(wrench[3:])>=2.:
-            raise ValueError('raw sensor guard rejected observation')
-        return dict(now=now,sensor_t=sensor_t,controller_t=controller_t,age=age,age_band=age_band,dt=dt,
-                    tcp=tcp,q=q,qd=qd,pose=pose,wrench=wrench,lower=lower,upper=upper)
+        return validate_measured_observation(
+            robot=robot, wrench_tcp=wrench_tcp,
+            sensor_observed_at_s=sensor_observed_at_s, sample_time_s=sample_time_s,
+            last_sample_s=self.last_sample_s,
+            last_controller_timestamp=self.last_controller_timestamp,
+            last_sensor_timestamp=self.last_sensor_timestamp,
+            freshness=self.freshness, model=self.model)
 
     def pause(self, *, robot,wrench_tcp,sensor_observed_at_s,sample_time_s,reason):
         """Freeze complete controller state only during the observed pre-PATH seam."""

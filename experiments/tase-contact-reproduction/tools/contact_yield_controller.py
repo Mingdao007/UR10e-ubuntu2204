@@ -112,7 +112,9 @@ class YieldController:
         qp_deadline_s: float | None = None,
         build_root: Path | str | None = None,
         estimator: NormalEstimator | None = None,
+        allow_pre_path_force_ramp: bool = False,
     ) -> None:
+        self.allow_pre_path_force_ramp = require_bool(allow_pre_path_force_ramp, "allow_pre_path_force_ramp")
         self.method = method
         self.role = method_role(method)
         self.settings = settings
@@ -153,6 +155,8 @@ class YieldController:
             "feedforward_in_nonlinear_damping": False,
             "independent_normal_p_controller": False,
         }
+        if self.allow_pre_path_force_ramp:
+            identity["pre_path_force_policy"] = "bounded_0_to_5N_ramp_v1"
         self.identity = hashlib.sha256(
             json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest()
@@ -280,6 +284,26 @@ class YieldController:
     def __exit__(self, *args: Any) -> None:
         self.close()
 
+    def hold_pre_path_clock(self, *, time_s: float, dt_s: float) -> None:
+        """Advance the sample clock without native/filter/estimator memory.
+
+        This is the explicit pre-PATH stationary freeze-carry seam.  It is not
+        a state reset and it must not run after PATH has started.
+        """
+        sample = finite_scalar(time_s, "time_s")
+        elapsed = finite_scalar(dt_s, "dt")
+        if not 0.0 < elapsed <= 0.004:
+            raise YieldControllerError("elapsed sample interval must be in (0, 4ms]")
+        if sample < 0.0:
+            raise YieldControllerError("invalid sample clock")
+        if self.last_path_time_s is not None:
+            raise YieldControllerError("active path cannot return to preparation or freeze its clock")
+        if self.last_time_s is None:
+            return
+        if not math.isclose(sample, self.last_time_s + elapsed, rel_tol=0.0, abs_tol=1e-12):
+            raise YieldControllerError("sample clock must advance by the actual dt")
+        self.last_time_s = sample
+
     def step(self, observation: Mapping[str, Any], reference: Mapping[str, Any], dt: float) -> dict[str, Any]:
         dt_s = finite_scalar(dt, "dt")
         if not 0.0 < dt_s <= 0.004:
@@ -371,8 +395,14 @@ class YieldController:
             reference.get("force_n", self.settings.target_force_n),
             "force_n",
         )
-        if abs(target_force - self.settings.target_force_n) > 1e-12:
-            raise YieldControllerError("task requires the 5 N force invariant")
+        # Identity stays the frozen 5 N PATH invariant.  Blindly feeding the
+        # mature 1-to-5 N baseline ramp would otherwise reject every pre-PATH
+        # tick.  Simulation callers that omit force_n still get 5 N.
+        if phase == "path" or not self.allow_pre_path_force_ramp:
+            if abs(target_force - self.settings.target_force_n) > 1e-12:
+                raise YieldControllerError("PATH requires the 5 N force invariant")
+        elif target_force < 0.0 or target_force > self.settings.target_force_n + 1e-12:
+            raise YieldControllerError("pre-PATH force reference must remain within [0, 5] N")
         ref_position = finite_vector3(reference["position_m"], "reference_position_m")
         ref_velocity = finite_vector3(reference["velocity_m_s"], "reference_velocity_m_s")
 

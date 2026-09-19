@@ -1,0 +1,15 @@
+{
+  "exit_code": 143,
+  "category": "process_terminated_without_completion_receipt",
+  "native_completion_verified": false,
+  "residual_processes": false,
+  "takeover": "main",
+  "no_model_fallback": true,
+  "partial_worktree": "/home/andy/.codex-worktrees/yield-provider-20260920",
+  "partial_sha256": {
+    "contact_benchmark_runtime.py": "c27f15e7abb67c5b61ffbf30e76ea50980ce253b827999744d54276fe23144f4",
+    "contact_yield_controller.py": "749ac3bdf3984153d513e051c4724340e7bd9771c7e7ac5c07748af4ba560fda",
+    "yield_contact_provider.py": "14b2df10fbba0cd2419ec2ffb771ba55f85e8e81c440377c515b0d49082bffe8",
+    "yield_contact_runtime.py": "9c779c8b8300240935a7db7b50879e14b73155bb96dbb14d48a0f750a29ff4fd"
+  }
+}

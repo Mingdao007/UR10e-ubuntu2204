@@ -1,0 +1,9 @@
+{
+  "goal_status": "active",
+  "route_active": false,
+  "adapter_tests_passed": true,
+  "mature_writer_entry_integrated": false,
+  "hardware_qualification": false,
+  "next": "Bind explicit entry and formal PATH clocks through sole writer and evidence collector; version diagnostic injection separately",
+  "writer_owner": "main"
+}
