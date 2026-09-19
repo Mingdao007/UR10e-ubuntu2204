@@ -1,0 +1,9 @@
+{
+  "source": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-offset-ablation/MSFC-nominal.json.gz",
+  "approach_prior_rms_deg": 1.4174390156982632,
+  "estimated_normal_rms_deg": 6.760436952422762,
+  "plant_speed_cap_observed_ticks": 10,
+  "n_path_ticks": 31416,
+  "cap_count_scope": "sampled endpoints only; intermediate substeps not recorded separately",
+  "claim_scope": "main independent recomputation, development data"
+}

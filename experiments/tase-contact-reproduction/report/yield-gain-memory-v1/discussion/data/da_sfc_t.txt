@@ -1,0 +1,7 @@
+=== SFC tangent p4  (SFC g=0.0521 mu=393.0 m=4.0)
+ v-space: integrator gain g/m=0.0130 1/kg ; cubic coeff mu/g^3=2.775e+06 ; speed where cubic=1N: 7.1 mm/s
+ |w| max=0.1807  |v|=g|w| max=9.42 mm/s ; |u| median=0.198 max=1.875 N
+   0-20.0 s: |damp| median=0.0198 p99=0.4702 max=0.4741 N ; |u| median=0.172 p99=0.551 ; damp/u median=0.137 p99=1.530 ; |u_n| median=0.071 |u_t| median=0.138
+  20-36.0 s: |damp| median=0.1325 p99=1.2497 max=1.2953 N ; |u| median=0.365 p99=1.789 ; damp/u median=0.330 p99=2.334 ; |u_n| median=0.218 |u_t| median=0.231
+  36-52.0 s: |damp| median=0.0045 p99=0.0886 max=0.0894 N ; |u| median=0.220 p99=0.506 ; damp/u median=0.025 p99=0.954 ; |u_n| median=0.172 |u_t| median=0.117
+  52-63.8 s: |damp| median=0.0005 p99=0.0026 max=0.0026 N ; |u| median=0.035 p99=0.078 ; damp/u median=0.015 p99=0.154 ; |u_n| median=0.009 |u_t| median=0.034

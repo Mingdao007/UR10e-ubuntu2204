@@ -1,0 +1,66 @@
+[
+  {
+    "material": "stiff_low_mu",
+    "scenario": "nominal",
+    "force_peak_delta_n": 0.002797776430544019,
+    "path_rms_delta_m": -3.4538423620946238e-06,
+    "recovery_s_delta": null,
+    "yield_peak_m_delta": null
+  },
+  {
+    "material": "stiff_low_mu",
+    "scenario": "sustained_release_normal",
+    "force_peak_delta_n": 0.002797776430544019,
+    "path_rms_delta_m": -3.3718651334976694e-06,
+    "recovery_s_delta": 0.003999999999997783,
+    "yield_peak_m_delta": 1.3013185750651926e-06
+  },
+  {
+    "material": "stiff_low_mu",
+    "scenario": "sustained_release_tangent",
+    "force_peak_delta_n": 0.004921668545948776,
+    "path_rms_delta_m": 1.3122179300405646e-05,
+    "recovery_s_delta": 0.003999999999997783,
+    "yield_peak_m_delta": 0.00015467974655694085
+  },
+  {
+    "material": "stiff_low_mu",
+    "scenario": "short_pulse_oblique",
+    "force_peak_delta_n": 0.0809244299091274,
+    "path_rms_delta_m": -4.511066053159481e-06,
+    "recovery_s_delta": 0.0400000000000027,
+    "yield_peak_m_delta": 1.468316896390963e-05
+  },
+  {
+    "material": "compliant_high_mu",
+    "scenario": "nominal",
+    "force_peak_delta_n": 0.007383568628315906,
+    "path_rms_delta_m": -7.326635474782378e-06,
+    "recovery_s_delta": null,
+    "yield_peak_m_delta": null
+  },
+  {
+    "material": "compliant_high_mu",
+    "scenario": "sustained_release_normal",
+    "force_peak_delta_n": 0.007383568628315906,
+    "path_rms_delta_m": -5.695052279919548e-06,
+    "recovery_s_delta": 0.0,
+    "yield_peak_m_delta": 2.735736645583962e-05
+  },
+  {
+    "material": "compliant_high_mu",
+    "scenario": "sustained_release_tangent",
+    "force_peak_delta_n": 0.007383568628315906,
+    "path_rms_delta_m": 1.6859066424437276e-05,
+    "recovery_s_delta": -0.006000000000000227,
+    "yield_peak_m_delta": 0.00019398616208189147
+  },
+  {
+    "material": "compliant_high_mu",
+    "scenario": "short_pulse_oblique",
+    "force_peak_delta_n": 0.050436880991584054,
+    "path_rms_delta_m": -7.892683714562192e-06,
+    "recovery_s_delta": -1.009999999999998,
+    "yield_peak_m_delta": 2.2896736168965095e-05
+  }
+]

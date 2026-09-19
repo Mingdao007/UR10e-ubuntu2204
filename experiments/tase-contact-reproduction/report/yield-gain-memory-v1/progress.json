@@ -24,11 +24,14 @@
     "started_utc": "2026-09-19T21:15:41.010212+00:00",
     "write_scope": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/yield-gain-memory-v1/discussion",
     "blocking": false,
-    "status": "running",
-    "next_round": "1-1.5 active hours later only with substantive new evidence",
+    "status": "completed",
+    "next_round": "no further call this hour; continue main work until 1-1.5 active hours and substantive progress",
     "process_pid": 44818,
     "wrapper_pid": 44815,
     "tool_session_id": 58656,
-    "last_verified_live_utc": "2026-09-19T21:29:56.724392+00:00"
+    "last_verified_live_utc": "2026-09-19T21:29:56.724392+00:00",
+    "exit_code": 0,
+    "finished_utc": "2026-09-19T21:46:16.218433+00:00",
+    "iterations_used": 1
   }
 }

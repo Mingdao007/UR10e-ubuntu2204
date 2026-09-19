@@ -1,0 +1,57 @@
+slots 0-3 (const): [2.0260917e+07 6.0000000e+00 3.0000000e+00 2.0000000e-03]
+external force norm: max=2.500; windows where >0: 20.00..35.50 s
+joint qdot at clip(0.05): plant4 ticks=481 plant8 ticks=479
+normal-cap saturation ticks plant4=5184 plant8=5747 ; task_scale<1 ticks plant4=5838 plant8=5833
+
+per-window (plant8): extF  minEig(slots19-21)  max|h|(guess slots 7-9)  maxS|slots10-15|  |w|max  ns_sat  lawn_max(mm/s)  min F
+    0-2    ext=0.00 minEig=0.9882 |h|=0.424  maxS=0.0085  |w|=0.0526 sat=  21 lawn=3.13  minF=4.01 | plant4: minEig=0.9884 sat=  15 minF=4.04
+    2-4    ext=0.00 minEig=0.9826 |h|=0.471  maxS=0.0139  |w|=0.0679 sat=  72 lawn=3.30  minF=3.95 | plant4: minEig=0.9828 sat=  51 minF=3.97
+    4-6    ext=0.00 minEig=0.9887 |h|=0.325  maxS=0.0093  |w|=0.0605 sat=   0 lawn=2.62  minF=4.24 | plant4: minEig=0.9888 sat=   0 minF=4.27
+    6-8    ext=0.00 minEig=0.9945 |h|=0.309  maxS=0.0035  |w|=0.0313 sat=   0 lawn=2.79  minF=4.26 | plant4: minEig=0.9948 sat=   0 minF=4.29
+    8-10   ext=0.00 minEig=0.9994 |h|=0.081  maxS=0.0003  |w|=0.0126 sat=   0 lawn=0.63  minF=4.76 | plant4: minEig=0.9995 sat=   0 minF=4.78
+   10-12   ext=0.00 minEig=0.9999 |h|=0.019  maxS=0.0001  |w|=0.0030 sat=   0 lawn=0.44  minF=4.92 | plant4: minEig=0.9999 sat=   0 minF=4.92
+   12-14   ext=0.00 minEig=1.0000 |h|=0.005  maxS=0.0000  |w|=0.0018 sat=   0 lawn=0.24  minF=4.97 | plant4: minEig=1.0000 sat=   0 minF=4.97
+   14-16   ext=0.00 minEig=1.0000 |h|=0.005  maxS=0.0000  |w|=0.0018 sat=   0 lawn=0.24  minF=4.97 | plant4: minEig=1.0000 sat=   0 minF=4.97
+   16-18   ext=0.00 minEig=1.0000 |h|=0.002  maxS=0.0000  |w|=0.0016 sat=   0 lawn=0.23  minF=4.97 | plant4: minEig=1.0000 sat=   0 minF=4.97
+   18-20   ext=0.00 minEig=1.0000 |h|=0.002  maxS=0.0000  |w|=0.0015 sat=   0 lawn=0.23  minF=4.97 | plant4: minEig=1.0000 sat=   0 minF=4.97
+   20-22   ext=2.50 minEig=0.9978 |h|=0.191  maxS=0.0008  |w|=0.0145 sat=   0 lawn=1.55  minF=1.96 | plant4: minEig=0.9978 sat=   0 minF=1.97
+   22-24   ext=2.50 minEig=0.9954 |h|=0.270  maxS=0.0006  |w|=0.0152 sat=   0 lawn=2.57  minF=1.66 | plant4: minEig=0.9971 sat=   0 minF=1.82
+   24-26   ext=2.50 minEig=0.9874 |h|=0.427  maxS=0.0007  |w|=0.0251 sat= 223 lawn=4.30  minF=1.11 | plant4: minEig=0.9911 sat=  68 minF=1.31
+   26-28   ext=2.50 minEig=0.9793 |h|=0.531  maxS=0.0015  |w|=0.0325 sat= 587 lawn=5.57  minF=0.79 | plant4: minEig=0.9826 sat= 486 minF=0.90
+   28-30   ext=2.50 minEig=0.9759 |h|=0.575  maxS=0.0019  |w|=0.0355 sat= 637 lawn=6.08  minF=0.69 | plant4: minEig=0.9780 sat= 624 minF=0.76
+   30-32   ext=2.50 minEig=0.9746 |h|=0.591  maxS=0.0021  |w|=0.0367 sat= 660 lawn=6.30  minF=0.68 | plant4: minEig=0.9760 sat= 680 minF=0.72
+   32-34   ext=1.98 minEig=0.9755 |h|=0.572  maxS=0.0021  |w|=0.0361 sat= 621 lawn=6.20  minF=1.46 | plant4: minEig=0.9768 sat= 607 minF=1.40
+   34-36   ext=0.52 minEig=0.9830 |h|=0.479  maxS=0.0020  |w|=0.0307 sat= 499 lawn=5.25  minF=3.00 | plant4: minEig=0.9836 sat= 426 minF=3.01
+   36-38   ext=0.00 minEig=0.9877 |h|=0.419  maxS=0.0017  |w|=0.0257 sat= 340 lawn=4.39  minF=3.55 | plant4: minEig=0.9884 sat= 343 minF=3.59
+   38-40   ext=0.00 minEig=0.9892 |h|=0.390  maxS=0.0014  |w|=0.0236 sat= 326 lawn=4.02  minF=3.63 | plant4: minEig=0.9895 sat= 287 minF=3.65
+   40-42   ext=0.00 minEig=0.9895 |h|=0.384  maxS=0.0011  |w|=0.0228 sat= 348 lawn=3.88  minF=3.65 | plant4: minEig=0.9898 sat= 318 minF=3.66
+   42-44   ext=0.00 minEig=0.9896 |h|=0.381  maxS=0.0006  |w|=0.0221 sat= 311 lawn=3.78  minF=3.66 | plant4: minEig=0.9899 sat= 297 minF=3.68
+   44-46   ext=0.00 minEig=0.9902 |h|=0.372  maxS=0.0007  |w|=0.0212 sat= 222 lawn=3.62  minF=3.69 | plant4: minEig=0.9905 sat= 190 minF=3.71
+   46-48   ext=0.00 minEig=0.9856 |h|=0.461  maxS=0.0013  |w|=0.0258 sat= 385 lawn=4.42  minF=3.40 | plant4: minEig=0.9869 sat= 308 minF=3.43
+   48-50   ext=0.00 minEig=0.9851 |h|=0.466  maxS=0.0024  |w|=0.0264 sat= 435 lawn=4.52  minF=3.37 | plant4: minEig=0.9856 sat= 449 minF=3.38
+   50-52   ext=0.00 minEig=0.9897 |h|=0.372  maxS=0.0020  |w|=0.0202 sat=  60 lawn=3.38  minF=3.68 | plant4: minEig=0.9901 sat=  35 minF=3.71
+   52-54   ext=0.00 minEig=0.9979 |h|=0.139  maxS=0.0004  |w|=0.0094 sat=   0 lawn=1.39  minF=4.48 | plant4: minEig=0.9979 sat=   0 minF=4.55
+   54-56   ext=0.00 minEig=0.9991 |h|=0.118  maxS=0.0002  |w|=0.0083 sat=   0 lawn=1.36  minF=4.60 | plant4: minEig=0.9985 sat=   0 minF=4.49
+   56-58   ext=0.00 minEig=0.9996 |h|=0.069  maxS=0.0001  |w|=0.0062 sat=   0 lawn=1.05  minF=4.75 | plant4: minEig=0.9992 sat=   0 minF=4.67
+   58-60   ext=0.00 minEig=0.9995 |h|=0.082  maxS=0.0001  |w|=0.0072 sat=   0 lawn=1.24  minF=4.72 | plant4: minEig=0.9992 sat=   0 minF=4.63
+   60-62   ext=0.00 minEig=0.9992 |h|=0.104  maxS=0.0001  |w|=0.0087 sat=   0 lawn=1.49  minF=4.63 | plant4: minEig=0.9987 sat=   0 minF=4.52
+
+lag scan (plant8 shifted vs plant4), residual rms after optimal shift:
+   14-20.0 s p4 dom 0.17 Hz amp~0.001 N   std=0.001
+   14-20.0 s p8 dom 0.17 Hz amp~0.001 N   std=0.001
+   14-20.0 s best lag=-6 ticks (-12 ms) corr0=0.999 corr=1.000  rms dF before=0.000 after=0.000
+   22-26.0 s p4 dom 2.50 Hz amp~0.637 N   std=0.574
+   22-26.0 s p8 dom 2.50 Hz amp~0.805 N   std=0.683
+   22-26.0 s best lag=+211 ticks (422 ms) corr0=0.977 corr=0.988  rms dF before=0.173 after=0.113
+   26-32.0 s p4 dom 2.00 Hz amp~1.479 N   std=1.088
+   26-32.0 s p8 dom 2.00 Hz amp~1.372 N   std=1.126
+   26-32.0 s best lag=+168 ticks (336 ms) corr0=-0.441 corr=0.909  rms dF before=1.879 after=0.470
+   32-40.0 s p4 dom 2.38 Hz amp~1.074 N   std=1.141
+   32-40.0 s p8 dom 2.25 Hz amp~1.109 N   std=1.134
+   32-40.0 s best lag=-121 ticks (-242 ms) corr0=-0.443 corr=0.995  rms dF before=1.933 after=0.116
+   40-52.0 s p4 dom 2.50 Hz amp~1.256 N   std=0.920
+   40-52.0 s p8 dom 2.50 Hz amp~1.315 N   std=0.933
+   40-52.0 s best lag=-141 ticks (-282 ms) corr0=-0.294 corr=0.951  rms dF before=1.491 after=0.290
+   54-63.8 s p4 dom 2.26 Hz amp~0.284 N   std=0.255
+   54-63.8 s p8 dom 2.26 Hz amp~0.210 N   std=0.187
+   54-63.8 s best lag=+249 ticks (498 ms) corr0=0.528 corr=0.991  rms dF before=0.223 after=0.071

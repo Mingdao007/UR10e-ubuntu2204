@@ -1,0 +1,3 @@
+0e8e8993c6642f18180a0d54656034c992e6626a07e7d6dc6d62e3d44269a632  /tmp/ygm/ref-normal-p16.json.gz
+68dcbee8550f9365961f196e110827ade1dac65fcd643bc6d905752fb380092c  /tmp/ygm/twin-nominal-p8-eps1e-9.json.gz
+6748229959d31c1492d59f23c66fec0cafd549d4b2216748e0cf8f0909804353  /tmp/ygm/twin-normal-p8-eps1e-9.json.gz

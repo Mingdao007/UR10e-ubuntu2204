@@ -1,0 +1,18 @@
+{
+  "goal_status": "active",
+  "dataset_role": "development",
+  "cells": 32,
+  "new_runs": 24,
+  "reused_runs": 8,
+  "formal_campaign_complete": false,
+  "live_executed": false,
+  "next_science": "Validate and repair shared normal observer with controlled identifiability checks",
+  "provider_writer": {
+    "status": "terminated",
+    "exit_code": 143,
+    "live_processes": false,
+    "partial_worktree": "/home/andy/.codex-worktrees/yield-provider-20260920",
+    "owner": "main",
+    "fallback_model": null
+  }
+}

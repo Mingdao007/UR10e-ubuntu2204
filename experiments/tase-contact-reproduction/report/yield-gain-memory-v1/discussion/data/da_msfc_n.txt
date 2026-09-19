@@ -1,0 +1,7 @@
+=== MSFC normal p8  (MSFC g=0.1717 mu=1228.1 m=4.0)
+ v-space: integrator gain g/m=0.0429 1/kg ; cubic coeff mu/g^3=2.428e+05 ; speed where cubic=1N: 16.0 mm/s
+ |w| max=0.0679  |v|=g|w| max=11.65 mm/s ; |u| median=0.350 max=1.789 N
+   0-20.0 s: |damp| median=0.0025 p99=0.3675 max=0.3851 N ; |u| median=0.037 p99=0.973 ; damp/u median=0.382 p99=1.247 ; |u_n| median=0.022 |u_t| median=0.011
+  20-36.0 s: |damp| median=0.0095 p99=0.0623 max=0.0673 N ; |u| median=0.674 p99=1.730 ; damp/u median=0.017 p99=0.449 ; |u_n| median=0.665 |u_t| median=0.092
+  36-52.0 s: |damp| median=0.0095 p99=0.0272 max=0.0301 N ; |u| median=0.857 p99=1.592 ; damp/u median=0.011 p99=0.103 ; |u_n| median=0.835 |u_t| median=0.189
+  52-63.8 s: |damp| median=0.0033 p99=0.0057 max=0.0059 N ; |u| median=0.173 p99=0.365 ; damp/u median=0.017 p99=0.254 ; |u_n| median=0.171 |u_t| median=0.016

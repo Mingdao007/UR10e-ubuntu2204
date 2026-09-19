@@ -1,0 +1,7 @@
+=== MSFC tangent p4  (MSFC g=0.1717 mu=1228.1 m=4.0)
+ v-space: integrator gain g/m=0.0429 1/kg ; cubic coeff mu/g^3=2.428e+05 ; speed where cubic=1N: 16.0 mm/s
+ |w| max=0.1259  |v|=g|w| max=21.61 mm/s ; |u| median=0.062 max=1.816 N
+   0-20.0 s: |damp| median=0.0025 p99=0.3665 max=0.3829 N ; |u| median=0.038 p99=0.951 ; damp/u median=0.389 p99=1.246 ; |u_n| median=0.022 |u_t| median=0.012
+  20-36.0 s: |damp| median=0.0759 p99=1.5513 max=1.5609 N ; |u| median=0.168 p99=1.739 ; damp/u median=0.700 p99=2.569 ; |u_n| median=0.019 |u_t| median=0.139
+  36-52.0 s: |damp| median=0.0038 p99=0.0120 max=0.0121 N ; |u| median=0.123 p99=0.543 ; damp/u median=0.044 p99=0.485 ; |u_n| median=0.101 |u_t| median=0.039
+  52-63.8 s: |damp| median=0.0026 p99=0.0031 max=0.0031 N ; |u| median=0.005 p99=0.025 ; damp/u median=0.547 p99=8.943 ; |u_n| median=0.004 |u_t| median=0.001

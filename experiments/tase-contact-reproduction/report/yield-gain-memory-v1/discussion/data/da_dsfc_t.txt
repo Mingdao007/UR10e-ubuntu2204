@@ -1,0 +1,7 @@
+=== DSFC tangent p4  (DSFC g=0.0642 mu=310.7 m=4.0)
+ v-space: integrator gain g/m=0.0160 1/kg ; cubic coeff mu/g^3=1.174e+06 ; speed where cubic=1N: 9.5 mm/s
+ |w| max=0.1615  |v|=g|w| max=10.37 mm/s ; |u| median=0.140 max=1.940 N
+   0-20.0 s: |damp| median=0.0241 p99=0.4352 max=0.4396 N ; |u| median=0.151 p99=0.537 ; damp/u median=0.129 p99=1.814 ; |u_n| median=0.064 |u_t| median=0.108
+  20-36.0 s: |damp| median=0.0718 p99=1.2738 max=1.3285 N ; |u| median=0.260 p99=1.818 ; damp/u median=0.273 p99=1.449 ; |u_n| median=0.122 |u_t| median=0.187
+  36-52.0 s: |damp| median=0.0116 p99=0.0783 max=0.0787 N ; |u| median=0.139 p99=0.274 ; damp/u median=0.116 p99=1.517 ; |u_n| median=0.071 |u_t| median=0.095
+  52-63.8 s: |damp| median=0.0049 p99=0.0060 max=0.0060 N ; |u| median=0.013 p99=0.044 ; damp/u median=0.363 p99=1.100 ; |u_n| median=0.006 |u_t| median=0.012

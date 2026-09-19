@@ -1,0 +1,12 @@
+{
+  "README.md": "e1c3f420d832abf60cf199563bee7f1e82753f5a065f2812e6a3d37c598f2455",
+  "manifest.json": "87e256a5b286d6fcc2bd232bebe62a8e30ed02a2784c730881adc7104b941a8b",
+  "memory-deltas.json": "ce8a38a5cc4f078ffb970afc2f3762dc7fa84591eab42a85fdf9fd756709d62f",
+  "normal-estimate-audit.json": "61daf7b5ca5158f8fe3a8a575eb59c691ca9af440aac974d0fac49327023c7d4",
+  "progress.json": "3872bfd72c7d3d26ba0b48d4e04cf5ab4ac3985cac4d24a499cb6757dccfe4b5",
+  "protocol.json": "b288344474deae087c37a1b8193b6fab7ca246c382bc19242944804ceaf79fbe",
+  "results.md": "e9fc14ec229d0c46e260ac26fabefb6120e251e77470bd2c3279b2e63584c5bb",
+  "summary.json": "1c83d28a0f2cddd4f5aabb8fae375f57ae9f5105ac028f0c737d9e72f5722086",
+  "transfer.pdf": "56c1c773bcd23b9da56bbc474682ec5fb4fce9d7ecec5393e022db315131b5e0",
+  "transfer.png": "6542787b6269986f78abe51e8a49352492d904f20ea404432da7345a071c2f12"
+}

@@ -1,0 +1,6 @@
+=== MSFC nominal Kz=0 p8 (MSFC)
+ normal-estimate error vs truth: RMS 6.76 deg, max 7.87 deg (t>=12s: RMS 6.83)
+ approach-prior error vs truth  : RMS 1.42 deg, max 1.91 deg
+ tangential bias of 5N target along true tangent: median 0.585 N, max 0.684 N  → /Kp(120) = 4.87 mm median
+ path error mm: RMS 1.030 (t>=12s 0.525), peak 4.436
+ force MAE all 0.1015 / t>=12s 0.0472 ; force err peak all 1.054 / t>=12s 0.183

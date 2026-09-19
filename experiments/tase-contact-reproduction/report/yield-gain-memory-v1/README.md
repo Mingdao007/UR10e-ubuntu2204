@@ -43,8 +43,9 @@ proposal，因为原 proposal 的 mu/g 不同。局部延迟模型仅作机制�
 及法向/摩擦的观测混淆，再决定修改或放弃；不无限增加控制器。
 之后仍需完整数值检查、原平台 transport/pilot、正式公平预算、独立验证及贡献判断。
 
-Fable 5.1/xhigh 本小时讨论在独立 discussion 目录运行，路由和 native model
-证据见 discussion-route.json；不阻塞主模型，不重复启动 writer。
+Fable 5.1/xhigh 第一轮讨论已完成，路由和 native model
+证据见 discussion-route.json；主模型核验与分歧见 discussion/main-adjudication.md。
+后续跨工况结果见 ../yield-transfer-v1/README.md。
 
 复算时从实验根目录运行，输出目录必须是新的：
 

@@ -1,0 +1,41 @@
+twin exact: max|dF| = 1.455e-06 N ; max|dP| = 3.375e-10 m
+
+limit-cycle frequency (36-52 s, zero-crossing count of band-passed force) and amplitude:
+  p4   f=2.4841 Hz  period=402.56 ms  cycles=39  amp(std*sqrt2)=1.297 N
+  p8   f=2.4936 Hz  period=401.03 ms  cycles=39  amp(std*sqrt2)=1.316 N
+  p16  f=2.4599 Hz  period=406.53 ms  cycles=38  amp(std*sqrt2)=1.328 N
+  Δf(p4-p8)=-0.0095 Hz  Δf(p8-p16)=0.0337 Hz  ratio=-0.28  (first-order ⇒ ~2)
+
+unwrapped phase difference (rad) of band-passed force vs time, referenced to p16:
+   t(s)   φ(p4)-φ(p16)   φ(p8)-φ(p16)
+   36.0     +3.491        +0.196
+   38.0     +4.646        +0.958
+   40.0     +4.913        +1.057
+   42.0     +5.165        +1.141
+   44.0     +5.404        +1.221
+   46.0     +5.578        +1.279
+   48.0     +6.183        +1.494
+   50.0     +6.388        +1.529
+   52.0     +9.756        +6.463
+  slope rad/s: p4-p16 +0.1482  p8-p16 +0.0594  → Δf 0.0236 / 0.0095 Hz
+
+invariants vs substeps:
+  p4   MAE=0.8489 peak=6.931 contact_loss=0.532 s (events=9, first=27.140 s) sat=7111 qp=5838  amp36-52=1.297 N f=2.4841 Hz
+  p8   MAE=0.8463 peak=6.953 contact_loss=0.668 s (events=11, first=26.292 s) sat=7648 qp=5833  amp36-52=1.316 N f=2.4936 Hz
+  p16  MAE=0.8438 peak=6.982 contact_loss=0.706 s (events=11, first=26.296 s) sat=7800 qp=5717  amp36-52=1.328 N f=2.4599 Hz
+
+ p4 joint-velocity clip (0.05 rad/s) ticks per joint: [0, 0, 0, 481, 0, 0]
+    0-20 s clip ticks=11
+   20-26 s clip ticks=76
+   26-32 s clip ticks=0
+   32-40 s clip ticks=50
+   40-52 s clip ticks=258
+   52-64 s clip ticks=86
+
+ p8 joint-velocity clip (0.05 rad/s) ticks per joint: [0, 0, 0, 479, 0, 0]
+    0-20 s clip ticks=10
+   20-26 s clip ticks=63
+   26-32 s clip ticks=0
+   32-40 s clip ticks=69
+   40-52 s clip ticks=266
+   52-64 s clip ticks=71
