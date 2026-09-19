@@ -1,0 +1,79 @@
+{
+  "SFC": {
+    "overruns": [
+      {
+        "tick": 0,
+        "wall_ms": 2.231148,
+        "cpu_ms": 2.229522,
+        "gc": [
+          {
+            "generation": 0,
+            "start_tick": 0,
+            "end_tick": 0,
+            "duration_ms": 0.049272,
+            "cpu_ms": 0.048872,
+            "collected": 0
+          }
+        ]
+      },
+      {
+        "tick": 1412,
+        "wall_ms": 22.455229,
+        "cpu_ms": 22.438826,
+        "gc": [
+          {
+            "generation": 2,
+            "start_tick": 1412,
+            "end_tick": 1412,
+            "duration_ms": 21.540326,
+            "cpu_ms": 21.526899,
+            "collected": 10606
+          }
+        ]
+      }
+    ],
+    "generation_2": [
+      {
+        "generation": 2,
+        "start_tick": 1412,
+        "end_tick": 1412,
+        "duration_ms": 21.540326,
+        "cpu_ms": 21.526899,
+        "collected": 10606
+      }
+    ]
+  },
+  "DSFC": {
+    "overruns": [
+      {
+        "tick": 14613,
+        "wall_ms": 25.991247,
+        "cpu_ms": 25.970828,
+        "gc": [
+          {
+            "generation": 2,
+            "start_tick": 14613,
+            "end_tick": 14613,
+            "duration_ms": 25.058171,
+            "cpu_ms": 25.042751,
+            "collected": 15096
+          }
+        ]
+      }
+    ],
+    "generation_2": [
+      {
+        "generation": 2,
+        "start_tick": 14613,
+        "end_tick": 14613,
+        "duration_ms": 25.058171,
+        "cpu_ms": 25.042751,
+        "collected": 15096
+      }
+    ]
+  },
+  "MSFC": {
+    "overruns": [],
+    "generation_2": []
+  }
+}

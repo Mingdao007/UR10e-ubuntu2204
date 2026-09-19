@@ -92,6 +92,7 @@ class YieldContactRuntime:
             "calibration": self.model.calibration_hash,
             "entry_duration_s": ENTRY_DURATION_S,
             "entry_boundary_policy": "continuous_sample_hold_v2",
+            "deadline_scope": "through_result_materialization_v2",
             "requested_settings": asdict(self.requested_settings),
             "cartesian_numerical_margin": self.cartesian_numerical_margin,
             "joint_numerical_margin": self.joint_numerical_margin,
@@ -185,25 +186,27 @@ class YieldContactRuntime:
         before = self.snapshot()
         try:
             self.controller.hold_pre_path_clock(time_s=obs["now"], dt_s=obs["dt"])
+            self._commit_clocks(obs)
+            self.paused_s += obs["dt"]
+            result = {
+                "policy": "pre_path_stationary_freeze_carry",
+                "reason": reason,
+                "paused_s": self.paused_s,
+                "sample_time_s": obs["now"],
+                "actual_dt_s": obs["dt"],
+                "actual_tcp_speed_m_s_rad_s": tuple(float(value) for value in speed),
+                "observation_age_s": obs["age"],
+                "age_band": obs["age_band"],
+                "freshness": self.freshness_summary(),
+            }
             elapsed = time.perf_counter() - started
+            result["runtime_wall_s"] = elapsed
             if self.deadline_s is not None and elapsed > self.deadline_s:
                 raise KernelDeadlineError("pause observation deadline exceeded")
+            return result
         except Exception:
             self.restore(before)
             raise
-        self._commit_clocks(obs)
-        self.paused_s += obs["dt"]
-        return {
-            "policy": "pre_path_stationary_freeze_carry",
-            "reason": reason,
-            "paused_s": self.paused_s,
-            "sample_time_s": obs["now"],
-            "actual_dt_s": obs["dt"],
-            "actual_tcp_speed_m_s_rad_s": tuple(float(value) for value in speed),
-            "observation_age_s": obs["age"],
-            "age_band": obs["age_band"],
-            "freshness": self.freshness_summary(),
-        }
 
     def _reference(self, *, phase, path_time_s, entry_time_s, force_reference_n):
         if phase not in ("baseline", "entry", "path"):
@@ -327,34 +330,37 @@ class YieldContactRuntime:
         before = self.snapshot()
         try:
             result = self.controller.step(observation, reference, dt)
+            self._commit_clocks(obs)
+            self.phase = phase
+            if phase == "entry":
+                self.last_entry_time = reference["entry_time_s"]
+            path_error_task = self.basis.T @ np.asarray(result["path_error_base_m"], dtype=float)
+            response = {
+                **result,
+                "pre_path_paused_s": self.paused_s,
+                "actual_dt_s": dt,
+                "actual_tcp_speed_m_s_rad_s": tuple(float(value) for value in speed),
+                "observation_age_s": age,
+                "age_band": obs["age_band"],
+                "freshness": self.freshness_summary(),
+                "raw_wrench_tcp": tuple(float(value) for value in wrench),
+                "jacobian_6x6": tuple(tuple(float(value) for value in row) for row in jacobian),
+                "jacobian_calibration_hash": self.model.calibration_hash,
+                "path_error_task_m": tuple(float(value) for value in path_error_task),
+                "entry_time_s": reference["entry_time_s"],
+                "formal_time_s": reference["path_time_s"] if phase == "path" else None,
+                "force_identity_n": float(self.controller.settings.target_force_n),
+                "claim_scope": CLAIM_SCOPE,
+            }
+            # Include output conversion and freshness reporting in the same
+            # deadline and rollback boundary as the controller computation.
             elapsed = time.perf_counter() - started
+            response["runtime_wall_s"] = elapsed
             if self.deadline_s is not None and elapsed > self.deadline_s:
                 raise KernelDeadlineError(f"observation-to-command deadline exceeded: {elapsed:.6f}s")
+            return response
         except Exception as exc:
             if _geometric_latency(exc):
                 self.freshness.geometric_latency_reject()
             self.restore(before)
             raise
-        self._commit_clocks(obs)
-        self.phase = phase
-        if phase == "entry":
-            self.last_entry_time = reference["entry_time_s"]
-        path_error_task = self.basis.T @ np.asarray(result["path_error_base_m"], dtype=float)
-        return {
-            **result,
-            "pre_path_paused_s": self.paused_s,
-            "runtime_wall_s": elapsed,
-            "actual_dt_s": dt,
-            "actual_tcp_speed_m_s_rad_s": tuple(float(value) for value in speed),
-            "observation_age_s": age,
-            "age_band": obs["age_band"],
-            "freshness": self.freshness_summary(),
-            "raw_wrench_tcp": tuple(float(value) for value in wrench),
-            "jacobian_6x6": tuple(tuple(float(value) for value in row) for row in jacobian),
-            "jacobian_calibration_hash": self.model.calibration_hash,
-            "path_error_task_m": tuple(float(value) for value in path_error_task),
-            "entry_time_s": reference["entry_time_s"],
-            "formal_time_s": reference["path_time_s"] if phase == "path" else None,
-            "force_identity_n": float(self.controller.settings.target_force_n),
-            "claim_scope": CLAIM_SCOPE,
-        }

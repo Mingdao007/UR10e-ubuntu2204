@@ -201,3 +201,38 @@ def test_outer_gate_failure_rolls_back_native_provider_transaction(lib,monkeypat
             control.step(output=output,sensor=replace(sensor,observed_at_s=100.002),
                 monotonic_s=100.002,command_sequence=1)
         assert provider.snapshot()==before
+
+
+@pytest.mark.parametrize("operation", ["command", "pause"])
+@pytest.mark.parametrize("failure", ["deadline", "serialization"])
+def test_output_materialization_is_inside_runtime_transaction(lib, monkeypatch, operation, failure):
+    from types import SimpleNamespace
+    import yield_contact_runtime as runtime_module
+    runtime, provider, output, sensor = setup(lib)
+    with runtime:
+        call(provider, output, sensor, 0)
+        before = provider.snapshot()
+        runtime.deadline_s = .0015
+        clock = [0.]
+        monkeypatch.setattr(runtime_module, "time", SimpleNamespace(perf_counter=lambda: clock[0]))
+        original_summary = runtime.freshness_summary
+        def delayed_summary():
+            if failure == "serialization":
+                raise RuntimeError("injected result conversion failure")
+            result = original_summary()
+            clock[0] += .002
+            return result
+        monkeypatch.setattr(runtime, "freshness_summary", delayed_summary)
+        error = KernelDeadlineError if failure == "deadline" else RuntimeError
+        with pytest.raises(error, match="deadline|conversion"):
+            if operation == "command":
+                call(provider, output, sensor, 1)
+            else:
+                output.received_monotonic_s = 100.002
+                output.timestamp = 1234.002
+                provider.pause(output=output, sensor=replace(sensor, observed_at_s=100.002),
+                    monotonic_s=100.002, actual_dt_s=.002, reason="test stationary seam")
+        assert provider.snapshot() == before
+        # Received-observation diagnostics are retained, even though no command
+        # or pause state is committed by the failed transaction.
+        assert original_summary()["observation_count"] == 2
