@@ -143,3 +143,61 @@ def test_irregular_entry_boundary_does_not_freeze_or_invent_zero(lib):
                 monotonic_s=now,actual_dt_s=.003,internal_setpoint_n=5.,**kwargs)
         assert runtime.controller.last_path_time_s==pytest.approx(.002)
         assert provider.last_result['formal_time_s']==pytest.approx(.002)
+
+
+def test_mature_qualification_entry_and_formal_clock_use_same_native_provider(lib,monkeypatch):
+    from test_contact_qualification_provider import _control,_successful_baseline
+    from step5d_autotune_v4_r004 import baseline_runtime
+    runtime,provider,output,sensor=setup(lib)
+    with runtime:
+        # Existing baseline provider state is carried into the state-25 seam.
+        call(provider,output,sensor,0)
+        control=_control(provider)
+        from step6_figure8_autotune_v1.live_composition import figure8_motion_profile
+        control.motion_profile=figure8_motion_profile()
+        control._contract.model_hashes=dict(provider.model_hashes)
+        control._last_monotonic_s=100.
+        control._origin_monotonic_s=100.
+        control._path_origin_monotonic_s=None
+        output.integer_echoes={26:25}
+        output.stationary=True
+        monkeypatch.setattr(baseline_runtime,'step_baseline',_successful_baseline)
+        phases=[]
+        for tick in range(1,31917):
+            now=100.+tick*.002
+            output.received_monotonic_s=now;output.timestamp=1234.+tick*.002
+            try:
+                command=control.step(output=output,sensor=replace(sensor,observed_at_s=now),
+                    monotonic_s=now,command_sequence=tick)
+            except Exception as error:
+                raise AssertionError({"tick":tick,"twist":provider.last_result.get("applied_twist_base"),
+                    "profile":control.motion_profile}) from error
+            phases.append(provider.last_result['phase'])
+            assert int(command.command_mode)==2  # same TP PATH transport mode
+            assert command.qdot==provider.last_result['qdot_rad_s']
+        assert phases[:500]==['entry']*500
+        assert phases[500:]==['path']*31416
+        assert provider.last_result['execution_time_s']==pytest.approx(63.830)
+        assert provider.last_result['formal_time_s']==pytest.approx(62.830)
+
+
+def test_outer_gate_failure_rolls_back_native_provider_transaction(lib,monkeypatch):
+    from test_contact_qualification_provider import _control,_successful_baseline
+    from step5d_autotune_v4_r004 import baseline_runtime
+    from step5d_autotune_v4_r004.qualification import QualificationControlError
+    runtime,provider,output,sensor=setup(lib)
+    with runtime:
+        call(provider,output,sensor,0)
+        before=provider.snapshot()
+        control=_control(provider)
+        # Deliberately mismatched binding exercises a post-provider failure.
+        control._contract.model_hashes={'calibration':'wrong'}
+        control._last_monotonic_s=100.;control._origin_monotonic_s=100.
+        control._path_origin_monotonic_s=None
+        output.integer_echoes={26:25};output.stationary=True
+        output.received_monotonic_s=100.002;output.timestamp=1234.002
+        monkeypatch.setattr(baseline_runtime,'step_baseline',_successful_baseline)
+        with pytest.raises(QualificationControlError,match='hash binding differs'):
+            control.step(output=output,sensor=replace(sensor,observed_at_s=100.002),
+                monotonic_s=100.002,command_sequence=1)
+        assert provider.snapshot()==before

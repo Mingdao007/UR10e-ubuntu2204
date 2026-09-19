@@ -1,0 +1,23 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+___ test_live_campaign_runs_only_three_qualifications_with_durable_prior_row ___
+tests/test_step5d_autotune_v4_r004_live_boundary.py:359: in test_live_campaign_runs_only_three_qualifications_with_durable_prior_row
+    assert writer.arm_ordinals == [1, 2, 3]
+E   assert [1, 2, 3, 4, 5, 6, ...] == [1, 2, 3]
+E     
+E     Left contains 13 more items, first extra item: 4
+E     Use -v to get more diff
+_______ test_real_path_timing_evidence_and_promotion_remain_fail_closed ________
+tests/test_step5d_autotune_v4_r004_live_boundary.py:485: in test_real_path_timing_evidence_and_promotion_remain_fail_closed
+    evidence = _evidence()
+tests/test_step5d_autotune_v4_r004_live_boundary.py:163: in _evidence
+    return collector.finalize(
+tools/step5d_autotune_v4_r004/evidence.py:1148: in finalize
+    motion = self._motion_metrics()
+tools/step5d_autotune_v4_r004/evidence.py:929: in _motion_metrics
+    raise EvidenceError(
+E   step5d_autotune_v4_r004.evidence.EvidenceError: force bins alone cannot prove motion; missing PATH evidence: desired XY, actual XY, path time, path phase, desired velocity, actual velocity, qdot, actual qd, source ages, source sequences
+=========================== short test summary info ============================
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_live_campaign_runs_only_three_qualifications_with_durable_prior_row
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_real_path_timing_evidence_and_promotion_remain_fail_closed
+2 failed, 15 deselected in 1.23s

@@ -1,0 +1,146 @@
+.......FF.FFFFF.FF                                                       [100%]
+=================================== FAILURES ===================================
+__ test_live_writer_cleanup_sends_stop_zeros_closes_routes_and_releases_lease __
+tools/step5d_autotune_v4_r004_live_writer.py:1284: in arm
+    output = self._prearm_output(allow_reconnect=allow_prearm_reconnect)
+tools/step5d_autotune_v4_r004_live_writer.py:1041: in _prearm_output
+    output = self._poll_checked(allow_prearm_epoch=True)
+tools/step5d_autotune_v4_r004_live_writer.py:874: in _poll_checked
+    output = rtde.poll_output(wait_s=wait_s)
+E   TypeError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+
+The above exception was the direct cause of the following exception:
+tests/test_step5d_autotune_v4_r004_live_boundary.py:296: in test_live_writer_cleanup_sends_stop_zeros_closes_routes_and_releases_lease
+    writer.arm(ordinal=1, kind=AttemptKind.QUALIFICATION, candidate_token=17, ledger=ledger)
+tools/step5d_autotune_v4_r004_live_writer.py:1361: in arm
+    raise LiveWriterError(str(exc)) from exc
+E   step5d_autotune_v4_r004_live_writer.LiveWriterError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+___ test_live_campaign_runs_only_three_qualifications_with_durable_prior_row ___
+tests/test_step5d_autotune_v4_r004_live_boundary.py:354: in test_live_campaign_runs_only_three_qualifications_with_durable_prior_row
+    assert writer.arm_ordinals == [1, 2, 3]
+E   assert [1, 2, 3, 4, 5, 6, ...] == [1, 2, 3]
+E     
+E     Left contains 13 more items, first extra item: 4
+E     Use -v to get more diff
+__________ test_live_writer_blocks_ordinal_four_before_any_rtde_write __________
+tools/step5d_autotune_v4_r004_live_writer.py:1284: in arm
+    output = self._prearm_output(allow_reconnect=allow_prearm_reconnect)
+tools/step5d_autotune_v4_r004_live_writer.py:1041: in _prearm_output
+    output = self._poll_checked(allow_prearm_epoch=True)
+tools/step5d_autotune_v4_r004_live_writer.py:874: in _poll_checked
+    output = rtde.poll_output(wait_s=wait_s)
+E   TypeError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+
+The above exception was the direct cause of the following exception:
+tests/test_step5d_autotune_v4_r004_live_boundary.py:414: in test_live_writer_blocks_ordinal_four_before_any_rtde_write
+    writer.arm(
+tools/step5d_autotune_v4_r004_live_writer.py:1361: in arm
+    raise LiveWriterError(str(exc)) from exc
+E   step5d_autotune_v4_r004_live_writer.LiveWriterError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+
+During handling of the above exception, another exception occurred:
+tests/test_step5d_autotune_v4_r004_live_boundary.py:413: in test_live_writer_blocks_ordinal_four_before_any_rtde_write
+    with pytest.raises(writer_cli.LiveWriterError, match="qualification-only"):
+E   AssertionError: Regex pattern did not match.
+E    Regex: 'qualification-only'
+E    Input: "FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'"
+__ test_fake_qualification_models_state21_canonical_control_and_real_evidence __
+tools/step5d_autotune_v4_r004_live_writer.py:1284: in arm
+    output = self._prearm_output(allow_reconnect=allow_prearm_reconnect)
+tools/step5d_autotune_v4_r004_live_writer.py:1041: in _prearm_output
+    output = self._poll_checked(allow_prearm_epoch=True)
+tools/step5d_autotune_v4_r004_live_writer.py:874: in _poll_checked
+    output = rtde.poll_output(wait_s=wait_s)
+E   TypeError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+
+The above exception was the direct cause of the following exception:
+tests/test_step5d_autotune_v4_r004_live_boundary.py:457: in test_fake_qualification_models_state21_canonical_control_and_real_evidence
+    writer.arm(
+tools/step5d_autotune_v4_r004_live_writer.py:1361: in arm
+    raise LiveWriterError(str(exc)) from exc
+E   step5d_autotune_v4_r004_live_writer.LiveWriterError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+_______ test_real_path_timing_evidence_and_promotion_remain_fail_closed ________
+tests/test_step5d_autotune_v4_r004_live_boundary.py:483: in test_real_path_timing_evidence_and_promotion_remain_fail_closed
+    evidence = _evidence()
+tests/test_step5d_autotune_v4_r004_live_boundary.py:155: in _evidence
+    return collector.finalize(
+tools/step5d_autotune_v4_r004/evidence.py:1148: in finalize
+    motion = self._motion_metrics()
+tools/step5d_autotune_v4_r004/evidence.py:929: in _motion_metrics
+    raise EvidenceError(
+E   step5d_autotune_v4_r004.evidence.EvidenceError: force bins alone cannot prove motion; missing PATH evidence: desired XY, actual XY, path time, path phase, desired velocity, actual velocity, qdot, actual qd, source ages, source sequences
+_______ test_gc_collection_precedes_arm_session_mutation_and_arm_packet ________
+tools/step5d_autotune_v4_r004_live_writer.py:1284: in arm
+    output = self._prearm_output(allow_reconnect=allow_prearm_reconnect)
+tools/step5d_autotune_v4_r004_live_writer.py:1041: in _prearm_output
+    output = self._poll_checked(allow_prearm_epoch=True)
+tools/step5d_autotune_v4_r004_live_writer.py:874: in _poll_checked
+    output = rtde.poll_output(wait_s=wait_s)
+E   TypeError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+
+The above exception was the direct cause of the following exception:
+tests/test_step5d_autotune_v4_r004_live_boundary.py:579: in test_gc_collection_precedes_arm_session_mutation_and_arm_packet
+    writer.arm(
+tools/step5d_autotune_v4_r004_live_writer.py:1361: in arm
+    raise LiveWriterError(str(exc)) from exc
+E   step5d_autotune_v4_r004_live_writer.LiveWriterError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+__ test_long_observable_gc_never_runs_after_arm_before_execute_packet_service __
+tests/test_step5d_autotune_v4_r004_live_boundary.py:650: in record_poll_checked
+    return poll_checked(*args, **kwargs)
+tools/step5d_autotune_v4_r004_live_writer.py:874: in _poll_checked
+    output = rtde.poll_output(wait_s=wait_s)
+E   TypeError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+
+The above exception was the direct cause of the following exception:
+tests/test_step5d_autotune_v4_r004_live_boundary.py:654: in test_long_observable_gc_never_runs_after_arm_before_execute_packet_service
+    writer.arm(
+tools/step5d_autotune_v4_r004_live_writer.py:1361: in arm
+    raise LiveWriterError(str(exc)) from exc
+E   step5d_autotune_v4_r004_live_writer.LiveWriterError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+_____ test_execute_attempt_restores_preexisting_gc_state_on_failure[True] ______
+tools/step5d_autotune_v4_r004_live_writer.py:1284: in arm
+    output = self._prearm_output(allow_reconnect=allow_prearm_reconnect)
+tools/step5d_autotune_v4_r004_live_writer.py:1041: in _prearm_output
+    output = self._poll_checked(allow_prearm_epoch=True)
+tools/step5d_autotune_v4_r004_live_writer.py:874: in _poll_checked
+    output = rtde.poll_output(wait_s=wait_s)
+E   TypeError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+
+The above exception was the direct cause of the following exception:
+tests/test_step5d_autotune_v4_r004_live_boundary.py:764: in test_execute_attempt_restores_preexisting_gc_state_on_failure
+    writer.arm(
+tools/step5d_autotune_v4_r004_live_writer.py:1361: in arm
+    raise LiveWriterError(str(exc)) from exc
+E   step5d_autotune_v4_r004_live_writer.LiveWriterError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+_____ test_execute_attempt_restores_preexisting_gc_state_on_failure[False] _____
+tools/step5d_autotune_v4_r004_live_writer.py:1284: in arm
+    output = self._prearm_output(allow_reconnect=allow_prearm_reconnect)
+tools/step5d_autotune_v4_r004_live_writer.py:1041: in _prearm_output
+    output = self._poll_checked(allow_prearm_epoch=True)
+tools/step5d_autotune_v4_r004_live_writer.py:874: in _poll_checked
+    output = rtde.poll_output(wait_s=wait_s)
+E   TypeError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+
+The above exception was the direct cause of the following exception:
+tests/test_step5d_autotune_v4_r004_live_boundary.py:764: in test_execute_attempt_restores_preexisting_gc_state_on_failure
+    writer.arm(
+tools/step5d_autotune_v4_r004_live_writer.py:1361: in arm
+    raise LiveWriterError(str(exc)) from exc
+E   step5d_autotune_v4_r004_live_writer.LiveWriterError: FakeLiveRTDETransport.poll_output() got an unexpected keyword argument 'wait_s'
+=============================== warnings summary ===============================
+../../../../../../opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115
+  /opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115: DeprecationWarning: private variables, such as '_ConstructUnits__ConstructUnitsValue', will be normal attributes in 3.11
+    __ConstructUnitsValue = collections.namedtuple('__ConstructUnitsValue', ['tag', 'conversion_constant'])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_live_writer_cleanup_sends_stop_zeros_closes_routes_and_releases_lease
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_live_campaign_runs_only_three_qualifications_with_durable_prior_row
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_live_writer_blocks_ordinal_four_before_any_rtde_write
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_fake_qualification_models_state21_canonical_control_and_real_evidence
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_real_path_timing_evidence_and_promotion_remain_fail_closed
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_gc_collection_precedes_arm_session_mutation_and_arm_packet
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_long_observable_gc_never_runs_after_arm_before_execute_packet_service
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_execute_attempt_restores_preexisting_gc_state_on_failure[True]
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_execute_attempt_restores_preexisting_gc_state_on_failure[False]
+9 failed, 9 passed, 1 warning in 12.97s

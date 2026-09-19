@@ -1,0 +1,15 @@
+...F                                                                     [100%]
+=================================== FAILURES ===================================
+__________ test_live_writer_blocks_ordinal_four_before_any_rtde_write __________
+tests/test_step5d_autotune_v4_r004_live_boundary.py:414: in test_live_writer_blocks_ordinal_four_before_any_rtde_write
+    with pytest.raises(writer_cli.LiveWriterError, match="qualification-only"):
+E   Failed: DID NOT RAISE <class 'step5d_autotune_v4_r004_live_writer.LiveWriterError'>
+=============================== warnings summary ===============================
+tests/test_step5d_autotune_v4_r004_live_boundary.py::test_path_clock_starts_at_tp_state25_not_early_path_command
+  /opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115: DeprecationWarning: private variables, such as '_ConstructUnits__ConstructUnitsValue', will be normal attributes in 3.11
+    __ConstructUnitsValue = collections.namedtuple('__ConstructUnitsValue', ['tag', 'conversion_constant'])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_live_writer_blocks_ordinal_four_before_any_rtde_write
+1 failed, 3 passed, 13 deselected, 1 warning in 7.55s

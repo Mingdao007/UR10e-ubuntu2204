@@ -781,8 +781,8 @@ class PathEvidenceCollector:
             self._last_common_clock = common_clock
         if identity is not None:
             self._seen_path_identities.add(identity)
-        if sample.path_time_s is not None and sample.path_time_s >= PATH_DURATION_MIN_S:
-            raise EvidenceError("r004 PATH sample must remain strictly before 60 s")
+        if sample.path_time_s is not None and sample.path_time_s >= self.REQUIRED_DURATION_S:
+            raise EvidenceError(f"r004 PATH sample must remain strictly before {self.REQUIRED_DURATION_S:g} s")
         if self._path_samples and sample.path_time_s is not None:
             previous_path_time = self._path_samples[-1].path_time_s
             if previous_path_time is not None:
@@ -964,7 +964,7 @@ class PathEvidenceCollector:
         )
         if canonical_duration < self.REQUIRED_DURATION_S:
             raise EvidenceError(
-                f"r004 path duration is {duration:.6f} s, below 60 s "
+                f"r004 path duration is {duration:.6f} s, below {self.REQUIRED_DURATION_S:g} s "
                 f"(observed_span={observed_span:.6f}, "
                 f"coverage_interval={coverage_interval_s:.6f}, "
                 f"physical_span={physical_span:.6f})"

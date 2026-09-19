@@ -1,0 +1,24 @@
+......F........                                                          [100%]
+=================================== FAILURES ===================================
+__ test_mature_qualification_entry_and_formal_clock_use_same_native_provider ___
+tools/step5d_autotune_v4_r004/qualification.py:711: in step
+    ).enforce_gate(pre_gate)
+tools/step5d_autotune_v4_r004/policies.py:92: in enforce_gate
+    raise RuntimeGuardError("provider output exceeds invariant envelope")
+E   step5d_autotune_v4_r004.runtime.RuntimeGuardError: provider output exceeds invariant envelope
+
+The above exception was the direct cause of the following exception:
+tests/test_contact_yield_provider.py:169: in test_mature_qualification_entry_and_formal_clock_use_same_native_provider
+    command=control.step(output=output,sensor=replace(sensor,observed_at_s=now),
+tools/step5d_autotune_v4_r004/qualification.py:765: in step
+    raise QualificationControlError(
+E   step5d_autotune_v4_r004.qualification.QualificationControlError: canonical V4 qualification tick failed: provider output exceeds invariant envelope
+=============================== warnings summary ===============================
+../../../../../../opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115
+  /opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115: DeprecationWarning: private variables, such as '_ConstructUnits__ConstructUnitsValue', will be normal attributes in 3.11
+    __ConstructUnitsValue = collections.namedtuple('__ConstructUnitsValue', ['tag', 'conversion_constant'])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_contact_yield_provider.py::test_mature_qualification_entry_and_formal_clock_use_same_native_provider
+1 failed, 14 passed, 1 warning in 3.22s

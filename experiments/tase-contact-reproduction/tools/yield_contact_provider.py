@@ -7,10 +7,12 @@ inactive and unqualified.
 from __future__ import annotations
 
 import math
+import copy
 
 import numpy as np
 
-from contact_benchmark_protocol import disturbance
+from contact_benchmark_protocol import disturbance, ENTRY_DURATION_S
+from contact_yield_protocol import PERIOD_S
 from contact_benchmark_provider import ContactReadinessObserver
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import CalibratedCommand
@@ -27,11 +29,62 @@ class YieldContactProvider:
         self.amplitude_n = amplitude_n
         self.last_result = None
 
-    def path_errors(self, *, actual_tcp_pose, path_time_s, motion_kp):
+    def snapshot(self):
+        return {"runtime": self.runtime.snapshot(), "last_result": copy.deepcopy(self.last_result)}
+
+    def restore(self, state):
+        self.runtime.restore(state["runtime"])
+        self.last_result = copy.deepcopy(state["last_result"])
+
+    @property
+    def command_normal_base(self):
+        return tuple(float(v) for v in self.runtime.controller.estimator.normal)
+
+    @staticmethod
+    def execution_phase(execution_time_s):
+        elapsed = float(execution_time_s)
+        if not math.isfinite(elapsed) or not 0 <= elapsed <= ENTRY_DURATION_S + PERIOD_S:
+            raise ValueError("execution clock outside entry plus full PATH")
+        if elapsed < ENTRY_DURATION_S:
+            return "entry", elapsed
+        return "path", elapsed - ENTRY_DURATION_S
+
+    def execution_path_errors(self, *, actual_tcp_pose, path_time_s, motion_kp):
+        phase, clock = self.execution_phase(path_time_s)
+        return self.path_errors(actual_tcp_pose=actual_tcp_pose, path_time_s=clock,
+                                motion_kp=motion_kp, phase=phase)
+
+    def execution_command(self, **kwargs):
+        """Mature state-25 elapsed clock includes entry; formal time does not."""
+        args = dict(kwargs)
+        execution_time_s = None
+        if args["mode"] == "path":
+            execution_time_s = float(args["path_time_s"])
+            phase, clock = self.execution_phase(execution_time_s)
+            args["mode"] = phase
+            if phase == "entry":
+                args["path_time_s"] = None
+                args["entry_time_s"] = clock
+            else:
+                args["path_time_s"] = clock
+        command = self.command(**args)
+        self.last_result["execution_time_s"] = execution_time_s
+        self.last_result["entry_duration_s"] = ENTRY_DURATION_S
+        self.last_result["formal_duration_s"] = PERIOD_S
+        return command
+
+    def path_errors(self, *, actual_tcp_pose, path_time_s, motion_kp, phase="path"):
         if not math.isfinite(motion_kp) or motion_kp <= 0:
             raise ValueError("invalid motion Kp")
         pose = np.asarray(actual_tcp_pose, dtype=float)
-        task_error = self.runtime.path_error_task_m(pose[:3], path_time_s)
+        if phase == "entry":
+            local = self.runtime.basis.T @ (pose[:3] - self.runtime.anchor)
+            reference = self.runtime.controller.task.entry_reference(path_time_s)
+            task_error = local - np.asarray(reference["position_m"])
+        elif phase == "path":
+            task_error = self.runtime.path_error_task_m(pose[:3], path_time_s)
+        else:
+            raise ValueError("invalid reference phase")
         omega = self.runtime.orientation_error_rad(rotvec_to_matrix(pose[3:]))
         return tuple(float(-value) for value in task_error[:2]), omega
 

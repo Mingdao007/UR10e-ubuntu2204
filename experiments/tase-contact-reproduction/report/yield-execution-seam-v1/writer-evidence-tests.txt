@@ -1,0 +1,23 @@
+......................F.F...
+=================================== FAILURES ===================================
+_________ test_path_clock_starts_at_tp_state25_not_early_path_command __________
+tests/test_step5d_autotune_v4_r004_live_boundary.py:42: in test_path_clock_starts_at_tp_state25_not_early_path_command
+    assert (
+E   AssertionError: assert 'state == 25\n                        and mode is CommandMode.PATH\n                        and self._path_command_started_mono_s is None' in '    def execute_attempt(\n        self,\n        attempt: Attempt,\n        *,\n        timeout_s: float = 180.0,\n  ...tail) from exc\n        finally:\n            if gc_was_enabled and not gc.isenabled():\n                gc.enable()\n'
+__ test_cached_state25_at_exact_path_end_uses_zero_path_fence_until_terminal ___
+tests/test_step5d_autotune_v4_r004_live_boundary.py:62: in test_cached_state25_at_exact_path_end_uses_zero_path_fence_until_terminal
+    assert "path_end_fence = path_elapsed_s >= 60.0" in source
+E   AssertionError: assert 'path_end_fence = path_elapsed_s >= 60.0' in '    def execute_attempt(\n        self,\n        attempt: Attempt,\n        *,\n        timeout_s: float = 180.0,\n  ...tail) from exc\n        finally:\n            if gc_was_enabled and not gc.isenabled():\n                gc.enable()\n'
+=============================== warnings summary ===============================
+../../../../../../opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115
+  /opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115: DeprecationWarning: private variables, such as '_ConstructUnits__ConstructUnitsValue', will be normal attributes in 3.11
+    __ConstructUnitsValue = collections.namedtuple('__ConstructUnitsValue', ['tag', 'conversion_constant'])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_path_clock_starts_at_tp_state25_not_early_path_command
+FAILED tests/test_step5d_autotune_v4_r004_live_boundary.py::test_cached_state25_at_exact_path_end_uses_zero_path_fence_until_terminal
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004_live_writer.py:1091: KeyboardInterrupt
+(to show a full traceback on KeyboardInterrupt use --full-trace)
+2 failed, 26 passed, 1 warning in 286.64s (0:04:46)

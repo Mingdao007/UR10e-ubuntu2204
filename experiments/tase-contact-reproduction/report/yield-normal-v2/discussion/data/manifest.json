@@ -1,0 +1,37 @@
+{
+ "schema": "yield-normal-v2-discussion-round2-manifest",
+ "role": "advisory read-only postprocessing; development data; no closed-loop runs; not retained receipts",
+ "model": "claude-fable-5-1 (xhigh)",
+ "base_commit": "ef55d7f9",
+ "source_receipts_sha256": {
+  "runs/yield-offset-ablation/DSFC-nominal.json.gz": "eadaddc8080ab312df2b70e349d228021aa2b39153c314598c99aba06e6d674c",
+  "runs/yield-offset-ablation/DSFC-sustained_release_tangent.json.gz": "41301e4be54a257037eebf30079c52dd3776790a173fa4fd08ea4104bfae4956",
+  "runs/yield-transfer-v1/DSFC-stiff_low_mu-sustained_release_normal.json.gz": "a99ed3a75efe54c571e2486a9285cc5041d215092aa3bf140dabf98171443b39",
+  "runs/yield-transfer-v1/DSFC-compliant_high_mu-nominal.json.gz": "21fa73cf68d5d9ace5a3fab58b4102a95f7988886ca7879f25b670f62a8adb9d",
+  "runs/yield-transfer-v1/DSFC-compliant_high_mu-sustained_release_normal.json.gz": "a9f6d6cf83e285e6c5abfaefe3211a7e59bed96ff2da84b0f72f639ff2321ade",
+  "runs/yield-transfer-v1/DSFC-compliant_high_mu-sustained_release_tangent.json.gz": "975ed9ac2843b9f4e1f1ef2fa2b7c3bb6e6f463f1c0671acb2362f468753d789",
+  "runs/yield-normal-v2/DSFC-stiff_low_mu-nominal.json.gz": "d438d62d3db08764bc5113debe4332838e95dd0abb2d5867b0561144d20f1078",
+  "runs/yield-normal-v2/DSFC-stiff_low_mu-sustained_release_normal.json.gz": "e94215e33472505557ab697cb6bc359109c786f4f143312098320fc9f843cb95",
+  "runs/yield-normal-v2/DSFC-compliant_high_mu-nominal.json.gz": "d2d4d42741fe6e8aebe53c6ca3ae4e58957f901c23f37261d9de3d2cff289f24",
+  "runs/yield-normal-v2/DSFC-compliant_high_mu-sustained_release_normal.json.gz": "d5831bc28e0ec0bf1a98cd0a79e4eebe49d1f412a35b3e0dac68aa6a75c7499b",
+  "runs/yield-normal-forceoff-v1/DSFC-stiff_low_mu-nominal.json.gz": "a6157e58437dbc535f4c58f68703cb7f01ab6dba640768149ee90b8eda6c4986",
+  "runs/yield-normal-forceoff-v1/DSFC-stiff_low_mu-sustained_release_normal.json.gz": "659d36b79f7e07542f5641bb6b0aca37d6a227f994d2b79283c3b9615b7c9e76",
+  "runs/yield-normal-forceoff-v1/DSFC-compliant_high_mu-nominal.json.gz": "85c112ce9977bf4d21702eb4da999e0c0646c2ac224d6b5ee7859640b96215b1",
+  "runs/yield-normal-forceoff-v1/DSFC-compliant_high_mu-sustained_release_normal.json.gz": "0a8cbf3c760390766b8cb5532dfac3c5a17f6ab1165a7b9bc184c1ef9f8cf23a"
+ },
+ "files_sha256": {
+  "data/binned-1s.json": "55c06de958577286adc741b4725fd2d7f6b6100019af397db4b1bde7c651c558",
+  "data/geometry.json": "dfded31db492633e26a1cc0c7901ed07938f1b55115bad72ecbc3d39efa52663",
+  "data/observer-replay.json": "a6e038f6b09a61e3a65de2a875b91384e4ad5145e7796e235c0d9fc3cd1192ef",
+  "data/rectification-demo.json": "5cc4c41d6ffcce8f3f71d9658e2c35cfb79119294a098e071a897fa896876461",
+  "data/two-residual-replay.json": "fdd379e42a4407660dfce8669c02a5ed1380b185af616374e1e0a2b722f2ee88",
+  "discussion.md": "1f4027ccda004e3254c6499c1f0bc1e5b2de2b4490924c967928db5543b6d5a6",
+  "scripts/binned.py": "50e9d51074dfd9ef23723f5c266aebbeb590abf24cd1fec659422ade0a5f21e5",
+  "scripts/extract_ticks.py": "ab09110d5593f3aa38a524190b89b270fcf272a4c76546b121799e3f113283ae",
+  "scripts/geometry.py": "2ecd2d05a95ca5107315d3872fb0c4922d073d20c4ce25a21bca438d56340f6a",
+  "scripts/observer_replay.py": "55a02b933e15ba0013329fdb4210906adffc12f57412f5edd0558f33ca9dd5d2",
+  "scripts/rectification_demo.py": "0eba6bfa8b25e95f78d41144a7eadd40d57ba5771042516a991dbde0c7f3dce1",
+  "scripts/two_residual_replay.py": "64483ef211ba677e1349363abee6063fefc6e1559bbfec06900f04779944960d"
+ },
+ "cache": "/tmp/ynv2 (per-tick npz extracted from receipts, not retained)"
+}

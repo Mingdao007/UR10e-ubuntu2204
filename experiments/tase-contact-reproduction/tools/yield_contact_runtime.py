@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 import hashlib
 import json
+from dataclasses import asdict, replace
 import time
 from pathlib import Path
 from typing import Any, Mapping
@@ -20,7 +21,7 @@ from contact_benchmark_kernel import KernelDeadlineError
 from contact_benchmark_outer import finite
 from contact_benchmark_protocol import ENTRY_DURATION_S, SensorFreshnessTracker
 from contact_benchmark_runtime import validate_measured_observation
-from contact_qp import QpSolverProfile
+from contact_qp import QpSolverProfile, QP_EQUALITY_VALIDATION_TOLERANCE, QP_BOUND_VALIDATION_TOLERANCE
 from contact_yield_controller import YieldController, YieldControllerError, YieldSettings
 from contact_yield_math import so3_log, transported_roll_anchor, require_rotation
 from contact_yield_protocol import CLAIM_SCOPE, law_seed_parameters
@@ -60,11 +61,24 @@ class YieldContactRuntime:
         self.basis = require_rotation(task_basis, "task basis").copy()
         if abs(float(np.linalg.det(self.basis)) - 1.0) > 1e-6:
             raise ValueError("task basis must be a right-handed rotation")
+        self.requested_settings = settings or YieldSettings()
+        # A coordinatewise QP equality error epsilon can add sqrt(3)*epsilon
+        # to a Cartesian norm. Reserve twice that bound before solving;
+        # retain the existing strict post-solve safety envelope unchanged.
+        self.cartesian_numerical_margin = 2.0 * math.sqrt(3.0) * QP_EQUALITY_VALIDATION_TOLERANCE
+        self.joint_numerical_margin = 2.0 * QP_BOUND_VALIDATION_TOLERANCE
+        guarded_caps = {}
+        for key in ("normal_speed_cap_m_s", "tangent_speed_cap_m_s", "angular_speed_cap_rad_s"):
+            cap = getattr(self.requested_settings, key) - self.cartesian_numerical_margin
+            if cap <= 0:
+                raise ValueError("command cap leaves no QP numerical margin")
+            guarded_caps[key] = cap
+        guarded_settings = replace(self.requested_settings, **guarded_caps)
         self.controller = YieldController(
             method=method,
             qp_library=qp_library,
             approach_inward_base=approach_inward_base,
-            settings=settings or YieldSettings(),
+            settings=guarded_settings,
             law_parameters=law_parameters or law_seed_parameters(method),
             dt_s=dt_s,
             qp_deadline_s=0.001 if deadline_s is not None else None,
@@ -78,6 +92,9 @@ class YieldContactRuntime:
             "calibration": self.model.calibration_hash,
             "entry_duration_s": ENTRY_DURATION_S,
             "entry_boundary_policy": "continuous_sample_hold_v2",
+            "requested_settings": asdict(self.requested_settings),
+            "cartesian_numerical_margin": self.cartesian_numerical_margin,
+            "joint_numerical_margin": self.joint_numerical_margin,
         }, sort_keys=True).encode()).hexdigest()
         self.last_sample_s = None
         self.last_controller_timestamp = None
@@ -303,8 +320,8 @@ class YieldContactRuntime:
             "raw_torque_base_nm": tuple(rotation @ wrench[3:]),
             "software_injection_base_n": tuple(self.basis @ injection),
             "jacobian": jacobian,
-            "joint_velocity_lower": lower,
-            "joint_velocity_upper": upper,
+            "joint_velocity_lower": lower + self.joint_numerical_margin,
+            "joint_velocity_upper": upper - self.joint_numerical_margin,
             "linear_velocity_base_m_s": tuple(speed[:3]),
         }
         before = self.snapshot()

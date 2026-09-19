@@ -232,6 +232,8 @@ class LiveWriterError(RuntimeError):
 class PacketHistoryEntry:
     published_at_s: float
     qdot: tuple[float, float, float, float, float, float]
+    reference_phase: str | None = None
+    reference_time_s: float | None = None
 
 
 class BoundedPacketHistory:
@@ -245,12 +247,24 @@ class BoundedPacketHistory:
         self._last_recorded_sequence = -1
         self._last_consumed_sequence = -1
 
+    @staticmethod
+    def validate_reference(reference_phase, reference_time_s):
+        if reference_phase not in (None, "baseline", "entry", "path"):
+            raise LiveWriterError("packet reference phase is invalid")
+        if reference_phase in ("entry", "path"):
+            if reference_time_s is None or not math.isfinite(reference_time_s) or reference_time_s < 0:
+                raise LiveWriterError("packet reference clock is invalid")
+        elif reference_time_s is not None:
+            raise LiveWriterError("unphased/baseline packet has no reference clock")
+
     def record(
         self,
         sequence: int,
         *,
         published_at_s: float,
         qdot: Sequence[float],
+        reference_phase: str | None = None,
+        reference_time_s: float | None = None,
     ) -> None:
         if sequence <= self._last_recorded_sequence:
             raise LiveWriterError("packet history record sequence did not advance")
@@ -260,7 +274,9 @@ class BoundedPacketHistory:
         published = float(published_at_s)
         if not math.isfinite(published):
             raise LiveWriterError("packet history publish time is invalid")
-        self._entries[sequence] = PacketHistoryEntry(published, values)  # type: ignore[arg-type]
+        self.validate_reference(reference_phase, reference_time_s)
+        self._entries[sequence] = PacketHistoryEntry(
+            published, values, reference_phase, reference_time_s)  # type: ignore[arg-type]
         self._last_recorded_sequence = sequence
         while len(self._entries) > self.limit:
             self._entries.pop(next(iter(self._entries)))
@@ -696,7 +712,10 @@ class LiveR004Writer:
         proposed_qdot: Sequence[float] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         internal_setpoint_n: float = 1.0,
         structural_stop: bool = False,
+        reference_phase: str | None = None,
+        reference_time_s: float | None = None,
     ) -> WirePacket:
+        BoundedPacketHistory.validate_reference(reference_phase, reference_time_s)
         rtde, _kunwei = self._transport_pair()
         mode = CommandMode.STOP if self._stopped else command_mode
         packet = build_wire_packet(
@@ -718,6 +737,8 @@ class LiveR004Writer:
             packet.sequence,
             published_at_s=published_at,
             qdot=packet.double_values[13:19],
+            reference_phase=reference_phase if mode not in {CommandMode.HOLD, CommandMode.STOP} else None,
+            reference_time_s=reference_time_s if mode not in {CommandMode.HOLD, CommandMode.STOP} else None,
         )
         self._packet_sequence += 1
         return packet
@@ -1380,9 +1401,20 @@ class LiveR004Writer:
             path_requested=path_requested,
             canonical_runtime_only=self._canonical_runtime_only,
         )
-        path_collector = (
-            PathEvidenceCollector(require_path_boundary=True) if path_requested else None
-        )
+        contact_provider = getattr(self._qualification_control, "contact_command_provider", None)
+        entry_aware = callable(getattr(contact_provider, "execution_command", None))
+        formal_duration_s = self._path_duration_s
+        if entry_aware and path_requested:
+            from yield_contact_evidence import YieldPathEvidenceCollector
+            from contact_yield_protocol import PERIOD_S
+            formal_duration_s = PERIOD_S
+            path_collector = YieldPathEvidenceCollector(
+                require_path_boundary=True,
+                published_reference_lookup=self._packet_history.consumed)
+        else:
+            path_collector = (
+                PathEvidenceCollector(require_path_boundary=True) if path_requested else None
+            )
         qualification_collector = QualificationEvidenceCollector() if not path_requested else None
         qualification_timing = TimingEvidenceCollector()
         self._r013_path_end_requested = False
@@ -1446,7 +1478,7 @@ class LiveR004Writer:
                 path_end_fence = False
                 if state == 25 and self._path_command_started_mono_s is not None:
                     path_elapsed_s = max(0.0, now - self._path_command_started_mono_s)
-                    path_end_fence = path_elapsed_s >= self._path_duration_s
+                    path_end_fence = path_elapsed_s >= formal_duration_s
                 if state == 25 and self._path_rtde_origin_s is not None:
                     path_clock_time_s = max(0.0, output.timestamp - self._path_rtde_origin_s)
                 if state in {21, 25}:
@@ -1473,13 +1505,24 @@ class LiveR004Writer:
                     # still owns a bounded stationary dwell before state 25.
                     # Starting here during state 21 skips that dwell from the
                     # trajectory and under-reports the observed 60 s window.
+                    consumed_formal = True
+                    if entry_aware and state == 25 and mode is CommandMode.PATH:
+                        consumed_formal = (self._packet_history.consumed(
+                            output.consumed_packet_sequence).reference_phase == "path")
                     if (
                         state == 25
                         and mode is CommandMode.PATH
+                        and consumed_formal
                         and self._path_command_started_mono_s is None
                     ):
-                        self._path_command_started_mono_s = now
-                        path_elapsed_s = 0.0
+                        if entry_aware:
+                            # Command time starts after entry. Coverage below
+                            # starts at an actual consumed PATH echo, separately.
+                            self._path_command_started_mono_s = (
+                                now - contact_provider.last_result["formal_time_s"])
+                        else:
+                            self._path_command_started_mono_s = now
+                        path_elapsed_s = now - self._path_command_started_mono_s
                         path_clock_time_s = 0.0
                         self._path_rtde_origin_s = output.timestamp
                         if self._host_hard_tube is not None:
@@ -1549,11 +1592,25 @@ class LiveR004Writer:
                     qdot = (0.0,) * 6
                 packet: WirePacket | None = None
                 if state not in {78, 80, 90}:
+                    reference_kwargs = {}
+                    provider = getattr(self._qualification_control, "contact_command_provider", None)
+                    if (state == 25 and mode is CommandMode.PATH and not path_end_fence
+                        and callable(getattr(provider, "execution_command", None))):
+                        result = provider.last_result
+                        if (not isinstance(result, dict) or result.get("sample_time_s") != now
+                            or tuple(result.get("qdot_rad_s", ())) != tuple(qdot)):
+                            raise LiveWriterError("published yield command lacks its matching reference")
+                        reference_kwargs = {
+                            "reference_phase": result["phase"],
+                            "reference_time_s": (result["entry_time_s"] if result["phase"] == "entry"
+                                                 else result["formal_time_s"]),
+                        }
                     packet = self._send_packet(
                         sensor,
                         command_mode=mode,
                         proposed_qdot=qdot,
                         internal_setpoint_n=setpoint,
+                        **reference_kwargs,
                     )
                 source_sequences: dict[str, Any] = {}
                 source_ages: dict[str, float] = {}
@@ -1608,18 +1665,37 @@ class LiveR004Writer:
                         state == 25
                         and self._path_command_started_mono_s is not None
                         and path_elapsed_s is not None
-                        and path_elapsed_s < self._path_duration_s
+                        # At the generation fence, this received frame may
+                        # still echo the final valid PATH command. Retain it
+                        # by consumed phase/clock, not the just-published stop.
+                        and (entry_aware or path_elapsed_s < formal_duration_s)
                         and path_clock_time_s is not None
-                        and path_clock_time_s < self._path_duration_s
+                        and path_clock_time_s < formal_duration_s
                         and len(source_sequences) == 4
                         and len(source_ages) == 4
                     ):
                         path_time_s = path_clock_time_s
-                        reference = step5_path_reference(
-                            "step5d_strict_rnn_autotune_v1",
-                            tuple(output.tcp_pose_m_rad[:2]),
-                            path_time_s,
-                        )
+                        if entry_aware:
+                            if consumed_entry.reference_phase != "path":
+                                raise LiveWriterError("formal observation did not consume a PATH command")
+                            task_reference = contact_provider.runtime.controller.task.reference(
+                                consumed_entry.reference_time_s)
+                            anchor = contact_provider.runtime.anchor
+                            basis = contact_provider.runtime.basis
+                            position = anchor + basis @ task_reference["position_m"]
+                            velocity = basis @ task_reference["velocity_m_s"]
+                            reference = {
+                                "desired_xy": tuple(position[:2]),
+                                "desired_velocity_xy": tuple(velocity[:2]),
+                                "path_time_s": path_time_s,
+                                "phase_rad": 0.1 * consumed_entry.reference_time_s,
+                            }
+                        else:
+                            reference = step5_path_reference(
+                                "step5d_strict_rnn_autotune_v1",
+                                tuple(output.tcp_pose_m_rad[:2]),
+                                path_time_s,
+                            )
                         sample_kwargs = {
                             "desired_xy_m": tuple(reference["desired_xy"]),
                             "actual_xy_m": tuple(output.tcp_pose_m_rad[:2]),
@@ -1640,7 +1716,7 @@ class LiveR004Writer:
                     if state != 25 or (
                         sample_kwargs
                         and sample_kwargs.get("path_time_s") is not None
-                        and float(sample_kwargs["path_time_s"]) < self._path_duration_s
+                        and float(sample_kwargs["path_time_s"]) < formal_duration_s
                     ):
                         observed_path_sample = PathSample(
                             observed_at_s=now,
@@ -1658,7 +1734,7 @@ class LiveR004Writer:
                             and self._path_sample_sink is not None
                             and observed_path_sample.state == 25
                             and observed_path_sample.path_time_s is not None
-                            and observed_path_sample.path_time_s < self._path_duration_s
+                            and observed_path_sample.path_time_s < formal_duration_s
                         ):
                             self._path_sample_sink(observed_path_sample)
                 if state in {78, 80, 90}:

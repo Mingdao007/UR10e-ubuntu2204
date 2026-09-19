@@ -37,13 +37,12 @@ from step5d_eoat_profiles import load_new_eoat_profile
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_path_clock_starts_at_tp_state25_not_early_path_command() -> None:
-    source = inspect.getsource(writer_cli.LiveR004Writer.execute_attempt)
-    assert (
-        "state == 25\n"
-        "                        and mode is CommandMode.PATH\n"
-        "                        and self._path_command_started_mono_s is None"
-    ) in source
+def test_path_clock_starts_at_tp_state25_not_early_path_command(tmp_path, monkeypatch) -> None:
+    from test_contact_yield_writer_loop import exercise_writer_loop
+    evidence, samples, clock = exercise_writer_loop(tmp_path, monkeypatch)
+    assert samples[0].observed_at_s >= 1.0
+    assert samples[0].path_time_s == 0.0
+    assert evidence.metrics["entry_in_formal_coverage"] is False
 
 
 def test_path_evidence_uses_common_tp_rtde_boundary_clock() -> None:
@@ -56,19 +55,13 @@ def test_path_evidence_uses_common_tp_rtde_boundary_clock() -> None:
     assert "accepted_path_sample = path_collector.observe(observed_path_sample)" in source
 
 
-def test_cached_state25_at_exact_path_end_uses_zero_path_fence_until_terminal() -> None:
-    source = inspect.getsource(writer_cli.LiveR004Writer.execute_attempt)
-    assert "path_elapsed_s = max(0.0, now - self._path_command_started_mono_s)" in source
-    assert "path_end_fence = path_elapsed_s >= 60.0" in source
-    assert "if path_end_fence:" in source
-    assert "mode = CommandMode.PATH" in source
-    assert "setpoint = 5.0" in source
-    assert "qdot = (0.0,) * 6" in source
-    assert "and path_elapsed_s < 60.0" in source
-    assert 'float(sample_kwargs["path_time_s"]) < 60.0' in source
-    assert "observed_path_sample.path_time_s < 60.0" in source
-    assert "if state in {78, 80, 90}:" in source
-    assert source.index("if path_end_fence:") < source.index("self._qualification_control.step")
+def test_cached_state25_at_exact_path_end_uses_zero_path_fence_until_terminal(tmp_path, monkeypatch) -> None:
+    from test_contact_yield_writer_loop import exercise_writer_loop
+    evidence, samples, clock = exercise_writer_loop(tmp_path, monkeypatch, entry_aware=False, cached_at_end=True)
+    assert evidence.path_duration_s >= 60.0
+    assert samples[-1].path_time_s < 60.0
+    assert 60.0 <= clock.t < 60.02
+    assert clock.cache_injected
 
 
 def _triplet() -> dict[str, str]:
@@ -284,8 +277,10 @@ def test_r004_uses_canonical_resource_and_rejects_second_writer(tmp_path: Path) 
 def test_live_writer_cleanup_sends_stop_zeros_closes_routes_and_releases_lease(tmp_path: Path) -> None:
     contract = load_contract()
     events: list[str] = []
+    clock = [0.01]
+    def advance(duration): clock[0] += duration
     rtde = FakeLiveRTDETransport(contract, events=events)
-    kunwei = FakeLiveKunweiTransport(events=events, observed_clock=lambda: 0.01)
+    kunwei = FakeLiveKunweiTransport(events=events, observed_clock=lambda: clock[0])
     writer = writer_cli.LiveR004Writer(
         _prerequisites(),
         authority_root=tmp_path / "authority",
@@ -294,7 +289,8 @@ def test_live_writer_cleanup_sends_stop_zeros_closes_routes_and_releases_lease(t
         controller_transport=rtde,
         kunwei_transport=kunwei,
         wall_clock=lambda: 100.0,
-        mono_clock=lambda: 0.01,
+        mono_clock=lambda: clock[0],
+        sleep=advance,
     )
     writer.open(live_ack=writer_cli.LIVE_ACK, now_s=100.0)
     ledger = DurableCampaignLedger(tmp_path / "ledger.jsonl")
@@ -396,6 +392,8 @@ def test_live_campaign_interruption_resume_retries_same_ordinal_with_new_identit
 
 
 def test_live_writer_blocks_ordinal_four_before_any_rtde_write(tmp_path: Path) -> None:
+    clock = [0.01]
+    def advance(duration): clock[0] += duration
     contract = load_contract()
     rtde = FakeLiveRTDETransport(contract)
     kunwei = FakeLiveKunweiTransport()
@@ -407,7 +405,8 @@ def test_live_writer_blocks_ordinal_four_before_any_rtde_write(tmp_path: Path) -
         controller_transport=rtde,
         kunwei_transport=kunwei,
         wall_clock=lambda: 100.0,
-        mono_clock=lambda: 0.01,
+        mono_clock=lambda: clock[0],
+        sleep=advance,
     )
     writer.open(live_ack=writer_cli.LIVE_ACK, now_s=100.0)
     before = len(rtde.sent_packets)

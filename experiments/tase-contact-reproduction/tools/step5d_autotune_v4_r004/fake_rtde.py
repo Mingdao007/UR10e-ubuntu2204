@@ -195,7 +195,7 @@ class FakeLiveRTDETransport:
             self._state = 78
             self._return_guard = 127
 
-    def poll_output(self) -> R004OutputSnapshot | None:
+    def poll_output(self, *, wait_s: float = 0.0) -> R004OutputSnapshot | None:
         if not self.opened:
             raise RuntimeError("Fake r004 RTDE is not open")
         value = self._queue.popleft() if self._queue else self._mapping()

@@ -1,0 +1,21 @@
+.......F........                                                         [100%]
+=================================== FAILURES ===================================
+________ test_outer_gate_failure_rolls_back_native_provider_transaction ________
+tests/test_contact_yield_provider.py:203: in test_outer_gate_failure_rolls_back_native_provider_transaction
+    assert provider.snapshot()==before
+E   AssertionError: assert {'last_result...s': 0.0, ...}} == {'last_result...': None, ...}}
+E     
+E     Differing items:
+E     {'runtime': {'controller': {'filter': {'filtered_force_base_n': [1.2259503457865376e-15, -1.0407229247352042e-15, 4.99...9ddfe23d0cc8c89a65475571d880bef0d2e93b657fa1e2', 'last_controller_timestamp': 1234.002, 'last_entry_time_s': 0.0, ...}} != {'runtime': {'controller': {'filter': {'filtered_force_base_n': [1.2259503457865376e-15, -1.0407229247352042e-15, 4.99...b9ddfe23d0cc8c89a65475571d880bef0d2e93b657fa1e2', 'last_controller_timestamp': 1234.0, 'last_entry_time_s': None, ...}}
+E     {'last_result': {'actual_dt_s': 0.001999999999995339, 'actual_tcp_speed_m_s_...
+E     
+E     ...Full output truncated (2 lines hidden), use '-vv' to show
+=============================== warnings summary ===============================
+../../../../../../opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115
+  /opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115: DeprecationWarning: private variables, such as '_ConstructUnits__ConstructUnitsValue', will be normal attributes in 3.11
+    __ConstructUnitsValue = collections.namedtuple('__ConstructUnitsValue', ['tag', 'conversion_constant'])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_contact_yield_provider.py::test_outer_gate_failure_rolls_back_native_provider_transaction
+1 failed, 15 passed, 1 warning in 60.98s (0:01:00)

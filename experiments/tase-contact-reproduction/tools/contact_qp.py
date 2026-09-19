@@ -12,6 +12,10 @@ import time
 import numpy as np
 
 
+QP_EQUALITY_VALIDATION_TOLERANCE = 1e-6
+QP_BOUND_VALIDATION_TOLERANCE = 1e-7
+
+
 class QpError(RuntimeError):
     pass
 
@@ -125,7 +129,7 @@ class NativeContactQp:
             raise QpError("nonfinite native QP solution")
         residual = float(np.max(np.abs(jac @ self._out_x - vel)))
         violation = float(max(0, np.max(lo-self._out_x), np.max(self._out_x-hi)))
-        if residual > 1e-6 or violation > 1e-7:
+        if residual > QP_EQUALITY_VALIDATION_TOLERANCE or violation > QP_BOUND_VALIDATION_TOLERANCE:
             raise QpError(f"QP command validation failed: equality={residual}, bounds={violation}")
         self.x[:] = self._out_x
         self.y[:] = self._out_y

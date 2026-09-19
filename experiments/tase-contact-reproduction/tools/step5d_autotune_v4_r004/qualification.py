@@ -229,6 +229,8 @@ class CanonicalQualificationControl:
         monotonic_s: float,
         command_sequence: int,
     ) -> QualificationCommand:
+        provider_checkpoint = None
+        provider_restore = None
         try:
             from step5d_autotune_v4_r004.baseline_runtime import (
                 BaselineHardLimits,
@@ -472,8 +474,12 @@ class CanonicalQualificationControl:
                         motion_kp=self.candidate.motion_kp,
                     )
                 else:
+                    # An entry-aware provider maps the state-25 execution
+                    # clock to entry/formal PATH without moving the TP seam.
+                    error_provider = getattr(self.contact_command_provider,
+                        "execution_path_errors", self.contact_command_provider.path_errors)
                     tangential_error, orientation_error = (
-                        self.contact_command_provider.path_errors(
+                        error_provider(
                             actual_tcp_pose=output.tcp_pose_m_rad,
                             path_time_s=path_time_s,
                             motion_kp=self.candidate.motion_kp,
@@ -499,7 +505,13 @@ class CanonicalQualificationControl:
                 self.last_path_entry_rate_limit = None
                 self.last_tube_cbf = None
                 self.last_baseline_residual = None
-                calibrated = self.contact_command_provider.command(
+                command_provider = getattr(self.contact_command_provider,
+                    "execution_command", self.contact_command_provider.command)
+                provider_snapshot = getattr(self.contact_command_provider, "snapshot", None)
+                provider_restore = getattr(self.contact_command_provider, "restore", None)
+                if callable(provider_snapshot) and callable(provider_restore):
+                    provider_checkpoint = provider_snapshot()
+                calibrated = command_provider(
                     output=output,
                     sensor=sensor,
                     monotonic_s=now,
@@ -546,7 +558,7 @@ class CanonicalQualificationControl:
                     self._contract,
                     qdot=calibrated.qdot,
                     jacobian_6x6=calibrated.jacobian_6x6,
-                    normal_base=(0.0, 0.0, 1.0),
+                    normal_base=getattr(self.contact_command_provider, "command_normal_base", (0.0, 0.0, 1.0)),
                     observed_model_hashes=calibrated.observed_model_hashes,
                     motion_profile=self.motion_profile,
                 )
@@ -754,8 +766,12 @@ class CanonicalQualificationControl:
                 canonical_reason="",
             )
         except QualificationControlError:
+            if provider_checkpoint is not None:
+                provider_restore(provider_checkpoint)
             raise
         except Exception as exc:
+            if provider_checkpoint is not None:
+                provider_restore(provider_checkpoint)
             raise QualificationControlError(
                 f"canonical V4 qualification tick failed: {exc}"
             ) from exc
