@@ -1,0 +1,6 @@
+stiff_low_mu approach 1.3573596594459358 False
+stiff_low_mu along_10deg 9.3798556904947 False
+stiff_low_mu across_10deg 9.699728283666948 False
+compliant_high_mu approach 1.2857887387727969 False
+compliant_high_mu along_10deg 9.27702454892356 False
+compliant_high_mu across_10deg 9.672605753919337 False

@@ -1,0 +1,14 @@
+{
+  "README.md": "f51215ccec7c50228e40dd0a6b36a6766197b723bf9acaf7e7921f55f27ef837",
+  "campaign.txt": "559ca1aafa9fe1eb825b72ef7424b5c185e8c0ba6adb05427cfbcf121baf4ec4",
+  "parallel_run_manifest.json": "121758de9b172e6fe2eb285534d37decc1de814ed553b5417cb3aed7c0bff8c3",
+  "parallel_run_start.json": "c96d3dd321ea42fbdf0ede743e78d067954d28b26fc40930dfebba9e37af5d79",
+  "prior-frozen-tests.txt": "2bb4f92a22e652df60be1dc7b1054eeacf1ba82d0ae270520975cac141263edf",
+  "prior-results.json": "0aff18b55f8d5a6de9293a7289867c2583d32b609031b9b946a945f82daf9c22",
+  "prior-results.md": "462e8de7088f5adea5f146a6f432c3498d05a4b238674a78239a65a77ee848e9",
+  "prior-tests.txt": "265053d5befe232bf643b986e484c5ae8cc1b7f4a889286213cf769b319a71e6",
+  "protocol.json": "48f364d4ce42793cd31d0c6b61b3953c9bdcc3660075f080554bbe6a5ef6910f",
+  "regression-tests.txt": "3d5fc8840e3a446cce3bc734b81bcb27d94b33030648e9ebbd9720e95ad7f565",
+  "state-task-verification.json": "54caa5d4abf02a950e80b3044a93f4a5a6a7594aa0d97b0f6ba744dd5a05f902",
+  "state-task-verification.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

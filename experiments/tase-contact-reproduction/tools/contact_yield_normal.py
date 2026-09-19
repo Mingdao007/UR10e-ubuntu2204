@@ -27,6 +27,7 @@ class NormalEstimator:
         self,
         approach_inward_base: Any,
         *,
+        initial_inward_normal_base: Any | None = None,
         contact_force_n: float = 1.0,
         excitation_m_s: float = 0.002,
         motion_gain: float = 8.0,
@@ -44,8 +45,13 @@ class NormalEstimator:
         for value in (self.motion_normalization_floor_m_s, self.motion_rate_cap_rad_s):
             if value is not None and value <= 0:
                 raise NormalEstimatorError("optional motion normalization and rate cap must be positive")
-        self.normal = normalize_unit(approach_inward_base, name="approach_inward_base")
-        self.approach = self.normal.copy()
+        self.approach = normalize_unit(approach_inward_base, name="approach_inward_base")
+        self.initial_inward_normal_base = (None if initial_inward_normal_base is None
+            else require_unit_vector(initial_inward_normal_base, "initial_inward_normal_base"))
+        # This is estimator uncertainty only. The physical approach, path,
+        # plant and contact surface retain their original frame.
+        self.normal = (self.approach.copy() if self.initial_inward_normal_base is None
+                       else self.initial_inward_normal_base.copy())
         self.contact_force_n = finite_scalar(contact_force_n, "contact_force_n")
         self.excitation_m_s = finite_scalar(excitation_m_s, "excitation_m_s")
         self.motion_gain = finite_scalar(motion_gain, "motion_gain")
@@ -56,16 +62,15 @@ class NormalEstimator:
         if any(value <= 0.0 for value in (
             self.contact_force_n,
             self.excitation_m_s,
-            self.motion_gain,
             self.min_force_n,
         )):
-            raise NormalEstimatorError("normal-estimator thresholds and motion gain must be positive")
+            raise NormalEstimatorError("normal-estimator thresholds must be positive")
         if self.force_correction_max_rad < 0.0 or self.assumed_friction_mu < 0.0:
             raise NormalEstimatorError("friction-bias bounds must be nonnegative")
-        if self.force_correction_gain < 0.0:
-            raise NormalEstimatorError("force correction gain must be nonnegative")
+        if self.force_correction_gain < 0.0 or self.motion_gain < 0.0:
+            raise NormalEstimatorError("normal-estimator gains must be nonnegative")
 
-    def parameters(self) -> dict[str, float]:
+    def parameters(self) -> dict[str, Any]:
         parameters = {
             "contact_force_n": self.contact_force_n,
             "excitation_m_s": self.excitation_m_s,
@@ -76,6 +81,8 @@ class NormalEstimator:
             "min_force_n": self.min_force_n,
         }
 
+        if self.initial_inward_normal_base is not None:
+            parameters["initial_inward_normal_base"] = self.initial_inward_normal_base.tolist()
         if self.motion_normalization_floor_m_s is not None:
             parameters["motion_normalization_floor_m_s"] = self.motion_normalization_floor_m_s
         if self.motion_rate_cap_rad_s is not None:
@@ -114,7 +121,7 @@ class NormalEstimator:
         excitation_gate = tangent_speed >= self.excitation_m_s
         motion_applied = False
         force_applied = False
-        if contact_gate and excitation_gate:
+        if contact_gate and excitation_gate and self.motion_gain > 0.0:
             # Projected gradient of 0.5 (n·v)^2 on the unit sphere.
             residual = float(np.dot(self.normal, velocity))
             if self.motion_normalization_floor_m_s is None:
