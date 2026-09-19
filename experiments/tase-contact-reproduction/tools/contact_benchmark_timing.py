@@ -100,6 +100,7 @@ def _owner_packets(*, now_s: float, age_s: float, pose: tuple[float, ...], q: tu
 
     output = SimpleNamespace(
         observed_at_s=float(now_s),
+        received_monotonic_s=float(now_s),  # synthetic receive clock, not live evidence
         timestamp=float(now_s),
         safety_mode=1,
         safety_normal=True,

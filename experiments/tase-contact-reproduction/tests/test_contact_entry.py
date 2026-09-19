@@ -175,6 +175,7 @@ def test_provider_entry_is_explicit_and_never_injects_disturbance():
     provider = ContactCommandProvider(runtime=runtime, model_hashes={}, scenario="normal_pulse", amplitude_n=3.0)
     output = SimpleNamespace(
         observed_at_s=10.0,
+        received_monotonic_s=10.0,
         timestamp=10.0,
         safety_mode=1,
         safety_normal=True,
