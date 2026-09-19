@@ -1,0 +1,10 @@
+{
+  "version": "MSFC-GM-v1-g50-on",
+  "status": "development_candidate_only",
+  "source_protocol": "report/yield-gain-memory-v1/protocol.json",
+  "hardware_qualified": false,
+  "candidate_parameters_sha256": "ce57a52d411804d416eaa454b7964d1e301fc18a4fa64fbaa3cf5c72b170688c",
+  "new_law_equation": false,
+  "change": "native output gain halved; memory and common outer unchanged",
+  "remaining": "tangent/pulse/material transfer and fair independent validation"
+}

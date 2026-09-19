@@ -1,0 +1,21 @@
+{
+  "round": 1,
+  "max_iterations_this_round": 2,
+  "requested_model": "Fable 5.1",
+  "runtime_model": "claude-fable-5-1",
+  "requested_effort": "xhigh",
+  "effort_evidence": "verified launch arguments; not separate server attestation",
+  "route": "ubuntu-homepool",
+  "session_id": "eb3c0d45-15a9-41ca-8064-a49f30d1f24e",
+  "session_metadata": "/home/andy/.claude-homepool/projects/-home-andy--codex-worktrees-contact-yield-recovery-20260920-experiments-tase-contact-reproduction/eb3c0d45-15a9-41ca-8064-a49f30d1f24e.jsonl",
+  "prompt_file": "/tmp/yield-fable-discussion-v1.md",
+  "started_utc": "2026-09-19T21:15:41.010212+00:00",
+  "write_scope": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/yield-gain-memory-v1/discussion",
+  "blocking": false,
+  "status": "running",
+  "next_round": "1-1.5 active hours later only with substantive new evidence",
+  "process_pid": 44818,
+  "wrapper_pid": 44815,
+  "tool_session_id": 58656,
+  "last_verified_live_utc": "2026-09-19T21:29:56.724392+00:00"
+}
