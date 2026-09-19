@@ -11687,7 +11687,7 @@
     "active": false,
     "status": "offline_mechanism_evaluated_not_live_qualified",
     "report": "report/contact-yield-recovery-20260920/README.md",
-    "latest_development_report": "report/yield-transfer-v1/README.md",
+    "latest_development_report": "report/yield-normal-v2/README.md",
     "protocol": "config/contact_yield_protocol.json",
     "controllers": [
       "SFC",

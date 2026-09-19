@@ -1,0 +1,14 @@
+{
+  "README.md": "d4b8ac163cc9d5fe0ad2396ac6a3e0a88276e9125a3007acd4ff622350027868",
+  "comparison.json": "9c25c172e00a30fc063cf01bc2597628e1dcb9ecb2c223fd8c995928f39b2bcf",
+  "forceoff-completion.json": "4998df6644f249a9a0b838c99b1674ac1de7fc93078992d2c5a4d16b120b363e",
+  "forceoff-protocol.json": "4f2649257e4b952b100d2964f9f66ea7203b6490d45e23d7d6b3033540d1967e",
+  "forceoff-summary.json": "9d197eb827eca6a0db4df6e7a392b177b603d619b8b3a244190608e546df986c",
+  "friction-balance.json": "1a638061dd2b7a32788434a8a09bbcc1356cbf81affbd773724243d83a61eeda",
+  "normalized-completion-recovery.json": "0a76849a55df212944fc7148fa5b501cadce705efa6872d9f5377fb8dcde8513",
+  "normalized-protocol.json": "c1e47940243aa2ad32aad005f21f8a5e049194838002415d4dde50d634192888",
+  "normalized-summary.json": "16ffe61af3278cc2ab1ef5577ac87690a15db72417fdb1f4cb2074f58f3fc434",
+  "progress.json": "494b2f73ce1121dc57347b06a0bc55f062ca46bbee54e6fa7a018c9df8053a66",
+  "results.md": "eb4cb851bf5606ff7cb4e38246000a321b3df13cf91065109054a01e7217d451",
+  "tests.txt": "2a09988855a832ce5c00417659db5f388e0fad8dd9d83edff7720aef25c63490"
+}

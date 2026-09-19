@@ -77,6 +77,7 @@ class YieldContactRuntime:
             "anchor_m": self.anchor.tolist(), "basis": self.basis.tolist(),
             "calibration": self.model.calibration_hash,
             "entry_duration_s": ENTRY_DURATION_S,
+            "entry_boundary_policy": "continuous_sample_hold_v2",
         }, sort_keys=True).encode()).hexdigest()
         self.last_sample_s = None
         self.last_controller_timestamp = None
@@ -198,11 +199,6 @@ class YieldContactRuntime:
             raise ValueError("invalid phase transition; no return from path to baseline")
         if phase == "entry" and self.phase not in ("baseline", "entry"):
             raise ValueError("entry requires baseline phase")
-        if phase == "path" and self.phase == "entry" and (
-            self.last_entry_time is None
-            or not math.isclose(self.last_entry_time, ENTRY_DURATION_S, rel_tol=0.0, abs_tol=1e-10)
-        ):
-            raise ValueError("formal PATH requires completed entry")
         target_force = self.controller.settings.target_force_n if force_reference_n is None else float(force_reference_n)
         if not math.isfinite(target_force):
             raise ValueError("contact reference must be finite")
@@ -214,8 +210,8 @@ class YieldContactRuntime:
             if path_time_s is None:
                 raise ValueError("formal PATH clock is required")
             path_t = float(path_time_s)
-            if self.phase != "path" and abs(path_t) > 1e-10:
-                raise ValueError("formal PATH must start at zero")
+            if self.phase != "path" and path_t < 0:
+                raise ValueError("formal PATH clock must be nonnegative")
             reference = self.controller.task.reference(path_t)
             entry_t = self.last_entry_time
         elif phase == "entry":
@@ -225,7 +221,7 @@ class YieldContactRuntime:
             entry_t = entry_time_s if entry_time_s is not None else path_time_s
             if entry_t is None:
                 raise ValueError("entry clock is required")
-            if not math.isfinite(entry_t) or not 0 <= entry_t <= ENTRY_DURATION_S + 1e-10:
+            if not math.isfinite(entry_t) or not 0 <= entry_t < ENTRY_DURATION_S:
                 raise ValueError("entry clock outside one-second entry")
             if self.phase == "baseline" and entry_t > 1e-10:
                 raise ValueError("entry clock must start at zero")
@@ -277,6 +273,15 @@ class YieldContactRuntime:
             raise ValueError("disturbance requires formal PATH phase")
         rotation = rotvec_to_matrix(pose[3:])
         jacobian = tcp_jacobian_base(self.model, q, tcp[:3])
+        if phase == "path" and self.phase == "entry":
+            # The last entry sample is normally at 0.998 s. Its 2 ms command
+            # hold completes the one-second entry; do not add a duplicate
+            # endpoint command at 1.000 s before PATH time zero.
+            if (self.last_entry_time is None or path_time_s is None
+                or not 0 <= float(path_time_s) < dt + 1e-10
+                or not math.isclose(self.last_entry_time + dt,
+                    ENTRY_DURATION_S + float(path_time_s), rel_tol=0.0, abs_tol=1e-10)):
+                raise ValueError("formal PATH requires completed entry with continuous clock")
         if phase == "entry" and self.phase == "entry":
             entry_clock = entry_time_s if entry_time_s is not None else path_time_s
             if entry_clock is None or not math.isclose(

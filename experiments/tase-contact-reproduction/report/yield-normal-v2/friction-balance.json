@@ -1,0 +1,42 @@
+[
+  {
+    "variant": "legacy",
+    "material": "stiff_low_mu",
+    "source_sha256": "eadaddc8080ab312df2b70e349d228021aa2b39153c314598c99aba06e6d674c",
+    "window": "PATH >=5s, posthoc diagnostic, complete metrics unchanged",
+    "tangent_force_rms_n": 0.0763813225090645,
+    "restoring_rms_n": 0.10725151219752303,
+    "net_tangent_law_input_rms_n": 0.06215662317028018,
+    "estimated_frame_path_rms_m": 0.0008937626016460252
+  },
+  {
+    "variant": "legacy",
+    "material": "compliant_high_mu",
+    "source_sha256": "21fa73cf68d5d9ace5a3fab58b4102a95f7988886ca7879f25b670f62a8adb9d",
+    "window": "PATH >=5s, posthoc diagnostic, complete metrics unchanged",
+    "tangent_force_rms_n": 0.17025647596857907,
+    "restoring_rms_n": 0.20275328361497058,
+    "net_tangent_law_input_rms_n": 0.08045465379752545,
+    "estimated_frame_path_rms_m": 0.0016896106967914217
+  },
+  {
+    "variant": "NO-forceoff-v1",
+    "material": "stiff_low_mu",
+    "source_sha256": "a6157e58437dbc535f4c58f68703cb7f01ab6dba640768149ee90b8eda6c4986",
+    "window": "PATH >=5s, posthoc diagnostic, complete metrics unchanged",
+    "tangent_force_rms_n": 0.5935435848049443,
+    "restoring_rms_n": 0.5985106145997149,
+    "net_tangent_law_input_rms_n": 0.020124797783993897,
+    "estimated_frame_path_rms_m": 0.004987588454997624
+  },
+  {
+    "variant": "NO-forceoff-v1",
+    "material": "compliant_high_mu",
+    "source_sha256": "85c112ce9977bf4d21702eb4da999e0c0646c2ac224d6b5ee7859640b96215b1",
+    "window": "PATH >=5s, posthoc diagnostic, complete metrics unchanged",
+    "tangent_force_rms_n": 1.4294391932956594,
+    "restoring_rms_n": 1.441972262400786,
+    "net_tangent_law_input_rms_n": 0.028509256534652163,
+    "estimated_frame_path_rms_m": 0.01201643552000655
+  }
+]

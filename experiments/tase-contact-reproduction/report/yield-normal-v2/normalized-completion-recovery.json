@@ -1,0 +1,20 @@
+{
+  "contract_id": "ur10e_concurrency_contract_v1",
+  "task": "NO-v2 observer development",
+  "dependencies": [
+    "TR-v1 DSFC baseline",
+    "NO-v2 focused tests"
+  ],
+  "resource_lane": "CPU throughput",
+  "workers": 4,
+  "claim_class": "simulator_only_development",
+  "started_at": "2026-09-19T22:02:23.487789+00:00",
+  "exit_code": 1,
+  "output_paths": [
+    "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-normal-v2"
+  ],
+  "scientific_cells_complete": true,
+  "recording_error": "FileExistsError while exclusively writing completion over start manifest",
+  "recovered_at": "2026-09-19T22:04:05.372840+00:00",
+  "recovery": "verified summary and all four raw hashes; no experiment rerun"
+}

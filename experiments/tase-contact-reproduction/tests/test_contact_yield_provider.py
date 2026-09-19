@@ -51,16 +51,16 @@ def test_full_ramp_stationary_seam_entry_path_and_memory_carry(lib):
         assert after != before
         before['time_s'] = after['time_s']
         assert before == after
-        for i in range(501):
+        for i in range(500):
             call(provider,output,sensor,i+6,mode='entry',entry_time_s=i*.002)
-        command = call(provider,output,sensor,507,mode='path',path_time_s=0.)
+        command = call(provider,output,sensor,506,mode='path',path_time_s=0.)
         assert command.qdot == provider.last_result['qdot_rad_s']
         assert provider.last_result['formal_time_s'] == 0.
         assert runtime.paused_s == pytest.approx(.002)
-        call(provider,output,sensor,508,mode='path',path_time_s=.002)
+        call(provider,output,sensor,507,mode='path',path_time_s=.002)
         state = runtime.snapshot()
         with pytest.raises(ValueError,match='return'):
-            call(provider,output,sensor,509)
+            call(provider,output,sensor,508)
         assert state == runtime.snapshot()
 
 
@@ -126,3 +126,20 @@ def test_first_interval_cannot_be_silently_replaced(lib):
             provider.command(output=output,sensor=sensor,monotonic_s=100.,
                 actual_dt_s=.003,mode='baseline',internal_setpoint_n=1.)
         assert before==runtime.snapshot()
+
+
+def test_irregular_entry_boundary_does_not_freeze_or_invent_zero(lib):
+    runtime,provider,output,sensor=setup(lib)
+    with runtime:
+        call(provider,output,sensor,0)
+        call(provider,output,sensor,1,mode='entry',entry_time_s=0.)
+        # 3 ms acquisition intervals do not land on exactly 1 s.
+        for i in range(1,335):
+            now=100.002+i*.003
+            output.received_monotonic_s=now;output.timestamp=1234.002+i*.003
+            kwargs=({'mode':'entry','entry_time_s':i*.003} if i<334
+                    else {'mode':'path','path_time_s':i*.003-1.})
+            provider.command(output=output,sensor=replace(sensor,observed_at_s=now),
+                monotonic_s=now,actual_dt_s=.003,internal_setpoint_n=5.,**kwargs)
+        assert runtime.controller.last_path_time_s==pytest.approx(.002)
+        assert provider.last_result['formal_time_s']==pytest.approx(.002)

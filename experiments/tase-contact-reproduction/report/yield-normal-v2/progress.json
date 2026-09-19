@@ -1,0 +1,12 @@
+{
+  "goal_status": "active",
+  "new_full_cycles": 8,
+  "retained_cells": 4,
+  "normalization_candidate_adopted": false,
+  "forceoff_candidate_adopted": false,
+  "dataset_role": "development",
+  "live_executed": false,
+  "tests_passed": 155,
+  "next_science": "Separate contact friction effects from yielding through a shared measurable outer-loop design; assess normal-motion contamination",
+  "next_platform": "Couple entry and formal PATH clocks across mature control and RTDE/TP evidence boundary"
+}

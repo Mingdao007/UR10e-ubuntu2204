@@ -14,7 +14,9 @@ completion or substitute model is claimed. See writer-failure.json.
 - Shared measured-observation admission preserves raw wrench limits, active TCP/payload/CoG,
   real host-monotonic receive age, 20/80 ms semantics, and calibrated Jacobian.
 - YieldContactRuntime drives baseline, explicit one-second entry, and PATH. It rejects
-  skipped entry, entry-clock jumps, return to baseline, and nonzero initial PATH time.
+  skipped entry, entry-clock jumps, and return to baseline. The first formal PATH time
+  preserves the actual boundary crossing (zero for an exact 2 ms grid; 2 ms for
+  the tested 3 ms grid) instead of freezing time or inventing a zero sample.
 - The pre-PATH stationary seam carries native memory/filter/normal/integral/QP state,
   advancing only the explicit observed clock. It cannot pause an active PATH.
 - The baseline force ramp is opt-in, bounded to 0..5 N, and included in controller identity.
@@ -52,3 +54,16 @@ will be counted as measured human or contact force.
 Route remains inactive. Admission still requires current platform/tool/package identity,
 complete transport qualification, measured execution timing, and actual contact pilot.
 The shared normal observer defect and unverified plant assumptions remain research work.
+
+## Entry boundary correction
+
+Main inspection found an extra-sample defect in v1: requiring a last entry sample
+at exactly 1.000 s would delay formal PATH by one hold interval. The final sample
+at 0.998 s plus its 2 ms hold now completes entry. Nonintegral sample intervals
+carry their actual elapsed formal time. Runtime identity names this policy v2.
+Six focused adapter checks pass, including 2 ms and 3 ms boundaries.
+
+The mature writer still binds coverage to first TP state-25 / RTDE echo, builds
+legacy XY references, and starts its duration fence there. Entry-aware control,
+coverage boundary, complete-duration fence, and reference generation must be
+changed together before activation. This correction does not claim that integration.

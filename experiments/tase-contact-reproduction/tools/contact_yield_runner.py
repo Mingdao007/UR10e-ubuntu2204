@@ -8,6 +8,7 @@ from contact_semantics import orientation_axis_angle_error
 from contact_yield_controller import YieldController, YieldSettings
 from contact_yield_kinematics import load_kinematics
 from contact_yield_math import projector_tangent
+from contact_yield_normal import NormalEstimator
 from contact_yield_metrics import summarize_trial
 from contact_yield_protocol import (CLAIM_SCOPE, DEFAULT_DT_S, DIAGNOSTIC_DURATION_S,
     EXPERIMENT_ROOT, PERIOD_S, QP_LIBRARY_PATH, Task, law_seed_parameters, protocol)
@@ -23,7 +24,7 @@ def serial(value):
     return value
 
 def make_system(*,method,material,dt_s,timeline,qp_library=QP_LIBRARY_PATH,
-                build_root=None,require_ur10e=True,law_parameters=None,settings=None,plant_substeps=None):
+                build_root=None,require_ur10e=True,law_parameters=None,settings=None,plant_substeps=None,estimator_parameters=None):
     kinematics=load_kinematics(require_ur10e=require_ur10e)
     home=json.loads(HOME_PATH.read_text())
     q=np.asarray(home['home_q'] if kinematics.kind=='ur10e_calibrated_pinocchio'
@@ -39,13 +40,14 @@ def make_system(*,method,material,dt_s,timeline,qp_library=QP_LIBRARY_PATH,
     if kinematics.kind!='ur10e_calibrated_pinocchio':plant.rotation=rotation.copy()
     controller=YieldController(method=method,qp_library=qp_library,approach_inward_base=approach,
         settings=settings or YieldSettings(),law_parameters=law_parameters or law_seed_parameters(method),
-        dt_s=dt_s,build_root=build_root)
+        dt_s=dt_s,build_root=build_root,
+        estimator=NormalEstimator(approach, **(estimator_parameters or {})))
     return controller,plant,origin
 
 def run_closed_loop(*,method,scenario='nominal',material='stiff_low_mu',duration_s=DIAGNOSTIC_DURATION_S,
         dt_s=DEFAULT_DT_S,timeline='diagnostic',campaign_kind='mechanism_seed',preparation='cold',
         qp_library=QP_LIBRARY_PATH,build_root=None,require_ur10e=True,record_fullstate=True,
-        law_parameters=None,settings=None,plant_substeps=None):
+        law_parameters=None,settings=None,plant_substeps=None,estimator_parameters=None):
     if not math.isfinite(duration_s) or not 0<duration_s<=PERIOD_S:raise ValueError('invalid duration')
     if not math.isfinite(dt_s) or not 0<dt_s<=.004:raise ValueError('invalid dt')
     if preparation not in ('cold','warm'):raise ValueError('unknown preparation')
@@ -55,7 +57,8 @@ def run_closed_loop(*,method,scenario='nominal',material='stiff_low_mu',duration
     frozen_hashes={name:hashlib.sha256(p.read_bytes()).hexdigest() for name,p in source_paths.items()}
     ctrl,plant,origin=make_system(method=method,material=material,dt_s=dt_s,timeline=timeline,
         qp_library=qp_library,build_root=build_root,require_ur10e=require_ur10e,
-        law_parameters=law_parameters,settings=settings,plant_substeps=plant_substeps)
+        law_parameters=law_parameters,settings=settings,plant_substeps=plant_substeps,
+        estimator_parameters=estimator_parameters)
     initial_controller=ctrl.snapshot();initial_plant=plant.snapshot()
     rows=[];records=[];failed=False;failure=None;wall=[];formal_initial=None
     task=Task();entry_ticks=math.ceil(1./dt_s);warm_ticks=math.ceil(2./dt_s) if preparation=='warm' else 0

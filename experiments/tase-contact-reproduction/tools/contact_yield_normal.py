@@ -34,7 +34,16 @@ class NormalEstimator:
         force_correction_max_rad: float = 0.004,
         assumed_friction_mu: float = 0.35,
         min_force_n: float = 0.5,
+        motion_normalization_floor_m_s: float | None = None,
+        motion_rate_cap_rad_s: float | None = None,
     ) -> None:
+        self.motion_normalization_floor_m_s = (None if motion_normalization_floor_m_s is None
+            else finite_scalar(motion_normalization_floor_m_s, "motion_normalization_floor_m_s"))
+        self.motion_rate_cap_rad_s = (None if motion_rate_cap_rad_s is None
+            else finite_scalar(motion_rate_cap_rad_s, "motion_rate_cap_rad_s"))
+        for value in (self.motion_normalization_floor_m_s, self.motion_rate_cap_rad_s):
+            if value is not None and value <= 0:
+                raise NormalEstimatorError("optional motion normalization and rate cap must be positive")
         self.normal = normalize_unit(approach_inward_base, name="approach_inward_base")
         self.approach = self.normal.copy()
         self.contact_force_n = finite_scalar(contact_force_n, "contact_force_n")
@@ -57,7 +66,7 @@ class NormalEstimator:
             raise NormalEstimatorError("force correction gain must be nonnegative")
 
     def parameters(self) -> dict[str, float]:
-        return {
+        parameters = {
             "contact_force_n": self.contact_force_n,
             "excitation_m_s": self.excitation_m_s,
             "motion_gain": self.motion_gain,
@@ -66,6 +75,12 @@ class NormalEstimator:
             "assumed_friction_mu": self.assumed_friction_mu,
             "min_force_n": self.min_force_n,
         }
+
+        if self.motion_normalization_floor_m_s is not None:
+            parameters["motion_normalization_floor_m_s"] = self.motion_normalization_floor_m_s
+        if self.motion_rate_cap_rad_s is not None:
+            parameters["motion_rate_cap_rad_s"] = self.motion_rate_cap_rad_s
+        return parameters
 
     def snapshot(self) -> dict[str, Any]:
         return {
@@ -102,7 +117,16 @@ class NormalEstimator:
         if contact_gate and excitation_gate:
             # Projected gradient of 0.5 (n·v)^2 on the unit sphere.
             residual = float(np.dot(self.normal, velocity))
-            candidate = self.normal - dt * self.motion_gain * residual * velocity
+            if self.motion_normalization_floor_m_s is None:
+                # Retain historical arithmetic exactly for original receipts.
+                candidate = self.normal - dt * self.motion_gain * residual * velocity
+            else:
+                denominator = max(float(velocity @ velocity), self.motion_normalization_floor_m_s**2)
+                gradient = self.motion_gain * residual * (projector_tangent(self.normal) @ velocity) / denominator
+                rate = float(np.linalg.norm(gradient))
+                if self.motion_rate_cap_rad_s is not None and rate > self.motion_rate_cap_rad_s:
+                    gradient *= self.motion_rate_cap_rad_s / rate
+                candidate = self.normal - dt * gradient
             self.normal = normalize_unit(candidate, name="updated_normal")
             motion_applied = True
         force_norm = float(np.linalg.norm(force))

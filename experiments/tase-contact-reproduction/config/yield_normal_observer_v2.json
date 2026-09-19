@@ -1,0 +1,6 @@
+{
+  "motion_gain": 1.0,
+  "force_correction_gain": 0.0,
+  "motion_normalization_floor_m_s": 0.002,
+  "motion_rate_cap_rad_s": 0.1
+}
