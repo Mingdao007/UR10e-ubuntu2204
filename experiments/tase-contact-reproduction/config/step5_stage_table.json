@@ -11681,5 +11681,38 @@
     },
     "retained_evidence": "prior RNN releases remain historical evidence only",
     "success_condition": "frozen equal-budget tuning followed by independent complete nominal/disturbance holdout; no claim from unit tests"
+  },
+  "contact_yield_recovery_preparation": {
+    "id": "contact_yield_recovery_v1",
+    "active": false,
+    "status": "offline_implementation_in_progress",
+    "protocol": "config/contact_yield_protocol.json",
+    "controllers": [
+      "SFC",
+      "DSFC",
+      "MSFC"
+    ],
+    "task": [
+      "constant_force",
+      "unknown_surface",
+      "orientation_compliance"
+    ],
+    "platform": "existing UR10e + Kunwei + preserved tool/workpiece/transport",
+    "controller_target": null,
+    "bridge_contact_contract": "existing sole mature writer; new task is not yet admitted to a resident package",
+    "guards": {
+      "preserve_raw_force_torque": true,
+      "fresh_age_s": 0.02,
+      "stale_age_s": 0.08,
+      "independent_geometric_latency": true,
+      "no_force_bound_claim_from_qp": true
+    },
+    "timing": {
+      "requested_hz": 500,
+      "duration_s": 62.83185307179586,
+      "whole_writer_qualified": false
+    },
+    "retained_evidence": "contact-six fixed-attitude results retained as regression only; existing current_stage unchanged",
+    "success_condition": "reproducible closed-loop benefit with costs and numerical verification, then fresh transport qualification and original-platform pilot; formal equal-budget holdout remains required"
   }
 }

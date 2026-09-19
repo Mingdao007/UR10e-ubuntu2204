@@ -1346,3 +1346,27 @@ quota settings. Package upload/read-back, offline timing, freeze, and review
 remain distinct from live authorization. `scripts/step5d-strict-rnn-contact-v35.sh
 contact-bridge` must stay blocked until v35 is the canonical current binding
 and the user issues a fresh bridge authorization.
+
+
+## Contact yield and recovery research (2026-09-20)
+
+The new inactive preparation entry `contact_yield_recovery_preparation` retains
+the existing UR10e/Kunwei/tool/workpiece and constant-force, unknown-surface,
+orientation-compliance task. SFC is the baseline; DSFC and MSFC are proposals.
+The contact-six fixed-attitude route remains regression evidence, not final
+task acceptance. RNN and redundancy scheduling are not dependencies.
+
+The shared estimator, task outer loop, native laws and common QP must first
+pass closed-loop mechanism experiments, complete state replay and timestep
+refinement. Comparison uses measured load, yielding, progress and recovery;
+no proposal is presumed superior. Software disturbances are simulator
+evidence, not physical interaction. Fresh receive timestamps and independent
+geometric latency bounds are both required. No cache read refreshes age.
+
+The current live stage is unchanged. Before original-platform pilot, bind the
+new task to the existing sole command writer and a correctly identified
+resident package, qualify full transport, then short contact and changing
+orientation, followed by SFC -> DSFC -> MSFC with confirmed stops. The
+uncommitted historical contact-six runner is preserved separately for audit;
+its custom receipt validation and copied contract hashes are not accepted as
+new-route identity evidence. No hardware actions are part of offline tests.
