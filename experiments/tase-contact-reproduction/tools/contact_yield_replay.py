@@ -20,7 +20,8 @@ def replay_artifact(artifact):
     ident=artifact['identity_payload']
     controller,plant,_=make_system(method=artifact['method'],material=artifact['material'],dt_s=artifact['dt_s'],
         timeline=artifact['timeline'],qp_library=ident['qp_library'],law_parameters=ident['parameters'],
-        settings=YieldSettings(**ident['settings']),require_ur10e=artifact['kinematics_kind']=='ur10e_calibrated_pinocchio')
+        settings=YieldSettings(**ident['settings']),require_ur10e=artifact['kinematics_kind']=='ur10e_calibrated_pinocchio',
+        plant_substeps=artifact['plant_identity_payload'].get('integration_substeps'))
     controller.restore(artifact['initial_controller_snapshot']);plant.restore(artifact['initial_simulator_snapshot'])
     mismatch=[]
     try:

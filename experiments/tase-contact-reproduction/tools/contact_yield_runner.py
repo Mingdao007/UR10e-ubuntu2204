@@ -11,7 +11,7 @@ from contact_yield_math import projector_tangent
 from contact_yield_metrics import summarize_trial
 from contact_yield_protocol import (CLAIM_SCOPE, DEFAULT_DT_S, DIAGNOSTIC_DURATION_S,
     EXPERIMENT_ROOT, PERIOD_S, QP_LIBRARY_PATH, Task, law_seed_parameters, protocol)
-from contact_yield_simulator import YieldSimulator, surface_for_contact
+from contact_yield_simulator import YieldSimulator, surface_for_contact, substepped_simulator
 
 HOME_PATH=EXPERIMENT_ROOT/'report/contact-six-qp-20260917/preserved-home.json'
 
@@ -23,7 +23,7 @@ def serial(value):
     return value
 
 def make_system(*,method,material,dt_s,timeline,qp_library=QP_LIBRARY_PATH,
-                build_root=None,require_ur10e=True,law_parameters=None,settings=None):
+                build_root=None,require_ur10e=True,law_parameters=None,settings=None,plant_substeps=None):
     kinematics=load_kinematics(require_ur10e=require_ur10e)
     home=json.loads(HOME_PATH.read_text())
     q=np.asarray(home['home_q'] if kinematics.kind=='ur10e_calibrated_pinocchio'
@@ -33,7 +33,8 @@ def make_system(*,method,material,dt_s,timeline,qp_library=QP_LIBRARY_PATH,
     rotation=np.asarray(pose['rotation']) if kinematics.kind=='ur10e_calibrated_pinocchio' else np.diag([1.,-1.,-1.])
     # Tool +Z is the preserved contact approach, hence the INWARD direction.
     approach=rotation[:,2].copy()
-    plant=YieldSimulator(kinematics=kinematics,surface=surface_for_contact(origin,material=material),
+    plant_type=YieldSimulator if plant_substeps is None else substepped_simulator(plant_substeps)
+    plant=plant_type(kinematics=kinematics,surface=surface_for_contact(origin,material=material),
         material=material,q=q,timeline=timeline,require_ur10e=require_ur10e,seed_sensor_from_contact=True)
     if kinematics.kind!='ur10e_calibrated_pinocchio':plant.rotation=rotation.copy()
     controller=YieldController(method=method,qp_library=qp_library,approach_inward_base=approach,
@@ -44,7 +45,7 @@ def make_system(*,method,material,dt_s,timeline,qp_library=QP_LIBRARY_PATH,
 def run_closed_loop(*,method,scenario='nominal',material='stiff_low_mu',duration_s=DIAGNOSTIC_DURATION_S,
         dt_s=DEFAULT_DT_S,timeline='diagnostic',campaign_kind='mechanism_seed',preparation='cold',
         qp_library=QP_LIBRARY_PATH,build_root=None,require_ur10e=True,record_fullstate=True,
-        law_parameters=None,settings=None):
+        law_parameters=None,settings=None,plant_substeps=None):
     if not math.isfinite(duration_s) or not 0<duration_s<=PERIOD_S:raise ValueError('invalid duration')
     if not math.isfinite(dt_s) or not 0<dt_s<=.004:raise ValueError('invalid dt')
     if preparation not in ('cold','warm'):raise ValueError('unknown preparation')
@@ -54,7 +55,7 @@ def run_closed_loop(*,method,scenario='nominal',material='stiff_low_mu',duration
     frozen_hashes={name:hashlib.sha256(p.read_bytes()).hexdigest() for name,p in source_paths.items()}
     ctrl,plant,origin=make_system(method=method,material=material,dt_s=dt_s,timeline=timeline,
         qp_library=qp_library,build_root=build_root,require_ur10e=require_ur10e,
-        law_parameters=law_parameters,settings=settings)
+        law_parameters=law_parameters,settings=settings,plant_substeps=plant_substeps)
     initial_controller=ctrl.snapshot();initial_plant=plant.snapshot()
     rows=[];records=[];failed=False;failure=None;wall=[];formal_initial=None
     task=Task();entry_ticks=math.ceil(1./dt_s);warm_ticks=math.ceil(2./dt_s) if preparation=='warm' else 0

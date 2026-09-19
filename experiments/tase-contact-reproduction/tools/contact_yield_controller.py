@@ -54,7 +54,10 @@ class YieldControllerError(RuntimeError):
 class YieldSettings:
     filter_tau_s: float = 0.02
     path_stiffness_n_per_m: float = 120.0
-    compliance_stiffness_n_per_m: float = 40.0
+    # Restoring uses measured path error. A spring on integrated COMMAND
+    # correction leaves a bias when plant disturbances move the actual TCP.
+    # Preserve the optional historical term for exact artifact replay/ablation.
+    compliance_stiffness_n_per_m: float = 0.0
     integral_force_gain: float = 0.0
     integral_limit_n_s: float = 2.0
     normal_speed_cap_m_s: float = 0.003

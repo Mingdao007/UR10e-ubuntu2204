@@ -1370,3 +1370,13 @@ orientation, followed by SFC -> DSFC -> MSFC with confirmed stops. The
 uncommitted historical contact-six runner is preserved separately for audit;
 its custom receipt validation and copied contract hashes are not accepted as
 new-route identity evidence. No hardware actions are part of offline tests.
+
+Implementation and measured mechanism evidence are now in
+`report/contact-yield-recovery-20260920/README.md`: 144 contact tests,
+58 retained full-cycle PI-model runs, and a 31,916-tick full-state replay.
+The shared command-integral spring is disabled by default after a common
+outer-loop ablation; measured path restoring remains active. Pilot advancement
+is NOT PASSED: the selected MSFC candidate still has 3.603 N pointwise force
+sensitivity under sustained normal loading when the plant integration step
+is halved at fixed control period. See `advancement.json`; this route remains
+inactive and no resident package or physical qualification is inferred.

@@ -1,0 +1,16 @@
+{
+  "status": "not_passed",
+  "advance_to_pilot": false,
+  "hardware_actions_executed": false,
+  "formal_campaign_executed": false,
+  "engineering_tests_passed": 144,
+  "full_state_replay_ticks": 31916,
+  "pi_model_full_cycle_runs": 58,
+  "reason": "Corrected shared outer loop still has 3.6027 N pointwise full-cycle MSFC force sensitivity between plant 0.5 and 0.25 ms at fixed 2 ms controller period. No full-task benefit interval qualified.",
+  "remaining": [
+    "isolate normal-loop gain/delay/saturation/memory sensitivity",
+    "verify corrected shared-loop full matrix and matched normal precision/load",
+    "fresh transport identity and sole-writer integration before pilot",
+    "pilot then formal 24 paired units with separate holdout and at least 5 repeats"
+  ]
+}

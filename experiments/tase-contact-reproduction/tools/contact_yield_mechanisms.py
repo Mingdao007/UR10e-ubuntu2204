@@ -33,7 +33,7 @@ def main():
         best=min(candidates,key=lambda x:x['score']);selected[method]=best['parameters']
     write(root/'screen.json',{'screen':screen,'selected':selected,'formal_budget_used':False,
         'selection':'lowest forceMAE/0.5 + pathRMSE/0.002 + abs(1-progressRatio); same four gain factors',
-        'proposal_variant':'p=0.5,a=0.05 fixed before screen; original p=0.1,a=1.2 seeds retained separately',
+        'proposal_variant':'p=0.5,a=0.05 fixed before screen; original DSFC p=0.1 and MSFC p=0.07, both a=1.2, retained separately',
         'scope':'diagnostic selection, no Bayesian optimization and no independent holdout claim'})
     for method in ('SFC','SFC_RADIAL','DSFC','MSFC'):
         params=selected['SFC' if method=='SFC_RADIAL' else method]

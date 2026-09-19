@@ -2,7 +2,7 @@
 """Offline mechanism run/replay/refinement. No robot endpoints or command writer."""
 import argparse,gzip,json
 from pathlib import Path
-from contact_yield_protocol import METHODS,SCENARIOS,MATERIALS,PERIOD_S,protocol
+from contact_yield_protocol import METHODS,SCENARIOS,MATERIALS,PERIOD_S,DIAGNOSTIC_DURATION_S,protocol
 from contact_yield_runner import run_closed_loop
 from contact_yield_replay import replay_artifact,refinement_error
 
@@ -26,6 +26,8 @@ def main():
     p.add_argument('--timeline',choices=['diagnostic','full_cycle'],default='diagnostic')
     p.add_argument('--duration-s',type=float)
     p.add_argument('--dt-s',type=float,default=.002)
+    p.add_argument('--plant-substeps',type=int,default=8,choices=range(1,65),
+                   help='Plant integration only; command/controller remain at --dt-s')
     p.add_argument('--preparation',choices=['cold','warm'],default='cold')
     p.add_argument('--parameters',type=Path,help='Complete law parameter object, recorded with identity')
     a=p.parse_args()
@@ -33,8 +35,9 @@ def main():
     if a.mode=='protocol':result=protocol()
     elif a.mode=='run':
         result=run_closed_loop(method=a.method,scenario=a.scenario,material=a.material,
-            duration_s=a.duration_s or (PERIOD_S if a.timeline=='full_cycle' else .5),dt_s=a.dt_s,
-            timeline=a.timeline,preparation=a.preparation,law_parameters=read(a.parameters) if a.parameters else None)
+            duration_s=a.duration_s if a.duration_s is not None else (PERIOD_S if a.timeline=='full_cycle' else DIAGNOSTIC_DURATION_S),dt_s=a.dt_s,
+            timeline=a.timeline,preparation=a.preparation,law_parameters=read(a.parameters) if a.parameters else None,
+            plant_substeps=a.plant_substeps)
     else:
         if not a.input:p.error('input artifact required')
         original=read(a.input)
@@ -44,7 +47,8 @@ def main():
             fine=run_closed_loop(method=original['method'],scenario=original['scenario'],material=original['material'],
                 duration_s=original['duration_s'],dt_s=original['dt_s']/2,timeline=original['timeline'],
                 preparation=original['preparation'],law_parameters=original['identity_payload']['parameters'],
-                settings=YieldSettings(**original['identity_payload']['settings']),record_fullstate=False)
+                settings=YieldSettings(**original['identity_payload']['settings']),record_fullstate=False,
+                plant_substeps=original['plant_identity_payload'].get('integration_substeps'))
             result={'refinement':refinement_error(original['rows'],fine['rows'],coarse_dt_s=original['dt_s'],fine_dt_s=fine['dt_s']),
                     'fine':fine}
     write(a.output,result)

@@ -11,6 +11,7 @@ def main():
     parser.add_argument('--runs', type=Path, required=True)
     parser.add_argument('--refinement', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--label', default='Unqualified offline mechanism screen')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     summary = json.loads((args.runs / 'summary.json').read_text())
@@ -19,7 +20,7 @@ def main():
         shutil.copy2(args.runs / name, args.output / name)
     (args.output / 'plant-refinement.json').write_text(
         json.dumps(refinement, indent=2, allow_nan=False) + '\n')
-    lines = ['# Measured offline mechanism results', '',
+    lines = ['# Measured offline mechanism results', '', args.label, '',
              'Simulation only. No physical result, formal holdout or declared winner.', '',
              'Force peak is actual model contact load, not force-error peak. '
              'Progress is measured signed TCP motion projected onto the reference tangent; '
@@ -90,7 +91,7 @@ def main():
             ax.set_title(title)
             ax.grid(axis='y', alpha=.2)
         axes[0, 0].legend(fontsize=8, ncol=2)
-        fig.suptitle(f'{material}: offline mechanism screen, not qualified evidence')
+        fig.suptitle(f'{material}: {args.label}\nSimulation only; not qualified evidence', fontsize=12)
         fig.savefig(args.output / f'{material}.png', dpi=160)
         fig.savefig(args.output / f'{material}.pdf')
         plt.close(fig)

@@ -20,6 +20,9 @@ manifest before any new implementation. The original files were not edited.
 - Home orientation is compared by the shortest relative quaternion angle,
   rather than Euclidean rotation-vector difference. Equivalent representations
   differing by 2*pi pass, while a true 0.02 rad change is still measured.
+  The contact-six TP generator already uses `pose_trans(pose_inv(expected),
+  actual)` for this check; this host fix aligns with that existing package.
+  Historical R004 template bytes were not regenerated or uploaded.
 - Synthetic timing/entry fixtures now declare their synthetic receive clock.
   They do not supply physical timing evidence.
 

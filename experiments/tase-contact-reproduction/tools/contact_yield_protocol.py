@@ -28,7 +28,7 @@ DEFAULT_PROTOCOL_PATH = EXPERIMENT_ROOT / "config" / "contact_yield_protocol.jso
 LAW_CONFIG_PATH = EXPERIMENT_ROOT / "config" / "contact_benchmark_laws.json"
 QP_LIBRARY_PATH = EXPERIMENT_ROOT / "build" / "contact-qp" / "libcontact_qp.so"
 
-SCHEMA = "ur10e.contact-yield-protocol-v1"
+SCHEMA = "ur10e.contact-yield-protocol-v2"
 METHODS = ("SFC", "SFC_RADIAL", "DSFC", "MSFC")
 METHOD_ROLES = {
     "SFC": "baseline_geometrically_anisotropic",
@@ -54,7 +54,7 @@ SCENARIOS = (
 MATERIALS = ("stiff_low_mu", "compliant_high_mu")
 TIMELINES = ("full_cycle", "diagnostic")
 PERIOD_S = 2.0 * math.pi / 0.1
-DIAGNOSTIC_DURATION_S = 0.50
+DIAGNOSTIC_DURATION_S = 0.60
 DEFAULT_DT_S = 0.002
 REFINEMENT_DT_S = 0.001
 LATENCY_ERROR_BOUND_M = 0.001
@@ -243,7 +243,7 @@ def protocol() -> dict[str, Any]:
                 "note": "PATH-time schedule; entry is separate; sustained hold is 10 s",
             },
             "diagnostic": {
-                "entry_s": 0.0,
+                "entry_s": ENTRY_DURATION_S,
                 "path_s": DIAGNOSTIC_DURATION_S,
                 "starts_in_contact": True,
                 "perturbations": _DIAGNOSTIC,
@@ -285,6 +285,8 @@ def protocol() -> dict[str, Any]:
         "reset_memory_on_perturbation": False,
         "msfc_memory_through_release": True,
         "integral_default": 0.0,
+        "shared_path_stiffness_n_per_m": 120.0,
+        "command_integral_spring_default_n_per_m": 0.0,
         "qp": {
             "backend": "native_equality_box",
             "infeasible_fallback": "measured_task_scaling",
@@ -301,6 +303,8 @@ def protocol() -> dict[str, Any]:
             "unilateral_contact": True,
             "regularized_coulomb_friction": True,
             "finite_servo_lag": True,
+            "cli_default_integration_substeps": 8,
+            "integration_substeps_are_not_numerical_qualification": True,
             "software_injection_is_human_evidence": False,
         },
         "campaign": {

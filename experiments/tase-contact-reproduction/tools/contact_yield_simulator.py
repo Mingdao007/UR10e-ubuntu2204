@@ -48,6 +48,33 @@ OBSERVATION_KEYS = frozenset(
 )
 
 
+def substepped_simulator(substeps: int):
+    """Sample/hold commands at controller rate; integrate plant at a finer rate.
+
+    Optional factory preserves legacy single-step identities. The explicit
+    substep count is part of the plant identity and full-state replay contract.
+    It is a numerical setting, not a hardware-fidelity certificate.
+    """
+    if isinstance(substeps, bool) or not isinstance(substeps, int) or not 1 <= substeps <= 64:
+        raise ValueError('plant substeps must be an integer in [1, 64]')
+
+    class SubsteppedPlant(YieldSimulator):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.identity_payload = {**self.identity_payload, 'integration_substeps': substeps}
+            self.identity = hashlib.sha256(
+                json.dumps(self.identity_payload, sort_keys=True).encode()).hexdigest()
+
+        def step(self, *, dt_s, **kwargs):
+            original_clock = kwargs.get('path_time_s', 0.)
+            for k in range(substeps):
+                result = super().step(dt_s=dt_s/substeps, **{
+                    **kwargs, 'path_time_s': original_clock + k*dt_s/substeps})
+            return result
+
+    return SubsteppedPlant
+
+
 @dataclass(frozen=True)
 class SurfaceField:
     """Unknown-to-controller height field z = h(x, y) in the base frame."""

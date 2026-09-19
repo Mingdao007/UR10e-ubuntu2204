@@ -1,0 +1,11 @@
+{
+  "source": "report/contact-yield-recovery-20260920/screen.json",
+  "status": "offline_design_candidates_only",
+  "hardware_qualified": false,
+  "formal_budget_used": false,
+  "files": {
+    "msfc.json": "a72ef1efee2c5a514eac8deb3dbfdfcd640048197b25891a8dd0b60998e0e25c",
+    "sfc.json": "60a678a94cf10f5b60ab83a9ea03003e05071317df00e9178f4ba9940e7420e7",
+    "dsfc.json": "7b2419a1e20c4c0c1fa6f081461627814c9385c2c15a958ee45688fb3bbae5fd"
+  }
+}

@@ -116,3 +116,18 @@ def test_changing_contact_direction_moves_orientation_without_reset(library):
             c.step(obs,{**reference(o),'phase':'baseline','path_time_s':None},.002)
         assert c.snapshot()==retained
     finally:c.close()
+
+
+def test_refined_plant_identity_replays_full_state_and_rejects_different_grid(library):
+    r=run_closed_loop(method='MSFC',scenario='sustained_release_tangent',duration_s=.6,
+                     qp_library=library,plant_substeps=8)
+    assert not r['metrics']['failed'],r['metrics']['failure_message']
+    assert r['identity_payload']['settings']['compliance_stiffness_n_per_m']==0
+    assert r['plant_identity_payload']['integration_substeps']==8
+    assert replay_artifact(r)['passed']
+    c,p,_=make_system(method='MSFC',material='stiff_low_mu',dt_s=.002,
+                     timeline='diagnostic',qp_library=library,plant_substeps=4)
+    try:
+        with pytest.raises(YieldSimulatorError,match='identity'):
+            p.restore(r['initial_simulator_snapshot'])
+    finally:c.close()

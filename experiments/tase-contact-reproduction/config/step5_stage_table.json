@@ -11683,9 +11683,10 @@
     "success_condition": "frozen equal-budget tuning followed by independent complete nominal/disturbance holdout; no claim from unit tests"
   },
   "contact_yield_recovery_preparation": {
-    "id": "contact_yield_recovery_v1",
+    "id": "contact_yield_recovery_v2",
     "active": false,
-    "status": "offline_implementation_in_progress",
+    "status": "offline_mechanism_evaluated_not_live_qualified",
+    "report": "report/contact-yield-recovery-20260920/README.md",
     "protocol": "config/contact_yield_protocol.json",
     "controllers": [
       "SFC",

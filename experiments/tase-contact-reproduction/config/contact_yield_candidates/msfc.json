@@ -1,0 +1,16 @@
+{
+  "m": 4.0,
+  "g": 0.17166683818219516,
+  "p": 0.5,
+  "a": 0.05,
+  "n": 3.0,
+  "mu": 1228.1391393367705,
+  "force_scale_n": 2.1095928078033372,
+  "tau_force_s": 0.19236795686399732,
+  "tau_recovery_s": 0.20212720757006053,
+  "kappa_per_n2_s": 0.6334129092862626,
+  "max_iterations": 32.0,
+  "residual_tolerance_n": 1e-09,
+  "structure_tolerance": 1e-12,
+  "minimum_metric_eigenvalue": 0.026926929041248004
+}

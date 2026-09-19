@@ -1,0 +1,11 @@
+{
+  "m": 4.0,
+  "g": 0.0642,
+  "p": 0.5,
+  "a": 0.05,
+  "n": 3.0,
+  "mu": 310.66177089084647,
+  "max_iterations": 32.0,
+  "residual_tolerance_n": 1e-09,
+  "relative_radius_tolerance": 1e-10
+}

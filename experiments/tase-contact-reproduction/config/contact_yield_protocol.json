@@ -1,5 +1,5 @@
 {
-  "schema": "ur10e.contact-yield-protocol-v1",
+  "schema": "ur10e.contact-yield-protocol-v2",
   "version": 1,
   "offline_only": true,
   "hardware_qualified": false,
@@ -62,7 +62,7 @@
     "dt_s": 0.002,
     "refinement_dt_s": 0.001,
     "full_cycle_s": 62.83185307179586,
-    "diagnostic_duration_s": 0.5,
+    "diagnostic_duration_s": 0.6,
     "elapsed_dt_interval_s": [
       0.0,
       0.004
@@ -93,8 +93,8 @@
       "note": "PATH-time schedule; entry is separate; sustained hold is 10 s"
     },
     "diagnostic": {
-      "entry_s": 0.0,
-      "path_s": 0.5,
+      "entry_s": 1.0,
+      "path_s": 0.6,
       "starts_in_contact": true,
       "perturbations": {
         "short_pulse": {
@@ -246,6 +246,8 @@
   "reset_memory_on_perturbation": false,
   "msfc_memory_through_release": true,
   "integral_default": 0.0,
+  "shared_path_stiffness_n_per_m": 120.0,
+  "command_integral_spring_default_n_per_m": 0.0,
   "qp": {
     "backend": "native_equality_box",
     "infeasible_fallback": "measured_task_scaling",
@@ -263,6 +265,8 @@
     "unilateral_contact": true,
     "regularized_coulomb_friction": true,
     "finite_servo_lag": true,
+    "cli_default_integration_substeps": 8,
+    "integration_substeps_are_not_numerical_qualification": true,
     "software_injection_is_human_evidence": false
   },
   "campaign": {
@@ -308,5 +312,5 @@
   "rnn_selectable": false,
   "research_parameters_are_contact_qualified": false,
   "synthetic_disturbance_is_physical_impact": false,
-  "sha256": "bb4fe89b35a0fa8766be5290424dc6514e98f1558c5f3991253734a59a918494"
+  "sha256": "5be95ccbf95200fbf7651f98ad8684c5b2715f8234155246ba7b374d1c59a67a"
 }

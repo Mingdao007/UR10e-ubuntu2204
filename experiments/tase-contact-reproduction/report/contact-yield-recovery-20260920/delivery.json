@@ -1,0 +1,26 @@
+{
+  "core_v1_commit": "72433730",
+  "raw_dataset_paths": {
+    "yield-mechanisms-v2": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-mechanisms-v2",
+    "yield-full-refinement": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-full-refinement",
+    "yield-offset-ablation": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-offset-ablation",
+    "yield-common-fix-qualification": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-common-fix-qualification"
+  },
+  "original_dirty_preserved": true,
+  "controller_source_sha256": {
+    "contact_yield_kinematics.py": "46282c8982c1c73fd54a6c14cf9ea1f160b6272a814d8c0ccc170a4936a088e6",
+    "contact_yield_normal.py": "baf3b15b4aac0fe0a7146f09a0e60532938adf6c817a3dfb943ac42eace9288c",
+    "contact_yield_metrics.py": "ac1064303707f48099127e39b3ef0b7ae259a8d7c27203cb37e1000fa6643364",
+    "contact_yield_simulator.py": "36b9123ad280114a7d988deeda269d6722cb6ebdef3c692a7bde2d3f773023b4",
+    "contact_yield_qp.py": "d87107f1e93ab7b6f60799e52daf3368caf711978d4b03b50f2bb1b33051c3bc",
+    "contact_yield_mechanisms.py": "fce58327c877320c50b50ff24dd54fd082ab1c2daabc08dae158a45b86aaee96",
+    "contact_yield_runner.py": "aeb3775762750869e8e2ef53e98d2eba82d549dee3a8fe5f0dd0b80e6aff14a2",
+    "contact_yield_replay.py": "2461f161b12f942a94704a2c14e080346b2e4aa5c14edcd4e70f701feaf92333",
+    "contact_yield_protocol.py": "40c959548c56eac474775fee21627944f799c06516f31cd9c6c77cd2a8197475",
+    "contact_yield_laws.py": "77c58e226d40d996394a4138b9f980abe50595e0f38eb43d8ebed3c209d1580c",
+    "contact_yield_math.py": "41ed96dcf91a13a96bb75eb060de9ed36003b379b09e91a71d4c9315e770925d",
+    "contact_yield_controller.py": "7f87b4b9182fadbfaa4f211a11f6040c16c2bec9fb2b783fe57bca2d08baa0e7"
+  },
+  "all_dataset_manifests_verified": true,
+  "physical_actions": []
+}
