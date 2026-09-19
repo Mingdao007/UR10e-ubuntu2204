@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 import hashlib
-from bisect import insort_right
 import json
 import math
 import random
@@ -47,12 +46,6 @@ def _percentile(values, fraction):
     if not values:
         return None
     ordered = sorted(float(value) for value in values)
-    return _ordered_percentile(ordered, fraction)
-
-
-def _ordered_percentile(ordered, fraction):
-    if not ordered:
-        return None
     position = (len(ordered) - 1) * float(fraction)
     lower = int(math.floor(position))
     upper = int(math.ceil(position))
@@ -67,10 +60,6 @@ class SensorFreshnessTracker:
 
     def __init__(self):
         self._ages = []
-        # Exact order statistics; retain original acquisition order separately.
-        # List insertion can move O(n) pointers, but avoids three Python history
-        # traversals/sorts on every tick. No quantization or downsampling.
-        self._ordered_ages = []
         self._counts = {"fresh": 0, "held": 0, "stale": 0}
         self._held_streak = 0
         self._longest_hold_samples = 0
@@ -82,7 +71,6 @@ class SensorFreshnessTracker:
         age = float(age_s)
         band = classify_sensor_age(age)
         self._ages.append(age)
-        insort_right(self._ordered_ages, age)
         self._counts[band] += 1
         if band == "held":
             self._held_streak += 1
@@ -114,10 +102,10 @@ class SensorFreshnessTracker:
             "fresh_fraction": self._counts["fresh"] / count if count else 0.0,
             "held_fraction": self._counts["held"] / count if count else 0.0,
             "stale_fraction": self._counts["stale"] / count if count else 0.0,
-            "age_p50_s": _ordered_percentile(self._ordered_ages, 0.50),
-            "age_p95_s": _ordered_percentile(self._ordered_ages, 0.95),
-            "age_p99_s": _ordered_percentile(self._ordered_ages, 0.99),
-            "age_max_s": self._ordered_ages[-1] if self._ordered_ages else None,
+            "age_p50_s": _percentile(self._ages, 0.50),
+            "age_p95_s": _percentile(self._ages, 0.95),
+            "age_p99_s": _percentile(self._ages, 0.99),
+            "age_max_s": max(self._ages) if self._ages else None,
             # Largest single held observation age; consecutive held samples
             # are reported separately so this field is not mistaken for an
             # interpolated duration.

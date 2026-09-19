@@ -1,0 +1,164 @@
+{
+  "baseline/SFC": [
+    {
+      "tick": 1412,
+      "phase": "path",
+      "ms": 22.631894
+    },
+    {
+      "tick": 31656,
+      "phase": "path",
+      "ms": 5.226373
+    },
+    {
+      "tick": 31657,
+      "phase": "path",
+      "ms": 5.023343
+    },
+    {
+      "tick": 31658,
+      "phase": "path",
+      "ms": 3.088694
+    },
+    {
+      "tick": 31414,
+      "phase": "path",
+      "ms": 3.037608
+    }
+  ],
+  "baseline/DSFC": [
+    {
+      "tick": 14613,
+      "phase": "path",
+      "ms": 26.827667
+    },
+    {
+      "tick": 31563,
+      "phase": "path",
+      "ms": 3.108909
+    },
+    {
+      "tick": 31651,
+      "phase": "path",
+      "ms": 3.04471
+    },
+    {
+      "tick": 31875,
+      "phase": "path",
+      "ms": 3.038408
+    },
+    {
+      "tick": 30085,
+      "phase": "path",
+      "ms": 3.036174
+    }
+  ],
+  "baseline/MSFC": [
+    {
+      "tick": 31882,
+      "phase": "path",
+      "ms": 3.118357
+    },
+    {
+      "tick": 31224,
+      "phase": "path",
+      "ms": 3.098149
+    },
+    {
+      "tick": 31259,
+      "phase": "path",
+      "ms": 3.068363
+    },
+    {
+      "tick": 31891,
+      "phase": "path",
+      "ms": 3.064025
+    },
+    {
+      "tick": 31889,
+      "phase": "path",
+      "ms": 3.049898
+    }
+  ],
+  "exact-order-statistics/SFC": [
+    {
+      "tick": 1412,
+      "phase": "path",
+      "ms": 21.824232
+    },
+    {
+      "tick": 0,
+      "phase": "entry",
+      "ms": 2.253091
+    },
+    {
+      "tick": 4,
+      "phase": "entry",
+      "ms": 1.044257
+    },
+    {
+      "tick": 1413,
+      "phase": "path",
+      "ms": 0.980547
+    },
+    {
+      "tick": 3993,
+      "phase": "path",
+      "ms": 0.9237
+    }
+  ],
+  "exact-order-statistics/DSFC": [
+    {
+      "tick": 14613,
+      "phase": "path",
+      "ms": 25.671839
+    },
+    {
+      "tick": 14614,
+      "phase": "path",
+      "ms": 0.99789
+    },
+    {
+      "tick": 28095,
+      "phase": "path",
+      "ms": 0.862837
+    },
+    {
+      "tick": 28094,
+      "phase": "path",
+      "ms": 0.812833
+    },
+    {
+      "tick": 28096,
+      "phase": "path",
+      "ms": 0.795541
+    }
+  ],
+  "exact-order-statistics/MSFC": [
+    {
+      "tick": 1630,
+      "phase": "path",
+      "ms": 1.098958
+    },
+    {
+      "tick": 1629,
+      "phase": "path",
+      "ms": 1.047322
+    },
+    {
+      "tick": 1627,
+      "phase": "path",
+      "ms": 1.023227
+    },
+    {
+      "tick": 1628,
+      "phase": "path",
+      "ms": 1.017467
+    },
+    {
+      "tick": 1626,
+      "phase": "path",
+      "ms": 1.016885
+    }
+  ]
+}

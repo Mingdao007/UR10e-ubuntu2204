@@ -1,0 +1,77 @@
+{
+  "random": {
+    "n": 32000,
+    "p99_us": 6.742,
+    "max_us": 42.83,
+    "summary": {
+      "fresh_age_s": 0.02,
+      "stale_age_s": 0.08,
+      "observation_count": 32000,
+      "fresh_count": 8113,
+      "held_count": 23887,
+      "stale_count": 0,
+      "fresh_fraction": 0.25353125,
+      "held_fraction": 0.74646875,
+      "stale_fraction": 0.0,
+      "age_p50_s": 0.03980587137110582,
+      "age_p95_s": 0.07611695418865347,
+      "age_p99_s": 0.07914349060688827,
+      "age_max_s": 0.07999863059942963,
+      "longest_hold_s": 0.07999863059942963,
+      "longest_hold_samples": 34,
+      "stale_stop_count": 0,
+      "geometric_latency_reject_count": 0,
+      "policy": "fresh_lt_20ms_held_lt_80ms_stale_ge_80ms"
+    }
+  },
+  "descending": {
+    "n": 32000,
+    "p99_us": 7.334,
+    "max_us": 40.475,
+    "summary": {
+      "fresh_age_s": 0.02,
+      "stale_age_s": 0.08,
+      "observation_count": 32000,
+      "fresh_count": 7999,
+      "held_count": 24000,
+      "stale_count": 1,
+      "fresh_fraction": 0.24996875,
+      "held_fraction": 0.75,
+      "stale_fraction": 3.125e-05,
+      "age_p50_s": 0.04000125,
+      "age_p95_s": 0.076000125,
+      "age_p99_s": 0.07920002500000001,
+      "age_max_s": 0.08,
+      "longest_hold_s": 0.0799975,
+      "longest_hold_samples": 24000,
+      "stale_stop_count": 0,
+      "geometric_latency_reject_count": 0,
+      "policy": "fresh_lt_20ms_held_lt_80ms_stale_ge_80ms"
+    }
+  },
+  "coalesced": {
+    "n": 32000,
+    "p99_us": 6.513089999999986,
+    "max_us": 34.965,
+    "summary": {
+      "fresh_age_s": 0.02,
+      "stale_age_s": 0.08,
+      "observation_count": 32000,
+      "fresh_count": 16000,
+      "held_count": 16000,
+      "stale_count": 0,
+      "fresh_fraction": 0.5,
+      "held_fraction": 0.5,
+      "stale_fraction": 0.0,
+      "age_p50_s": 0.019000000000000003,
+      "age_p95_s": 0.03609999999999855,
+      "age_p99_s": 0.038,
+      "age_max_s": 0.038,
+      "longest_hold_s": 0.038,
+      "longest_hold_samples": 10,
+      "stale_stop_count": 0,
+      "geometric_latency_reject_count": 0,
+      "policy": "fresh_lt_20ms_held_lt_80ms_stale_ge_80ms"
+    }
+  }
+}

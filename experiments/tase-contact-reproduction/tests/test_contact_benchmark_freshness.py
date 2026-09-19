@@ -108,3 +108,24 @@ def test_static_capture_reports_delivery_gap_bands_without_claiming_sensor_age(t
     assert result["stale_stop_count"] == 1
     assert result["fresh_gap_diagnostic_pass"] is False
     assert "sensor-internal" in result["claim_scope"]
+
+
+def test_incremental_age_statistics_preserve_every_prefix_and_invalid_input():
+    import random
+    from contact_benchmark_protocol import _percentile
+    rng = random.Random(731)
+    ages = [0., .02, .08, .02, .079999999] + [rng.random() * .12 for _ in range(1000)]
+    tracker = SensorFreshnessTracker()
+    assert tracker.as_dict()["age_p99_s"] is None
+    for index, age in enumerate(ages, 1):
+        tracker.observe(age)
+        actual = tracker.as_dict()
+        for label, fraction in (("p50", .5), ("p95", .95), ("p99", .99)):
+            assert actual[f"age_{label}_s"] == _percentile(ages[:index], fraction)
+        assert actual["age_max_s"] == max(ages[:index])
+        assert actual["observation_count"] == index
+    before = tracker.as_dict()
+    for invalid in (-1., float("nan"), float("inf")):
+        with pytest.raises(ValueError): tracker.observe(invalid)
+        assert tracker.as_dict() == before
+    assert tracker._ages == ages
