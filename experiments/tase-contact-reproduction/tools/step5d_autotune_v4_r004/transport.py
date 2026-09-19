@@ -147,6 +147,9 @@ class R004OutputSnapshot:
     runtime_state: Any
     consumed_packet_sequence: int
     integer_echoes: Mapping[int, int]
+    # Wall time remains for receipt identity. Freshness uses only this receive
+    # clock, captured for a newly received frame, never when a cache is read.
+    received_monotonic_s: float | None = None
 
     @staticmethod
     def _vector(value: Any, size: int, role: str) -> tuple[float, ...]:
@@ -158,10 +161,14 @@ class R004OutputSnapshot:
         return result
 
     @classmethod
-    def from_mapping(cls, observed_at_s: float, value: Mapping[str, Any]) -> "R004OutputSnapshot":
+    def from_mapping(cls, observed_at_s: float, value: Mapping[str, Any], *,
+                     received_monotonic_s: float | None = None) -> "R004OutputSnapshot":
         observed = float(observed_at_s)
         if not math.isfinite(observed):
             raise TransportError("RTDE output observation time is nonfinite")
+        if received_monotonic_s is not None and (
+                not math.isfinite(received_monotonic_s) or received_monotonic_s < 0):
+            raise TransportError("RTDE receive monotonic time is invalid")
         try:
             echoes: dict[int, int] = {}
             for register in OUTPUT_INTEGER_FIELDS:
@@ -200,6 +207,7 @@ class R004OutputSnapshot:
             runtime_state=value["runtime_state"],
             consumed_packet_sequence=int(consumed_packet_sequence_raw),
             integer_echoes=echoes,
+            received_monotonic_s=received_monotonic_s,
         )
 
     @property
@@ -383,6 +391,7 @@ class LiveR004RTDETransport:
                 }
                 return None
             raw = client.recv_latest_sample(self.output_recipe, self.output_types, OUTPUT_FIELDS)
+            received_monotonic_s = time.monotonic()
             self.last_recv_telemetry = {
                 "schema": "step5d.autotune-v4/r004-rtde-poll-telemetry-v1",
                 "ready": True,
@@ -392,7 +401,8 @@ class LiveR004RTDETransport:
             }
             if raw is None:
                 return None
-            candidate = R004OutputSnapshot.from_mapping(time.time(), raw)
+            candidate = R004OutputSnapshot.from_mapping(
+                time.time(), raw, received_monotonic_s=received_monotonic_s)
             if (
                 self._last_controller_timestamp is not None
                 and candidate.timestamp <= self._last_controller_timestamp

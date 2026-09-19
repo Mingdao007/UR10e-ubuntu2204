@@ -72,7 +72,10 @@ class ContactCommandProvider:
         if self.runtime.last_sample_s is not None and not math.isclose(
                 monotonic_s-self.runtime.last_sample_s,actual_dt_s,rel_tol=0,abs_tol=1e-7):
             raise ValueError('owner/kernel clock discontinuity; stationary seam needs explicit binding')
-        robot={'observed_at_s':output.observed_at_s,'timestamp':output.timestamp,
+        received = getattr(output, 'received_monotonic_s', None)
+        if received is None or not math.isfinite(received):
+            raise ValueError('robot requires timestamped monotonic receive evidence')
+        robot={'observed_at_s':received,'timestamp':output.timestamp,
                'safety_mode':output.safety_mode,'tcp_offset':output.tcp_offset_m_rad,
                'payload':output.payload_kg,'payload_cog':output.payload_cog_m,
                'actual_q':output.q_rad,'actual_qd':output.qd_rad_s,

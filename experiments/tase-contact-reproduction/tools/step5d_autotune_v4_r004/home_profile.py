@@ -190,7 +190,19 @@ def verify_fixed_home(
     actual_q_v = _vector(actual_q, role="actual Home q")
     expected_pose = profile.pose
     position_error = math.dist(actual_pose_v[:3], expected_pose[:3])
-    orientation_error = math.dist(actual_pose_v[3:], expected_pose[3:])
+    # Rotation vectors are not unique (notably at pi and modulo 2*pi).
+    # The relative unit quaternion gives the shortest SO(3) distance.
+    def quaternion(vector):
+        angle = math.sqrt(sum(v*v for v in vector))
+        scale = math.sin(angle/2)/angle if angle else .5
+        return (math.cos(angle/2), *(scale*v for v in vector))
+    qa, qe = quaternion(actual_pose_v[3:]), quaternion(expected_pose[3:])
+    w = sum(a*b for a,b in zip(qa,qe))
+    av, ev = qa[1:], qe[1:]
+    cross = (av[1]*ev[2]-av[2]*ev[1], av[2]*ev[0]-av[0]*ev[2],
+             av[0]*ev[1]-av[1]*ev[0])
+    relative = tuple(qe[0]*av[i]-qa[0]*ev[i]-cross[i] for i in range(3))
+    orientation_error = 2*math.atan2(math.sqrt(sum(v*v for v in relative)), abs(w))
     q_error: float | None = None
     if reference_q is not None:
         reference_q_v = _vector(reference_q, role="reference Home q")

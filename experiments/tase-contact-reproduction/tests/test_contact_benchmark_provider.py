@@ -11,7 +11,7 @@ from test_contact_benchmark_runtime import lib,fixture
 
 
 def inputs(robot):
-    output=SimpleNamespace(observed_at_s=robot['observed_at_s'],timestamp=robot['timestamp'],
+    output=SimpleNamespace(observed_at_s=1700000000.,received_monotonic_s=robot['observed_at_s'],timestamp=robot['timestamp'],
         safety_mode=1,safety_normal=True,tcp_speed_m_s_rad_s=[0.]*6,tcp_offset_m_rad=robot['tcp_offset'],payload_kg=robot['payload'],
         payload_cog_m=robot['payload_cog'],q_rad=robot['actual_q'],qd_rad_s=robot['actual_qd'],
         tcp_pose_m_rad=robot['actual_TCP_pose'])
@@ -71,12 +71,12 @@ def test_stationary_seam_carries_complete_msfc_state_without_clock_gap(lib):
                          mode='baseline',path_time_s=0.,internal_setpoint_n=1.)
         kernel_before=runtime.kernel.snapshot()
         for i in range(1,6):
-            now=100.+i*.002;output.observed_at_s=now;output.timestamp+=.002
+            now=100.+i*.002;output.received_monotonic_s=now;output.timestamp+=.002
             provider.pause(output=output,sensor=replace(sensor,observed_at_s=now),monotonic_s=now,
                            actual_dt_s=.002,reason='r013_tp_stationary_seam_pending')
             assert runtime.kernel.snapshot()==kernel_before
         assert runtime.paused_s==pytest.approx(.01)
-        now=100.012;output.observed_at_s=now;output.timestamp+=.002
+        now=100.012;output.received_monotonic_s=now;output.timestamp+=.002
         provider.command(output=output,sensor=replace(sensor,observed_at_s=now),monotonic_s=now,
                          actual_dt_s=.002,mode='path',path_time_s=0.,internal_setpoint_n=5.)
         with pytest.raises(ValueError,match='active PATH'):
@@ -97,3 +97,16 @@ def test_readiness_observer_uses_common_tau_once_without_pid_state():
         observer.step(actual_dt_s=.01,raw_normal_n=5.,setpoint_n=5.,mode='path')
     assert observer.last_log==before
     assert not hasattr(observer,'integral_error_n_s')
+
+
+def test_robot_receive_evidence_missing_or_cached_is_not_refreshed(lib):
+    with ContactLaw.from_config('SFC') as law:
+        runtime,robot=fixture(law,lib);output,sensor=inputs(robot)
+        provider=ContactCommandProvider(runtime=runtime,model_hashes={})
+        args=dict(output=output,sensor=sensor,monotonic_s=100.,actual_dt_s=.002,
+                  mode='baseline',path_time_s=0.,internal_setpoint_n=5.)
+        output.received_monotonic_s=None
+        with pytest.raises(ValueError,match='monotonic receive'):provider.command(**args)
+        output.received_monotonic_s=99.9
+        with pytest.raises(ValueError,match='older than 80ms'):provider.command(**args)
+        assert output.received_monotonic_s == 99.9
