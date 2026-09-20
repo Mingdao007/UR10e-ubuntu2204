@@ -1,0 +1,95 @@
+{
+  "diagnostic_only": true,
+  "validation_trials": 0,
+  "formal_training_units": 0,
+  "cases": [
+    {
+      "arm": "SFC_RADIAL",
+      "actual_method": "SFC_RADIAL",
+      "preparation": "cold",
+      "records": 510,
+      "rows": 10,
+      "initial_prior_verified": true,
+      "full_record_schema_verified": true,
+      "identity": "246a0487c8e89fad03e01c8df58ab2a23735c2c11a159ff09cc4852f35d346f7",
+      "law_parameters": {
+        "m": 4.0,
+        "mu": 393.0,
+        "n": 3.0,
+        "g": 0.052126826121414976
+      },
+      "campaign_kind": "diagnostic_seed"
+    },
+    {
+      "arm": "SFC_RADIAL",
+      "actual_method": "SFC_RADIAL",
+      "preparation": "warm",
+      "records": 1510,
+      "rows": 10,
+      "initial_prior_verified": true,
+      "full_record_schema_verified": true,
+      "identity": "246a0487c8e89fad03e01c8df58ab2a23735c2c11a159ff09cc4852f35d346f7",
+      "law_parameters": {
+        "m": 4.0,
+        "mu": 393.0,
+        "n": 3.0,
+        "g": 0.052126826121414976
+      },
+      "campaign_kind": "diagnostic_seed"
+    },
+    {
+      "arm": "MSFC_IDENTITY",
+      "actual_method": "MSFC",
+      "preparation": "cold",
+      "records": 510,
+      "rows": 10,
+      "initial_prior_verified": true,
+      "full_record_schema_verified": true,
+      "identity": "94ee0dc7413204cb09a478668487f507492fefee4b265bb5b01fae529d6dbb00",
+      "law_parameters": {
+        "m": 4.0,
+        "g": 0.052126826121414976,
+        "p": 0.5,
+        "a": 0.05,
+        "n": 3.0,
+        "mu": 393.0,
+        "force_scale_n": 2.1095928078033372,
+        "tau_force_s": 0.19236795686399732,
+        "tau_recovery_s": 0.20212720757006053,
+        "kappa_per_n2_s": 0.6334129092862626,
+        "max_iterations": 32.0,
+        "residual_tolerance_n": 1e-09,
+        "structure_tolerance": 1e-12,
+        "minimum_metric_eigenvalue": 1.0
+      },
+      "campaign_kind": "diagnostic_seed"
+    },
+    {
+      "arm": "MSFC_IDENTITY",
+      "actual_method": "MSFC",
+      "preparation": "warm",
+      "records": 1510,
+      "rows": 10,
+      "initial_prior_verified": true,
+      "full_record_schema_verified": true,
+      "identity": "94ee0dc7413204cb09a478668487f507492fefee4b265bb5b01fae529d6dbb00",
+      "law_parameters": {
+        "m": 4.0,
+        "g": 0.052126826121414976,
+        "p": 0.5,
+        "a": 0.05,
+        "n": 3.0,
+        "mu": 393.0,
+        "force_scale_n": 2.1095928078033372,
+        "tau_force_s": 0.19236795686399732,
+        "tau_recovery_s": 0.20212720757006053,
+        "kappa_per_n2_s": 0.6334129092862626,
+        "max_iterations": 32.0,
+        "residual_tolerance_n": 1e-09,
+        "structure_tolerance": 1e-12,
+        "minimum_metric_eigenvalue": 1.0
+      },
+      "campaign_kind": "diagnostic_seed"
+    }
+  ]
+}
