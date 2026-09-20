@@ -1,0 +1,433 @@
+{
+ "report_inputs": [
+  {
+   "path": "config/contact_yield_candidates/manifest.json",
+   "sha256": "0f114c023b0e13c3289e871a8d5871dd0e4eb9fe18c28760bb9400705121f22e",
+   "round5_sha256": "0f114c023b0e13c3289e871a8d5871dd0e4eb9fe18c28760bb9400705121f22e",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "config/yield_fair_tuning_v1.json",
+   "sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/contact-yield-recovery-20260920/README.md",
+   "sha256": "c5d643d02da543e089b91d3c0759dc6561677c0b74db3737e905eb387b5739e4",
+   "round5_sha256": "c5d643d02da543e089b91d3c0759dc6561677c0b74db3737e905eb387b5739e4",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/contact-yield-recovery-20260920/advancement.json",
+   "sha256": "9d9287435ca03ac3a4da8867c3caab05bd90fb3c6a9e44928b938cbafbec9bf5",
+   "round5_sha256": "29bcbe582cc155c3b10f83bce573170f6d1c51f2ffe666120b027a2fd130051a",
+   "status_vs_round5": "changed_since_round5"
+  },
+  {
+   "path": "report/contact-yield-recovery-20260920/common-fix.md",
+   "sha256": "3cad77744222e336525d46d7158d3e4eca7cf566a36760d4fd926ae4458cb145",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/contact-yield-recovery-20260920/full-refinement.md",
+   "sha256": "3e4fd0a04bc793fcda539b0ea6ab0aa046f24e02526992af1576dbb9767421b3",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/contact-yield-recovery-20260920/results.md",
+   "sha256": "309b99148f5a4091a2700b355efb57c457697b771a80bac2c8bc39e3bc10a1c3",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-coefficient-equivalence-v1/README.md",
+   "sha256": "edace0ce96c558d6c57adb755351cf35e34f2aa6f260553ebda9a80aaf874fa3",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-coefficient-equivalence-v1/check.py",
+   "sha256": "424347217e9266900b205ea3e692b1104ad4a3534cae529e02504a2463115af4",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-coefficient-equivalence-v1/result.json",
+   "sha256": "095edbb3a76d2ee0696a30f3db14820e5f4a1a00c26e795494ec87bc82e93e0f",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-coefficient-equivalence-v1/tuner-bounds.json",
+   "sha256": "cd2c0750e0ed5afa5507deae00f83e38f9f794844aacac3f834967fa1d0626c5",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-coefficient-equivalence-v1/tuner_bounds_check.py",
+   "sha256": "86015904021258509a72a33073b8a925e2200fa11bb170203fe8a45c0b946f85",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-compute-budget-v1/README.md",
+   "sha256": "b75cca4a7c45d9a51e6ba8710c78e698e517dc7508ad9627e7b28994f0dd5e6e",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-cycle-boundary-v1/README.md",
+   "sha256": "b009e36f7b33ca814c791eed713247dbce5e29b0d49601d5436ab469ce89037b",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-discretization-v1/README.md",
+   "sha256": "2e8805539f625bda0aee8da920f9496c6817c30dcee091a84a1bc9cdbd77de9d",
+   "round5_sha256": "2e8805539f625bda0aee8da920f9496c6817c30dcee091a84a1bc9cdbd77de9d",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-discretization-v1/results.json",
+   "sha256": "f84b5594cd35a89d4f1a8e160864a6f94a0d5269780736479f6166b5fab31bed",
+   "round5_sha256": "f84b5594cd35a89d4f1a8e160864a6f94a0d5269780736479f6166b5fab31bed",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-discretization-v1/results.md",
+   "sha256": "79c2e153893a234703ae9a8ccc06e722e7e32d61661cf3c26ca971b5cf817518",
+   "round5_sha256": "79c2e153893a234703ae9a8ccc06e722e7e32d61661cf3c26ca971b5cf817518",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-frozen-memory-v1/README.md",
+   "sha256": "6fe33c6da799f68bb0d4425b991b8fb928b19b0e1b1a9d16d9155aa88757adc0",
+   "round5_sha256": "6fe33c6da799f68bb0d4425b991b8fb928b19b0e1b1a9d16d9155aa88757adc0",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-frozen-memory-v1/results.json",
+   "sha256": "897d5cb50e08a1bf8898e88d7c3bbd8cfcf9acbea3ba5a3f840a0d85295442b7",
+   "round5_sha256": "897d5cb50e08a1bf8898e88d7c3bbd8cfcf9acbea3ba5a3f840a0d85295442b7",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/README.md",
+   "sha256": "1bbdd3beafa947bfe79a45c1daefef2136aa415f66d11e8fe9e79a7917797415",
+   "round5_sha256": "1bbdd3beafa947bfe79a45c1daefef2136aa415f66d11e8fe9e79a7917797415",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/discussion/data/main-envelope-check.json",
+   "sha256": "1f946f7ce283f5192d3d6a338ffbcff597a884e7dcbeb94100017732819ea648",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/discussion/data/round5-input-hashes.json",
+   "sha256": "563dc9cf923487be76c8f01b97ef52fb993e2d4f30b0bdb6ff47a4ba18503075",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/discussion/fable-round5.md",
+   "sha256": "8dd13b9bbd93f4b3c7e69f473e126fa6edd76af820358c85444900442b824515",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/discussion/main-adjudication.md",
+   "sha256": "b9ce23515c3286ff7aa5f5524b57c3f6928c7a80d801be22104dd728e3bdcf4f",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/discussion/main-verification.json",
+   "sha256": "6521ad90eb63f89aad1e5bdc430d8e25501bceba899160abd17e44a4305ecdca",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/discussion/round5-input-receipt.json",
+   "sha256": "d842d1fc29828a895183ce4f0e77ea7b4820811dc183b9df6b1c87ae869cc8b5",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/discussion/scripts/analyze_round5.py",
+   "sha256": "6fd75f08aca5daf07abe486ff9420471a4551507093181a1924132f1761fe4f1",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/discussion/scripts/extract_ticks_v5.py",
+   "sha256": "f318c016c2849fa3f20f90bb26155e3a819095882d7511ff3c7dd6a55cf8bc3b",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/discussion/scripts/main_envelope_check.py",
+   "sha256": "e4daa4e30a7ab0e2598f857f2c4850b30daa6dad2e640417b205666c3c5e8a13",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/parallel_run_manifest.json",
+   "sha256": "5577dfd987e1e9ac9f0d8114dc13f144fa34c1a80b68e6620ff56734db5194c1",
+   "round5_sha256": "5577dfd987e1e9ac9f0d8114dc13f144fa34c1a80b68e6620ff56734db5194c1",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/protocol.json",
+   "sha256": "eff1587fee05336ab9802a3bb0af72bb5d8a160cd3c7097012424639027d5b9c",
+   "round5_sha256": "eff1587fee05336ab9802a3bb0af72bb5d8a160cd3c7097012424639027d5b9c",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/refinement/README.md",
+   "sha256": "dc1269324dae3324a8cfe8118eb6131e7ae48e89f3f185d4855cb29b34eb11ce",
+   "round5_sha256": "dc1269324dae3324a8cfe8118eb6131e7ae48e89f3f185d4855cb29b34eb11ce",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/refinement/parallel_run_manifest.json",
+   "sha256": "3f895bb3f81461aa205135cb243509f949149549b154283ce898f69c7b3ebb36",
+   "round5_sha256": "3f895bb3f81461aa205135cb243509f949149549b154283ce898f69c7b3ebb36",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/refinement/results.json",
+   "sha256": "67588957a2190e1b1627d22fcd1bb0dd3bd44f12be7fa4600ef02e91fa2e1811",
+   "round5_sha256": "67588957a2190e1b1627d22fcd1bb0dd3bd44f12be7fa4600ef02e91fa2e1811",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/refinement/start.json",
+   "sha256": "4cf637e11a25c546e136b454e4df7c22904acbd49f156e6fd353e181895c6829",
+   "round5_sha256": "4cf637e11a25c546e136b454e4df7c22904acbd49f156e6fd353e181895c6829",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/results.json",
+   "sha256": "4faafb4c56af0a2a299393ba5500e6560912b6d97248ef278bf204f7db5113fc",
+   "round5_sha256": "4faafb4c56af0a2a299393ba5500e6560912b6d97248ef278bf204f7db5113fc",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-frozen-transfer-v1/README.md",
+   "sha256": "458920f2926f17c2f05ff29aac195537d73a00db143baad34cff3dd7f20eedf7",
+   "round5_sha256": "458920f2926f17c2f05ff29aac195537d73a00db143baad34cff3dd7f20eedf7",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-frozen-transfer-v1/protocol.json",
+   "sha256": "36cfc820f73b74c12f86ac42011ec0c429c3b83050176178a37e634739ff0290",
+   "round5_sha256": "36cfc820f73b74c12f86ac42011ec0c429c3b83050176178a37e634739ff0290",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-frozen-transfer-v1/results.json",
+   "sha256": "74f226dd97ae1aac72757d13c65c89ebeba3a2615895731225476400eecb4dd8",
+   "round5_sha256": "74f226dd97ae1aac72757d13c65c89ebeba3a2615895731225476400eecb4dd8",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-full-writer-v1/README.md",
+   "sha256": "1c45e09b53c577fb6d875c3c003cc8c971c5643456f698a4014b153118932308",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-gain-memory-v1/README.md",
+   "sha256": "833aab647a245d1ec26f223e0ebb8f794f44ca70972f3914faeb885729f04fd3",
+   "round5_sha256": "833aab647a245d1ec26f223e0ebb8f794f44ca70972f3914faeb885729f04fd3",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-gain-memory-v1/discussion/main-adjudication.md",
+   "sha256": "0e26315c63528a9f367ca16b859d87472cb5bdffbeae0087b143012cd520d37d",
+   "round5_sha256": "0e26315c63528a9f367ca16b859d87472cb5bdffbeae0087b143012cd520d37d",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-gain-memory-v1/results.md",
+   "sha256": "89c88ecbc269dded84d0ce2cfac02748044a4dee5a32078772e49c6fc956ace1",
+   "round5_sha256": "89c88ecbc269dded84d0ce2cfac02748044a4dee5a32078772e49c6fc956ace1",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-normal-v3/README.md",
+   "sha256": "15bf062c61ae0504ce3a24aa8a70884ec8e64dfbf8e438639f5c2d71796469c7",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-normal-v3/discussion/main-adjudication.md",
+   "sha256": "5a549643d4585a67a282f72081f63f39a3c023f603788ee24fecf8c40d1959e2",
+   "round5_sha256": "5a549643d4585a67a282f72081f63f39a3c023f603788ee24fecf8c40d1959e2",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-normal-v3/parallel_run_manifest.json",
+   "sha256": "61eff488b7566469e16144833506e8fe2b207ca6770107e7083b0c7fdb9bf2e9",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-normal-v3/protocol.md",
+   "sha256": "7313260cd82dea48edaba7f638933c9895520bce9613cf3578130b82fd199a1f",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-normal-v3/refinement-manifest.json",
+   "sha256": "1968a56ff67abcff338977e9ca86692e81a8f1212b199ef2b29faccc87d66a0a",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-normal-v3/refinement.json",
+   "sha256": "e51e4f820596ccc1d7d444b1347ed0b4d10d3d69c8eb462e885fb887435e43a8",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-normal-v3/results.json",
+   "sha256": "6b2c1b42d32d0ad3f6c3ba092ea15a9b2bab2e9d5747cb15314f0823c3975434",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-normal-v3/results.md",
+   "sha256": "4fe896a8f08b70b16000aa5fbaa9402b9f0638a915e3e306a21c963ded231455",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-observer-identifiability-v1/discussion/main-adjudication.md",
+   "sha256": "123b6d230ce1c560cd7c7d58d8c6791da5245b73a51d2de150923aad6235085c",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-observer-transfer-v1/README.md",
+   "sha256": "83a65f7aa9392f6f74af10cad6a239ce5ec3436ba1f1df8c906b4c5879cc13f7",
+   "round5_sha256": "83a65f7aa9392f6f74af10cad6a239ce5ec3436ba1f1df8c906b4c5879cc13f7",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-observer-transfer-v1/manifest.json",
+   "sha256": "4dba470ba6baa2cee5f85f33c5510e54705b039075539cd05b4f4600bfe5c28b",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-observer-transfer-v1/protocol.json",
+   "sha256": "f59a348f58eb27afc8e7373bbfd54f7ebb4208628553d75e47c3f145fecd1523",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-observer-transfer-v1/results.json",
+   "sha256": "ff3464febdd9b81338cb412ca86f8527ba49216dc9017f6334a34232005b8cf9",
+   "round5_sha256": "ff3464febdd9b81338cb412ca86f8527ba49216dc9017f6334a34232005b8cf9",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-observer-transfer-v1/results.md",
+   "sha256": "267ff4449e03013337007c5ee30ffbe165bf575627a908744d47d360c6824bd2",
+   "round5_sha256": "267ff4449e03013337007c5ee30ffbe165bf575627a908744d47d360c6824bd2",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-observer-transfer-v1/start.json",
+   "sha256": "3f26b62e91a158113a6d9496156ab9998e7abf48041f84289e2aaa977a0debc6",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-platform-preflight-v2/README.md",
+   "sha256": "12edb8f0b4709bba0ca2d7ee1d15514587f6bdcec1394ecf3b0aa0c0100baf4a",
+   "round5_sha256": "12edb8f0b4709bba0ca2d7ee1d15514587f6bdcec1394ecf3b0aa0c0100baf4a",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-provider-admission-v2/README.md",
+   "sha256": "fb9c861a6349a36fcb77b4a4548a22c15f841fd053b84ced770034ef15030b6d",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-surface-excitation-v1/README.md",
+   "sha256": "4b3b18585686622f61afb1de77b9b045dcaf2b4239bef975c1d416d7b338349e",
+   "round5_sha256": "4b3b18585686622f61afb1de77b9b045dcaf2b4239bef975c1d416d7b338349e",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-surface-excitation-v1/results.md",
+   "sha256": "cbea11c8066c4cf3cd81d1b5f69649ad41b070b6feb5a62c3c144b7d253b5b0c",
+   "status_vs_round5": "not_in_round5_list"
+  },
+  {
+   "path": "report/yield-transfer-v1/README.md",
+   "sha256": "e1c3f420d832abf60cf199563bee7f1e82753f5a065f2812e6a3d37c598f2455",
+   "round5_sha256": "e1c3f420d832abf60cf199563bee7f1e82753f5a065f2812e6a3d37c598f2455",
+   "status_vs_round5": "unchanged"
+  },
+  {
+   "path": "report/yield-transfer-v1/results.md",
+   "sha256": "e9fc14ec229d0c46e260ac26fabefb6120e251e77470bd2c3279b2e63584c5bb",
+   "round5_sha256": "e9fc14ec229d0c46e260ac26fabefb6120e251e77470bd2c3279b2e63584c5bb",
+   "status_vs_round5": "unchanged"
+  }
+ ],
+ "tool_inputs": [
+  {
+   "path": "tests/test_yield_contact_tuner.py",
+   "sha256": "9b1003ef8ada492b74e06ea2dfb04b2475fe531d2bc54b68a7f52e368337c88d",
+   "status_vs_round5": "not_in_round5_list",
+   "sha256_at_head_6f041ef6": null,
+   "changed_between_6f041ef6_and_worktree": "file absent at 6f041ef6"
+  },
+  {
+   "path": "tools/contact_benchmark_protocol.py",
+   "sha256": "a5458c3bc5626c83efc2418a9ac65856d55d9162050d5875565463a365d9fb3a",
+   "status_vs_round5": "not_in_round5_list",
+   "sha256_at_head_6f041ef6": "a5458c3bc5626c83efc2418a9ac65856d55d9162050d5875565463a365d9fb3a",
+   "changed_between_6f041ef6_and_worktree": false
+  },
+  {
+   "path": "tools/contact_benchmark_tuner.py",
+   "sha256": "32f5ac9815deebb2ef67daa5a00e70a2a0c7b715646ba9aeeea911da961b5f0a",
+   "status_vs_round5": "not_in_round5_list",
+   "sha256_at_head_6f041ef6": "9e988ccfb0583736ca213d35bc548979fe425b3696f4a35bc58b9a27ce86cc0c",
+   "changed_between_6f041ef6_and_worktree": true
+  },
+  {
+   "path": "tools/contact_yield_metrics.py",
+   "sha256": "ac1064303707f48099127e39b3ef0b7ae259a8d7c27203cb37e1000fa6643364",
+   "round5_sha256": "ac1064303707f48099127e39b3ef0b7ae259a8d7c27203cb37e1000fa6643364",
+   "status_vs_round5": "unchanged",
+   "sha256_at_head_6f041ef6": "ac1064303707f48099127e39b3ef0b7ae259a8d7c27203cb37e1000fa6643364",
+   "changed_between_6f041ef6_and_worktree": false
+  },
+  {
+   "path": "tools/contact_yield_normal.py",
+   "sha256": "1758790e264c4fb18d3fd6066cbe4b6129e4e7efce549b0992ec68e9a2130856",
+   "status_vs_round5": "not_in_round5_list",
+   "sha256_at_head_6f041ef6": "1758790e264c4fb18d3fd6066cbe4b6129e4e7efce549b0992ec68e9a2130856",
+   "changed_between_6f041ef6_and_worktree": false
+  },
+  {
+   "path": "tools/contact_yield_protocol.py",
+   "sha256": "08c5d036c5bc089a7b5b7cd9be0ab297043ef78c818b0962bb276b71d71f3825",
+   "round5_sha256": "40c959548c56eac474775fee21627944f799c06516f31cd9c6c77cd2a8197475",
+   "status_vs_round5": "changed_since_round5",
+   "sha256_at_head_6f041ef6": "40c959548c56eac474775fee21627944f799c06516f31cd9c6c77cd2a8197475",
+   "changed_between_6f041ef6_and_worktree": true
+  },
+  {
+   "path": "tools/contact_yield_runner.py",
+   "sha256": "f2554ed3010f92a5dc92d968527f3bfb6219a7403696219a30bfd2c1ee1e184f",
+   "status_vs_round5": "not_in_round5_list",
+   "sha256_at_head_6f041ef6": "f2554ed3010f92a5dc92d968527f3bfb6219a7403696219a30bfd2c1ee1e184f",
+   "changed_between_6f041ef6_and_worktree": false
+  },
+  {
+   "path": "tools/contact_yield_simulator.py",
+   "sha256": "36b9123ad280114a7d988deeda269d6722cb6ebdef3c692a7bde2d3f773023b4",
+   "round5_sha256": "36b9123ad280114a7d988deeda269d6722cb6ebdef3c692a7bde2d3f773023b4",
+   "status_vs_round5": "unchanged",
+   "sha256_at_head_6f041ef6": "36b9123ad280114a7d988deeda269d6722cb6ebdef3c692a7bde2d3f773023b4",
+   "changed_between_6f041ef6_and_worktree": false
+  },
+  {
+   "path": "tools/yield_contact_tuner.py",
+   "sha256": "3f93d53354f6fa08c8e22d837e0e7d997ff9766760dd927045592c2e7f0e0f8c",
+   "status_vs_round5": "not_in_round5_list",
+   "sha256_at_head_6f041ef6": null,
+   "changed_between_6f041ef6_and_worktree": "file absent at 6f041ef6"
+  }
+ ],
+ "missing_inputs": [],
+ "summary": {
+  "report_inputs": 64,
+  "tools": 9,
+  "changed_since_round5": [
+   "report/contact-yield-recovery-20260920/advancement.json",
+   "tools/contact_yield_protocol.py"
+  ],
+  "unchanged_since_round5": 31,
+  "not_in_round5_list": 40
+ }
+}

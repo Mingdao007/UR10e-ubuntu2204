@@ -1,0 +1,431 @@
+{
+  "raw_checks": [
+    {
+      "path": "runs/yield-observer-transfer-v1/SFC-nominal.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/SFC-sustained_release_normal.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/SFC-sustained_release_tangent.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-normal-v3/combined-mild-approach.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-normal-v3/combined-normal-hold.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-normal-v3/combined-tangent-hold.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/MSFC-nominal.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/MSFC-sustained_release_normal.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/MSFC-sustained_release_tangent.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-offset-ablation/SFC-nominal.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-offset-ablation/DSFC-nominal.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-gain-memory-v1/MSFC-GM-v1-g50-on-nominal-plant8.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-normal-v3/combined-mild-along.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-normal-v3/combined-mild-across.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-normal-v3/combined-strong-approach.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-transfer-v1/SFC-nominal.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-observer-prior-v1/DSFC-stiff_low_mu-approach.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-transfer-v1/MSFC-nominal.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-memory-v1/MSFC-nominal.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-transfer-v1/SFC-sustained_release_tangent.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-normal-v3/frozen-tangent-hold.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-transfer-v1/MSFC-sustained_release_tangent.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-memory-v1/MSFC-sustained_release_tangent.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-pulse-v1/SFC/SFC-short_pulse_oblique.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-pulse-v1/DSFC/DSFC-short_pulse_oblique.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-pulse-v1/MSFC/MSFC-short_pulse_oblique.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-pulse-v1/MSFC-identity/MSFC-short_pulse_oblique.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-pulse-v1-check/MSFC/short_pulse_oblique.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-pulse-v1-check/MSFC-identity/short_pulse_oblique.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-pulse-v1-check/MSFC/nominal.json.gz",
+      "matches": true
+    },
+    {
+      "path": "runs/yield-frozen-pulse-v1-check/MSFC-identity/nominal.json.gz",
+      "matches": true
+    }
+  ],
+  "input_checks": [
+    {
+      "path": "config/contact_yield_candidates/manifest.json",
+      "matches_current": true
+    },
+    {
+      "path": "config/yield_fair_tuning_v1.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/contact-yield-recovery-20260920/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/contact-yield-recovery-20260920/advancement.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/contact-yield-recovery-20260920/common-fix.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/contact-yield-recovery-20260920/full-refinement.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/contact-yield-recovery-20260920/results.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-coefficient-equivalence-v1/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-coefficient-equivalence-v1/check.py",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-coefficient-equivalence-v1/result.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-coefficient-equivalence-v1/tuner-bounds.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-coefficient-equivalence-v1/tuner_bounds_check.py",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-compute-budget-v1/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-cycle-boundary-v1/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-discretization-v1/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-discretization-v1/results.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-discretization-v1/results.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-memory-v1/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-memory-v1/results.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/discussion/data/main-envelope-check.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/discussion/data/round5-input-hashes.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/discussion/fable-round5.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/discussion/main-adjudication.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/discussion/main-verification.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/discussion/round5-input-receipt.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/discussion/scripts/analyze_round5.py",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/discussion/scripts/extract_ticks_v5.py",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/discussion/scripts/main_envelope_check.py",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/parallel_run_manifest.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/protocol.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/refinement/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/refinement/parallel_run_manifest.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/refinement/results.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/refinement/start.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/results.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-transfer-v1/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-transfer-v1/protocol.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-frozen-transfer-v1/results.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-full-writer-v1/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-gain-memory-v1/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-gain-memory-v1/discussion/main-adjudication.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-gain-memory-v1/results.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-normal-v3/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-normal-v3/discussion/main-adjudication.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-normal-v3/parallel_run_manifest.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-normal-v3/protocol.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-normal-v3/refinement-manifest.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-normal-v3/refinement.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-normal-v3/results.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-normal-v3/results.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-observer-identifiability-v1/discussion/main-adjudication.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-observer-transfer-v1/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-observer-transfer-v1/manifest.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-observer-transfer-v1/protocol.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-observer-transfer-v1/results.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-observer-transfer-v1/results.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-observer-transfer-v1/start.json",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-platform-preflight-v2/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-provider-admission-v2/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-surface-excitation-v1/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-surface-excitation-v1/results.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-transfer-v1/README.md",
+      "matches_current": true
+    },
+    {
+      "path": "report/yield-transfer-v1/results.md",
+      "matches_current": true
+    },
+    {
+      "path": "tests/test_yield_contact_tuner.py",
+      "matches_current": true
+    },
+    {
+      "path": "tools/contact_benchmark_protocol.py",
+      "matches_current": true
+    },
+    {
+      "path": "tools/contact_benchmark_tuner.py",
+      "matches_current": true
+    },
+    {
+      "path": "tools/contact_yield_metrics.py",
+      "matches_current": true
+    },
+    {
+      "path": "tools/contact_yield_normal.py",
+      "matches_current": true
+    },
+    {
+      "path": "tools/contact_yield_protocol.py",
+      "matches_current": true
+    },
+    {
+      "path": "tools/contact_yield_runner.py",
+      "matches_current": true
+    },
+    {
+      "path": "tools/contact_yield_simulator.py",
+      "matches_current": true
+    },
+    {
+      "path": "tools/yield_contact_tuner.py",
+      "matches_current": true
+    }
+  ],
+  "zero_force_after_steady_scalar_feature": {
+    "dt_s": 0.002,
+    "elapsed_s": 0.6,
+    "history_ratio": 0.044917839386017844,
+    "structure_ratio": 0.09719685387078339,
+    "claim_scope": "scalar invariant subspace of native memory recurrence, not closed-loop or global memory settling bound"
+  },
+  "all_raw_match": true,
+  "analysis_recomputed_exact_match": true
+}

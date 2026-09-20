@@ -1,0 +1,25 @@
+Round 6 is delivered. Everything is under `report/yield-fair-tuning-v1/discussion/` and nothing else in the worktree was touched.
+
+**What was written**
+
+- `fable-round6.md`: the selection contract, answering the four questions.
+- `round6-input-receipt.json` plus `data/`: current hashes of 64 report and config inputs and 9 tool files, comparison against the round 5 hash list, a manifest of the 31 raw receipts used, and output hashes.
+- `scripts/`: a rows-only receipt extractor, the analysis script, and the receipt script. All derived numbers are in `data/round6-analysis.json`.
+
+**Recommendations, in one line each**
+
+1. Spend all 24 units per method on one training cell: stiff material, mild surface, approach prior, cold preparation, sustained oblique release. This is the only allocation that keeps one unit equal to one observed pair and gives the repeat block an observed incumbent. The four repeats stay literal and are reported as determinism evidence with no confidence interval.
+2. Select by feasibility first, then one scalar. Feasibility bands are the untuned SFC seed's nominal values under NO-v3 plus the observed step resolution. The objective integrates load, path, and attitude deviation from the matched nominal, normalized by the existing 0.5 N and 2 mm recovery bands and the observer's 0.05 rad rate cap. Its ordering on every existing development pair is stable across twelve load and path weightings. Recovery time stays a reported metric, never the objective.
+3. Run two separated numerical checks per frozen incumbent after unit 24, never as feedback. Qualification uses the existing recovery bands as the pointwise bound, with the seven already reported step differences disclosed against it. Benefit claims use a paired criterion that resolves peak load and the objective on the pulse pair but not recovery time. Offline holdout is one deterministic run per cell. The five repeats remain a hardware requirement.
+4. A five-block holdout of 112 trials covering direction transfer, the compliant material, strong curvature, two priors, and warm preparation, with identity-metric and radial ablation arms where claims require them.
+
+**Two findings worth your attention**
+
+- After a tangential push under NO-v3, attitude error stays near 4.6 degrees for all three laws for the rest of the cycle, against 0.73 degrees nominal. A hard post-release attitude gate would exclude every candidate, so attitude is inside the objective instead.
+- The SFC versus DSFC ordering in the tangent hold flips when the attitude band is halved. The weights must be frozen before unit 1.
+
+**Verification status**
+
+All nine nominal metrics recomputed from receipt rows match the stored values to 1e-18. All sixteen recovery times reproduce exactly. HEAD moved five times during the session, from 6f041ef6 to dbf91c97. I read the proposer at bc2d016a and did not read the three later commits. Two inputs changed since round 5 and are listed with current hashes. Formal units consumed: zero.
+
+Next is your adjudication. One more advisory iteration remains this round if you want any part revised.

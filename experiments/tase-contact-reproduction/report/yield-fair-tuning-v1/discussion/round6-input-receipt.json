@@ -1,0 +1,103 @@
+{
+ "schema": "fable-advisory-round-receipt-v1",
+ "round": 6,
+ "study": "yield-fair-tuning-v1",
+ "role": "advisory, non-blocking; no live authority; not formal acceptance; first of at most two iterations",
+ "model": "claude-fable-5-1",
+ "requested_effort": "xhigh",
+ "effort_evidence": "launch parameter only, not independent server attestation",
+ "head_at_session_start": "6f041ef6",
+ "head_at_receipt": "dbf91c977d6627e5c4e47866fb7e0bc482a47c5f",
+ "head_log_since_start": [
+  "dbf91c97 Bind native yield preparation to complete runtime and reviewed model",
+  "1f29c864 Retain native route anchor-binding counterexample before integration",
+  "aeb9b61d Bind three-method paired ledger to actual proposer history and training scope",
+  "bc2d016a Add fair three-method proposer with explicit paired training contracts",
+  "b13168f6 Complete actual yield cycle across sampled entry seams with strict reference proof"
+ ],
+ "worktree_status_at_receipt": [
+  "?? report/yield-fair-tuning-v1/discussion/"
+ ],
+ "dirty_at_session_start": [
+  "tests/test_contact_yield_evidence.py",
+  "tests/test_contact_yield_full_writer.py",
+  "tests/test_contact_yield_provider.py",
+  "tests/test_contact_yield_writer_loop.py",
+  "tests/yield_full_writer_offline.py",
+  "tools/contact_yield_protocol.py",
+  "tools/measure_yield_full_writer.py",
+  "tools/step5d_autotune_v4_r004_live_writer.py",
+  "tools/yield_contact_evidence.py",
+  "tools/yield_contact_provider.py",
+  "tools/yield_contact_runtime.py",
+  "report/yield-cycle-boundary-v1/ (untracked)"
+ ],
+ "dirty_files_handling": "contact_yield_protocol.py was read at 6f041ef6 via read-only git show, not from the dirty worktree; the other dirty files were not read; main committed them during the session",
+ "written_at_utc": "2026-09-20T02:31:54.629503+00:00",
+ "write_scope": "report/yield-fair-tuning-v1/discussion/ only",
+ "not_done": [
+  "no runtime/test/config/other-report edits",
+  "no git write operations (read-only rev-parse/log/status/show/diff only)",
+  "no hardware, transport or network access",
+  "no closed-loop runs, campaigns or holdout launches",
+  "no subagents",
+  "no external literature claims",
+  "no formal tuning or holdout unit consumed"
+ ],
+ "inputs": {
+  "report_and_config": 64,
+  "tools_and_tests": 9,
+  "changed_since_round5": [
+   "report/contact-yield-recovery-20260920/advancement.json",
+   "tools/contact_yield_protocol.py"
+  ],
+  "file": "report/yield-fair-tuning-v1/discussion/data/round6-input-hashes.json"
+ },
+ "raw_receipts": {
+  "count": 31,
+  "all_match": true,
+  "manifest": "report/yield-fair-tuning-v1/discussion/data/round6-receipt-manifest.json"
+ },
+ "tick_caches": {
+  "/tmp/yfp6": "rows-only extracts, scripts/extract_rows_v6.py, not retained",
+  "/tmp/yfp5": "round-5 cache, scripts in report/yield-frozen-pulse-v1/discussion, not retained"
+ },
+ "numbers_recomputed_vs_reported": "nominal_recomputed in data/round6-analysis.json: max |stored - recomputed| 8.7e-19 over nine nominals; compare_pair recovery reproduced exactly on all sixteen pairs",
+ "outputs": [
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/data/round6-analysis.json",
+   "sha256": "879757b3be024d039b642f6b706e7ad06d743dbe0e30839754cf9c2197a97e2d",
+   "bytes": 80704
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/data/round6-input-hashes.json",
+   "sha256": "1732dd568d8e6267c80f55c12bfa8151de6c4a8af0870ca7ceae827a173d1a78",
+   "bytes": 18431
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/data/round6-receipt-manifest.json",
+   "sha256": "d4be1b6f7f9f1270269128b7a4dd5d4f39b39c75f0faeab2ed6a70b62c659af3",
+   "bytes": 15378
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/fable-round6.md",
+   "sha256": "989b9d5b266a926ca02c77739915dc47f7ce436f12bb58cfe0f8165cd523d98d",
+   "bytes": 40675
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/scripts/analyze_round6.py",
+   "sha256": "5170d0c683232b0712fa423efe52fc69408d2ab382a34cab0cb8143def0153f4",
+   "bytes": 28818
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/scripts/extract_rows_v6.py",
+   "sha256": "b3d9662dfbaf4210b3c886f9b34166a863de54ab30c58652c595a252d3528178",
+   "bytes": 2123
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/scripts/round6_receipt.py",
+   "sha256": "3c52a9109bf40f6e26e54068c8ce06c6ee253ceb5df1d9eda8dad3b22a5a119e",
+   "bytes": 13383
+  }
+ ]
+}
