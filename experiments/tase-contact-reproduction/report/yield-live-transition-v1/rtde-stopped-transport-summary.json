@@ -1,0 +1,45 @@
+{
+  "schema": "yield-stopped-transport-diagnostic-v1",
+  "claim_scope": "stopped real transport recipe/receive diagnostic; no command publication or motion qualification",
+  "started_at": "2026-09-20T07:27:24.743813+00:00",
+  "command_packets_sent": 0,
+  "load_play_sent": false,
+  "dashboard_before": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "true",
+    "safetystatus": "Safetystatus: NORMAL",
+    "robotmode": "Robotmode: RUNNING",
+    "programState": "STOPPED step5d_contact_six_qp_v1.urp",
+    "running": "Program running: false",
+    "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp"
+  },
+  "input_recipe": 1,
+  "output_recipe": 1,
+  "ok": true,
+  "dashboard_after": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "true",
+    "safetystatus": "Safetystatus: NORMAL",
+    "robotmode": "Robotmode: RUNNING",
+    "programState": "STOPPED step5d_contact_six_qp_v1.urp",
+    "running": "Program running: false",
+    "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp"
+  },
+  "completed_at": "2026-09-20T07:27:34.845990+00:00",
+  "frame_count": 4999,
+  "receive_gap_s": {
+    "50": 0.001999255000555422,
+    "95": 0.0020440913511265537,
+    "99": 0.0020763241922395533,
+    "100": 0.006737620002240874
+  },
+  "controller_gap_s": {
+    "50": 0.0020000000076834112,
+    "95": 0.0020000000076834112,
+    "99": 0.0020000000076834112,
+    "100": 0.006000000023050234
+  },
+  "held_gap_count": 0,
+  "stale_gap_count": 0,
+  "frames_sha256": "7f3909d9070aa8d7a0d4c3fac9d5338ca17334a2c7dbc59f3ce920925e16667e"
+}

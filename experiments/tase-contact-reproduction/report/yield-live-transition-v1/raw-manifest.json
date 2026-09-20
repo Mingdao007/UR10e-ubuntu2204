@@ -1,5 +1,5 @@
 {
-  "utc": "2026-09-20T07:20:34.891008+00:00",
+  "utc": "2026-09-20T07:28:19.043392+00:00",
   "files": [
     {
       "path": "runs/yield-live-transition-20260920/dashboard-151340.json",
@@ -105,6 +105,21 @@
       "path": "runs/yield-live-transition-20260920/step5d_contact_six_qp_v1-validation.json",
       "bytes": 9361,
       "sha256": "6963999902ad0ab9d8d182d1a0c2ac039f2633035c7508d65dcd98428edac493"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/rtde-stopped-transport/capture.py",
+      "bytes": 2855,
+      "sha256": "4c45b9c9549664eda6215d8412c17500a83b49261b7086ee4dc9ba20ffcc08f1"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/rtde-stopped-transport/frames.json",
+      "bytes": 6004184,
+      "sha256": "7f3909d9070aa8d7a0d4c3fac9d5338ca17334a2c7dbc59f3ce920925e16667e"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/rtde-stopped-transport/summary.json",
+      "bytes": 1690,
+      "sha256": "0280083c0b97e48ebc96e58d389329e0b4996185f3bb3eec3a5fb95a03615f96"
     }
   ]
 }

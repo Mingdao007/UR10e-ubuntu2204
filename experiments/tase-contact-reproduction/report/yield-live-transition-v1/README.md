@@ -18,3 +18,7 @@ Astra kickoff uses hp-astra/gpt-6-astra/xhigh in isolated tase-live-baseline wor
 ## Next acceptance
 
 The public native live dispatch is still being implemented. Validate its exact sole-writer composition, real transport/stop behavior and fresh machine gates, then execute2s/10s/fullperiod contact pilots without waiting for simulated searches or TASE completion. No physical task success is claimed here. No payload, TCP, force/velocity guard or freshness policy was modified.
+
+## Stopped real-transport check at 07:27 UTC
+
+The mature R004 RTDE transport established output-before-input recipes on the real controller and captured 4,999 frames over 10 s with SCHED_FIFO/20. No command packet, Load, Play or motion was sent. Dashboard before and after was STOPPED, Remote, Safety NORMAL, on the exact native contact package; observed joint/TCP velocities remained below 1 mm/s or mrad/s checks. Receive-gap p99 was 2.076 ms and maximum 6.738 ms; no gap reached the 20 ms held or 80 ms stale boundary. The host scheduler permission was verified. This is stopped transport/recipe evidence, not full writer timing, command-consumption, contact or task qualification. The process used its existing allowed CPU mask without a dedicated affinity allocation. Capture source, raw frames and summary are bound in raw-manifest.json.
