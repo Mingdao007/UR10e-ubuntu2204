@@ -247,7 +247,7 @@ def run_live(
         "formally_qualified": False,
         "full_cycle_acceptance": False,
         "physical_qualification": False,
-        "rnn_hash_or_profile": False,
+        "rnn_hash_or_profile": provider.solver_profile.as_dict() if args.method == "TASE_RNN_MATURE" else False,
         "prewarmed_before_endpoints": True,
         "provider_prewarm": getattr(provider, "prewarm_record", None),
         "command_timeline": getattr(provider, "command_timeline", []),

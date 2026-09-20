@@ -1,6 +1,6 @@
 {
   "schema": "yield-live-entry-v1",
-  "claim_scope": "public live entry over the mature sole writer and native YieldContactProvider; native parameters are seeds, not physical qualification; short rungs are diagnostic; hardware admission remains main/liveowner",
+  "claim_scope": "public live entry over the mature sole writer with native YieldContactProvider or historical local TASE_RNN_MATURE; parameters are seeds, not physical qualification; short rungs are diagnostic; hardware admission remains main/liveowner",
   "program": "step5d_contact_six_qp_v1",
   "home_program": "step5d_contact_home_v1",
   "native_route_config": "config/yield_native_route_v1.json",
@@ -56,6 +56,13 @@
       "available": true,
       "provider": "YieldContactProvider",
       "source_binding": "yield_native_route_v1"
+    },
+    "TASE_RNN_MATURE": {
+      "family": "tase_mature",
+      "available": true,
+      "provider": "TaseContactProvider",
+      "source_binding": "tase-mature-current-model-v1",
+      "implementation": "historical local minus-sign RNN, r=1, epsilon=0.022, one numpy iteration; not printed-plus finite-time baseline"
     },
     "TASE_RNN": {
       "family": "tase_rnn",

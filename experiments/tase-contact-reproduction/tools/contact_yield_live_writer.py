@@ -365,6 +365,31 @@ def _prewarm_native_provider(provider, *, pose, q) -> dict[str, Any]:
     return record
 
 
+def _prewarm_tase_provider(provider, *, pose, q):
+    """Warm the real local RNN at Home; restore control and observation state."""
+    import copy
+    state = provider.snapshot()
+    freshness = copy.deepcopy(vars(provider.freshness))
+    times = []
+    try:
+        for index in range(16):
+            now = .002*(index+1)
+            output, sensor = _prewarm_observation(pose=pose, q=q, monotonic_s=now)
+            start = time.perf_counter()
+            command = provider.command(output=output, sensor=sensor, monotonic_s=now,
+                actual_dt_s=.002, mode="baseline", internal_setpoint_n=1.)
+            times.append(time.perf_counter()-start)
+            if not all(math.isfinite(x) and abs(x)<=.05 for x in command.qdot):
+                raise YieldLiveWriterError("TASE prewarm command exceeds current limits")
+    finally:
+        provider.restore(state)
+        provider.freshness.__dict__.update(freshness)
+    provider.prewarm_record = {"purpose":"transport-free mature TASE RNN warmup",
+        "command_count":len(times),"command_times_s":times,
+        "solver_profile":provider.solver_profile.as_dict(),"state_restored":True}
+    return provider.prewarm_record
+
+
 def _install_command_timing(provider):
     """Bounded real-clock diagnostics; never changes observations or command state."""
     timeline = provider.command_timeline = []
@@ -470,31 +495,40 @@ def build_native_yield_owner(
     record = resolve_method(method)
     request = None if command == "qualify" else parse_live_duration(duration)
     library = Path(qp_library) if qp_library is not None else QP_LIBRARY_PATH
-    _prewarm_qp(library)
+    if record.family != "tase_mature":
+        _prewarm_qp(library)
     import numpy as np
 
     pose = home_binding.profile.pose
     rotation = rotvec_to_matrix(np.array(pose[3:], dtype=float))
     from contact_yield_task_frame import require_figure8_home
     task_basis = require_figure8_home(pose)
-    runtime, binding = create_native_yield_runtime(
-        method=record.name,
-        qp_library=library,
-        anchor_m=pose[:3],
-        task_basis=task_basis,
-        approach_inward_base=rotation[:, 2],
-        home_observations={"home_pose": pose, "home_q": home_binding.entry_receipt.final_q},
-    )
+    tase = record.family == "tase_mature"
+    if tase:
+        from tase_contact_provider import TaseContactProvider, current_model_binding
+        from step5d_autotune_v4_r014.solver_profile import LEGACY_R1
+        provider = TaseContactProvider(contract=current_model_binding(), candidate=R006Candidate(),
+            motion_profile=native_motion_profile(), home_pose=pose, solver_profile=LEGACY_R1)
+        runtime = provider
+    else:
+        runtime, binding = create_native_yield_runtime(
+            method=record.name,
+            qp_library=library,
+            anchor_m=pose[:3],
+            task_basis=task_basis,
+            approach_inward_base=rotation[:, 2],
+            home_observations={"home_pose": pose, "home_q": home_binding.entry_receipt.final_q},
+        )
     try:
-        provider = create_native_yield_provider(runtime=runtime, binding=binding)
+        if not tase:
+            provider = create_native_yield_provider(runtime=runtime, binding=binding)
         if request is not None:
             provider.live_path_request = require_live_path_request(request)
-        _prewarm_native_provider(
-            provider,
-            pose=pose,
-            q=home_binding.entry_receipt.final_q,
-        )
-        _install_command_timing(provider)
+        if tase:
+            _prewarm_tase_provider(provider, pose=pose, q=home_binding.entry_receipt.final_q)
+        else:
+            _prewarm_native_provider(provider, pose=pose, q=home_binding.entry_receipt.final_q)
+            _install_command_timing(provider)
 
         def factory(**_ignored: Any):
             return provider

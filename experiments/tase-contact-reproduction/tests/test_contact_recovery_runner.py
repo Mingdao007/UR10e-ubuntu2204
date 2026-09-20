@@ -7,7 +7,8 @@ import pytest
 import run_contact_recovery as runner
 from contact_yield_math import so3_exp
 
-HOME=[.487834547,.129337053,.033,2.033134243,2.394988424,0.]
+from contact_yield_task_frame import FIGURE8_CONTACT_HOME_XYZ_M
+HOME=[*FIGURE8_CONTACT_HOME_XYZ_M,2.033134243,2.394988424,0.]
 
 @pytest.mark.parametrize('failure',[None,'reload','no_release','stale','user_interrupt'])
 def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure):
@@ -17,6 +18,11 @@ def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure)
     monkeypatch.setattr(runner,'time',SimpleNamespace(time=lambda:clock.t,monotonic=lambda:clock.t,sleep=sleep))
     monkeypatch.setattr(runner,'validate_recovery_packages',lambda *_:None)
     monkeypatch.setattr(runner,'check_dashboard',lambda _:events.append('stopped_read'))
+    def terminal_read(*_):
+        events.append('terminal_read')
+        return {'safetymode':'Safetymode: NORMAL',
+                'running':'Program running: true' if events.count('terminal_read') < 3 else 'Program running: false'}
+    monkeypatch.setattr(runner,'dashboard_exchange',terminal_read)
     monkeypatch.setattr(runner,'load_identity_contract',lambda:SimpleNamespace(home_pose=HOME,eoat_sha256='tool'))
     monkeypatch.setattr(runner,'check_geometry',lambda *_:{'home_q':[0.]*6,'pass':True})
     class Lock:

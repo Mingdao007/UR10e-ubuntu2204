@@ -502,7 +502,12 @@ class _R006NativeCanonicalQualificationControl(_R004CanonicalQualificationContro
             # the mature runtime primitives.  No r004 V4Candidate is built.
             # YieldContactProvider owns the native model/solver binding;
             # ContactCommandProvider and the no-provider path keep load_contract.
-            if isinstance(self.contact_command_provider, YieldContactProvider):
+            from tase_contact_provider import TaseContactProvider
+            if isinstance(self.contact_command_provider, TaseContactProvider):
+                from step5d_autotune_v4_r004.calibrated_runtime import observed_model_hashes
+                self._contract = self.contact_command_provider.contract
+                observed_model_hashes(self._contract)
+            elif isinstance(self.contact_command_provider, YieldContactProvider):
                 from yield_native_route import YieldNativeRouteError, native_contract_for_provider
 
                 try:

@@ -141,6 +141,15 @@ def run(args):
                 if row['actual_TCP_pose'][2]>=plan['lift_pose'][2]-.0001 and stationary(row):
                     if stopped_since is None:stopped_since=time.monotonic()
                     if time.monotonic()-stopped_since>=.3:
+                        # TP can still be completing its terminal bookkeeping
+                        # after physical motion has stopped. Keep observing force,
+                        # pose and video while awaiting program termination.
+                        terminal = dashboard_exchange(args.host, ['safetymode', 'running'])
+                        if terminal.get('safetymode') != 'Safetymode: NORMAL':
+                            raise ValueError(f'relief safety changed: {terminal}')
+                        if terminal.get('running') == 'Program running: true':
+                            time.sleep(.01)
+                            continue
                         check_dashboard(args.host)
                         if not force or not force['released']:raise ValueError('lift complete but force release not confirmed; no XY return')
                         result['relief_complete']=True;break

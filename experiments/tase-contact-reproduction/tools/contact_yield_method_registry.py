@@ -23,6 +23,7 @@ SCHEMA = "yield-live-entry-v1"
 CONTACT_PROGRAM = "step5d_contact_six_qp_v1"
 HOME_PROGRAM = "step5d_contact_home_v1"
 NATIVE_FAMILY = "native_yield"
+TASE_MATURE_METHOD = "TASE_RNN_MATURE"
 REGISTERED_UNAVAILABLE = ("TASE_RNN", "TASE_QP")
 OFFLINE_TASE_METHODS = ("TASE_RNN", "TASE_RNN_MATURE_MINUS", "TASE_QP")
 DIAGNOSTIC_DURATIONS_S = (2.0, 10.0)
@@ -125,7 +126,7 @@ def load_live_entry_config(path: Path | str | None = None) -> dict[str, Any]:
     if not math_isclose(float(durations.get("full_period_s")), PERIOD_S):
         raise MethodRegistryError("live-entry full duration is not the formal PATH period")
     methods = _require_mapping(payload.get("methods"), "methods")
-    if tuple(methods) != NATIVE_METHODS + REGISTERED_UNAVAILABLE:
+    if tuple(methods) != NATIVE_METHODS + (TASE_MATURE_METHOD,) + REGISTERED_UNAVAILABLE:
         raise MethodRegistryError("live-entry method set differs")
     return payload
 
@@ -160,6 +161,14 @@ def load_method_records(config: Mapping[str, Any] | None = None) -> dict[str, Me
                 reason=None,
             )
             continue
+        if name == TASE_MATURE_METHOD:
+            if (family != "tase_mature" or available is not True
+                or item.get("provider") != "TaseContactProvider"
+                or item.get("source_binding") != "tase-mature-current-model-v1"):
+                raise MethodRegistryError("mature TASE binding differs")
+            records[name] = MethodRecord(name, family, True, "TaseContactProvider",
+                "tase-mature-current-model-v1", None)
+            continue
         if name not in REGISTERED_UNAVAILABLE:
             raise MethodRegistryError(f"unknown live method {name}")
         if available is not False:
@@ -191,7 +200,7 @@ def resolve_method(name: str, *, config: Mapping[str, Any] | None = None) -> Met
         raise MethodUnavailableError(
             f"{name} is registered but unavailable: {record.reason}"
         )
-    if record.family != NATIVE_FAMILY:
+    if record.family not in (NATIVE_FAMILY, "tase_mature"):
         raise MethodUnavailableError(f"{name} is not a native yield method")
     return record
 
@@ -232,6 +241,7 @@ def native_status_payload(records: Mapping[str, MethodRecord] | None = None) -> 
     loaded = records if records is not None else load_method_records()
     return {
         "native_methods": [loaded[name].as_dict() for name in NATIVE_METHODS],
+        "tase_mature": loaded[TASE_MATURE_METHOD].as_dict(),
         "registered_unavailable": [loaded[name].as_dict() for name in REGISTERED_UNAVAILABLE],
         "native_route_schema": NATIVE_SCHEMA,
         "native_claim_scope": NATIVE_CLAIM_SCOPE,
