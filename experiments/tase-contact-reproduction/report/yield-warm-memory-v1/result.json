@@ -1,0 +1,63 @@
+{
+  "schema": "yield-warm-memory-prescribed-v1",
+  "scope": "development native prescribed input/state audit; history changes velocity and memory; no isolated memory causality, closed-loop advantage, physical or final-holdout claim",
+  "parameters": {
+    "m": 4.0,
+    "g": 0.08583341909109758,
+    "p": 0.5,
+    "a": 0.05,
+    "n": 3.0,
+    "mu": 1228.1391393367705,
+    "force_scale_n": 2.1095928078033372,
+    "tau_force_s": 0.19236795686399732,
+    "tau_recovery_s": 0.20212720757006053,
+    "kappa_per_n2_s": 0.6334129092862626,
+    "max_iterations": 32.0,
+    "residual_tolerance_n": 1e-09,
+    "structure_tolerance": 1e-12,
+    "minimum_metric_eigenvalue": 0.026926929041248004
+  },
+  "dt_s": 0.002,
+  "probe": {
+    "force_n": [
+      1.5,
+      1.0,
+      0.5
+    ],
+    "hold_ticks": 100,
+    "release_ticks": 400
+  },
+  "script_sha256": "0ce3315e1f167cb6a4e3ab0be71e9ab41e18b665bfda242ec8a8f103572be05e",
+  "summary": [
+    {
+      "gap_s": 0.0,
+      "warm_x_vs_cold_max_command_difference_m_s": 0.0171436400602256,
+      "warm_x_vs_y_max_command_difference_m_s": 0.017144610738954638,
+      "warm_x_structure_norm": 0.6296707126771652
+    },
+    {
+      "gap_s": 0.2,
+      "warm_x_vs_cold_max_command_difference_m_s": 0.010180363146520741,
+      "warm_x_vs_y_max_command_difference_m_s": 0.010180842047343722,
+      "warm_x_structure_norm": 0.3752823750687062
+    },
+    {
+      "gap_s": 0.6,
+      "warm_x_vs_cold_max_command_difference_m_s": 0.005397165306564405,
+      "warm_x_vs_y_max_command_difference_m_s": 0.005397358076862188,
+      "warm_x_structure_norm": 0.06122354724000365
+    },
+    {
+      "gap_s": 2.0,
+      "warm_x_vs_cold_max_command_difference_m_s": 0.0024472573547335403,
+      "warm_x_vs_y_max_command_difference_m_s": 0.002447268174875491,
+      "warm_x_structure_norm": 6.333801035186797e-05
+    }
+  ],
+  "artifact": {
+    "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-warm-memory-v1/native-history.json.gz",
+    "sha256": "236fc41ef5deff1bf05a4b4aacdd1044657c2b49ecbc044b670a310ecb64c081"
+  },
+  "case_count": 12,
+  "full_snapshot_replay_max_abs": 0.0
+}
