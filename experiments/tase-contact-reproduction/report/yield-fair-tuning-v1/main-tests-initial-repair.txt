@@ -1,0 +1,29 @@
+.........F.............                                                  [100%]
+=================================== FAILURES ===================================
+_______________ test_no_qualified_incumbent_is_explicit_failure ________________
+
+    def test_no_qualified_incumbent_is_explicit_failure() -> None:
+        tuner = _tuner()
+        initials = tuner.initial_candidates("MSFC")
+        observations = []
+        for index in range(20):
+            candidate = initials[index % 8]
+            observations.append(
+>               YieldTrainingObservation(
+                    method="MSFC",
+                    candidate=candidate,
+                    status="failed",
+                    nominal_feasible=False,
+                    unit_index=index,
+                    training_cell_id=CELL,
+                    selection_contract_id=CONTRACT,
+                    pair_complete=True,
+                    objective=None,
+                )
+            )
+E           TypeError: YieldTrainingObservation.__init__() missing 1 required positional argument: 'split'
+
+tests/test_yield_contact_tuner.py:306: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_yield_contact_tuner.py::test_no_qualified_incumbent_is_explicit_failure
+1 failed, 22 passed in 0.72s

@@ -134,6 +134,76 @@ def _unit_points(seed: int, count: int) -> tuple[tuple[tuple[float, ...], ...], 
         )
 
 
+def matern52_expected_improvement(train_x, train_y, candidate_x, *, lengthscale: float = 0.35):
+    """Fixed Matérn-5/2 expected improvement; one finite EI value per candidate.
+
+    This is the shared numerical kernel.  Callers own candidate generation,
+    bounds, and whether a missing backend is fatal.  A space-filling fallback
+    is not an EI result.
+    """
+
+    try:
+        import numpy as np
+    except (ImportError, ModuleNotFoundError) as error:
+        raise ContactBenchmarkTunerError("numpy is unavailable for Bayesian EI") from error
+    train_x = np.asarray(train_x, dtype=float)
+    train_y = np.asarray(train_y, dtype=float)
+    candidate_x = np.asarray(candidate_x, dtype=float)
+    if train_x.ndim != 2 or train_x.shape[1] != 3 or train_x.shape[0] == 0 or not np.all(np.isfinite(train_x)):
+        raise ContactBenchmarkTunerError("Bayesian EI training features are invalid")
+    if train_y.ndim != 1 or train_y.shape[0] != train_x.shape[0] or not np.all(np.isfinite(train_y)):
+        raise ContactBenchmarkTunerError("Bayesian EI training objectives are invalid")
+    if candidate_x.ndim != 2 or candidate_x.shape[1] != 3 or candidate_x.shape[0] == 0 or not np.all(
+        np.isfinite(candidate_x)
+    ):
+        raise ContactBenchmarkTunerError("Bayesian EI candidate features are invalid")
+
+    def matern52(lhs, rhs):
+        distance = np.sqrt(
+            np.maximum(0.0, np.sum(((lhs[:, None, :] - rhs[None, :, :]) / lengthscale) ** 2, axis=2))
+        )
+        scaled = math.sqrt(5.0) * distance
+        return (1.0 + scaled + scaled * scaled / 3.0) * np.exp(-scaled)
+
+    scale = max(float(np.var(train_y)), 1.0e-6)
+    kernel = scale * matern52(train_x, train_x)
+    # This is numerical jitter, not a hidden feasibility or objective gate.
+    jitter = max(1.0e-10, scale * 1.0e-8)
+    kernel = kernel + jitter * np.eye(kernel.shape[0])
+    try:
+        centered = train_y - float(np.mean(train_y))
+        alpha = np.linalg.solve(kernel, centered)
+        cross = scale * matern52(train_x, candidate_x)
+        posterior_mean = float(np.mean(train_y)) + cross.T @ alpha
+        solved_cross = np.linalg.solve(kernel, cross)
+        posterior_variance = scale - np.sum(cross * solved_cross, axis=0)
+    except (np.linalg.LinAlgError, FloatingPointError, ValueError) as error:
+        raise ContactBenchmarkTunerError(f"Bayesian EI GP solve failed: {error}") from error
+    if not np.all(np.isfinite(posterior_mean)) or not np.all(np.isfinite(posterior_variance)):
+        raise ContactBenchmarkTunerError("Bayesian EI posterior is nonfinite")
+    posterior_sigma = np.sqrt(np.maximum(0.0, posterior_variance))
+    best = float(np.min(train_y))
+    improvement = best - posterior_mean
+    normalizer = math.sqrt(2.0)
+    cdf = 0.5 * (
+        1.0
+        + np.vectorize(math.erf)(
+            improvement / np.where(posterior_sigma > 0.0, posterior_sigma * normalizer, 1.0)
+        )
+    )
+    pdf = np.exp(
+        -0.5 * (improvement / np.where(posterior_sigma > 0.0, posterior_sigma, 1.0)) ** 2
+    ) / math.sqrt(2.0 * math.pi)
+    ei = np.where(
+        posterior_sigma > 0.0,
+        improvement * cdf + posterior_sigma * pdf,
+        np.maximum(improvement, 0.0),
+    )
+    if not np.all(np.isfinite(ei)):
+        raise ContactBenchmarkTunerError("Bayesian EI acquisition is nonfinite")
+    return ei
+
+
 @dataclass(frozen=True)
 class ContactLawCandidate:
     """One full native-law parameter set with only ``m``, ``mu`` and ``g`` free."""
@@ -632,42 +702,7 @@ class ContactBenchmarkTuner:
         if not np.all(np.isfinite(train_y)):
             raise ContactBenchmarkTunerError("Bayesian EI training objectives are invalid")
         candidate_x = np.asarray([self._features(law, candidate) for candidate in pool], dtype=float)
-        lengthscale = 0.35
-
-        def matern52(lhs, rhs):
-            distance = np.sqrt(np.maximum(0.0, np.sum(((lhs[:, None, :] - rhs[None, :, :]) / lengthscale) ** 2, axis=2)))
-            scaled = math.sqrt(5.0) * distance
-            return (1.0 + scaled + scaled * scaled / 3.0) * np.exp(-scaled)
-
-        scale = max(float(np.var(train_y)), 1.0e-6)
-        kernel = scale * matern52(train_x, train_x)
-        # This is numerical jitter, not a hidden feasibility or objective gate.
-        jitter = max(1.0e-10, scale * 1.0e-8)
-        kernel = kernel + jitter * np.eye(kernel.shape[0])
-        try:
-            centered = train_y - float(np.mean(train_y))
-            alpha = np.linalg.solve(kernel, centered)
-            cross = scale * matern52(train_x, candidate_x)
-            posterior_mean = float(np.mean(train_y)) + cross.T @ alpha
-            solved_cross = np.linalg.solve(kernel, cross)
-            posterior_variance = scale - np.sum(cross * solved_cross, axis=0)
-        except (np.linalg.LinAlgError, FloatingPointError, ValueError) as error:
-            raise ContactBenchmarkTunerError(f"Bayesian EI GP solve failed: {error}") from error
-        if not np.all(np.isfinite(posterior_mean)) or not np.all(np.isfinite(posterior_variance)):
-            raise ContactBenchmarkTunerError("Bayesian EI posterior is nonfinite")
-        posterior_sigma = np.sqrt(np.maximum(0.0, posterior_variance))
-        best = min(float(row.objective) for row in usable if row.objective is not None)
-        improvement = best - posterior_mean
-        normalizer = math.sqrt(2.0)
-        cdf = 0.5 * (1.0 + np.vectorize(math.erf)(improvement / np.where(posterior_sigma > 0.0, posterior_sigma * normalizer, 1.0)))
-        pdf = np.exp(-0.5 * (improvement / np.where(posterior_sigma > 0.0, posterior_sigma, 1.0)) ** 2) / math.sqrt(2.0 * math.pi)
-        ei = np.where(
-            posterior_sigma > 0.0,
-            improvement * cdf + posterior_sigma * pdf,
-            np.maximum(improvement, 0.0),
-        )
-        if not np.all(np.isfinite(ei)):
-            raise ContactBenchmarkTunerError("Bayesian EI acquisition is nonfinite")
+        ei = matern52_expected_improvement(train_x, train_y, candidate_x)
         selected_index = max(
             range(len(pool)),
             key=lambda index: (float(ei[index]), tuple(-value for value in candidate_x[index]), pool[index].key),
@@ -822,4 +857,5 @@ __all__ = [
     "TrainingObservation",
     "TUNER_SCHEMA",
     "TuningProposal",
+    "matern52_expected_improvement",
 ]

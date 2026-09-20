@@ -1,0 +1,205 @@
+{
+  "schema": "ur10e.yield-fair-tuning-v1",
+  "version": 1,
+  "offline_only": true,
+  "hardware_qualified": false,
+  "endpoint": "none",
+  "simulation_only": true,
+  "campaign_kind": "full_task_three_method_proposer_v1",
+  "claim_scope": "offline three-method proposer only; does not freeze the full-task objective, numerical checks, independent holdout, or campaign launch",
+  "does_not_freeze_campaign": true,
+  "objective_definition": null,
+  "not_the_six_law_short_proxy": true,
+  "methods": ["SFC", "DSFC", "MSFC"],
+  "method_roles": {
+    "SFC": "baseline",
+    "DSFC": "proposal",
+    "MSFC": "proposal"
+  },
+  "excluded_methods": ["LAC", "NAC", "ISFC", "SFC_RADIAL", "RNN", "RPSFC"],
+  "tuned_parameters": ["m", "mu", "g"],
+  "task_binding": {
+    "source_protocol": "FT-v1",
+    "source_path": "report/yield-frozen-transfer-v1/protocol.json",
+    "duration_s": 62.83185307179586,
+    "normal_force_n": 5.0,
+    "unknown_surface": true,
+    "attitude_compliant": true,
+    "orientation": "compliant_changing_estimated_inward_normal"
+  },
+  "search_bounds": {
+    "kind": "offline_search_ranges_not_hardware_safety_limits",
+    "m": {"low": 4.0, "high": 16.0, "scale": "linear"},
+    "mu": {"low": 40.0, "high": 2500.0, "scale": "log"},
+    "g": {"low": 0.005, "high": 0.2, "scale": "log"}
+  },
+  "included_points": {
+    "g50": {
+      "m": 4.0,
+      "mu": 1228.1391393367705,
+      "g": 0.08583341909109758
+    }
+  },
+  "schedule": {
+    "total_units": 24,
+    "initial_units": 8,
+    "bayesian_ei_units": 12,
+    "repeat_incumbent_units": 4,
+    "unit_definition": "one_nominal_disturbed_pair",
+    "failed_unit_consumes_ordinal": true,
+    "holdout_used_for_tuning": false,
+    "repeat_rows_cannot_change_incumbent": true,
+    "no_qualified_incumbent_if_no_feasible_discovery": true
+  },
+  "initial_design": {
+    "shared_mechanical_triples": true,
+    "no_method_specific_random_pools": true,
+    "seed": 20260920,
+    "first_three": "ft_v1_seed_triples_SFC_DSFC_MSFC_order",
+    "remaining": "five_unique_scrambled_sobol_from_shared_3d_unit_cube",
+    "do_not_trim_on_physical_or_numeric_outcomes": true
+  },
+  "acquisition": {
+    "method": "bayesian_expected_improvement",
+    "seed": 20260920,
+    "seed_offset": 1009,
+    "pool_size": 512,
+    "shared_across_methods": true,
+    "space_filling_fallback_is_not_bayesian_ei": true,
+    "require_scipy_sobol": true
+  },
+  "msfc": {
+    "mode": "active",
+    "identity_metric_eigenvalue": 1.0,
+    "minimum_metric_eigenvalue": 0.026926929041248004
+  },
+  "parameter_order": {
+    "SFC": ["m", "mu", "n", "g"],
+    "DSFC": [
+      "m",
+      "g",
+      "p",
+      "a",
+      "n",
+      "mu",
+      "max_iterations",
+      "residual_tolerance_n",
+      "relative_radius_tolerance"
+    ],
+    "MSFC": [
+      "m",
+      "g",
+      "p",
+      "a",
+      "n",
+      "mu",
+      "force_scale_n",
+      "tau_force_s",
+      "tau_recovery_s",
+      "kappa_per_n2_s",
+      "max_iterations",
+      "residual_tolerance_n",
+      "structure_tolerance",
+      "minimum_metric_eigenvalue"
+    ]
+  },
+  "methods_spec": {
+    "SFC": {
+      "role": "baseline",
+      "native_law": "SFC",
+      "parameter_order": ["m", "mu", "n", "g"],
+      "seed_parameters": {
+        "m": 4.0,
+        "mu": 393.0,
+        "n": 3.0,
+        "g": 0.052126826121414976
+      },
+      "fixed_parameters": {
+        "n": 3.0
+      }
+    },
+    "DSFC": {
+      "role": "proposal",
+      "native_law": "DSFC",
+      "parameter_order": [
+        "m",
+        "g",
+        "p",
+        "a",
+        "n",
+        "mu",
+        "max_iterations",
+        "residual_tolerance_n",
+        "relative_radius_tolerance"
+      ],
+      "seed_parameters": {
+        "m": 4.0,
+        "g": 0.0642,
+        "p": 0.5,
+        "a": 0.05,
+        "n": 3.0,
+        "mu": 310.66177089084647,
+        "max_iterations": 32.0,
+        "residual_tolerance_n": 1e-09,
+        "relative_radius_tolerance": 1e-10
+      },
+      "fixed_parameters": {
+        "p": 0.5,
+        "a": 0.05,
+        "n": 3.0,
+        "max_iterations": 32.0,
+        "residual_tolerance_n": 1e-09,
+        "relative_radius_tolerance": 1e-10
+      }
+    },
+    "MSFC": {
+      "role": "proposal",
+      "native_law": "MSFC",
+      "parameter_order": [
+        "m",
+        "g",
+        "p",
+        "a",
+        "n",
+        "mu",
+        "force_scale_n",
+        "tau_force_s",
+        "tau_recovery_s",
+        "kappa_per_n2_s",
+        "max_iterations",
+        "residual_tolerance_n",
+        "structure_tolerance",
+        "minimum_metric_eigenvalue"
+      ],
+      "seed_parameters": {
+        "m": 4.0,
+        "g": 0.08583341909109758,
+        "p": 0.5,
+        "a": 0.05,
+        "n": 3.0,
+        "mu": 1228.1391393367705,
+        "force_scale_n": 2.1095928078033372,
+        "tau_force_s": 0.19236795686399732,
+        "tau_recovery_s": 0.20212720757006053,
+        "kappa_per_n2_s": 0.6334129092862626,
+        "max_iterations": 32.0,
+        "residual_tolerance_n": 1e-09,
+        "structure_tolerance": 1e-12,
+        "minimum_metric_eigenvalue": 0.026926929041248004
+      },
+      "fixed_parameters": {
+        "p": 0.5,
+        "a": 0.05,
+        "n": 3.0,
+        "force_scale_n": 2.1095928078033372,
+        "tau_force_s": 0.19236795686399732,
+        "tau_recovery_s": 0.20212720757006053,
+        "kappa_per_n2_s": 0.6334129092862626,
+        "max_iterations": 32.0,
+        "residual_tolerance_n": 1e-09,
+        "structure_tolerance": 1e-12,
+        "minimum_metric_eigenvalue": 0.026926929041248004
+      }
+    }
+  }
+}
