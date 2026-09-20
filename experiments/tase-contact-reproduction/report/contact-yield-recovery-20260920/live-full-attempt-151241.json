@@ -1,0 +1,21 @@
+{
+  "source_run": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-sfc-full-20260920T151241Z",
+  "intent": "SFC full 62.831853 s figure eight, separate 2s/10s omitted by user",
+  "full_path_started": false,
+  "success": false,
+  "error": "LiveWriterError: canonical V4 qualification tick failed: readiness observation interval outside (0,4ms]; baseline_diag={\"filtered_max_n\": 2.5483088499416224, \"filtered_min_n\": 2.5483088499416224, \"force_norm_max_n\": 2.559538967199946, \"last\": {\"filtered_normal_n\": 2.5483088499416224, \"force_norm_n\": 2.559538967199946, \"mode\": 1, \"raw_normal_n\": 2.5483088499416224, \"setpoint_n\": 1.0, \"torque_norm_nm\": 0.0076956850828257106}, \"raw_max_n\": 2.5483088499416224, \"raw_min_n\": 2.5483088499416224, \"readiness_samples\": 0, \"samples\": 1, \"torque_norm_max_nm\": 0.0076956850828257106}",
+  "autonomous_home_success": true,
+  "home_result": {
+    "success": true,
+    "final_position_error_m": 3.6034037895593396e-05,
+    "final_orientation_error_rad": 4.420265924387076e-05,
+    "dashboard_after": {
+      "safetymode": "Safetymode: NORMAL",
+      "running": "Program running: false",
+      "programState": "STOPPED step5d_contact_home_v1.urp",
+      "is in remote control": "true",
+      "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_home_v1.urp"
+    }
+  },
+  "limits_relaxed": false
+}

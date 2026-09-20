@@ -87,10 +87,10 @@ def load_live_entry_config(path: Path | str | None = None) -> dict[str, Any]:
     task = _require_mapping(payload.get("task"), "task")
     if float(task.get("normal_force_n")) != 5.0:
         raise MethodRegistryError("live-entry task force is not 5 N")
-    if float(task.get("along_amplitude_m")) != 0.08:
-        raise MethodRegistryError("live-entry along amplitude is not 80 mm")
-    if float(task.get("lateral_amplitude_m")) != 0.02:
-        raise MethodRegistryError("live-entry lateral amplitude is not 20 mm")
+    if float(task.get("along_amplitude_m")) != 0.04:
+        raise MethodRegistryError("live-entry along half-amplitude is not 40 mm (80 mm full span)")
+    if float(task.get("lateral_amplitude_m")) != 0.01:
+        raise MethodRegistryError("live-entry lateral half-amplitude is not 10 mm (20 mm full span)")
     if float(task.get("omega_rad_s")) != 0.1:
         raise MethodRegistryError("live-entry omega is not 0.1 rad/s")
     if not math_isclose(float(task.get("period_s")), PERIOD_S):

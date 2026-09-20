@@ -1,4 +1,4 @@
-# VERSION: 2026-09-20T1044Z_CONTACT_SIX_QP_V1_618001
+# VERSION: 2026-09-20T1458Z_CONTACT_SIX_QP_V1_618001
 # ROLE: six-law shared-QP preparation; requires matching host owner 618001
 # CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm
 # CONTACT_SEARCH: constant 0.0002m/s; travel<=0.015m; timeout=90s; original Home XYZ with current aligned attitude

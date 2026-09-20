@@ -1,11 +1,6 @@
-# VERSION: 2026-09-20T1458Z_CONTACT_HOME_V1
-# ROLE: standalone immutable one-shot campaign Home positioning helper
-# TP_PROGRAM_ID: step5d_contact_home_v1
-# TARGET_POSE: p[0.487834547000, 0.129337053000, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
-# SAFE_TRANSFER_Z_POLICY: max(current_z, 0.033000000)
-# MOTION: preserve height for XY transfer, then descend to original Home; a=0.01m/s2 v=0.002m/s
-# BLEND_RADIUS_M: 0.0
-
+# VERSION: 2026-09-20T1458Z_CONTACT_RELIEF_V1
+# ROLE: monitored Base +Z relief only; no XY or attitude transfer
+# No force-control restart; host owns fresh Kunwei unloading guard and Stop.
 def codex_start_hover_finite_value(value, absolute_limit):
   if value != value:
     return False
@@ -28,10 +23,10 @@ def codex_start_hover_finite_pose(pose_value):
 end
 
 def codex_start_hover_motion_limits_ok():
-  local segment_1_accel_m_s2 = 0.050
-  local segment_1_speed_m_s = 0.010
-  local segment_2_accel_m_s2 = 0.050
-  local segment_2_speed_m_s = 0.010
+  local segment_1_accel_m_s2 = 0.060
+  local segment_1_speed_m_s = 0.040
+  local segment_2_accel_m_s2 = 0.135
+  local segment_2_speed_m_s = 0.090
   if segment_1_accel_m_s2 <= 0.0 or segment_1_accel_m_s2 > 0.150000000:
     return False
   end
@@ -106,47 +101,31 @@ def codex_start_hover_final_stationary_verified(target_pose):
   return position_error_m <= 0.003000000 and orientation_error_rad <= 0.050000000 and linear_speed_m_s <= 0.001000000 and angular_speed_rad_s <= 0.010000000 and joint_speed_max_rad_s <= 0.010000000
 end
 
-def step5d_contact_home_v1():
+
+def step5d_contact_relief_v1():
   local current_pose = get_actual_tcp_pose()
-  local target_pose = p[0.487834547000, 0.129337053000, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
+  local target_pose = p[0.487834547, 0.129337053, 0.033, 2.0331342431227566, 2.3949884238824652, -2.2711768777011217e-22]
   if not codex_start_hover_finite_pose(current_pose):
-    textmsg("start_hover_r001: nonfinite initial pose; halted")
     halt
   end
-  if not codex_start_hover_target_within_limits(target_pose):
-    textmsg("start_hover_r001: target or motion limits rejected; halted")
+  local dx = current_pose[0]-target_pose[0]
+  local dy = current_pose[1]-target_pose[1]
+  local dz = current_pose[2]-target_pose[2]
+  local distance = sqrt(dx*dx + dy*dy + dz*dz)
+  local turn = pose_trans(pose_inv(target_pose), current_pose)
+  local angle = sqrt(turn[3]*turn[3] + turn[4]*turn[4] + turn[5]*turn[5])
+  if distance > 0.080 or angle > 0.010 or current_pose[2] < 0.018 or current_pose[2] > 0.034:
+    textmsg("contact_relief: initial geometry rejected")
     halt
   end
-  # Home transfer is admitted only after the separate monitored lift.
-  local home_delta = pose_trans(pose_inv(target_pose), current_pose)
-  local home_distance = sqrt(home_delta[0]*home_delta[0] + home_delta[1]*home_delta[1] + home_delta[2]*home_delta[2])
-  local home_angle = sqrt(home_delta[3]*home_delta[3] + home_delta[4]*home_delta[4] + home_delta[5]*home_delta[5])
-  if current_pose[2] < 0.032 or home_distance > 0.080 or home_angle > 0.010:
-    textmsg("contact_home: clearance entry rejected; no motion")
-    halt
-  end
-  local safe_transfer_z = 0.033000000
-  if current_pose[2] > safe_transfer_z:
-    safe_transfer_z = current_pose[2]
-  end
-  local rise_pose = p[current_pose[0], current_pose[1], safe_transfer_z, current_pose[3], current_pose[4], current_pose[5]]
-  local transfer_pose = p[target_pose[0], target_pose[1], safe_transfer_z, target_pose[3], target_pose[4], target_pose[5]]
-  movel(rise_pose, a=0.010, v=0.002, r=0.0)
-  stopl(0.1)
-  movel(transfer_pose, a=0.010, v=0.002, r=0.0)
-  stopl(0.1)
-  if safe_transfer_z > target_pose[2] + 0.000001:
-    local descent_pose = p[target_pose[0], target_pose[1], 0.033000000, target_pose[3], target_pose[4], target_pose[5]]
-    movel(descent_pose, a=0.010, v=0.002, r=0.0)
+  if current_pose[2] < 0.033:
+    local rise_pose = p[current_pose[0], current_pose[1], 0.033, current_pose[3], current_pose[4], current_pose[5]]
+    movel(rise_pose, a=0.005, v=0.0005, r=0.0)
     stopl(0.1)
   end
   sleep(0.20)
-  if not codex_start_hover_final_stationary_verified(target_pose):
-    textmsg("start_hover_r001: final stationary verification failed; halted")
-    halt
-  end
-  textmsg("start_hover_r001: final target stationary and verified")
+  textmsg("contact_relief: vertical stage complete; awaiting host release check")
   halt
 end
 
-step5d_contact_home_v1()
+step5d_contact_relief_v1()
