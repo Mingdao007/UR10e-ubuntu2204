@@ -16,9 +16,12 @@ def canonical(value):return json.dumps(value,sort_keys=True,separators=(',',':')
 
 
 class ContactLedger:
-    def __init__(self,path: Path, *, protocol_sha256: str):
+    def __init__(self,path: Path, *, protocol_sha256: str, controllers=CONTROLLERS):
         if len(protocol_sha256)!=64 or any(c not in '0123456789abcdef' for c in protocol_sha256):
             raise ValueError('protocol digest required')
+        self.controllers=tuple(controllers)
+        if not self.controllers or len(set(self.controllers))!=len(self.controllers) or any(c not in CONTROLLERS for c in self.controllers):
+            raise ValueError("unknown or duplicate ledger controller scope")
         self.path=Path(path);self.path.parent.mkdir(parents=True,exist_ok=True)
         self.db=sqlite3.connect(self.path,timeout=5,isolation_level=None)
         self.db.execute('PRAGMA foreign_keys=ON')
@@ -31,6 +34,12 @@ class ContactLedger:
         with self.transaction():
             prior=self.db.execute("SELECT value FROM metadata WHERE key='protocol'").fetchone()
             if prior and prior[0]!=protocol_sha256:raise ValueError('ledger protocol differs')
+            scope=self.db.execute("SELECT value FROM metadata WHERE key='controllers'").fetchone()
+            scope_value=canonical(self.controllers)
+            if scope and scope[0]!=scope_value:raise ValueError('ledger controller scope differs')
+            if prior and not scope and self.controllers!=tuple(CONTROLLERS):
+                raise ValueError('unbound legacy ledger cannot adopt a different controller scope')
+            self.db.execute("INSERT OR IGNORE INTO metadata VALUES('controllers',?)",(scope_value,))
             self.db.execute("INSERT OR IGNORE INTO metadata VALUES('protocol',?)",(protocol_sha256,))
 
     @contextmanager
@@ -41,7 +50,7 @@ class ContactLedger:
         else:self.db.execute('COMMIT')
 
     def begin(self, *, attempt_id,controller,candidate,condition,unit=None):
-        if controller not in CONTROLLERS or condition not in ('nominal','disturbed'):
+        if controller not in self.controllers or condition not in ('nominal','disturbed'):
             raise ValueError('unknown controller/condition')
         if not isinstance(attempt_id,str) or not attempt_id:raise ValueError('physical attempt ID required')
         identity=canonical(candidate)
@@ -91,13 +100,15 @@ class ContactLedger:
     def progress(self):
         return {c:{'used_units':self.db.execute('SELECT COUNT(*) FROM units WHERE controller=?',(c,)).fetchone()[0],
                    'completed_trials':self.db.execute("SELECT COUNT(*) FROM attempts WHERE controller=? AND status='complete'",(c,)).fetchone()[0],
-                   'failed_trials':self.db.execute("SELECT COUNT(*) FROM attempts WHERE controller=? AND status IN ('failed','interrupted','censored')",(c,)).fetchone()[0]} for c in CONTROLLERS}
+                   'failed_trials':self.db.execute("SELECT COUNT(*) FROM attempts WHERE controller=? AND status IN ('failed','interrupted','censored')",(c,)).fetchone()[0]} for c in self.controllers}
 
     def freeze(self,selected_candidates):
-        if set(selected_candidates)!=set(CONTROLLERS):raise ValueError('freeze must cover all six controllers')
+        if set(selected_candidates)!=set(self.controllers):
+            raise ValueError('freeze must cover all six controllers' if self.controllers==tuple(CONTROLLERS)
+                             else 'freeze must cover all registered controllers')
         with self.transaction():
             if self.db.execute("SELECT id FROM attempts WHERE status='running'").fetchone():raise ValueError('attempt inflight')
-            for c in CONTROLLERS:
+            for c in self.controllers:
                 count=self.db.execute('SELECT COUNT(*) FROM units WHERE controller=?',(c,)).fetchone()[0]
                 trials=self.db.execute('SELECT COUNT(*) FROM attempts WHERE controller=?',(c,)).fetchone()[0]
                 if count!=24 or trials!=48:raise ValueError('equal paired tuning budgets not complete')
@@ -131,7 +142,7 @@ class ContactLedger:
         Failed/censored pairs consume one row with no invented objective.
         """
         from contact_benchmark_tuner import TrainingObservation
-        if controller not in CONTROLLERS:raise ValueError('unknown controller')
+        if controller not in self.controllers:raise ValueError('unknown controller')
         rows=[]
         with self.transaction():
             units=self.db.execute('SELECT number,candidate FROM units WHERE controller=? ORDER BY number',(controller,)).fetchall()

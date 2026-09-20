@@ -1,0 +1,41 @@
+......F...                                                               [100%]
+=================================== FAILURES ===================================
+_____________ test_conflicting_identity_and_false_success_rejected _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-andy/pytest-81/test_conflicting_identity_and_0')
+
+    def test_conflicting_identity_and_false_success_rejected(tmp_path):
+        l=ledger(tmp_path);l.begin(attempt_id='a',controller='MSFC',candidate={'m':4},condition='nominal')
+        with pytest.raises(ValueError,match='identity'):l.begin(attempt_id='a',controller='MSFC',candidate={'m':5},condition='nominal')
+        with pytest.raises(ValueError,match='uncensored'):l.seal('a',status='complete',evidence={'artifact_sha256':'b'*64,'objective_eligible':False})
+>       with pytest.raises(ValueError,match='six'):l.freeze({'MSFC':{'m':4}})
+
+tests/test_contact_benchmark_ledger.py:29: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <contact_benchmark_ledger.ContactLedger object at 0x7fb84ed69fc0>
+selected_candidates = {'MSFC': {'m': 4}}
+
+    def freeze(self,selected_candidates):
+>       if set(selected_candidates)!=set(self.controllers):raise ValueError('freeze must cover all registered controllers')
+E       ValueError: freeze must cover all registered controllers
+
+tools/contact_benchmark_ledger.py:106: ValueError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/tmp/pytest-of-andy/pytest-81/test_conflicting_identity_and_0')
+
+    def test_conflicting_identity_and_false_success_rejected(tmp_path):
+        l=ledger(tmp_path);l.begin(attempt_id='a',controller='MSFC',candidate={'m':4},condition='nominal')
+        with pytest.raises(ValueError,match='identity'):l.begin(attempt_id='a',controller='MSFC',candidate={'m':5},condition='nominal')
+        with pytest.raises(ValueError,match='uncensored'):l.seal('a',status='complete',evidence={'artifact_sha256':'b'*64,'objective_eligible':False})
+>       with pytest.raises(ValueError,match='six'):l.freeze({'MSFC':{'m':4}})
+E       AssertionError: Regex pattern did not match.
+E        Regex: 'six'
+E        Input: 'freeze must cover all registered controllers'
+
+tests/test_contact_benchmark_ledger.py:29: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_contact_benchmark_ledger.py::test_conflicting_identity_and_false_success_rejected
+1 failed, 9 passed in 6.78s
