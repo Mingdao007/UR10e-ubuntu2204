@@ -1,0 +1,45 @@
+{
+  "scope": "20ms PATH plus entry, interface only; zero scheduled trials",
+  "cases": [
+    {
+      "arm": "SFC",
+      "method": "SFC",
+      "rows": 10,
+      "records": 510,
+      "identity": "6f717c3f3f0db00115935f65f0acc8f9dc6e569ea307ac6b7218924834c4277d",
+      "parameters_exact": true
+    },
+    {
+      "arm": "SFC_RADIAL",
+      "method": "SFC_RADIAL",
+      "rows": 10,
+      "records": 510,
+      "identity": "d67ab374f41d963a377a8b6be1548d0a31124d968847881e9c74afa7e0340b6f",
+      "parameters_exact": true
+    },
+    {
+      "arm": "DSFC",
+      "method": "DSFC",
+      "rows": 10,
+      "records": 510,
+      "identity": "9bc9c8855c0937b4ceb428dde9cfa8fe29a3bb158943a8f5969e2e08d517db2a",
+      "parameters_exact": true
+    },
+    {
+      "arm": "MSFC",
+      "method": "MSFC",
+      "rows": 10,
+      "records": 510,
+      "identity": "8f7cbc6b0b4412f251e70c50ced892fe880bdb8fcdbff2043a40ee2d7f9c7041",
+      "parameters_exact": true
+    },
+    {
+      "arm": "MSFC_IDENTITY",
+      "method": "MSFC",
+      "rows": 10,
+      "records": 510,
+      "identity": "473aac4ff26c9f3f90497000ffbb0071e93a340581c41cc80347fe8b038d1c02",
+      "parameters_exact": true
+    }
+  ]
+}
