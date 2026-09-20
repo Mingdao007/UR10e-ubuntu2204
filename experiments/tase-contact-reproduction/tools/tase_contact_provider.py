@@ -92,6 +92,12 @@ class TaseContactProvider(ContactCommandProvider):
         # Same base reaction normal as the mature local TASE force projection.
         return (0., 0., 1.)
 
+    def formal_reference(self, time_s):
+        """World reference for evidence joined to an actually consumed packet."""
+        ref = self.task.reference(time_s)
+        return {'position_m': self.anchor + self.basis @ np.asarray(ref['position_m']),
+                'velocity_m_s': self.basis @ np.asarray(ref['velocity_m_s'])}
+
     def snapshot(self):
         return copy.deepcopy({
             'runtime': self.runtime.dynamic_state_snapshot(), 'phase': self.phase,

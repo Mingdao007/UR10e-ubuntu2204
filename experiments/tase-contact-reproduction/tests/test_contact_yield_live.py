@@ -271,3 +271,41 @@ def test_second_writer_is_rejected(tmp_path: Path, lib):
         assert _R006_INJECTION_LOCK.locked()
     finally:
         _R006_INJECTION_LOCK.release()
+
+
+def test_mature_full_figure8_with_trajectory_endpoint_double(tmp_path, lib):
+    # Exercises real RNN + writer + consumed-reference evidence; synthetic
+    # measured path is exact by construction, not a robot/contact simulation.
+    import numpy as np
+    from contact_yield_protocol import Task, PERIOD_S
+    from contact_yield_task_frame import figure8_task_basis
+    contract = _prepare(tmp_path)
+    clock = Clock(.01)
+    class FollowingEndpoint(YieldLiveRTDEDouble):
+        def _mapping(self):
+            row = super()._mapping()
+            if self._state == 25:
+                if getattr(self, 'path_origin', None) is None:
+                    self.path_origin = clock.now()
+                elapsed = clock.now()-self.path_origin
+                ref = Task().entry_reference(elapsed) if elapsed < 1. else Task().reference((elapsed-1.) % PERIOD_S)
+                xyz = np.asarray(contract.home_pose[:3])+figure8_task_basis()@np.asarray(ref['position_m'])
+                velocity = figure8_task_basis()@np.asarray(ref['velocity_m_s'])
+                row['actual_TCP_pose'][:3] = xyz.tolist()
+                row['actual_TCP_speed'] = [*velocity, 0., 0., 0.]
+            else:
+                self.path_origin = None
+            return row
+    rtde = FollowingEndpoint(contract, home_pose=contract.home_pose,
+                             home_q=PRESERVED['home_q'], clock=clock.now, flip_rotvec=True)
+    sensor = FakeLiveKunweiTransport(observed_clock=clock.now,
+                                    wrench_n_nm=(0.,0.,-5.,0.,0.,0.))
+    code = main(_argv('pilot',tmp_path,qp_library=str(lib),method='TASE_RNN_MATURE',duration='full'),
+                controller_transport=rtde,kunwei_transport=sensor,
+                wall_clock=lambda:100.,mono_clock=clock.now,sleep=clock.sleep,now_s=100.)
+    receipt = json.loads((tmp_path/'dispatch_receipt.json').read_text())
+    assert code == 0, receipt.get('error')
+    assert len(receipt['attempts']) == 4
+    assert receipt['attempts'][-1]['phase'] == 'pilot'
+    assert receipt['stop']['stopped'] is True
+

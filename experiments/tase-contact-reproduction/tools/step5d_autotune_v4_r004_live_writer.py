@@ -1792,12 +1792,10 @@ class LiveR004Writer:
                         if entry_aware:
                             if consumed_entry.reference_phase != "path":
                                 raise LiveWriterError("formal observation did not consume a PATH command")
-                            task_reference = contact_provider.runtime.controller.task.reference(
+                            task_reference = contact_provider.formal_reference(
                                 consumed_entry.reference_time_s)
-                            anchor = contact_provider.runtime.anchor
-                            basis = contact_provider.runtime.basis
-                            position = anchor + basis @ task_reference["position_m"]
-                            velocity = basis @ task_reference["velocity_m_s"]
+                            position = task_reference["position_m"]
+                            velocity = task_reference["velocity_m_s"]
                             reference = {
                                 "desired_xy": tuple(position[:2]),
                                 "desired_velocity_xy": tuple(velocity[:2]),

@@ -40,6 +40,12 @@ class YieldContactProvider:
         self.command_history = None
         self.last_pause = None
 
+    def formal_reference(self, time_s):
+        """World reference for evidence joined to an actually consumed packet."""
+        ref = self.runtime.controller.task.reference(time_s)
+        return {'position_m': self.runtime.anchor + self.runtime.basis @ np.asarray(ref['position_m']),
+                'velocity_m_s': self.runtime.basis @ np.asarray(ref['velocity_m_s'])}
+
     def snapshot(self):
         return {"runtime": self.runtime.snapshot(), "last_result": copy.deepcopy(self.last_result),
                 "command_history": copy.deepcopy(self.command_history),
