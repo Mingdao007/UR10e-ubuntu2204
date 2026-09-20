@@ -121,15 +121,21 @@ class ControllerHandle:
         try:
             if self.kind == 'yield':
                 result = self.backend.step(observation,{**reference,'force_n':target_force},elapsed)
-            elif self.kind == 'tase':
-                # Rotate the shared base wrench back to TCP so both TASE
-                # solvers execute the same configured force-filter path.
+            elif self.kind in ('tase', 'tase_improved'):
+                # Rotate the shared base wrench back to TCP so the TASE
+                # adapters execute the same configured force-filter path.
                 measured = {'joint_position_rad':joints,
                     'tcp_pose_base':np.concatenate((position,so3_log(rotation))),
                     'tcp_velocity_base':np.concatenate((velocity,angular_velocity)),
                     'wrench_tcp':np.concatenate((rotation.T@force,rotation.T@torque)),
                     'jacobian_base':jac,
                     'constraints':{'joint_velocity_lower':lower,'joint_velocity_upper':upper}}
+                if self.kind == 'tase_improved' and observation.get('local_normal_base') is not None:
+                    measured['local_normal_base'] = observation['local_normal_base']
+                if self.kind == 'tase_improved' and 'integral_enabled' in observation:
+                    measured['integral_enabled'] = observation['integral_enabled']
+                if self.kind == 'tase_improved' and 'integral_reset_reason' in observation:
+                    measured['integral_reset_reason'] = observation['integral_reset_reason']
                 target = {'x_pd_base':reference['position_m'],
                     'xdot_pd_base':reference['velocity_m_s'],
                     'force_target_n':reference['reference_force_n']}
@@ -183,6 +189,23 @@ def _tase_factory(solver, variant):
     return create
 
 
+def _tase_improved_factory():
+    def create(config=None, qp_library=None, outer_config=None):
+        from contact_yield_method_registry import resolve_offline_method
+        from tase_improved_offline import create_tase_improved_offline_adapter
+
+        try:
+            resolve_offline_method('TASE_IMPROVED')
+            return create_tase_improved_offline_adapter(
+                config=config,
+                qp_library=qp_library,
+                outer_config=outer_config,
+            ), 'tase_improved'
+        except (ImportError, ValueError) as exc:
+            raise RegistryError(f'TASE_IMPROVED offline adapter is unavailable: {exc}') from exc
+    return create
+
+
 def default_registry():
     registry = MethodRegistry()
     for name,role in [('SFC','baseline'),('SFC_RADIAL','geometry_ablation'),('DSFC','proposal'),('MSFC','proposal')]:
@@ -192,4 +215,12 @@ def default_registry():
         ('TASE_RNN_MATURE_MINUS','rnn','mature_minus','explicit_lambda_minus_adaptation_reference'),
         ('TASE_QP','qp','matched_outer_qp','matched_outer_solver_ablation')]:
         registry.register(MethodSpec(name,role,'TaseOfflineMethodAdapter'),_tase_factory(solver,variant))
+    registry.register(
+        MethodSpec(
+            'TASE_IMPROVED',
+            'normal_priority_offline_improved',
+            'TaseImprovedOfflineMethodAdapter',
+        ),
+        _tase_improved_factory(),
+    )
     return registry

@@ -25,7 +25,12 @@ HOME_PROGRAM = "step5d_contact_home_v1"
 NATIVE_FAMILY = "native_yield"
 TASE_MATURE_METHOD = "TASE_RNN_MATURE"
 REGISTERED_UNAVAILABLE = ("TASE_RNN", "TASE_QP")
-OFFLINE_TASE_METHODS = ("TASE_RNN", "TASE_RNN_MATURE_MINUS", "TASE_QP")
+OFFLINE_TASE_METHODS = (
+    "TASE_RNN",
+    "TASE_RNN_MATURE_MINUS",
+    "TASE_QP",
+    "TASE_IMPROVED",
+)
 DIAGNOSTIC_DURATIONS_S = (2.0, 10.0)
 
 
@@ -226,6 +231,12 @@ def load_offline_method_records() -> dict[str, OfflineMethodRecord]:
             family="tase_qp",
             provider="TaseOfflineMethodAdapter",
             variant="matched_outer_qp",
+        ),
+        "TASE_IMPROVED": OfflineMethodRecord(
+            name="TASE_IMPROVED",
+            family="tase_improved",
+            provider="TaseImprovedOfflineMethodAdapter",
+            variant="local-normal-gated-leaky-normal-priority-slack-qp",
         ),
     }
 
