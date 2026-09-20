@@ -1,0 +1,21 @@
+{
+  "session_id": "2c0dbe08-2cea-45a0-9c6f-8f7e57187f8a",
+  "models": [
+    "claude-fable-5-1"
+  ],
+  "last_stop_reason": "end_turn",
+  "wrapper_exit_code": 0,
+  "route": "ubuntu-homepool",
+  "requested_effort": "xhigh",
+  "effort_evidence": "wrapper launch, not independent server attestation",
+  "prompt": "/tmp/yield-fable-discussion-v4.md",
+  "iterations_used": 1,
+  "native_metadata": "/home/andy/.claude-homepool/projects/-home-andy--codex-worktrees-contact-yield-recovery-20260920-experiments-tase-contact-reproduction/2c0dbe08-2cea-45a0-9c6f-8f7e57187f8a.jsonl",
+  "verification_counts": {
+    "raw_receipts": 15,
+    "report_files": 19,
+    "other_inputs": 13,
+    "tools": 17,
+    "outputs": 5
+  }
+}

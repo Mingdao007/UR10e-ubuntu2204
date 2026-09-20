@@ -1,0 +1,145 @@
+{
+ "git_head": "9d40485a016673c01c9f1ea1b7e11036ce4ca6f5",
+ "all_receipts_match": true,
+ "raw_receipts": {
+  "combined-mild-approach": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-normal-v3/combined-mild-approach.json.gz",
+   "recorded_sha256": "bed69746e5e12835dbc64b502c21677b992d3662dbbcf94cc3b733b5d9aeb706",
+   "sha256_now": "bed69746e5e12835dbc64b502c21677b992d3662dbbcf94cc3b733b5d9aeb706"
+  },
+  "combined-mild-along": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-normal-v3/combined-mild-along.json.gz",
+   "recorded_sha256": "918158d0622e8dc031787c152510dd00e49a410e7ffef39fb9d1766645c02c43",
+   "sha256_now": "918158d0622e8dc031787c152510dd00e49a410e7ffef39fb9d1766645c02c43"
+  },
+  "combined-mild-across": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-normal-v3/combined-mild-across.json.gz",
+   "recorded_sha256": "d754c461bdeec6d24183e913bdc42882300761222da59df6d55e2adaa0472dd9",
+   "sha256_now": "d754c461bdeec6d24183e913bdc42882300761222da59df6d55e2adaa0472dd9"
+  },
+  "combined-strong-approach": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-normal-v3/combined-strong-approach.json.gz",
+   "recorded_sha256": "23e9b8d4b23aefa89adbe1c4410279f4dbd8f69e17456d101d005614ec0210cc",
+   "sha256_now": "23e9b8d4b23aefa89adbe1c4410279f4dbd8f69e17456d101d005614ec0210cc"
+  },
+  "combined-normal-hold": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-normal-v3/combined-normal-hold.json.gz",
+   "recorded_sha256": "5fe0b6f04ca345c07e82c3cc1661cdc4fc4ad26ba653da1619e195029e9ff5b2",
+   "sha256_now": "5fe0b6f04ca345c07e82c3cc1661cdc4fc4ad26ba653da1619e195029e9ff5b2"
+  },
+  "combined-tangent-hold": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-normal-v3/combined-tangent-hold.json.gz",
+   "recorded_sha256": "e02b1820c1b85510efd1ff291b6f7f0fd898707a507c45717d5ff0210fae2d15",
+   "sha256_now": "e02b1820c1b85510efd1ff291b6f7f0fd898707a507c45717d5ff0210fae2d15"
+  },
+  "motion-only-mild-across": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-normal-v3/motion-only-mild-across.json.gz",
+   "recorded_sha256": "ca931e3d8d4f370ad8d6ab8fea4735722111e2e9a728912dc26e2bf4da5e368a",
+   "sha256_now": "ca931e3d8d4f370ad8d6ab8fea4735722111e2e9a728912dc26e2bf4da5e368a"
+  },
+  "frozen-normal-hold": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-normal-v3/frozen-normal-hold.json.gz",
+   "recorded_sha256": "063f027dbbdba105325b517595d000421b6938c942555326ed7dbefd6aaa6cb2",
+   "sha256_now": "063f027dbbdba105325b517595d000421b6938c942555326ed7dbefd6aaa6cb2"
+  },
+  "frozen-tangent-hold": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-normal-v3/frozen-tangent-hold.json.gz",
+   "recorded_sha256": "a85285e1cc35169fca06a46f90cc21fbcc9c3727f62ba0a46c9b920c8c45b638",
+   "sha256_now": "a85285e1cc35169fca06a46f90cc21fbcc9c3727f62ba0a46c9b920c8c45b638"
+  },
+  "retained-approach": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-observer-prior-v1/DSFC-stiff_low_mu-approach.json.gz",
+   "recorded_sha256": "234fe77c39660394b4a98b45eb6e546b3ff6c99e4a056167523202d741718a21",
+   "sha256_now": "234fe77c39660394b4a98b45eb6e546b3ff6c99e4a056167523202d741718a21"
+  },
+  "retained-along_10deg": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-observer-prior-v1/DSFC-stiff_low_mu-along_10deg.json.gz",
+   "recorded_sha256": "4391cf7c1961f749b5a155188d7f93b33ebb4aa0777ce80904c0d66fcb060786",
+   "sha256_now": "4391cf7c1961f749b5a155188d7f93b33ebb4aa0777ce80904c0d66fcb060786"
+  },
+  "retained-across_10deg": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-observer-prior-v1/DSFC-stiff_low_mu-across_10deg.json.gz",
+   "recorded_sha256": "0553ba2c1396580702b8529b455acc0d7717da02502f710d584060a0c1499463",
+   "sha256_now": "0553ba2c1396580702b8529b455acc0d7717da02502f710d584060a0c1499463"
+  },
+  "retained-strong-frozen": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-surface-excitation-v1/DSFC-stiff_low_mu-frozen_prior.json.gz",
+   "recorded_sha256": "78fbd04b36c2ab2efd9c3502f2bc16d4b341b90ae8c18606366f6f0407b17e4a",
+   "sha256_now": "78fbd04b36c2ab2efd9c3502f2bc16d4b341b90ae8c18606366f6f0407b17e4a"
+  },
+  "refinement:combined-mild-across": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-normal-v3-refinement/combined-mild-across.json.gz",
+   "recorded_sha256": "5ad3ee272e1fe4a2ff44c622f36b1e2f333e4053bcbc914eda9d97cfa020d1e2",
+   "sha256_now": "5ad3ee272e1fe4a2ff44c622f36b1e2f333e4053bcbc914eda9d97cfa020d1e2"
+  },
+  "refinement:motion-only-mild-across": {
+   "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-normal-v3-refinement/motion-only-mild-across.json.gz",
+   "recorded_sha256": "d1c6bf6000e53374e4d6b19d3c1ccbcff712b4287be26dc10b8aeb46e671b4b8",
+   "sha256_now": "d1c6bf6000e53374e4d6b19d3c1ccbcff712b4287be26dc10b8aeb46e671b4b8"
+  }
+ },
+ "report_files": {
+  "report/yield-normal-v3/README.md": "15bf062c61ae0504ce3a24aa8a70884ec8e64dfbf8e438639f5c2d71796469c7",
+  "report/yield-normal-v3/comparison.pdf": "d327b235503aaf6014a0755c9a4e81a7294f84a9ab60954ddeae315d09ce1ce3",
+  "report/yield-normal-v3/comparison.png": "395406717609c4a8601b3e601fd60e606c798b816d7d5ead64ec9d98e96e6e95",
+  "report/yield-normal-v3/comparison.svg": "9c3ac4b0d1b56ea6ebcf265c95c80fb532329c4fc8ea1d5bbb44589ddf10c8cf",
+  "report/yield-normal-v3/parallel_run_manifest.json": "61eff488b7566469e16144833506e8fe2b207ca6770107e7083b0c7fdb9bf2e9",
+  "report/yield-normal-v3/parallel_run_start.json": "452a14d6f568496afb1fd20d8becfdabda6203436b0dcddd027bed3bdc6e5fb3",
+  "report/yield-normal-v3/protocol.json": "bc64c777056f073fad3c7903d3a681f3f2986b78995b72df5ec158f5505148cd",
+  "report/yield-normal-v3/protocol.md": "7313260cd82dea48edaba7f638933c9895520bce9613cf3578130b82fd199a1f",
+  "report/yield-normal-v3/refinement-manifest.json": "1968a56ff67abcff338977e9ca86692e81a8f1212b199ef2b29faccc87d66a0a",
+  "report/yield-normal-v3/refinement-protocol.json": "a1cc001e2d7229f1909b7481e31af1fd3e1e8909f49b218611d2c33c717586c8",
+  "report/yield-normal-v3/refinement.json": "e51e4f820596ccc1d7d444b1347ed0b4d10d3d69c8eb462e885fb887435e43a8",
+  "report/yield-normal-v3/refinement.md": "13975ae634e1208a65ab9993976d61b32905816f353c3157971087c8c535be28",
+  "report/yield-normal-v3/regression.txt": "4f1877b23825c6ccd87b712c42385ae450b4b59e6d58a8fe30a9caeb195bb0de",
+  "report/yield-normal-v3/results.json": "6b2c1b42d32d0ad3f6c3ba092ea15a9b2bab2e9d5747cb15314f0823c3975434",
+  "report/yield-normal-v3/results.md": "4fe896a8f08b70b16000aa5fbaa9402b9f0638a915e3e306a21c963ded231455",
+  "report/yield-normal-v3/summary.json": "43f2a86ae53bf72c3061d7d93f902536557e9d310d646f9e6588eea0c6a559de",
+  "report/yield-normal-v3/validation.md": "c063f1865beca21e32bc6654560f666a23c4e2599ebb343dcaca04aba823a41b",
+  "report/yield-normal-v3/verification.json": "620eb74b0c17e2bb2c41ab7daa121e8f14345a8381e0741091fec5dcb8ed4e03",
+  "report/yield-normal-v3/writer-receipt.json": "0a498476526feb7298de7d81813d9465fdc6876c42136187c13cfc581bfcccda"
+ },
+ "other_inputs": {
+  "report/yield-observer-identifiability-v1/discussion/main-adjudication.md": "123b6d230ce1c560cd7c7d58d8c6791da5245b73a51d2de150923aad6235085c",
+  "report/yield-observer-identifiability-v1/discussion/fable-round3.md": "d434a97ced3f02b2481bebb9a0f22dbcd3f495ff18e1a6b0199f6cb4cd4c8d4a",
+  "report/yield-normal-v2/discussion/main-adjudication.md": "1e5c7127eb876cb8ad17605de40c6f6697819992cb7f4952f7ef1e2af0d3ebf1",
+  "report/yield-normal-v2/discussion/discussion.md": "1f4027ccda004e3254c6499c1f0bc1e5b2de2b4490924c967928db5543b6d5a6",
+  "report/yield-gain-memory-v1/discussion/main-adjudication.md": "0e26315c63528a9f367ca16b859d87472cb5bdffbeae0087b143012cd520d37d",
+  "report/yield-transfer-v1/results.md": "e9fc14ec229d0c46e260ac26fabefb6120e251e77470bd2c3279b2e63584c5bb",
+  "report/yield-transfer-v1/README.md": "e1c3f420d832abf60cf199563bee7f1e82753f5a065f2812e6a3d37c598f2455",
+  "report/yield-gain-memory-v1/results.md": "89c88ecbc269dded84d0ce2cfac02748044a4dee5a32078772e49c6fc956ace1",
+  "report/yield-normal-v2/results.md": "eb4cb851bf5606ff7cb4e38246000a321b3df13cf91065109054a01e7217d451",
+  "report/yield-observer-identifiability-v1/prior-results.md": "462e8de7088f5adea5f146a6f432c3498d05a4b238674a78239a65a77ee848e9",
+  "config/yield_normal_observer_v3.json": "c9598b42a252e94daf0fa22938f3b26fd4df99f595fc63d608f42065a2cb2715",
+  "config/yield_normal_frozen_prior_v1.json": "f00b96092a8c86216124340f8f1dcde19695aac2aac4ca5607a6c1567a3a6e3f",
+  "config/contact_yield_candidates/dsfc.json": "7b2419a1e20c4c0c1fa6f081461627814c9385c2c15a958ee45688fb3bbae5fd"
+ },
+ "tools": {
+  "tools/contact_yield_controller.py": "034422fbc23ee4cefce13eeac6ca3f62bedfa1dc4e72f349f06e5aaf633b82bc",
+  "tools/contact_yield_kinematics.py": "46282c8982c1c73fd54a6c14cf9ea1f160b6272a814d8c0ccc170a4936a088e6",
+  "tools/contact_yield_laws.py": "77c58e226d40d996394a4138b9f980abe50595e0f38eb43d8ebed3c209d1580c",
+  "tools/contact_yield_math.py": "41ed96dcf91a13a96bb75eb060de9ed36003b379b09e91a71d4c9315e770925d",
+  "tools/contact_yield_mechanisms.py": "fce58327c877320c50b50ff24dd54fd082ab1c2daabc08dae158a45b86aaee96",
+  "tools/contact_yield_metrics.py": "ac1064303707f48099127e39b3ef0b7ae259a8d7c27203cb37e1000fa6643364",
+  "tools/contact_yield_normal.py": "1758790e264c4fb18d3fd6066cbe4b6129e4e7efce549b0992ec68e9a2130856",
+  "tools/contact_yield_protocol.py": "40c959548c56eac474775fee21627944f799c06516f31cd9c6c77cd2a8197475",
+  "tools/contact_yield_qp.py": "d87107f1e93ab7b6f60799e52daf3368caf711978d4b03b50f2bb1b33051c3bc",
+  "tools/contact_yield_replay.py": "151936f764facbab0c57ec445119c13def475ae17c4acdf67550c338a535cd3e",
+  "tools/contact_yield_runner.py": "f2554ed3010f92a5dc92d968527f3bfb6219a7403696219a30bfd2c1ee1e184f",
+  "tools/contact_yield_simulator.py": "36b9123ad280114a7d988deeda269d6722cb6ebdef3c692a7bde2d3f773023b4",
+  "tools/plot_yield_normal_v3.py": "0453e6885bda62e37e55105d7c75e64d2ac5064f26a2ac2ccdcf2e8526284e31",
+  "tools/refine_yield_normal_v3.py": "233162f1d6edd2154fe959b5ef65328db7394eb7668c1494bf418eb1498e71b2",
+  "tools/report_yield_normal_v3.py": "49bc2cc01b69e467cefeb9aebd4d701d580e7ecc3d8cacf3882f56e77642aea2",
+  "tools/study_yield_normal_v3.py": "4da0407ac8e0a2dfec4cc5444ca376e1d9e5f9e8a8160df2e36f4dde9fc3a67a",
+  "tools/verify_yield_normal_v3.py": "fb7ec5398805a22c8a1881bf20f428f85da5437620b44e130a7d984cf42b12de"
+ },
+ "outputs": {
+  "report/yield-normal-v3/discussion/data/round4-analysis.json": "e0e5e00dcaef5725a0b73f2ddf363c9d161d6186dd12d2c6572620b44934a8a6",
+  "report/yield-normal-v3/discussion/fable-round4.md": "e91bdbd1673ef0463b9cd48094cf37374b686568fd4c1c4d54bbc70b844be431",
+  "report/yield-normal-v3/discussion/scripts/analyze_round4.py": "e8132b80d4eb89b043789e355e160d2088ac5caa4bfa8b3331b2a604af94a3f0",
+  "report/yield-normal-v3/discussion/scripts/extract_ticks_v3.py": "360528fab20971155d8932b849364a143a2e7cbac0ffd635756f65674262f13e",
+  "report/yield-normal-v3/discussion/scripts/manifest_round4.py": "0ca8475c4b3a372f505dc9bfdcafb576037c37cc1f909047894a8d3c6e51ec48"
+ },
+ "cache": "/tmp/ynv3/*.npz regenerated by scripts/extract_ticks_v3.py; not retained",
+ "claim": "read-only postprocessing of retained development receipts; no closed-loop run, no code/config/test edit"
+}
