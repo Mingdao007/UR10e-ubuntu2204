@@ -25,6 +25,7 @@ from step5c_calibrated_kinematics_audit import build_calibrated_model,base_to_to
 from step5d_autotune_v4_r004.calibrated_runtime import tcp_jacobian_base
 
 DIRECTORY='/programs/andyl/kunwei/step5'
+RECOVERY_POLICY='AUTO_HOME_UNLESS_SAFETY_PROOF_BLOCKS'
 
 
 def _protective_safety(row):
@@ -85,6 +86,43 @@ def _unlock_protective_stop_once(host, *, target):
 def package_dir_from(args):
     path=getattr(args,'package_dir',None)
     return Path(path) if path is not None else PACKAGE_DIR
+
+
+def _blocked_recovery_result(source, error, *, phase, output=None):
+    """Return and, when possible, persist the only non-Home terminal result.
+
+    Recovery setup can fail before :func:`run` has created its normal result
+    directory (for example, a stale read-back proof or a missing package).
+    Those failures must not escape as an unclassified exception that looks like
+    the old revoke-only state.  ``BLOCKED`` means that the existing Home owner
+    was requested but physical proof was unavailable; it is an explicit
+    safety result, not permission to leave the attempt silently stopped.
+    """
+    payload={
+        'success':False,
+        'motion':False,
+        'state':'BLOCKED',
+        'phase':str(phase),
+        'error':f'{type(error).__name__}: {error}',
+        'source_attempt':str(source),
+        'trial_stays_failed':True,
+        'recovery_policy':RECOVERY_POLICY,
+    }
+    if output is not None:
+        target=Path(output)
+        try:
+            if target.exists() and target.is_dir():
+                record=target/'result.json'
+                if record.exists():
+                    record=target/'blocked-preflight.json'
+            else:
+                target.mkdir(parents=True,exist_ok=True)
+                record=target/'result.json'
+            record.write_text(json.dumps(payload,indent=2)+'\n')
+            payload['recovery_record']=str(record)
+        except BaseException as persist_error:
+            payload['recovery_record_error']=f'{type(persist_error).__name__}: {persist_error}'
+    return payload
 
 
 def validate_recovery_packages(run_dir,readback_dir,package_dir):
@@ -160,7 +198,7 @@ def run(args):
     dashboard_before=check_dashboard(args.host,allow_protective=True)
     if not args.execute:return {'success':False,'motion':False,'state':'read-only preflight passed','dashboard':dashboard_before,'source_protective_stop':source_protective}
     out.mkdir(parents=True)
-    result={'success':False,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_attempt':str(source),'trial_stays_failed':True,'recovery_policy':'AUTO_HOME_UNLESS_SAFETY_PROOF_BLOCKS','source_receipt_present':bool(source_receipt.get('receipt_present',True)),'source_armed':source_receipt.get('armed'),'source_protective_stop':source_protective,'dashboard_before':dashboard_before}
+    result={'success':False,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_attempt':str(source),'trial_stays_failed':True,'recovery_policy':RECOVERY_POLICY,'source_receipt_present':bool(source_receipt.get('receipt_present',True)),'source_armed':source_receipt.get('armed'),'source_protective_stop':source_protective,'dashboard_before':dashboard_before}
     obs=Observer(args.host);sensor=LiveR004KunweiTransport('192.168.50.25',port=5152);video=None;adapter=None;wrench_rows=[];last_sensor=None
     lease=WriterLock(INSTALLED_LOCK);lease_held=False
     protective_unlock_attempted=False
@@ -292,10 +330,19 @@ def recover_failed_contact_run(source_run, host, video_url):
     physical proof is returned as ``success=False``/``BLOCKED`` and never
     silently relabeled as a successful trial.
     """
-    if not (PACKAGE_DIR/f'{RELIEF_PROGRAM}.script').exists():
-        return {'success':False,'state':'BLOCKED','error':'relief package is not installed; Home recovery cannot be proven'}
     source=Path(source_run)
-    return run(SimpleNamespace(source_run=source,output=source.with_name(source.name+'-autonomous-home'),readback_proof_dir=None,readback_dir=None,package_dir=PACKAGE_DIR,host=host,video_url=video_url,execute=True))
+    output=source.with_name(source.name+'-autonomous-home')
+    try:
+        if not (PACKAGE_DIR/f'{RELIEF_PROGRAM}.script').exists():
+            return _blocked_recovery_result(
+                source,
+                ValueError('relief package is not installed; Home recovery cannot be proven'),
+                phase='package-preflight',
+                output=output,
+            )
+        return run(SimpleNamespace(source_run=source,output=output,readback_proof_dir=None,readback_dir=None,package_dir=PACKAGE_DIR,host=host,video_url=video_url,execute=True))
+    except BaseException as exc:
+        return _blocked_recovery_result(source,exc,phase='recovery-preflight',output=output)
 
 
 def main(argv=None):

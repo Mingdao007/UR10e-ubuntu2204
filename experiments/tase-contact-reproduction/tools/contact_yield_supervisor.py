@@ -365,8 +365,21 @@ def main(argv=None):
         try:
             from run_contact_recovery import recover_failed_contact_run
             result['autonomous_home_recovery']=recover_failed_contact_run(a.run_dir,a.controller_host,a.video_url)
-        except Exception as exc:
-            result['autonomous_home_recovery']={'success':False,'error':f'{type(exc).__name__}: {exc}'}
+        except BaseException as exc:
+            # Recovery setup must never disappear as an unclassified
+            # exception.  A missing proof or unavailable owner is an explicit
+            # BLOCKED outcome under the same policy; the attempt remains
+            # failed and cannot be mistaken for a successful Home return.
+            result['autonomous_home_recovery']={
+                'success':False,
+                'motion':False,
+                'state':'BLOCKED',
+                'phase':'recovery-dispatch',
+                'error':f'{type(exc).__name__}: {exc}',
+                'source_attempt':str(a.run_dir),
+                'trial_stays_failed':True,
+                'recovery_policy':'AUTO_HOME_UNLESS_SAFETY_PROOF_BLOCKS',
+            }
     with (a.run_dir/'supervisor-result.json').open('x') as out: json.dump(result,out,indent=2)
     print(json.dumps(result,indent=2))
     return 0 if result['success'] else 1

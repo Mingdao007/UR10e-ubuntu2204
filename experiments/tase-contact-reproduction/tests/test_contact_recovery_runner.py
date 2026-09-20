@@ -97,3 +97,27 @@ def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure)
         assert 'lift_stop' in events
         assert events.index('lift_stop')<events.index('unlock')
     assert (args.output/'result.json').exists()
+
+
+def test_recovery_preflight_failure_is_persisted_as_blocked(tmp_path, monkeypatch):
+    packages=tmp_path/'packages'
+    packages.mkdir()
+    (packages/f'{runner.RELIEF_PROGRAM}.script').write_text('relief')
+    source=tmp_path/'source'
+    source.mkdir()
+    monkeypatch.setattr(runner, 'PACKAGE_DIR', packages)
+    def fail(*_args):
+        raise ValueError('read-back proof expired')
+    monkeypatch.setattr(runner, 'validate_recovery_packages', fail)
+
+    result=runner.recover_failed_contact_run(source, 'fake', 'fake')
+
+    assert result['success'] is False
+    assert result['motion'] is False
+    assert result['state']=='BLOCKED'
+    assert result['recovery_policy']=='AUTO_HOME_UNLESS_SAFETY_PROOF_BLOCKS'
+    record=Path(result['recovery_record'])
+    assert record.exists()
+    persisted=json.loads(record.read_text())
+    assert persisted['state']=='BLOCKED'
+    assert persisted['phase']=='recovery-preflight'
