@@ -1,0 +1,8 @@
+{
+  "passed": true,
+  "samples": 31916,
+  "mismatches": [],
+  "claim_scope": "fresh-instance full-state forward replay; same implementation, not independent physics proof",
+  "receipt_sha256": "e764b57ab98a056ee0dd551a9ff63a11a47992b508029da4af62a6a943b99342",
+  "receipt_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-frozen-transfer-v1/MSFC-sustained_release_tangent.json.gz"
+}
