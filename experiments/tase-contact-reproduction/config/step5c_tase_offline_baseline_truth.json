@@ -34,7 +34,8 @@
     "epsilon": 0.022,
     "sigr_exponent_r": 0.2,
     "qdot_bound_rad_s": 0.15,
-    "communication_delay_T_mapping": "dt_s",
+    "communication_delay_T_s": 0.004,
+    "communication_delay_T_mapping": "explicit_offline_discretization_hypothesis_not_paper_verified",
     "alpha_escape_velocity_gain_s_inv": 1.0
   },
   "equation_source": "config/step5c_tase_paper_truth.json",

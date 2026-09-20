@@ -369,7 +369,15 @@ def compute_step5d_outer_loop(
     if orientation_gain_scale < 0.0:
         raise ValueError("orientation_gain_scale must be non-negative")
     effective_ko = ko * orientation_gain_scale
-    T_s = dt_s if config.delay_T_s is None else _finite_float(config.delay_T_s, "delay_T_s")
+    if config.delay_T_s is None:
+        # The paper defines T as controller communication delay, but does not
+        # provide a numeric value.  Keep legacy callers runnable while making
+        # this unverified dt discretization explicit in diagnostics.
+        T_s = dt_s
+        delay_T_mapping = "implicit_dt_discretization_fallback_unverified"
+    else:
+        T_s = _finite_float(config.delay_T_s, "delay_T_s")
+        delay_T_mapping = "explicit_config_value_unverified_against_paper"
     if T_s < 0.0:
         raise ValueError("delay_T_s must be non-negative")
 
@@ -565,6 +573,7 @@ def compute_step5d_outer_loop(
             "xdot_c": _tuple6(xdot_c),
             "dt_s": dt_s,
             "T_s": T_s,
+            "delay_T_mapping": delay_T_mapping,
             "tcp_speed_base": _tuple6(tcp_speed),
         }
     elif include_diagnostics == "compact":
@@ -589,6 +598,8 @@ def compute_step5d_outer_loop(
             "integral_conditional_frozen": anti_windup.conditional_frozen if anti_windup is not None else False,
             "integral_velocity_saturated": anti_windup.velocity_saturated if anti_windup is not None else False,
             "integral_reset_reason": anti_windup.reset_reason if anti_windup is not None else "",
+            "T_s": T_s,
+            "delay_T_mapping": delay_T_mapping,
         }
     elif include_diagnostics is False:
         # Do not construct logging tuples/matrices in the 500 Hz hot path.

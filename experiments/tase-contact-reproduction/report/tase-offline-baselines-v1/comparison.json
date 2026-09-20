@@ -10,6 +10,8 @@
     "offline_adapter": "experiments/tase-contact-reproduction/tools/tase_offline_baselines.py",
     "offline_hypothesis_manifest": "experiments/tase-contact-reproduction/config/step5c_tase_offline_baseline_truth.json",
     "verified_truth": "experiments/tase-contact-reproduction/config/step5c_tase_paper_truth.json",
+    "pdf_equation_parameter_audit": "experiments/tase-contact-reproduction/report/tase-offline-baselines-v1/pdf-equation-parameter-audit.json",
+    "native_goal_status": "experiments/tase-contact-reproduction/report/tase-offline-baselines-v1/native-goal-status.json",
     "legacy_original_finite_time": "experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/src/tase_repro/finite_time.py",
     "legacy_reproduction_plan": "experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/REPRODUCTION_PLAN.md"
   },
@@ -19,19 +21,21 @@
     "eq_23a": "step5c_strict_rnn.StrictTaseRnnSolver.step.theta_dot_state",
     "eq_23b": "step5c_strict_rnn.StrictTaseRnnSolver.step.lambda_state",
     "remark_5_sigr": "step5c_strict_rnn.sigr",
-    "verification_status": "The local legacy code directly verifies only the finite-time sigr primitive and the UR10e adaptation/QP contracts; full Eq.23 is mapped against STEP5D_RNN_MAPPING_REVIEW.md and remains an offline hypothesis, not an accepted full TASE reproduction."
+    "verification_status": "The local PDF audit verifies the equation locations and paper parameters that are stated, while local legacy code directly verifies only the finite-time sigr primitive. Full Eq.23 and the 6-DOF explicit-Euler implementation remain an offline hypothesis, not an accepted full TASE reproduction."
   },
   "shared_contract": {
     "task_source": "existing paper outer loop including force error, unknown reaction normal, Phi projectors, quaternion orientation error, and xdot_c",
     "jacobian": "same 6x6 J supplied to both baselines",
     "joint_bounds": "same element-wise omega_minus/omega_plus supplied to both baselines",
     "dt_s": 0.002,
+    "communication_delay_T": "The paper-defined controller communication delay is unresolved; the provider uses explicit offline delay_T_s=0.004 and does not equate T with dt. Legacy None fallback is labeled implicit_dt_discretization_fallback_unverified.",
     "epsilon": 0.022,
     "sigr_exponent_r": 0.2,
     "offline_qdot_bound_rad_s": 0.15,
     "platform_deviation": "The 0.15 rad/s bound is the paper-style offline comparison bound; UR10e live integration remains separately gated and is not changed.",
     "invalid_sample_policy": "Both solvers hold state on cmd_valid=false; invalid samples are counted and excluded from equality residual metrics.",
-    "snapshot_contract": "RNN theta_dot_state/lambda_state and QP x/y warm state are copied and restored before replay."
+    "snapshot_contract": "At the full provider boundary, outer force_integral_n_s and xdot_p_prev_m_s plus RNN theta_dot_state/lambda_state and QP x/y warm state are copied and restored before replay.",
+    "provider_contract": "One existing paper outer-loop output, including force feedback, changing reaction normal, and orientation compliance, feeds both solvers with identical J, references, dt, and box bounds."
   },
   "measurement": {
     "identity_constant_regression": {
@@ -53,34 +57,55 @@
         "interpretation": "Matched Eq.(20) native equality+box solve on the same offline task."
       }
     },
-    "outer_loop_nonidentity_regression": {
-      "qp_build_dir": "/tmp/tase-offline-baselines-review-20260921T0000Z",
-      "samples": 81,
-      "valid_samples": 80,
+    "outer_loop_force_feedback_nonidentity_regression": {
+      "qp_build_dir": "/tmp/tase-offline-baselines-force-feedback-20260921",
+      "samples": 80,
+      "valid_samples": 79,
       "invalid_samples": 1,
-      "task_source": "Same existing compute_step5d_outer_loop with force, tilted unknown reaction normal, quaternion orientation compliance, and evolving state.",
+      "task_source": "Same existing compute_step5d_outer_loop with nonzero kf=1.0, changing prescribed force load, changing tilted reaction normal, changing pose orientation, quaternion orientation compliance, and evolving outer state.",
       "jacobian": "bounded time-varying nonidentity 6x6 with off-diagonal coupling",
       "bounds": "[-0.15, 0.15]^6",
+      "config": {
+        "kp": 0.5,
+        "kf": 1.0,
+        "ko": 1.5,
+        "force_target_n": 2.0,
+        "delay_T_s": 0.004,
+        "dt_s": 0.002
+      },
+      "force_error_n": {
+        "min": -0.19968178715196938,
+        "max": 0.8993767452197279,
+        "range": 1.0990585323716973
+      },
       "rnn": {
-        "max_valid_equality_residual": 0.04805076921547686,
-        "final_valid_equality_residual": 0.0018024130791224413,
+        "max_valid_equality_residual": 0.058145044449368806,
+        "final_valid_equality_residual": 0.053027217478396206,
         "max_valid_bound_violation": 0.0
       },
       "qp": {
-        "max_valid_equality_residual": 1.0119238656522991e-08,
-        "final_valid_equality_residual": 2.0559552504802327e-09,
+        "max_valid_equality_residual": 1.3098972385517233e-09,
+        "final_valid_equality_residual": 4.965142580345763e-10,
         "max_valid_bound_violation": 0.0
       },
-      "interpretation": "The RNN remains bounded but does not exactly track every changing task in this short finite-time window; the QP solves the same feasible task to numerical tolerance. This is solver-level offline evidence, not accepted physical TASE evidence."
+      "outer_state_final": {
+        "force_integral_n_s": 0.04492518817600581,
+        "xdot_p_prev_m_s": [0.000700869379285957, -0.0004982698333561816, 0.0012909623192404668]
+      },
+      "interpretation": "The RNN remains within the shared bounds but does not exactly track every changing task in this short finite-time window; the QP solves the same feasible task to numerical tolerance. This is synthetic prescribed-input solver evidence, not closed-loop or physical-contact evidence."
     },
     "snapshot_replay": {
+      "outer_state": ["force_integral_n_s", "xdot_p_prev_m_s"],
       "rnn_state": ["theta_dot_state", "lambda_state"],
       "qp_state": ["x", "y"],
-      "result": "Focused test restores both states and reproduces the suffix qdot trace."
+      "result": "Focused full-provider test restores outer and solver states and reproduces the suffix outer xdot/RNN/QP trace."
     }
   },
   "validation": {
-    "focused_tests": "38 passed in 1.12s",
+    "focused_tests": "tests/test_tase_offline_baselines.py: 10 passed (current turn)",
+    "affected_outer_loop_tests": "tests/test_step5d_paper_outer_loop.py: 12 passed (current turn)",
+    "designated_hermetic_tase_tests": "10 passed in /tmp/tase-contact-test-hermetic-20260921",
+    "prior_regression_suite": "38 passed in 1.12s at 022e1b32 (main independently accepted; unchanged suite not rerun)",
     "tests": [
       "tests/test_tase_offline_baselines.py",
       "tests/test_step5d_strict_rnn_solver.py",
@@ -90,7 +115,8 @@
       "status": "blocked_by_existing_input_artifact",
       "environment": "/tmp/tase-contact-test-hermetic-20260921",
       "dependency_probe": "HERMETIC_OFFLINE_DEPS_OK pandas 2.3.3 numpy 1.24.4 scipy 1.15.3",
-      "reason": "The designated hermetic environment resolves pandas; the test then fails because the historical default bridge_rtde_500hz.csv is absent from this checkout. No synthetic replacement was created."
+      "expected_input": "experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5c_speedj_dryrun_v1_20260613_001228/bridge_rtde_500hz.csv",
+      "reason": "The designated hermetic environment resolves pandas; the test remains isolated because the exact historical default bridge_rtde_500hz.csv is absent from the known checkout evidence roots/manifests. No synthetic replacement was created."
     }
   },
   "authorization": {
@@ -103,6 +129,6 @@
   "remaining_blockers": [
     "Paper-truth/local-adaptation questions remain unresolved for live authorization.",
     "No physical contact, force, unknown-surface, orientation, or timing claim is made by this artifact.",
-    "The full-chain sanity test needs the existing pandas dependency installed in its designated environment."
+    "The full-chain sanity test is fixture-dependent on the absent historical CSV and remains isolated; independent offline implementation checks do not depend on it."
   ]
 }

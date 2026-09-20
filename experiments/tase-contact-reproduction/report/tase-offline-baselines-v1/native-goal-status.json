@@ -1,0 +1,16 @@
+{
+  "raw_get_goal_result": {
+    "goal": {
+      "threadId": "01a0bf0f-5db5-71b2-b38f-8fc28784740c",
+      "objective": "Complete the review-corrected TASE offline baseline acceptance in this same implementation scope: preserve unresolved paper provenance and keep the verified live gate blocked while making offline hypothesis opt-in; verify the RNN equations against local original code; implement full RNN/QP snapshot-restore and replay semantics; fix invalid-sample accounting; connect the same existing paper outer loop to both solvers; validate bounded nonidentity-J task changes in the designated offline environment; commit/push scoped changes and report concrete blockers. Scheduling audit is closed and must not be revisited; no hardware, endpoints, motion, Home, geometry, or timing changes.",
+      "status": "active",
+      "tokensUsed": 427551,
+      "timeUsedSeconds": 1079,
+      "createdAt": 1789920146,
+      "updatedAt": 1789921226
+    },
+    "remainingTokens": null,
+    "completionBudgetReport": null
+  },
+  "evidence_note": "Captured from the native get_goal result in this session; the threadId above is the authoritative goal identifier for this report."
+}

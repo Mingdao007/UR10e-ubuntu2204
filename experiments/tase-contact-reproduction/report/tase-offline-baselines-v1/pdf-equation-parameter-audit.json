@@ -1,0 +1,104 @@
+{
+  "schema": "tase-paper-equation-parameter-audit-v1",
+  "scope": "local_pdf_provenance_and_offline_adaptation_only",
+  "source": {
+    "pdf": "/home/andy/Zotero/storage/UZRF97KG/Xu 等 - 2026 - Finite-Time Convergence Neural Network-Based Force-Motion Control for Unknown Surface With Orientati.pdf",
+    "pdf_pages": 13,
+    "inspection": "pdftotext -layout; page numbers below are PDF pages",
+    "local_mapping_review": "experiments/tase-contact-reproduction/STEP5D_RNN_MAPPING_REVIEW.md"
+  },
+  "equation_parameter_findings": [
+    {
+      "id": "alpha_escape_velocity_gain",
+      "pdf_page": 5,
+      "equations": ["18", "19"],
+      "finding": "The bounds use alpha and the text states alpha > 0 is constant; no numeric alpha was found in the inspected paper pages.",
+      "status": "unresolved",
+      "offline_implementation": "config/step5c_tase_offline_baseline_truth.json records alpha_escape_velocity_gain_s_inv=1.0 only as an offline hypothesis; it is not live-authorized."
+    },
+    {
+      "id": "production_sigr_exponent_r",
+      "pdf_page": 7,
+      "equations": ["23a"],
+      "remarks": ["4", "5"],
+      "finding": "The paper gives r in [0,1] and discusses the r sweep; r=0.2 is identified for the simulation/fast convergence example, not as a separately verified production setting.",
+      "status": "unresolved_offline_hypothesis",
+      "offline_implementation": "The offline solver uses r=0.2 with explicit hypothesis opt-in; full Eq.23 acceptance is not claimed."
+    },
+    {
+      "id": "local_qdot_bound_rad_s",
+      "pdf_page": 8,
+      "finding": "The experimental safety bounds list joint velocity +/-0.15 rad/s.",
+      "status": "paper_parameter_verified_with_platform_boundary",
+      "offline_implementation": "The matched offline comparison uses +/-0.15 rad/s. UR10e live limits and bounds construction remain a separate platform adaptation and are not changed by this artifact."
+    },
+    {
+      "id": "communication_delay_T_mapping",
+      "pdf_page": 5,
+      "equations": ["17"],
+      "remarks": ["6"],
+      "finding": "Eq.17 defines T as robot-controller communication delay; Remark 6 describes introducing delay for orientation/force-sensor noise handling, but no numeric T was found.",
+      "status": "unresolved",
+      "offline_implementation": "The provider passes explicit delay_T_s=0.004 as a prescribed offline hypothesis. A legacy None fallback still equals dt_s, but diagnostics label it implicit_dt_discretization_fallback_unverified; it is never reported as paper T=dt."
+    },
+    {
+      "id": "Eq23_nonzero_command_stability",
+      "pdf_page": 6,
+      "equations": ["23a", "23b"],
+      "proof_pages": [11],
+      "finding": "The paper gives the continuous-time RNN equations and finite-time Lyapunov proof, but the inspected source does not prove this explicit-Euler UR10e 6-DOF implementation for nonzero commands, changing J, and finite bounds.",
+      "status": "unresolved_discrete_platform_adaptation",
+      "offline_implementation": "The provider regression measures bounded synthetic prescribed-input behavior only; it is not a theorem or physical-contact claim."
+    },
+    {
+      "id": "force_filter_and_contact_parameters",
+      "pdf_page": 8,
+      "remarks": ["6"],
+      "finding": "The paper simulation/experiment discussion states no force-sensor filter was added; paper force-ladder parameters are not a complete UR10e qualification recipe.",
+      "status": "platform_adaptation_unresolved_for_live_use",
+      "offline_implementation": "The shared outer-loop test supplies prescribed force and reaction-normal vectors; it is synthetic and does not authorize replacing the existing live safety/filter path."
+    },
+    {
+      "id": "franka_7dof_to_ur10e_6dof",
+      "pdf_page": 7,
+      "finding": "The paper simulation uses a 7-DOF setup; this work compares 6x6 UR10e Jacobian inputs.",
+      "status": "explicit_platform_adaptation",
+      "offline_implementation": "Both offline baselines consume the same 6x6 J and identical bounds; this is not labeled a paper-faithful 7-DOF reproduction."
+    }
+  ],
+  "locally_verified_code": [
+    {
+      "item": "sigr",
+      "source": "experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/src/tase_repro/finite_time.py",
+      "status": "direct_local_match",
+      "limitation": "This verifies only the primitive, not full Eq.23 convergence or the outer loop."
+    },
+    {
+      "item": "Eq23 state mapping",
+      "source": "experiments/tase-contact-reproduction/tools/step5c_strict_rnn.py",
+      "status": "equation_aligned_offline_hypothesis",
+      "limitation": "The paper's continuous-time notation is discretized with stateful Euler updates; no full original-TASE acceptance is claimed."
+    },
+    {
+      "item": "shared outer loop",
+      "source": "experiments/tase-contact-reproduction/tools/step5d_paper_outer_loop.py",
+      "status": "shared_offline_task_source",
+      "limitation": "The tested force, normal, orientation, and J traces are prescribed synthetic inputs, not closed-loop/contact data."
+    }
+  ],
+  "full_chain_input": {
+    "status": "fixture_dependent_and_isolated",
+    "exact_expected_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5c_speedj_dryrun_v1_20260613_001228/bridge_rtde_500hz.csv",
+    "search_scope": [
+      "experiments/tase-contact-reproduction/evidence",
+      "experiments/tase-contact-reproduction/report",
+      "experiments/tase-contact-reproduction/runs"
+    ],
+    "result": "Exact historical CSV was not found in the known checkout evidence roots/manifests; no synthetic CSV was created and this fixture absence does not block the independent offline implementation."
+  },
+  "evidence_boundary": {
+    "synthetic_prescribed_input": true,
+    "closed_loop_contact_evidence": false,
+    "hardware_or_endpoint_action": false
+  }
+}

@@ -18,6 +18,13 @@ import numpy as np
 
 from contact_qp import NativeContactQp
 from step5c_strict_rnn import StrictRnnConfig, StrictRnnStepDiagnostics, StrictTaseRnnSolver
+from step5d_paper_outer_loop import (
+    Step5dOuterLoopConfig,
+    Step5dOuterLoopInputs,
+    Step5dOuterLoopOutput,
+    Step5dOuterLoopState,
+    compute_step5d_outer_loop,
+)
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -161,6 +168,99 @@ class TaseQpBaseline:
         if not sample.cmd_valid:
             return None
         return self.solver.solve(jacobian, xdot_c, lower, upper)
+
+
+@dataclass(frozen=True)
+class TaseOfflineProviderStep:
+    """One shared outer-loop output consumed by both joint-level baselines."""
+
+    outer: Step5dOuterLoopOutput
+    sample: TaseJointSample
+    rnn: StrictRnnStepDiagnostics
+    qp: Any
+
+
+class TaseOfflineProvider:
+    """Full offline provider boundary: outer loop, then matched solvers.
+
+    The provider owns the outer-loop state so a snapshot is sufficient to
+    replay the complete boundary.  Inputs remain prescribed offline data; no
+    method in this class performs robot I/O or claims contact evidence.
+    """
+
+    def __init__(
+        self,
+        *,
+        qp_library: Path | str,
+        config: TaseOfflineConfig = TaseOfflineConfig(),
+        outer_config: Step5dOuterLoopConfig,
+        outer_state: Step5dOuterLoopState = Step5dOuterLoopState(),
+    ) -> None:
+        config.validate()
+        self.config = config
+        self.outer_config = outer_config
+        self.outer_state = outer_state
+        self.rnn = TaseRnnBaseline(config)
+        self.qp = TaseQpBaseline(qp_library, config)
+
+    def reset(self) -> None:
+        self.outer_state = Step5dOuterLoopState()
+        self.rnn.reset()
+        self.qp.reset()
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "outer_loop": {
+                "force_integral_n_s": float(self.outer_state.force_integral_n_s),
+                "xdot_p_prev_m_s": [float(value) for value in self.outer_state.xdot_p_prev_m_s],
+            },
+            "rnn": self.rnn.snapshot(),
+            "qp": self.qp.snapshot(),
+        }
+
+    def restore(self, state: dict[str, Any]) -> None:
+        try:
+            outer = state["outer_loop"]
+            force_integral = float(outer["force_integral_n_s"])
+            xdot_p_prev = _finite_array(outer["xdot_p_prev_m_s"], (3,), "outer_loop.xdot_p_prev_m_s")
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("invalid TASE provider outer-loop snapshot") from exc
+        if not np.isfinite(force_integral):
+            raise ValueError("outer_loop.force_integral_n_s must be finite")
+        self.outer_state = Step5dOuterLoopState(
+            force_integral_n_s=force_integral,
+            xdot_p_prev_m_s=tuple(float(value) for value in xdot_p_prev),
+        )
+        self.rnn.restore(state["rnn"])
+        self.qp.restore(state["qp"])
+
+    def step(
+        self,
+        inputs: Step5dOuterLoopInputs,
+        *,
+        jacobian: Any,
+        omega_minus: Any,
+        omega_plus: Any,
+        include_diagnostics: bool | str = True,
+    ) -> TaseOfflineProviderStep:
+        outer = compute_step5d_outer_loop(
+            self.outer_config,
+            self.outer_state,
+            inputs,
+            include_diagnostics=include_diagnostics,
+        )
+        self.outer_state = outer.next_state
+        sample = TaseJointSample(
+            jacobian=jacobian,
+            xdot_c=np.asarray(outer.xdot_c, dtype=float),
+            omega_minus=omega_minus,
+            omega_plus=omega_plus,
+            dt_s=inputs.dt_s,
+            cmd_valid=outer.cmd_valid,
+        )
+        rnn = self.rnn.step(sample)
+        qp = self.qp.step(sample)
+        return TaseOfflineProviderStep(outer=outer, sample=sample, rnn=rnn, qp=qp)
 
 
 def compare_joint_baselines(

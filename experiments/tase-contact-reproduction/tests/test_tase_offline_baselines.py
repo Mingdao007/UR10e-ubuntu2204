@@ -19,6 +19,7 @@ from build_contact_qp import build  # noqa: E402
 from tase_offline_baselines import (  # noqa: E402
     TaseJointSample,
     TaseOfflineConfig,
+    TaseOfflineProvider,
     TaseQpBaseline,
     TaseRnnBaseline,
     compare_joint_baselines,
@@ -199,44 +200,125 @@ def test_qp_match_accepts_tilted_force_orientation_task(qp_library: Path) -> Non
     assert result["qp"]["max_valid_equality_residual"] < 1e-6
 
 
-def test_same_outer_loop_feeds_both_on_bounded_nonidentity_jacobian_changes(qp_library: Path) -> None:
-    state = Step5dOuterLoopState()
-    samples = []
+def _changing_outer_inputs(index: int, *, cmd_valid: bool = True) -> tuple[Step5dOuterLoopInputs, np.ndarray]:
+    phase = index * 0.17
+    rotation = np.array([0.025 * np.sin(phase), 0.035 * np.cos(phase), 0.01 * np.sin(phase / 2.0)])
+    reaction = np.array([0.07 * np.sin(phase), 0.05 * np.cos(phase), -0.995])
+    reaction /= np.linalg.norm(reaction)
+    measured_load = 1.65 + 0.55 * np.sin(phase * 0.8)
+    # Prescribed synthetic sensor input: the TCP wrench is rotated from a
+    # changing base-frame reaction normal, so force feedback is nonzero.
+    from step5d_paper_outer_loop import rotvec_to_matrix  # noqa: PLC0415
+
+    force_tcp = rotvec_to_matrix(rotation).T @ (reaction * measured_load)
+    jacobian = np.eye(6)
+    jacobian[0, 1] = 0.035 + 0.012 * np.sin(phase)
+    jacobian[1, 0] = -0.025 + 0.01 * np.cos(phase)
+    jacobian[2, 3] = 0.018 * np.sin(phase)
+    jacobian[3, 2] = -0.014 * np.cos(phase)
+    return (
+        Step5dOuterLoopInputs(
+            tcp_pose_base=(0.001 * np.sin(phase), 0.001 * np.cos(phase), 0.0, *rotation),
+            tcp_speed_base=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            force_tcp_n=tuple(float(value) for value in force_tcp),
+            x_pd_base=(0.002 * np.sin(phase), 0.001 * np.cos(phase), 0.0),
+            xdot_pd_base=(0.0006 * np.cos(phase), -0.0006 * np.sin(phase), 0.0),
+            control_reaction_normal_base=tuple(float(value) for value in reaction),
+            dt_s=0.002,
+            cmd_valid=cmd_valid,
+        ),
+        jacobian,
+    )
+
+
+def _shared_outer_config() -> Step5dOuterLoopConfig:
+    return Step5dOuterLoopConfig(
+        kp=0.5,
+        kf=1.0,
+        ko=1.5,
+        force_target_n=2.0,
+        delay_T_s=0.004,
+    )
+
+
+def test_same_outer_loop_feeds_both_on_force_feedback_and_changing_normal(qp_library: Path) -> None:
+    provider = TaseOfflineProvider(qp_library=qp_library, outer_config=_shared_outer_config())
+    outer_xdots = []
     jacobians = []
+    force_errors = []
     for index in range(80):
-        phase = index * 0.07
-        jacobian = np.eye(6)
-        jacobian[0, 1] = 0.04 + 0.01 * np.sin(phase)
-        jacobian[1, 0] = -0.03 + 0.008 * np.cos(phase)
-        jacobian[2, 3] = 0.02 * np.sin(phase)
-        jacobian[3, 2] = -0.015 * np.cos(phase)
-        jacobians.append(jacobian)
-        outer = compute_step5d_outer_loop(
-            Step5dOuterLoopConfig(kp=0.5, kf=0.0, ko=1.5, force_target_n=2.0),
-            state,
-            Step5dOuterLoopInputs(
-                tcp_pose_base=(0.0, 0.0, 0.0, 0.0, 0.02 * np.sin(phase), 0.0),
-                tcp_speed_base=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-                force_tcp_n=(0.0, 0.0, -2.0),
-                x_pd_base=(0.002 * np.sin(phase), 0.001 * np.cos(phase), 0.0),
-                xdot_pd_base=(0.0005 * np.cos(phase), -0.0005 * np.sin(phase), 0.0),
-                control_reaction_normal_base=(0.04, 0.05, -0.998),
-                dt_s=0.002,
-            ),
+        inputs, jacobian = _changing_outer_inputs(index, cmd_valid=index != 40)
+        step = provider.step(
+            inputs,
+            jacobian=jacobian,
+            omega_minus=np.full(6, -0.15),
+            omega_plus=np.full(6, 0.15),
         )
-        state = outer.next_state
-        samples.append(
-            TaseJointSample(
+        outer_xdots.append(step.outer.xdot_c)
+        jacobians.append(jacobian)
+        if step.outer.cmd_valid:
+            force_errors.append(float(step.outer.diagnostics["e_f"]))
+            assert step.qp is not None
+        else:
+            assert step.qp is None
+
+    assert any(not np.allclose(jacobian, np.eye(6)) for jacobian in jacobians)
+    assert len(force_errors) == 79
+    assert max(force_errors) - min(force_errors) > 0.2
+    assert not np.allclose(outer_xdots[0], outer_xdots[1])
+    assert provider.outer_state.force_integral_n_s != 0.0
+
+
+def test_full_provider_snapshot_restores_outer_and_solver_states(qp_library: Path) -> None:
+    provider = TaseOfflineProvider(qp_library=qp_library, outer_config=_shared_outer_config())
+    for index in range(6):
+        inputs, jacobian = _changing_outer_inputs(index)
+        provider.step(
+            inputs,
+            jacobian=jacobian,
+            omega_minus=np.full(6, -0.15),
+            omega_plus=np.full(6, 0.15),
+        )
+    snapshot = provider.snapshot()
+    assert set(snapshot) == {"outer_loop", "rnn", "qp"}
+    assert set(snapshot["outer_loop"]) == {"force_integral_n_s", "xdot_p_prev_m_s"}
+    assert snapshot["outer_loop"]["force_integral_n_s"] != 0.0
+    assert set(snapshot["rnn"]) == {"theta_dot_state", "lambda_state"}
+    assert set(snapshot["qp"]) == {"x", "y"}
+
+    def replay() -> list[tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]]:
+        trace = []
+        for index in range(6, 12):
+            inputs, jacobian = _changing_outer_inputs(index)
+            step = provider.step(
+                inputs,
                 jacobian=jacobian,
-                xdot_c=np.asarray(outer.xdot_c),
                 omega_minus=np.full(6, -0.15),
                 omega_plus=np.full(6, 0.15),
-                dt_s=0.002,
             )
-        )
+            assert step.qp is not None
+            trace.append((step.outer.xdot_c, tuple(step.rnn.theta_dot_state), tuple(step.qp.qdot)))
+        return trace
 
-    result = compare_joint_baselines(samples, qp_library=qp_library)
-    assert any(not np.allclose(jacobian, np.eye(6)) for jacobian in jacobians)
-    assert result["shared_inputs"]["valid_samples"] == 80
-    assert result["qp"]["max_valid_equality_residual"] < 1e-6
-    assert result["rnn"]["max_bound_violation"] <= 1e-12
+    first_replay = replay()
+    provider.restore(snapshot)
+    second_replay = replay()
+    np.testing.assert_allclose(first_replay, second_replay, atol=1e-10)
+
+
+def test_communication_delay_mapping_is_explicitly_labeled() -> None:
+    inputs, _ = _changing_outer_inputs(0)
+    fallback = compute_step5d_outer_loop(
+        Step5dOuterLoopConfig(kp=0.0, kf=0.0, ko=0.0),
+        Step5dOuterLoopState(),
+        inputs,
+    )
+    explicit = compute_step5d_outer_loop(
+        Step5dOuterLoopConfig(kp=0.0, kf=0.0, ko=0.0, delay_T_s=0.004),
+        Step5dOuterLoopState(),
+        inputs,
+    )
+    assert fallback.diagnostics["T_s"] == inputs.dt_s
+    assert fallback.diagnostics["delay_T_mapping"] == "implicit_dt_discretization_fallback_unverified"
+    assert explicit.diagnostics["T_s"] == 0.004
+    assert explicit.diagnostics["delay_T_mapping"] == "explicit_config_value_unverified_against_paper"
