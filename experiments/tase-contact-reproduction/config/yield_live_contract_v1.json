@@ -24,10 +24,29 @@
   },
   "task": {
     "normal_force_n": 5.0,
-    "along_amplitude_m": 0.08,
-    "lateral_amplitude_m": 0.02,
+    "along_amplitude_m": 0.04,
+    "lateral_amplitude_m": 0.01,
     "omega_rad_s": 0.1,
-    "period_s": 62.83185307179586
+    "period_s": 62.83185307179586,
+    "path_shape": "figure_eight",
+    "span_mm": [
+      80.0,
+      20.0
+    ],
+    "initial_velocity_m_s": [
+      0.004,
+      0.002,
+      0.0
+    ]
+  },
+  "entry": {
+    "profile": "quintic_h=-4s^3+7s^4-3s^5",
+    "duration_s": 1.0,
+    "terminal_velocity_m_s": [
+      0.004,
+      0.002,
+      0.0
+    ]
   },
   "live_boundary": {
     "qualified_path_trial_hold_s": 0.1,

@@ -1,0 +1,260 @@
+{
+  "pass": true,
+  "state": "controller read-back verified",
+  "basename": "step5d_contact_six_qp_v1",
+  "controller_dir": "/programs/andyl/kunwei/step5",
+  "expected_stamp": "2026-09-20T1458Z_CONTACT_SIX_QP_V1_618001",
+  "results": [
+    {
+      "label": "local",
+      "pass": true,
+      "package_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/contact-six-qp",
+      "files": {
+        "script": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/contact-six-qp/step5d_contact_six_qp_v1.script",
+        "txt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/contact-six-qp/step5d_contact_six_qp_v1.txt",
+        "urp": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/contact-six-qp/step5d_contact_six_qp_v1.urp"
+      },
+      "parsed": {
+        "label": "local",
+        "basename": "step5d_contact_six_qp_v1",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "program_name": "step5d_contact_six_qp_v1",
+        "directory": "/programs/andyl/kunwei/step5",
+        "installationRelativePath": "../../../default",
+        "script_file_paths": [
+          "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script"
+        ],
+        "cachedContents_chars": 37004,
+        "urp_xml_chars": 38698
+      },
+      "checks": [
+        {
+          "name": "local.script_exists",
+          "pass": true,
+          "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/contact-six-qp/step5d_contact_six_qp_v1.script"
+        },
+        {
+          "name": "local.txt_exists",
+          "pass": true,
+          "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/contact-six-qp/step5d_contact_six_qp_v1.txt"
+        },
+        {
+          "name": "local.urp_exists",
+          "pass": true,
+          "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/contact-six-qp/step5d_contact_six_qp_v1.urp"
+        },
+        {
+          "name": "local.triplet_basename_match",
+          "pass": true,
+          "basenames": {
+            "script": "step5d_contact_six_qp_v1",
+            "txt": "step5d_contact_six_qp_v1",
+            "urp": "step5d_contact_six_qp_v1"
+          }
+        },
+        {
+          "name": "local.urp_gzip_xml_readable",
+          "pass": true,
+          "error": null
+        },
+        {
+          "name": "local.program_name",
+          "pass": true,
+          "actual": "step5d_contact_six_qp_v1",
+          "expected": "step5d_contact_six_qp_v1"
+        },
+        {
+          "name": "local.directory",
+          "pass": true,
+          "actual": "/programs/andyl/kunwei/step5",
+          "expected": "/programs/andyl/kunwei/step5"
+        },
+        {
+          "name": "local.script_node_file_path",
+          "pass": true,
+          "actual": [
+            "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script"
+          ],
+          "expected": [
+            "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script"
+          ]
+        },
+        {
+          "name": "local.installation_relative_path",
+          "pass": true,
+          "actual": "../../../default",
+          "resolved": [
+            "/programs/default",
+            "/programs/default.installation"
+          ],
+          "expected": "/programs/default.installation"
+        },
+        {
+          "name": "local.stamp_has_date_time_timezone",
+          "pass": true,
+          "expected_stamp": "2026-09-20T1458Z_CONTACT_SIX_QP_V1_618001"
+        },
+        {
+          "name": "local.stamp_in_cachedContents",
+          "pass": true,
+          "expected_stamp": "2026-09-20T1458Z_CONTACT_SIX_QP_V1_618001"
+        },
+        {
+          "name": "local.stamp_in_script",
+          "pass": true,
+          "expected_stamp": "2026-09-20T1458Z_CONTACT_SIX_QP_V1_618001"
+        }
+      ]
+    },
+    {
+      "label": "readback",
+      "pass": true,
+      "package_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/readback/contact-six-qp",
+      "files": {
+        "script": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/readback/contact-six-qp/step5d_contact_six_qp_v1.script",
+        "txt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/readback/contact-six-qp/step5d_contact_six_qp_v1.txt",
+        "urp": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/readback/contact-six-qp/step5d_contact_six_qp_v1.urp"
+      },
+      "parsed": {
+        "label": "readback",
+        "basename": "step5d_contact_six_qp_v1",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "program_name": "step5d_contact_six_qp_v1",
+        "directory": "/programs/andyl/kunwei/step5",
+        "installationRelativePath": "../../../default",
+        "script_file_paths": [
+          "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script"
+        ],
+        "cachedContents_chars": 37004,
+        "urp_xml_chars": 38698
+      },
+      "checks": [
+        {
+          "name": "readback.script_exists",
+          "pass": true,
+          "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/readback/contact-six-qp/step5d_contact_six_qp_v1.script"
+        },
+        {
+          "name": "readback.txt_exists",
+          "pass": true,
+          "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/readback/contact-six-qp/step5d_contact_six_qp_v1.txt"
+        },
+        {
+          "name": "readback.urp_exists",
+          "pass": true,
+          "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/sfc-qualification-inputs-v2/readback/contact-six-qp/step5d_contact_six_qp_v1.urp"
+        },
+        {
+          "name": "readback.triplet_basename_match",
+          "pass": true,
+          "basenames": {
+            "script": "step5d_contact_six_qp_v1",
+            "txt": "step5d_contact_six_qp_v1",
+            "urp": "step5d_contact_six_qp_v1"
+          }
+        },
+        {
+          "name": "readback.urp_gzip_xml_readable",
+          "pass": true,
+          "error": null
+        },
+        {
+          "name": "readback.program_name",
+          "pass": true,
+          "actual": "step5d_contact_six_qp_v1",
+          "expected": "step5d_contact_six_qp_v1"
+        },
+        {
+          "name": "readback.directory",
+          "pass": true,
+          "actual": "/programs/andyl/kunwei/step5",
+          "expected": "/programs/andyl/kunwei/step5"
+        },
+        {
+          "name": "readback.script_node_file_path",
+          "pass": true,
+          "actual": [
+            "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script"
+          ],
+          "expected": [
+            "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script"
+          ]
+        },
+        {
+          "name": "readback.installation_relative_path",
+          "pass": true,
+          "actual": "../../../default",
+          "resolved": [
+            "/programs/default",
+            "/programs/default.installation"
+          ],
+          "expected": "/programs/default.installation"
+        },
+        {
+          "name": "readback.stamp_has_date_time_timezone",
+          "pass": true,
+          "expected_stamp": "2026-09-20T1458Z_CONTACT_SIX_QP_V1_618001"
+        },
+        {
+          "name": "readback.stamp_in_cachedContents",
+          "pass": true,
+          "expected_stamp": "2026-09-20T1458Z_CONTACT_SIX_QP_V1_618001"
+        },
+        {
+          "name": "readback.stamp_in_script",
+          "pass": true,
+          "expected_stamp": "2026-09-20T1458Z_CONTACT_SIX_QP_V1_618001"
+        }
+      ]
+    }
+  ],
+  "sha": {
+    "pass": true,
+    "pairs": {
+      "script": {
+        "local": "74546ee17b413d7985b3f43c085c0e6ad96c3c35f36c1ac613f1dad7f974197e",
+        "readback": "74546ee17b413d7985b3f43c085c0e6ad96c3c35f36c1ac613f1dad7f974197e"
+      },
+      "txt": {
+        "local": "1f7d9d40a9c77f844137426695f4aa8b55c22c72f1789ae8495747ca6579c335",
+        "readback": "1f7d9d40a9c77f844137426695f4aa8b55c22c72f1789ae8495747ca6579c335"
+      },
+      "urp": {
+        "local": "9c6f66091db955c115aa595a316d0d0f30a6a73751a5ef908f34dd76b083b94e",
+        "readback": "9c6f66091db955c115aa595a316d0d0f30a6a73751a5ef908f34dd76b083b94e"
+      }
+    },
+    "checks": [
+      {
+        "name": "sha.script.both_exist",
+        "pass": true
+      },
+      {
+        "name": "sha.script.match",
+        "pass": true,
+        "local": "74546ee17b413d7985b3f43c085c0e6ad96c3c35f36c1ac613f1dad7f974197e",
+        "readback": "74546ee17b413d7985b3f43c085c0e6ad96c3c35f36c1ac613f1dad7f974197e"
+      },
+      {
+        "name": "sha.txt.both_exist",
+        "pass": true
+      },
+      {
+        "name": "sha.txt.match",
+        "pass": true,
+        "local": "1f7d9d40a9c77f844137426695f4aa8b55c22c72f1789ae8495747ca6579c335",
+        "readback": "1f7d9d40a9c77f844137426695f4aa8b55c22c72f1789ae8495747ca6579c335"
+      },
+      {
+        "name": "sha.urp.both_exist",
+        "pass": true
+      },
+      {
+        "name": "sha.urp.match",
+        "pass": true,
+        "local": "9c6f66091db955c115aa595a316d0d0f30a6a73751a5ef908f34dd76b083b94e",
+        "readback": "9c6f66091db955c115aa595a316d0d0f30a6a73751a5ef908f34dd76b083b94e"
+      }
+    ]
+  }
+}

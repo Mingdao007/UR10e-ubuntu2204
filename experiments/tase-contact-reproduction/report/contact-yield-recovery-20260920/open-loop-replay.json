@@ -1,0 +1,122 @@
+{
+  "baseline_policy": {
+    "entry_release": "entry resumes native full 3D tangent response, so the first entry tick can jump from the suppressed baseline command",
+    "lateral_restoring": "withheld from the baseline command, including pre_integral tangent restoring; this removes lateral restoring authority during baseline",
+    "native_tangent_state": "retained and advanced for diagnostics; not reset",
+    "physical_guarantee": "none; zero tangent command does not guarantee stationary TCP or zero XY motion",
+    "physical_limitation": "disturbance and estimated-normal tilt can still produce physical XY motion",
+    "policy": "suppress_native_tangent_command",
+    "residual": "estimated-outward-normal projection applies only in baseline; entry and PATH retain full 3D residual"
+  },
+  "candidate_worktree": {
+    "integrated_applied_tangent_m": 1.3751751074780837e-18,
+    "max_recorded_qd_rad_s": 0.032803796231746674,
+    "max_sensor_age_s": 0.0017814149978221394,
+    "peak_applied_tangent_m_s": 1.0845434901213692e-18,
+    "peak_command_tangent_m_s": 1.0845434901213692e-18,
+    "peak_residual_tangent_n": 4.428842168696153e-15,
+    "ticks": 1118
+  },
+  "claim_scope": "recorded-input controller-law comparison only; open-loop replay, not a prediction of new physical force or closed-loop robot behavior",
+  "comparison": {
+    "candidate_integrated_applied_tangent_reduction_fraction": 0.9999999999999994,
+    "candidate_peak_applied_tangent_reduction_fraction": 0.9999999999999997,
+    "original_patch_integrated_applied_tangent_reduction_fraction": 0.1806836734469811,
+    "original_patch_peak_applied_tangent_reduction_fraction": -0.16092018596651214
+  },
+  "initialization_assumption": {
+    "controller_state": "fresh cold controller per version",
+    "filter_native_law_qp": "zero initial state",
+    "host_command_history": "excluded from law comparison; recorded qd is admitted and summarized",
+    "normal_estimator": "Home task basis +Z approach mapped to inward base normal",
+    "physical_closed_loop": false
+  },
+  "input_alignment": {
+    "clock": "packet publish host monotonic time",
+    "packet_count": 1118,
+    "packet_sequence_end": 102796,
+    "packet_sequence_start": 101679,
+    "pairing": "latest unique state21 RTDE row received before packet publish time",
+    "state21_frame_count": 1119,
+    "unmatched_baseline_tail_packets": 0
+  },
+  "method": "SFC",
+  "original_patch": {
+    "integrated_applied_tangent_m": 0.0020805852705921097,
+    "max_recorded_qd_rad_s": 0.032803796231746674,
+    "max_sensor_age_s": 0.0017814149978221394,
+    "peak_applied_tangent_m_s": 0.0033383413402126487,
+    "peak_command_tangent_m_s": 0.0033383413402126487,
+    "peak_residual_tangent_n": 4.428842168696153e-15,
+    "ticks": 1118
+  },
+  "parent": {
+    "integrated_applied_tangent_m": 0.002539416344045565,
+    "max_recorded_qd_rad_s": 0.032803796231746674,
+    "max_sensor_age_s": 0.0017814149978221394,
+    "peak_applied_tangent_m_s": 0.00287559935693025,
+    "peak_command_tangent_m_s": 0.00287559935693025,
+    "peak_residual_tangent_n": 4.019683958342216,
+    "ticks": 1118
+  },
+  "phase": "baseline",
+  "schema": "ur10e.contact-yield-open-loop-replay-v1",
+  "source_run": "runs/yield-sfc-qualification-20260920T120659Z",
+  "task": {
+    "amplitudes_m": [
+      0.04,
+      0.01
+    ],
+    "approach_inward_base": [
+      -2.451900691573075e-16,
+      2.0814458494704084e-16,
+      -0.9999999999999998
+    ],
+    "force_n": 5.0,
+    "home_pose": [
+      0.487834547,
+      0.129337053,
+      0.033,
+      2.0331342431227566,
+      2.3949884238824652,
+      -2.2711768777011217e-22
+    ],
+    "path_shape": "figure_eight",
+    "period_s": 62.83185307179586,
+    "span_mm": [
+      80.0,
+      20.0
+    ],
+    "task_basis": [
+      [
+        -0.1623504483924212,
+        0.9867331614508451,
+        -2.451900691573075e-16
+      ],
+      [
+        0.9867331614508451,
+        0.1623504483924213,
+        2.0814458494704084e-16
+      ],
+      [
+        2.4518988201272527e-16,
+        -2.0814480539933494e-16,
+        -0.9999999999999998
+      ]
+    ]
+  },
+  "versions": {
+    "candidate_worktree": {
+      "commit": "working-tree",
+      "controller_sha256": "bf1064cdc449613dc608cb35acd188b190ab81c6f06a7e232da3319fc94bc564"
+    },
+    "original_patch": {
+      "commit": "1f4c44b4",
+      "controller_sha256": "f3f90b6a6d7c5167b1b2c329bd0fcfd4ea85a4c0164c9d2302c449a98ab058ec"
+    },
+    "parent": {
+      "commit": "69c818c7",
+      "controller_sha256": "d27996937ed57e7baf83a078ae29658266f753536dd848f63f5cd8fe614201bb"
+    }
+  }
+}

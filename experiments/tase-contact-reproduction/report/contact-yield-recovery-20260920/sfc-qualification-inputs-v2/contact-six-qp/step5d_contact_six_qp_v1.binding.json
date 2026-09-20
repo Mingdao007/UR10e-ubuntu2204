@@ -1,0 +1,51 @@
+{
+  "schema": "contact-qp-package-preparation-v1",
+  "basename": "step5d_contact_six_qp_v1",
+  "stamp": "2026-09-20T1458Z_CONTACT_SIX_QP_V1_618001",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "revision": 20,
+  "protocol": 618001,
+  "home_receipt_sha256": "887e592c7361f9ef6e01613a3d64f7623a0a6b8b3a291587b1fa5f8cd9df03e5",
+  "source_sha256": "0fccfb7304104777b375f7250e192ec83640c5b8192411db36bd05de7d05ec34",
+  "live_qualified": false,
+  "geometry": {
+    "duration_s": 62.83185307179586,
+    "span_m": [
+      0.08,
+      0.02
+    ],
+    "speed_upper_bound_m_s": 0.00447213595499958,
+    "acceleration_upper_bound_m_s2": 0.0005656854249492381,
+    "force_setpoint_n": 5.0,
+    "qualification": "geometry only; actual joint trajectory, frame, limits and package require separate checks"
+  },
+  "source_owner": "R012 lifecycle; narrowed common caps and new Home/identity/full-period duration",
+  "numeric_sanity": {
+    "duration_s": 62.83185307179586,
+    "span_m": [
+      0.08,
+      0.02
+    ],
+    "peak_nominal_linear_speed_bound_m_s": 0.00447213595499958,
+    "host_tangent_speed_cap_m_s": 0.01,
+    "tp_joint_speed_limit_rad_s": 0.05,
+    "tp_speedj_acceleration_rad_s2": 5.0,
+    "search_speed_m_s": 0.0002,
+    "search_travel_limit_m": 0.015,
+    "search_timeout_s": 90.0,
+    "full_search_travel_time_s": 75.0,
+    "raw_force_limit_n": 20.0,
+    "raw_torque_limit_nm": 2.0,
+    "fixed_orientation_approach_axis": [
+      0,
+      0,
+      -1
+    ],
+    "home_xyz_m": [
+      0.487834547,
+      0.129337053,
+      0.033
+    ],
+    "scope": "local package arithmetic; workspace clearance and owner dispatch pending"
+  }
+}

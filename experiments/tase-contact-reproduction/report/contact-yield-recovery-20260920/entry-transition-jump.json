@@ -1,0 +1,106 @@
+{
+  "admission": {
+    "host_delta_limit_rad_s": 0.005,
+    "host_policy": "existing runtime command_history intersection",
+    "host_qdot_slew_rad_s2": 2.5,
+    "limits_relaxed": false,
+    "tp_delta_limit_rad_s": 0.01,
+    "tp_speedj_acceleration_rad_s2": 5.0
+  },
+  "cases": [
+    {
+      "baseline_command_tangent_m_s": 2.164170139315925e-20,
+      "baseline_qdot_rad_s": [
+        0.001544382101644853,
+        -0.0034295638434304154,
+        -0.010106592793058707,
+        0.038260351128595826,
+        -0.0037969438988616454,
+        0.0016063870405442302
+      ],
+      "case": "warm_tilted_baseline",
+      "displaced_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "entry_command_tangent_m_s": 0.0004292112829520689,
+      "entry_native_tangent_m_s": 0.0004292112829520689,
+      "entry_qdot_rad_s": [
+        0.0013158078271804153,
+        -0.003753126683128687,
+        -0.009694367397022539,
+        0.03817169183025077,
+        -0.003797195762487101,
+        0.001377696372542361
+      ],
+      "host_admission_pass": true,
+      "host_delta_limit_rad_s": 0.005,
+      "host_slew_rad_s2": 2.5,
+      "jump_qdot_rad_s": [
+        -0.00022857427446443777,
+        -0.00032356283969827175,
+        0.00041222539603616784,
+        -8.865929834505487e-05,
+        -2.5186362545559504e-07,
+        -0.00022869066800186924
+      ],
+      "l2_jump_rad_s": 0.0006221164228399645,
+      "max_abs_jump_rad_s": 0.00041222539603616784,
+      "tp_acceleration_pass": true,
+      "tp_acceleration_rad_s2": 5.0,
+      "tp_delta_limit_rad_s": 0.01,
+      "warm_steps": 3
+    },
+    {
+      "baseline_command_tangent_m_s": 4.345126139253453e-58,
+      "baseline_qdot_rad_s": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "case": "displaced_position",
+      "displaced_m": [
+        0.002,
+        0.0,
+        0.0
+      ],
+      "entry_command_tangent_m_s": 4.170146083813325e-05,
+      "entry_native_tangent_m_s": 4.170146083813325e-05,
+      "entry_qdot_rad_s": [
+        5.0541152726973296e-05,
+        4.194409410741128e-05,
+        -7.573483012985203e-05,
+        3.378847961517646e-05,
+        -2.7146133934709844e-08,
+        5.0598942976836175e-05
+      ],
+      "host_admission_pass": true,
+      "host_delta_limit_rad_s": 0.005,
+      "host_slew_rad_s2": 2.5,
+      "jump_qdot_rad_s": [
+        5.0541152726973296e-05,
+        4.194409410741128e-05,
+        -7.573483012985203e-05,
+        3.378847961517646e-05,
+        -2.7146133934709844e-08,
+        5.0598942976836175e-05
+      ],
+      "l2_jump_rad_s": 0.00011726634114805091,
+      "max_abs_jump_rad_s": 7.573483012985203e-05,
+      "tp_acceleration_pass": true,
+      "tp_acceleration_rad_s2": 5.0,
+      "tp_delta_limit_rad_s": 0.01,
+      "warm_steps": 1
+    }
+  ],
+  "claim_scope": "offline synthetic command-law diagnostic only; no physical stationarity, force prediction, or hardware qualification",
+  "controller_sha256": "bf1064cdc449613dc608cb35acd188b190ab81c6f06a7e232da3319fc94bc564",
+  "dt_s": 0.002,
+  "initialization_assumption": "fresh controller per case; baseline ticks advance native state; baseline tangent command is suppressed; first entry resumes native response",
+  "physical_limitation": "passing qdot jump admission does not guarantee stationary physical XY; baseline has no lateral restoring authority and disturbances or estimated-normal tilt can move TCP XY",
+  "schema": "ur10e.contact-yield-entry-jump-v1"
+}

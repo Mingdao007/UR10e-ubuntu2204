@@ -39,6 +39,8 @@
     "lateral_amplitude_m": 0.01,
     "omega_rad_s": 0.1,
     "duration_s": 62.83185307179586,
+    "seam_continuation_policy": "unwrapped_periodic_v1",
+    "maximum_seam_continuation_s": 0.004,
     "span_mm": [
       80.0,
       20.0
@@ -312,5 +314,5 @@
   "rnn_selectable": false,
   "research_parameters_are_contact_qualified": false,
   "synthetic_disturbance_is_physical_impact": false,
-  "sha256": "5be95ccbf95200fbf7651f98ad8684c5b2715f8234155246ba7b374d1c59a67a"
+  "sha256": "97bd952e7b8ac562960f42124ac85ea776dfe597fdb4e066e8672cb3772816c6"
 }

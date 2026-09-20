@@ -1,10 +1,14 @@
 """Shared yield-recovery step(observation, reference, dt).
 
 The selected native law consumes the full base force residual
-``measured - target * outward`` plus shared tangent restoring.  Correction
-velocity is projected into normal/tangent after the law step.  Nominal
-feedforward is added afterwards and is not a damping input.  There is no
-independent normal P bypass.  Failures restore the whole tick.
+``measured - target * outward`` plus shared tangent restoring.  During
+baseline qualification, the command policy suppresses the native tangent
+component: retained native state and lateral restoring remain diagnostic only.
+This is not a physical stationary-contact guarantee; disturbance and estimated
+normal tilt can still move the TCP in XY. Entry and PATH retain the full native
+tangent response. Nominal feedforward is added afterwards and is not a damping
+input. There is no independent normal P bypass. Failures restore the whole
+tick.
 """
 from __future__ import annotations
 
@@ -431,8 +435,8 @@ class YieldController:
         force_error = signed_load - target_force
         residual = (filtered + injection) - target_force * outward
         if phase == "baseline":
-            # Qualification holds the contact point. Axis-decoupled SFC would
-            # otherwise admit surface shear as tangent speed and walk the TCP.
+            # Suppress baseline tangent command output. This limits the known
+            # shear-to-command path; it cannot guarantee physical XY stationarity.
             residual = float(np.dot(residual, outward)) * outward
         path_error = position - ref_position
         restoring = (
@@ -448,7 +452,15 @@ class YieldController:
             law_force = pre_integral + self.settings.integral_force_gain * integral
         law_velocity = np.asarray(self.law.step(law_force, dt_s), dtype=float)
         normal_law = float(np.dot(law_velocity, inward)) * inward
-        tangent_law = tangent @ law_velocity
+        native_tangent_law = tangent @ law_velocity
+        # Keep the native law state warm across phases, but do not replay a
+        # tangent component accumulated before a baseline qualification tick.
+        # Entry and PATH retain the full native tangent response.
+        tangent_law = (
+            np.zeros(3, dtype=float)
+            if phase == "baseline"
+            else native_tangent_law
+        )
         feedforward = tangent @ ref_velocity
         tangent_uncapped = tangent_law + feedforward
         tangent_capped, tangent_over = cap_vector(
@@ -545,6 +557,17 @@ class YieldController:
             "law_velocity_base_m_s": tuple(float(value) for value in law_velocity),
             "law_normal_velocity_m_s": tuple(float(value) for value in normal_law),
             "law_tangent_velocity_m_s": tuple(float(value) for value in tangent_law),
+            "native_law_tangent_velocity_m_s": tuple(
+                float(value) for value in native_tangent_law
+            ),
+            "baseline_tangent_output_suppressed": bool(
+                phase == "baseline" and np.linalg.norm(native_tangent_law) > 0.0
+            ),
+            "baseline_tangent_policy": (
+                "suppress_native_tangent_command"
+                if phase == "baseline"
+                else "native_full_3d_response"
+            ),
             "offset_base_m": tuple(float(value) for value in self.offset_base_m),
             "integral_n_s": tuple(float(value) for value in self.integral_n_s),
             "inward_normal_base": tuple(float(value) for value in inward),

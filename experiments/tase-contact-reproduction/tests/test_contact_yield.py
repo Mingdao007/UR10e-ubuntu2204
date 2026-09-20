@@ -9,6 +9,7 @@ from contact_yield_metrics import compare_pair
 from contact_yield_laws import YieldLaw
 from contact_yield_simulator import YieldSimulatorError
 from contact_yield_qp import _kind
+from contact_yield_math import projector_tangent
 from contact_qp import QpError
 from build_contact_qp import build
 
@@ -32,6 +33,177 @@ def test_baseline_does_not_admit_shear_as_tangent_speed(library):
         path = controller.step(obs, {"phase": "path", "path_time_s": 0.0, **shared}, 0.002)
         assert abs(path["twist_base"][0]) > 1e-4
         assert abs(baseline["twist_base"][0]) < 0.2 * abs(path["twist_base"][0])
+    finally:
+        controller.close()
+
+
+def test_baseline_shear_remains_projected_over_multiple_steps(library):
+    controller, plant, origin = system("SFC", library)
+    try:
+        shared = {
+            "force_n": 5.0,
+            "position_m": tuple(origin),
+            "velocity_m_s": (0.0, 0.0, 0.0),
+        }
+        outputs = []
+        for tick in range(6):
+            obs = dict(plant.observe()["observation"])
+            obs["time_s"] = tick * 0.002
+            obs["raw_force_base_n"] = (4.0, 0.0, 5.0)
+            outputs.append(
+                controller.step(
+                    obs,
+                    {"phase": "baseline", "path_time_s": None, **shared},
+                    0.002,
+                )
+            )
+        for result in outputs:
+            normal = np.asarray(result["inward_normal_base"])
+            tangent = projector_tangent(normal)
+            np.testing.assert_allclose(
+                tangent @ np.asarray(result["force_residual_base_n"]),
+                0.0,
+                rtol=0,
+                atol=1e-12,
+            )
+            assert np.linalg.norm(tangent @ np.asarray(result["twist_base"][:3])) < 1e-10
+    finally:
+        controller.close()
+
+
+def test_baseline_projection_uses_tilted_estimated_normal(library):
+    tilted = (0.2, 0.1, -float(np.sqrt(0.95)))
+    controller, plant, origin = __import__("contact_yield_runner").make_system(
+        method="SFC",
+        material="stiff_low_mu",
+        dt_s=0.002,
+        timeline="diagnostic",
+        qp_library=library,
+        estimator_parameters={"initial_inward_normal_base": tilted},
+    )
+    try:
+        obs = dict(plant.observe()["observation"])
+        obs["raw_force_base_n"] = tuple(-5.0 * np.asarray(tilted) + (4.0, 0.0, 0.0))
+        shared = {"force_n": 5.0, "position_m": tuple(origin), "velocity_m_s": (0.0, 0.0, 0.0)}
+        before = controller.snapshot()
+        baseline = controller.step(obs, {"phase": "baseline", "path_time_s": None, **shared}, 0.002)
+        controller.restore(before)
+        path = controller.step(obs, {"phase": "path", "path_time_s": 0.0, **shared}, 0.002)
+        normal = np.asarray(baseline["inward_normal_base"])
+        tangent = projector_tangent(normal)
+        np.testing.assert_allclose(
+            tangent @ np.asarray(baseline["force_residual_base_n"]),
+            0.0,
+            rtol=0,
+            atol=1e-12,
+        )
+        assert np.linalg.norm(tangent @ np.asarray(path["force_residual_base_n"])) > 1.0
+        assert abs(float(np.dot(normal, np.asarray(tilted)))) > 1.0 - 1e-10
+    finally:
+        controller.close()
+
+
+def test_warm_tangent_state_is_retained_but_not_replayed_in_baseline(library):
+    controller, plant, origin = system("SFC", library)
+    try:
+        shared = {"force_n": 5.0, "position_m": tuple(origin), "velocity_m_s": (0.0, 0.0, 0.0)}
+        obs = dict(plant.observe()["observation"])
+        obs["raw_force_base_n"] = (0.0, 0.0, 5.0)
+        controller.step(obs, {"phase": "baseline", "path_time_s": None, **shared}, 0.002)
+
+        obs["time_s"] = 0.002
+        obs["raw_force_base_n"] = (4.0, 0.0, 5.0)
+        entry_ref = controller.task.entry_reference(0.0)
+        entry = controller.step(
+            obs,
+            {
+                "phase": "entry",
+                "path_time_s": None,
+                "force_n": 5.0,
+                "position_m": tuple(origin + np.asarray(entry_ref["position_m"])),
+                "velocity_m_s": entry_ref["velocity_m_s"],
+            },
+            0.002,
+        )
+        assert np.linalg.norm(entry["native_law_tangent_velocity_m_s"]) > 1e-8
+        warm_state = np.asarray(controller.law.state).copy()
+
+        obs["time_s"] = 0.004
+        baseline = controller.step(obs, {"phase": "baseline", "path_time_s": None, **shared}, 0.002)
+        normal = np.asarray(baseline["inward_normal_base"])
+        tangent = projector_tangent(normal)
+        assert baseline["baseline_tangent_output_suppressed"]
+        assert np.linalg.norm(baseline["native_law_tangent_velocity_m_s"]) > 0.0
+        assert np.linalg.norm(tangent @ np.asarray(baseline["twist_base"][:3])) < 1e-10
+        assert not np.allclose(controller.law.state, warm_state)
+        assert np.linalg.norm(controller.law.state) > 0.0
+    finally:
+        controller.close()
+
+
+def test_baseline_command_suppression_withholds_lateral_restoring_until_entry_release(library):
+    controller, plant, origin = system("SFC", library)
+    try:
+        obs = dict(plant.observe()["observation"])
+        obs["position_m"] = np.asarray(origin) + np.asarray((0.002, 0.0, 0.0))
+        obs["raw_force_base_n"] = (0.0, 0.0, 5.0)
+        shared = {"force_n": 5.0, "position_m": tuple(origin), "velocity_m_s": (0.0, 0.0, 0.0)}
+        baseline = controller.step(
+            obs,
+            {"phase": "baseline", "path_time_s": None, **shared},
+            0.002,
+        )
+        normal = np.asarray(baseline["inward_normal_base"])
+        tangent = projector_tangent(normal)
+        assert baseline["baseline_tangent_policy"] == "suppress_native_tangent_command"
+        assert np.linalg.norm(baseline["native_law_tangent_velocity_m_s"]) > 1e-8
+        assert np.linalg.norm(tangent @ np.asarray(baseline["twist_base"][:3])) < 1e-10
+
+        obs["time_s"] = 0.002
+        entry_ref = controller.task.entry_reference(0.0)
+        entry = controller.step(
+            obs,
+            {
+                "phase": "entry",
+                "path_time_s": None,
+                "force_n": 5.0,
+                "position_m": tuple(origin + np.asarray(entry_ref["position_m"])),
+                "velocity_m_s": entry_ref["velocity_m_s"],
+            },
+            0.002,
+        )
+        entry_tangent = projector_tangent(np.asarray(entry["inward_normal_base"]))
+        assert entry["baseline_tangent_policy"] == "native_full_3d_response"
+        assert np.linalg.norm(entry_tangent @ np.asarray(entry["twist_base"][:3])) > 1e-6
+    finally:
+        controller.close()
+
+
+def test_baseline_entry_path_transition_preserves_phase_specific_residuals(library):
+    controller, plant, origin = system("SFC", library)
+    try:
+        obs = dict(plant.observe()["observation"])
+        obs["raw_force_base_n"] = (4.0, 0.0, 5.0)
+        shared = {"force_n": 5.0, "position_m": tuple(origin), "velocity_m_s": (0.0, 0.0, 0.0)}
+        baseline = controller.step(obs, {"phase": "baseline", "path_time_s": None, **shared}, 0.002)
+        obs["time_s"] = 0.002
+        entry_ref = controller.task.entry_reference(0.0)
+        entry = controller.step(obs, {"phase": "entry", "path_time_s": None, "force_n": 5.0,
+                                      "position_m": tuple(origin + np.asarray(entry_ref["position_m"])),
+                                      "velocity_m_s": entry_ref["velocity_m_s"]}, 0.002)
+        obs["time_s"] = 0.004
+        path_ref = controller.task.reference(0.0)
+        path = controller.step(obs, {"phase": "path", "path_time_s": 0.0, "force_n": 5.0,
+                                     "position_m": tuple(origin + np.asarray(path_ref["position_m"])),
+                                     "velocity_m_s": path_ref["velocity_m_s"]}, 0.002)
+        assert baseline["phase"] == "baseline"
+        assert entry["phase"] == "entry"
+        assert path["phase"] == "path"
+        assert path["path_time_s"] == 0.0
+        for result in (entry, path):
+            normal = np.asarray(result["inward_normal_base"])
+            tangent = projector_tangent(normal)
+            assert np.linalg.norm(tangent @ np.asarray(result["force_residual_base_n"])) > 0.1
     finally:
         controller.close()
 

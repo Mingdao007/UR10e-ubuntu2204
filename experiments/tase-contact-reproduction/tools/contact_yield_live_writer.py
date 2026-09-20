@@ -427,7 +427,7 @@ def native_motion_profile():
 
     The RNN profile's 2.5 rad/s and 20 rad/s2 are not this TP's limits.
     Native outer-loop caps are 10 mm/s tangent, 3 mm/s normal, 0.05 rad/s
-    attitude; the requested figure eight itself peaks at 8.94 mm/s.
+    attitude; the requested 80 x 20 mm figure eight itself peaks at 4.47 mm/s.
     """
     import copy
     from dataclasses import asdict
