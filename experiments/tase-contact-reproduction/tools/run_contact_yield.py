@@ -48,7 +48,11 @@ def main():
                 duration_s=original['duration_s'],dt_s=original['dt_s']/2,timeline=original['timeline'],
                 preparation=original['preparation'],law_parameters=original['identity_payload']['parameters'],
                 settings=YieldSettings(**original['identity_payload']['settings']),record_fullstate=False,
-                plant_substeps=original['plant_identity_payload'].get('integration_substeps'))
+                plant_substeps=original['plant_identity_payload'].get('integration_substeps'),
+                qp_library=original['identity_payload']['qp_library'],
+                require_ur10e=original['kinematics_kind']=='ur10e_calibrated_pinocchio',
+                estimator_parameters=original['identity_payload']['estimator_parameters'],
+                surface_parameters=original.get('surface_parameters'))
             result={'refinement':refinement_error(original['rows'],fine['rows'],coarse_dt_s=original['dt_s'],fine_dt_s=fine['dt_s']),
                     'fine':fine}
     write(a.output,result)
