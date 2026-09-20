@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-09-20T10:50:27.892454+00:00",
+  "updated_at": "2026-09-20T10:58:55.635272+00:00",
   "current_stage_id": "step5d_contact_six_qp_v1",
   "current_step": "Step5d",
   "program": "step5d_contact_six_qp_v1",
@@ -15,7 +15,7 @@
     ".txt": "c25b0199f5cb34bedad492122b11b4332f237140b779b8aa5162207a6844ab3e",
     ".urp": "71a5ee4eecc45b425ee286dc02f7fc02d26009e6c6a9a855553d8b3e93ce77b3"
   },
-  "status": "revision20_deployed_supervised_resident_check_pending",
+  "status": "resident_repair_verified_home_recovery_pending",
   "liveprep_status": "blocked",
   "liveprep_readiness_path": "runs/contact-yield-live/readiness.json",
   "reproduction_status": "incomplete",
@@ -27,7 +27,7 @@
   },
   "bridge_trigger": {
     "bridge_has_started": false,
-    "blocked_reason": "lifecycle repair and fresh hardware admission pending"
+    "blocked_reason": "approved Home recovery and fresh full writer qualification pending"
   },
   "bridge_profile": {
     "runtime_protocol": 618001,
@@ -77,7 +77,8 @@
     "contact_pilot_completed": false,
     "full_writer_qualified": false,
     "latest_live_attempt": "report/yield-live-transition-v1/first-live-admission-failure.json",
-    "protective_stop_diagnosis": "report/yield-live-transition-v1/protective-stop-diagnosis.json"
+    "protective_stop_diagnosis": "report/yield-live-transition-v1/protective-stop-diagnosis.json",
+    "latest_resident_check": "report/yield-live-transition-v1/revision20-resident-check.json"
   },
   "notes": [
     "Selection fixes the old RNN/native route mismatch only. No Load, Play, ARM or motion performed by this change.",

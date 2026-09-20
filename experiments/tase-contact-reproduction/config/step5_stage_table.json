@@ -11510,7 +11510,7 @@
       "contact": true,
       "complete": false,
       "blocked": true,
-      "block_reason": "physical resident check and writer qualification pending",
+      "block_reason": "resident check passed; approved Home recovery and writer qualification pending",
       "duration_s": 62.83185307179586,
       "current_binding": {
         "is_current": true,

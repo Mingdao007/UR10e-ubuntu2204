@@ -1,0 +1,153 @@
+{
+  "schema": "yield-resident-repair-check-v1",
+  "run_directory": "runs/yield-resident-repair-20260920T104847Z",
+  "source_commit": "9d0b1915",
+  "runtime_revision": 20,
+  "success": true,
+  "claim_scope": "10 seconds concurrent native RTDE recipe and OnRobot resident, without ARM or input packets; not motion/contact/rate qualification",
+  "body": {
+    "idle_seconds": 10.0,
+    "arm_dispatched": false,
+    "input_packets_sent": 0,
+    "native_recipe_frames": 4506,
+    "native_recipe_excludes_onrobot_input24": true,
+    "requested_input_recipe": [
+      "input_double_register_24",
+      "input_double_register_25",
+      "input_double_register_26",
+      "input_double_register_27",
+      "input_double_register_28",
+      "input_double_register_29",
+      "input_double_register_30",
+      "input_double_register_31",
+      "input_double_register_32",
+      "input_double_register_33",
+      "input_double_register_34",
+      "input_double_register_35",
+      "input_double_register_36",
+      "input_double_register_37",
+      "input_double_register_38",
+      "input_double_register_39",
+      "input_double_register_40",
+      "input_double_register_41",
+      "input_double_register_42",
+      "input_double_register_43",
+      "input_double_register_44",
+      "input_double_register_45",
+      "input_double_register_46",
+      "input_double_register_47",
+      "input_int_register_36",
+      "input_int_register_25",
+      "input_int_register_26",
+      "input_int_register_27",
+      "input_int_register_28",
+      "input_int_register_29",
+      "input_int_register_30",
+      "input_int_register_31",
+      "input_int_register_32",
+      "input_int_register_35"
+    ],
+    "wire_identity": [
+      606006,
+      20,
+      618001
+    ],
+    "readback_triplet": {
+      "script": "06e719591fc3792d023037de0db211d4cc4cea86aec6c66733de4489e8a1fb00",
+      "txt": "c25b0199f5cb34bedad492122b11b4332f237140b779b8aa5162207a6844ab3e",
+      "urp": "71a5ee4eecc45b425ee286dc02f7fc02d26009e6c6a9a855553d8b3e93ce77b3"
+    }
+  },
+  "observer_frames": 1530,
+  "observer_receive_gap_max_s": 0.011017791999620385,
+  "controller_frame_gap_max_s": 0.010000000009313226,
+  "observed_safety_modes": [
+    1
+  ],
+  "observed_joint_speed_abs_max_rad_s": 5.468542241260366e-08,
+  "observed_tcp_linear_speed_max_m_s": 3.9473527778306107e-25,
+  "stop_confirmed": {
+    "dashboard": {
+      "is in remote control": "true",
+      "safetymode": "Safetymode: NORMAL",
+      "robotmode": "Robotmode: RUNNING",
+      "running": "Program running: false",
+      "programState": "STOPPED step5d_contact_six_qp_v1.urp",
+      "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp"
+    },
+    "sample": {
+      "timestamp": 248480.73799999998,
+      "payload": 0.413,
+      "payload_cog": [
+        0.0011,
+        0.0031,
+        0.0163
+      ],
+      "tcp_offset": [
+        0.0,
+        0.0,
+        0.0874,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "actual_TCP_speed": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "actual_TCP_pose": [
+        0.4867596375286804,
+        0.1287915072721835,
+        0.03212284209783353,
+        2.032562162673829,
+        2.3907746956184766,
+        -0.018919597873245833
+      ],
+      "actual_q": [
+        0.6132873296737671,
+        -1.8307033977904261,
+        -2.5306735038757324,
+        -0.36113865793261724,
+        1.5659303665161133,
+        3.5954701900482178
+      ],
+      "actual_qd": [
+        0.0,
+        0.0,
+        -0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "safety_mode": 1,
+      "robot_mode": 7,
+      "runtime_state": 1,
+      "output_double_register_24": 0.0,
+      "output_int_register_24": 0,
+      "output_int_register_25": 0,
+      "output_int_register_26": 78,
+      "output_int_register_27": 0,
+      "output_int_register_28": 0,
+      "output_int_register_29": 1,
+      "output_int_register_30": 0,
+      "output_int_register_31": 0,
+      "output_int_register_32": 606006,
+      "output_int_register_33": 20,
+      "output_int_register_34": 618001,
+      "received_monotonic_s": 58103.563119836,
+      "observed_at_s": 1789901655.8973517
+    }
+  },
+  "video": "video.mkv",
+  "contact_started": false,
+  "next_gate": {
+    "action": "restore approved Home using fresh bounded start, then fresh Kunwei baseline and short contact",
+    "position_error_m": 0.0014907905614151592,
+    "orientation_error_rad": 0.012647334082726292,
+    "existing_task_entry_tolerances_retained": true
+  }
+}

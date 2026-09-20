@@ -12,7 +12,7 @@
     "Controller-local OnRobot RTDE feed emitted malformed size=0/id=0 packages during overlapping client startup.",
     "setWatchdog input_int_register_24 is not in use precedes C207A0 by approximately 0.203 seconds."
   ],
-  "inference": "The input ownership collision prevented a valid OnRobot heartbeat and triggered its watchdog. Native remap success still requires current on-controller verification.",
+  "inference": "The overlap and controller fault sequence strongly implicate input ownership conflict. With native input24 remapped and OnRobot watchdog retained, the 10s resident check passed without Protective Stop. Full motion/contact qualification remains pending.",
   "repairs": [
     "Output-only independent observation from before Load through observed STOPPED.",
     "Native logical input integer24 moves to physical36; integers25..32 and35 unchanged. Float and output banks unchanged.",
@@ -39,5 +39,7 @@
     }
   },
   "official_reference": "https://www.universal-robots.com/manuals/EN/HTML/SW5_23/Content/prod-err-codes/topics/CODE_207.html",
-  "physical_repair_verified": false
+  "physical_repair_verified": true,
+  "verification_scope": "10 seconds concurrent native RTDE recipe and OnRobot resident, without ARM or input packets; not motion/contact/rate qualification",
+  "verification_report": "report/yield-live-transition-v1/revision20-resident-check.json"
 }
