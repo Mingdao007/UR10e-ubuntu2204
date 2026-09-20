@@ -1,0 +1,89 @@
+{
+  "scope": "read-only bounds audit; zero trial budget consumed",
+  "existing_bounds": {
+    "SFC": {
+      "native_law": "SFC",
+      "m": [
+        4.0,
+        16.0
+      ],
+      "mu": [
+        49.125,
+        3144.0
+      ],
+      "g": [
+        0.005212682612141498,
+        0.34751217414276653
+      ]
+    },
+    "DSFC": {
+      "native_law": "DSFC",
+      "m": [
+        4.0,
+        16.0
+      ],
+      "mu": [
+        38.83272136135581,
+        2485.2941671267718
+      ],
+      "g": [
+        0.0064199999999999995,
+        0.428
+      ]
+    },
+    "MSFC": {
+      "native_law": "MSFC",
+      "m": [
+        4.0,
+        16.0
+      ],
+      "mu": [
+        153.51739241709632,
+        9825.113114694164
+      ],
+      "g": [
+        0.005150005145465855,
+        0.34333367636439033
+      ]
+    }
+  },
+  "msfc_g50_point_admitted_by_existing_dsfc_bounds": true,
+  "all_mechanical_coefficients_match": false,
+  "fixed_parameter_mismatches": {
+    "a": {
+      "legacy_tuner_DSFC": 1.2,
+      "current_MSFC": 0.05
+    },
+    "p": {
+      "legacy_tuner_DSFC": 0.1,
+      "current_MSFC": 0.5
+    }
+  },
+  "dsfc_candidate": {
+    "law": "DSFC",
+    "m": 4.0,
+    "mu": 1228.1391393367705,
+    "g": 0.08583341909109758,
+    "p": 0.1,
+    "a": 1.2,
+    "n": 3.0,
+    "max_iterations": 32.0,
+    "residual_tolerance_n": 1e-09,
+    "relative_radius_tolerance": 1e-10
+  },
+  "yield_budget": {
+    "per_method_units": 24,
+    "initial_units": 8,
+    "bo_units": 12,
+    "repeat_units": 4,
+    "trials_per_unit": [
+      "nominal",
+      "disturbed"
+    ],
+    "failed_attempt_consumes_unit": true,
+    "holdout_used_for_tuning": false,
+    "holdout_repeats": 5,
+    "diagnostic_seed_consumes_formal_budget": false
+  },
+  "unresolved": "Existing six-law short proxy runner and ledger completion are not the full three-method task campaign. Freeze training condition, objective, numerical checks and independent holdout before launching."
+}

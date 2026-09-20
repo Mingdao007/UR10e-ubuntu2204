@@ -1,0 +1,67 @@
+{
+  "version": "coefficient-equivalence-v1",
+  "scope": "prescribed-input native mechanical check only; no closed-loop superiority or physical claim",
+  "DSFC": {
+    "m": 4.0,
+    "g": 0.08583341909109758,
+    "p": 0.5,
+    "a": 0.05,
+    "n": 3.0,
+    "mu": 1228.1391393367705,
+    "max_iterations": 32.0,
+    "residual_tolerance_n": 1e-09,
+    "relative_radius_tolerance": 1e-10
+  },
+  "MSFC_identity": {
+    "m": 4.0,
+    "g": 0.08583341909109758,
+    "p": 0.5,
+    "a": 0.05,
+    "n": 3.0,
+    "mu": 1228.1391393367705,
+    "force_scale_n": 2.1095928078033372,
+    "tau_force_s": 0.19236795686399732,
+    "tau_recovery_s": 0.20212720757006053,
+    "kappa_per_n2_s": 0.6334129092862626,
+    "max_iterations": 32.0,
+    "residual_tolerance_n": 1e-09,
+    "structure_tolerance": 1e-12,
+    "minimum_metric_eigenvalue": 1.0
+  },
+  "results": [
+    {
+      "dt_s": 0.001,
+      "ticks": 6000,
+      "command_max_abs_difference_m_s": 4.5102810375396984e-17,
+      "within_1e-12_m_s": true,
+      "snapshot_replay_max_abs_difference": 0.0,
+      "max_memory_structure_norm": 0.3148717576444807,
+      "build_fingerprint": "733c419baa0884b8859255d469c9e3bd415d1d2cc295db2d2dd9982288ffc912",
+      "dsfc_identity": "877ce398db8eda10daae960c357a48fc683b6b26fdd0e6e94c97243724feb603",
+      "msfc_identity": "6444161e79e9f87ebf69b8c33269e9078e126862f25ba92ac612d83a64ea3b71"
+    },
+    {
+      "dt_s": 0.002,
+      "ticks": 3000,
+      "command_max_abs_difference_m_s": 2.6020852139652106e-17,
+      "within_1e-12_m_s": true,
+      "snapshot_replay_max_abs_difference": 0.0,
+      "max_memory_structure_norm": 0.3149811566692777,
+      "build_fingerprint": "733c419baa0884b8859255d469c9e3bd415d1d2cc295db2d2dd9982288ffc912",
+      "dsfc_identity": "fbbd5bca1c01b1d3c26df1f9ed30e52d35c8ac75c5fd5bd8fb902628430eaa25",
+      "msfc_identity": "73859d2d3dea002e771edc14a2a8791ee3f7efadbe0bb42a9e8f7077745fb191"
+    },
+    {
+      "dt_s": 0.003,
+      "ticks": 2000,
+      "command_max_abs_difference_m_s": 1.9081958235744878e-17,
+      "within_1e-12_m_s": true,
+      "snapshot_replay_max_abs_difference": 0.0,
+      "max_memory_structure_norm": 0.3132638191230831,
+      "build_fingerprint": "733c419baa0884b8859255d469c9e3bd415d1d2cc295db2d2dd9982288ffc912",
+      "dsfc_identity": "4a0a4580bbec0851b2a0e09aa1a9074ba8e68cccb6d00c8c19b12dc6ec8a4206",
+      "msfc_identity": "dcf89a3f3b0f94a5afd40af4d4c900cfe65521f1c3ecf6e010f7990cb4a747c0"
+    }
+  ],
+  "script_sha256": "424347217e9266900b205ea3e692b1104ad4a3534cae529e02504a2463115af4"
+}
