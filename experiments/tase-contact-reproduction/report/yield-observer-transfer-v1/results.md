@@ -2,7 +2,7 @@
 
 Six new SFC/MSFC trials and three retained DSFC NO-v3 trials, compared with nine hash-verified legacy-observer trials. Mechanical/settings/initial-state/reference invariant checks are retained in results.json; failed or shortened traces remain visible and cannot support matched ranking. No retuning, equal-budget optimization, holdout or final ranking.
 
-| Method | Observer | Scenario | Failed | Normal RMS deg | Force MAE N | Peak N | Path RMS mm | Progress | Loss s | Recovery s |
+| Method | Observer | Scenario | Failed | Normal RMS deg | Force MAE N | Peak N | Path RMS mm | Progress | Load <1 N s | Recovery s |
 |---|---|---|---|---:|---:|---:|---:|---:|---:|---|
 | SFC | legacy | nominal | False | 6.710 | 0.073 | 5.444 | 1.470 | 1.023 | 0.000 | NA |
 | SFC | NO-v3 | nominal | False | 2.560 | 0.112 | 6.223 | 5.433 | 0.855 | 0.000 | NA |

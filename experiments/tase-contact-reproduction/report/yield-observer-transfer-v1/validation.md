@@ -22,15 +22,19 @@ curvature and the fixture QP library. Existing xacro deprecation warning only.
 No additional writer was needed for this local correction. Previously reported
 NO-v3 step checks used their own explicit-parameter scripts and are unaffected.
 
-The SFC normal-contact-loss case is separately replayed and refined at 1 ms
+The SFC normal-low-load case is separately replayed and refined at 1 ms
 with full state recorded, preserving all source experiment parameters. Those
-results are retained separately; failure or contact loss is never discarded.
+results are retained separately; failure or low-load duration is never discarded.
 Plots were rendered and inspected. None of these checks qualifies real
 transport, controller timing, contact, human intervention or physical safety.
 
 The SFC negative case's 31,916-record replay passed. Its 1 ms full-state receipt
-hash was independently verified. Both step sizes lose contact (0.434/0.985 s),
+hash was independently verified. Both step sizes have load below 1 N (0.434/0.985 s),
 but 1.005 N maximum force difference and changed saturation indicate unresolved
 numerical sensitivity, not step convergence. A finer grid/implementation audit
 is required before any quantitative method ranking based on this cell. The
 refinement has no matched nominal, so it supplies no recovery-time comparison.
+
+The below-1-N metric was initially mislabeled as physical contact loss.
+Evaluator geometry and positive minimum force refute actual separation in
+both retained traces; see DC-v1. No original metric value was changed.

@@ -25,7 +25,7 @@ def main():
    if i==0 and field=='recovery_s':
     ax.set_axis_off();ax.text(.5,.5,'Not applicable\nto nominal',ha='center',va='center',transform=ax.transAxes)
  axes[0,0].legend(fontsize=8)
- fig.suptitle('OT-v1: same observer across fixed control candidates\nDevelopment only; no equal-budget optimization or physical qualification.\nSFC / NO-v3 normal hold: 0.434 s contact loss (retained negative result).',fontsize=12)
+ fig.suptitle('OT-v1: same observer across fixed control candidates\nDevelopment only; no equal-budget optimization or physical qualification.\nSFC / NO-v3 normal hold: load below 1 N for 0.434 s; no geometric separation in the trace.',fontsize=12)
  for ext in ('png','pdf','svg'):fig.savefig(a.report/f'comparison.{ext}',dpi=160)
  svg=a.report/'comparison.svg';svg.write_text('\n'.join(x.rstrip() for x in svg.read_text().splitlines())+'\n')
 if __name__=='__main__':main()

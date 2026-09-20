@@ -33,7 +33,7 @@ def main():
    gc.collect()
   del n;gc.collect()
  write(a.output/'results.json',{'rows':results,'checks':checks,'dataset_role':'development','live_executed':False})
- lines=['# OT-v1: common-observer transfer across the three fixed control dynamics','','Six new SFC/MSFC trials and three retained DSFC NO-v3 trials, compared with nine hash-verified legacy-observer trials. Mechanical/settings/initial-state/reference invariant checks are retained in results.json; failed or shortened traces remain visible and cannot support matched ranking. No retuning, equal-budget optimization, holdout or final ranking.','','| Method | Observer | Scenario | Failed | Normal RMS deg | Force MAE N | Peak N | Path RMS mm | Progress | Loss s | Recovery s |','|---|---|---|---|---:|---:|---:|---:|---:|---:|---|']
+ lines=['# OT-v1: common-observer transfer across the three fixed control dynamics','','Six new SFC/MSFC trials and three retained DSFC NO-v3 trials, compared with nine hash-verified legacy-observer trials. Mechanical/settings/initial-state/reference invariant checks are retained in results.json; failed or shortened traces remain visible and cannot support matched ranking. No retuning, equal-budget optimization, holdout or final ranking.','','| Method | Observer | Scenario | Failed | Normal RMS deg | Force MAE N | Peak N | Path RMS mm | Progress | Load <1 N s | Recovery s |','|---|---|---|---|---:|---:|---:|---:|---:|---:|---|']
  fmt=lambda v,scale=1:'NA' if v is None else f'{v*scale:.3f}'
  for row in results:
   m=row['metrics'];pair=row.get('pair',{});rec='censored' if pair.get('right_censored') else fmt(pair.get('recovery_s'))

@@ -1,4 +1,4 @@
-"""Full-state replay and 1 ms refinement of OT-v1 SFC normal-contact-loss case."""
+"""Full-state replay and 1 ms refinement of OT-v1 SFC normal-low-load case."""
 import argparse,hashlib
 from pathlib import Path
 from run_contact_yield import read,write
@@ -10,7 +10,7 @@ def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('--input',type=Path,required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
  original=read(a.input);ident=original['identity_payload'];assert original['method']=='SFC' and original['scenario']=='sustained_release_normal'
  write(a.output/'protocol.json',{'input':str(a.input.resolve()),'sha256':hashlib.sha256(a.input.read_bytes()).hexdigest(),
-  'dt_s':.001,'parameters_changed':False,'live_executed':False,'reason':'verify newly observed contact loss, not retune'})
+  'dt_s':.001,'parameters_changed':False,'live_executed':False,'reason':'verify newly observed below-1-N load, not retune'})
  replay=replay_artifact(original);write(a.output/'replay.json',replay);assert replay['passed']
  fine=run_closed_loop(method=original['method'],scenario=original['scenario'],material=original['material'],
   duration_s=original['duration_s'],dt_s=.001,timeline=original['timeline'],preparation=original['preparation'],
