@@ -44,3 +44,14 @@ def test_recovery_limits_and_slower_generated_motion(tmp_path):
     assert result['home_pose']==h['home_pose']
     h['rtde']['actual_TCP_pose'][0]-=.004
     with pytest.raises(ValueError,match='3mm or 20mrad'):recovery_geometry(h)
+
+
+def test_withdrawal_only_allows_reversing_the_existing_vertical_search():
+    h=receipt();h['bounded_withdrawal']=True
+    h['rtde'].update(actual_TCP_pose=list(h['home_pose']),actual_qd=[0]*6,safety_status_bits=1)
+    h['rtde']['actual_TCP_pose'][2]-=.013
+    s=copy.deepcopy(h['rtde']);admit_sample(s,h,initial=True)
+    s['actual_TCP_pose'][2]-=.0002
+    with pytest.raises(ValueError,match='farther into'):admit_sample(s,h,initial=False)
+    s=copy.deepcopy(h['rtde']);s['actual_TCP_pose'][0]+=.001
+    with pytest.raises(ValueError,match='vertical approach'):admit_sample(s,h,initial=False)

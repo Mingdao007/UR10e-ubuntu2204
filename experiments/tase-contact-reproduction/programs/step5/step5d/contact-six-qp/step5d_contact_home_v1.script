@@ -1,5 +1,5 @@
-# VERSION: 2026-09-20T1104Z_CONTACT_HOME_V1
-# BOUNDED_RECOVERY: observed start to approved Home; translation<=3mm turn<=20mrad; a=0.01 v=0.002
+# VERSION: 2026-09-20T1113Z_CONTACT_HOME_V1
+# BOUNDED_RECOVERY: observed start to approved Home; vertical withdrawal within the 15mm search envelope; a=0.01 v=0.002
 # ROLE: standalone immutable one-shot campaign Home positioning helper
 # TP_PROGRAM_ID: step5d_contact_home_v1
 # TARGET_POSE: p[0.487834547000, 0.129337053000, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
@@ -119,7 +119,7 @@ def step5d_contact_home_v1():
     halt
   end
   # Bind the initial pose to the fresh stationary read; reject an intervening move.
-  local expected_initial = p[0.486743344544, 0.128719136369, 0.032088758656, 2.032729043993, 2.390645828570, -0.019086660482]
+  local expected_initial = p[0.487870169800, 0.129369687385, 0.019535346322, 2.033068854143, 2.395010686516, 0.000135657218]
   local initial_delta = pose_trans(pose_inv(expected_initial), current_pose)
   local initial_xyz_error = sqrt(initial_delta[0]*initial_delta[0] + initial_delta[1]*initial_delta[1] + initial_delta[2]*initial_delta[2])
   local initial_angle_error = sqrt(initial_delta[3]*initial_delta[3] + initial_delta[4]*initial_delta[4] + initial_delta[5]*initial_delta[5])

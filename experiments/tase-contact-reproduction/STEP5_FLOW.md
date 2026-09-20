@@ -1,6 +1,6 @@
 # Step5 Flow
 
-The current task selects `step5d_contact_six_qp_v1` on the existing UR10e/Kunwei platform. The native live entry uses revision 20 with input integer 24 remapped to 36, continuous output-only observation, and bounded STOP confirmation. The C207A0 OnRobot watchdog conflict is documented in `report/yield-live-transition-v1/protective-stop-diagnosis.json`; the controller resident check passed for 10 seconds without ARM, input packets, or Protective Stop. Fresh bounded Home recovery and full writer qualification remain pending. No contact pilot or full writer qualification has passed. Package read-back and stopped transport evidence are in `report/yield-live-transition-v1/`. Standing user live authority exists, but fresh machine admission remains mandatory.
+The current task selects `step5d_contact_six_qp_v1` on the existing UR10e/Kunwei platform. The native live entry uses revision 20 with input integer 24 remapped to 36, continuous output-only observation, and bounded STOP confirmation. The C207A0 OnRobot watchdog conflict is documented in `report/yield-live-transition-v1/protective-stop-diagnosis.json`; the controller resident check passed for 10 seconds without ARM, input packets, or Protective Stop. Bounded Home recovery passed. The first SFC qualification reached physical contact, then stopped on an actual 4.056 ms host interval exceeding the native readiness 4 ms bound; no Protective Stop occurred. Bounded vertical withdrawal returned to Home with 0.039 mm position error. Timing repair and fresh full writer qualification remain pending. No contact pilot or full writer qualification has passed. See `report/yield-live-transition-v1/first-contact-qualification.json`. Package read-back and stopped transport evidence are in `report/yield-live-transition-v1/`. Standing user live authority exists, but fresh machine admission remains mandatory.
 
 The task remains constant 5 N + unknown surface + attitude compliance. SFC and original TASE/RNN are required baselines; DSFC/MSFC and evidence-driven new controllers are proposals; TASE-QP changes only the solver. Native entry uses `scripts/contact-yield-live.sh supervise` with fresh read-back, state and capture evidence. Simulation is not a prerequisite.
 
@@ -27,7 +27,7 @@ The new `step5d_contact_six_qp_v1` and `step5d_contact_home_v1` triplets
 are controller-read-back verified under `/programs/andyl/kunwei/step5`.
 The Home program completed on 2026-09-18 with 0.030 mm position error and
 Safety NORMAL; see `report/contact-six-qp-20260917/home-live-result.json`.
-The contact resident has not been played. The Home keeps XYZ `[0.487834547, 0.129337053,
+At that historical preparation stage the contact resident had not been played; the current live outcome is recorded above. The Home keeps XYZ `[0.487834547, 0.129337053,
 0.033]` metres, adopts the current tool yaw, and aligns tool +Z with base -Z.
 The resident caps joint speed at 0.05 rad/s and initial search at 0.2 mm/s;
 raw force/torque limits are 20 N/2 Nm. It carries protocol 618001, distinct

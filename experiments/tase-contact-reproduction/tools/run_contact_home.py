@@ -11,7 +11,7 @@ import pinocchio as pin
 from step5d_remote_startup import RemoteDashboardWriter,_ExactLoadAdapter,dashboard_exchange,RTDEClient
 from step5d_autotune_v4_r014.dispatcher import WriterLock
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
-from build_contact_home import BASENAME,recovery_geometry
+from build_contact_home import BASENAME,recovery_geometry,withdrawal_geometry
 from build_contact_benchmark_triplet import CONTROLLER_DIR
 from contact_yield_supervisor import VideoRecorder
 
@@ -31,7 +31,14 @@ def admit_sample(sample,home, *, initial):
     current=np.asarray(sample['actual_TCP_pose']);start=np.asarray(home['rtde']['actual_TCP_pose']);target=np.asarray(home['home_pose'])
     low=np.minimum(start[:3],target[:3])-.003;high=np.maximum(start[:3],target[:3])+.003
     if np.any(current[:3]<low) or np.any(current[:3]>high):raise ValueError('Home transfer envelope violated')
-    if current[2]<target[2]-.001:raise ValueError('TCP below Home floor')
+    withdrawal=withdrawal_geometry(home)
+    if withdrawal is None:
+        if current[2]<target[2]-.001:raise ValueError('TCP below Home floor')
+    else:
+        if current[2]<start[2]-.0001 or sample['actual_TCP_speed'][2]<-.0005:
+            raise ValueError('withdrawal moved farther into the surface')
+        if current[2]<target[2]-.0002 and np.linalg.norm(current[:2]-start[:2])>.0005:
+            raise ValueError('withdrawal left the observed vertical approach')
     angle=np.linalg.norm(pin.log3(rotvec_to_matrix(current[3:])@rotvec_to_matrix(target[3:]).T))
     recovery=recovery_geometry(home)
     if recovery is None:
@@ -87,7 +94,13 @@ def run(args):
     if observed.get('is in remote control')!='true' or observed.get('safetymode')!='Safetymode: NORMAL' or observed.get('running')!='Program running: false' or observed.get('robotmode')!='Robotmode: RUNNING':raise ValueError(f'Home Remote/stopped gate failed: {observed}')
     if not args.execute:return {'action':'read_only_preflight','dashboard':observed,'motion':False}
     args.output.mkdir(parents=True,exist_ok=False)
-    result={'requested_action':'noncontact Home only','started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'load':None,'play':None,'success':False}
+    result={'requested_action':'bounded contact withdrawal to Home' if home.get('bounded_withdrawal') else 'noncontact Home only','started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'load':None,'play':None,'success':False}
+    sensor=None;wrench_rows=[]
+    def check_wrench():
+        raw,received=sensor.poll();now=time.monotonic()
+        if raw is None or received is None or not 0<=now-received<.08:raise ValueError('withdrawal Kunwei frame missing/stale')
+        if np.linalg.norm(raw[:3])>=20 or np.linalg.norm(raw[3:])>=2:raise ValueError('withdrawal raw wrench guard exceeded')
+        wrench_rows.append({'wrench_n_nm':raw,'received_monotonic_s':received,'checked_monotonic_s':now})
     obs=Observer(args.host);video=None;writer=RemoteDashboardWriter(args.host,load_target=TARGET)
     adapter=_ExactLoadAdapter(host=args.host,target=TARGET,program_id=BASENAME,dashboard_observer=dashboard_exchange,writer=writer,dashboard_port=29999,dashboard_timeout_s=2.,observe_timeout_s=5.,poll_interval_s=.05,monotonic=time.monotonic,sleeper=time.sleep)
     with WriterLock(INSTALLED_LOCK):
@@ -104,12 +117,22 @@ def run(args):
                 time.sleep(.05)
             else:raise ValueError('RTDE/camera observer barrier did not complete')
             for row in obs.rows[-10:]:admit_sample(row,home,initial=True)
+            if home.get('bounded_withdrawal'):
+                from step5d_autotune_v4_r004.transport import LiveR004KunweiTransport
+                sensor=LiveR004KunweiTransport('192.168.50.25',port=5152);sensor.open()
+                until=time.monotonic()+1.
+                while time.monotonic()<until:
+                    raw,_=sensor.poll()
+                    if raw is not None:break
+                    obs.latest();time.sleep(.002)
+                check_wrench()
             result['load']=adapter.load()
             admit_sample(obs.latest(),home,initial=True)
             result['play']=adapter.play()
             deadline=time.monotonic()+20;stationary_since=None
             while time.monotonic()<deadline:
                 row=obs.latest();admit_sample(row,home,initial=False)
+                if sensor is not None:check_wrench()
                 state=dashboard_exchange(args.host,['safetymode','running','programState','is in remote control','get loaded program'])
                 if state['get loaded program']!=f'Loaded program: {TARGET}':raise ValueError('loaded Home program changed')
                 video.check()
@@ -145,6 +168,9 @@ def run(args):
                 except BaseException as exc:
                     result['success']=False;result['stop_confirmation_error']=f'{type(exc).__name__}: {exc}'
             if hasattr(obs,'thread'):obs.close()
+            if sensor is not None:
+                sensor.close()
+                (args.output/'raw-wrench.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in wrench_rows))
             if video is not None:
                 video.close()
             (args.output/'rtde.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in obs.rows))

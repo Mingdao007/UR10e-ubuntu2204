@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-09-20T10:58:55.635272+00:00",
+  "updated_at": "2026-09-20T11:24:25.771899+00:00",
   "current_stage_id": "step5d_contact_six_qp_v1",
   "current_step": "Step5d",
   "program": "step5d_contact_six_qp_v1",
@@ -15,7 +15,7 @@
     ".txt": "c25b0199f5cb34bedad492122b11b4332f237140b779b8aa5162207a6844ab3e",
     ".urp": "71a5ee4eecc45b425ee286dc02f7fc02d26009e6c6a9a855553d8b3e93ce77b3"
   },
-  "status": "resident_repair_verified_home_recovery_pending",
+  "status": "contact_reached_timing_repair_pending_stopped_at_home",
   "liveprep_status": "blocked",
   "liveprep_readiness_path": "runs/contact-yield-live/readiness.json",
   "reproduction_status": "incomplete",
@@ -26,8 +26,9 @@
     "live_revoked_by_user": false
   },
   "bridge_trigger": {
-    "bridge_has_started": false,
-    "blocked_reason": "approved Home recovery and fresh full writer qualification pending"
+    "bridge_has_started": true,
+    "currently_running": false,
+    "blocked_reason": "first physical contact reached; native readiness rejected actual 4.056ms host interval; timing repair and fresh qualification pending"
   },
   "bridge_profile": {
     "runtime_protocol": 618001,
@@ -76,9 +77,11 @@
     "stopped_transport": "report/yield-live-transition-v1/rtde-stopped-transport-summary.json",
     "contact_pilot_completed": false,
     "full_writer_qualified": false,
-    "latest_live_attempt": "report/yield-live-transition-v1/first-live-admission-failure.json",
+    "latest_live_attempt": "report/yield-live-transition-v1/first-contact-qualification.json",
     "protective_stop_diagnosis": "report/yield-live-transition-v1/protective-stop-diagnosis.json",
-    "latest_resident_check": "report/yield-live-transition-v1/revision20-resident-check.json"
+    "latest_resident_check": "report/yield-live-transition-v1/revision20-resident-check.json",
+    "latest_home_recovery": "runs/yield-home-recovery-20260920/live-1/result.json",
+    "latest_contact_withdrawal": "runs/yield-home-withdrawal-20260920/live-1/result.json"
   },
   "notes": [
     "Selection fixes the old RNN/native route mismatch only. No Load, Play, ARM or motion performed by this change.",
