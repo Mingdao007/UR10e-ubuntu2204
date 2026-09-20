@@ -1,0 +1,174 @@
+{
+  "schema": "yield-live-first-qualification-timing-v1",
+  "claim_scope": "offline reconstruction from the completed stopped-NORMAL live attempt; no new hardware evidence",
+  "run": {
+    "run_dir": "experiments/tase-contact-reproduction/runs/yield-sfc-full-20260920T151241Z",
+    "attempt_id": "r006-supervised-pilot",
+    "hardware_action_taken_by_this_scope": false,
+    "scheduling_deadline_utc": "2026-09-20T15:50:23Z",
+    "deadline_extended": false
+  },
+  "preflight_exclusion": {
+    "excluded_paths": [
+      "experiments/tase-contact-reproduction/runs/yield-sfc-full-20260920T151241Z/summary.json",
+      "experiments/tase-contact-reproduction/runs/yield-sfc-full-20260920T151241Z/frames.json"
+    ],
+    "reason": "STOPPED preflight baseline capture before Load/Play; its 13.867 ms gap is not used for the live failure."
+  },
+  "finding": {
+    "throw": "readiness observation interval outside (0,4ms]",
+    "throw_site": "experiments/tase-contact-reproduction/tools/contact_benchmark_provider.py:31-34",
+    "first_readiness_interval_s": 0.002,
+    "first_interval_is_measured": false,
+    "first_interval_source": "CanonicalQualificationControl.step uses motion_profile.period_s when _last_monotonic_s is None.",
+    "first_sample_time_s": 73785.150631546,
+    "first_sample_controller_timestamp_s": 264162.284,
+    "first_sample_sensor_timestamp_s": 73785.150602492,
+    "failed_tick_actual_dt_s": null,
+    "failed_tick_actual_dt_recorded": false,
+    "failed_tick_actual_dt_lower_bound_s": 0.01145082300354261,
+    "failed_tick_actual_dt_lower_bound_ms": 11.45082300354261,
+    "lower_bound_calculation": "Writer robot_frames second state21 receive 73785.162082369 minus prior accepted control sample 73785.150631546; the next control call takes now after polling this writer output. Supervisor timestamps are not used.",
+    "four_ms_limit_s": 0.004,
+    "search_initialization_interval_proven": false,
+    "actual_delayed_receive_or_compute_gap_proven": true,
+    "interpretation": "The first call hides any pre-call initialization duration behind a nominal 2 ms period. The recorded throw is on the following call, whose actual interval is proven above 4 ms.",
+    "first_sample_to_first_qualification_publish_s": 0.011224208006751724,
+    "first_pause_runtime_wall_s": 0.00032731398823671043,
+    "delay_localization": "Delay is already present between first accepted qualification sample and its packet publication. Exact substage cost is unrecorded; do not attribute it solely to RTDE network loss or controller computation."
+  },
+  "live_stream_evidence": {
+    "supervisor_rtde": {
+      "path": "experiments/tase-contact-reproduction/runs/yield-sfc-full-20260920T151241Z/supervisor-rtde.jsonl",
+      "rows": [
+        {
+          "controller_timestamp_s": 264162.284,
+          "received_monotonic_s": 73785.149811379,
+          "runtime_state": 2,
+          "tp_state": 21
+        },
+        {
+          "controller_timestamp_s": 264162.294,
+          "received_monotonic_s": 73785.159785075,
+          "runtime_state": 2,
+          "tp_state": 21
+        }
+      ],
+      "host_receive_delta_s": 0.009973696,
+      "controller_timestamp_delta_s": 0.010000000000000009,
+      "sample_rate_hz": 100,
+      "interpretation": "10ms spacing is expected for this independent observer; no writer delay lower bound is derived from this stream."
+    },
+    "robot_frames": {
+      "path": "experiments/tase-contact-reproduction/runs/yield-sfc-full-20260920T151241Z/robot_frames.jsonl",
+      "rows": [
+        {
+          "controller_timestamp_s": 264162.284,
+          "received_monotonic_s": 73785.150345129,
+          "consumed_packet_sequence": 136678,
+          "tp_state": 21
+        },
+        {
+          "controller_timestamp_s": 264162.296,
+          "received_monotonic_s": 73785.162082369,
+          "consumed_packet_sequence": 136678,
+          "tp_state": 21
+        }
+      ],
+      "host_receive_delta_s": 0.011737239998183213,
+      "controller_timestamp_delta_s": 0.011999999987892807
+    },
+    "published_packets": {
+      "path": "experiments/tase-contact-reproduction/runs/yield-sfc-full-20260920T151241Z/published_packets.jsonl",
+      "tail": [
+        {
+          "host_monotonic_s": 73785.148727899,
+          "sequence": 136680,
+          "command_mode": 0,
+          "reason": ""
+        },
+        {
+          "host_monotonic_s": 73785.161855754,
+          "sequence": 136681,
+          "command_mode": 1,
+          "reason": ""
+        },
+        {
+          "host_monotonic_s": 73785.162332347,
+          "sequence": 136682,
+          "command_mode": 4,
+          "reason": "sensor_stale"
+        }
+      ],
+      "use": "Corroborating live publication timing only; not substituted for the missing failed-call actual_dt_s."
+    },
+    "dispatch_failure": {
+      "path": "experiments/tase-contact-reproduction/runs/yield-sfc-full-20260920T151241Z/dispatch_receipt.json",
+      "executed": false,
+      "command_timeline_length": 0,
+      "first_pause_actual_dt_s": 0.002,
+      "first_pause_reason": "startup_two_increments_pending",
+      "readiness_last_log_actual_dt_s": 0.002,
+      "error": "LiveWriterError: canonical V4 qualification tick failed: readiness observation interval outside (0,4ms]"
+    }
+  },
+  "prior_fix_audit": {
+    "e0974a95_late_slot": {
+      "status": "active",
+      "current_call_sites": [
+        "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004_live_writer.py:1477-1483",
+        "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004_live_writer.py:1571-1574",
+        "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004_live_writer.py:1850-1853"
+      ],
+      "scope": "skips obsolete publish slots; it does not alter readiness intervals or timestamps"
+    },
+    "f19b78c2_native_provider_prewarm": {
+      "status": "active",
+      "current_call_sites": [
+        "experiments/tase-contact-reproduction/tools/contact_yield_live_writer.py:302-365",
+        "experiments/tase-contact-reproduction/tools/contact_yield_live_writer.py:487-495"
+      ],
+      "run_receipt": {
+        "prewarmed_before_endpoints": true,
+        "provider_prewarm_command_count": 4,
+        "provider_prewarm_deadline_restored": true,
+        "provider_prewarm_state_changed_during": true
+      },
+      "scope": "prewarms and restores provider/runtime state; it does not initialize qualification control _last_monotonic_s or the readiness observer"
+    },
+    "observer_binding": {
+      "status": "active",
+      "paths": [
+        "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r006/live_adapter.py:523-525",
+        "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/qualification.py:278-283"
+      ]
+    }
+  },
+  "decision": {
+    "safe_timing_code_fix_demonstrated": false,
+    "code_change_made": false,
+    "reason": "A real overlong live control interval is confirmed; its internal cause remains unresolved. Preserve recorded clocks and the 4ms admission. Existing prewarm/late-slot repairs are active but do not establish end-to-end timing acceptance."
+  },
+  "focused_validation": {
+    "result": "2 passed, 1 warning",
+    "tests": [
+      "test_contact_benchmark_provider.py::test_readiness_observer_uses_common_tau_once_without_pid_state",
+      "test_contact_yield_provider.py::test_first_interval_cannot_be_silently_replaced"
+    ]
+  },
+  "blocker_and_next_live_prerequisites": {
+    "blocker": "Unresolved first-qualification sample-to-publication delay; no demonstrated correction. Do not repeat contact merely to hope the timing passes.",
+    "prerequisites": [
+      "Use a fresh process and run directory; do not reuse this failed attempt or preflight timing.",
+      "Resolve or measure the specific first-sample-to-publication hot path; independent 100Hz supervisor cadence cannot establish 500Hz writer timing.",
+      "Do not alter the 4 ms guard, deadlines, motion limits, or scheduling deadline."
+    ],
+    "scheduling_deadline_utc": "2026-09-20T15:50:23Z",
+    "automatic_extension": false
+  },
+  "main_review": {
+    "writer_turn_interrupted_for_report_takeover": true,
+    "reason": "Correct mixed-stream timing inference and finish bounded evidence delivery",
+    "hardware_action": false
+  }
+}
