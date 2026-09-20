@@ -483,7 +483,10 @@ class YieldController:
         )
         twist = np.concatenate((tangent_capped + normal_speed * inward, omega))
         try:
-            solved = self.qp.compose(jacobian, twist, lower, upper, inward)
+            solved = self.qp.compose(jacobian, twist, lower, upper, inward,
+                continuous_scaling=require_bool(observation.get("continuous_task_scaling", False),
+                                                "continuous_task_scaling"),
+                path_guard_context=observation.get("path_guard_context"))
         except YieldQpFatal:
             raise
         except YieldQpError:
@@ -513,7 +516,11 @@ class YieldController:
             "qdot_rad_s": solved["qdot_rad_s"],
             "applied_twist_base": solved["applied_twist_base"],
             "task_scale": solved["task_scale"],
+            "normal_task_scale": solved.get("normal_task_scale", 1.),
+            "normal_unloading_preserved": solved["normal_unloading_preserved"],
+            "qp_scaling_policy": solved.get("qp_scaling_policy", "legacy_discrete_v1"),
             "qp_intervention": solved["qp_intervention"],
+            "path_guard": solved.get("path_guard"),
             "feasibility_force_guarantee": False,
             "planned_progress_m_s": planned_progress,
             "commanded_tangent_progress_m_s": commanded_progress,

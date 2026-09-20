@@ -202,6 +202,14 @@ def test_mature_qualification_entry_and_formal_clock_use_same_native_provider(li
         phases=[]
         for tick in range(1,31917):
             now=100.+tick*.002
+            # This clock/seam fixture follows the reference exactly. A frozen
+            # robot must now trip the real PATH guard as the path moves away.
+            phase, clock = provider.execution_phase((tick - 1) * .002)
+            ref = runtime._reference(phase=phase,
+                path_time_s=clock if phase == 'path' else None,
+                entry_time_s=clock if phase == 'entry' else None,
+                force_reference_n=5.)
+            output.tcp_pose_m_rad=tuple(ref['position_m'])+tuple(output.tcp_pose_m_rad[3:])
             output.received_monotonic_s=now;output.timestamp=1234.+tick*.002
             try:
                 command=control.step(output=output,sensor=replace(sensor,observed_at_s=now),
@@ -297,3 +305,18 @@ def test_protocol_binds_endpoint_policy(monkeypatch):
     assert original['task']['maximum_seam_continuation_s'] == .004
     monkeypatch.setattr(protocol_module, 'PATH_SEAM_CONTINUATION_POLICY', 'different_policy_for_binding_test')
     assert protocol_module.protocol()['sha256'] != original['sha256']
+
+
+def test_provider_replay_preserves_readiness_and_pause_state(lib):
+    runtime, provider, output, sensor = setup(lib)
+    with runtime:
+        provider.lifecycle_observer.step(actual_dt_s=.002,raw_normal_n=2.,setpoint_n=5.,mode="baseline")
+        provider.last_pause={"paused_s": .002}
+        state=json.loads(json.dumps(provider.snapshot()))
+        provider.lifecycle_observer.step(actual_dt_s=.002,raw_normal_n=8.,setpoint_n=5.,mode="baseline")
+        provider.last_pause=None
+        provider.restore(state)
+        assert provider.lifecycle_observer.filtered_normal_n == 2.
+        assert provider.lifecycle_observer.last_log.filtered_normal_n == 2.
+        assert provider.last_pause == {"paused_s": .002}
+        assert json.loads(json.dumps(provider.snapshot())) == state

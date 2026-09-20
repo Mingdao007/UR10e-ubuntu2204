@@ -13,7 +13,7 @@ import numpy as np
 
 from contact_benchmark_protocol import disturbance, ENTRY_DURATION_S
 from contact_yield_protocol import PATH_SEAM_CONTINUATION_S, PERIOD_S
-from contact_benchmark_provider import ContactReadinessObserver
+from contact_benchmark_provider import ContactReadinessObserver, ContactForceObservation
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import CalibratedCommand
 
@@ -36,13 +36,42 @@ class YieldContactProvider:
         self.scenario = scenario
         self.amplitude_n = amplitude_n
         self.last_result = None
+        self.command_history = None
+        self.last_pause = None
 
     def snapshot(self):
-        return {"runtime": self.runtime.snapshot(), "last_result": copy.deepcopy(self.last_result)}
+        return {"runtime": self.runtime.snapshot(), "last_result": copy.deepcopy(self.last_result),
+                "command_history": copy.deepcopy(self.command_history),
+                "last_pause": copy.deepcopy(self.last_pause),
+                "readiness": {"filtered_normal_n": self.lifecycle_observer.filtered_normal_n,
+                    "last_log": None if self.lifecycle_observer.last_log is None else {
+                        "filtered_normal_n": self.lifecycle_observer.last_log.filtered_normal_n,
+                        "actual_dt_s": self.lifecycle_observer.last_log.actual_dt_s}}}
 
     def restore(self, state):
+        readiness = state["readiness"]
+        filtered = readiness["filtered_normal_n"]
+        if filtered is not None and not math.isfinite(float(filtered)):
+            raise ValueError("nonfinite readiness state")
+        log = readiness["last_log"]
+        if log is not None:
+            if (not math.isfinite(float(log["filtered_normal_n"]))
+                or not 0 < float(log["actual_dt_s"]) <= .004):
+                raise ValueError("invalid readiness log")
+            log = ContactForceObservation(float(log["filtered_normal_n"]), float(log["actual_dt_s"]))
         self.runtime.restore(state["runtime"])
+        self.lifecycle_observer.filtered_normal_n = filtered
+        self.lifecycle_observer.last_log = log
+        self.last_pause = copy.deepcopy(state["last_pause"])
         self.last_result = copy.deepcopy(state["last_result"])
+        self.command_history = copy.deepcopy(state.get("command_history"))
+
+    def bind_command_history(self, previous_qdot, slew_rad_s2):
+        qdot = tuple(float(x) for x in previous_qdot)
+        slew = float(slew_rad_s2)
+        if len(qdot) != 6 or not all(math.isfinite(x) for x in qdot) or not math.isfinite(slew) or slew <= 0:
+            raise ValueError("invalid host command history")
+        self.command_history = {"previous_qdot": qdot, "slew_rad_s2": slew}
 
     @property
     def command_normal_base(self):
@@ -182,6 +211,7 @@ class YieldContactProvider:
             path_time_s=runtime_path_time_s,
             entry_time_s=runtime_entry_time_s,
             force_reference_n=internal_setpoint_n,
+            command_history=self.command_history,
             injection_task_n=(
                 disturbance(self.scenario, path_time_s, amplitude_n=self.amplitude_n)
                 if mode == "path"

@@ -289,6 +289,7 @@ class YieldContactRuntime:
         entry_time_s=None,
         force_reference_n=None,
         injection_task_n=(0.0, 0.0, 0.0),
+        command_history=None,
     ):
         """Consume an owner-supplied RTDE row and untampered, baseline-subtracted wrench.
 
@@ -340,6 +341,27 @@ class YieldContactRuntime:
             "joint_velocity_upper": upper - self.joint_numerical_margin,
             "linear_velocity_base_m_s": tuple(speed[:3]),
         }
+        if command_history is not None:
+            observation["continuous_task_scaling"] = True
+            previous = finite(command_history["previous_qdot"], (6,), "previous host qdot")
+            slew = float(command_history["slew_rad_s2"])
+            if not math.isfinite(slew) or slew <= 0:
+                raise ValueError("host slew must be finite and positive")
+            if phase in {"entry", "path"}:
+                observation["path_guard_context"] = {
+                    "basis": self.basis,
+                    "error_base_m": pose[:3] - np.asarray(reference["position_m"]),
+                    "reference_velocity_base": reference["velocity_m_s"],
+                    "previous_velocity_base": (jacobian @ previous)[:3],
+                    "state_age_s": age,
+                }
+            # Intersect within the QP, never rescale a solved native command.
+            # Numerical margin keeps the result inside the owner's exact bound.
+            delta = slew * min(dt, .02)
+            observation["joint_velocity_lower"] = np.maximum(
+                observation["joint_velocity_lower"], previous - delta + self.joint_numerical_margin)
+            observation["joint_velocity_upper"] = np.minimum(
+                observation["joint_velocity_upper"], previous + delta - self.joint_numerical_margin)
         before = self.snapshot()
         try:
             result = self.controller.step(observation, reference, dt)

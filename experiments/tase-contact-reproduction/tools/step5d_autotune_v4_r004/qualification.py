@@ -507,6 +507,9 @@ class CanonicalQualificationControl:
                 self.last_baseline_residual = None
                 command_provider = getattr(self.contact_command_provider,
                     "execution_command", self.contact_command_provider.command)
+                history_binding = getattr(self.contact_command_provider, "bind_command_history", None)
+                if callable(history_binding) and self.motion_profile is not None:
+                    history_binding(self._previous_qdot, self.motion_profile.host_slew_rad_s2)
                 provider_snapshot = getattr(self.contact_command_provider, "snapshot", None)
                 provider_restore = getattr(self.contact_command_provider, "restore", None)
                 if callable(provider_snapshot) and callable(provider_restore):

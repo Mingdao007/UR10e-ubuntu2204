@@ -1,0 +1,72 @@
+{
+  "schema": "yield-live-entry-v1",
+  "claim_scope": "public live entry over the mature sole writer and native YieldContactProvider; native parameters are seeds, not physical qualification; short rungs are diagnostic; hardware admission remains main/liveowner",
+  "program": "step5d_contact_six_qp_v1",
+  "home_program": "step5d_contact_home_v1",
+  "native_route_config": "config/yield_native_route_v1.json",
+  "live_contract": "config/yield_live_contract_v1.json",
+  "task": {
+    "normal_force_n": 5.0,
+    "along_amplitude_m": 0.08,
+    "lateral_amplitude_m": 0.02,
+    "omega_rad_s": 0.1,
+    "period_s": 62.83185307179586
+  },
+  "durations": {
+    "diagnostic_s": [
+      2.0,
+      10.0
+    ],
+    "full_period_s": 62.83185307179586
+  },
+  "methods": {
+    "SFC": {
+      "family": "native_yield",
+      "available": true,
+      "provider": "YieldContactProvider",
+      "source_binding": "yield_native_route_v1"
+    },
+    "DSFC": {
+      "family": "native_yield",
+      "available": true,
+      "provider": "YieldContactProvider",
+      "source_binding": "yield_native_route_v1"
+    },
+    "MSFC": {
+      "family": "native_yield",
+      "available": true,
+      "provider": "YieldContactProvider",
+      "source_binding": "yield_native_route_v1"
+    },
+    "TASE_RNN": {
+      "family": "tase_rnn",
+      "available": false,
+      "reason": "registered for a later owner; not implemented by yield-live-entry; not a native stub"
+    },
+    "TASE_QP": {
+      "family": "tase_qp",
+      "available": false,
+      "reason": "registered for a later owner; not implemented by yield-live-entry; not a native stub"
+    }
+  },
+  "guards": {
+    "raw_force_n": 20.0,
+    "raw_torque_nm": 2.0,
+    "qdot_cap_rad_s": 0.05,
+    "search_speed_m_s": 0.0002,
+    "search_travel_max_m": 0.015,
+    "path_soft_axes_m": [
+      0.022,
+      0.012
+    ],
+    "path_hard_axes_m": [
+      0.025,
+      0.015
+    ],
+    "path_constraint_frame": "native_task_basis",
+    "path_constraint_binding": "pre_joint_qp_projection_and_actual_solution_validation"
+  },
+  "user_standing_live_authority": true,
+  "machine_evidence_fresh": false,
+  "physical_qualification": false
+}

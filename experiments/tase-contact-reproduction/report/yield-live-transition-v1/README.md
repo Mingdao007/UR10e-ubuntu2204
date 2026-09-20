@@ -58,3 +58,38 @@ The entry no longer inherits the old RNN profile's 2.5 rad/s / 20 rad/s2 values:
 QP command-history binding now intersects the measured-dt host slew bounds internally. The live variant computes continuous feasible task scaling, because discrete fallback values can miss a narrow feasible interval. If preserving the entire normal component is itself unreachable from the last published command, it reports a reduced normal-only task (`normal_task_scale`, `normal_unloading_preserved=false`) rather than claiming unchanged force tracking. This is a common execution policy change, not demonstrated proposal benefit. The historical unbound offline route retains discrete scaling. Full PATH ellipse protection still needs binding before hardware pilot admission; no tuning, holdout or contribution result is implied.
 
 Astra's kickoff session exited normally with TASE source, five new tests and 35 passing tests including dependency regressions. Main identified pending production native QP, complete configuration/state identity and atomic failure behavior. At 08:32 UTC the same native session was resumed for one bounded hourly repair/discussion round. The new turn metadata verifies provider hp-astra, model gpt-6-astra, effort xhigh and the isolated TASE worktree. Main continues to own all live-entry and hardware changes.
+
+
+## Native entry and PATH guard integration
+
+The native public entry, typed contract, registry, sole R006/R012 writer binding,
+real baseline admission and stop observation are now integrated in the main topic.
+SFC/DSFC/MSFC are software-available; TASE entries fail explicitly until their
+providers are integrated. No native or TASE physical result is implied.
+
+The PATH stack binds the original 22 x 12 mm soft and 25 x 15 mm hard ellipses
+to the native task basis and actual entry/formal reference. Hard geometry and
+20 ms PATH state-age admission precede the reused R012 predictive ellipse/CBF
+projection. Interior behavior retains the existing exact no-op deadband.
+Projection precedes the joint equality QP; its actual joint solution is checked
+against the guard, with no post-QP command rewrite. Infeasible combinations stop.
+Changes to normal unloading are explicitly reported. These are shared execution
+repairs, not a new proposal or a demonstrated contact-force guarantee.
+
+Provider snapshots now include readiness filter/log, pause and command history.
+The runtime freshness statistics remain diagnostic history, separate from the
+replayed dynamical state; full evidence-history replay remains to be completed.
+The previous frozen-position full-period clock fixture correctly trips the new
+PATH protection; its clock-only replacement explicitly follows the ideal path.
+
+Validation: 31 entry/admission/registry/PATH/process-stop tests and 17 provider
+regressions passed. The stop test delivers a real OS signal to a fixture child;
+it does not demonstrate physical stopping. Virtual endpoint tests disable
+wall-clock deadlines explicitly; production retains 1.5 ms runtime and 1 ms QP
+limits. The public status command and git diff whitespace check pass.
+
+Next hardware work is a fresh readback/Home/EOAT/baseline/resident admission
+bundle and the first physical SFC qualification. Earlier stopped captures are
+not relabeled fresh. No Load, Play, ARM or contact has been sent in this update.
+Video remains unavailable. Astra round 2 remains in the same hp-astra/xhigh
+session, with its separate TASE scope still unintegrated.

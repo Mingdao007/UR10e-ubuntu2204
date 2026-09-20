@@ -238,7 +238,11 @@ class R006HomeBindingV1:
             raise R006LiveAdapterError("Home-start EOAT binding differs")
         if math.dist(receipt.final_pose[:3], pose[:3]) > position_tolerance:
             raise R006LiveAdapterError("Home-start position differs from injected Home")
-        if math.dist(receipt.final_pose[3:], pose[3:]) > orientation_tolerance:
+        import numpy as np
+        from contact_yield_math import so3_exp, so3_log
+        orientation_error = float(np.linalg.norm(
+            so3_log(so3_exp(receipt.final_pose[3:]) @ so3_exp(pose[3:]).T)))
+        if orientation_error > orientation_tolerance:
             raise R006LiveAdapterError("Home-start orientation differs from injected Home")
         # Construction is part of validation: a reference type which silently
         # accepts another Home cannot cross this seam.

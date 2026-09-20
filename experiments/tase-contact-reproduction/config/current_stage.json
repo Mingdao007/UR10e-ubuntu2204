@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-09-20T07:35:29.855975+00:00",
+  "updated_at": "2026-09-20T08:47:20.595965+00:00",
   "current_stage_id": "step5d_contact_six_qp_v1",
   "current_step": "Step5d",
   "program": "step5d_contact_six_qp_v1",
@@ -15,7 +15,7 @@
     ".txt": "36ce492f4945ba917b43ac695327dd092a2979f9d999fc867af3984c893d06bb",
     ".urp": "41b94445425a59aad5659ecf34cbeecc27613493fa23e8a73d84313e6bad8210"
   },
-  "status": "native_live_entry_under_review",
+  "status": "native_live_entry_software_verified_pending_machine_admission",
   "liveprep_status": "blocked",
   "liveprep_readiness_path": "runs/contact-yield-live/readiness.json",
   "reproduction_status": "incomplete",
@@ -26,7 +26,7 @@
   },
   "bridge_trigger": {
     "bridge_has_started": false,
-    "blocked_reason": "public native entry and full writer admission under review; user standing authority already exists"
+    "blocked_reason": "fresh machine admission and first physical qualification pending; standing user authority exists"
   },
   "bridge_profile": {
     "runtime_protocol": 618001,
@@ -40,7 +40,7 @@
     "search_travel_max_m": 0.015,
     "stage25_control_mode": "native_provider_same_mature_writer",
     "entrypoint": "scripts/contact-yield-live.sh",
-    "entrypoint_status": "implementation_under_review_not_deployed",
+    "entrypoint_status": "integrated_software_verified_not_physically_qualified",
     "task": [
       "constant_force",
       "unknown_surface",
