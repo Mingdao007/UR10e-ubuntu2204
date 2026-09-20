@@ -1,0 +1,24 @@
+{
+  "scope": "offline recomputation of 2026-09-17 one-pose measurement; no new physical or workspace qualification",
+  "source": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-six-qp-20260917/readonly-kinematics.json",
+  "source_sha256": "14610cb216c59d31fc17046d296c4383d4458a5a870b89a0450f4a3a91bc4f5d",
+  "source_observed_at": "2026-09-17T15:49:23.983640+00:00",
+  "xacro_path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+  "xacro_sha256": "00891217ae0912468ef625996b259d58c1aac4d348bc468a9306d0b0bf8d3810",
+  "calibration_yaml": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/src/ur10e_bringup/config/ur10e_calibration.yaml",
+  "calibration_yaml_sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
+  "calibration_hash": "calib_7367377276742883610",
+  "generated_urdf_sha256": "c0891c0df47664230c6f4f2c621c1022484131e7f7a7dba8efb2ec7c3fc4a9dc",
+  "same_xacro_as_retained": true,
+  "same_expanded_urdf_as_retained": true,
+  "same_calibration_as_retained": true,
+  "position_error_m": 1.8360348167241365e-06,
+  "rotation_error_rad": 6.279839888236508e-06,
+  "retained_position_error_m": 1.8360348167241365e-06,
+  "retained_rotation_error_rad": 6.279809711546589e-06,
+  "source_files": {
+    "tools/step5c_calibrated_kinematics_audit.py": "25f1640c796511efcc1097b27aa10b802eeb8dfee3bc3083b7cf0d3edf67186a",
+    "tools/contact_yield_kinematics.py": "46282c8982c1c73fd54a6c14cf9ea1f160b6272a814d8c0ccc170a4936a088e6",
+    "tools/contact_yield_math.py": "41ed96dcf91a13a96bb75eb060de9ed36003b379b09e91a71d4c9315e770925d"
+  }
+}
