@@ -36,6 +36,7 @@ class StrictRnnConfig:
     sigr_exponent_r: float = 1.0
     inner_iterations: int = 1
     backend: str = "numpy"
+    offline_hypothesis: bool = False
 
 
 @dataclass(frozen=True)
@@ -84,7 +85,31 @@ def pending_paper_truth_fields(payload: dict[str, Any]) -> list[str]:
     return sorted(str(field) for field in pending)
 
 
-def assert_paper_truth_verified(payload: dict[str, Any]) -> None:
+def assert_paper_truth_verified(
+    payload: dict[str, Any],
+    *,
+    allow_offline_hypothesis: bool = False,
+) -> None:
+    if payload.get("offline_hypothesis", False):
+        if not allow_offline_hypothesis:
+            raise PaperTruthPendingError(
+                "offline TASE hypothesis requires explicit offline_hypothesis opt-in"
+            )
+        if payload.get("scope") != "offline_research_only":
+            raise PaperTruthPendingError("offline TASE hypothesis has an invalid scope")
+        if payload.get("live_authorization") != "blocked":
+            raise PaperTruthPendingError(
+                "offline TASE hypothesis must keep live authorization blocked"
+            )
+        if not payload.get("verified_truth_path"):
+            raise PaperTruthPendingError(
+                "offline TASE hypothesis must name its unresolved verified-truth source"
+            )
+        if not pending_paper_truth_fields(payload):
+            raise PaperTruthPendingError(
+                "offline TASE hypothesis must preserve unresolved paper-truth fields"
+            )
+        return
     pending = pending_paper_truth_fields(payload)
     if pending:
         raise PaperTruthPendingError(
@@ -151,7 +176,10 @@ class StrictTaseRnnSolver:
         self.config = config
         self._validate_config()
         self.paper_truth = load_paper_truth(config.paper_truth_path)
-        assert_paper_truth_verified(self.paper_truth)
+        assert_paper_truth_verified(
+            self.paper_truth,
+            allow_offline_hypothesis=config.offline_hypothesis,
+        )
         self.theta_dot_state = np.zeros(6, dtype=float)
         self.lambda_state = np.zeros(6, dtype=float)
         self._cp: Any | None = None
@@ -191,6 +219,23 @@ class StrictTaseRnnSolver:
         """Clear stateful solver memory at explicit contact lifecycle boundaries."""
         self.theta_dot_state = np.zeros(6, dtype=float)
         self.lambda_state = np.zeros(6, dtype=float)
+        self._sync_cupy_state_from_numpy()
+
+    def snapshot(self) -> dict[str, list[float]]:
+        """Copy both Eq.(23) state vectors for deterministic offline replay."""
+
+        return {
+            "theta_dot_state": self.theta_dot_state.astype(float).tolist(),
+            "lambda_state": self.lambda_state.astype(float).tolist(),
+        }
+
+    def restore(self, state: dict[str, Any]) -> None:
+        """Restore both Eq.(23) state vectors without resetting either one."""
+
+        theta = _finite_array(state.get("theta_dot_state"), 6, "theta_dot_state")
+        lambda_state = _finite_array(state.get("lambda_state"), 6, "lambda_state")
+        self.theta_dot_state = theta.copy()
+        self.lambda_state = lambda_state.copy()
         self._sync_cupy_state_from_numpy()
 
     def warm_start(

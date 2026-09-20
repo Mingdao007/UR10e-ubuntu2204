@@ -1,10 +1,42 @@
 {
-  "schema": "tase-offline-baseline-truth-v1",
+  "schema": "tase-offline-hypothesis-manifest-v2",
   "scope": "offline_research_only",
-  "strict_rnn_enabled": true,
-  "status": "offline_candidate_not_live_authorized",
-  "pending_pdf_verify": [],
-  "sections": {},
+  "offline_hypothesis": true,
+  "strict_rnn_enabled": false,
+  "status": "offline_hypothesis_not_verified",
+  "verified_truth_path": "config/step5c_tase_paper_truth.json",
+  "pending_pdf_verify": [
+    "alpha_escape_velocity_gain",
+    "production_sigr_exponent_r",
+    "local_qdot_bound_rad_s",
+    "communication_delay_T_mapping",
+    "Eq23_nonzero_command_stability"
+  ],
+  "sections": {
+    "step5c_strict_dryrun": {
+      "pending_pdf_verify": [
+        "which paper equations remain active in no-contact dry-run",
+        "mapping from paper task variable to UR10e 6dof qdot"
+      ],
+      "qdot_limit_rad_s": 0.2,
+      "contact": false
+    },
+    "step5c_strict_contact": {
+      "pending_pdf_verify": [
+        "filtered-live normal compatibility",
+        "force ladder parameters"
+      ],
+      "contact": true,
+      "enabled": false
+    }
+  },
+  "hypothesis_parameters": {
+    "epsilon": 0.022,
+    "sigr_exponent_r": 0.2,
+    "qdot_bound_rad_s": 0.15,
+    "communication_delay_T_mapping": "dt_s",
+    "alpha_escape_velocity_gain_s_inv": 1.0
+  },
   "equation_source": "config/step5c_tase_paper_truth.json",
   "live_authorization": "blocked"
 }

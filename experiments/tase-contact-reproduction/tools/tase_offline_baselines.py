@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline comparison of the original TASE RNN and matched equality QP.
+"""Offline comparison of an equation-aligned TASE RNN hypothesis and QP.
 
 Both joint-level baselines consume the same paper outer-loop task velocity,
 Jacobian, and box bounds.  This module has no robot, RTDE, bridge, or package
@@ -82,7 +82,7 @@ def _validated_sample(sample: TaseJointSample, config: TaseOfflineConfig) -> tup
 
 
 class TaseRnnBaseline:
-    """Original stateful TASE Eq.(23), offline-only wrapper."""
+    """Stateful Eq.(23) hypothesis, explicitly offline-only."""
 
     def __init__(
         self,
@@ -99,6 +99,7 @@ class TaseRnnBaseline:
                 epsilon=config.epsilon,
                 sigr_exponent_r=config.sigr_exponent_r,
                 backend="numpy",
+                offline_hypothesis=True,
             )
         )
 
@@ -112,6 +113,12 @@ class TaseRnnBaseline:
 
     def reset(self) -> None:
         self.solver.reset_state()
+
+    def snapshot(self) -> dict[str, list[float]]:
+        return self.solver.snapshot()
+
+    def restore(self, state: dict[str, Any]) -> None:
+        self.solver.restore(state)
 
     def step(self, sample: TaseJointSample) -> StrictRnnStepDiagnostics:
         jacobian, xdot_c, lower, upper, dt_s = _validated_sample(sample, self.config)
@@ -139,10 +146,19 @@ class TaseQpBaseline:
     def reset(self) -> None:
         self.solver.reset()
 
+    @property
+    def qdot_state(self) -> np.ndarray:
+        return self.solver.x.copy()
+
+    def snapshot(self) -> dict[str, list[float]]:
+        return self.solver.snapshot()
+
+    def restore(self, state: dict[str, Any]) -> None:
+        self.solver.restore(state)
+
     def step(self, sample: TaseJointSample):
         jacobian, xdot_c, lower, upper, _dt_s = _validated_sample(sample, self.config)
         if not sample.cmd_valid:
-            self.solver.reset()
             return None
         return self.solver.solve(jacobian, xdot_c, lower, upper)
 
@@ -165,17 +181,19 @@ def compare_joint_baselines(
     rnn_qdots: list[tuple[float, ...]] = []
     qp_qdots: list[tuple[float, ...]] = []
     sample_count = 0
+    valid_sample_count = 0
+    invalid_sample_count = 0
     for sample in samples:
         jacobian, xdot_c, lower, upper, _dt_s = _validated_sample(sample, config)
         rnn_diag = rnn.step(sample)
         rnn_qdot = np.asarray(rnn_diag.theta_dot_state, dtype=float)
         rnn_qdots.append(tuple(float(value) for value in rnn_qdot))
-        rnn_residuals.append(float(np.linalg.norm(jacobian @ rnn_qdot - xdot_c)))
-        rnn_bound_violations.append(
-            float(max(0.0, np.max(lower - rnn_qdot), np.max(rnn_qdot - upper)))
-        )
+        qp_result = qp.step(sample)
         if sample.cmd_valid:
-            qp_result = qp.step(sample)
+            rnn_residuals.append(float(np.linalg.norm(jacobian @ rnn_qdot - xdot_c)))
+            rnn_bound_violations.append(
+                float(max(0.0, np.max(lower - rnn_qdot), np.max(rnn_qdot - upper)))
+            )
             assert qp_result is not None
             qp_qdot = np.asarray(qp_result.qdot, dtype=float)
             qp_qdots.append(tuple(float(value) for value in qp_qdot))
@@ -183,13 +201,17 @@ def compare_joint_baselines(
             qp_bound_violations.append(
                 float(max(0.0, np.max(lower - qp_qdot), np.max(qp_qdot - upper)))
             )
+            valid_sample_count += 1
         else:
-            qp_qdots.append(tuple(0.0 for _ in range(6)))
-            qp_residuals.append(0.0)
-            qp_bound_violations.append(0.0)
+            assert qp_result is None
+            held_qdot = qp.qdot_state
+            qp_qdots.append(tuple(float(value) for value in held_qdot))
+            invalid_sample_count += 1
         sample_count += 1
     if sample_count == 0:
         raise ValueError("at least one TASE comparison sample is required")
+    if valid_sample_count == 0:
+        raise ValueError("at least one valid TASE comparison sample is required")
     return {
         "schema": "tase-offline-baseline-comparison-v1",
         "scope": "offline_only_no_robot_io_or_physical_claim",
@@ -199,19 +221,21 @@ def compare_joint_baselines(
         },
         "shared_inputs": {
             "samples": sample_count,
+            "valid_samples": valid_sample_count,
+            "invalid_samples": invalid_sample_count,
             "epsilon": config.epsilon,
             "sigr_exponent_r": config.sigr_exponent_r,
             "qdot_limit_rad_s": config.qdot_limit_rad_s,
         },
         "rnn": {
-            "max_equality_residual": max(rnn_residuals),
-            "final_equality_residual": rnn_residuals[-1],
+            "max_valid_equality_residual": max(rnn_residuals),
+            "final_valid_equality_residual": rnn_residuals[-1],
             "max_bound_violation": max(rnn_bound_violations),
             "qdots": rnn_qdots,
         },
         "qp": {
-            "max_equality_residual": max(qp_residuals),
-            "final_equality_residual": qp_residuals[-1],
+            "max_valid_equality_residual": max(qp_residuals),
+            "final_valid_equality_residual": qp_residuals[-1],
             "max_bound_violation": max(qp_bound_violations),
             "qdots": qp_qdots,
         },
