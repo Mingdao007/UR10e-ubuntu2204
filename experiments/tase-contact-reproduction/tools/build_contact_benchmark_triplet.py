@@ -12,7 +12,7 @@ SOURCE=ROOT/'programs/step5/step5d/step5d_strict_rnn_autotune_v4_r012.script'
 BASENAME='step5d_contact_six_qp_v1'
 CONTROLLER_DIR='/programs/andyl/kunwei/step5'
 PROTOCOL=618001
-REVISION=18
+REVISION=19
 
 
 def transform(source,home,stamp):
@@ -47,6 +47,19 @@ def transform(source,home,stamp):
     old_rotation = '  local rotation_error = sqrt((actual[3] - expected[3]) * (actual[3] - expected[3]) + (actual[4] - expected[4]) * (actual[4] - expected[4]) + (actual[5] - expected[5]) * (actual[5] - expected[5]))'
     if body.count(old_rotation) != 1:raise ValueError('Home orientation gate source differs')
     body=body.replace(old_rotation,'  local relative_pose = pose_trans(pose_inv(expected), actual)\n  local rotation_error = sqrt(relative_pose[3]*relative_pose[3] + relative_pose[4]*relative_pose[4] + relative_pose[5]*relative_pose[5])')
+    # RTDE holds its last input image. Consume STOP once and latch the terminal
+    # resident state until a new Play; repeated packets must not call stopl.
+    stop_start = '    if session_command == 3 and session_sequence > consumed_session_sequence:\n'
+    stop_end = '    elif integer_reason != 0 and session_command != 0:\n'
+    if body.count(stop_start) != 1 or body.count(stop_end) != 1:
+        raise ValueError('resident STOP branch source differs')
+    begin=body.index(stop_start);end=body.index(stop_end,begin)
+    old_body=body[begin+len(stop_start):end]
+    body=body[:begin]+stop_start+'      consumed_session_sequence = session_sequence\n      if state != 90:\n'+''.join('  '+line+'\n' for line in old_body.splitlines())+'      end\n'+body[end:]
+    body=body.replace(stop_end,'    elif integer_reason != 0 and session_command != 0 and state != 90:\n')
+    arm='    elif not session_active and not completed and session_command == 1 and '
+    if body.count(arm)!=1:raise ValueError('resident ARM branch source differs')
+    body=body.replace(arm,'    elif state != 90 and not session_active and not completed and session_command == 1 and ')
     lines=[line for line in body.splitlines() if not line.startswith(('# R006_ACTIVE_CAPS:','# ROLE:','# CONTACT_SEARCH:'))]
     lines[1:1]=[f'# ROLE: six-law shared-QP preparation; requires matching host owner {PROTOCOL}',
         '# CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm',

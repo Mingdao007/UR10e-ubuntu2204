@@ -1,9 +1,9 @@
 {
   "schema": "contact-qp-package-preparation-v1",
   "basename": "step5d_contact_six_qp_v1",
-  "stamp": "2026-09-17T1608Z_CONTACT_SIX_QP_V1_618001",
+  "stamp": "2026-09-20T1019Z_CONTACT_SIX_QP_V1_618001",
   "controller_directory": "/programs/andyl/kunwei/step5",
-  "revision": 18,
+  "revision": 19,
   "protocol": 618001,
   "home_receipt_sha256": "887e592c7361f9ef6e01613a3d64f7623a0a6b8b3a291587b1fa5f8cd9df03e5",
   "source_sha256": "0fccfb7304104777b375f7250e192ec83640c5b8192411db36bd05de7d05ec34",

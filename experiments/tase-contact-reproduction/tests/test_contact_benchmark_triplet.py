@@ -44,3 +44,40 @@ def test_home_package_preserves_xyz_and_bounds_initial_pose(tmp_path):
     assert 'a=0.050, v=0.010' in s
     assert 'set_tcp(' not in s and 'zero_ftsensor(' not in s
     assert 'local delta_pose = pose_trans(pose_inv(target_pose), actual_pose)' in s
+
+
+def test_generated_stop_branch_consumes_retained_command_once():
+    import textwrap
+    script=transform(SOURCE.read_text(),receipt(),'2026-09-20T1010Z_TEST')
+    start=script.index('    if session_command == 3 and session_sequence > consumed_session_sequence:')
+    end=script.index('    elif ',start)
+    # Execute this generated arithmetic/branch subset with stopl as a recorder.
+    # This checks retained register semantics, not UR runtime qualification.
+    subset=textwrap.dedent('\n'.join(line for line in script[start:end].splitlines()
+                                    if line.strip()!='end'))
+    stops=[]
+    state=dict(session_command=3,session_sequence=1,consumed_session_sequence=0,
+               state=78,input_epoch=1,stopl=stops.append)
+    for _ in range(5):exec(subset,state)
+    assert stops==[.25]
+    assert state['consumed_session_sequence']==1
+    assert state['state']==90 and state['reason']==4
+    state['session_sequence']=2
+    exec(subset,state)
+    assert stops==[.25] and state['consumed_session_sequence']==2
+    assert 'elif state != 90 and not session_active' in script
+
+
+def test_generated_stop_keeps_first_terminal_fault():
+    import textwrap
+    script=transform(SOURCE.read_text(),receipt(),'2026-09-20T1010Z_TEST')
+    start=script.index('    if session_command == 3 and session_sequence > consumed_session_sequence:')
+    end=script.index('    elif ',start)
+    subset=textwrap.dedent('\n'.join(line for line in script[start:end].splitlines()
+                                    if line.strip()!='end'))
+    stops=[]
+    state=dict(session_command=3,session_sequence=5,consumed_session_sequence=4,
+               state=90,reason=43,return_guard=123,input_epoch=1,stopl=stops.append)
+    exec(subset,state)
+    assert not stops and state['reason']==43 and state['return_guard']==123
+    assert state['consumed_session_sequence']==5

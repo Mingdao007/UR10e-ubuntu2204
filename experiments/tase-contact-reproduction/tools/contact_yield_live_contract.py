@@ -2,9 +2,9 @@
 
 This is not the R004 RNN contract with the program name rewritten.  Identity
 is step5d_contact_six_qp_v1 / step5d_contact_home_v1: protocol 618001, output
-32=606006, 33=18, 34=618001, qdot 0.05, raw 20 N / 2 Nm, and the corrected
+32=606006, 33=19, 34=618001, qdot 0.05, raw 20 N / 2 Nm, and the corrected
 Home attitude.  SHA-derived receipt limbs remain the software contract;
-physical wire echoes use the readable (18, 618001) pair.
+physical wire echoes use the readable (19, 618001) pair.
 """
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ DEFAULT_CONTRACT_PATH = EXPERIMENT_ROOT / "config" / "yield_live_contract_v1.jso
 PACKAGE_DIR = EXPERIMENT_ROOT / "programs" / "step5" / "step5d" / "contact-six-qp"
 SCHEMA = "yield-live-contract-v1"
 RUNTIME_PROTOCOL = 606006
-RUNTIME_REVISION = 18
+RUNTIME_REVISION = 19
 RUNTIME_EXTENSION = 618001
 READABLE_RUNTIME_IDENTITY = (RUNTIME_REVISION, RUNTIME_EXTENSION)
 HOME_PROFILE_ID = "yield-live-entry/contact-home-v1"
@@ -92,12 +92,12 @@ def load_live_contract_document(path: Path | str | None = None) -> dict[str, Any
     if int(payload.get("runtime_protocol")) != RUNTIME_PROTOCOL:
         raise YieldLiveContractError("native live contract runtime protocol is not 606006")
     if int(payload.get("runtime_revision")) != RUNTIME_REVISION:
-        raise YieldLiveContractError("native live contract revision is not 18")
+        raise YieldLiveContractError("native live contract revision is not 19")
     if int(payload.get("runtime_extension_protocol")) != RUNTIME_EXTENSION:
         raise YieldLiveContractError("native live contract extension protocol is not 618001")
     identity = tuple(int(item) for item in payload.get("readable_runtime_identity") or ())
     if identity != READABLE_RUNTIME_IDENTITY:
-        raise YieldLiveContractError("native readable runtime identity is not (18, 618001)")
+        raise YieldLiveContractError("native readable runtime identity is not (19, 618001)")
     task = _require_mapping(payload.get("task"), "task")
     if not math.isclose(float(task.get("period_s")), PERIOD_S, rel_tol=0.0, abs_tol=1e-12):
         raise YieldLiveContractError("native live contract period is not the formal PATH period")

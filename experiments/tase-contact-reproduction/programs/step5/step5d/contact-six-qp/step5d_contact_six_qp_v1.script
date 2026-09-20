@@ -1,4 +1,4 @@
-# VERSION: 2026-09-17T1608Z_CONTACT_SIX_QP_V1_618001
+# VERSION: 2026-09-20T1019Z_CONTACT_SIX_QP_V1_618001
 # ROLE: six-law shared-QP preparation; requires matching host owner 618001
 # CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm
 # CONTACT_SEARCH: constant 0.0002m/s; travel<=0.015m; timeout=90s; original Home XYZ with current aligned attitude
@@ -471,7 +471,7 @@ def codex_r006_echo(epoch, ordinal, state, token, reason, consumed, kind, return
   write_output_integer_register(30, kind)
   write_output_integer_register(31, return_guard)
   write_output_integer_register(32, 606006)
-  write_output_integer_register(33, 18)
+  write_output_integer_register(33, 19)
   write_output_integer_register(34, 618001)
 end
 
@@ -751,7 +751,7 @@ def step5d_contact_six_qp_v1():
   local fixed_home_pose = p[0.487834547000, 0.129337053000, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
   local locked_home_q = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local locked_home_q_valid = False
-  local runtime_revision = 18
+  local runtime_revision = 19
   local runtime_extension = 618001
   local active_epoch = 0
   local last_failed_epoch = 0
@@ -776,22 +776,25 @@ def step5d_contact_six_qp_v1():
     local input_kind = read_input_integer_register(31)
     local input_token = read_input_integer_register(32)
     if session_command == 3 and session_sequence > consumed_session_sequence:
-      stopl(0.250000000)
-      session_active = False
-      completed = False
-      last_failed_epoch = input_epoch
-      active_epoch = input_epoch
-      state = 90
-      reason = 4
-      return_guard = 0
-    elif integer_reason != 0 and session_command != 0:
+      consumed_session_sequence = session_sequence
+      if state != 90:
+        stopl(0.250000000)
+        session_active = False
+        completed = False
+        last_failed_epoch = input_epoch
+        active_epoch = input_epoch
+        state = 90
+        reason = 4
+        return_guard = 0
+      end
+    elif integer_reason != 0 and session_command != 0 and state != 90:
       stopl(0.250000000)
       session_active = False
       last_failed_epoch = input_epoch
       state = 90
       reason = integer_reason
       return_guard = 0
-    elif not session_active and not completed and session_command == 1 and session_sequence > consumed_session_sequence and packet_reason == 0:
+    elif state != 90 and not session_active and not completed and session_command == 1 and session_sequence > consumed_session_sequence and packet_reason == 0:
       if input_epoch <= last_failed_epoch or input_epoch <= 0 or input_ordinal < 1 or input_ordinal <= current_ordinal or (active_epoch > 0 and input_epoch != active_epoch) or input_kind < 1 or input_kind > 4 or input_token <= 0:
         state = 90
         reason = 61
