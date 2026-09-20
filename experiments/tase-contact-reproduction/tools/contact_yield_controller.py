@@ -430,6 +430,10 @@ class YieldController:
         signed_load = float(np.dot(filtered, outward))
         force_error = signed_load - target_force
         residual = (filtered + injection) - target_force * outward
+        if phase == "baseline":
+            # Qualification holds the contact point. Axis-decoupled SFC would
+            # otherwise admit surface shear as tangent speed and walk the TCP.
+            residual = float(np.dot(residual, outward)) * outward
         path_error = position - ref_position
         restoring = (
             -self.settings.path_stiffness_n_per_m * (tangent @ path_error)

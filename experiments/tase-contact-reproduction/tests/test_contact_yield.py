@@ -20,6 +20,22 @@ def system(method,library):return make_system(method=method,material='stiff_low_
 
 def reference(origin,t=0.):return {'phase':'path','path_time_s':t,'force_n':5.,'position_m':origin,'velocity_m_s':(0,0,0)}
 
+def test_baseline_does_not_admit_shear_as_tangent_speed(library):
+    controller, plant, origin = system("SFC", library)
+    try:
+        obs = dict(plant.observe()["observation"])
+        obs["raw_force_base_n"] = (4.0, 0.0, 5.0)
+        shared = {"force_n": 5.0, "position_m": tuple(origin), "velocity_m_s": (0.0, 0.0, 0.0)}
+        before = controller.snapshot()
+        baseline = controller.step(obs, {"phase": "baseline", "path_time_s": None, **shared}, 0.002)
+        controller.restore(before)
+        path = controller.step(obs, {"phase": "path", "path_time_s": 0.0, **shared}, 0.002)
+        assert abs(path["twist_base"][0]) > 1e-4
+        assert abs(baseline["twist_base"][0]) < 0.2 * abs(path["twist_base"][0])
+    finally:
+        controller.close()
+
+
 def test_normal_force_error_reaches_every_native_law_and_no_feedforward_damping(library):
     speeds=[]
     for method in ('SFC','DSFC','MSFC'):

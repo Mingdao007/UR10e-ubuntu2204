@@ -1,0 +1,19 @@
+{
+  "run": "runs/yield-sfc-qualification-20260920T120659Z",
+  "phase": "baseline",
+  "cause": "SFC baseline admitted surface shear as tangent speed",
+  "evidence": {
+    "search_speed_contract_m_s": 0.0002,
+    "normal_cap_m_s": 0.003,
+    "path_stiffness_n_per_m": 120.0,
+    "final_signed_normal_load_n": 16.15450876071491,
+    "final_reference_force_n": 2.11599760199897,
+    "final_inward_normal_base": [-0.0037982455339157437, -0.002207711137600033, -0.9999903496246336],
+    "final_filtered_force_base_n": [-3.389152081796039, -1.9984420136664949, 16.17194964054921],
+    "final_twist_base": [-0.0021048176324428413, -0.0011261768982000029, -7.12600671187548e-05],
+    "final_path_error_base_m": [-0.0020210178961962977, -0.0011035025870694548, -0.013922455594347655],
+    "xy_walk_m": 0.002444038846675598
+  },
+  "mechanism": "At contact, ~4 N shear in XY plus 120 N/m hold (0.24 N at 2 mm) lets axis-decoupled SFC command tangent velocity. The probe slides on the unknown surface and normal load rises from the 2 N setpoint to 16-25 N. Not a scheduler failure.",
+  "fix": "Project the force residual onto the outward normal during baseline only. PATH keeps the full residual."
+}
