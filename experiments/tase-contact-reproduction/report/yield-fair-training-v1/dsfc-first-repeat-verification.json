@@ -1,0 +1,84 @@
+{
+  "observed_utc": "2026-09-20T05:38:29.523654+00:00",
+  "scope": "DSFC first deterministic repeat versus discovery incumbent; not independent replication or CI",
+  "pairs": {
+    "nominal": {
+      "entries": [
+        {
+          "attempt": "DSFC-08-nominal",
+          "artifact_sha256": "1104d5c90c3f46cd0d4e290c33f1494d5316db3a65982e3b8a6291015f37d168",
+          "field_sha256": {
+            "rows": "ace37134678e5e6e1b9a19373a56689b198909155153bacb7285e10481d06359",
+            "records": "9725ff11d6a851e335db9d840a7f76f1b98fb484141e717b628c516d2c6d0819",
+            "metrics": "941a38ec0f42826c27436199b10b153a5aa4462b2a651b8873b93837f6208f34",
+            "initial_controller_snapshot": "d7dcf4711782334c0b75ba95c754e9254a3fe7b857b206fecfbce3e9fb92f43c",
+            "final_controller_snapshot": "dab1b6da9b342e568cbbdb2f84e273274893a226a2fe16e3eb4d1545affcd8fa",
+            "initial_simulator_snapshot": "a338427b40df480f413bf01dec8311e5c02c8648bc6aef8f0d895cb75fa81daa",
+            "final_simulator_snapshot": "6a84417c5ec067ba8bb8737b1db862b7b91c10ec5c643bf8573c288edccac490"
+          }
+        },
+        {
+          "attempt": "DSFC-20-nominal",
+          "artifact_sha256": "36d7f522cd19caf9f03d6b32df673538da8dc5a5ac9fd851d29cb8fa891f0744",
+          "field_sha256": {
+            "rows": "ace37134678e5e6e1b9a19373a56689b198909155153bacb7285e10481d06359",
+            "records": "9725ff11d6a851e335db9d840a7f76f1b98fb484141e717b628c516d2c6d0819",
+            "metrics": "941a38ec0f42826c27436199b10b153a5aa4462b2a651b8873b93837f6208f34",
+            "initial_controller_snapshot": "d7dcf4711782334c0b75ba95c754e9254a3fe7b857b206fecfbce3e9fb92f43c",
+            "final_controller_snapshot": "dab1b6da9b342e568cbbdb2f84e273274893a226a2fe16e3eb4d1545affcd8fa",
+            "initial_simulator_snapshot": "a338427b40df480f413bf01dec8311e5c02c8648bc6aef8f0d895cb75fa81daa",
+            "final_simulator_snapshot": "6a84417c5ec067ba8bb8737b1db862b7b91c10ec5c643bf8573c288edccac490"
+          }
+        }
+      ],
+      "exact_fields_equal": {
+        "rows": true,
+        "records": true,
+        "metrics": true,
+        "initial_controller_snapshot": true,
+        "final_controller_snapshot": true,
+        "initial_simulator_snapshot": true,
+        "final_simulator_snapshot": true
+      }
+    },
+    "disturbed": {
+      "entries": [
+        {
+          "attempt": "DSFC-08-disturbed",
+          "artifact_sha256": "762ea4d7363df69fb8fd010c8990e4f0b542608ad62c26aba864da42a4b8edd5",
+          "field_sha256": {
+            "rows": "531d00f5f3f898bd74a04fb9b6376602758888ed22966f76ba93f25e59ebe32f",
+            "records": "e4bece58e56385872f9071960300e40ca27b73bb4617d52f1d3f9b320db216a2",
+            "metrics": "fe16d4d79a7e1af0eac739fd7f55ef133144f181473218001601a92d994cef44",
+            "initial_controller_snapshot": "d7dcf4711782334c0b75ba95c754e9254a3fe7b857b206fecfbce3e9fb92f43c",
+            "final_controller_snapshot": "7b33fd7016e0ea6a15a93dd45b832870882b483a6b65553d51b27533eabd91c8",
+            "initial_simulator_snapshot": "a338427b40df480f413bf01dec8311e5c02c8648bc6aef8f0d895cb75fa81daa",
+            "final_simulator_snapshot": "78603d484d2e9fea4e42c0bbe4f44bbf91da7127e4279894745ba4a44187a0ca"
+          }
+        },
+        {
+          "attempt": "DSFC-20-disturbed",
+          "artifact_sha256": "f417a6c4e6f3aad2869a315a2453c1c95a6e3834fc20e4e6bd79478c455fadeb",
+          "field_sha256": {
+            "rows": "531d00f5f3f898bd74a04fb9b6376602758888ed22966f76ba93f25e59ebe32f",
+            "records": "e4bece58e56385872f9071960300e40ca27b73bb4617d52f1d3f9b320db216a2",
+            "metrics": "fe16d4d79a7e1af0eac739fd7f55ef133144f181473218001601a92d994cef44",
+            "initial_controller_snapshot": "d7dcf4711782334c0b75ba95c754e9254a3fe7b857b206fecfbce3e9fb92f43c",
+            "final_controller_snapshot": "7b33fd7016e0ea6a15a93dd45b832870882b483a6b65553d51b27533eabd91c8",
+            "initial_simulator_snapshot": "a338427b40df480f413bf01dec8311e5c02c8648bc6aef8f0d895cb75fa81daa",
+            "final_simulator_snapshot": "78603d484d2e9fea4e42c0bbe4f44bbf91da7127e4279894745ba4a44187a0ca"
+          }
+        }
+      ],
+      "exact_fields_equal": {
+        "rows": true,
+        "records": true,
+        "metrics": true,
+        "initial_controller_snapshot": true,
+        "final_controller_snapshot": true,
+        "initial_simulator_snapshot": true,
+        "final_simulator_snapshot": true
+      }
+    }
+  }
+}
