@@ -1,9 +1,10 @@
-# VERSION: 2026-09-17T1612Z_CONTACT_HOME_V1
+# VERSION: 2026-09-20T1104Z_CONTACT_HOME_V1
+# BOUNDED_RECOVERY: observed start to approved Home; translation<=3mm turn<=20mrad; a=0.01 v=0.002
 # ROLE: standalone immutable one-shot campaign Home positioning helper
 # TP_PROGRAM_ID: step5d_contact_home_v1
 # TARGET_POSE: p[0.487834547000, 0.129337053000, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
 # SAFE_TRANSFER_Z_POLICY: max(current_z, 0.033000000)
-# MOTION: preserve height for XY transfer, then descend to original Home; a=0.05m/s2 v=0.01m/s
+# MOTION: preserve height for XY transfer, then descend to original Home; a=0.01m/s2 v=0.002m/s
 # BLEND_RADIUS_M: 0.0
 
 def codex_start_hover_finite_value(value, absolute_limit):
@@ -118,7 +119,7 @@ def step5d_contact_home_v1():
     halt
   end
   # Bind the initial pose to the fresh stationary read; reject an intervening move.
-  local expected_initial = p[0.473795141510, 0.169517361444, 0.049481471656, 2.033131176108, 2.394984811005, -0.000007867289]
+  local expected_initial = p[0.486743344544, 0.128719136369, 0.032088758656, 2.032729043993, 2.390645828570, -0.019086660482]
   local initial_delta = pose_trans(pose_inv(expected_initial), current_pose)
   local initial_xyz_error = sqrt(initial_delta[0]*initial_delta[0] + initial_delta[1]*initial_delta[1] + initial_delta[2]*initial_delta[2])
   local initial_angle_error = sqrt(initial_delta[3]*initial_delta[3] + initial_delta[4]*initial_delta[4] + initial_delta[5]*initial_delta[5])
@@ -132,13 +133,13 @@ def step5d_contact_home_v1():
   end
   local rise_pose = p[current_pose[0], current_pose[1], safe_transfer_z, current_pose[3], current_pose[4], current_pose[5]]
   local transfer_pose = p[target_pose[0], target_pose[1], safe_transfer_z, target_pose[3], target_pose[4], target_pose[5]]
-  movel(rise_pose, a=0.050, v=0.010, r=0.0)
+  movel(rise_pose, a=0.010, v=0.002, r=0.0)
   stopl(0.1)
-  movel(transfer_pose, a=0.050, v=0.010, r=0.0)
+  movel(transfer_pose, a=0.010, v=0.002, r=0.0)
   stopl(0.1)
   if safe_transfer_z > target_pose[2] + 0.000001:
     local descent_pose = p[target_pose[0], target_pose[1], 0.033000000, target_pose[3], target_pose[4], target_pose[5]]
-    movel(descent_pose, a=0.050, v=0.010, r=0.0)
+    movel(descent_pose, a=0.010, v=0.002, r=0.0)
     stopl(0.1)
   end
   sleep(0.20)

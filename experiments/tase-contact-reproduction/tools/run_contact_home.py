@@ -11,8 +11,9 @@ import pinocchio as pin
 from step5d_remote_startup import RemoteDashboardWriter,_ExactLoadAdapter,dashboard_exchange,RTDEClient
 from step5d_autotune_v4_r014.dispatcher import WriterLock
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
-from build_contact_home import BASENAME
+from build_contact_home import BASENAME,recovery_geometry
 from build_contact_benchmark_triplet import CONTROLLER_DIR
+from contact_yield_supervisor import VideoRecorder
 
 FIELDS=('timestamp','actual_TCP_pose','actual_TCP_speed','actual_q','actual_qd','tcp_offset','payload','payload_cog','safety_status_bits')
 TARGET=f'{CONTROLLER_DIR}/{BASENAME}.urp'
@@ -32,7 +33,23 @@ def admit_sample(sample,home, *, initial):
     if np.any(current[:3]<low) or np.any(current[:3]>high):raise ValueError('Home transfer envelope violated')
     if current[2]<target[2]-.001:raise ValueError('TCP below Home floor')
     angle=np.linalg.norm(pin.log3(rotvec_to_matrix(current[3:])@rotvec_to_matrix(target[3:]).T))
-    if angle>.01:raise ValueError('unexpected attitude change')
+    recovery=recovery_geometry(home)
+    if recovery is None:
+        if angle>.01:raise ValueError('unexpected attitude change')
+    else:
+        from contact_yield_math import so3_exp,so3_log
+        start,target,turn=recovery
+        rs=so3_exp(start[3:]);ra=so3_exp(current[3:])
+        travelled=so3_log(ra@rs.T)
+        fraction=float(np.clip(np.dot(travelled,turn)/max(np.dot(turn,turn),1e-16),0,1))
+        closest=so3_exp(fraction*turn)@rs
+        if np.linalg.norm(so3_log(ra@closest.T))>.003:raise ValueError('outside planned Home attitude corridor')
+        if current[2]<max(start[2],target[2])-.0002 and np.linalg.norm(travelled)>.003:
+            raise ValueError('Home rotation began before vertical clearance')
+        if np.linalg.norm(sample['actual_TCP_speed'][3:])>.03 or max(abs(x) for x in sample['actual_qd'])>.05:
+            raise ValueError('bounded recovery angular/joint speed exceeded')
+        if initial and (np.linalg.norm(current[:3]-start[:3])>.0005 or np.linalg.norm(travelled)>.003):
+            raise ValueError('bounded recovery initial observation changed')
     if np.linalg.norm(sample['actual_TCP_speed'][:3])>.02 or max(abs(x) for x in sample['actual_qd'])>.06:raise ValueError('Home speed envelope violated')
     if initial:
         if np.linalg.norm(current[:3]-start[:3])>.002 or np.linalg.norm(sample['actual_TCP_speed'])>.0005:raise ValueError('initial Home observation changed/not stationary')
@@ -47,15 +64,15 @@ class Observer:
     def _run(self):
         try:
             with RTDEClient(self.host,timeout=1.) as c:
-                c.negotiate(version=2);recipe,types=c.setup_outputs(25.,FIELDS);c.start()
+                c.negotiate(version=2);recipe,types=c.setup_outputs(100.,FIELDS);c.start()
                 while not self.done.is_set():
                     values=c.recv_recipe_sample(recipe,types);r=dict(zip(FIELDS,values));r['monotonic_s']=time.monotonic()
                     if len(values)!=len(FIELDS):raise ValueError('RTDE shape mismatch')
-                    if self.rows and (r['timestamp']<=self.rows[-1]['timestamp'] or r['monotonic_s']-self.rows[-1]['monotonic_s']>.2):raise ValueError('RTDE stale/gap')
+                    if self.rows and (r['timestamp']<=self.rows[-1]['timestamp'] or r['monotonic_s']-self.rows[-1]['monotonic_s']>.08):raise ValueError('RTDE stale/gap')
                     self.rows.append(r);self.ready.set()
         except Exception as e:self.error=f'{type(e).__name__}: {e}';self.ready.set()
     def latest(self):
-        if self.error or not self.rows or time.monotonic()-self.rows[-1]['monotonic_s']>.2:raise ValueError(f'observer unavailable/stale: {self.error}')
+        if self.error or not self.rows or time.monotonic()-self.rows[-1]['monotonic_s']>.08:raise ValueError(f'observer unavailable/stale: {self.error}')
         return self.rows[-1]
     def close(self):self.done.set();self.thread.join(timeout=2)
 
@@ -75,13 +92,14 @@ def run(args):
     adapter=_ExactLoadAdapter(host=args.host,target=TARGET,program_id=BASENAME,dashboard_observer=dashboard_exchange,writer=writer,dashboard_port=29999,dashboard_timeout_s=2.,observe_timeout_s=5.,poll_interval_s=.05,monotonic=time.monotonic,sleeper=time.sleep)
     with WriterLock(INSTALLED_LOCK):
         try:
-            video=subprocess.Popen(['ffmpeg','-hide_banner','-loglevel','error','-rtsp_transport','tcp','-stimeout','8000000','-i','rtsp://127.0.0.1:8554/arm','-c','copy','-flush_packets','1','-cluster_time_limit','500','-t','40',str(args.output/'home.mkv')],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
             obs.start()
+            video=VideoRecorder('rtsp://127.0.0.1:8554/arm',args.output)
+            video.start()
             barrier_deadline=time.monotonic()+8.
             while time.monotonic()<barrier_deadline:
-                if video.poll() is not None:raise ValueError('camera capture failed before motion')
+                video.check()
                 obs.latest()
-                camera_file=args.output/'home.mkv'
+                camera_file=video.path
                 if len(obs.rows)>=10 and camera_file.exists() and camera_file.stat().st_size>512:break
                 time.sleep(.05)
             else:raise ValueError('RTDE/camera observer barrier did not complete')
@@ -94,7 +112,7 @@ def run(args):
                 row=obs.latest();admit_sample(row,home,initial=False)
                 state=dashboard_exchange(args.host,['safetymode','running','programState','is in remote control','get loaded program'])
                 if state['get loaded program']!=f'Loaded program: {TARGET}':raise ValueError('loaded Home program changed')
-                if video.poll() is not None:raise ValueError('camera recording ended during Home')
+                video.check()
                 if state['safetymode']!='Safetymode: NORMAL' or state['is in remote control']!='true':raise ValueError('Home live safety/mode changed')
                 target=np.asarray(home['home_pose']);actual=np.asarray(row['actual_TCP_pose']);pe=np.linalg.norm(actual[:3]-target[:3]);ae=np.linalg.norm(pin.log3(rotvec_to_matrix(actual[3:])@rotvec_to_matrix(target[3:]).T))
                 stopped=state['running']=='Program running: false' and state['programState'].startswith('STOPPED')
@@ -111,11 +129,24 @@ def run(args):
                 try:result['compensating_stop']=adapter.stop()
                 except Exception as stop:result['stop_failure']=str(stop)
         finally:
+            if adapter.play_issued:
+                try:
+                    before=time.monotonic();writer.write('stop')
+                    until=before+3.
+                    while time.monotonic()<until:
+                        stopped=dashboard_exchange(args.host,['running','programState','safetymode'])
+                        row=obs.latest()
+                        if (stopped['running']=='Program running: false' and stopped['programState'].startswith('STOPPED')
+                            and row['monotonic_s']>=before and np.linalg.norm(row['actual_TCP_speed'])<.0005
+                            and max(map(abs,row['actual_qd']))<.001):
+                            result['observed_stop']={'dashboard':stopped,'sample':row};break
+                        time.sleep(.02)
+                    else:raise ValueError('Home physical stop was not observed')
+                except BaseException as exc:
+                    result['success']=False;result['stop_confirmation_error']=f'{type(exc).__name__}: {exc}'
             if hasattr(obs,'thread'):obs.close()
             if video is not None:
-                video.terminate()
-                try:video.communicate(timeout=3)
-                except subprocess.TimeoutExpired:video.kill();video.communicate()
+                video.close()
             (args.output/'rtde.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in obs.rows))
             result['ended_at']=datetime.datetime.now(datetime.timezone.utc).isoformat();(args.output/'result.json').write_text(json.dumps(result,indent=2)+'\n')
     return result
