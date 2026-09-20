@@ -11509,8 +11509,8 @@
       "bridge": true,
       "contact": true,
       "complete": false,
-      "blocked": true,
-      "block_reason": "resident check passed; approved Home recovery and writer qualification pending",
+      "blocked": false,
+      "block_reason": "fresh TASE machine-admission readiness verified; physical contact qualification pending",
       "duration_s": 62.83185307179586,
       "current_binding": {
         "is_current": true,
@@ -11570,6 +11570,10 @@
           ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
         },
         "source_delivery_manifest": "runs/controller_readback_step5d_contact_six_qp_v1_20260921_063347/manifest.json"
+      },
+      "liveprep_status": {
+        "state": "awaiting_live_authorization",
+        "readiness_artifact": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260921.json"
       }
     }
   ],

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-09-20T11:35:57.087997+00:00",
+  "updated_at": "2026-09-20T23:57:55.291084+00:00",
   "current_stage_id": "step5d_contact_six_qp_v1",
   "current_step": "Step5d",
   "program": "step5d_contact_six_qp_v1",
@@ -15,9 +15,9 @@
     ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
     ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
   },
-  "status": "fresh_controller_readback_verified_pending_liveprep_admission",
-  "liveprep_status": "blocked",
-  "liveprep_readiness_path": "runs/contact-yield-live/readiness.json",
+  "status": "fresh_controller_readback_verified_awaiting_live_authorization",
+  "liveprep_status": "awaiting_live_authorization",
+  "liveprep_readiness_path": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260921.json",
   "reproduction_status": "incomplete",
   "standing_task_authority": {
     "source": "User: \u53eflive\u4e86, 2026-09-20",
@@ -28,7 +28,7 @@
   "bridge_trigger": {
     "bridge_has_started": false,
     "currently_running": false,
-    "blocked_reason": "prewarmed physical contact repeated the 4ms host interval rejection; full-loop timing repair pending; stopped after successful Home withdrawal"
+    "blocked_reason": "fresh TASE machine-admission readiness verified; standing live authority remains separate; contact qualification pending"
   },
   "bridge_profile": {
     "runtime_protocol": 618001,
@@ -94,7 +94,13 @@
         ".txt": "c25b0199f5cb34bedad492122b11b4332f237140b779b8aa5162207a6844ab3e",
         ".urp": "71a5ee4eecc45b425ee286dc02f7fc02d26009e6c6a9a855553d8b3e93ce77b3"
       }
-    }
+    },
+    "liveprep_readiness": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260921.json",
+    "liveprep_readiness_schema": "ur10e_liveprep_readiness_v2",
+    "fresh_liveprep_refresh": "runs/tase-liveprep-refresh-20260920T234325Z",
+    "fresh_no_contact_baseline": "runs/tase-liveprep-refresh-20260920T234325Z/software_baseline_receipt.json",
+    "fresh_resident_check": "runs/tase-liveprep-refresh-20260920T234325Z/supervisor-result.json",
+    "contact_qualification_current": false
   },
   "notes": [
     "Selection fixes the old RNN/native route mismatch only. No Load, Play, ARM or motion performed by this change.",

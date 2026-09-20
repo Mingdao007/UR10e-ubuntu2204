@@ -1,0 +1,124 @@
+{
+  "blockers": [],
+  "bridge_has_started": false,
+  "claims": {
+    "live_run_accepted": false,
+    "package_accepted": true,
+    "reproduction_complete": false
+  },
+  "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T063352+0800.json",
+  "controller_readback_manifest_sha256": "da91a1b50ca776ed80bc985a99a7806c9d852f2ca08da7377d1666bad00b901c",
+  "controller_readback_verified": true,
+  "evidence": {
+    "baseline_no_contact": true,
+    "contact_six_status": "runs/tase-liveprep-refresh-20260920T234325Z/contact-six-status.json",
+    "current_provider_sha256": "226c482893e716a3eb16a11aa5a67ed33c418707d27b3d428ee87069ad5b87a2",
+    "current_recovery_sha256": "52e6eabc5cc3b8f86da0da91f013422668e32563e0ac0d45c0206243dca7f1d2",
+    "fresh_no_contact_baseline": "runs/tase-liveprep-refresh-20260920T234325Z/software_baseline_receipt.json",
+    "fresh_resident_check": "runs/tase-liveprep-refresh-20260920T234325Z/supervisor-result.json",
+    "physical_qualification_current": false,
+    "prior_tase_qualification_receipts": [
+      "runs/tase-figure8-full-20260921T0646/qualification-1.json",
+      "runs/tase-figure8-full-20260921T0646/qualification-2.json",
+      "runs/tase-figure8-full-20260921T0646/qualification-3.json"
+    ]
+  },
+  "gates": {
+    "binding": {
+      "ok": true,
+      "readback_triplet": {
+        "script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
+        "txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
+        "urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+      },
+      "scope": "resident identity and current package binding",
+      "source": "runs/tase-liveprep-refresh-20260920T234325Z/supervisor-result.json",
+      "wire_identity": [
+        606006,
+        20,
+        618001
+      ]
+    },
+    "cage": {
+      "ok": true,
+      "path_constraint": "native_task_basis",
+      "raw_force_guard_n": 20.0,
+      "raw_torque_guard_nm": 2.0,
+      "source": "config/yield_live_entry_v1.json"
+    },
+    "calibration": {
+      "calibrated_model": {
+        "calibration_hash": "calib_7367377276742883610",
+        "frames": {
+          "base": 5,
+          "flange": 21,
+          "tool0": 23
+        },
+        "nq": 6,
+        "nv": 6,
+        "ok": true,
+        "xacro_source": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro"
+      },
+      "ok": true,
+      "source": "runs/tase-liveprep-refresh-20260920T234325Z/contact-six-status.json"
+    },
+    "dls": {
+      "diagnostic_only": true,
+      "ok": true,
+      "runtime_fallback_allowed": false,
+      "source": "runs/tase-liveprep-refresh-20260920T234325Z/contact-six-status.json"
+    },
+    "package_readback": {
+      "observed_at_s": 1789947806.3530324,
+      "ok": true,
+      "scope": "fresh GET and byte validation of contact/Home triplets",
+      "source": "runs/tase-liveprep-refresh-20260920T234325Z/readback-results.json"
+    },
+    "review": {
+      "ok": true,
+      "scope": "recovery policy, TASE provider, and live entry endpoint checks",
+      "source_commit": "61d243c9",
+      "tests": "37 focused tests passed"
+    },
+    "timing": {
+      "claim_scope": "prior physical TASE qualification timing evidence; current contact qualification remains false",
+      "current_refresh": "runs/tase-liveprep-refresh-20260920T234325Z/supervisor-result.json",
+      "current_refresh_is_resident_only": true,
+      "maximum_fresh_gap_s": 0.008275323998532258,
+      "method": "TASE_RNN_MATURE",
+      "minimum_rate_hz": 499.66560512023125,
+      "ok": true,
+      "qualification_runs": 3,
+      "required_maximum_fresh_gap_s": 0.02,
+      "required_minimum_rate_hz": 460.0,
+      "source": "runs/tase-figure8-full-20260921T0646"
+    },
+    "tool_speed": {
+      "ok": true,
+      "path_period_s": 62.83185307179586,
+      "qdot_cap_rad_s": 0.05,
+      "search_speed_m_s": 0.0002,
+      "source": "config/yield_live_entry_v1.json"
+    }
+  },
+  "generated_at": "2026-09-20T23:57:44.203400+00:00",
+  "live_motion_authorized": false,
+  "package_hashes_match": true,
+  "package_sha256": {
+    ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
+    ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
+    ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+  },
+  "profile": "step5d_contact_six_qp_v1",
+  "program": "step5d_contact_six_qp_v1",
+  "ready_for_explicit_live_authorization": true,
+  "safety_boundary": [
+    "readiness is machine/package admission only",
+    "resident check did not ARM, send input packets, or command motion",
+    "this artifact does not start the bridge or press TP Play",
+    "live contact still requires the separate standing user authorization and the runner gates",
+    "any commandable fault invokes monitored Home before BLOCKED"
+  ],
+  "schema_version": "ur10e_liveprep_readiness_v2",
+  "workflow_state": "awaiting_live_authorization"
+}
