@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused tests for the intentionally narrow Review v3 policy."""
+"""Focused tests for the fail-closed Astra High Review v3 policy."""
 
 from __future__ import annotations
 
@@ -14,13 +14,14 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from step5d_review_v3 import canonical_composite, resolve  # noqa: E402
 from run_step5d_review_v3 import (  # noqa: E402
-    fable_limit_returned,
-    fable_preflight,
+    ASTRA_EFFORT,
+    ASTRA_MODEL,
+    ASTRA_PROVIDER,
     reserve_full_review,
     run_lane,
 )
+from step5d_review_v3 import canonical_composite, resolve  # noqa: E402
 
 
 BINDING = {
@@ -32,44 +33,48 @@ BINDING = {
     "effective_operator_config": "6" * 64,
 }
 FINGERPRINT = canonical_composite(BINDING)
-WORK_ITEM_ID = "step5d-v30-contact-20260714"
+WORK_ITEM_ID = "step5d-v30-contact-20260920"
 
 
-def lane(provider: str, status: str = "pass") -> dict:
-    payload = {
+def lane(status: str = "pass", *, provider: str = ASTRA_PROVIDER,
+         actual_provider: str = ASTRA_PROVIDER, model: str = ASTRA_MODEL,
+         actual_model: str = ASTRA_MODEL, effort: str = ASTRA_EFFORT,
+         actual_effort: str = ASTRA_EFFORT) -> dict:
+    return {
         "provider": provider,
-        "requested_model": "gpt-5.6-sol" if provider == "codex" else "claude-fable-5",
-        "actual_model": "gpt-5.6-sol" if provider == "codex" else "claude-fable-5",
-        "effort": "xhigh" if provider == "codex" else "high",
-        "requested_effort": "xhigh" if provider == "codex" else "high",
-        "actual_effort": "xhigh" if provider == "codex" else "high",
+        "actual_provider": actual_provider,
+        "requested_model": model,
+        "actual_model": actual_model,
+        "effort": actual_effort,
+        "requested_effort": effort,
+        "actual_effort": actual_effort,
         "reviewed_composite_fingerprint": FINGERPRINT,
         "reviewed_binding_sha256": "b" * 64,
         "runtime_evidence_sha256": "7" * 64,
-        "started_at": "2026-07-14T00:00:00Z",
-        "ended_at": "2026-07-14T00:00:01Z",
+        "started_at": "2026-09-20T00:00:00Z",
+        "ended_at": "2026-09-20T00:00:01Z",
         "status": status,
         "findings": [],
-        "exact_model_verified": status == "pass",
+        "exact_model_verified": status == "pass" and provider == ASTRA_PROVIDER
+        and actual_provider == ASTRA_PROVIDER and model == ASTRA_MODEL
+        and actual_model == ASTRA_MODEL and effort == ASTRA_EFFORT
+        and actual_effort == ASTRA_EFFORT,
     }
-    if provider == "fable5":
-        if status != "pass":
-            payload["degraded_transcript"] = {
-                "path": "runs/fable.txt", "sha256": "8" * 64, "status": status,
-            }
-    return payload
 
 
 def index() -> dict:
     return {
         "full_review_count_by_composite_fingerprint": {FINGERPRINT: 1},
         "full_review_count_by_work_item_id": {WORK_ITEM_ID: 1},
-        "review_records": [{"review_mode": "full", "work_item_id": WORK_ITEM_ID,
-                            "composite_fingerprint": FINGERPRINT}],
+        "review_records": [{
+            "review_mode": "full",
+            "work_item_id": WORK_ITEM_ID,
+            "composite_fingerprint": FINGERPRINT,
+        }],
     }
 
 
-def manifest(fable_status: str = "pass") -> dict:
+def manifest(*, control_status: str = "pass", physical_status: str = "pass") -> dict:
     return {
         "schema_version": "ur10e_review_manifest_v3",
         "review_mode": "full",
@@ -77,67 +82,138 @@ def manifest(fable_status: str = "pass") -> dict:
         "composite_fingerprint": FINGERPRINT,
         "composite_binding": BINDING,
         "binding_document_sha256": "b" * 64,
+        "formal_review": {
+            "provider": ASTRA_PROVIDER,
+            "model": ASTRA_MODEL,
+            "effort": ASTRA_EFFORT,
+            "read_only": True,
+            "fail_closed": True,
+        },
         "lanes": {
-            "control_timing_claim": lane("codex"),
-            "physical_operator_safety": lane("fable5", fable_status),
+            "control_timing_claim": lane(control_status),
+            "physical_operator_safety": lane(physical_status),
         },
     }
 
 
+def gate() -> dict:
+    return {
+        "evidence_frozen": True,
+        "work_item_id": WORK_ITEM_ID,
+        "composite_fingerprint": FINGERPRINT,
+    }
+
+
 class Step5dReviewPolicyV3Test(unittest.TestCase):
-    def test_runner_rejects_unverified_codex_and_degrades_unverified_fable(self) -> None:
-        command = [sys.executable, "-c", "print('{}')"]
-        with tempfile.TemporaryDirectory() as directory:
-            codex = run_lane("control_timing_claim", command, Path(directory) / "c.txt", "gpt-5.6-sol", "xhigh", FINGERPRINT, "b" * 64)
-            fable = run_lane("physical_operator_safety", command, Path(directory) / "f.txt", "claude-fable-5", "high", FINGERPRINT, "b" * 64)
-        self.assertEqual(codex["status"], "fail")
-        self.assertFalse(codex["exact_model_verified"])
-        self.assertEqual(fable["status"], "model_unverified")
-        self.assertEqual(fable["degraded_transcript"]["status"], "model_unverified")
-
-    def test_fable_quota_result_is_skipped_without_wait_or_retry(self) -> None:
-        self.assertTrue(fable_limit_returned("session limit reached; reset tomorrow"))
-        command = [sys.executable, "-c", "import sys; print('quota limit reached'); sys.exit(1)"]
-        with tempfile.TemporaryDirectory() as directory:
-            lane_result = run_lane(
-                "physical_operator_safety", command, Path(directory) / "f.txt",
-                "claude-fable-5", "high", FINGERPRINT, "b" * 64,
-            )
-        self.assertEqual(lane_result["status"], "skipped_unavailable")
-
-    def test_successful_fable_transcript_mentioning_rate_limit_is_not_skipped(self) -> None:
-        command = [sys.executable, "-c", "print('finding discusses an RTDE rate limit')"]
-        with tempfile.TemporaryDirectory() as directory:
-            lane_result = run_lane(
-                "physical_operator_safety", command, Path(directory) / "f.txt",
-                "claude-fable-5", "high", FINGERPRINT, "b" * 64,
-            )
-        self.assertEqual(lane_result["status"], "model_unverified")
-
-    def test_failed_review_finding_that_mentions_rate_limit_is_not_quota(self) -> None:
+    def test_runner_requires_exact_astra_provenance_for_each_role(self) -> None:
         command = [
-            sys.executable, "-c",
-            "import sys; print('finding: RTDE rate limit contract is wrong'); sys.exit(1)",
+            sys.executable,
+            "-c",
+            (
+                "import json; print(json.dumps({"
+                "'provider':'hp-astra','actual_provider':'hp-astra',"
+                "'actual_model':'gpt-6-astra','actual_effort':'high',"
+                "'reviewed_composite_fingerprint':__import__('os').environ['UR10E_REVIEW_COMPOSITE_FINGERPRINT'],"
+                "'reviewed_binding_sha256':__import__('os').environ['UR10E_REVIEW_BINDING_SHA256'],"
+                "'findings':[]}))"
+            ),
         ]
         with tempfile.TemporaryDirectory() as directory:
-            lane_result = run_lane(
-                "physical_operator_safety", command, Path(directory) / "f.txt",
-                "claude-fable-5", "high", FINGERPRINT, "b" * 64,
+            result = run_lane(
+                "control_timing_claim", command, Path(directory) / "c.txt",
+                ASTRA_PROVIDER, ASTRA_MODEL, ASTRA_EFFORT, FINGERPRINT, "b" * 64,
             )
-        self.assertEqual(lane_result["status"], "unavailable_error")
+        self.assertEqual(result["status"], "pass")
+        self.assertTrue(result["exact_model_verified"])
+        self.assertEqual(result["actual_provider"], ASTRA_PROVIDER)
 
-    def test_runner_and_preflight_never_pass_a_subprocess_timeout(self) -> None:
-        completed = type("Completed", (), {"stdout": "{}\n", "stderr": "", "returncode": 0})()
+        with tempfile.TemporaryDirectory() as directory:
+            unverified = run_lane(
+                "physical_operator_safety", [sys.executable, "-c", "print('{}')"],
+                Path(directory) / "p.txt", ASTRA_PROVIDER, ASTRA_MODEL,
+                ASTRA_EFFORT, FINGERPRINT, "b" * 64,
+            )
+        self.assertEqual(unverified["status"], "model_unverified")
+        self.assertFalse(unverified["exact_model_verified"])
+
+    def test_nonzero_astra_lane_is_unavailable_and_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            unavailable = run_lane(
+                "physical_operator_safety",
+                [sys.executable, "-c", "import sys; sys.exit(7)"],
+                Path(directory) / "p.txt", ASTRA_PROVIDER, ASTRA_MODEL,
+                ASTRA_EFFORT, FINGERPRINT, "b" * 64,
+            )
+        self.assertEqual(unavailable["status"], "unavailable_error")
+        candidate = manifest()
+        candidate["lanes"]["physical_operator_safety"] = unavailable
+        result = resolve(
+            workflow="v30", milestone="contact_pre_live", gate=gate(),
+            manifest=candidate, index=index(),
+        )
+        self.assertFalse(result["accepted"])
+        self.assertIn("physical_operator_safety_not_passed", result["blockers"])
+        self.assertEqual(result["effective_stack"], "1+1")
+        self.assertFalse(result["degraded_review"])
+
+    def test_resolver_accepts_two_exact_astra_high_lanes(self) -> None:
+        result = resolve(
+            workflow="v30", milestone="contact_pre_live", gate=gate(),
+            manifest=manifest(), index=index(),
+        )
+        self.assertTrue(result["accepted"], result["blockers"])
+        self.assertEqual(result["effective_stack"], "1+1")
+        self.assertFalse(result["degraded_review"])
+
+    def test_provider_model_or_effort_mismatch_blocks(self) -> None:
+        cases = [
+            ("provider", {"provider": "other"}, "control_timing_claim_not_passed"),
+            ("model", {"actual_model": "other"}, "control_timing_claim_not_passed"),
+            ("effort", {"actual_effort": "xhigh"}, "control_timing_claim_not_passed"),
+        ]
+        for label, updates, blocker in cases:
+            with self.subTest(label=label):
+                candidate = manifest()
+                candidate["lanes"]["control_timing_claim"].update(updates)
+                result = resolve(
+                    workflow="v30", milestone="contact_pre_live", gate=gate(),
+                    manifest=candidate, index=index(),
+                )
+                self.assertFalse(result["accepted"])
+                self.assertIn(blocker, result["blockers"])
+
+    def test_missing_or_extra_lane_fails_closed(self) -> None:
+        missing = manifest()
+        missing["lanes"].pop("physical_operator_safety")
+        result = resolve(
+            workflow="v30", milestone="contact_pre_live", gate=gate(),
+            manifest=missing, index=index(),
+        )
+        self.assertFalse(result["accepted"])
+        self.assertIn("review_v3_lane_set_invalid", result["blockers"])
+
+        extra = manifest()
+        extra["lanes"]["retired_lane"] = lane()
+        result = resolve(
+            workflow="v30", milestone="contact_pre_live", gate=gate(),
+            manifest=extra, index=index(),
+        )
+        self.assertFalse(result["accepted"])
+        self.assertIn("review_v3_lane_set_invalid", result["blockers"])
+
+    def test_runner_and_lanes_have_no_wall_clock_timeout(self) -> None:
+        completed = type("Completed", (), {
+            "stdout": "{}\n", "stderr": "", "returncode": 0,
+        })()
         with tempfile.TemporaryDirectory() as directory, patch(
             "run_step5d_review_v3.subprocess.run", return_value=completed
         ) as mocked:
             run_lane(
-                "control_timing_claim", ["codex"], Path(directory) / "c.txt",
-                "gpt-5.6-sol", "xhigh", FINGERPRINT, "b" * 64,
+                "control_timing_claim", ["astra"], Path(directory) / "c.txt",
+                ASTRA_PROVIDER, ASTRA_MODEL, ASTRA_EFFORT, FINGERPRINT, "b" * 64,
             )
-            fable_preflight(["claude"], ["claude", "probe"])
-        self.assertEqual(mocked.call_count, 2)
-        self.assertTrue(all("timeout" not in call.kwargs for call in mocked.call_args_list))
+        self.assertEqual(mocked.call_count, 1)
+        self.assertNotIn("timeout", mocked.call_args.kwargs)
 
     def test_work_item_can_have_only_one_full_review_across_fingerprints(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -160,11 +236,9 @@ class Step5dReviewPolicyV3Test(unittest.TestCase):
         result = resolve(
             workflow="v30", milestone="contact_pre_live",
             gate={
-                "evidence_frozen": True,
-                "work_item_id": WORK_ITEM_ID,
+                **gate(),
                 "composite_fingerprint": repaired,
                 "manifest_sha256": "9" * 64,
-                "decision_digest": "d" * 64,
                 "decision_digest": "d" * 64,
                 "deterministic_finding_closure": {
                     "no_reviewer_invoked": True,
@@ -189,14 +263,12 @@ class Step5dReviewPolicyV3Test(unittest.TestCase):
         candidate = manifest()
         candidate["review_mode"] = "targeted_closer"
         result = resolve(
-            workflow="v30", milestone="contact_pre_live",
-            gate={"evidence_frozen": True, "work_item_id": WORK_ITEM_ID,
-                  "composite_fingerprint": FINGERPRINT},
+            workflow="v30", milestone="contact_pre_live", gate=gate(),
             manifest=candidate, index=index(),
         )
         self.assertIn("review_mode_must_be_single_full_review", result["blockers"])
 
-    def test_ordinary_direction_p0_postrun_package_and_push_are_zero_plus_zero(self) -> None:
+    def test_ordinary_routes_remain_zero_plus_zero(self) -> None:
         routes = [
             ("ordinary", "development"),
             ("ordinary", "handoff"),
@@ -214,104 +286,55 @@ class Step5dReviewPolicyV3Test(unittest.TestCase):
                 self.assertEqual(result["effective_stack"], "0+0")
                 self.assertFalse(result["review_invocation_required"])
 
-    def test_contact_pre_live_accepts_one_plus_one(self) -> None:
-        result = resolve(
-            workflow="v30",
-            milestone="contact_pre_live",
-            gate={"evidence_frozen": True, "work_item_id": WORK_ITEM_ID,
-                  "composite_fingerprint": FINGERPRINT},
-            manifest=manifest(),
-            index=index(),
-        )
-        self.assertTrue(result["accepted"])
-        self.assertEqual(result["effective_stack"], "1+1")
-        self.assertFalse(result["degraded_review"])
-
-    def test_explicit_fable_limit_degrades_to_valid_one_plus_zero(self) -> None:
-        result = resolve(
-            workflow="v30",
-            milestone="contact_pre_live",
-            gate={"evidence_frozen": True, "work_item_id": WORK_ITEM_ID,
-                  "composite_fingerprint": FINGERPRINT},
-            manifest=manifest("skipped_unavailable"),
-            index=index(),
-        )
-        self.assertTrue(result["accepted"])
-        self.assertTrue(result["degraded_review"])
-        self.assertEqual(result["effective_stack"], "1+0")
-
-    def test_authentication_or_other_non_limit_fable_failure_does_not_degrade(self) -> None:
-        result = resolve(
-            workflow="v30",
-            milestone="contact_pre_live",
-            gate={"evidence_frozen": True, "work_item_id": WORK_ITEM_ID,
-                  "composite_fingerprint": FINGERPRINT},
-            manifest=manifest("unavailable_not_logged_in"),
-            index=index(),
-        )
-        self.assertFalse(result["accepted"])
-        self.assertFalse(result["degraded_review"])
-        self.assertIn("fable5_lane_neither_passed_nor_degradable", result["blockers"])
-
-    def test_codex_lane_never_degrades_and_p1_blocks(self) -> None:
-        candidate = manifest("timeout")
-        candidate["lanes"]["control_timing_claim"]["status"] = "timeout"
-        candidate["lanes"]["control_timing_claim"]["findings"] = [
-            {"severity": "P1", "status": "open", "summary": "fixture"}
-        ]
-        result = resolve(
-            workflow="v29",
-            milestone="contact_pre_live",
-            gate={"evidence_frozen": True, "work_item_id": WORK_ITEM_ID,
-                  "composite_fingerprint": FINGERPRINT},
-            manifest=candidate,
-            index=index(),
-        )
-        self.assertFalse(result["accepted"])
-        self.assertIn("codex_control_timing_claim_not_passed", result["blockers"])
-        self.assertIn("open_p0_or_p1_finding", result["blockers"])
-
-    def test_review_lanes_have_no_wall_clock_timeout(self) -> None:
+    def test_policy_has_only_astra_high_and_no_degraded_route(self) -> None:
         policy = json.loads(
             (ROOT / "config/step5d_review_policy_v3.json").read_text(encoding="utf-8")
         )
         execution = policy["execution"]
-        self.assertIs(execution["review_lanes_have_wall_clock_timeout"], False)
-        self.assertNotIn("fable5_preflight_timeout_seconds", execution)
-        self.assertNotIn("review_lane_timeout_seconds", execution)
-        self.assertNotIn("total_gate_timeout_seconds", execution)
+        self.assertEqual(execution["formal_review_provider"], ASTRA_PROVIDER)
+        self.assertEqual(execution["formal_review_model"], ASTRA_MODEL)
+        self.assertEqual(execution["formal_review_effort"], ASTRA_EFFORT)
+        self.assertTrue(execution["formal_review_provenance_required"])
+        self.assertEqual(
+            execution["formal_review_provenance_fields"],
+            ["provider", "model", "effort", "runtime"],
+        )
+        self.assertTrue(execution["formal_review_fail_closed"])
+        self.assertNotIn("degraded_effective_stack", execution)
+        for lane_config in policy["lanes"].values():
+            self.assertEqual(lane_config, {
+                "provider": ASTRA_PROVIDER,
+                "model": ASTRA_MODEL,
+                "effort": ASTRA_EFFORT,
+                "required": True,
+            })
 
     def test_adversarial_manifest_contracts_fail_closed(self) -> None:
         cases = []
         count_zero = index()
         count_zero["full_review_count_by_composite_fingerprint"][FINGERPRINT] = 0
         cases.append((manifest(), count_zero, "full_review_count_must_equal_one"))
-        fake_degraded = manifest("skipped_unavailable")
-        fake_degraded["lanes"]["physical_operator_safety"].pop("degraded_transcript")
-        cases.append((fake_degraded, index(), "fable_degraded_transcript_missing_or_invalid"))
         missing_model = manifest()
         missing_model["lanes"]["control_timing_claim"].pop("actual_model")
-        cases.append((missing_model, index(), "codex_lane_runtime_contract_invalid"))
+        cases.append((missing_model, index(), "control_timing_claim_runtime_contract_invalid"))
         mismatch = manifest()
         mismatch["composite_binding"] = {**BINDING, "package_triplet": "9" * 64}
         cases.append((mismatch, index(), "review_v3_composite_not_recomputed_from_binding"))
         for candidate, review_index, blocker in cases:
             with self.subTest(blocker=blocker):
                 result = resolve(
-                    workflow="v30", milestone="contact_pre_live",
-                    gate={"evidence_frozen": True, "work_item_id": WORK_ITEM_ID,
-                          "composite_fingerprint": FINGERPRINT},
+                    workflow="v30", milestone="contact_pre_live", gate=gate(),
                     manifest=candidate, index=review_index,
                 )
                 self.assertFalse(result["accepted"])
                 self.assertIn(blocker, result["blockers"])
 
     def test_non_hex_fingerprint_is_rejected(self) -> None:
+        candidate = manifest()
         result = resolve(
             workflow="v30", milestone="contact_pre_live",
-            gate={"evidence_frozen": True, "work_item_id": WORK_ITEM_ID,
-                  "composite_fingerprint": "z" * 64},
-            manifest=manifest(), index=index(),
+            gate={**gate(), "composite_fingerprint": "z" * 64},
+            manifest=candidate, index=index(),
         )
         self.assertIn("composite_fingerprint_invalid", result["blockers"])
 

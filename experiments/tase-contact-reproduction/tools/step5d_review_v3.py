@@ -17,10 +17,11 @@ DEFAULT_INDEX = ROOT / "config/step5d_review_index_v3.json"
 BLOCKING_SEVERITIES = {"P0", "P1"}
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 LANE_REQUIRED = {
-    "requested_model", "actual_model", "effort", "runtime_evidence_sha256",
+    "provider", "actual_provider", "requested_model", "actual_model", "effort", "runtime_evidence_sha256",
     "started_at", "ended_at", "status", "findings", "requested_effort",
-    "actual_effort",
+    "actual_effort", "exact_model_verified",
 }
+ACTIVE_LANES = ("control_timing_claim", "physical_operator_safety")
 
 
 def load(path: Path) -> dict[str, Any]:
@@ -64,12 +65,15 @@ def lane_contract_valid(lane: Any) -> bool:
     return bool(isinstance(lane, dict) and LANE_REQUIRED.issubset(lane)
                 and SHA256_RE.fullmatch(str(lane.get("runtime_evidence_sha256") or ""))
                 and isinstance(lane.get("findings"), list)
+                and lane.get("exact_model_verified") is True
+                and lane.get("provider") and lane.get("actual_provider")
                 and lane.get("requested_model") and lane.get("actual_model")
                 and lane.get("effort") and lane.get("started_at") and lane.get("ended_at"))
 
 
 def exact_lane_valid(lane: dict[str, Any], provider: str, model: str, effort: str) -> bool:
     return bool(lane.get("provider") == provider
+                and lane.get("actual_provider") == provider
                 and lane.get("requested_model") == model
                 and lane.get("actual_model") == model
                 and lane.get("requested_effort") == effort
@@ -181,40 +185,30 @@ def resolve(
         result["blockers"].append("full_review_index_record_must_equal_one")
 
     lanes = manifest.get("lanes") or {}
-    codex = lanes.get("control_timing_claim") or {}
-    fable = lanes.get("physical_operator_safety") or {}
+    if set(lanes) != set(ACTIVE_LANES):
+        result["blockers"].append("review_v3_lane_set_invalid")
+    control_timing = lanes.get("control_timing_claim") or {}
+    physical_safety = lanes.get("physical_operator_safety") or {}
     for lane_name, lane in lanes.items():
-        degraded_fable = (lane_name == "physical_operator_safety"
-                          and lane.get("status") in set(policy["execution"]["fable5_degraded_statuses"]))
         if (isinstance(lane, dict)
-                and not degraded_fable
                 and (lane.get("reviewed_composite_fingerprint") != reviewed_composite
                      or lane.get("reviewed_binding_sha256") != manifest.get("binding_document_sha256"))):
             result["blockers"].append(f"{lane_name}_review_input_not_bound")
-    if not lane_contract_valid(codex):
-        result["blockers"].append("codex_lane_runtime_contract_invalid")
-    if not lane_contract_valid(fable):
-        result["blockers"].append("fable_lane_runtime_contract_invalid")
-    codex_effort = str(policy["lanes"]["control_timing_claim"]["effort"])
-    fable_effort = str(policy["lanes"]["physical_operator_safety"]["effort"])
-    if review_mode == "full" and (not exact_lane_valid(codex, "codex", "gpt-5.6-sol", codex_effort)
-                                  or codex.get("status") != "pass"):
-        result["blockers"].append("codex_control_timing_claim_not_passed")
-    fable_status = str(fable.get("status") or "missing")
-    if fable_status == "pass" and exact_lane_valid(fable, "fable5", "claude-fable-5", fable_effort):
-        result["effective_stack"] = "1+1"
-    elif fable_status in set(policy["execution"]["fable5_degraded_statuses"]):
-        transcript = fable.get("degraded_transcript")
-        if (isinstance(transcript, dict)
-                and SHA256_RE.fullmatch(str(transcript.get("sha256") or ""))
-                and transcript.get("path") and transcript.get("status") == fable_status):
-            result["effective_stack"] = "1+0"
-            result["degraded_review"] = True
-            result["degraded_reason"] = fable_status
-        else:
-            result["blockers"].append("fable_degraded_transcript_missing_or_invalid")
-    else:
-        result["blockers"].append("fable5_lane_neither_passed_nor_degradable")
+    provider = str(policy["execution"]["formal_review_provider"])
+    model = str(policy["execution"]["formal_review_model"])
+    effort = str(policy["execution"]["formal_review_effort"])
+    for lane_name, lane in (
+        ("control_timing_claim", control_timing),
+        ("physical_operator_safety", physical_safety),
+    ):
+        if not lane_contract_valid(lane):
+            result["blockers"].append(f"{lane_name}_runtime_contract_invalid")
+        if review_mode == "full" and (
+            not exact_lane_valid(lane, provider, model, effort)
+            or lane.get("status") != "pass"
+        ):
+            result["blockers"].append(f"{lane_name}_not_passed")
+    result["effective_stack"] = "1+1"
     blocking = open_blocking_findings(manifest)
     finding_ids = {str(row.get("id") or "") for row in blocking}
     closure = gate.get("deterministic_finding_closure")
@@ -229,7 +223,7 @@ def resolve(
     result["blocking_findings"] = [] if closure_valid else blocking
     result["deterministic_finding_closure_accepted"] = closure_valid
     result["blockers"] = sorted(set(result["blockers"]))
-    result["accepted"] = not result["blockers"] and result["effective_stack"] in {"1+1", "1+0"}
+    result["accepted"] = not result["blockers"] and result["effective_stack"] == "1+1"
     result["status"] = "accepted" if result["accepted"] else "blocked"
     return result
 

@@ -8,11 +8,13 @@
     "finding_fix_closure": "deterministic_owner_validation_no_reviewer",
     "lanes_run_in_parallel": true,
     "review_lanes_have_wall_clock_timeout": false,
-    "fable5_degraded_statuses": [
-      "skipped_unavailable"
-    ],
-    "degraded_effective_stack": "1+0",
-    "codex_lane_may_degrade": false
+    "formal_review_provider": "hp-astra",
+    "formal_review_model": "gpt-6-astra",
+    "formal_review_effort": "high",
+    "formal_review_provenance_required": true,
+    "formal_review_provenance_fields": ["provider", "model", "effort", "runtime"],
+    "formal_review_fail_closed": true,
+    "reviewer_output_authority": "read_only_evidence_only"
   },
   "severity": {
     "P0": {"blocks": true, "closure": "deterministic_owner_validation_required"},
@@ -58,8 +60,8 @@
     }
   },
   "lanes": {
-    "control_timing_claim": {"provider": "codex", "model": "gpt-5.6-sol", "effort": "xhigh", "required": true},
-    "physical_operator_safety": {"provider": "fable5", "model": "claude-fable-5", "effort": "high", "required": true}
+    "control_timing_claim": {"provider": "hp-astra", "model": "gpt-6-astra", "effort": "high", "required": true},
+    "physical_operator_safety": {"provider": "hp-astra", "model": "gpt-6-astra", "effort": "high", "required": true}
   },
   "authorization_boundary": {
     "deterministic_live_gates_never_degrade": true,

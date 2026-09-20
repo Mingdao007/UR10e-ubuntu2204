@@ -111,15 +111,13 @@ class CrossStepParameterTableTest(unittest.TestCase):
         self.assertTrue(current["controller_readback_verified_for_selected_triplet"])
         self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
         self.assertFalse(row["current_binding"]["live_authorized"])
-        self.assertTrue(current["readiness"]["deployment_ready"])
-        self.assertFalse(current["readiness"]["bridge_start_ready"])
-        self.assertIn(
-            "selected_tp_program_known_incompatible_do_not_retry",
-            current["readiness"]["blockers"],
-        )
-        self.assertFalse(current["readiness"]["bridge_process_ready"])
-        self.assertFalse(current["readiness"]["motion_arm_ready"])
-        self.assertFalse(current["readiness"]["campaign_ready"])
+        self.assertTrue(current["local_candidate"]["controller_readback_verified"])
+        self.assertFalse(current["bridge_trigger"]["bridge_has_started"])
+        self.assertTrue(current["strict_rnn_status"]["blocked"])
+        self.assertIn("remain separate readiness gates", current["strict_rnn_status"]["reason"])
+        self.assertFalse(current["v30_candidate"]["current"])
+        self.assertFalse(current["v30_candidate"]["claim_boundary"]["live_accepted"])
+        self.assertFalse(current["v30_candidate"]["claim_boundary"]["reproduction_complete"])
         self.assertFalse(v1["active"])
         self.assertFalse(v1["bridge"])
         self.assertFalse(v1["current_binding"]["is_current"])
@@ -250,7 +248,7 @@ class CrossStepParameterTableTest(unittest.TestCase):
 
         self.assertIn(
             "v30 current promotion requires P0 v8, manifest-bound readback, ready "
-            "timing/safe-hold, and accepted Review v3 1+1 or valid degraded 1+0",
+            "timing/safe-hold, and accepted Review v3 1+1",
             failures,
         )
 

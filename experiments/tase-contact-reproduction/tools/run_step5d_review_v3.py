@@ -8,8 +8,6 @@ import fcntl
 import hashlib
 import json
 import os
-import re
-import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -19,32 +17,10 @@ from typing import Any
 from step5d_review_v3 import canonical_composite
 
 
-FABLE_LIMIT_RE = re.compile(
-    r"(?:rate_limit_error|quota (?:exceeded|limit reached)|"
-    r"session[ -]?limit reached|usage[ -]?limit reached|"
-    r"you(?:'ve| have) (?:hit|reached) (?:your )?(?:usage |session )?limit)",
-    re.IGNORECASE,
-)
-
-
-def fable_limit_returned(text: str) -> bool:
-    """Recognize structured or provider-explicit Fable limit errors only."""
-    structured_seen = False
-    for line in reversed(text.splitlines()):
-        try:
-            payload = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(payload, dict):
-            continue
-        structured_seen = True
-        if payload.get("api_error_status") == 429:
-            return True
-        if payload.get("is_error") is True and FABLE_LIMIT_RE.search(
-            json.dumps(payload, sort_keys=True)
-        ):
-            return True
-    return False if structured_seen else FABLE_LIMIT_RE.search(text) is not None
+ASTRA_PROVIDER = "hp-astra"
+ASTRA_MODEL = "gpt-6-astra"
+ASTRA_EFFORT = "high"
+ACTIVE_LANES = ("control_timing_claim", "physical_operator_safety")
 
 
 def now() -> str:
@@ -55,9 +31,20 @@ def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _last_json_object(transcript: str) -> dict[str, Any]:
+    for line in reversed(transcript.splitlines()):
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return {}
+
+
 def run_lane(name: str, command: list[str], output: Path,
-             requested_model: str, requested_effort: str, composite: str,
-             binding_sha256: str) -> dict[str, Any]:
+             requested_provider: str, requested_model: str, requested_effort: str,
+             composite: str, binding_sha256: str) -> dict[str, Any]:
     started = now()
     env = os.environ.copy()
     env.update({"UR10E_REVIEW_COMPOSITE_FINGERPRINT": composite,
@@ -65,26 +52,22 @@ def run_lane(name: str, command: list[str], output: Path,
     completed = subprocess.run(command, text=True, capture_output=True,
                                check=False, env=env)
     transcript = completed.stdout + completed.stderr
-    if (name == "physical_operator_safety" and completed.returncode != 0
-            and fable_limit_returned(transcript)):
-        status = "skipped_unavailable"
-    else:
-        status = "pass" if completed.returncode == 0 else "unavailable_error" if name == "physical_operator_safety" else "fail"
+    status = "pass" if completed.returncode == 0 else "unavailable_error"
     output.write_text(transcript, encoding="utf-8")
-    metadata: dict[str, Any] = {}
-    try:
-        metadata = json.loads(transcript.splitlines()[-1])
-    except (json.JSONDecodeError, IndexError):
-        pass
+    metadata = _last_json_object(transcript)
+    actual_provider = metadata.get("actual_provider", metadata.get("provider", "unverified"))
+    actual_model = metadata.get("actual_model", "unverified")
     actual_effort = metadata.get("actual_effort", "unverified")
     input_verified = (metadata.get("reviewed_composite_fingerprint") == composite
                       and metadata.get("reviewed_binding_sha256") == binding_sha256)
-    exact_model_verified = (metadata.get("actual_model") == requested_model
-                            and actual_effort == requested_effort and input_verified)
+    exact_model_verified = (actual_provider == requested_provider
+                            and actual_model == requested_model
+                            and actual_effort == requested_effort
+                            and input_verified)
     if status == "pass" and not exact_model_verified:
-        status = "model_unverified" if name == "physical_operator_safety" else "fail"
-    lane = {"provider": "codex" if name == "control_timing_claim" else "fable5",
-            "requested_model": requested_model, "actual_model": metadata.get("actual_model", "unverified"),
+        status = "model_unverified"
+    lane = {"provider": requested_provider, "actual_provider": actual_provider,
+            "requested_model": requested_model, "actual_model": actual_model,
             "requested_effort": requested_effort, "actual_effort": actual_effort,
             "effort": actual_effort, "runtime_evidence_sha256": sha(output), "started_at": started,
             "ended_at": now(), "status": status, "findings": metadata.get("findings", []),
@@ -92,26 +75,7 @@ def run_lane(name: str, command: list[str], output: Path,
             "runtime_evidence_path": str(output)}
     lane["reviewed_composite_fingerprint"] = metadata.get("reviewed_composite_fingerprint")
     lane["reviewed_binding_sha256"] = metadata.get("reviewed_binding_sha256")
-    if name == "physical_operator_safety":
-        if status != "pass":
-            lane["degraded_transcript"] = {"path": str(output), "sha256": sha(output), "status": status}
     return lane
-
-
-def fable_preflight(command: list[str], explicit: list[str] | None) -> dict[str, Any]:
-    """Probe Fable availability without imposing a wall-clock timeout."""
-    started = now()
-    if explicit:
-        completed = subprocess.run(explicit, text=True, capture_output=True, check=False)
-        detail = (completed.stdout + completed.stderr)[-4000:]
-        if completed.returncode != 0 and fable_limit_returned(detail):
-            status = "skipped_unavailable"
-        else:
-            status = "available" if completed.returncode == 0 else "unavailable_error"
-    else:
-        status = "available" if shutil.which(command[0]) else "unavailable_error"
-        detail = f"executable={command[0]}"
-    return {"status": status, "started_at": started, "ended_at": now(), "detail": detail}
 
 
 def reserve_full_review(index_path: Path, composite: str, work_item_id: str) -> None:
@@ -157,9 +121,8 @@ def main() -> int:
     parser.add_argument("--binding", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--index", type=Path, required=True)
-    parser.add_argument("--codex-command", nargs="+", required=True)
-    parser.add_argument("--fable-command", nargs="+", required=True)
-    parser.add_argument("--fable-preflight-command", nargs="+")
+    parser.add_argument("--control-timing-command", nargs="+", required=True)
+    parser.add_argument("--physical-operator-safety-command", nargs="+", required=True)
     parser.add_argument("--lane-policy", type=Path)
     parser.add_argument("--work-item-id", required=True)
     args = parser.parse_args()
@@ -171,47 +134,37 @@ def main() -> int:
         parser.error("--work-item-id must be nonempty")
     reserve_full_review(args.index, composite, work_item_id)
     args.output_dir.mkdir(parents=True, exist_ok=False)
-    preflight = fable_preflight(args.fable_command, args.fable_preflight_command)
     lane_policy = json.loads(args.lane_policy.read_text())["lanes"] if args.lane_policy else {
-        "control_timing_claim": {"model": "gpt-5.6-sol", "effort": "xhigh"},
-        "physical_operator_safety": {"model": "claude-fable-5", "effort": "high"},
+        "control_timing_claim": {"provider": ASTRA_PROVIDER, "model": ASTRA_MODEL, "effort": ASTRA_EFFORT},
+        "physical_operator_safety": {"provider": ASTRA_PROVIDER, "model": ASTRA_MODEL, "effort": ASTRA_EFFORT},
     }
+    for lane_name in ACTIVE_LANES:
+        spec = lane_policy.get(lane_name) or {}
+        if (
+            spec.get("provider") != ASTRA_PROVIDER
+            or spec.get("model") != ASTRA_MODEL
+            or spec.get("effort") != ASTRA_EFFORT
+        ):
+            raise SystemExit(f"{lane_name} must use hp-astra/gpt-6-astra/high")
     specs = {
         "control_timing_claim": (
-            args.codex_command,
-            lane_policy["control_timing_claim"]["model"],
-            lane_policy["control_timing_claim"]["effort"],
+            args.control_timing_command,
+            lane_policy["control_timing_claim"],
         ),
         "physical_operator_safety": (
-            args.fable_command,
-            lane_policy["physical_operator_safety"]["model"],
-            lane_policy["physical_operator_safety"]["effort"],
+            args.physical_operator_safety_command,
+            lane_policy["physical_operator_safety"],
         ),
     }
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures = {
             name: pool.submit(
                 run_lane, name, command, args.output_dir / f"{name}.transcript.txt",
-                model, effort, composite, binding_sha256,
+                spec["provider"], spec["model"], spec["effort"], composite, binding_sha256,
             )
-            for name, (command, model, effort) in specs.items()
-            if name != "physical_operator_safety" or preflight["status"] == "available"
+            for name, (command, spec) in specs.items()
         }
         lanes = {name: future.result() for name, future in futures.items()}
-    if "physical_operator_safety" not in lanes:
-        transcript = args.output_dir / "physical_operator_safety.transcript.txt"
-        transcript.write_text(preflight["detail"] + "\n", encoding="utf-8")
-        lanes["physical_operator_safety"] = {
-            "provider": "fable5", "requested_model": "claude-fable-5",
-            "actual_model": "unverified", "effort": "unverified",
-            "requested_effort": "high", "actual_effort": "unverified",
-            "runtime_evidence_sha256": sha(transcript),
-            "runtime_evidence_path": str(transcript),
-            "started_at": preflight["started_at"], "ended_at": preflight["ended_at"],
-            "status": preflight["status"], "findings": [], "exact_model_verified": False,
-            "degraded_transcript": {"path": str(transcript), "sha256": sha(transcript),
-                                    "status": preflight["status"]},
-        }
     blocking_findings = [
         (lane_name, finding) for lane_name, lane in lanes.items()
         for finding in lane.get("findings", []) if isinstance(finding, dict)
@@ -224,7 +177,15 @@ def main() -> int:
     manifest = {"schema_version": "ur10e_review_manifest_v3", "review_mode": "full",
                 "work_item_id": work_item_id,
                 "review_lanes_have_wall_clock_timeout": False,
-                "fable5_preflight": preflight,
+                "formal_review": {
+                    "provider": ASTRA_PROVIDER,
+                    "model": ASTRA_MODEL,
+                    "effort": ASTRA_EFFORT,
+                    "provenance_required": True,
+                    "provenance_fields": ["provider", "model", "effort", "runtime"],
+                    "read_only": True,
+                    "fail_closed": True,
+                },
                 "binding_document_sha256": binding_sha256,
                 "composite_binding": binding, "composite_fingerprint": composite,
                 "created_at": now(), "lanes": lanes}

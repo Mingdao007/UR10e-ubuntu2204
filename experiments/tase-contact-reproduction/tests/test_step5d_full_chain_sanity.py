@@ -11,6 +11,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -103,17 +104,20 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             ]
         )
         self.assertEqual(args.step4e_version, "step5d_strict_rnn_reproduction_v1")
-        with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
-            bridge.main(
-                [
-                    "--no-start-command",
-                    "--skip-dashboard-preflight",
-                    "--step4e-mode",
-                    "line",
-                    "--step4e-version",
-                    "step5d_strict_rnn_reproduction_v1",
-                ]
-            )
+        with patch.object(bridge, "require_host_runtime", return_value=None), patch.object(
+            bridge, "require_runtime_profile", return_value=None
+        ), patch.object(bridge, "require_executable_step5d_profile", return_value=None):
+            with self.assertRaisesRegex(SystemExit, "Blocked Step5d reproduction"):
+                bridge.main(
+                    [
+                        "--no-start-command",
+                        "--skip-dashboard-preflight",
+                        "--step4e-mode",
+                        "line",
+                        "--step4e-version",
+                        "step5d_strict_rnn_reproduction_v1",
+                    ]
+                )
 
     def test_step5d_ablation_package_is_non_quarantine_multimode_executor(self) -> None:
         stamp = "2026-07-03T0100HKT_STEP5D_STRICT_RNN_ABLATION_V25"
@@ -546,97 +550,11 @@ class Step5dFullChainSanityTest(unittest.TestCase):
 
     def test_step5d_operator_points_to_current_controller_package(self) -> None:
         operator = (ROOT / "scripts" / "step5d-liveprep-operator.sh").read_text(encoding="utf-8")
-        base = (ROOT / "scripts" / "step4e-line-v1-operator.sh").read_text(encoding="utf-8")
-        bridge_operator = (ROOT / "scripts" / "bridge-line-operator.sh").read_text(encoding="utf-8")
-        self.assertIn("current_step5d_version()", operator)
-        self.assertIn('STEP5D_VERSION="${STEP5D_VERSION:-$(current_step5d_version)}"', operator)
-        self.assertIn('BRIDGE_OPERATOR="${SCRIPT_DIR}/bridge-line-operator.sh"', operator)
-        self.assertIn('READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"', operator)
-        self.assertIn('RUNTIME_INTERFACE="${ROOT}/tools/step5d_runtime_interface.py"', operator)
-        self.assertIn('Bridge profile: ${STEP5D_VERSION}', operator)
-        self.assertIn('STEP5D_CONFIRM', operator)
-        self.assertIn('require_current_stage_readback_gate', operator)
-        self.assertIn('python3 "${READBACK_GATE}" --root "${ROOT}" --program "${STEP5D_VERSION}"', operator)
-        self.assertIn('Force target defaults to 12.0 N', operator)
-        self.assertIn('v24 default preload gate is filtered 7.5-14 N', operator)
-        self.assertIn('raw-sanity 7-15 N', operator)
-        self.assertIn('WAIT_FOR_PLAY_S="${WAIT_FOR_PLAY_S:-20}"', operator)
-        self.assertIn('AUTOWATCH_WAIT_FOR_PLAY_S="${AUTOWATCH_WAIT_FOR_PLAY_S:-20}"', operator)
-        self.assertIn('current v24/v25/v26 defaults to 25/25 N', operator)
-        self.assertIn('v27/v28/v29 defaults to Step5b envelope 50/60 N with torque guard 3.0 Nm', operator)
-        self.assertIn('v27/v28/v29 default preload tube is filtered 5-22 N', operator)
-        self.assertIn('STEP5D_DEFAULT_MAX_NORMAL_FORCE_N="${STEP5D_DEFAULT_MAX_NORMAL_FORCE_N:-25}"', operator)
-        self.assertIn('STEP5D_DEFAULT_MAX_FORCE_NORM_N="${STEP5D_DEFAULT_MAX_FORCE_NORM_N:-25}"', operator)
-        self.assertIn('tase_protocol_table.py" operator-env step5d-liveprep', operator)
-        self.assertIn('STEP5D_DEFAULT_MAX_NORMAL_FORCE_N="${STEP5D_DEFAULT_MAX_NORMAL_FORCE_N:-${TASE_STEP5D_MAX_NORMAL_FORCE_N}}"', operator)
-        self.assertIn('STEP5D_DEFAULT_MAX_FORCE_NORM_N="${STEP5D_DEFAULT_MAX_FORCE_NORM_N:-${TASE_STEP5D_MAX_FORCE_NORM_N}}"', operator)
-        self.assertIn('STEP5D_DEFAULT_MAX_TORQUE_NORM_NM="${STEP5D_DEFAULT_MAX_TORQUE_NORM_NM:-${TASE_STEP5D_MAX_TORQUE_NORM_NM}}"', operator)
-        self.assertIn('STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-10.5}"', operator)
-        self.assertIn('STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-7.0}"', operator)
-        self.assertIn('STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-18.0}"', operator)
-        self.assertIn('STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-5.0}"', operator)
-        self.assertIn('STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-20.0}"', operator)
-        self.assertIn('STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N:-${TASE_STEP5D_PRELOAD_FILTERED_MIN_N}}"', operator)
-        self.assertIn('STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N="${STEP5D_DEFAULT_PRELOAD_FILTERED_MAX_N:-${TASE_STEP5D_PRELOAD_FILTERED_MAX_N}}"', operator)
-        self.assertIn('STEP5D_DEFAULT_PRELOAD_RAW_MIN_N="${STEP5D_DEFAULT_PRELOAD_RAW_MIN_N:-${TASE_STEP5D_PRELOAD_RAW_MIN_N}}"', operator)
-        self.assertIn('STEP5D_DEFAULT_PRELOAD_RAW_MAX_N="${STEP5D_DEFAULT_PRELOAD_RAW_MAX_N:-${TASE_STEP5D_PRELOAD_RAW_MAX_N}}"', operator)
-        self.assertIn('elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v26" ]]', operator)
-        self.assertIn(
-            'elif [[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v27" || "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v28" ]]',
-            operator,
-        )
-        self.assertIn('STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-${TASE_STEP5D_STAGE25_CONTROL_MODE_DEFAULT}}"', operator)
-        self.assertIn('STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-0.150}"', operator)
-        self.assertIn('STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S="${STEP5D_DEFAULT_ANGULAR_LIMIT_RAD_S:-${TASE_STEP5D_ANGULAR_LIMIT_RAD_S}}"', operator)
-        self.assertIn('BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.150}"', bridge_operator)
-        self.assertIn('BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"', bridge_operator)
-        self.assertIn('STEP4E_ANGULAR_LIMIT_RAD_S="${STEP4E_ANGULAR_LIMIT_RAD_S:-0.150}"', base)
-        self.assertIn('STEP4E_ANGULAR_LIMIT_RAD_S="${STEP4E_ANGULAR_LIMIT_RAD_S:-0.015}"', base)
-        self.assertIn(
-            'MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-${STEP5D_MAX_NORMAL_FORCE_N:-${STEP5D_DEFAULT_MAX_NORMAL_FORCE_N}}}"',
-            operator,
-        )
-        self.assertIn(
-            'MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-${STEP5D_MAX_FORCE_NORM_N:-${STEP5D_DEFAULT_MAX_FORCE_NORM_N}}}"',
-            operator,
-        )
-        self.assertIn(
-            'MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-${STEP5D_MAX_TORQUE_NORM_NM:-${STEP5D_DEFAULT_MAX_TORQUE_NORM_NM}}}"',
-            operator,
-        )
-        self.assertNotIn('MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-${STEP5D_MAX_NORMAL_FORCE_N:-100}}"', operator)
-        self.assertIn('BRIDGE_PROFILE="${STEP5D_VERSION}"', operator)
-        self.assertIn('"${BRIDGE_OPERATOR}" line-bridge-fast', operator)
-        self.assertNotIn('STEP4E_VERSION="${STEP5D_VERSION}"', operator)
-        self.assertIn('--bridge-profile "${BRIDGE_PROFILE}"', bridge_operator)
-        self.assertIn('--bridge-mode "${BRIDGE_MODE}"', bridge_operator)
-        self.assertIn(
-            'Type START_BRIDGE_${CONFIRM_TOKEN}_${BRIDGE_PROFILE_CONFIRM_TOKEN} to continue:',
-            bridge_operator,
-        )
-        self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
-        self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"', base)
-        self.assertIn('"step5d_strict_rnn_liveprep_v10" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11"', base)
-        self.assertIn('"step5d_strict_rnn_liveprep_v12" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v13" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v14" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v15a" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v16" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v17" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v18" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v19" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v20"', base)
-        self.assertIn("current_step5d_profile()", bridge_operator)
-        self.assertIn("refusing Step5d alias: current_stage does not name", bridge_operator)
-        self.assertIn("refusing Step5d alias: current_stage does not name", base)
-        self.assertNotIn('BRIDGE_PROFILE="${BRIDGE_PROFILE:-step5d_strict_rnn_liveprep_v21}"', bridge_operator)
-        self.assertNotIn('STEP4E_VERSION="${STEP4E_VERSION:-step5d_strict_rnn_liveprep_v20}"', base)
-        self.assertIn('--step5d-stage25-control-mode "${STEP5D_STAGE25_CONTROL_MODE:-${STEP5D_STAGE25_CONTROL_MODE_DEFAULT}}"', bridge_operator)
-        self.assertIn('--step5d-preload-filtered-min-n "${STEP5D_PRELOAD_FILTERED_MIN_N:-${STEP5D_DEFAULT_PRELOAD_FILTERED_MIN_N}}"', bridge_operator)
-        self.assertIn("Step5d v26 tube ablation diagnostic", bridge_operator)
-        self.assertIn("Step5d v26 tube ablation diagnostic", base)
-        self.assertIn("7-18N filtered preload with 5-20N raw sanity", bridge_operator)
-        self.assertIn("default speedl_cartesian_oracle", bridge_operator)
-        self.assertIn("step5d_live_ready", bridge_operator)
-        bridge_source = (ROOT / "tools" / "kunwei_rtde_bridge.py").read_text(encoding="utf-8")
-        self.assertIn('v18_v20_locked_normal_settle', bridge_source)
-        self.assertIn('v20_low_load_active_reacquire', bridge_source)
-        self.assertIn('step5d_contact_safety["action"] == "active_reacquire_solver"', bridge_source)
-        self.assertNotIn('if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v9" ]]; then\n  PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
-        self.assertIn('EXPECTED_BASENAME="${PROGRAM_LINE##*/}"', base)
-        self.assertIn('RUN_LABEL="${EXPECTED_BASENAME%.urp}"', base)
+        self.assertIn("duplicate Step5d liveprep entrypoint is retired", operator)
+        self.assertIn("step5d-autotune-v3.sh status --json", operator)
+        self.assertIn("step5d-autotune-v3.sh bridge-live", operator)
+        self.assertIn("exit 64", operator)
+        self.assertNotIn("current_step5d_version()", operator)
 
     def test_step5d_v8_live_limiter_pid_and_contact_window_gate(self) -> None:
         limited, active = bridge.limit_step5d_live_xdot(

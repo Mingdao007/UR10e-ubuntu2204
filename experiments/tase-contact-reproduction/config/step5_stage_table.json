@@ -10979,6 +10979,7 @@
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r022.urp",
         "current_stage_pointer": "config/current_stage.json",
         "is_current": true,
+        "live_authorized": false,
         "program": "step5d_strict_rnn_autotune_v3",
         "stage_id": "step5d_strict_rnn_autotune_v3"
       },

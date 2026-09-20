@@ -346,17 +346,31 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
     if (
         execution_v3.get("review_lanes_have_wall_clock_timeout") is not False
         or any(key in execution_v3 for key in (
-            "fable5_preflight_timeout_seconds", "review_lane_timeout_seconds",
-            "total_gate_timeout_seconds",
+            "review_lane_timeout_seconds", "total_gate_timeout_seconds",
         ))
+        or execution_v3.get("formal_review_provider") != "hp-astra"
+        or execution_v3.get("formal_review_model") != "gpt-6-astra"
+        or execution_v3.get("formal_review_effort") != "high"
+        or execution_v3.get("formal_review_provenance_required") is not True
+        or execution_v3.get("formal_review_provenance_fields")
+        != ["provider", "model", "effort", "runtime"]
+        or execution_v3.get("formal_review_fail_closed") is not True
+        or execution_v3.get("reviewer_output_authority") != "read_only_evidence_only"
     ):
-        failures.append("Review v3 lanes must not have wall-clock timeouts")
+        failures.append("Review v3 must use fail-closed Astra High read-only lanes without wall-clock timeouts")
     lanes_v3 = review_v3_policy.get("lanes") or {}
-    if (
-        (lanes_v3.get("control_timing_claim") or {}).get("effort") != "xhigh"
-        or (lanes_v3.get("physical_operator_safety") or {}).get("effort") != "high"
-    ):
-        failures.append("Review v3 lane effort contract must be Sol xhigh + Fable high")
+    expected_v3_lane_names = {"control_timing_claim", "physical_operator_safety"}
+    if set(lanes_v3) != expected_v3_lane_names:
+        failures.append("Review v3 lane set must contain exactly the two active Astra roles")
+    for lane_name in sorted(expected_v3_lane_names):
+        lane = lanes_v3.get(lane_name) or {}
+        if (
+            lane.get("provider") != "hp-astra"
+            or lane.get("model") != "gpt-6-astra"
+            or lane.get("effort") != "high"
+            or lane.get("required") is not True
+        ):
+            failures.append(f"Review v3 {lane_name} must use hp-astra/gpt-6-astra/high")
     current_stage_id = current.get("current_stage_id")
     current_program = current.get("program")
     current_local_triplet = current.get("local_triplet")
@@ -1576,7 +1590,10 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 if (
                     readiness_review.get(path_field) != relative
                     or not source_path.is_file()
-                    or readiness_review.get(sha_field) != expected_sha
+                    or (
+                        (v30_is_current or (promotion.get("current_promotion_allowed") is True))
+                        and readiness_review.get(sha_field) != expected_sha
+                    )
                 ):
                     failures.append(f"v30 readiness Review v3 {label} hash binding mismatch")
             history_roles = {
@@ -1627,7 +1644,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 and readiness_review.get("accepted") is True
                 and readiness_review.get("composite_fingerprint")
                 == review.get("composite_fingerprint")
-                and readiness_review.get("effective_stack") in {"1+1", "1+0"}
+                and readiness_review.get("effective_stack") == "1+1"
             )
             if review.get("status") == "accepted":
                 count = int(
@@ -1649,7 +1666,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                 ):
                     failures.append(
                         "v30 current promotion requires P0 v8, manifest-bound "
-                        "readback, ready timing/safe-hold, and accepted Review v3 1+1 or valid degraded 1+0"
+                        "readback, ready timing/safe-hold, and accepted Review v3 1+1"
                     )
             if v30_is_current and promotion.get("current_promotion_allowed") is not True:
                 failures.append("current v30 must have current_promotion_allowed=true")
