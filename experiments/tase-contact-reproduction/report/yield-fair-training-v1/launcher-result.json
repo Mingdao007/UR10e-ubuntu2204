@@ -1,0 +1,44 @@
+{
+  "claim_scope": "prospective DEVELOPMENT-model comparison; no real precise-contact, safety, or physical qualification claim",
+  "formal_campaign_complete": false,
+  "frozen": null,
+  "holdout_implemented": false,
+  "inflight": null,
+  "methods": {
+    "DSFC": {
+      "completed_trials": 48,
+      "failed_trials": 0,
+      "next": {
+        "complete": true
+      },
+      "stopped_before_ei": false,
+      "used_units": 24
+    },
+    "MSFC": {
+      "completed_trials": 48,
+      "failed_trials": 0,
+      "next": {
+        "complete": true
+      },
+      "stopped_before_ei": false,
+      "used_units": 24
+    },
+    "SFC": {
+      "completed_trials": 16,
+      "failed_trials": 0,
+      "next": {
+        "condition": "nominal",
+        "new_unit": true,
+        "stopped_before_ei": true,
+        "unit_index": 8
+      },
+      "stopped_before_ei": true,
+      "used_units": 8
+    }
+  },
+  "output_root": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1",
+  "schema": "ur10e.yield-fair-campaign-state-v1",
+  "selection_contract_id": "yield-fair-selection-contract-v1",
+  "training_cell_id": "stiff_low_mu",
+  "campaign_outcome": "initial feasibility stop; no full-budget freeze or superiority claim"
+}

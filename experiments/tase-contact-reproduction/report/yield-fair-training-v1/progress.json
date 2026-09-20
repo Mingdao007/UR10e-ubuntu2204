@@ -1,9 +1,7 @@
 {
-  "observed_utc": "2026-09-20T04:28:23.873225+00:00",
+  "observed_utc": "2026-09-20T05:56:03.729205+00:00",
   "source": "transactionally consistent read-only SQLite snapshot",
-  "inflight": [
-    "DSFC-07-nominal"
-  ],
+  "inflight": [],
   "methods": {
     "SFC": {
       "registered_units": 8,
@@ -286,9 +284,9 @@
       ]
     },
     "DSFC": {
-      "registered_units": 8,
-      "completed_pairs": 7,
-      "feasible_pairs": 3,
+      "registered_units": 24,
+      "completed_pairs": 24,
+      "feasible_pairs": 9,
       "failed_pairs": 0,
       "pairs": [
         {
@@ -531,17 +529,588 @@
         },
         {
           "unit": 7,
-          "terminal": false,
+          "terminal": true,
           "members": {
-            "nominal": "running"
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 171.21693169131214,
+          "objective_components": {
+            "J": 171.21693169131214,
+            "Jatt": 26.88401913193938,
+            "Jload": 82.34152711028389,
+            "Jpath": 61.991385449088874
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": false
+          }
+        },
+        {
+          "unit": 8,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 80.57101094611647,
+          "objective_components": {
+            "J": 80.57101094611647,
+            "Jatt": 26.428067087547277,
+            "Jload": 46.39520598620803,
+            "Jpath": 7.747737872361156
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 9,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 492.62095554593424,
+          "objective_components": {
+            "J": 492.62095554593424,
+            "Jatt": 176.02687701323924,
+            "Jload": 153.1627552966821,
+            "Jpath": 163.4313232360129
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 10,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 80.12036898900607,
+          "objective_components": {
+            "J": 80.12036898900607,
+            "Jatt": 25.534709239191628,
+            "Jload": 46.3087915261665,
+            "Jpath": 8.276868223647934
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 11,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 80.24937074028855,
+          "objective_components": {
+            "J": 80.24937074028855,
+            "Jatt": 23.855339892952003,
+            "Jload": 46.36965546663663,
+            "Jpath": 10.02437538069993
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 12,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 564.8624749183757,
+          "objective_components": {
+            "J": 564.8624749183757,
+            "Jatt": 198.98472901567337,
+            "Jload": 177.369793199854,
+            "Jpath": 188.5079527028483
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": false,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 13,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 82.09925660763554,
+          "objective_components": {
+            "J": 82.09925660763554,
+            "Jatt": 26.096834994672808,
+            "Jload": 46.15594024582092,
+            "Jpath": 9.846481367141815
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 14,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 81.67817669553123,
+          "objective_components": {
+            "J": 81.67817669553123,
+            "Jatt": 26.871419775586915,
+            "Jload": 46.51623167804819,
+            "Jpath": 8.290525241896129
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 15,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 393.1074442747016,
+          "objective_components": {
+            "J": 393.1074442747016,
+            "Jatt": 83.04987000670374,
+            "Jload": 241.02661525055595,
+            "Jpath": 69.03095901744187
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": false,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": false
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": false,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 16,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 471.0400471124922,
+          "objective_components": {
+            "J": 471.0400471124922,
+            "Jatt": 169.05276424877763,
+            "Jload": 146.2762192655404,
+            "Jpath": 155.71106359817418
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": false,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 17,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": true,
+          "objective": 80.03170784805042,
+          "objective_components": {
+            "J": 80.03170784805042,
+            "Jatt": 24.405161375306914,
+            "Jload": 47.10198595372425,
+            "Jpath": 8.524560519019255
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": false,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 18,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 57.60913785942497,
+          "objective_components": {
+            "J": 57.60913785942497,
+            "Jatt": 9.00688928738684,
+            "Jload": 45.80388367809361,
+            "Jpath": 2.7983648939445134
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": false
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": false,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 19,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 98.01484187757788,
+          "objective_components": {
+            "J": 98.01484187757788,
+            "Jatt": 32.98161822971482,
+            "Jload": 47.87117856248074,
+            "Jpath": 17.162045085382307
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 20,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 80.57101094611647,
+          "objective_components": {
+            "J": 80.57101094611647,
+            "Jatt": 26.428067087547277,
+            "Jload": 46.39520598620803,
+            "Jpath": 7.747737872361156
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 21,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 80.57101094611647,
+          "objective_components": {
+            "J": 80.57101094611647,
+            "Jatt": 26.428067087547277,
+            "Jload": 46.39520598620803,
+            "Jpath": 7.747737872361156
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 22,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 80.57101094611647,
+          "objective_components": {
+            "J": 80.57101094611647,
+            "Jatt": 26.428067087547277,
+            "Jload": 46.39520598620803,
+            "Jpath": 7.747737872361156
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 23,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 80.57101094611647,
+          "objective_components": {
+            "J": 80.57101094611647,
+            "Jatt": 26.428067087547277,
+            "Jload": 46.39520598620803,
+            "Jpath": 7.747737872361156
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
           }
         }
       ]
     },
     "MSFC": {
-      "registered_units": 7,
-      "completed_pairs": 7,
-      "feasible_pairs": 3,
+      "registered_units": 24,
+      "completed_pairs": 24,
+      "feasible_pairs": 11,
       "failed_pairs": 0,
       "pairs": [
         {
@@ -773,6 +1342,584 @@
             "no_failure": true,
             "path_rms_ok": true,
             "progress_ok": false
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 7,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 173.52830815034625,
+          "objective_components": {
+            "J": 173.52830815034625,
+            "Jatt": 26.157438272967177,
+            "Jload": 86.26114430651327,
+            "Jpath": 61.1097255708658
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": false
+          }
+        },
+        {
+          "unit": 8,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 80.63685412807027,
+          "objective_components": {
+            "J": 80.63685412807027,
+            "Jatt": 26.49172142287127,
+            "Jload": 46.38052980031234,
+            "Jpath": 7.764602904886662
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 9,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 491.9802166167749,
+          "objective_components": {
+            "J": 491.9802166167749,
+            "Jatt": 176.54315286976535,
+            "Jload": 151.26946976071446,
+            "Jpath": 164.16759398629506
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": false,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 10,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 85.06916529045233,
+          "objective_components": {
+            "J": 85.06916529045233,
+            "Jatt": 29.00850525290018,
+            "Jload": 46.97586110214202,
+            "Jpath": 9.084798935410127
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 11,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 86.76344643939082,
+          "objective_components": {
+            "J": 86.76344643939082,
+            "Jatt": 27.047009374352715,
+            "Jload": 46.24745735036643,
+            "Jpath": 13.46897971467168
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 12,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 475.5308126517949,
+          "objective_components": {
+            "J": 475.5308126517949,
+            "Jatt": 171.232021954464,
+            "Jload": 146.72719921799543,
+            "Jpath": 157.57159147933544
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": false,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 13,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 81.78408322324438,
+          "objective_components": {
+            "J": 81.78408322324438,
+            "Jatt": 26.94591741950153,
+            "Jload": 46.51220856632911,
+            "Jpath": 8.325957237413744
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 14,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 371.4293579035631,
+          "objective_components": {
+            "J": 371.4293579035631,
+            "Jatt": 94.32513867316153,
+            "Jload": 204.60568084269923,
+            "Jpath": 72.49853838770233
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": false,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 15,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 343.01991180581956,
+          "objective_components": {
+            "J": 343.01991180581956,
+            "Jatt": 85.25280907932812,
+            "Jload": 199.05220812570093,
+            "Jpath": 58.7148946007905
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": false,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 16,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 79.37854714651027,
+          "objective_components": {
+            "J": 79.37854714651027,
+            "Jatt": 25.128867281773108,
+            "Jload": 46.2332509510382,
+            "Jpath": 8.016428913698958
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 17,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 80.17166767600254,
+          "objective_components": {
+            "J": 80.17166767600254,
+            "Jatt": 25.627761748491697,
+            "Jload": 45.985976636809625,
+            "Jpath": 8.557929290701228
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 18,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 507.21557334816583,
+          "objective_components": {
+            "J": 507.21557334816583,
+            "Jatt": 170.2585992512657,
+            "Jload": 176.34339776154488,
+            "Jpath": 160.61357633535522
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": false,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 19,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": false,
+          "nominal_feasible": false,
+          "objective": 540.2573455057541,
+          "objective_components": {
+            "J": 540.2573455057541,
+            "Jatt": 185.3845604088607,
+            "Jload": 179.5957838551236,
+            "Jpath": 175.2770012417698
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": false,
+            "full_cycle": true,
+            "load_mae_ok": false,
+            "load_min_ok": true,
+            "load_peak_ok": false,
+            "no_failure": true,
+            "path_rms_ok": false,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": false,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 20,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 80.17166767600254,
+          "objective_components": {
+            "J": 80.17166767600254,
+            "Jatt": 25.627761748491697,
+            "Jload": 45.985976636809625,
+            "Jpath": 8.557929290701228
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 21,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 80.17166767600254,
+          "objective_components": {
+            "J": 80.17166767600254,
+            "Jatt": 25.627761748491697,
+            "Jload": 45.985976636809625,
+            "Jpath": 8.557929290701228
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 22,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 80.17166767600254,
+          "objective_components": {
+            "J": 80.17166767600254,
+            "Jatt": 25.627761748491697,
+            "Jload": 45.985976636809625,
+            "Jpath": 8.557929290701228
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        },
+        {
+          "unit": 23,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 80.17166767600254,
+          "objective_components": {
+            "J": 80.17166767600254,
+            "Jatt": 25.627761748491697,
+            "Jload": 45.985976636809625,
+            "Jpath": 8.557929290701228
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
           },
           "disturbed_checks": {
             "full_cycle": true,
