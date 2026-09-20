@@ -52,6 +52,64 @@ class YieldLiveError(RuntimeError):
     """Yield live entry failed closed."""
 
 
+def _blocked_home_recovery(*, run_dir: Path, reason: str) -> dict[str, Any]:
+    """Describe a Home attempt that could not be safely dispatched.
+
+    A fault remains a failed attempt even when the recovery owner is blocked.
+    Keeping this shape in the live-entry receipt makes the old revoke-only
+    outcome impossible to mistake for an automatic Home result.
+    """
+    return {
+        "success": False,
+        "motion": False,
+        "state": "BLOCKED",
+        "source_attempt": str(Path(run_dir)),
+        "trial_stays_failed": True,
+        "recovery_policy": "AUTO_HOME_WHEN_COMMANDABLE",
+        "home_required": True,
+        "home_attempted": False,
+        "home_blocked": True,
+        "home_blocked_reason": str(reason),
+    }
+
+
+def automatic_home_after_fault(
+    *, run_dir: Path, controller_host: str | None, video_url: str
+) -> dict[str, Any]:
+    """Use the existing monitored recovery owner after a physical fault.
+
+    The in-TP bounded Home is attempted first by the generated contact
+    package. This host-side route is the second line for a protective stop,
+    an RTDE/TP fault, or a failed STOP acknowledgement. It is deliberately
+    one-shot: a recovered Home never retries the failed task.
+    """
+    if not controller_host:
+        return _blocked_home_recovery(
+            run_dir=run_dir,
+            reason="controller host is unavailable for monitored Home recovery",
+        )
+    try:
+        from run_contact_recovery import recover_failed_contact_run
+    except BaseException as exc:
+        return _blocked_home_recovery(
+            run_dir=run_dir,
+            reason=f"Home recovery owner import failed: {type(exc).__name__}: {exc}",
+        )
+    try:
+        result = recover_failed_contact_run(Path(run_dir), controller_host, video_url)
+    except BaseException as exc:
+        return _blocked_home_recovery(
+            run_dir=run_dir,
+            reason=f"Home recovery dispatch failed: {type(exc).__name__}: {exc}",
+        )
+    if not isinstance(result, dict):
+        return _blocked_home_recovery(
+            run_dir=run_dir,
+            reason=f"Home recovery owner returned {type(result).__name__}, not a receipt",
+        )
+    return result
+
+
 def remaining_machine_gates() -> list[str]:
     return list(REMAINING_AFTER_ENTRY)
 
@@ -104,6 +162,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     qualify.add_argument("--attempt-id", default="r006-yield-live-qualify")
     qualify.add_argument("--authority-root", type=Path)
     qualify.add_argument("--control-cpu", type=int)
+    qualify.add_argument("--video-url", default="rtsp://127.0.0.1:8554/arm")
     pilot = sub.add_parser("pilot", help="Open, ARM, PATH 2s/10s/full, stop/Home")
     pilot.add_argument("--method", required=True)
     pilot.add_argument("--duration", required=True)
@@ -116,6 +175,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     pilot.add_argument("--attempt-id", default="r006-yield-live-pilot")
     pilot.add_argument("--authority-root", type=Path)
     pilot.add_argument("--control-cpu", type=int)
+    pilot.add_argument("--video-url", default="rtsp://127.0.0.1:8554/arm")
     stop = sub.add_parser("stop", help="Stop the in-process mature writer")
     stop.add_argument("--run-dir", type=Path)
     return parser.parse_args(argv)
@@ -191,6 +251,7 @@ def run_live(
         raise YieldLiveError("run directory already contains an attempt receipt")
     if controller_transport is None and getattr(args, "control_cpu", None) is None:
         raise YieldLiveError("hardware execution requires the selected --control-cpu")
+    video_url = getattr(args, "video_url", "rtsp://127.0.0.1:8554/arm")
     contract = load_identity_contract()
     clock = time_clock(now_s)
     prerequisites, home_binding = load_run_dir_receipts(
@@ -254,6 +315,8 @@ def run_live(
         "opened": False,
         "armed": False,
         "executed": False,
+        "automatic_home_policy": "AUTO_HOME_WHEN_COMMANDABLE",
+        "video_url": video_url,
     }
     owner_path = None
     old_handlers = {}
@@ -344,6 +407,27 @@ def run_live(
                 close()
             except Exception as exc:
                 errors.append(f"{label}: {exc}")
+        if owner_path is not None:
+            # The mature writer is gone; do not let a second stop request
+            # signal this process while the monitored Home owner is running.
+            owner["active"] = False
+            owner_path.write_text(json.dumps(owner))
+        # Once the original writer is closed, give the monitored Home owner
+        # priority over evidence serialization. This is the first host-side
+        # action after a physical fault; it never retries the failed attempt.
+        physical_fault = bool(receipt.get("error")) or bool(errors) or not receipt.get("stop", {}).get("stopped")
+        if physical_fault and controller_transport is None:
+            recovery = automatic_home_after_fault(
+                run_dir=Path(args.run_dir),
+                controller_host=args.controller_host,
+                video_url=video_url,
+            )
+            receipt["automatic_home_recovery"] = recovery
+            if recovery.get("success") is not True:
+                errors.append(
+                    "automatic_home: "
+                    + str(recovery.get("home_blocked_reason") or recovery.get("error") or recovery.get("state"))
+                )
         from dataclasses import asdict, is_dataclass
         def encode(value):
             if is_dataclass(value):

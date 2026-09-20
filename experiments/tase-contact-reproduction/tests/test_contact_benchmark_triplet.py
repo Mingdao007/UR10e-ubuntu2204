@@ -55,16 +55,22 @@ def test_generated_stop_branch_consumes_retained_command_once():
     # This checks retained register semantics, not UR runtime qualification.
     subset=textwrap.dedent('\n'.join(line for line in script[start:end].splitlines()
                                     if line.strip()!='end'))
-    stops=[]
+    stops=[]; homes=[]
     state=dict(session_command=3,session_sequence=1,consumed_session_sequence=0,
-               state=78,input_epoch=1,stopl=stops.append)
+               state=78,input_epoch=1,stopl=stops.append,
+               locked_home_q_valid=False,locked_home_q=[0.]*6,
+               get_actual_joint_positions=lambda:[0.]*6,
+               fixed_home_pose=[0.]*6,current_ordinal=1,current_token=1,
+               current_kind=1,runtime_revision=20,runtime_extension=618001,
+               codex_r006_attempt_guard=0,codex_r006_attempt_reason=0,
+               codex_r006_recover_home_after_fault=lambda *args: homes.append(args) or True)
     for _ in range(5):exec(subset,state)
-    assert stops==[.25]
+    assert stops==[.25] and len(homes)==1
     assert state['consumed_session_sequence']==1
     assert state['state']==90 and state['reason']==4
     state['session_sequence']=2
     exec(subset,state)
-    assert stops==[.25] and state['consumed_session_sequence']==2
+    assert stops==[.25] and state['consumed_session_sequence']==2 and len(homes)==1
     assert 'elif state != 90 and not session_active' in script
 
 
@@ -81,3 +87,20 @@ def test_generated_stop_keeps_first_terminal_fault():
     exec(subset,state)
     assert not stops and state['reason']==43 and state['return_guard']==123
     assert state['consumed_session_sequence']==5
+
+
+def test_every_generated_terminal_fault_attempts_home():
+    script = transform(SOURCE.read_text(), receipt(), '2026-09-20T1010Z_TEST')
+
+    # The definition plus one call from each terminal branch (STOP, wire,
+    # invalid ARM, bad Home entry and execute failure) must remain present.
+    assert script.count('codex_r006_recover_home_after_fault(') == 7
+    assert 'elif integer_reason != 0 and session_command != 0 and state != 90:' in script
+    assert 'if not codex_r006_entry_home_verified' in script
+    assert 'if not codex_r006_execute_attempt' in script
+    assert '# HOME_ENTRY_FAILURE: 69 ATTEMPT_ENTRY_NOT_CAPTURED_HOME; attempt bounded Home recovery' in script
+    assert 'stop without Script2 auto-home' not in script
+    recovery = script.split('def codex_r006_recovery_packet_guard', 1)[1].split(
+        'def codex_r006_recovery_stationary', 1
+    )[0]
+    assert 'read_input_float_register(28) > 0.5' not in recovery

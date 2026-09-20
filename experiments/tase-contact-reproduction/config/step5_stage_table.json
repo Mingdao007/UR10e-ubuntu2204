@@ -11498,7 +11498,7 @@
         "home_wait": "unbounded_safe_hold",
         "intertrial_wait": "unbounded_safe_hold",
         "production_cli_stop_after_ordinal": false,
-        "safety_or_return_failure": "immediate_stop_no_auto_home"
+        "safety_or_return_failure": "stop_then_recover_home"
       },
       "success_condition": "Offline proof only here; formal COMPLETE requires fresh live application acceptance plus finite-region simultaneous-95-percent local epsilon-PAC. Global convergence is never claimed."
     },

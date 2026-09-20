@@ -1,10 +1,11 @@
-# VERSION: 2026-09-20T1530Z_CONTACT_SIX_QP_V1_618001
+# VERSION: 2026-09-20T2220Z_CONTACT_SIX_QP_V1_618001
 # ROLE: six-law shared-QP preparation; requires matching host owner 618001
 # CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm
 # CONTACT_SEARCH: constant 0.0002m/s; travel<=0.015m; timeout=90s; original Home XYZ with current aligned attitude
 # EOAT: payload=0.413kg CoG=[0.0011,0.0031,0.0163]m TCP=[0,0,0.0874,0,0,0]
 # HOST_BACKEND: native-six-law + osqp-codegen-c; legacy RNN qualification is not reusable
 # NATIVE_INTEGER_INPUTS: logical24->physical36; 25..32 and 35 unchanged; OnRobot owns input24
+# FAULT_RECOVERY: every terminal fault attempts bounded Home; host monitored Home is the fallback
 # R006_RATE_CONTRACT: host=500.0Hz rtde_request=500.0Hz kunwei=500.0Hz tp=500.0Hz minimum_each_layer=460.0Hz absolute_deadline
 # R006_UNCHANGED_ACTIVE_LEASE: ACTIVE_LEASE_S = 0.080000000
 # R006_ATTEMPT_SEQUENCE: positive monotonically increasing, unbounded; resident waits for next ARM after every safe return
@@ -27,7 +28,7 @@
 # FIXED_HOME_PROFILE: step5d.autotune-v4/r006-fixed-home-v1
 # FIXED_HOME_POSE: p[0.462055181600, 0.177882596400, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
 # HOME_ENTRY: position <= 0.001m, orientation <= 0.010rad, q <= 0.020rad
-# HOME_ENTRY_FAILURE: 69 ATTEMPT_ENTRY_NOT_CAPTURED_HOME; stop without Script2 auto-home
+# HOME_ENTRY_FAILURE: 69 ATTEMPT_ENTRY_NOT_CAPTURED_HOME; attempt bounded Home recovery
 # RETURN: B3 Wave2b two-segment adaptive to home_z a=0.060 v=0.040; XY a=0.135 v=0.090; no +5mm third descend
 # OUTPUT_DOUBLE_24: latest packet_sequence actually consumed by the TP loop
 
@@ -415,6 +416,52 @@ def codex_r006_stationary(required_s):
   return dwell_s >= required_s
 end
 
+def codex_r006_recovery_packet_guard(packet_reason, abs_normal_limit, force_norm_limit, torque_limit):
+  # An already-latched STOP command is allowed to remain present while the
+  # bounded Home route runs. All sensor, qdot, tool and force guards remain.
+  if packet_reason != 0:
+    return packet_reason
+  elif read_input_float_register(27) < 0.5 or read_input_float_register(29) < 0.5:
+    return 3
+  elif read_input_integer_register(27) != 0 and read_input_integer_register(27) != 1 and read_input_integer_register(27) != 3:
+    return 66
+  elif codex_r006_abs(read_input_float_register(24)) >= abs_normal_limit:
+    return 5
+  elif read_input_float_register(25) >= force_norm_limit:
+    return 6
+  elif read_input_float_register(30) >= torque_limit:
+    return 7
+  elif read_input_float_register(44) < 1.0 or read_input_float_register(44) > 5.0:
+    return 49
+  elif not codex_r006_qdot_ok():
+    return 45
+  end
+  return 0
+end
+
+def codex_r006_recovery_stationary(required_s):
+  local dwell_s = 0.0
+  local elapsed_s = 0.0
+  while dwell_s < required_s and elapsed_s < required_s * 5.0:
+    local packet_reason = codex_r006_packet_observe()
+    local guard = codex_r006_recovery_packet_guard(packet_reason, 20.0, 20.0, 2.0)
+    local speed = get_actual_tcp_speed()
+    local linear = sqrt(speed[0] * speed[0] + speed[1] * speed[1] + speed[2] * speed[2])
+    local angular = sqrt(speed[3] * speed[3] + speed[4] * speed[4] + speed[5] * speed[5])
+    if guard != 0:
+      return False
+    elif linear > 0.000500000 or angular > 0.005000000:
+      dwell_s = 0.0
+    else:
+      dwell_s = dwell_s + get_steptime()
+    end
+    elapsed_s = elapsed_s + get_steptime()
+    sync()
+  end
+  return dwell_s >= required_s
+end
+
+
 def codex_r006_pose_close(actual, expected):
   local position_error = sqrt((actual[0] - expected[0]) * (actual[0] - expected[0]) + (actual[1] - expected[1]) * (actual[1] - expected[1]) + (actual[2] - expected[2]) * (actual[2] - expected[2]))
   local relative_pose = pose_trans(pose_inv(expected), actual)
@@ -499,8 +546,8 @@ end
 def codex_r006_return_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, current_guard):
   local return_guard = current_guard
   local packet_reason = codex_r006_packet_observe()
-  local guard = codex_r006_packet_guard(packet_reason, 20.0, 20.0, 2.0)
-  if guard != 0 or not codex_r006_stationary(0.250000000):
+  local guard = codex_r006_recovery_packet_guard(packet_reason, 20.0, 20.0, 2.0)
+  if guard != 0 or not codex_r006_recovery_stationary(0.250000000):
     return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 58, runtime_revision, runtime_extension, return_guard)
   end
   # R008 B3 Wave2b: two-segment adaptive return. Lift/descend to target_z =
@@ -512,7 +559,7 @@ def codex_r006_return_home(home_pose, home_q, epoch, ordinal, token, kind, consu
     local vertical_pose = p[current_pose[0], current_pose[1], target_z, current_pose[3], current_pose[4], current_pose[5]]
     movel(vertical_pose, a=0.060, v=0.040, r=0.0)
     stopl(0.1)
-    if not codex_r006_stationary(0.250000000):
+    if not codex_r006_recovery_stationary(0.250000000):
       return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 59, runtime_revision, runtime_extension, return_guard)
     end
   end
@@ -521,7 +568,7 @@ def codex_r006_return_home(home_pose, home_q, epoch, ordinal, token, kind, consu
   local transfer_pose = p[home_pose[0], home_pose[1], target_z, home_pose[3], home_pose[4], home_pose[5]]
   movel(transfer_pose, a=0.135, v=0.090, r=0.0)
   stopl(0.1)
-  if not codex_r006_stationary(0.250000000):
+  if not codex_r006_recovery_stationary(0.250000000):
     return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 59, runtime_revision, runtime_extension, return_guard)
   end
   return_guard = return_guard + 16
@@ -535,6 +582,20 @@ def codex_r006_return_home(home_pose, home_q, epoch, ordinal, token, kind, consu
   codex_r006_attempt_success = True
   codex_r006_echo(epoch, ordinal, 78, token, 0, consumed, kind, return_guard, runtime_revision, runtime_extension)
   return True
+end
+
+
+def codex_r006_recover_home_after_fault(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, failure_reason, failure_guard):
+  # Home is attempted for every commandable terminal fault.  A verified Home
+  # does not turn the failed attempt into a successful or retryable attempt.
+  local recovered = codex_r006_return_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, failure_guard)
+  if recovered:
+    codex_r006_attempt_success = False
+    codex_r006_attempt_reason = failure_reason
+    codex_r006_attempt_guard = failure_guard
+    codex_r006_echo(epoch, ordinal, 90, token, failure_reason, consumed, kind, failure_guard, runtime_revision, runtime_extension)
+  end
+  return recovered
 end
 
 
@@ -789,6 +850,17 @@ def step5d_contact_six_qp_v1():
         state = 90
         reason = 4
         return_guard = 0
+        if not locked_home_q_valid:
+          locked_home_q = get_actual_joint_positions()
+          locked_home_q_valid = True
+        end
+        if not codex_r006_recover_home_after_fault(fixed_home_pose, locked_home_q, input_epoch, current_ordinal, current_token, current_kind, consumed_session_sequence, runtime_revision, runtime_extension, 4, 0):
+          reason = codex_r006_attempt_reason
+          return_guard = codex_r006_attempt_guard
+        else:
+          reason = 4
+          return_guard = codex_r006_attempt_guard
+        end
       end
     elif integer_reason != 0 and session_command != 0 and state != 90:
       stopl(0.250000000)
@@ -797,23 +869,52 @@ def step5d_contact_six_qp_v1():
       state = 90
       reason = integer_reason
       return_guard = 0
+      if not locked_home_q_valid:
+        locked_home_q = get_actual_joint_positions()
+        locked_home_q_valid = True
+      end
+      if not codex_r006_recover_home_after_fault(fixed_home_pose, locked_home_q, input_epoch, current_ordinal, current_token, current_kind, session_sequence, runtime_revision, runtime_extension, integer_reason, 0):
+        reason = codex_r006_attempt_reason
+        return_guard = codex_r006_attempt_guard
+      else:
+        reason = integer_reason
+        return_guard = codex_r006_attempt_guard
+      end
     elif state != 90 and not session_active and not completed and session_command == 1 and session_sequence > consumed_session_sequence and packet_reason == 0:
       if input_epoch <= last_failed_epoch or input_epoch <= 0 or input_ordinal < 1 or input_ordinal <= current_ordinal or (active_epoch > 0 and input_epoch != active_epoch) or input_kind < 1 or input_kind > 4 or input_token <= 0:
+        stopl(0.250000000)
         state = 90
         reason = 61
         last_failed_epoch = input_epoch
+        if not locked_home_q_valid:
+          locked_home_q = get_actual_joint_positions()
+          locked_home_q_valid = True
+        end
+        if not codex_r006_recover_home_after_fault(fixed_home_pose, locked_home_q, input_epoch, input_ordinal, input_token, input_kind, session_sequence, runtime_revision, runtime_extension, 61, 0):
+          reason = codex_r006_attempt_reason
+        end
+        return_guard = codex_r006_attempt_guard
       elif False:  # r006 host owns phase sequencing; TP accepts positive monotonic attempts
+        stopl(0.250000000)
         state = 90
         reason = 68
         last_failed_epoch = input_epoch
+        if not locked_home_q_valid:
+          locked_home_q = get_actual_joint_positions()
+          locked_home_q_valid = True
+        end
+        if not codex_r006_recover_home_after_fault(fixed_home_pose, locked_home_q, input_epoch, input_ordinal, input_token, input_kind, session_sequence, runtime_revision, runtime_extension, 68, 0):
+          reason = codex_r006_attempt_reason
+        end
+        return_guard = codex_r006_attempt_guard
       else:
         active_epoch = input_epoch
         current_ordinal = input_ordinal
         current_kind = input_kind
         current_token = input_token
         consumed_session_sequence = session_sequence
-        # No Script2 auto-home is permitted.  A bad fixed-Home entry is a
-        # terminal typed failure before ARM state or any contact motion.
+        # Every terminal fault attempts the existing bounded Home route.
+        # A bad fixed-Home entry remains terminal but must not strand the robot.
         if not codex_r006_entry_home_verified(fixed_home_pose, locked_home_q, locked_home_q_valid):
           stopl(0.250000000)
           session_active = False
@@ -821,6 +922,14 @@ def step5d_contact_six_qp_v1():
           reason = 69
           return_guard = 0
           last_failed_epoch = input_epoch
+          if not locked_home_q_valid:
+            locked_home_q = get_actual_joint_positions()
+            locked_home_q_valid = True
+          end
+          if not codex_r006_recover_home_after_fault(fixed_home_pose, locked_home_q, input_epoch, input_ordinal, input_token, input_kind, session_sequence, runtime_revision, runtime_extension, 69, 0):
+            reason = codex_r006_attempt_reason
+          end
+          return_guard = codex_r006_attempt_guard
         else:
           # The fixed Cartesian pose gates this q read; it may establish the
           # current IK branch for this and subsequent rolling ARM attempts.
@@ -841,6 +950,10 @@ def step5d_contact_six_qp_v1():
             reason = codex_r006_attempt_reason
             return_guard = codex_r006_attempt_guard
             last_failed_epoch = active_epoch
+            if not codex_r006_recover_home_after_fault(fixed_home_pose, arm_home_q, active_epoch, current_ordinal, current_token, current_kind, consumed_session_sequence, runtime_revision, runtime_extension, reason, return_guard):
+              reason = codex_r006_attempt_reason
+            end
+            return_guard = codex_r006_attempt_guard
           else:
             session_active = False
             state = 78

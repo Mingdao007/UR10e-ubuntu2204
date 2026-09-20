@@ -12,7 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from contact_yield_live import main
+from contact_yield_live import automatic_home_after_fault, main
 from contact_yield_live_contract import load_identity_contract
 from contact_yield_live_fixtures import (
     YieldLiveRTDEDouble,
@@ -96,6 +96,43 @@ def _argv(command: str, tmp_path: Path, **extra: str) -> list[str]:
     return args
 
 
+def test_fault_recovery_routes_to_existing_monitored_home_owner(tmp_path, monkeypatch):
+    import run_contact_recovery
+
+    calls = []
+
+    def recover(source_run, host, video_url):
+        calls.append((Path(source_run), host, video_url))
+        return {
+            "success": True,
+            "state": "HOME_RECOVERED",
+            "home_required": True,
+            "home_attempted": True,
+            "trial_stays_failed": True,
+        }
+
+    monkeypatch.setattr(run_contact_recovery, "recover_failed_contact_run", recover)
+    result = automatic_home_after_fault(
+        run_dir=tmp_path,
+        controller_host="192.0.2.18",
+        video_url="rtsp://127.0.0.1:8554/arm",
+    )
+
+    assert result["state"] == "HOME_RECOVERED"
+    assert calls == [(tmp_path, "192.0.2.18", "rtsp://127.0.0.1:8554/arm")]
+
+
+def test_fault_recovery_without_host_is_explicitly_blocked(tmp_path):
+    result = automatic_home_after_fault(
+        run_dir=tmp_path, controller_host=None, video_url="unused"
+    )
+
+    assert result["state"] == "BLOCKED"
+    assert result["home_required"] is True
+    assert result["home_attempted"] is False
+    assert "controller host" in result["home_blocked_reason"]
+
+
 def test_status_fresh_process_lists_native_identity_without_devices():
     interpreter = str(PYTHON if PYTHON.is_file() else sys.executable)
     env = dict(os.environ)
@@ -166,7 +203,7 @@ def test_wrong_protocol_fails_before_arm(tmp_path: Path, lib):
     )
     kunwei = FakeLiveKunweiTransport(observed_clock=clock.now)
     code = main(
-        _argv("qualify", tmp_path, qp_library=str(lib), attempt_id="r006-yield-live-qualify", method=method),
+        _argv("qualify", tmp_path, qp_library=str(lib), attempt_id="r006-yield-live-qualify", method="SFC"),
         controller_transport=rtde,
         kunwei_transport=kunwei,
         wall_clock=lambda: 100.0,
@@ -186,7 +223,7 @@ def test_stale_receipt_fails_before_arm(tmp_path: Path, lib):
     )
     kunwei = FakeLiveKunweiTransport(observed_clock=clock.now)
     code = main(
-        _argv("qualify", tmp_path, qp_library=str(lib), attempt_id="r006-yield-live-qualify", method=method),
+        _argv("qualify", tmp_path, qp_library=str(lib), attempt_id="r006-yield-live-qualify", method="SFC"),
         controller_transport=rtde,
         kunwei_transport=kunwei,
         wall_clock=lambda: 400.0,
@@ -308,4 +345,3 @@ def test_mature_full_figure8_with_trajectory_endpoint_double(tmp_path, lib):
     assert len(receipt['attempts']) == 4
     assert receipt['attempts'][-1]['phase'] == 'pilot'
     assert receipt['stop']['stopped'] is True
-
