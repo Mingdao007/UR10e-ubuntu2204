@@ -1,0 +1,48 @@
+{
+  "requested_model": "grok-4.6",
+  "requested_effort": "high",
+  "requested_route": "hp-grok via Homepool https://homepool.cloud/v1",
+  "independent_server_effort_attestation": false,
+  "provenance_attested": false,
+  "effective_effort_attested": false,
+  "native_cli_provenance": "main independently verifies launch/session provenance",
+  "workdir": "/home/andy/.codex-worktrees/yield-training-report-20260920/experiments/tase-contact-reproduction",
+  "writable_paths": [
+    "tools/yield_training_report.py",
+    "tests/test_yield_training_report.py",
+    "report/yield-training-report-v1/README.md",
+    "report/yield-training-report-v1/writer-receipt.json"
+  ],
+  "file_sha256": {
+    "tools/yield_training_report.py": "806f50c9f9862d03fe1eaf15dc03b5366d208584c35097ed259647129c0fc2a1",
+    "tests/test_yield_training_report.py": "c07e4c45a78e3552c72a0cfbbef2b741c2a486ec19586f78423ddc017223daf7",
+    "report/yield-training-report-v1/README.md": "9e4fb829b7fecc4286eaf94a26b917dd654b752b7ad72002b5289c87b023c934"
+  },
+  "tests": {
+    "interpreter": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/.venv-contact-six/bin/python",
+    "pythonpath": "/usr/lib/python3/dist-packages:tools:tests",
+    "matplotlib": "/usr/lib/python3/dist-packages/matplotlib",
+    "numpy": "/usr/lib/python3/dist-packages/numpy",
+    "environment": {
+      "PYTHONHOME": null,
+      "VIRTUAL_ENV": null,
+      "PYTHONNOUSERSITE": "1",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1"
+    },
+    "command": "PYTHONPATH=/usr/lib/python3/dist-packages:tools:tests python -m pytest tests/test_yield_training_report.py -q --tb=line",
+    "result": "17 passed in 7.62s",
+    "exit_code": 0
+  },
+  "did_not": [
+    "git writes",
+    "read live campaign outside this worktree",
+    "instantiate a writer ledger",
+    "launch formal training",
+    "launch reserved validation",
+    "mutate native laws or frozen campaign files",
+    "install packages or alter the specified interpreter",
+    "claim independent server effort attestation"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "utc": "2026-09-20T05:25:33.302593+00:00",
+  "source_snapshot_time": "2026-09-20T05:16:29.411469+00:00",
+  "artifact_digest_entries_compared_to_ledger": 81,
+  "prior_round8_numeric_descriptor_values_compared": 350,
+  "numeric_tolerance": 1e-12,
+  "all_72_slots_preserved": true,
+  "stopped_sfc_slots": 16,
+  "running_samples_not_plotted": true,
+  "ledger_objectives_and_pair_flags_match": true,
+  "three_pngs_visually_inspected": true,
+  "scope": "read-only development snapshot, not final training result or independent validation"
+}

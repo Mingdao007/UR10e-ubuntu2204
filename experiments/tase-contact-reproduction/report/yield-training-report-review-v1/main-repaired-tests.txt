@@ -1,0 +1,5 @@
+Independent main run of repaired delivery: 17 passed in 7.46s.
+Environment: PYTHONPATH=/usr/lib/python3/dist-packages:tools:tests; PYTHONNOUSERSITE=1; PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; OPENBLAS_NUM_THREADS=1; OMP_NUM_THREADS=1; unset PYTHONHOME/VIRTUAL_ENV.
+Interpreter: .venv-contact-six/bin/python.
+Command: -m pytest tests/test_yield_training_report.py -q --tb=short
+Source hashes verified against repaired writer receipt. Same native Grok session/model/route confirmed; server effort not independently exposed.
