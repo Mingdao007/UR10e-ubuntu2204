@@ -1,0 +1,67 @@
+{
+  "schema": "yield-measured-contact-timing-diagnosis-v1",
+  "source_run": "runs/yield-sfc-qualification-20260920T113129Z",
+  "physical_result": "prewarmed contact failed 4.054ms host interval; withdrawal successful",
+  "profiles": {
+    "measured-contact-profile": {
+      "scope": "transport-free repeat of measured contact provider computation; unpaced, deadlines disabled for profiling only; no hardware and not physical qualification",
+      "initial_pause_times": "reconstructed from measured raw host-use deltas and exact active-command clock; microsecond entry uncertainty",
+      "count": 100,
+      "min_s": 0.0005746360038756393,
+      "median_s": 0.0005869645028724335,
+      "p99_s": 0.0006506634694960673,
+      "max_s": 0.0007760439984849654,
+      "restores_between_calls": true
+    },
+    "measured-contact-profile-fifo-cpu0": {
+      "selected_cpu": 0,
+      "policy": "SCHED_FIFO20",
+      "scope": "transport-free measured-contact provider replay with 10ms sleeps between repeats; production deadlines disabled for profiling only; no hardware, no full-writer timing qualification",
+      "initial_pause_times": "reconstructed from measured raw host-use deltas and exact active-command clock; microsecond entry uncertainty",
+      "count": 100,
+      "min_s": 0.0007623889978276566,
+      "median_s": 0.0014638325010309927,
+      "p99_s": 0.001856933045273763,
+      "max_s": 0.0018593139975564554,
+      "restores_between_calls": true,
+      "governor": "schedutil",
+      "sleep_between_repeats_s": 0.01
+    },
+    "measured-contact-profile-fifo-cpu2": {
+      "selected_cpu": 2,
+      "policy": "SCHED_FIFO20",
+      "scope": "transport-free measured-contact provider replay with 10ms sleeps between repeats; production deadlines disabled for profiling only; no hardware, no full-writer timing qualification",
+      "initial_pause_times": "reconstructed from measured raw host-use deltas and exact active-command clock; microsecond entry uncertainty",
+      "count": 100,
+      "min_s": 0.0023755000001983717,
+      "median_s": 0.003171050499076955,
+      "p99_s": 0.003309569946359261,
+      "max_s": 0.003338374001032207,
+      "restores_between_calls": true,
+      "governor": "schedutil",
+      "sleep_between_repeats_s": 0.01
+    },
+    "measured-contact-profile-rotation-fast": {
+      "scope": "transport-free repeat of measured contact provider computation; unpaced, deadlines disabled for profiling only; no hardware and not physical qualification",
+      "initial_pause_times": "reconstructed from measured raw host-use deltas and exact active-command clock; microsecond entry uncertainty",
+      "count": 100,
+      "min_s": 0.0004981029996997677,
+      "median_s": 0.0005128204975335393,
+      "p99_s": 0.0005872795508912537,
+      "max_s": 0.0007003919963608496,
+      "restores_between_calls": true
+    }
+  },
+  "findings": [
+    "Same measured-contact provider repeats were faster when continuously exercised than with 10ms sleeps. These are computation diagnostics, not actual transport qualification.",
+    "CPU2 is isolated by the current kernel and a fresh affinity syscall actually admitted it, although the inherited non-control process affinity excludes it. CPU selection must use fresh kernel admission.",
+    "Both tested CPUs reported schedutil. Duty cycle, scheduling and CPU state differ between tests; governor causality remains a hypothesis until a controlled comparison.",
+    "Fixed-size rotation validation removed generic allclose overhead without changing acceptance thresholds; 15 focused tests passed."
+  ],
+  "pending_user_action": "Set only CPU2 scaling_governor to performance; sudo -n true failed because a password is required. No password requested or governor write performed by agent. Original governor schedutil retained for restoration.",
+  "next_actions": [
+    "Measure the same contact replay on the actually observed CPU2 governor setting.",
+    "Revalidate complete live gates and execute only after timing repair evidence; keep all 4ms/80ms/force/speed gates.",
+    "Continue the original TASE/RNN and matching TASE-QP baseline implementation with explicit equation adaptations."
+  ]
+}
