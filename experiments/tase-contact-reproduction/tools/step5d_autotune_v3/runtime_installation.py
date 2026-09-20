@@ -1171,6 +1171,7 @@ def _provision_environment(
             "--link-mode",
             "copy",
             "--no-install-project",
+            "--no-install-local",
             "--no-build",
             "--no-managed-python",
             "--no-python-downloads",
@@ -1771,9 +1772,31 @@ def _provision_runtime_locked(
 
     staging = Path(tempfile.mkdtemp(prefix=f".{bundle_id}.", dir=store))
     project_root = Path(tempfile.mkdtemp(prefix=".project.", dir=cache_root))
+    staged_local_source: Path | None = None
     try:
         (project_root / "pyproject.toml").write_bytes(snapshot.pyproject_bytes)
         (project_root / "uv.lock").write_bytes(snapshot.lock_bytes)
+        # ``pyproject.toml`` may contain a local source used by an offline
+        # experiment group.  The governed control/optimizer environments do
+        # not install that group, but uv still needs the source metadata when
+        # checking the frozen lock.  Stage the exact sibling source at the
+        # relative location recorded in the manifest, then remove it in the
+        # finally block; the source is never installed into either runtime.
+        local_source = (EXPERIMENT_ROOT / "../../src/ur10e_experiment_runtime").resolve()
+        if local_source.is_dir():
+            staged_local_source = (project_root / "../../src/ur10e_experiment_runtime").resolve()
+            if staged_local_source.exists() or staged_local_source.is_symlink():
+                raise RuntimeInstallationError(
+                    "RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
+                    f"staged local source already exists: {staged_local_source}",
+                )
+            staged_local_source.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            shutil.copytree(
+                local_source,
+                staged_local_source,
+                symlinks=False,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "build", "*.egg-info"),
+            )
         check_environment = _profile_environment(cache_root / "provision-home")
         check_environment["UV_CACHE_DIR"] = str(uv_cache)
         _run(
@@ -1783,6 +1806,8 @@ def _provision_runtime_locked(
                 "lock",
                 "--check",
                 "--offline",
+                "--no-build-isolation-package",
+                "ur10e-experiment-runtime",
             ],
             cwd=project_root,
             environment=check_environment,
@@ -1881,6 +1906,12 @@ def _provision_runtime_locked(
     finally:
         if project_root.exists():
             shutil.rmtree(project_root)
+        if staged_local_source is not None and staged_local_source.exists():
+            shutil.rmtree(staged_local_source)
+            try:
+                staged_local_source.parent.rmdir()
+            except OSError:
+                pass
 
 
 def provision_runtime(

@@ -2,13 +2,13 @@
   "schema": "step5d.autotune-v3/runtime-contract-v1",
   "python": {
     "bootstrap_executable": "/usr/bin/python3.10",
-    "bootstrap_sha256": "7d51cd6b48b521277f5caa4610a82126e315fa2be4df069823a8b1eeb5bd4a86",
+    "bootstrap_sha256": "a2f33a6e006989270f4340528eb61f8f97366e00a5d1b602ac8672ea44fc56ae",
     "cache_tag": "cpython-310",
     "soabi": "cpython-310-x86_64-linux-gnu",
     "version": "3.10.12"
   },
   "uv": {
-    "dependency_manifest_sha256": "80fed926de6b4356743eaffccf9bb61c3c7e216153b06233cdc5d33c1545e69f",
+    "dependency_manifest_sha256": "36e4da83679de7f394494606ab0d721602355f308699360eb2d5e59eb10a6569",
     "executable_name": "uv",
     "sha256": "87a36ef1f9fd1e412d18e2810ac3bf7f7de4bdfb8280e2d6525b5fce29e3e2f9",
     "version": "0.9.30"
@@ -86,17 +86,17 @@
     "packages": {
       "ros-humble-ament-index-python": "1.4.1-1jammy.20260304.090250",
       "ros-humble-pinocchio": "4.0.0-2jammy.20260606.100000",
-      "ros-humble-ur-client-library": "2.13.0-1jammy.20260619.115341",
-      "ros-humble-ur-description": "2.11.0-1jammy.20260612.214015",
-      "ros-humble-ur-robot-driver": "2.13.2-1jammy.20260625.112711",
+      "ros-humble-ur-client-library": "2.14.0-1jammy.20260717.233856",
+      "ros-humble-ur-description": "2.13.0-1jammy.20260804.223320",
+      "ros-humble-ur-robot-driver": "2.14.0-1jammy.20260804.223708",
       "ros-humble-xacro": "2.1.1-1jammy.20260304.195513"
     },
     "xacro_path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
-    "xacro_sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+    "xacro_sha256": "00891217ae0912468ef625996b259d58c1aac4d348bc468a9306d0b0bf8d3810"
   },
   "gpu": {
     "compute_capability": "12.0",
-    "driver_version": "595.71.05",
+    "driver_version": "595.91.07",
     "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
     "uuid": "GPU-93d64fd3-924c-9c86-6c3d-b4781ed2133a"
   },
