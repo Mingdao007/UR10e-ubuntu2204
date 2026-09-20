@@ -170,7 +170,13 @@ class V4CalibratedRuntime:
         force_integral_authority_error_n: float = 0.5,
         force_normal_velocity_limit_m_s: float | None = None,
         solver_profile: SolverProfile | QpSolverProfile = LEGACY_R1,
+        path_reference=None,
+        target_rotvec: Sequence[float] = TARGET_ROTVEC,
     ) -> None:
+        if path_reference is not None and not callable(path_reference):
+            raise CalibratedRuntimeError("path_reference must be callable")
+        self.path_reference = path_reference
+        self.target_rotvec = _finite_vector(target_rotvec, 3, "target_rotvec").copy()
         self.contract = contract
         self.candidate = candidate
         if motion_profile is not None:
@@ -318,7 +324,7 @@ class V4CalibratedRuntime:
             raise CalibratedRuntimeError("path_time_s must be finite and non-negative")
         if not math.isfinite(motion_kp) or motion_kp <= 0.0:
             raise CalibratedRuntimeError("motion_kp must be positive")
-        reference = step5_path_reference(
+        reference = (self.path_reference or step5_path_reference)(
             PATH_STAGE_ID,
             (float(pose[0]), float(pose[1])),
             float(path_time_s),
@@ -333,7 +339,7 @@ class V4CalibratedRuntime:
             float(error_xy[0]) + float(feedforward_xy[0]) / motion_kp,
             float(error_xy[1]) + float(feedforward_xy[1]) / motion_kp,
         )
-        desired_rotation = rotvec_to_matrix(TARGET_ROTVEC)
+        desired_rotation = rotvec_to_matrix(self.target_rotvec)
         actual_rotation = rotvec_to_matrix(pose[3:])
         orientation = pin.log3(desired_rotation @ actual_rotation.T)
         return (
@@ -487,7 +493,7 @@ class V4CalibratedRuntime:
         if mode in {"hold", "retract", "stop"}:
             return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
-        reference = step5_path_reference(
+        reference = (self.path_reference or step5_path_reference)(
             PATH_STAGE_ID,
             (float(pose[0]), float(pose[1])),
             float(path_time_s if mode == "path" else 0.0),
