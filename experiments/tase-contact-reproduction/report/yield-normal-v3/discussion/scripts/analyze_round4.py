@@ -95,7 +95,7 @@ for cn in ['combined-tangent-hold', 'frozen-tangent-hold']:
     # estimate motion during hold
     dn = np.linalg.norm(np.diff(ne, axis=0), axis=1) / DT; dn = np.concatenate([[0.0], dn])
     d, b = frame(n, D['ref_vel']); e_al, e_ac = components_deg(ne, n, d, b)
-    bpush = np.cross(n, unit(fe)); 
+    bpush = np.cross(n, unit(fe));
     tilt_push_binormal = np.degrees(np.arcsin(np.clip(np.sum(ne * bpush, -1), -1, 1)))
     tilt_push_dir = np.degrees(np.arcsin(np.clip(np.sum(ne * unit(fe), -1), -1, 1)))
     series = []
