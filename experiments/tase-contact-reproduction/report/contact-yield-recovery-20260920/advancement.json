@@ -1,16 +1,59 @@
 {
   "status": "not_passed",
   "advance_to_pilot": false,
-  "hardware_actions_executed": false,
   "formal_campaign_executed": false,
-  "engineering_tests_passed": 144,
-  "full_state_replay_ticks": 31916,
-  "pi_model_full_cycle_runs": 58,
-  "reason": "Corrected shared outer loop still has 3.6027 N pointwise full-cycle MSFC force sensitivity between plant 0.5 and 0.25 ms at fixed 2 ms controller period. No full-task benefit interval qualified.",
+  "formal_tuning_units_consumed_per_method": {
+    "SFC": 0,
+    "DSFC": 0,
+    "MSFC": 0
+  },
+  "holdout_trials_executed": 0,
+  "hardware_scope": "Read-only Dashboard/network and host permission checks retained; no motion/contact command or new writer channel from this task.",
+  "reason": "Current MSFC metric has no established full-task advantage over its identity ablation. Full writer cycle coverage at nonzero clock origin and native route admission remain unresolved; offline stationary execution is not pilot qualification.",
+  "verified_development": [
+    {
+      "evidence": "report/yield-frozen-pulse-v1/discussion/main-adjudication.md",
+      "finding": "Stop ad hoc metric tuning for this candidate; preserve finite-range and threshold limitations. Fixed physical envelope-window correction retained separately."
+    },
+    {
+      "evidence": "report/yield-coefficient-equivalence-v1/result.json",
+      "finding": "Coefficient-matched native DSFC and identity-metric MSFC agree within 4.6e-17 m/s for tested forcing and 1/2/3 ms steps; snapshot replay exact."
+    },
+    {
+      "evidence": "report/yield-coefficient-equivalence-v1/tuner-bounds.json",
+      "finding": "Legacy tuner DSFC fixed a,p differ from current full-task study; old runner/config cannot be reused unchanged."
+    },
+    {
+      "evidence": "report/yield-full-writer-v1/README.md",
+      "finding": "All three methods complete origin-0 stationary software loop; origin-100 strict duration rejection retained. Not physical or production constructor admission."
+    },
+    {
+      "evidence": "report/yield-model-binding-v1/result.json",
+      "finding": "Current expanded robot model matches retained 2026-09-17 model evidence; old RNN xacro binding remains incompatible."
+    }
+  ],
   "remaining": [
-    "isolate normal-loop gain/delay/saturation/memory sensitivity",
-    "verify corrected shared-loop full matrix and matched normal precision/load",
-    "fresh transport identity and sole-writer integration before pilot",
-    "pilot then formal 24 paired units with separate holdout and at least 5 repeats"
-  ]
+    "Repair full writer cycle boundary, preserve fresh consumed command evidence and strict actual coverage.",
+    "Bind native yield model/solver/adaptive-observer identity through unmocked production preparation; no old RNN digest refresh.",
+    "Complete three-method fair proposer with current fixed coefficients, shared search range and honest 24-pair accounting.",
+    "Freeze full-task training selection contract, numerical qualification and independent holdout; run and retain all outcomes.",
+    "Confirm physical ownership/contact state of already PLAYING resident program before dependent robot work; qualify transport and run original-platform pilot.",
+    "Complete fair physical comparison, geometry/memory ablations, repeats, uncertainty and contribution/negative-result judgement."
+  ],
+  "historical_checkpoint_preserved": {
+    "status": "not_passed",
+    "advance_to_pilot": false,
+    "hardware_actions_executed": false,
+    "formal_campaign_executed": false,
+    "engineering_tests_passed": 144,
+    "full_state_replay_ticks": 31916,
+    "pi_model_full_cycle_runs": 58,
+    "reason": "Corrected shared outer loop still has 3.6027 N pointwise full-cycle MSFC force sensitivity between plant 0.5 and 0.25 ms at fixed 2 ms controller period. No full-task benefit interval qualified.",
+    "remaining": [
+      "isolate normal-loop gain/delay/saturation/memory sensitivity",
+      "verify corrected shared-loop full matrix and matched normal precision/load",
+      "fresh transport identity and sole-writer integration before pilot",
+      "pilot then formal 24 paired units with separate holdout and at least 5 repeats"
+    ]
+  }
 }
