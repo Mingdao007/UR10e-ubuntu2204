@@ -153,3 +153,51 @@ def test_recovery_cli_never_emits_unclassified_preflight_error(tmp_path, monkeyp
     assert persisted['recovery_policy']=='AUTO_HOME_WHEN_COMMANDABLE'
     assert persisted['home_required'] is True
     assert persisted['home_attempted'] is False
+
+
+def test_recovery_retries_after_prior_blocked_output(tmp_path, monkeypatch):
+    packages=tmp_path/'packages'
+    packages.mkdir()
+    (packages/f'{runner.RELIEF_PROGRAM}.script').write_text('relief')
+    source=tmp_path/'source'
+    source.mkdir()
+    prior=source.with_name(source.name+'-autonomous-home')
+    prior.mkdir()
+    (prior/'blocked-preflight.json').write_text(json.dumps({
+        'success':False,'state':'BLOCKED','home_blocked':True,
+    }))
+    # The old readback directory is also present; it must not prevent a new
+    # recovery from obtaining its own fresh proof.
+    (prior.with_name(prior.name+'-readback')).mkdir()
+    monkeypatch.setattr(runner, 'PACKAGE_DIR', packages)
+    calls=[]
+    def fake_run(args):
+        calls.append(args)
+        return {'success':True,'state':'HOME_RECOVERED','home_attempted':True}
+    monkeypatch.setattr(runner, 'run', fake_run)
+
+    result=runner.recover_failed_contact_run(source, 'fake', 'fake')
+
+    assert result['success'] is True
+    assert result['state']=='HOME_RECOVERED'
+    assert result['recovery_output'] != str(prior)
+    assert result['previous_recovery_output']==str(prior)
+    assert calls and calls[0].output != prior
+    assert prior.joinpath('blocked-preflight.json').exists()
+
+
+def test_recovery_reuses_completed_home_receipt(tmp_path, monkeypatch):
+    source=tmp_path/'source'
+    source.mkdir()
+    prior=source.with_name(source.name+'-autonomous-home')
+    prior.mkdir()
+    (prior/'result.json').write_text(json.dumps({
+        'success':True,'state':'HOME_RECOVERED','home_attempted':True,
+    }))
+    monkeypatch.setattr(runner, 'run', lambda *_: pytest.fail('completed Home must be idempotent'))
+
+    result=runner.recover_failed_contact_run(source, 'fake', 'fake')
+
+    assert result['success'] is True
+    assert result['state']=='HOME_RECOVERED'
+    assert result['recovery_output']==str(prior)

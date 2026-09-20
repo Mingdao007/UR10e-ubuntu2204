@@ -89,7 +89,7 @@ def package_dir_from(args):
     return Path(path) if path is not None else PACKAGE_DIR
 
 
-def _blocked_recovery_result(source, error, *, phase, output=None):
+def _blocked_recovery_result(source, error, *, phase, output=None, previous_output=None):
     """Return and, when possible, persist the only non-Home terminal result.
 
     Recovery setup can fail before :func:`run` has created its normal result
@@ -127,7 +127,47 @@ def _blocked_recovery_result(source, error, *, phase, output=None):
             payload['recovery_record']=str(record)
         except BaseException as persist_error:
             payload['recovery_record_error']=f'{type(persist_error).__name__}: {persist_error}'
+    if previous_output is not None:
+        payload['previous_recovery_output']=str(previous_output)
     return payload
+
+
+def _read_recovery_result(path):
+    """Read a prior recovery receipt without treating it as live authority."""
+    for name in ('result.json', 'blocked-preflight.json'):
+        record=Path(path)/name
+        if not record.exists():
+            continue
+        try:
+            value=json.loads(record.read_text())
+        except (OSError, ValueError, TypeError):
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
+
+
+def _select_recovery_output(source):
+    """Choose a non-colliding receipt directory for an automatic Home retry.
+
+    A previous preflight or failed Home attempt is evidence to preserve, not a
+    reason to suppress the next commandable Home.  A completed recovery is
+    idempotent; an incomplete/blocked one gets a fresh sibling directory so
+    its readback and result files cannot collide with the new attempt.
+    """
+    base=Path(source).with_name(Path(source).name+'-autonomous-home')
+    if not base.exists():
+        return base, None, None
+    prior=_read_recovery_result(base)
+    if prior and prior.get('success') is True and prior.get('state')=='HOME_RECOVERED':
+        return base, None, prior
+    stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
+    candidate=base.with_name(base.name+'-retry-'+stamp)
+    suffix=0
+    while candidate.exists():
+        suffix+=1
+        candidate=base.with_name(base.name+f'-retry-{stamp}-{suffix}')
+    return candidate, base, None
 
 
 def validate_recovery_packages(run_dir,readback_dir,package_dir):
@@ -391,7 +431,14 @@ def recover_failed_contact_run(source_run, host, video_url):
     silently relabeled as a successful trial.
     """
     source=Path(source_run)
-    output=source.with_name(source.name+'-autonomous-home')
+    output,previous_output,prior_success=_select_recovery_output(source)
+    if prior_success is not None:
+        # Repeated fault handling must not replay an already verified Home.
+        # Returning the sealed receipt is safe and keeps the failed trial
+        # failed while making the recovery operation idempotent.
+        prior_success=dict(prior_success)
+        prior_success.setdefault('recovery_output',str(output))
+        return prior_success
     try:
         if not (PACKAGE_DIR/f'{RELIEF_PROGRAM}.script').exists():
             return _blocked_recovery_result(
@@ -399,10 +446,19 @@ def recover_failed_contact_run(source_run, host, video_url):
                 ValueError('relief package is not installed; Home recovery cannot be proven'),
                 phase='package-preflight',
                 output=output,
+                previous_output=previous_output,
             )
-        return run(SimpleNamespace(source_run=source,output=output,readback_proof_dir=None,readback_dir=None,package_dir=PACKAGE_DIR,host=host,video_url=video_url,execute=True))
+        result=run(SimpleNamespace(source_run=source,output=output,readback_proof_dir=None,readback_dir=None,package_dir=PACKAGE_DIR,host=host,video_url=video_url,execute=True))
+        if previous_output is not None:
+            result['previous_recovery_output']=str(previous_output)
+            result['recovery_output']=str(output)
+            try:
+                (output/'result.json').write_text(json.dumps(result,indent=2,default=str)+'\n')
+            except BaseException:
+                pass
+        return result
     except BaseException as exc:
-        return _blocked_recovery_result(source,exc,phase='recovery-preflight',output=output)
+        return _blocked_recovery_result(source,exc,phase='recovery-preflight',output=output,previous_output=previous_output)
 
 
 def main(argv=None):
