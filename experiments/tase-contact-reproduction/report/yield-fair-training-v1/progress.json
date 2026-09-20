@@ -1,0 +1,76 @@
+{
+  "observed_utc": "2026-09-20T03:35:27.242193+00:00",
+  "source": "transactionally consistent read-only SQLite snapshot",
+  "inflight": [
+    "DSFC-00-nominal"
+  ],
+  "methods": {
+    "SFC": {
+      "registered_units": 1,
+      "completed_pairs": 1,
+      "feasible_pairs": 1,
+      "failed_pairs": 0,
+      "pairs": [
+        {
+          "unit": 0,
+          "terminal": true,
+          "members": {
+            "nominal": "complete",
+            "disturbed": "complete"
+          },
+          "pair_feasible": true,
+          "nominal_feasible": true,
+          "objective": 77.45319425340233,
+          "objective_components": {
+            "J": 77.45319425340233,
+            "Jatt": 22.4942980191699,
+            "Jload": 45.95804016841924,
+            "Jpath": 9.00085606581319
+          },
+          "nominal_checks": {
+            "attitude_rms_ok": true,
+            "full_cycle": true,
+            "load_mae_ok": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "path_rms_ok": true,
+            "progress_ok": true
+          },
+          "disturbed_checks": {
+            "full_cycle": true,
+            "load_min_ok": true,
+            "load_peak_ok": true,
+            "no_failure": true,
+            "progress_ok": true
+          }
+        }
+      ]
+    },
+    "DSFC": {
+      "registered_units": 1,
+      "completed_pairs": 0,
+      "feasible_pairs": 0,
+      "failed_pairs": 0,
+      "pairs": [
+        {
+          "unit": 0,
+          "terminal": false,
+          "members": {
+            "nominal": "running"
+          }
+        }
+      ]
+    },
+    "MSFC": {
+      "registered_units": 0,
+      "completed_pairs": 0,
+      "feasible_pairs": 0,
+      "failed_pairs": 0,
+      "pairs": []
+    }
+  },
+  "selection_changed": false,
+  "validation_executed": false,
+  "physical_executed": false
+}
