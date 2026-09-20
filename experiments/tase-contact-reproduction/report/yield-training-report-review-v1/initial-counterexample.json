@@ -1,0 +1,31 @@
+{
+  "contradictory_slot_classification": "completed_feasible",
+  "best_so_far": [
+    {
+      "method": "SFC",
+      "unit": 0,
+      "scheduled_phase": "initial",
+      "literal_repeat": false,
+      "slot_state": "completed_feasible",
+      "observed_objective": 1.0,
+      "feasible_completed": true,
+      "infeasible_objective_sample": false,
+      "best_so_far_j": 1.0,
+      "best_so_far_unit": 0,
+      "independent_confidence_sample": false
+    },
+    {
+      "method": "SFC",
+      "unit": 1,
+      "scheduled_phase": "initial",
+      "literal_repeat": false,
+      "slot_state": "incomplete_running_or_pending",
+      "observed_objective": null,
+      "feasible_completed": false,
+      "infeasible_objective_sample": false,
+      "best_so_far_j": 1.0,
+      "best_so_far_unit": 0,
+      "independent_confidence_sample": false
+    }
+  ]
+}

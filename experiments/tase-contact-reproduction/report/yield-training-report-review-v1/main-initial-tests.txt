@@ -1,0 +1,1 @@
+Independent main run: 12 passed in 2.43s; see counterexample for uncovered contradictory flags and incomplete best-so-far extension.
