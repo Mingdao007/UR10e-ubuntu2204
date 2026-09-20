@@ -1,0 +1,229 @@
+{
+  "schema": "yield-validation-reservation-v1",
+  "status": "reserved_not_executed",
+  "dataset_role": "prospective_simulator_validation",
+  "source_checkpoint": "7f0d27a9",
+  "scope": "unseen reserved condition combinations within the existing deterministic simulator; not independent physics validation or a hardware task prescription",
+  "task": {
+    "force_n": 5.0,
+    "path": "existing 80x20 mm figure-eight",
+    "duration_s": 62.83185307179586,
+    "timeline": "full_cycle",
+    "unknown_surface": true,
+    "attitude_compliance": true
+  },
+  "arms": [
+    "SFC",
+    "DSFC",
+    "MSFC",
+    "MSFC_IDENTITY",
+    "SFC_RADIAL"
+  ],
+  "parameter_rule": "Freeze three incumbents from completed equal-budget training before any validation. Identity uses the MSFC incumbent with minimum_metric_eigenvalue=1; radial uses the SFC incumbent mechanical coefficients. No tuning on validation.",
+  "observer": {
+    "path": "config/yield_normal_observer_v3.json",
+    "sha256": "c9598b42a252e94daf0fa22938f3b26fd4df99f595fc63d608f42065a2cb2715",
+    "initial_prior_rule": "n0=cos(angle)*approach+sin(angle)*direction. along is normalized projection of initial reference velocity onto plane normal to approach; across=approach cross along. True surface is evaluator-only."
+  },
+  "cells": [
+    {
+      "id": "V1",
+      "material": "stiff_low_mu",
+      "surface_parameters": {
+        "kappa_xx": 1.2,
+        "kappa_yy": 0.7
+      },
+      "prior_direction": "approach",
+      "prior_angle_deg": 0,
+      "preparation": "cold",
+      "disturbed_scenario": "sustained_release_normal",
+      "nominal_scenario": "nominal"
+    },
+    {
+      "id": "V2",
+      "material": "compliant_high_mu",
+      "surface_parameters": {
+        "kappa_xx": 1.2,
+        "kappa_yy": 0.7
+      },
+      "prior_direction": "approach",
+      "prior_angle_deg": 0,
+      "preparation": "cold",
+      "disturbed_scenario": "sustained_release_tangent",
+      "nominal_scenario": "nominal"
+    },
+    {
+      "id": "V3",
+      "material": "stiff_low_mu",
+      "surface_parameters": {
+        "kappa_xx": 3.0,
+        "kappa_yy": 4.0
+      },
+      "prior_direction": "along",
+      "prior_angle_deg": 7,
+      "preparation": "cold",
+      "disturbed_scenario": "sustained_release_oblique",
+      "nominal_scenario": "nominal"
+    },
+    {
+      "id": "V4",
+      "material": "compliant_high_mu",
+      "surface_parameters": {
+        "kappa_xx": 3.0,
+        "kappa_yy": 4.0
+      },
+      "prior_direction": "across",
+      "prior_angle_deg": -7,
+      "preparation": "cold",
+      "disturbed_scenario": "short_pulse_normal",
+      "nominal_scenario": "nominal"
+    },
+    {
+      "id": "V5",
+      "material": "stiff_low_mu",
+      "surface_parameters": {
+        "kappa_xx": 1.2,
+        "kappa_yy": 0.7
+      },
+      "prior_direction": "across",
+      "prior_angle_deg": 7,
+      "preparation": "warm",
+      "disturbed_scenario": "short_pulse_tangent",
+      "nominal_scenario": "nominal"
+    },
+    {
+      "id": "V6",
+      "material": "compliant_high_mu",
+      "surface_parameters": {
+        "kappa_xx": 3.0,
+        "kappa_yy": 4.0
+      },
+      "prior_direction": "along",
+      "prior_angle_deg": -7,
+      "preparation": "warm",
+      "disturbed_scenario": "short_pulse_oblique",
+      "nominal_scenario": "nominal"
+    }
+  ],
+  "resolution_settings": [
+    {
+      "id": "base",
+      "controller_dt_s": 0.002,
+      "plant_substeps": 8
+    },
+    {
+      "id": "controller_refinement",
+      "controller_dt_s": 0.001,
+      "plant_substeps": 4
+    },
+    {
+      "id": "plant_refinement",
+      "controller_dt_s": 0.002,
+      "plant_substeps": 16
+    }
+  ],
+  "cost": {
+    "cells": 6,
+    "arms": 5,
+    "members_per_pair": 2,
+    "base_trials": 60,
+    "refinement_trials": 120,
+    "maximum_total_trials": 180,
+    "repeats_per_deterministic_cell": 1,
+    "training_units_consumed": 0,
+    "physical_repeats_requirement": 5
+  },
+  "analysis_rules": [
+    "Report all cells, arms, failed/shortened trials and resolutions. No automatic retry or parameter change after a failure.",
+    "Use the frozen training evaluator with scenario-specific onset/release windows, preserve original recovery metric and raw force/path/attitude/progress descriptors.",
+    "No aggregate winning claim hides per-cell failure. This is a finite crossed stress set, not a balanced factorial estimator of individual effects.",
+    "Check signs and magnitude against resolution sensitivity; report paired and unpaired changes. No CI from deterministic runs.",
+    "Warm denotes existing two-second stationary baseline, not arbitrary excited memory. History-dependent memory and full-state replay remain separately reported.",
+    "If data affect a design, all viewed validation cells become development for that design. Do not relabel them as final holdout.",
+    "Commit the executable runner/evaluator and freeze final code, parameters, common-module and source identities before launching. If this requires protocol changes, supersede this reservation with a new version before any observation."
+  ],
+  "nonclaims": [
+    "No clinical/material damage or human safety claim.",
+    "No new hardware or workpiece required by these synthetic parameter choices. Physical validation retains the existing platform and requires a separate observed scene protocol.",
+    "Novel curvature values do not validate simulator contact/servo/friction assumptions."
+  ],
+  "prior_artifact_audit": {
+    "scope": "runs/yield*/protocol.json only; known explicit curvature pairs plus default mild surface; not a claim to search every historical file",
+    "explicit_curvature_pairs": [
+      [
+        0.8,
+        0.4
+      ],
+      [
+        6.0,
+        8.0
+      ]
+    ],
+    "inputs": [
+      {
+        "path": "runs/yield-discretization-v1/protocol.json",
+        "sha256": "fef983f4dc22bb48705d077dff9ebd173c3e90e3f0593cb827492068ffab658f"
+      },
+      {
+        "path": "runs/yield-frozen-memory-v1/protocol.json",
+        "sha256": "20b1e33e7a68e2c7b7a41699ced5c78ad21b49ffa07991130b028dbaa7f41604"
+      },
+      {
+        "path": "runs/yield-frozen-pulse-v1/protocol.json",
+        "sha256": "eff1587fee05336ab9802a3bb0af72bb5d8a160cd3c7097012424639027d5b9c"
+      },
+      {
+        "path": "runs/yield-frozen-pulse-v1-check/protocol.json",
+        "sha256": "3ea549312068a2c14c84d816d61ed425173e47ff0e279ce2071077b7c46260af"
+      },
+      {
+        "path": "runs/yield-frozen-pulse-v1-observer-match/protocol.json",
+        "sha256": "eff1587fee05336ab9802a3bb0af72bb5d8a160cd3c7097012424639027d5b9c"
+      },
+      {
+        "path": "runs/yield-frozen-transfer-v1/protocol.json",
+        "sha256": "36cfc820f73b74c12f86ac42011ec0c429c3b83050176178a37e634739ff0290"
+      },
+      {
+        "path": "runs/yield-gain-memory-v1/protocol.json",
+        "sha256": "50738dd775866c2c6e60638c4a33a0c882eff254a30d5af48d9e31cfa33e18bb"
+      },
+      {
+        "path": "runs/yield-normal-forceoff-v1/protocol.json",
+        "sha256": "4f2649257e4b952b100d2964f9f66ea7203b6490d45e23d7d6b3033540d1967e"
+      },
+      {
+        "path": "runs/yield-normal-v2/protocol.json",
+        "sha256": "c1e47940243aa2ad32aad005f21f8a5e049194838002415d4dde50d634192888"
+      },
+      {
+        "path": "runs/yield-normal-v3/protocol.json",
+        "sha256": "bc64c777056f073fad3c7903d3a681f3f2986b78995b72df5ec158f5505148cd"
+      },
+      {
+        "path": "runs/yield-normal-v3-refinement/protocol.json",
+        "sha256": "a1cc001e2d7229f1909b7481e31af1fd3e1e8909f49b218611d2c33c717586c8"
+      },
+      {
+        "path": "runs/yield-observer-prior-v1/protocol.json",
+        "sha256": "48f364d4ce42793cd31d0c6b61b3953c9bdcc3660075f080554bbe6a5ef6910f"
+      },
+      {
+        "path": "runs/yield-observer-transfer-v1/protocol.json",
+        "sha256": "f59a348f58eb27afc8e7373bbfd54f7ebb4208628553d75e47c3f145fecd1523"
+      },
+      {
+        "path": "runs/yield-observer-transfer-v1-check/protocol.json",
+        "sha256": "33a6f360095c61f9787f11186e5a2380d0cd4e409a0cf8e348e845afae697b88"
+      },
+      {
+        "path": "runs/yield-surface-excitation-v1/protocol.json",
+        "sha256": "052bfe691ea848bb5e4ff6a8981cb8b123fbe7201c4249e9c832cdb7c9293b0e"
+      },
+      {
+        "path": "runs/yield-transfer-v1/protocol.json",
+        "sha256": "b288344474deae087c37a1b8193b6fab7ca246c382bc19242944804ceaf79fbe"
+      }
+    ]
+  }
+}
