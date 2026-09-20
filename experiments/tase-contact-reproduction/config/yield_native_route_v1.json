@@ -1,0 +1,60 @@
+{
+  "schema": "yield-native-route-v1",
+  "claim_scope": "historical model reconciliation with the 2026-09-17 read-only kinematics receipt; not fresh physical qualification, workspace accuracy, or source closure",
+  "program": "step5d_contact_six_qp_v1",
+  "methods": ["SFC", "DSFC", "MSFC"],
+  "msfc_gain_variant": "g50",
+  "metric": "original_active",
+  "deadlines": {
+    "runtime_s": 0.0015,
+    "qp_s": 0.001
+  },
+  "observer_config": "config/yield_normal_observer_v3.json",
+  "observer_config_sha256": "c9598b42a252e94daf0fa22938f3b26fd4df99f595fc63d608f42065a2cb2715",
+  "law_parameters_source": "report/yield-frozen-transfer-v1/protocol.json",
+  "law_parameters_source_sha256": "36cfc820f73b74c12f86ac42011ec0c429c3b83050176178a37e634739ff0290",
+  "law_parameters": {
+    "SFC": {
+      "m": 4.0,
+      "mu": 393.0,
+      "n": 3.0,
+      "g": 0.052126826121414976
+    },
+    "DSFC": {
+      "m": 4.0,
+      "g": 0.0642,
+      "p": 0.5,
+      "a": 0.05,
+      "n": 3.0,
+      "mu": 310.66177089084647,
+      "max_iterations": 32.0,
+      "residual_tolerance_n": 1e-09,
+      "relative_radius_tolerance": 1e-10
+    },
+    "MSFC": {
+      "m": 4.0,
+      "g": 0.08583341909109758,
+      "p": 0.5,
+      "a": 0.05,
+      "n": 3.0,
+      "mu": 1228.1391393367705,
+      "force_scale_n": 2.1095928078033372,
+      "tau_force_s": 0.19236795686399732,
+      "tau_recovery_s": 0.20212720757006053,
+      "kappa_per_n2_s": 0.6334129092862626,
+      "max_iterations": 32.0,
+      "residual_tolerance_n": 1e-09,
+      "structure_tolerance": 1e-12,
+      "minimum_metric_eigenvalue": 0.026926929041248004
+    }
+  },
+  "model": {
+    "expanded_urdf_sha256": "c0891c0df47664230c6f4f2c621c1022484131e7f7a7dba8efb2ec7c3fc4a9dc",
+    "calibration_yaml_sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
+    "xacro_sha256": "00891217ae0912468ef625996b259d58c1aac4d348bc468a9306d0b0bf8d3810",
+    "calibration_hash": "calib_7367377276742883610",
+    "historical_home_pose_error_m": 1.8360348167241365e-6,
+    "receipt": "report/contact-six-qp-20260917/readonly-kinematics.json",
+    "receipt_sha256": "14610cb216c59d31fc17046d296c4383d4458a5a870b89a0450f4a3a91bc4f5d"
+  }
+}

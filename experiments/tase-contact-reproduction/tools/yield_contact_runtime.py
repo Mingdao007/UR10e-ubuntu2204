@@ -24,6 +24,7 @@ from contact_benchmark_runtime import validate_measured_observation
 from contact_qp import QpSolverProfile, QP_EQUALITY_VALIDATION_TOLERANCE, QP_BOUND_VALIDATION_TOLERANCE
 from contact_yield_controller import YieldController, YieldControllerError, YieldSettings
 from contact_yield_math import so3_log, transported_roll_anchor, require_rotation
+from contact_yield_normal import NormalEstimator
 from contact_yield_protocol import (
     CLAIM_SCOPE, law_seed_parameters, PATH_SEAM_CONTINUATION_POLICY,
     PATH_SEAM_CONTINUATION_S,
@@ -52,6 +53,7 @@ class YieldContactRuntime:
         deadline_s: float | None = 0.0015,
         settings: YieldSettings | None = None,
         law_parameters: Mapping[str, Any] | None = None,
+        estimator_parameters: Mapping[str, Any] | None = None,
         dt_s: float = 0.002,
         build_root: Path | str | None = None,
     ) -> None:
@@ -78,6 +80,9 @@ class YieldContactRuntime:
                 raise ValueError("command cap leaves no QP numerical margin")
             guarded_caps[key] = cap
         guarded_settings = replace(self.requested_settings, **guarded_caps)
+        estimator = None
+        if estimator_parameters is not None:
+            estimator = NormalEstimator(approach_inward_base, **dict(estimator_parameters))
         self.controller = YieldController(
             method=method,
             qp_library=qp_library,
@@ -87,6 +92,7 @@ class YieldContactRuntime:
             dt_s=dt_s,
             qp_deadline_s=0.001 if deadline_s is not None else None,
             build_root=build_root,
+            estimator=estimator,
             allow_pre_path_force_ramp=True,
         )
         self.identity = hashlib.sha256(json.dumps({

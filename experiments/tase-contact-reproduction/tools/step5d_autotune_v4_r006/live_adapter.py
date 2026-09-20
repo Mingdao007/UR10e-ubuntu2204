@@ -492,10 +492,21 @@ class _R006NativeCanonicalQualificationControl(_R004CanonicalQualificationContro
             from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime
             from step5d_autotune_v4_r004.path_controller import V4PathController
             from step5d_autotune_v4_r004.runtime import StartupHeartbeatGate, TimingGuard
+            from yield_contact_provider import YieldContactProvider
 
             # The r006 object itself is the canonical candidate consumed by
             # the mature runtime primitives.  No r004 V4Candidate is built.
-            self._contract = load_contract(runtime_only=self.canonical_runtime_only)
+            # YieldContactProvider owns the native model/solver binding;
+            # ContactCommandProvider and the no-provider path keep load_contract.
+            if isinstance(self.contact_command_provider, YieldContactProvider):
+                from yield_native_route import YieldNativeRouteError, native_contract_for_provider
+
+                try:
+                    self._contract = native_contract_for_provider(self.contact_command_provider)
+                except YieldNativeRouteError as exc:
+                    raise _R004QualificationControlError(str(exc)) from exc
+            else:
+                self._contract = load_contract(runtime_only=self.canonical_runtime_only)
             self._canonical_candidate = self.candidate
             self._runtime = self.contact_command_provider
             if self._runtime is None:

@@ -19,9 +19,17 @@ from step5d_autotune_v4_r004.calibrated_runtime import CalibratedCommand
 
 
 class YieldContactProvider:
-    def __init__(self, *, runtime, model_hashes, scenario="nominal", amplitude_n=0.0):
+    def __init__(self, *, runtime, model_hashes=None, native_binding=None, scenario="nominal", amplitude_n=0.0):
         disturbance(scenario, 0.0, amplitude_n=amplitude_n)
+        if native_binding is not None:
+            binding_hashes = dict(native_binding.model_hashes)
+            if model_hashes is not None and dict(model_hashes) != binding_hashes:
+                raise ValueError("provider model hashes differ from native binding")
+            model_hashes = binding_hashes
+        elif model_hashes is None:
+            raise ValueError("model hashes or native binding required")
         self.runtime = runtime
+        self.native_binding = native_binding
         self.model_hashes = dict(model_hashes)
         self.solver_profile = runtime.solver_profile
         self.lifecycle_observer = ContactReadinessObserver(runtime.controller.settings.filter_tau_s)

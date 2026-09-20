@@ -1,0 +1,24 @@
+interpreter: /home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/.venv-contact-six/bin/python
+cwd: /home/andy/.codex-worktrees/yield-native-route-20260920/experiments/tase-contact-reproduction
+env: PYTHONNOUSERSITE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; PYTHONHOME/VIRTUAL_ENV unset
+PYTHONPATH=/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages:/home/andy/.codex-worktrees/yield-native-route-20260920/experiments/tase-contact-reproduction/tools
+
+=== tests/test_yield_native_route.py tests/test_contact_provider_injection.py ===
+........................                                                 [100%]
+=============================== warnings summary ===============================
+../../../../../../opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115
+  /opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115: DeprecationWarning: private variables, such as '_ConstructUnits__ConstructUnitsValue', will be normal attributes in 3.11
+    __ConstructUnitsValue = collections.namedtuple('__ConstructUnitsValue', ['tag', 'conversion_constant'])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+24 passed, 1 warning in 2.20s
+
+=== tests/test_contact_yield_provider.py (excluding 31916-tick qualification fixture) ===
+...............                                                          [100%]
+=============================== warnings summary ===============================
+../../../../../../opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115
+  /opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115: DeprecationWarning: private variables, such as '_ConstructUnits__ConstructUnitsValue', will be normal attributes in 3.11
+    __ConstructUnitsValue = collections.namedtuple('__ConstructUnitsValue', ['tag', 'conversion_constant'])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passed, 1 deselected, 1 warning in 2.01s
