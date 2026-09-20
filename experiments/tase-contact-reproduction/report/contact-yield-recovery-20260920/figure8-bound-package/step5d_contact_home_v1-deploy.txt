@@ -1,0 +1,35 @@
+
+root@192.168.1.18's  
+
+root@192.168.1.18's  
+
+step5d_contact_home_v1.script                   0%    0     0.0KB/s   --:-- ETA
+step5d_contact_home_v1.script                 100% 6020     4.2MB/s   00:00    
+
+root@192.168.1.18's  
+
+step5d_contact_home_v1.txt                      0%    0     0.0KB/s   --:-- ETA
+step5d_contact_home_v1.txt                    100%   69   120.3KB/s   00:00    
+
+root@192.168.1.18's  
+
+step5d_contact_home_v1.urp                      0%    0     0.0KB/s   --:-- ETA
+step5d_contact_home_v1.urp                    100% 2335     2.2MB/s   00:00    
+
+root@192.168.1.18's  
+
+root@192.168.1.18's  
+
+step5d_contact_home_v1.script                   0%    0     0.0KB/s   --:-- ETA
+step5d_contact_home_v1.script                 100% 6020     6.0MB/s   00:00    
+
+root@192.168.1.18's  
+
+step5d_contact_home_v1.txt                      0%    0     0.0KB/s   --:-- ETA
+step5d_contact_home_v1.txt                    100%   69     7.0KB/s   00:00    
+
+root@192.168.1.18's  
+
+step5d_contact_home_v1.urp                      0%    0     0.0KB/s   --:-- ETA
+step5d_contact_home_v1.urp                    100% 2335     2.8MB/s   00:00    
+{"ok": true, "operation": "deploy-readback-triplet", "host": "192.168.1.18", "controller_directory": "/programs/andyl/kunwei/step5", "verified_readback": [{"filename": "step5d_contact_home_v1.script", "controller_path": "/programs/andyl/kunwei/step5/step5d_contact_home_v1.script", "readback_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/figure8-bound-package/readback/step5d_contact_home_v1/step5d_contact_home_v1.script", "byte_equal": true}, {"filename": "step5d_contact_home_v1.txt", "controller_path": "/programs/andyl/kunwei/step5/step5d_contact_home_v1.txt", "readback_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/figure8-bound-package/readback/step5d_contact_home_v1/step5d_contact_home_v1.txt", "byte_equal": true}, {"filename": "step5d_contact_home_v1.urp", "controller_path": "/programs/andyl/kunwei/step5/step5d_contact_home_v1.urp", "readback_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/figure8-bound-package/readback/step5d_contact_home_v1/step5d_contact_home_v1.urp", "byte_equal": true}]}

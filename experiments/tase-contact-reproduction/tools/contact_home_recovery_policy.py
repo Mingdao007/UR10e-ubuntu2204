@@ -13,7 +13,9 @@ from contact_semantics import finite_vector6
 from contact_yield_math import finite_scalar, require_rotation, so3_exp, so3_log
 
 
-ORIGINAL_HOME_XYZ_M = (0.487834547, 0.129337053, 0.033)
+from contact_yield_task_frame import FIGURE8_CONTACT_HOME_XYZ_M
+
+ORIGINAL_HOME_XYZ_M = FIGURE8_CONTACT_HOME_XYZ_M
 MAX_SO3_ANGLE_RAD = 0.01
 MAX_TRANSFER_M = 0.08
 MAX_RISE_M = 0.015

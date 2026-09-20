@@ -475,11 +475,13 @@ def build_native_yield_owner(
 
     pose = home_binding.profile.pose
     rotation = rotvec_to_matrix(np.array(pose[3:], dtype=float))
+    from contact_yield_task_frame import require_figure8_home
+    task_basis = require_figure8_home(pose)
     runtime, binding = create_native_yield_runtime(
         method=record.name,
         qp_library=library,
         anchor_m=pose[:3],
-        task_basis=rotation,
+        task_basis=task_basis,
         approach_inward_base=rotation[:, 2],
         home_observations={"home_pose": pose, "home_q": home_binding.entry_receipt.final_q},
     )

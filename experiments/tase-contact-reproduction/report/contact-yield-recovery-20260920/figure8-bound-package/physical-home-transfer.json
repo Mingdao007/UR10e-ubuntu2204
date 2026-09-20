@@ -1,0 +1,72 @@
+{
+  "source_run": "runs/yield-figure8-home-transfer-20260920T1534Z",
+  "success": true,
+  "final_position_error_m": 5.415990502378723e-05,
+  "final_orientation_error_rad": 8.917444670411056e-05,
+  "dashboard_after": {
+    "safetymode": "Safetymode: NORMAL",
+    "running": "Program running: false",
+    "programState": "STOPPED step5d_contact_home_v1.urp",
+    "is in remote control": "true",
+    "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_home_v1.urp"
+  },
+  "observed_stop": {
+    "dashboard": {
+      "running": "Program running: false",
+      "programState": "STOPPED step5d_contact_home_v1.urp",
+      "safetymode": "Safetymode: NORMAL"
+    },
+    "sample": {
+      "timestamp": 265183.258,
+      "actual_TCP_pose": [
+        0.4620508336129912,
+        0.17789705979934,
+        0.032987489125436864,
+        2.0330846750105893,
+        2.395004675202629,
+        -7.265265994736404e-06
+      ],
+      "actual_TCP_speed": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "actual_q": [
+        0.7256522178649902,
+        -1.821362634698385,
+        -2.549583911895752,
+        -0.340764121418335,
+        1.572282314300537,
+        3.7063474655151367
+      ],
+      "actual_qd": [
+        0.0,
+        0.0,
+        -0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "tcp_offset": [
+        0.0,
+        0.0,
+        0.0874,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "payload": 0.413,
+      "payload_cog": [
+        0.0011,
+        0.0031,
+        0.0163
+      ],
+      "safety_status_bits": 2049,
+      "monotonic_s": 74806.127063615
+    }
+  },
+  "scope": "noncontact transfer to existing Figure-eight XY with current tool orientation and .033 m clearance; no contact qualification"
+}

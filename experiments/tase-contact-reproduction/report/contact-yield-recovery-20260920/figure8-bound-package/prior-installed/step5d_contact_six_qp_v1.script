@@ -1,4 +1,4 @@
-# VERSION: 2026-09-20T1530Z_CONTACT_SIX_QP_V1_618001
+# VERSION: 2026-09-20T1458Z_CONTACT_SIX_QP_V1_618001
 # ROLE: six-law shared-QP preparation; requires matching host owner 618001
 # CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm
 # CONTACT_SEARCH: constant 0.0002m/s; travel<=0.015m; timeout=90s; original Home XYZ with current aligned attitude
@@ -25,7 +25,7 @@
 # FRESHNESS_FAILURE: equal changed payload, regression, or held age >= 0.080s => reason 43
 # LATCH_TIMING: pre-latch <= 20.0s, separate post-latch <= 30.0s
 # FIXED_HOME_PROFILE: step5d.autotune-v4/r006-fixed-home-v1
-# FIXED_HOME_POSE: p[0.462055181600, 0.177882596400, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
+# FIXED_HOME_POSE: p[0.487834547000, 0.129337053000, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
 # HOME_ENTRY: position <= 0.001m, orientation <= 0.010rad, q <= 0.020rad
 # HOME_ENTRY_FAILURE: 69 ATTEMPT_ENTRY_NOT_CAPTURED_HOME; stop without Script2 auto-home
 # RETURN: B3 Wave2b two-segment adaptive to home_z a=0.060 v=0.040; XY a=0.135 v=0.090; no +5mm third descend
@@ -751,7 +751,7 @@ end
 def step5d_contact_six_qp_v1():
   # Script1 owns the verified V4 EOAT setup.  This resident Script2 performs no EOAT writes.
   # Cartesian Home is fixed by the EOAT-bound profile; it is never captured at Play.
-  local fixed_home_pose = p[0.462055181600, 0.177882596400, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
+  local fixed_home_pose = p[0.487834547000, 0.129337053000, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
   local locked_home_q = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local locked_home_q_valid = False
   local runtime_revision = 20

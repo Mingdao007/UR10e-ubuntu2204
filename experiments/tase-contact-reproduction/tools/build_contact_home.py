@@ -6,6 +6,7 @@ import numpy as np
 from build_step4e_p0p1_programs import build_urp
 from step5d_autotune_v4_r012.controller_triplet import validate_urscript_block_balance
 from build_contact_benchmark_triplet import ROOT,CONTROLLER_DIR,transform,SOURCE
+from contact_yield_task_frame import FIGURE8_CONTACT_HOME_XYZ_M
 
 BASENAME='step5d_contact_home_v1'
 HOME_SOURCE=ROOT/'programs/step5/step5d/step5d_autotune_start_hover_r001.script'
@@ -45,7 +46,7 @@ def build(receipt,output):
     target=np.asarray(home['home_pose']);observed=np.asarray(home['rtde']['actual_TCP_pose'])
     recovery=recovery_geometry(home)
     withdrawal=withdrawal_geometry(home)
-    if not np.allclose(target[:3],[.487834547,.129337053,.033],atol=1e-12):raise ValueError('original Home XYZ changed')
+    if not np.allclose(target[:3],FIGURE8_CONTACT_HOME_XYZ_M,atol=1e-12):raise ValueError('Figure-eight Home XYZ differs')
     if np.linalg.norm(target[:3]-observed[:3])>.08:raise ValueError('Home transfer exceeds 80mm bound')
     text=HOME_SOURCE.read_text().replace('step5d_autotune_start_hover_r001',BASENAME)
     text=re.sub(r'^# VERSION: .*$',f'# VERSION: {stamp}',text,flags=re.M)

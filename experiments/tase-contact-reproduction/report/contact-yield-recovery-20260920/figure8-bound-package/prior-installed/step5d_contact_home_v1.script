@@ -1,7 +1,7 @@
-# VERSION: 2026-09-20T1530Z_CONTACT_HOME_V1
+# VERSION: 2026-09-20T1458Z_CONTACT_HOME_V1
 # ROLE: standalone immutable one-shot campaign Home positioning helper
 # TP_PROGRAM_ID: step5d_contact_home_v1
-# TARGET_POSE: p[0.462055181600, 0.177882596400, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
+# TARGET_POSE: p[0.487834547000, 0.129337053000, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
 # SAFE_TRANSFER_Z_POLICY: max(current_z, 0.033000000)
 # MOTION: preserve height for XY transfer, then descend to original Home; a=0.01m/s2 v=0.002m/s
 # BLEND_RADIUS_M: 0.0
@@ -108,7 +108,7 @@ end
 
 def step5d_contact_home_v1():
   local current_pose = get_actual_tcp_pose()
-  local target_pose = p[0.462055181600, 0.177882596400, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
+  local target_pose = p[0.487834547000, 0.129337053000, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
   if not codex_start_hover_finite_pose(current_pose):
     textmsg("start_hover_r001: nonfinite initial pose; halted")
     halt

@@ -1,0 +1,96 @@
+{
+  "schema": "contact-preserved-home-v1",
+  "observed_at": 1789918255.9513772,
+  "user_home_confirmed": true,
+  "user_instruction": "Restore the existing Figure-eight Home and task frame; robot move pending fresh gates",
+  "rtde": {
+    "timestamp": 265080.682,
+    "actual_TCP_pose": [
+      0.48783454115605585,
+      0.12931832249082362,
+      0.03298264440496888,
+      2.0330950205982776,
+      2.394960090619923,
+      -9.430439594491212e-05
+    ],
+    "actual_TCP_speed": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "actual_q": [
+      0.6101570129394531,
+      -1.8313566646971644,
+      -2.5315983295440674,
+      -0.3488001388362427,
+      1.5722485780715942,
+      3.5908617973327637
+    ],
+    "actual_qd": [
+      0.0,
+      0.0,
+      -0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "tcp_offset": [
+      0.0,
+      0.0,
+      0.0874,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "payload": 0.413,
+    "payload_cog": [
+      0.0011,
+      0.0031,
+      0.0163
+    ],
+    "safety_status_bits": 2049,
+    "monotonic_s": 74703.550778304
+  },
+  "dashboard": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "safetymode": "Safetymode: NORMAL",
+    "running": "Program running: false",
+    "programState": "STOPPED 1.urp",
+    "is in remote control": "false"
+  },
+  "home_pose": [
+    0.4620551816,
+    0.1778825964,
+    0.033,
+    2.0331342431227566,
+    2.3949884238824652,
+    -2.2711768777011217e-22
+  ],
+  "home_q": [
+    0.7256134420484329,
+    -1.8213289392704755,
+    -2.549579805807595,
+    -0.3407940845856519,
+    1.5723007565210316,
+    3.7063398490291197
+  ],
+  "original_home_pose": [
+    0.487834547,
+    0.129337053,
+    0.033,
+    3.120752062,
+    0.0,
+    0.068626833
+  ],
+  "original_source": "programs/step5/step5d/step5d_strict_rnn_autotune_v4_r012.script",
+  "original_source_sha256": "0fccfb7304104777b375f7250e192ec83640c5b8192411db36bd05de7d05ec34",
+  "orientation_correction_rad": 6.895232580336552e-06,
+  "ik_residual": 9.74917291500802e-12,
+  "actual_motion_performed": false,
+  "path_collision_qualified": false,
+  "clearance_entry": true,
+  "geometry_source": "existing step6_figure8_autotune_v1 XY basis and origin; retained current .033m clearance and current tool orientation"
+}

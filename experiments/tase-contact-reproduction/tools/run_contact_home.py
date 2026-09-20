@@ -20,6 +20,22 @@ TARGET=f'{CONTROLLER_DIR}/{BASENAME}.urp'
 INSTALLED_LOCK=Path('/home/andy/.codex-worktrees/step5d-r014-fixed-confidence-20260821/experiments/tase-contact-reproduction/runs/r014_autotuner/live-writer.lock')
 
 
+
+def home_motion_timeout_s(home):
+    """Budget the existing three-segment motion from distance and package speed."""
+    start=np.asarray(home['rtde']['actual_TCP_pose'],dtype=float)
+    target=np.asarray(home['home_pose'],dtype=float)
+    if start.shape!=(6,) or target.shape!=(6,) or not np.isfinite(start).all() or not np.isfinite(target).all():
+        raise ValueError('invalid Home geometry')
+    if np.linalg.norm(start[:3]-target[:3])>.08:
+        raise ValueError('Home transfer exceeds 80mm bound')
+    slow=any(home.get(k) for k in ('bounded_recovery','bounded_withdrawal','clearance_entry'))
+    speed=.002 if slow else .01
+    clearance=max(start[2],target[2])
+    length=(clearance-start[2])+np.linalg.norm(target[:2]-start[:2])+(clearance-target[2])
+    return max(20.,float(length/speed)+10.)
+
+
 def validate_robot_sample(sample):
     for key,n in [('actual_TCP_pose',6),('actual_TCP_speed',6),('actual_q',6),('actual_qd',6),('tcp_offset',6),('payload_cog',3)]:
         value=np.asarray(sample[key]);
@@ -133,7 +149,9 @@ def run(args):
             result['load']=adapter.load()
             admit_sample(obs.latest(),home,initial=True)
             result['play']=adapter.play()
-            deadline=time.monotonic()+20;stationary_since=None
+            motion_timeout=home_motion_timeout_s(home)
+            result['motion_timeout_s']=motion_timeout
+            deadline=time.monotonic()+motion_timeout;stationary_since=None
             while time.monotonic()<deadline:
                 row=obs.latest();admit_sample(row,home,initial=False)
                 if sensor is not None:check_wrench()
@@ -149,7 +167,7 @@ def run(args):
                         result.update(success=True,final_position_error_m=float(pe),final_orientation_error_rad=float(ae),dashboard_after=state);break
                 else:stationary_since=None
                 time.sleep(.04)
-            else:raise ValueError('Home did not finish within 20s')
+            else:raise ValueError(f'Home did not finish within geometry-derived {motion_timeout:.3f}s')
         except BaseException as e:
             result['failure']=f'{type(e).__name__}: {e}'
             if adapter.play_issued:

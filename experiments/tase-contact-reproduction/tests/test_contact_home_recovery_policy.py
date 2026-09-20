@@ -12,7 +12,7 @@ from contact_home_recovery_policy import (
 from contact_yield_math import so3_exp, so3_log
 
 
-HOME = np.array([0.487834547, 0.129337053, 0.033, 2.033134243, 2.394988424, 0.0])
+HOME = np.array([0.4620551816, 0.1778825964, 0.033, 2.033134243, 2.394988424, 0.0])
 IDENTITY = np.eye(3)
 NO_LOAD = np.zeros(6)
 QUIET_STD = np.array([0.02, 0.02, 0.02, 0.0, 0.0, 0.0])

@@ -1,11 +1,11 @@
 {
   "schema": "contact-qp-package-preparation-v1",
   "basename": "step5d_contact_six_qp_v1",
-  "stamp": "2026-09-20T1530Z_CONTACT_SIX_QP_V1_618001",
+  "stamp": "2026-09-20T1458Z_CONTACT_SIX_QP_V1_618001",
   "controller_directory": "/programs/andyl/kunwei/step5",
   "revision": 20,
   "protocol": 618001,
-  "home_receipt_sha256": "d11846d17d9c721ed759e44099df3ae1d10e30f5d80d79fa7d7aed16766c9152",
+  "home_receipt_sha256": "887e592c7361f9ef6e01613a3d64f7623a0a6b8b3a291587b1fa5f8cd9df03e5",
   "source_sha256": "0fccfb7304104777b375f7250e192ec83640c5b8192411db36bd05de7d05ec34",
   "live_qualified": false,
   "geometry": {
@@ -42,8 +42,8 @@
       -1
     ],
     "home_xyz_m": [
-      0.4620551816,
-      0.1778825964,
+      0.487834547,
+      0.129337053,
       0.033
     ],
     "scope": "local package arithmetic; workspace clearance and owner dispatch pending"

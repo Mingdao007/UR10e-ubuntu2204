@@ -36,3 +36,14 @@ def test_normal_with_3pe_input_is_not_a_stop():
         with pytest.raises(ValueError,match='NORMAL'):admit_sample(sample,home,initial=True)
     sample['safety_status_bits']=4097
     with pytest.raises(ValueError,match='NORMAL'):admit_sample(sample,home,initial=True)
+
+
+def test_slow_figure8_transfer_timeout_uses_path_length_without_widening_geometry():
+    from run_contact_home import home_motion_timeout_s
+    sample,home=fixture()
+    home['rtde']['actual_TCP_pose']=[.487834547,.129337053,.033,*sample['actual_TCP_pose'][3:]]
+    home['home_pose']=[.4620551816,.1778825964,.033,*sample['actual_TCP_pose'][3:]]
+    home['clearance_entry']=True
+    assert 37 < home_motion_timeout_s(home) < 38
+    home['home_pose'][0]=.1
+    with pytest.raises(ValueError,match='80mm'):home_motion_timeout_s(home)
