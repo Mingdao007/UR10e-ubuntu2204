@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-09-20T08:47:20.595965+00:00",
+  "updated_at": "2026-09-20T08:57:00.049257+00:00",
   "current_stage_id": "step5d_contact_six_qp_v1",
   "current_step": "Step5d",
   "program": "step5d_contact_six_qp_v1",
@@ -15,7 +15,7 @@
     ".txt": "36ce492f4945ba917b43ac695327dd092a2979f9d999fc867af3984c893d06bb",
     ".urp": "41b94445425a59aad5659ecf34cbeecc27613493fa23e8a73d84313e6bad8210"
   },
-  "status": "native_live_entry_software_verified_pending_machine_admission",
+  "status": "protective_stop_pending_operator_diagnosis",
   "liveprep_status": "blocked",
   "liveprep_readiness_path": "runs/contact-yield-live/readiness.json",
   "reproduction_status": "incomplete",
@@ -26,7 +26,7 @@
   },
   "bridge_trigger": {
     "bridge_has_started": false,
-    "blocked_reason": "fresh machine admission and first physical qualification pending; standing user authority exists"
+    "blocked_reason": "observed Protective Stop at first writer open; await TP alarm and physical inspection; no automatic unlock"
   },
   "bridge_profile": {
     "runtime_protocol": 618001,
@@ -74,7 +74,8 @@
     "v1_controller_readback_verified": true,
     "stopped_transport": "report/yield-live-transition-v1/rtde-stopped-transport-summary.json",
     "contact_pilot_completed": false,
-    "full_writer_qualified": false
+    "full_writer_qualified": false,
+    "latest_live_attempt": "report/yield-live-transition-v1/first-live-admission-failure.json"
   },
   "notes": [
     "Selection fixes the old RNN/native route mismatch only. No Load, Play, ARM or motion performed by this change.",

@@ -368,6 +368,8 @@ class NativeYieldLiveWriter(R006LiveWriter):
         self.raw_observations = []
         self.command_observations = []
         self.robot_observations = []
+        self.admission_robot_observations = []
+        self.rejected_robot_observations = []
 
     @staticmethod
     def _record(buffer, value):
@@ -391,6 +393,20 @@ class NativeYieldLiveWriter(R006LiveWriter):
             if not end.request_early_end(self._ordinal):
                 raise YieldLiveWriterError("diagnostic PATH-end request rejected")
         return packet
+
+    def _validate_output(self, output, **kwargs):
+        # open() validates its first frame directly, before _poll_checked.
+        # Preserve the actual rejecting frame even when open closes transport.
+        if not self._opened:
+            self._record(self.admission_robot_observations, output)
+        try:
+            return super()._validate_output(output, **kwargs)
+        except Exception as exc:
+            self._record(self.rejected_robot_observations, {
+                "output": output, "host_monotonic_s": self._mono_clock(),
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+            raise
 
     def _poll_checked(self, *args, **kwargs):
         output = super()._poll_checked(*args, **kwargs)

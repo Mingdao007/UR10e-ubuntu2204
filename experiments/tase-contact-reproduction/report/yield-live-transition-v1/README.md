@@ -93,3 +93,34 @@ bundle and the first physical SFC qualification. Earlier stopped captures are
 not relabeled fresh. No Load, Play, ARM or contact has been sent in this update.
 Video remains unavailable. Astra round 2 remains in the same hp-astra/xhigh
 session, with its separate TASE scope still unintegrated.
+
+
+## First real resident admission and Protective Stop
+
+Fresh readback of both native contact and Home triplets matched. A new stopped
+combined capture retained 4,997 RTDE frames; one receive gap exceeded 4 ms
+(maximum 11.887 ms). It is not full-chain timing qualification.
+
+Main issued exact native Load/Play. The first immediate runtime check failed
+before ARM; Dashboard STOP acknowledgement preceded the observed STOPPED state.
+Main confirmed STOPPED with zero actual joint velocities before retry. A bounded
+startup wait then admitted the second resident session after continuous idle
+RTDE, Home/EOAT and native identity checks. No robot command was sent during
+that resident observation.
+
+The first qualification CLI invocation rejected an attempt label missing r006
+before opening endpoints. The corrected invocation failed during writer open
+with `runtime Safety/stationary gate failed`; open/ARM/execution flags are false.
+The only recorded published packet is cleanup STOP, with zero proposed qdot.
+Subsequent fresh Dashboard/RTDE reported Protective Stop, STOPPED and zero joint
+velocities. No protective-stop unlock or further Load/Play was issued. The user
+has been asked for the TP alarm text/code and physical observations.
+
+The exact cause is unknown. No continuous robot capture covers the gap between
+resident admission and writer open, and the old logger omitted the first rejected
+frame. Main now records first admission and rejected frames even when open fails;
+18 admission regression tests pass. This source repair does not diagnose or
+resolve the physical event. See first-live-admission-failure.json and the bound
+raw files. Hardware continuation waits for the operator investigation; TASE
+software work remains active. Astra was briefly suspended during the writer
+attempt and resumed after confirmed stopping.

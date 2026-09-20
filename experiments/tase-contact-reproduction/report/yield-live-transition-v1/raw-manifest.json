@@ -165,6 +165,182 @@
       "path": "runs/yield-first-qualification-20260920T082110Z/summary.json",
       "bytes": 2332,
       "sha256": "3ad2a984c5f6949d3f788ba4ada063f218e9c58a965aaee63893330535fb6ce4"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/authority/.owner-authority.lock",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/authority/owner-authority.json",
+      "bytes": 766,
+      "sha256": "bd53ff64917d74720bf194ffeccc7cf131d9c98ff22e3655926968c7425dc420"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/capture.py",
+      "bytes": 5785,
+      "sha256": "720a16a3c86d0d6c7caa4430c22b4e32362ce51e0770b36f5365cdee6ef52d34"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/controller_receipt.json",
+      "bytes": 1346,
+      "sha256": "ba54f309b6bc4abf33775ad5ee0db6a3db9cbd1e401b9f845a1d2936f5750606"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/dispatch_receipt.json",
+      "bytes": 4086,
+      "sha256": "368ad7a896cd5ffc42825d297db95c5bfbc66936287f1b353ac27ac7c8d4c9bb"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/frames.json",
+      "bytes": 5793345,
+      "sha256": "b4a7e0e267060d036e05e8f8dc8cbd6f7439dc0e1c38f7244b25d4e9d1defcfd"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/home_start_receipt.json",
+      "bytes": 850,
+      "sha256": "f185993d432f30c77cc34c4373c7c1896afe98e4bb450f0ace2457f608f634f3"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/owner.json",
+      "bytes": 400,
+      "sha256": "a340c120f6bcc96bb3a5eea03e700628647337cb0a7ff1cd5cb9b41542653406"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/prewarm.json",
+      "bytes": 10952,
+      "sha256": "6fa6b82cc8ad57457130fdc5d7f7e1e1f213972f5a8388268518c076322bda04"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/published_packets.jsonl",
+      "bytes": 463,
+      "sha256": "0925f5cba44285221e6a57a4f5e4fdb1025ba17600c81a06b8a9519c004cf5fb"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/qualification-entry-1.txt",
+      "bytes": 10995,
+      "sha256": "6973da8f2e5f1f22cb4728f3c367054b45a76b162664fb784f0149083bbe26e1"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/qualification-entry-2.txt",
+      "bytes": 10990,
+      "sha256": "17f8cd19ccc11f1d00afcab236ff1f2b9afeb6b5acd74f48d39be28fb6a0b92c"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/qualification-open-failure-stop.json",
+      "bytes": 758,
+      "sha256": "27442b5bf64783e6147f250e7abef430e8a5292ced50c263eb58e07edb8f3055"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/raw_sensor.jsonl",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/readback-results.json",
+      "bytes": 3666,
+      "sha256": "8a5586399b411d07cd5530a927f26effd1c6de5acb95152ff0803b78d1e6dbfb"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/resident-admission-attempt-2.py",
+      "bytes": 6486,
+      "sha256": "05fc9629c32a8a898f9dcdc3fc55d9bd34bd5768f6cfb88e15cfc8d4d63a0d66"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/resident-admission-audit-2.json",
+      "bytes": 3247,
+      "sha256": "5cec5642ba9fd52eae3f8a33b186cad3570c879ea2b5a0e3d355823fced71527"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/resident-admission-audit.json",
+      "bytes": 1109,
+      "sha256": "8e98d2673046be05a2379eece59ed2b180553a541a936867a774a0132d4d7bd6"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/resident-entry-1.txt",
+      "bytes": 164,
+      "sha256": "b31feaa36d9026a042c627f61ae99086b184ad4d4e96b0bbc6dcde00928ae622"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/resident-entry-2.txt",
+      "bytes": 3247,
+      "sha256": "5cec5642ba9fd52eae3f8a33b186cad3570c879ea2b5a0e3d355823fced71527"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/resident-failure-stop-confirmed.json",
+      "bytes": 735,
+      "sha256": "550f376212f5397e022bd5c5d3444d4614cf3ef64e9165e7eef11e181ac4e8b5"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/resident-failure-stopped-readback.json",
+      "bytes": 451,
+      "sha256": "2e0e832745d6f652692e628e99d90360bf5075ac171baab095023c4d21630500"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/resident-observation.json",
+      "bytes": 419607,
+      "sha256": "fe012bcde120054aa07e13ddadb60a327c3abccbf90c18b4ac1142bf64f54401"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/robot_frames.jsonl",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/runtime_evidence.json",
+      "bytes": 610,
+      "sha256": "73b5bed93db7cb8133bd82b96624c3e02b871d0a260c76061c30c4de1a16f131"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/software_baseline_receipt.json",
+      "bytes": 941,
+      "sha256": "5aa1dddcd1183487dc50502ae33df262c4e2dfa081735956d9d36a0980598d2f"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/step5d_contact_home_v1/step5d_contact_home_v1.script",
+      "bytes": 6198,
+      "sha256": "4db58acdf5e095d54b86d2fe630e5e7cb3be9e560b362700cd72940819743f8b"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/step5d_contact_home_v1/step5d_contact_home_v1.txt",
+      "bytes": 69,
+      "sha256": "d6375d033e931ea57f3f34beb04fbcec75ca484346907c241d99d1c437c5d09f"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/step5d_contact_home_v1/step5d_contact_home_v1.urp",
+      "bytes": 2389,
+      "sha256": "ba8fe8593afa29940a00de0c32d6ce1450a73bcaddecb3c9bc8992ceb02223e0"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/step5d_contact_home_v1-manifest.json",
+      "bytes": 1126,
+      "sha256": "67a2197c64050b8e40e5e57f32b9b7192a506360ff01b07eaeee884b5d5d0225"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/step5d_contact_six_qp_v1/step5d_contact_six_qp_v1.script",
+      "bytes": 36723,
+      "sha256": "87c789d9ad1879a7e448cef2867689d133bbb34c3978f94fcebae91a1a6d1142"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/step5d_contact_six_qp_v1/step5d_contact_six_qp_v1.txt",
+      "bytes": 146,
+      "sha256": "36ce492f4945ba917b43ac695327dd092a2979f9d999fc867af3984c893d06bb"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/step5d_contact_six_qp_v1/step5d_contact_six_qp_v1.urp",
+      "bytes": 8039,
+      "sha256": "41b94445425a59aad5659ecf34cbeecc27613493fa23e8a73d84313e6bad8210"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/step5d_contact_six_qp_v1-manifest.json",
+      "bytes": 1140,
+      "sha256": "111625cf92d38c9a880320b174591ca57165203dfc4caeb8ec8b17d06cd619b5"
+    },
+    {
+      "path": "runs/yield-machine-admission-20260920T084847Z/summary.json",
+      "bytes": 2331,
+      "sha256": "a493832ccdfd4f62ac356fd1ffe9612e6ec2eee81f48201edc249f3203d0e69f"
     }
-  ]
+  ],
+  "updated_at": "2026-09-20T08:57:00.048988+00:00"
 }

@@ -137,3 +137,21 @@ def test_live_slew_fallback_reports_sacrificed_normal_tracking(lib):
     assert result['qdot_rad_s'][2] == pytest.approx(.0005,abs=1e-7)
     assert max(abs(x) for x in result['qdot_rad_s']) <= .0005+1e-7
     assert result['feasibility_force_guarantee'] is False
+
+
+def test_first_rejected_frame_survives_open_failure(monkeypatch):
+    from types import SimpleNamespace
+    writer=object.__new__(NativeYieldLiveWriter)
+    writer._opened=False
+    writer._mono_clock=lambda: 12.
+    writer.admission_robot_observations=[]
+    writer.rejected_robot_observations=[]
+    output=SimpleNamespace(safety_mode=3, runtime_state=1)
+    def reject(*args, **kwargs):
+        raise RuntimeError("runtime Safety/stationary gate failed")
+    monkeypatch.setattr(R006LiveWriter, "_validate_output", reject)
+    with pytest.raises(RuntimeError, match="Safety"):
+        writer._validate_output(output, require_stationary=True)
+    assert writer.admission_robot_observations == [output]
+    assert writer.rejected_robot_observations[0]['output'] is output
+    assert writer.rejected_robot_observations[0]['host_monotonic_s'] == 12.

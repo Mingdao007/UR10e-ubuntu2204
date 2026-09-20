@@ -1,0 +1,36 @@
+{
+  "schema": "yield-first-live-admission-failure-v1",
+  "recorded_at": "2026-09-20T08:57:00.044271+00:00",
+  "run_dir": "runs/yield-machine-admission-20260920T084847Z",
+  "facts": {
+    "native_and_home_readback_match": true,
+    "resident_load_play_issued": true,
+    "resident_idle_admission_second_attempt_passed": true,
+    "qualification_opened": false,
+    "qualification_armed": false,
+    "qualification_executed": false,
+    "qualification_error": "LiveWriterError: runtime Safety/stationary gate failed",
+    "last_safety": "PROTECTIVE_STOP",
+    "last_runtime": "STOPPED",
+    "last_qd_rad_s": [
+      0.0,
+      -0.0,
+      -0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "published_packets": 1,
+    "published_packet_role": "cleanup STOP only; no ARM",
+    "contact_trial_completed": false,
+    "automatic_unlock_issued": false
+  },
+  "limitations": [
+    "First rejected writer frame was not retained by original admission logger; fixed after this event.",
+    "No continuous robot observation between resident admission and writer open.",
+    "Protective Stop cause unknown pending Teach Pendant error code/text.",
+    "No video."
+  ],
+  "next_hardware_condition": "Await operator alarm and physical inspection; no automatic protective-stop recovery.",
+  "software_next": "Continue TASE source/state/QP review; retain baseline and pilot failures without ranking claims."
+}

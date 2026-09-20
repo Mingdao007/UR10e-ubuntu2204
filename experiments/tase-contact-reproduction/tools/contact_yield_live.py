@@ -340,6 +340,8 @@ def run_live(
         for filename, rows in (
             ("raw_sensor.jsonl", mature.writer.raw_observations),
             ("robot_frames.jsonl", mature.writer.robot_observations),
+            ("admission_robot_frames.jsonl", mature.writer.admission_robot_observations),
+            ("rejected_robot_frames.jsonl", mature.writer.rejected_robot_observations),
             ("published_packets.jsonl", mature.writer.command_observations),
         ):
             try:
