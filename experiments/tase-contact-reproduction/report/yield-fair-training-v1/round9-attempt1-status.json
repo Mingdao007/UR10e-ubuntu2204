@@ -1,0 +1,17 @@
+{
+  "observed_utc": "2026-09-20T05:29:12.174952+00:00",
+  "status": "terminated_without_advisory_delivery",
+  "exec_session_id": 11375,
+  "exit_code": 143,
+  "route_evidence": "[claude-route] route=ubuntu-homepool model=fable status=selected",
+  "stdout_bytes": 0,
+  "output_directory_exists": false,
+  "prompt_sha256": "6d26ad090c9d0900a5bd5f730cd88f95dc603394a64f4bd0270b9665f5be672e",
+  "termination_cause": "unknown; exit 143 is consistent with SIGTERM, but sender/reason not established",
+  "helper_timeout": "not configured; helper optional timeout defaults to None; no explicit_timeout marker",
+  "process_check": "no matching ask_claude_code helper or claude process in inspected process listing",
+  "scientific_conclusions_received": false,
+  "nonblocking": true,
+  "training_restarted": false,
+  "writer_restarted": false
+}
