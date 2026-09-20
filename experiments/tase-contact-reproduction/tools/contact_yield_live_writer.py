@@ -619,8 +619,10 @@ class NativeYieldLiveWriter(R006LiveWriter):
 
     @staticmethod
     def _record(buffer, value):
-        if len(buffer) >= 150000:
-            raise YieldLiveWriterError("attempt evidence capacity reached")
+        # One public pilot owns three qualifications and one PATH attempt.
+        # Buffers are run-scoped and retained until close, not per-attempt.
+        if len(buffer) >= 4 * 150000:
+            raise YieldLiveWriterError("four-attempt run evidence capacity reached")
         buffer.append(value)
 
     def _send_packet(self, sensor, **kwargs):
