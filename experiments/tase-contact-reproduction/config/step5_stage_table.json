@@ -10987,7 +10987,7 @@
         "rollback_drill_required": true,
         "typed_closure_v2_cold_read_ack_next_arm_verified": "legacy_replay_only_not_production_pass"
       },
-      "active": true,
+      "active": false,
       "block_reason": null,
       "blocked": true,
       "bridge": true,
@@ -10999,7 +10999,7 @@
       "current_binding": {
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r034.urp",
         "current_stage_pointer": "config/current_stage.json",
-        "is_current": true,
+        "is_current": false,
         "program": "step5d_strict_rnn_autotune_v3",
         "stage_id": "step5d_strict_rnn_autotune_v3"
       },
@@ -11193,7 +11193,8 @@
       },
       "stage": "Step5d",
       "strict_rnn": true,
-      "success_condition": "V3 remains the unique selected route; failures fail closed as V3 and never fall back to V1."
+      "success_condition": "V3 remains the unique selected route; failures fail closed as V3 and never fall back to V1.",
+      "superseded_by_live_task": "step5d_contact_six_qp_v1"
     },
     {
       "id": "step5d_strict_rnn_autotune_v4",
@@ -11500,6 +11501,55 @@
         "safety_or_return_failure": "immediate_stop_no_auto_home"
       },
       "success_condition": "Offline proof only here; formal COMPLETE requires fresh live application acceptance plus finite-region simultaneous-95-percent local epsilon-PAC. Global convergence is never claimed."
+    },
+    {
+      "id": "step5d_contact_six_qp_v1",
+      "active": true,
+      "owner": "bridge+TP",
+      "bridge": true,
+      "contact": true,
+      "complete": false,
+      "blocked": true,
+      "block_reason": "native live entry under review and real writer qualification pending",
+      "duration_s": 62.83185307179586,
+      "current_binding": {
+        "is_current": true,
+        "stage_id": "step5d_contact_six_qp_v1",
+        "program": "step5d_contact_six_qp_v1",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
+        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection.json",
+        "controller_readback_status": "controller read-back verified"
+      },
+      "package_delivery": {
+        "controller_readback_verified": true,
+        "controller_readback_status": "controller read-back verified"
+      },
+      "entrypoint": "scripts/contact-yield-live.sh",
+      "entrypoint_status": "implementation_under_review",
+      "task": [
+        "constant_force",
+        "unknown_surface",
+        "orientation_compliance"
+      ],
+      "research_scope": {
+        "required_baselines": [
+          "TASE_RNN",
+          "SFC"
+        ],
+        "current_proposals": [
+          "DSFC",
+          "MSFC"
+        ],
+        "required_solver_ablation": "TASE_QP",
+        "new_proposals": "historical and live evidence driven; at most two concurrent",
+        "rnn_required_only_for": "TASE_RNN",
+        "simulation_is_live_prerequisite": false
+      },
+      "acceptance": {
+        "contact_live_accepted": false,
+        "reproduction_complete": false,
+        "whole_writer_qualified": false
+      }
     }
   ],
   "startup_gate_profiles": {
@@ -11685,7 +11735,7 @@
   "contact_yield_recovery_preparation": {
     "id": "contact_yield_recovery_v2",
     "active": false,
-    "status": "offline_mechanism_evaluated_not_live_qualified",
+    "status": "retained_offline_development_not_live_prerequisite",
     "report": "report/contact-yield-recovery-20260920/README.md",
     "latest_development_report": "report/yield-normal-v2/README.md",
     "protocol": "config/contact_yield_protocol.json",
@@ -11715,6 +11765,7 @@
       "whole_writer_qualified": false
     },
     "retained_evidence": "contact-six fixed-attitude results retained as regression only; existing current_stage unchanged",
-    "success_condition": "reproducible closed-loop benefit with costs and numerical verification, then fresh transport qualification and original-platform pilot; formal equal-budget holdout remains required"
+    "success_condition": "reproducible closed-loop benefit with costs and numerical verification, then fresh transport qualification and original-platform pilot; formal equal-budget holdout remains required",
+    "superseded_by_live_task": "step5d_contact_six_qp_v1"
   }
 }

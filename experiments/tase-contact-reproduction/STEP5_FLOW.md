@@ -1,9 +1,12 @@
 # Step5 Flow
 
-The historical compatibility projection remains `step5d_strict_rnn_autotune_v3`.
-The contact-six preparation below is inactive and does not promote that release.
+The current task selects `step5d_contact_six_qp_v1` on the existing UR10e/Kunwei platform. The native live entry is under review; no contact pilot or full writer qualification has passed. Package read-back and stopped transport evidence are in `report/yield-live-transition-v1/`. Standing user live authority exists, but fresh machine admission remains mandatory.
 
-## Six-controller contact benchmark preparation
+The task remains constant 5 N + unknown surface + attitude compliance. SFC and original TASE/RNN are required baselines; DSFC/MSFC and evidence-driven new controllers are proposals; TASE-QP changes only the solver. Native entry will use `scripts/contact-yield-live.sh` after integration. Simulation is not a prerequisite.
+
+The old governed release (`config/step5d/current.json`), its incomplete runs, and the historical preparation sections below are retained. They are not the selected native runtime and must not be dispatched for this task.
+
+## Historical six-controller preparation
 
 The isolated `contact_six_qp_v1` preparation uses LAC, NAC, SFC, DSFC, ISFC,
 and MSFC with one native equality/box QP, fixed orientation, and a complete
@@ -31,7 +34,7 @@ raw force/torque limits are 20 N/2 Nm. It carries protocol 618001, distinct
 from historical R013. Live owner integration and full writer timing remain
 pending; file delivery is not dispatch admission.
 
-## Governed Step5d route
+## Retained historical governed Step5d route
 
 Prose is not the current-release authority. The content-addressed manifest named
 by `config/step5d/current.json` is the only immutable release truth, and
@@ -44,7 +47,7 @@ reusable readiness state. A stopped TP program cannot
 prove registers 35--37 before it executes, so that pre-identity Play barrier
 is explicit and never aliases `BENCH_READY`; Play may start the TP program but
 ARM remains fail-closed until the runtime identity is observed and rechecked.
-This compatibility projection currently selects
+The historical compatibility projection selected
 `step5d_strict_rnn_autotune_v3`; the exact governed TP revision must always be
 resolved from `config/step5d/current.json`, never copied into a launcher or
 inferred from this document.

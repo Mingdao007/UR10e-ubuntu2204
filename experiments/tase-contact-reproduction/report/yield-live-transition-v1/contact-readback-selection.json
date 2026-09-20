@@ -1,0 +1,26 @@
+{
+  "schema": "contact-readback-selection-v1",
+  "status": "controller read-back verified",
+  "program": "step5d_contact_six_qp_v1",
+  "source_validation": "report/yield-live-transition-v1/step5d_contact_six_qp_v1-validation.json",
+  "readback_directory": "runs/yield-live-transition-20260920/step5d_contact_six_qp_v1-fresh-readback",
+  "readback_time_policy": "original capture retained; selection does not refresh hardware observation time",
+  "sha256": {
+    "local": {
+      ".script": "87c789d9ad1879a7e448cef2867689d133bbb34c3978f94fcebae91a1a6d1142",
+      ".txt": "36ce492f4945ba917b43ac695327dd092a2979f9d999fc867af3984c893d06bb",
+      ".urp": "41b94445425a59aad5659ecf34cbeecc27613493fa23e8a73d84313e6bad8210"
+    },
+    "controller": {
+      ".script": "87c789d9ad1879a7e448cef2867689d133bbb34c3978f94fcebae91a1a6d1142",
+      ".txt": "36ce492f4945ba917b43ac695327dd092a2979f9d999fc867af3984c893d06bb",
+      ".urp": "41b94445425a59aad5659ecf34cbeecc27613493fa23e8a73d84313e6bad8210"
+    },
+    "readback": {
+      ".script": "87c789d9ad1879a7e448cef2867689d133bbb34c3978f94fcebae91a1a6d1142",
+      ".txt": "36ce492f4945ba917b43ac695327dd092a2979f9d999fc867af3984c893d06bb",
+      ".urp": "41b94445425a59aad5659ecf34cbeecc27613493fa23e8a73d84313e6bad8210"
+    }
+  },
+  "claim_scope": "byte identity of retained fresh controller GET only; no runtime freshness, ARM or task qualification"
+}
