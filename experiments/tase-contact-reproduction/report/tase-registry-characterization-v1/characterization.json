@@ -1,0 +1,1696 @@
+{
+  "base_q_rad": [
+    0.2,
+    -1.1,
+    1.0,
+    -1.5,
+    0.7,
+    0.3
+  ],
+  "case_definitions": {
+    "aligned_nominal": {
+      "interpretation": "bounded prescribed input; not contact evidence",
+      "normal": "-R_current[:,2] plus a small deterministic base-frame tilt",
+      "purpose": "nominal feasible shared-task comparison"
+    },
+    "orientation_task_stress": {
+      "interpretation": "QP infeasibility is an input/task boundary, not a solver disadvantage",
+      "normal": "deterministic world-Z-near reaction against arbitrary BASE_Q orientation",
+      "purpose": "retain original orientation/task feasibility stress input"
+    }
+  },
+  "equation_mapping": {
+    "eq23_printed_lambda": "epsilon * dot(lambda_state) = J @ theta_dot_state - xdot_c",
+    "eq23_printed_theta": "epsilon * dot(theta_dot_state) = -sigr(theta_dot_state - P_Omega(theta_dot_state - (theta_dot_state - J.T @ lambda_state)))",
+    "eq23_simplified_theta": "epsilon * dot(theta_dot_state) = -sigr(theta_dot_state - P_Omega(J.T @ lambda_state))",
+    "implementation_boundary": "Printed-plus is the page-6 sign mapping; mature-minus is an explicit local adaptation. Neither is claimed as full original-TASE acceptance.",
+    "lambda_definition": "The local PDF mapping records Eq.23 lambda_state as the opposite sign of the standard Eq.21 Lagrange multiplier.",
+    "projection_definition": "P_Omega(J.T @ lambda_state), element-wise box projection",
+    "source_audit": "experiments/tase-contact-reproduction/report/tase-offline-baselines-v1/pdf-equation-parameter-audit.json",
+    "source_pdf_page": 6,
+    "uncertainty": "The inspected paper gives the continuous equations and proof, but does not prove this explicit-Euler UR10e 6-DOF bounded implementation for changing J and nonzero commands."
+  },
+  "hardware_or_endpoint_action": false,
+  "input_trace_summary": {
+    "max_jacobian_distance_from_identity": 3.800805194972359,
+    "max_normal_tilt_rad": 0.8354026106807505,
+    "total_rows_across_dt_runs": 6000
+  },
+  "interpretation": {
+    "comparison_limit": "A lower residual or later failure is not evidence of physical superiority or contact performance.",
+    "failure_boundary": "first common-registry exception is reported with rollback status; no clipping or fallback is applied",
+    "residual": "solver task-equality residual on prescribed xdot_c; not a physical force metric"
+  },
+  "physical_claim": false,
+  "provenance": {
+    "command": [
+      "/usr/bin/python3",
+      "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/tools/characterize_tase_registry.py",
+      "--output",
+      "experiments/tase-contact-reproduction/report/tase-registry-characterization-v1/characterization.json",
+      "--duration-s",
+      "2.0",
+      "--dt-s",
+      "0.002",
+      "--build-qp-dir",
+      "/tmp/tase-registry-characterization-qp"
+    ],
+    "git_head": "763b1a1766edb095b11979584f7199c593a0f3b7",
+    "kinematics": {
+      "calibration_hash": "calib_7367377276742883610",
+      "claim_scope": "offline calibrated UR10e FK/Jacobian from existing Step5c helpers; URDF inertia, not identified payload dynamics, and not hardware qualification",
+      "kind": "ur10e_calibrated_pinocchio"
+    },
+    "qp_library": "/tmp/tase-registry-characterization-qp/libcontact_qp.so",
+    "source_files": [
+      "experiments/tase-contact-reproduction/tools/characterize_tase_registry.py",
+      "experiments/tase-contact-reproduction/tools/contact_method_registry.py",
+      "experiments/tase-contact-reproduction/tools/tase_method_adapters.py",
+      "experiments/tase-contact-reproduction/tools/tase_offline_baselines.py",
+      "experiments/tase-contact-reproduction/tools/step5d_paper_outer_loop.py",
+      "experiments/tase-contact-reproduction/tools/contact_yield_kinematics.py"
+    ]
+  },
+  "runs": {
+    "aligned_nominal": {
+      "definition": {
+        "interpretation": "bounded prescribed input; not contact evidence",
+        "normal": "-R_current[:,2] plus a small deterministic base-frame tilt",
+        "purpose": "nominal feasible shared-task comparison"
+      },
+      "dt_runs": {
+        "dt_0.001000_s": {
+          "dt_s": 0.001,
+          "frozen_task_diagnostics": {
+            "feasible_unconstrained_steps": 2000,
+            "first_infeasible_unconstrained_step": null,
+            "first_step": {
+              "desired_current_orientation_angle_rad": 0.0059133414043818725,
+              "jacobian_singular_values": [
+                2.2414218298277473,
+                1.5316191465463858,
+                1.0270783980905946,
+                0.7145647648511635,
+                0.3469277752961347,
+                0.2114954657784965
+              ],
+              "normal_tilt_rad": 0.005913341404384601,
+              "solve_failure": null,
+              "step_index": 0,
+              "time_s": 0.0,
+              "unconstrained_bound_violation": 0.0,
+              "unconstrained_qdot": [
+                -0.003762291850833911,
+                -0.006514110650625347,
+                0.0011293577212465693,
+                0.007931178378219595,
+                -0.014046750832130658,
+                0.00046501585271900087
+              ],
+              "unconstrained_within_bounds": true,
+              "xdot_c": [
+                0.0017992244288084405,
+                0.0022265152489423902,
+                0.002433361514437273,
+                0.014349760652791468,
+                4.607859233063394e-17,
+                -0.003554050280711101
+              ]
+            },
+            "infeasible_unconstrained_steps": 0,
+            "max_orientation_angle_rad": 0.010023463453713662,
+            "max_singular_value": 2.2414218298277473,
+            "max_twist_consistency_norm": 0.0,
+            "min_singular_value": 0.2114954657784965,
+            "worst_unconstrained_bound_step": {
+              "desired_current_orientation_angle_rad": 0.0059133414043818725,
+              "jacobian_singular_values": [
+                2.2414218298277473,
+                1.5316191465463858,
+                1.0270783980905946,
+                0.7145647648511635,
+                0.3469277752961347,
+                0.2114954657784965
+              ],
+              "normal_tilt_rad": 0.005913341404384601,
+              "solve_failure": null,
+              "step_index": 0,
+              "time_s": 0.0,
+              "unconstrained_bound_violation": 0.0,
+              "unconstrained_qdot": [
+                -0.003762291850833911,
+                -0.006514110650625347,
+                0.0011293577212465693,
+                0.007931178378219595,
+                -0.014046750832130658,
+                0.00046501585271900087
+              ],
+              "unconstrained_within_bounds": true,
+              "xdot_c": [
+                0.0017992244288084405,
+                0.0022265152489423902,
+                0.002433361514437273,
+                0.014349760652791468,
+                4.607859233063394e-17,
+                -0.003554050280711101
+              ]
+            }
+          },
+          "methods": {
+            "TASE_QP": {
+              "first_failure": null,
+              "invalid_input_handling": {
+                "accepted": false,
+                "exception": {
+                  "failure_class": "registry_or_backend_exception",
+                  "message": "invalid observation time, dt, or age",
+                  "phase": "invalid_freshness_input",
+                  "type": "RegistryError"
+                },
+                "state_unchanged": true
+              },
+              "metadata": {
+                "lambda_update_sign": "minus",
+                "live_eligible": false,
+                "offline_only": true,
+                "outer_config": {
+                  "Bd_scalar": 550.0,
+                  "Md_scalar": 12.0,
+                  "control_reaction_normal_fallback_base": [
+                    0.0,
+                    0.0,
+                    -1.0
+                  ],
+                  "delay_T_s": 0.004,
+                  "force_integral_authority_error_n": 0.5,
+                  "force_integral_limit_n_s": 5.0,
+                  "force_integral_policy": "legacy-clamp-v1",
+                  "force_normal_velocity_limit_m_s": null,
+                  "force_sign_convention": "step5_step6_positive_normal_load",
+                  "force_target_n": 5.0,
+                  "kf": 1.0,
+                  "ko": 5.0,
+                  "kp": 4.0,
+                  "min_force_norm_n": 1e-09,
+                  "orientation_gain_scale": 1.0
+                },
+                "registered_method": "TASE_QP",
+                "solver_name": "qp",
+                "variant": "matched_outer_qp"
+              },
+              "method": "TASE_QP",
+              "trace": {
+                "accepted_steps": 2000,
+                "bound_violation": {
+                  "delta_final_minus_first": 0.0,
+                  "final": 0.0,
+                  "first": 0.0,
+                  "max": 0.0
+                },
+                "final_qdot": [
+                  -0.0006840667998997679,
+                  -0.022502428580783888,
+                  0.020199623307862694,
+                  0.03792528657880248,
+                  -0.008502851829715639,
+                  -0.026704859561477612
+                ],
+                "first_qdot": [
+                  -0.0037622918747616647,
+                  -0.006514111346243657,
+                  0.001129357743323015,
+                  0.007931178993126769,
+                  -0.014046750474516968,
+                  0.00046501667656137914
+                ],
+                "residual_norm": {
+                  "delta_final_minus_first": 1.5176248161809236e-09,
+                  "final": 2.161808648759589e-09,
+                  "first": 6.441838325786653e-10,
+                  "max": 4.544219800296334e-09
+                },
+                "saturation": {
+                  "max_active_joints_in_step": 0,
+                  "steps_with_any_active_bound": 0,
+                  "total_active_joint_samples": 0
+                },
+                "shared_outer_task_match_max_abs": 1.7850304567801345e-15,
+                "sign_metadata": {},
+                "solver_statuses": [
+                  1.0
+                ]
+              }
+            },
+            "TASE_RNN": {
+              "first_failure": null,
+              "invalid_input_handling": {
+                "accepted": false,
+                "exception": {
+                  "failure_class": "registry_or_backend_exception",
+                  "message": "invalid observation time, dt, or age",
+                  "phase": "invalid_freshness_input",
+                  "type": "RegistryError"
+                },
+                "state_unchanged": true
+              },
+              "metadata": {
+                "lambda_update_sign": "plus",
+                "live_eligible": false,
+                "offline_only": true,
+                "outer_config": {
+                  "Bd_scalar": 550.0,
+                  "Md_scalar": 12.0,
+                  "control_reaction_normal_fallback_base": [
+                    0.0,
+                    0.0,
+                    -1.0
+                  ],
+                  "delay_T_s": 0.004,
+                  "force_integral_authority_error_n": 0.5,
+                  "force_integral_limit_n_s": 5.0,
+                  "force_integral_policy": "legacy-clamp-v1",
+                  "force_normal_velocity_limit_m_s": null,
+                  "force_sign_convention": "step5_step6_positive_normal_load",
+                  "force_target_n": 5.0,
+                  "kf": 1.0,
+                  "ko": 5.0,
+                  "kp": 4.0,
+                  "min_force_norm_n": 1e-09,
+                  "orientation_gain_scale": 1.0
+                },
+                "registered_method": "TASE_RNN",
+                "solver_name": "rnn",
+                "variant": "printed_eq23_plus"
+              },
+              "method": "TASE_RNN",
+              "trace": {
+                "accepted_steps": 2000,
+                "bound_violation": {
+                  "delta_final_minus_first": 0.0,
+                  "final": 0.0,
+                  "first": 0.0,
+                  "max": 0.0
+                },
+                "final_qdot": [
+                  0.15,
+                  -0.15,
+                  -0.15,
+                  -0.15,
+                  0.15,
+                  -0.15
+                ],
+                "first_qdot": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "residual_norm": {
+                  "delta_final_minus_first": 0.6943492985147919,
+                  "final": 0.7096025844279708,
+                  "first": 0.015253285913178892,
+                  "max": 0.7096025844279708
+                },
+                "saturation": {
+                  "max_active_joints_in_step": 6,
+                  "steps_with_any_active_bound": 1965,
+                  "total_active_joint_samples": 11749
+                },
+                "shared_outer_task_match_max_abs": 1.7850304567801345e-15,
+                "sign_metadata": {
+                  "lambda_update_form": "lambda_state += (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                  "proj_input_form": "J.T @ lambda_state"
+                },
+                "solver_statuses": [
+                  40.0
+                ]
+              }
+            },
+            "TASE_RNN_MATURE_MINUS": {
+              "first_failure": null,
+              "invalid_input_handling": {
+                "accepted": false,
+                "exception": {
+                  "failure_class": "registry_or_backend_exception",
+                  "message": "invalid observation time, dt, or age",
+                  "phase": "invalid_freshness_input",
+                  "type": "RegistryError"
+                },
+                "state_unchanged": true
+              },
+              "metadata": {
+                "lambda_update_sign": "minus",
+                "live_eligible": false,
+                "offline_only": true,
+                "outer_config": {
+                  "Bd_scalar": 550.0,
+                  "Md_scalar": 12.0,
+                  "control_reaction_normal_fallback_base": [
+                    0.0,
+                    0.0,
+                    -1.0
+                  ],
+                  "delay_T_s": 0.004,
+                  "force_integral_authority_error_n": 0.5,
+                  "force_integral_limit_n_s": 5.0,
+                  "force_integral_policy": "legacy-clamp-v1",
+                  "force_normal_velocity_limit_m_s": null,
+                  "force_sign_convention": "step5_step6_positive_normal_load",
+                  "force_target_n": 5.0,
+                  "kf": 1.0,
+                  "ko": 5.0,
+                  "kp": 4.0,
+                  "min_force_norm_n": 1e-09,
+                  "orientation_gain_scale": 1.0
+                },
+                "registered_method": "TASE_RNN_MATURE_MINUS",
+                "solver_name": "rnn",
+                "variant": "mature_minus"
+              },
+              "method": "TASE_RNN_MATURE_MINUS",
+              "trace": {
+                "accepted_steps": 2000,
+                "bound_violation": {
+                  "delta_final_minus_first": 0.0,
+                  "final": 0.0,
+                  "first": 0.0,
+                  "max": 0.0
+                },
+                "final_qdot": [
+                  -0.0014479992580009315,
+                  -0.022179410541786657,
+                  0.02051604292640722,
+                  0.03523855251996925,
+                  -0.008645547767393912,
+                  -0.024416765525391425
+                ],
+                "first_qdot": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "residual_norm": {
+                  "delta_final_minus_first": -0.01413805301022381,
+                  "final": 0.0011152329029550808,
+                  "first": 0.015253285913178892,
+                  "max": 0.015253285913178892
+                },
+                "saturation": {
+                  "max_active_joints_in_step": 0,
+                  "steps_with_any_active_bound": 0,
+                  "total_active_joint_samples": 0
+                },
+                "shared_outer_task_match_max_abs": 1.7850304567801345e-15,
+                "sign_metadata": {
+                  "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                  "proj_input_form": "J.T @ lambda_state"
+                },
+                "solver_statuses": [
+                  40.0
+                ]
+              }
+            }
+          },
+          "shared_input": {
+            "jacobian_distance_from_identity": {
+              "max": 3.800805194972359
+            },
+            "joint_velocity_bounds_rad_s": {
+              "lower": [
+                -0.15,
+                -0.15,
+                -0.15,
+                -0.15,
+                -0.15,
+                -0.15
+              ],
+              "upper": [
+                0.15,
+                0.15,
+                0.15,
+                0.15,
+                0.15,
+                0.15
+              ]
+            },
+            "measured_load_n": {
+              "max": 5.097865707286846,
+              "min": 4.739401198857778
+            },
+            "normal_tilt_rad": {
+              "max": 0.010023463453716203
+            },
+            "prescribed_qdot_norm_rad_s": {
+              "max": 0.013938966963157634
+            },
+            "reference_force_n": {
+              "max": 5.349999983648681,
+              "min": 5.211815242007614
+            },
+            "same_trace_for_all_methods": true,
+            "twist_consistency_norm": {
+              "max": 0.0
+            }
+          },
+          "steps_requested": 2000
+        },
+        "dt_0.002000_s": {
+          "dt_s": 0.002,
+          "frozen_task_diagnostics": {
+            "feasible_unconstrained_steps": 1000,
+            "first_infeasible_unconstrained_step": null,
+            "first_step": {
+              "desired_current_orientation_angle_rad": 0.0059133414043818725,
+              "jacobian_singular_values": [
+                2.2414218298277473,
+                1.5316191465463858,
+                1.0270783980905946,
+                0.7145647648511635,
+                0.3469277752961347,
+                0.2114954657784965
+              ],
+              "normal_tilt_rad": 0.005913341404384601,
+              "solve_failure": null,
+              "step_index": 0,
+              "time_s": 0.0,
+              "unconstrained_bound_violation": 0.0,
+              "unconstrained_qdot": [
+                -0.0037621670480908493,
+                -0.006514050666494561,
+                0.0011290602048105024,
+                0.007931563411377162,
+                -0.014046751821618469,
+                0.00046482345238794276
+              ],
+              "unconstrained_within_bounds": true,
+              "xdot_c": [
+                0.001799249302525832,
+                0.0022263965374579157,
+                0.0024334619440493834,
+                0.014349760652791468,
+                4.607859233063394e-17,
+                -0.003554050280711101
+              ]
+            },
+            "infeasible_unconstrained_steps": 0,
+            "max_orientation_angle_rad": 0.010021323323131302,
+            "max_singular_value": 2.2414218298277473,
+            "max_twist_consistency_norm": 0.0,
+            "min_singular_value": 0.2114954657784965,
+            "worst_unconstrained_bound_step": {
+              "desired_current_orientation_angle_rad": 0.0059133414043818725,
+              "jacobian_singular_values": [
+                2.2414218298277473,
+                1.5316191465463858,
+                1.0270783980905946,
+                0.7145647648511635,
+                0.3469277752961347,
+                0.2114954657784965
+              ],
+              "normal_tilt_rad": 0.005913341404384601,
+              "solve_failure": null,
+              "step_index": 0,
+              "time_s": 0.0,
+              "unconstrained_bound_violation": 0.0,
+              "unconstrained_qdot": [
+                -0.0037621670480908493,
+                -0.006514050666494561,
+                0.0011290602048105024,
+                0.007931563411377162,
+                -0.014046751821618469,
+                0.00046482345238794276
+              ],
+              "unconstrained_within_bounds": true,
+              "xdot_c": [
+                0.001799249302525832,
+                0.0022263965374579157,
+                0.0024334619440493834,
+                0.014349760652791468,
+                4.607859233063394e-17,
+                -0.003554050280711101
+              ]
+            }
+          },
+          "methods": {
+            "TASE_QP": {
+              "first_failure": null,
+              "invalid_input_handling": {
+                "accepted": false,
+                "exception": {
+                  "failure_class": "registry_or_backend_exception",
+                  "message": "invalid observation time, dt, or age",
+                  "phase": "invalid_freshness_input",
+                  "type": "RegistryError"
+                },
+                "state_unchanged": true
+              },
+              "metadata": {
+                "lambda_update_sign": "minus",
+                "live_eligible": false,
+                "offline_only": true,
+                "outer_config": {
+                  "Bd_scalar": 550.0,
+                  "Md_scalar": 12.0,
+                  "control_reaction_normal_fallback_base": [
+                    0.0,
+                    0.0,
+                    -1.0
+                  ],
+                  "delay_T_s": 0.004,
+                  "force_integral_authority_error_n": 0.5,
+                  "force_integral_limit_n_s": 5.0,
+                  "force_integral_policy": "legacy-clamp-v1",
+                  "force_normal_velocity_limit_m_s": null,
+                  "force_sign_convention": "step5_step6_positive_normal_load",
+                  "force_target_n": 5.0,
+                  "kf": 1.0,
+                  "ko": 5.0,
+                  "kp": 4.0,
+                  "min_force_norm_n": 1e-09,
+                  "orientation_gain_scale": 1.0
+                },
+                "registered_method": "TASE_QP",
+                "solver_name": "qp",
+                "variant": "matched_outer_qp"
+              },
+              "method": "TASE_QP",
+              "trace": {
+                "accepted_steps": 1000,
+                "bound_violation": {
+                  "delta_final_minus_first": 0.0,
+                  "final": 0.0,
+                  "first": 0.0,
+                  "max": 0.0
+                },
+                "final_qdot": [
+                  -0.0006857897077040231,
+                  -0.022501452591594452,
+                  0.02019873186726104,
+                  0.03791237763791755,
+                  -0.008506647319896886,
+                  -0.026694029720569824
+                ],
+                "first_qdot": [
+                  -0.0037621670720431547,
+                  -0.006514051362098276,
+                  0.0011290602268940971,
+                  0.007931564026289186,
+                  -0.014046751464003662,
+                  0.0004648242762269354
+                ],
+                "residual_norm": {
+                  "delta_final_minus_first": 2.007432788574126e-09,
+                  "final": 2.6515971050800058e-09,
+                  "first": 6.441643165058797e-10,
+                  "max": 4.157876226477952e-09
+                },
+                "saturation": {
+                  "max_active_joints_in_step": 0,
+                  "steps_with_any_active_bound": 0,
+                  "total_active_joint_samples": 0
+                },
+                "shared_outer_task_match_max_abs": 1.7763568394002505e-15,
+                "sign_metadata": {},
+                "solver_statuses": [
+                  1.0
+                ]
+              }
+            },
+            "TASE_RNN": {
+              "first_failure": null,
+              "invalid_input_handling": {
+                "accepted": false,
+                "exception": {
+                  "failure_class": "registry_or_backend_exception",
+                  "message": "invalid observation time, dt, or age",
+                  "phase": "invalid_freshness_input",
+                  "type": "RegistryError"
+                },
+                "state_unchanged": true
+              },
+              "metadata": {
+                "lambda_update_sign": "plus",
+                "live_eligible": false,
+                "offline_only": true,
+                "outer_config": {
+                  "Bd_scalar": 550.0,
+                  "Md_scalar": 12.0,
+                  "control_reaction_normal_fallback_base": [
+                    0.0,
+                    0.0,
+                    -1.0
+                  ],
+                  "delay_T_s": 0.004,
+                  "force_integral_authority_error_n": 0.5,
+                  "force_integral_limit_n_s": 5.0,
+                  "force_integral_policy": "legacy-clamp-v1",
+                  "force_normal_velocity_limit_m_s": null,
+                  "force_sign_convention": "step5_step6_positive_normal_load",
+                  "force_target_n": 5.0,
+                  "kf": 1.0,
+                  "ko": 5.0,
+                  "kp": 4.0,
+                  "min_force_norm_n": 1e-09,
+                  "orientation_gain_scale": 1.0
+                },
+                "registered_method": "TASE_RNN",
+                "solver_name": "rnn",
+                "variant": "printed_eq23_plus"
+              },
+              "method": "TASE_RNN",
+              "trace": {
+                "accepted_steps": 1000,
+                "bound_violation": {
+                  "delta_final_minus_first": 0.0,
+                  "final": 0.0,
+                  "first": 0.0,
+                  "max": 0.0
+                },
+                "final_qdot": [
+                  0.15,
+                  -0.15,
+                  -0.15,
+                  -0.15,
+                  0.15,
+                  -0.15
+                ],
+                "first_qdot": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "residual_norm": {
+                  "delta_final_minus_first": 0.694345737885239,
+                  "final": 0.7095990254265536,
+                  "first": 0.015253287541314626,
+                  "max": 0.7095990254265536
+                },
+                "saturation": {
+                  "max_active_joints_in_step": 6,
+                  "steps_with_any_active_bound": 981,
+                  "total_active_joint_samples": 5866
+                },
+                "shared_outer_task_match_max_abs": 1.7763568394002505e-15,
+                "sign_metadata": {
+                  "lambda_update_form": "lambda_state += (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                  "proj_input_form": "J.T @ lambda_state"
+                },
+                "solver_statuses": [
+                  40.0
+                ]
+              }
+            },
+            "TASE_RNN_MATURE_MINUS": {
+              "first_failure": null,
+              "invalid_input_handling": {
+                "accepted": false,
+                "exception": {
+                  "failure_class": "registry_or_backend_exception",
+                  "message": "invalid observation time, dt, or age",
+                  "phase": "invalid_freshness_input",
+                  "type": "RegistryError"
+                },
+                "state_unchanged": true
+              },
+              "metadata": {
+                "lambda_update_sign": "minus",
+                "live_eligible": false,
+                "offline_only": true,
+                "outer_config": {
+                  "Bd_scalar": 550.0,
+                  "Md_scalar": 12.0,
+                  "control_reaction_normal_fallback_base": [
+                    0.0,
+                    0.0,
+                    -1.0
+                  ],
+                  "delay_T_s": 0.004,
+                  "force_integral_authority_error_n": 0.5,
+                  "force_integral_limit_n_s": 5.0,
+                  "force_integral_policy": "legacy-clamp-v1",
+                  "force_normal_velocity_limit_m_s": null,
+                  "force_sign_convention": "step5_step6_positive_normal_load",
+                  "force_target_n": 5.0,
+                  "kf": 1.0,
+                  "ko": 5.0,
+                  "kp": 4.0,
+                  "min_force_norm_n": 1e-09,
+                  "orientation_gain_scale": 1.0
+                },
+                "registered_method": "TASE_RNN_MATURE_MINUS",
+                "solver_name": "rnn",
+                "variant": "mature_minus"
+              },
+              "method": "TASE_RNN_MATURE_MINUS",
+              "trace": {
+                "accepted_steps": 1000,
+                "bound_violation": {
+                  "delta_final_minus_first": 0.0,
+                  "final": 0.0,
+                  "first": 0.0,
+                  "max": 0.0
+                },
+                "final_qdot": [
+                  -0.0014497947741062556,
+                  -0.022177652696661682,
+                  0.02051389923112765,
+                  0.035225685811696,
+                  -0.008649358882149398,
+                  -0.024405505937538666
+                ],
+                "first_qdot": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "residual_norm": {
+                  "delta_final_minus_first": -0.014137808195689838,
+                  "final": 0.0011154793456247876,
+                  "first": 0.015253287541314626,
+                  "max": 0.015253287541314626
+                },
+                "saturation": {
+                  "max_active_joints_in_step": 0,
+                  "steps_with_any_active_bound": 0,
+                  "total_active_joint_samples": 0
+                },
+                "shared_outer_task_match_max_abs": 1.7763568394002505e-15,
+                "sign_metadata": {
+                  "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                  "proj_input_form": "J.T @ lambda_state"
+                },
+                "solver_statuses": [
+                  40.0
+                ]
+              }
+            }
+          },
+          "shared_input": {
+            "jacobian_distance_from_identity": {
+              "max": 3.800805194972359
+            },
+            "joint_velocity_bounds_rad_s": {
+              "lower": [
+                -0.15,
+                -0.15,
+                -0.15,
+                -0.15,
+                -0.15,
+                -0.15
+              ],
+              "upper": [
+                0.15,
+                0.15,
+                0.15,
+                0.15,
+                0.15,
+                0.15
+              ]
+            },
+            "measured_load_n": {
+              "max": 5.097837731329555,
+              "min": 4.739401198857778
+            },
+            "normal_tilt_rad": {
+              "max": 0.010021323323128158
+            },
+            "prescribed_qdot_norm_rad_s": {
+              "max": 0.013938966963157634
+            },
+            "reference_force_n": {
+              "max": 5.349999983648681,
+              "min": 5.211815242007614
+            },
+            "same_trace_for_all_methods": true,
+            "twist_consistency_norm": {
+              "max": 0.0
+            }
+          },
+          "steps_requested": 1000
+        }
+      }
+    },
+    "orientation_task_stress": {
+      "definition": {
+        "interpretation": "QP infeasibility is an input/task boundary, not a solver disadvantage",
+        "normal": "deterministic world-Z-near reaction against arbitrary BASE_Q orientation",
+        "purpose": "retain original orientation/task feasibility stress input"
+      },
+      "dt_runs": {
+        "dt_0.001000_s": {
+          "dt_s": 0.001,
+          "frozen_task_diagnostics": {
+            "feasible_unconstrained_steps": 0,
+            "first_infeasible_unconstrained_step": {
+              "desired_current_orientation_angle_rad": 0.8150326860179367,
+              "jacobian_singular_values": [
+                2.2414218298277473,
+                1.5316191465463858,
+                1.0270783980905946,
+                0.7145647648511635,
+                0.3469277752961347,
+                0.2114954657784965
+              ],
+              "normal_tilt_rad": 0.8150326860179367,
+              "solve_failure": null,
+              "step_index": 0,
+              "time_s": 0.0,
+              "unconstrained_bound_violation": 1.828280854512887,
+              "unconstrained_qdot": [
+                0.2603477904816061,
+                0.022658202766325467,
+                0.42549767678920686,
+                -0.061471005023330395,
+                1.978280854512887,
+                -0.4625005985476305
+              ],
+              "unconstrained_within_bounds": false,
+              "xdot_c": [
+                0.00126,
+                0.004788658093102432,
+                0.00044523178162471757,
+                -1.9337607062190574,
+                -0.4322491486721487,
+                -0.02593494892032889
+              ]
+            },
+            "first_step": {
+              "desired_current_orientation_angle_rad": 0.8150326860179367,
+              "jacobian_singular_values": [
+                2.2414218298277473,
+                1.5316191465463858,
+                1.0270783980905946,
+                0.7145647648511635,
+                0.3469277752961347,
+                0.2114954657784965
+              ],
+              "normal_tilt_rad": 0.8150326860179367,
+              "solve_failure": null,
+              "step_index": 0,
+              "time_s": 0.0,
+              "unconstrained_bound_violation": 1.828280854512887,
+              "unconstrained_qdot": [
+                0.2603477904816061,
+                0.022658202766325467,
+                0.42549767678920686,
+                -0.061471005023330395,
+                1.978280854512887,
+                -0.4625005985476305
+              ],
+              "unconstrained_within_bounds": false,
+              "xdot_c": [
+                0.00126,
+                0.004788658093102432,
+                0.00044523178162471757,
+                -1.9337607062190574,
+                -0.4322491486721487,
+                -0.02593494892032889
+              ]
+            },
+            "infeasible_unconstrained_steps": 2000,
+            "max_orientation_angle_rad": 0.8354026106807504,
+            "max_singular_value": 2.2414218298277473,
+            "max_twist_consistency_norm": 0.0,
+            "min_singular_value": 0.2114954657784965,
+            "worst_unconstrained_bound_step": {
+              "desired_current_orientation_angle_rad": 0.8354026106807504,
+              "jacobian_singular_values": [
+                2.239788282016601,
+                1.5298943634288242,
+                1.0269216250869015,
+                0.7122585696504866,
+                0.3486111119674556,
+                0.2131514439540534
+              ],
+              "normal_tilt_rad": 0.8354026106807505,
+              "solve_failure": null,
+              "step_index": 1999,
+              "time_s": 1.999,
+              "unconstrained_bound_violation": 1.8661026562504404,
+              "unconstrained_qdot": [
+                0.2732226495680042,
+                -0.03102536148950292,
+                0.46513608203414386,
+                0.17295707902099586,
+                2.0161026562504403,
+                -0.6383818407116052
+              ],
+              "unconstrained_within_bounds": false,
+              "xdot_c": [
+                0.007301623261324257,
+                0.0012636976790955255,
+                0.0021307689979869837,
+                -1.9452367174137923,
+                -0.5607100754105055,
+                -0.12517445762721202
+              ]
+            }
+          },
+          "methods": {
+            "TASE_QP": {
+              "first_failure": {
+                "failure_class": "registry_or_backend_exception",
+                "message": "OSQP did not solve accurately: status=3",
+                "phase": "nominal_trace",
+                "state_unchanged_after_registry_rollback": true,
+                "step_index": 0,
+                "time_s": 0.0,
+                "type": "QpError"
+              },
+              "invalid_input_handling": {
+                "accepted": false,
+                "exception": {
+                  "failure_class": "registry_or_backend_exception",
+                  "message": "invalid observation time, dt, or age",
+                  "phase": "invalid_freshness_input",
+                  "type": "RegistryError"
+                },
+                "state_unchanged": true
+              },
+              "metadata": {
+                "lambda_update_sign": "minus",
+                "live_eligible": false,
+                "offline_only": true,
+                "outer_config": {
+                  "Bd_scalar": 550.0,
+                  "Md_scalar": 12.0,
+                  "control_reaction_normal_fallback_base": [
+                    0.0,
+                    0.0,
+                    -1.0
+                  ],
+                  "delay_T_s": 0.004,
+                  "force_integral_authority_error_n": 0.5,
+                  "force_integral_limit_n_s": 5.0,
+                  "force_integral_policy": "legacy-clamp-v1",
+                  "force_normal_velocity_limit_m_s": null,
+                  "force_sign_convention": "step5_step6_positive_normal_load",
+                  "force_target_n": 5.0,
+                  "kf": 1.0,
+                  "ko": 5.0,
+                  "kp": 4.0,
+                  "min_force_norm_n": 1e-09,
+                  "orientation_gain_scale": 1.0
+                },
+                "registered_method": "TASE_QP",
+                "solver_name": "qp",
+                "variant": "matched_outer_qp"
+              },
+              "method": "TASE_QP",
+              "trace": {
+                "accepted_steps": 0,
+                "bound_violation": {
+                  "delta_final_minus_first": null,
+                  "final": null,
+                  "first": null,
+                  "max": null
+                },
+                "final_qdot": null,
+                "first_qdot": null,
+                "residual_norm": {
+                  "delta_final_minus_first": null,
+                  "final": null,
+                  "first": null,
+                  "max": null
+                },
+                "saturation": {
+                  "max_active_joints_in_step": 0,
+                  "steps_with_any_active_bound": 0,
+                  "total_active_joint_samples": 0
+                },
+                "shared_outer_task_match_max_abs": null,
+                "sign_metadata": {},
+                "solver_statuses": []
+              }
+            },
+            "TASE_RNN": {
+              "first_failure": null,
+              "invalid_input_handling": {
+                "accepted": false,
+                "exception": {
+                  "failure_class": "registry_or_backend_exception",
+                  "message": "invalid observation time, dt, or age",
+                  "phase": "invalid_freshness_input",
+                  "type": "RegistryError"
+                },
+                "state_unchanged": true
+              },
+              "metadata": {
+                "lambda_update_sign": "plus",
+                "live_eligible": false,
+                "offline_only": true,
+                "outer_config": {
+                  "Bd_scalar": 550.0,
+                  "Md_scalar": 12.0,
+                  "control_reaction_normal_fallback_base": [
+                    0.0,
+                    0.0,
+                    -1.0
+                  ],
+                  "delay_T_s": 0.004,
+                  "force_integral_authority_error_n": 0.5,
+                  "force_integral_limit_n_s": 5.0,
+                  "force_integral_policy": "legacy-clamp-v1",
+                  "force_normal_velocity_limit_m_s": null,
+                  "force_sign_convention": "step5_step6_positive_normal_load",
+                  "force_target_n": 5.0,
+                  "kf": 1.0,
+                  "ko": 5.0,
+                  "kp": 4.0,
+                  "min_force_norm_n": 1e-09,
+                  "orientation_gain_scale": 1.0
+                },
+                "registered_method": "TASE_RNN",
+                "solver_name": "rnn",
+                "variant": "printed_eq23_plus"
+              },
+              "method": "TASE_RNN",
+              "trace": {
+                "accepted_steps": 2000,
+                "bound_violation": {
+                  "delta_final_minus_first": 0.0,
+                  "final": 0.0,
+                  "first": 0.0,
+                  "max": 0.0
+                },
+                "final_qdot": [
+                  0.15,
+                  -0.15,
+                  -0.15,
+                  -0.15,
+                  -0.15,
+                  -0.15
+                ],
+                "first_qdot": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "residual_norm": {
+                  "delta_final_minus_first": 0.3289065577785377,
+                  "final": 2.3105642310656758,
+                  "first": 1.981657673287138,
+                  "max": 2.3105642310656758
+                },
+                "saturation": {
+                  "max_active_joints_in_step": 6,
+                  "steps_with_any_active_bound": 1998,
+                  "total_active_joint_samples": 11901
+                },
+                "shared_outer_task_match_max_abs": 2.0192181260370035e-15,
+                "sign_metadata": {
+                  "lambda_update_form": "lambda_state += (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                  "proj_input_form": "J.T @ lambda_state"
+                },
+                "solver_statuses": [
+                  40.0
+                ]
+              }
+            },
+            "TASE_RNN_MATURE_MINUS": {
+              "first_failure": null,
+              "invalid_input_handling": {
+                "accepted": false,
+                "exception": {
+                  "failure_class": "registry_or_backend_exception",
+                  "message": "invalid observation time, dt, or age",
+                  "phase": "invalid_freshness_input",
+                  "type": "RegistryError"
+                },
+                "state_unchanged": true
+              },
+              "metadata": {
+                "lambda_update_sign": "minus",
+                "live_eligible": false,
+                "offline_only": true,
+                "outer_config": {
+                  "Bd_scalar": 550.0,
+                  "Md_scalar": 12.0,
+                  "control_reaction_normal_fallback_base": [
+                    0.0,
+                    0.0,
+                    -1.0
+                  ],
+                  "delay_T_s": 0.004,
+                  "force_integral_authority_error_n": 0.5,
+                  "force_integral_limit_n_s": 5.0,
+                  "force_integral_policy": "legacy-clamp-v1",
+                  "force_normal_velocity_limit_m_s": null,
+                  "force_sign_convention": "step5_step6_positive_normal_load",
+                  "force_target_n": 5.0,
+                  "kf": 1.0,
+                  "ko": 5.0,
+                  "kp": 4.0,
+                  "min_force_norm_n": 1e-09,
+                  "orientation_gain_scale": 1.0
+                },
+                "registered_method": "TASE_RNN_MATURE_MINUS",
+                "solver_name": "rnn",
+                "variant": "mature_minus"
+              },
+              "method": "TASE_RNN_MATURE_MINUS",
+              "trace": {
+                "accepted_steps": 2000,
+                "bound_violation": {
+                  "delta_final_minus_first": 0.0,
+                  "final": 0.0,
+                  "first": 0.0,
+                  "max": 0.0
+                },
+                "final_qdot": [
+                  -0.004953364462887411,
+                  -0.07568798504360559,
+                  0.14094295525611322,
+                  0.15,
+                  0.15,
+                  -0.15
+                ],
+                "first_qdot": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "residual_norm": {
+                  "delta_final_minus_first": -0.11143276688908599,
+                  "final": 1.870224906398052,
+                  "first": 1.981657673287138,
+                  "max": 1.981657673287138
+                },
+                "saturation": {
+                  "max_active_joints_in_step": 3,
+                  "steps_with_any_active_bound": 1998,
+                  "total_active_joint_samples": 4153
+                },
+                "shared_outer_task_match_max_abs": 2.0192181260370035e-15,
+                "sign_metadata": {
+                  "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                  "proj_input_form": "J.T @ lambda_state"
+                },
+                "solver_statuses": [
+                  40.0
+                ]
+              }
+            }
+          },
+          "shared_input": {
+            "jacobian_distance_from_identity": {
+              "max": 3.800805194972359
+            },
+            "joint_velocity_bounds_rad_s": {
+              "lower": [
+                -0.15,
+                -0.15,
+                -0.15,
+                -0.15,
+                -0.15,
+                -0.15
+              ],
+              "upper": [
+                0.15,
+                0.15,
+                0.15,
+                0.15,
+                0.15,
+                0.15
+              ]
+            },
+            "measured_load_n": {
+              "max": 5.097865707286846,
+              "min": 4.739401198857778
+            },
+            "normal_tilt_rad": {
+              "max": 0.8354026106807505
+            },
+            "prescribed_qdot_norm_rad_s": {
+              "max": 0.013938966963157634
+            },
+            "reference_force_n": {
+              "max": 5.349999983648681,
+              "min": 5.211815242007614
+            },
+            "same_trace_for_all_methods": true,
+            "twist_consistency_norm": {
+              "max": 0.0
+            }
+          },
+          "steps_requested": 2000
+        },
+        "dt_0.002000_s": {
+          "dt_s": 0.002,
+          "frozen_task_diagnostics": {
+            "feasible_unconstrained_steps": 0,
+            "first_infeasible_unconstrained_step": {
+              "desired_current_orientation_angle_rad": 0.8150326860179367,
+              "jacobian_singular_values": [
+                2.2414218298277473,
+                1.5316191465463858,
+                1.0270783980905946,
+                0.7145647648511635,
+                0.3469277752961347,
+                0.2114954657784965
+              ],
+              "normal_tilt_rad": 0.8150326860179367,
+              "solve_failure": null,
+              "step_index": 0,
+              "time_s": 0.0,
+              "unconstrained_bound_violation": 1.8282808545900209,
+              "unconstrained_qdot": [
+                0.26034780023501036,
+                0.02265823575801757,
+                0.42549734892031904,
+                -0.06147069974117328,
+                1.9782808545900208,
+                -0.4625006121189682
+              ],
+              "unconstrained_within_bounds": false,
+              "xdot_c": [
+                0.00126,
+                0.004788648661782694,
+                0.0004453889702870303,
+                -1.9337607062190574,
+                -0.4322491486721487,
+                -0.02593494892032889
+              ]
+            },
+            "first_step": {
+              "desired_current_orientation_angle_rad": 0.8150326860179367,
+              "jacobian_singular_values": [
+                2.2414218298277473,
+                1.5316191465463858,
+                1.0270783980905946,
+                0.7145647648511635,
+                0.3469277752961347,
+                0.2114954657784965
+              ],
+              "normal_tilt_rad": 0.8150326860179367,
+              "solve_failure": null,
+              "step_index": 0,
+              "time_s": 0.0,
+              "unconstrained_bound_violation": 1.8282808545900209,
+              "unconstrained_qdot": [
+                0.26034780023501036,
+                0.02265823575801757,
+                0.42549734892031904,
+                -0.06147069974117328,
+                1.9782808545900208,
+                -0.4625006121189682
+              ],
+              "unconstrained_within_bounds": false,
+              "xdot_c": [
+                0.00126,
+                0.004788648661782694,
+                0.0004453889702870303,
+                -1.9337607062190574,
+                -0.4322491486721487,
+                -0.02593494892032889
+              ]
+            },
+            "infeasible_unconstrained_steps": 1000,
+            "max_orientation_angle_rad": 0.8353869173745748,
+            "max_singular_value": 2.2414218298277473,
+            "max_twist_consistency_norm": 0.0,
+            "min_singular_value": 0.2114954657784965,
+            "worst_unconstrained_bound_step": {
+              "desired_current_orientation_angle_rad": 0.8353869173745748,
+              "jacobian_singular_values": [
+                2.2397889794578,
+                1.529896865275253,
+                1.0269217488512128,
+                0.7122595956931307,
+                0.348610716171417,
+                0.21315085812333398
+              ],
+              "normal_tilt_rad": 0.8353869173745748,
+              "solve_failure": null,
+              "step_index": 999,
+              "time_s": 1.998,
+              "unconstrained_bound_violation": 1.8660748354610437,
+              "unconstrained_qdot": [
+                0.27321401557155006,
+                -0.03100646784385813,
+                0.4651255515520567,
+                0.17283827983644365,
+                2.0160748354610436,
+                -0.6382925870239432
+              ],
+              "unconstrained_within_bounds": false,
+              "xdot_c": [
+                0.007301665562237788,
+                0.0012664452057152466,
+                0.00212954600732251,
+                -1.9452170135381832,
+                -0.5606568977580234,
+                -0.125137780640017
+              ]
+            }
+          },
+          "methods": {
+            "TASE_QP": {
+              "first_failure": {
+                "failure_class": "registry_or_backend_exception",
+                "message": "OSQP did not solve accurately: status=3",
+                "phase": "nominal_trace",
+                "state_unchanged_after_registry_rollback": true,
+                "step_index": 0,
+                "time_s": 0.0,
+                "type": "QpError"
+              },
+              "invalid_input_handling": {
+                "accepted": false,
+                "exception": {
+                  "failure_class": "registry_or_backend_exception",
+                  "message": "invalid observation time, dt, or age",
+                  "phase": "invalid_freshness_input",
+                  "type": "RegistryError"
+                },
+                "state_unchanged": true
+              },
+              "metadata": {
+                "lambda_update_sign": "minus",
+                "live_eligible": false,
+                "offline_only": true,
+                "outer_config": {
+                  "Bd_scalar": 550.0,
+                  "Md_scalar": 12.0,
+                  "control_reaction_normal_fallback_base": [
+                    0.0,
+                    0.0,
+                    -1.0
+                  ],
+                  "delay_T_s": 0.004,
+                  "force_integral_authority_error_n": 0.5,
+                  "force_integral_limit_n_s": 5.0,
+                  "force_integral_policy": "legacy-clamp-v1",
+                  "force_normal_velocity_limit_m_s": null,
+                  "force_sign_convention": "step5_step6_positive_normal_load",
+                  "force_target_n": 5.0,
+                  "kf": 1.0,
+                  "ko": 5.0,
+                  "kp": 4.0,
+                  "min_force_norm_n": 1e-09,
+                  "orientation_gain_scale": 1.0
+                },
+                "registered_method": "TASE_QP",
+                "solver_name": "qp",
+                "variant": "matched_outer_qp"
+              },
+              "method": "TASE_QP",
+              "trace": {
+                "accepted_steps": 0,
+                "bound_violation": {
+                  "delta_final_minus_first": null,
+                  "final": null,
+                  "first": null,
+                  "max": null
+                },
+                "final_qdot": null,
+                "first_qdot": null,
+                "residual_norm": {
+                  "delta_final_minus_first": null,
+                  "final": null,
+                  "first": null,
+                  "max": null
+                },
+                "saturation": {
+                  "max_active_joints_in_step": 0,
+                  "steps_with_any_active_bound": 0,
+                  "total_active_joint_samples": 0
+                },
+                "shared_outer_task_match_max_abs": null,
+                "sign_metadata": {},
+                "solver_statuses": []
+              }
+            },
+            "TASE_RNN": {
+              "first_failure": null,
+              "invalid_input_handling": {
+                "accepted": false,
+                "exception": {
+                  "failure_class": "registry_or_backend_exception",
+                  "message": "invalid observation time, dt, or age",
+                  "phase": "invalid_freshness_input",
+                  "type": "RegistryError"
+                },
+                "state_unchanged": true
+              },
+              "metadata": {
+                "lambda_update_sign": "plus",
+                "live_eligible": false,
+                "offline_only": true,
+                "outer_config": {
+                  "Bd_scalar": 550.0,
+                  "Md_scalar": 12.0,
+                  "control_reaction_normal_fallback_base": [
+                    0.0,
+                    0.0,
+                    -1.0
+                  ],
+                  "delay_T_s": 0.004,
+                  "force_integral_authority_error_n": 0.5,
+                  "force_integral_limit_n_s": 5.0,
+                  "force_integral_policy": "legacy-clamp-v1",
+                  "force_normal_velocity_limit_m_s": null,
+                  "force_sign_convention": "step5_step6_positive_normal_load",
+                  "force_target_n": 5.0,
+                  "kf": 1.0,
+                  "ko": 5.0,
+                  "kp": 4.0,
+                  "min_force_norm_n": 1e-09,
+                  "orientation_gain_scale": 1.0
+                },
+                "registered_method": "TASE_RNN",
+                "solver_name": "rnn",
+                "variant": "printed_eq23_plus"
+              },
+              "method": "TASE_RNN",
+              "trace": {
+                "accepted_steps": 1000,
+                "bound_violation": {
+                  "delta_final_minus_first": 0.0,
+                  "final": 0.0,
+                  "first": 0.0,
+                  "max": 0.0
+                },
+                "final_qdot": [
+                  0.15,
+                  -0.15,
+                  -0.15,
+                  -0.15,
+                  -0.15,
+                  -0.15
+                ],
+                "first_qdot": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "residual_norm": {
+                  "delta_final_minus_first": 0.3288627451695334,
+                  "final": 2.3105204184692036,
+                  "first": 1.9816576732996702,
+                  "max": 2.3105204184692036
+                },
+                "saturation": {
+                  "max_active_joints_in_step": 6,
+                  "steps_with_any_active_bound": 999,
+                  "total_active_joint_samples": 5946
+                },
+                "shared_outer_task_match_max_abs": 2.0192181260370035e-15,
+                "sign_metadata": {
+                  "lambda_update_form": "lambda_state += (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                  "proj_input_form": "J.T @ lambda_state"
+                },
+                "solver_statuses": [
+                  40.0
+                ]
+              }
+            },
+            "TASE_RNN_MATURE_MINUS": {
+              "first_failure": null,
+              "invalid_input_handling": {
+                "accepted": false,
+                "exception": {
+                  "failure_class": "registry_or_backend_exception",
+                  "message": "invalid observation time, dt, or age",
+                  "phase": "invalid_freshness_input",
+                  "type": "RegistryError"
+                },
+                "state_unchanged": true
+              },
+              "metadata": {
+                "lambda_update_sign": "minus",
+                "live_eligible": false,
+                "offline_only": true,
+                "outer_config": {
+                  "Bd_scalar": 550.0,
+                  "Md_scalar": 12.0,
+                  "control_reaction_normal_fallback_base": [
+                    0.0,
+                    0.0,
+                    -1.0
+                  ],
+                  "delay_T_s": 0.004,
+                  "force_integral_authority_error_n": 0.5,
+                  "force_integral_limit_n_s": 5.0,
+                  "force_integral_policy": "legacy-clamp-v1",
+                  "force_normal_velocity_limit_m_s": null,
+                  "force_sign_convention": "step5_step6_positive_normal_load",
+                  "force_target_n": 5.0,
+                  "kf": 1.0,
+                  "ko": 5.0,
+                  "kp": 4.0,
+                  "min_force_norm_n": 1e-09,
+                  "orientation_gain_scale": 1.0
+                },
+                "registered_method": "TASE_RNN_MATURE_MINUS",
+                "solver_name": "rnn",
+                "variant": "mature_minus"
+              },
+              "method": "TASE_RNN_MATURE_MINUS",
+              "trace": {
+                "accepted_steps": 1000,
+                "bound_violation": {
+                  "delta_final_minus_first": 0.0,
+                  "final": 0.0,
+                  "first": 0.0,
+                  "max": 0.0
+                },
+                "final_qdot": [
+                  -0.004933135560839075,
+                  -0.07563947431765143,
+                  0.1408467357679395,
+                  0.15,
+                  0.15,
+                  -0.15
+                ],
+                "first_qdot": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "residual_norm": {
+                  "delta_final_minus_first": -0.11146389106124355,
+                  "final": 1.8701937822384267,
+                  "first": 1.9816576732996702,
+                  "max": 1.9816576732996702
+                },
+                "saturation": {
+                  "max_active_joints_in_step": 3,
+                  "steps_with_any_active_bound": 999,
+                  "total_active_joint_samples": 2076
+                },
+                "shared_outer_task_match_max_abs": 2.0192181260370035e-15,
+                "sign_metadata": {
+                  "lambda_update_form": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)",
+                  "proj_input_form": "J.T @ lambda_state"
+                },
+                "solver_statuses": [
+                  40.0
+                ]
+              }
+            }
+          },
+          "shared_input": {
+            "jacobian_distance_from_identity": {
+              "max": 3.800805194972359
+            },
+            "joint_velocity_bounds_rad_s": {
+              "lower": [
+                -0.15,
+                -0.15,
+                -0.15,
+                -0.15,
+                -0.15,
+                -0.15
+              ],
+              "upper": [
+                0.15,
+                0.15,
+                0.15,
+                0.15,
+                0.15,
+                0.15
+              ]
+            },
+            "measured_load_n": {
+              "max": 5.097837731329555,
+              "min": 4.739401198857778
+            },
+            "normal_tilt_rad": {
+              "max": 0.8353869173745748
+            },
+            "prescribed_qdot_norm_rad_s": {
+              "max": 0.013938966963157634
+            },
+            "reference_force_n": {
+              "max": 5.349999983648681,
+              "min": 5.211815242007614
+            },
+            "same_trace_for_all_methods": true,
+            "twist_consistency_norm": {
+              "max": 0.0
+            }
+          },
+          "steps_requested": 1000
+        }
+      }
+    }
+  },
+  "schema": "tase-registry-characterization-v2",
+  "scope": "offline_prescribed_input_no_robot_io_no_physical_claim",
+  "shared_contract": {
+    "input_generation": "two frozen deterministic prescribed cases: aligned nominal and retained orientation/task stress",
+    "invalid_input": "state_age_s=0.08, expected common freshness rejection",
+    "method_names": [
+      "TASE_RNN",
+      "TASE_RNN_MATURE_MINUS",
+      "TASE_QP"
+    ],
+    "outer_config": {
+      "Bd_scalar": 550.0,
+      "Md_scalar": 12.0,
+      "control_reaction_normal_fallback_base": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "delay_T_s": 0.004,
+      "force_integral_authority_error_n": 0.5,
+      "force_integral_limit_n_s": 5.0,
+      "force_integral_policy": "legacy-clamp-v1",
+      "force_normal_velocity_limit_m_s": null,
+      "force_sign_convention": "step5_step6_positive_normal_load",
+      "force_target_n": 5.0,
+      "kf": 1.0,
+      "ko": 5.0,
+      "kp": 4.0,
+      "min_force_norm_n": 1e-09,
+      "orientation_gain_scale": 1.0
+    },
+    "private_state_per_method": true,
+    "same_force_reference_bounds": true
+  }
+}
