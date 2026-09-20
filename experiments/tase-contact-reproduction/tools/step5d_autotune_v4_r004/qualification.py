@@ -280,6 +280,25 @@ class CanonicalQualificationControl:
                 raise QualificationControlError(
                     self._timing.stop_reason or self._startup.stop_reason
                 )
+            if (self.contact_command_provider is not None
+                and not self.path_requested
+                and self._baseline_state.phase is BaselinePhase.SUCCESS
+                and self._qualification_retract_issued):
+                # RETRACT has already transferred motion to the TP. Its state
+                # echo can still say 21 until it consumes the request. Do not
+                # restart the contact/readiness filter while repeating RETRACT.
+                if sensor.stop_request or not sensor.sensor_fresh or not output.safety_normal:
+                    raise QualificationControlError("unsafe observation while awaiting RETRACT echo")
+                self._previous_qdot = (0.0,) * 6
+                return QualificationCommand(
+                    command_mode=CommandMode.RETRACT, qdot=(0.0,) * 6,
+                    internal_setpoint_n=self._setpoint_n,
+                    filtered_normal_n=sensor.filtered_normal_n,
+                    sticky_one_newton_latched=self._sticky_latched,
+                    canonical_phase=BaselinePhase.SUCCESS.value,
+                    canonical_reason="retract_echo_pending",
+                    actual_dt_s=actual_dt_s,
+                )
             pre_path_phase = self._baseline_state.phase not in {
                 BaselinePhase.SUCCESS,
                 BaselinePhase.FAILED,

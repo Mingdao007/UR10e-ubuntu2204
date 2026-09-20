@@ -412,3 +412,18 @@ def test_contact_provider_argument_is_optional_and_keyword_only() -> None:
     ]
     assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
     assert parameter.default is None
+
+
+@pytest.mark.parametrize("dt", [.002, .0041, .012])
+def test_issued_retract_does_not_restart_readiness_filter(dt):
+    provider = _Provider()
+    control = _control(provider, path_requested=False)
+    control._qualification_retract_issued = True
+    result = control.step(output=_output(state=21), sensor=_sensor(),
+                          monotonic_s=dt, command_sequence=2)
+    assert result.command_mode.value == 3
+    assert result.qdot == (0.,) * 6
+    assert result.canonical_reason == 'retract_echo_pending'
+    assert control._path_controller.calls == []
+    assert provider.command_calls == []
+    assert provider.late_cycle_calls == []
