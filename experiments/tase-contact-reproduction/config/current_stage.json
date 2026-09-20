@@ -26,9 +26,9 @@
     "live_revoked_by_user": false
   },
   "bridge_trigger": {
-    "bridge_has_started": true,
+    "bridge_has_started": false,
     "currently_running": false,
-    "blocked_reason": "first physical contact reached; native readiness rejected actual 4.056ms host interval; timing repair and fresh qualification pending"
+    "blocked_reason": "native writer stopped after first contact; actual-instance prewarm repaired, fresh qualification pending"
   },
   "bridge_profile": {
     "runtime_protocol": 618001,
@@ -81,7 +81,8 @@
     "protective_stop_diagnosis": "report/yield-live-transition-v1/protective-stop-diagnosis.json",
     "latest_resident_check": "report/yield-live-transition-v1/revision20-resident-check.json",
     "latest_home_recovery": "runs/yield-home-recovery-20260920/live-1/result.json",
-    "latest_contact_withdrawal": "runs/yield-home-withdrawal-20260920/live-1/result.json"
+    "latest_contact_withdrawal": "runs/yield-home-withdrawal-20260920/live-1/result.json",
+    "native_writer_previously_armed": true
   },
   "notes": [
     "Selection fixes the old RNN/native route mismatch only. No Load, Play, ARM or motion performed by this change.",

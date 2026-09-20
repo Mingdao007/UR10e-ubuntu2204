@@ -233,6 +233,180 @@ def _prewarm_qp(qp_library: Path) -> None:
         raise YieldLiveWriterError("QP prewarm produced a nonfinite command")
 
 
+PREWARM_PURPOSE = (
+    "transport-free warmup of the exact live provider/runtime before endpoints/ARM; "
+    "not physical qualification or measured timing evidence"
+)
+_PREWARM_COMMAND_COUNT = 4
+
+
+def _capture_freshness(tracker) -> dict[str, Any]:
+    return {
+        "_ages": list(tracker._ages),
+        "_ordered_ages": list(tracker._ordered_ages),
+        "_counts": dict(tracker._counts),
+        "_held_streak": tracker._held_streak,
+        "_longest_hold_samples": tracker._longest_hold_samples,
+        "_longest_hold_s": tracker._longest_hold_s,
+        "_stale_stop_count": tracker._stale_stop_count,
+        "_geometric_latency_reject_count": tracker._geometric_latency_reject_count,
+    }
+
+
+def _restore_freshness(tracker, captured: Mapping[str, Any]) -> None:
+    tracker._ages = list(captured["_ages"])
+    tracker._ordered_ages = list(captured["_ordered_ages"])
+    tracker._counts = dict(captured["_counts"])
+    tracker._held_streak = captured["_held_streak"]
+    tracker._longest_hold_samples = captured["_longest_hold_samples"]
+    tracker._longest_hold_s = captured["_longest_hold_s"]
+    tracker._stale_stop_count = captured["_stale_stop_count"]
+    tracker._geometric_latency_reject_count = captured["_geometric_latency_reject_count"]
+
+
+def _prewarm_observation(*, pose, q, monotonic_s):
+    """Synthetic, transport-free observation. Never published or recorded as evidence."""
+    from types import SimpleNamespace
+
+    from step5d_autotune_v4_r004.wire import SensorPacket
+
+    profile = load_new_eoat_profile()
+    output = SimpleNamespace(
+        received_monotonic_s=float(monotonic_s),
+        timestamp=1000.0 + float(monotonic_s),
+        safety_mode=1,
+        safety_normal=True,
+        tcp_offset_m_rad=tuple(float(value) for value in profile.controller_tcp_m_rad),
+        payload_kg=float(profile.payload_kg),
+        payload_cog_m=tuple(float(value) for value in profile.cog_m),
+        q_rad=tuple(float(value) for value in q),
+        qd_rad_s=(0.0,) * 6,
+        tcp_pose_m_rad=tuple(float(value) for value in pose),
+        tcp_speed_m_s_rad_s=(0.0,) * 6,
+    )
+    sensor = SensorPacket(
+        normal_load_n=1.0,
+        force_norm_n=1.0,
+        heartbeat=1.0,
+        sensor_fresh=True,
+        stop_request=False,
+        eoat_get_ack=True,
+        torque_norm_nm=0.0,
+        wrench=(0.0, 0.0, -1.0, 0.0, 0.0, 0.0),
+        filtered_normal_n=1.0,
+        observed_at_s=float(monotonic_s),
+    )
+    return output, sensor
+
+
+def _prewarm_native_provider(provider, *, pose, q) -> dict[str, Any]:
+    """Exercise the exact provider/runtime command path, then restore all application state.
+
+    Temporary deadline disable applies only inside this function. Production
+    1.5 ms / 1 ms / 4 ms / 80 ms policies are not changed for live use.
+    """
+    import copy
+
+    runtime = provider.runtime
+    qp = runtime.controller.qp.qp
+    before = copy.deepcopy(provider.snapshot())
+    freshness_before = _capture_freshness(runtime.freshness)
+    runtime_deadline = runtime.deadline_s
+    qp_deadline = qp.deadline_s
+    dt_s = float(runtime.controller.dt_s)
+    record: dict[str, Any] = {
+        "purpose": PREWARM_PURPOSE,
+        "command_count": 0,
+        "command_times_s": [],
+        "first_command_s": None,
+        "last_command_s": None,
+        "wall_s": None,
+        "state_changed_during": False,
+        "deadline_restored": False,
+    }
+    started = time.perf_counter()
+    try:
+        runtime.deadline_s = None
+        qp.deadline_s = None
+        seed_law = list(before["runtime"]["controller"]["law22"]["values"])
+        for index in range(_PREWARM_COMMAND_COUNT):
+            now = dt_s * float(index + 1)
+            output, sensor = _prewarm_observation(pose=pose, q=q, monotonic_s=now)
+            tick_started = time.perf_counter()
+            command = provider.command(
+                output=output,
+                sensor=sensor,
+                monotonic_s=now,
+                actual_dt_s=dt_s,
+                mode="baseline",
+                internal_setpoint_n=1.0,
+            )
+            elapsed = time.perf_counter() - tick_started
+            record["command_times_s"].append(elapsed)
+            record["command_count"] = index + 1
+            if not all(math.isfinite(float(value)) for value in command.qdot):
+                raise YieldLiveWriterError("native provider prewarm produced a nonfinite command")
+            if index == 0:
+                record["state_changed_during"] = (
+                    list(runtime.controller.law.snapshot().values) != seed_law
+                )
+        record["first_command_s"] = record["command_times_s"][0]
+        record["last_command_s"] = record["command_times_s"][-1]
+        record["wall_s"] = time.perf_counter() - started
+    finally:
+        runtime.deadline_s = runtime_deadline
+        qp.deadline_s = qp_deadline
+        provider.restore(before)
+        _restore_freshness(runtime.freshness, freshness_before)
+        record["deadline_restored"] = (
+            runtime.deadline_s == runtime_deadline and qp.deadline_s == qp_deadline
+        )
+        provider.prewarm_record = record
+    return record
+
+
+def _install_command_timing(provider):
+    """Bounded real-clock diagnostics; never changes observations or command state."""
+    timeline = provider.command_timeline = []
+    active = [None]
+    original_command = provider.command
+    original_step = provider.runtime.step
+
+    def measured_step(**kwargs):
+        row = active[0]
+        if row is not None:
+            row["runtime_enter_s"] = time.monotonic()
+        try:
+            return original_step(**kwargs)
+        finally:
+            if row is not None:
+                row["runtime_exit_s"] = time.monotonic()
+
+    def measured_command(**kwargs):
+        if len(timeline) >= 512:
+            return original_command(**kwargs)
+        row = {
+            "provider_enter_s": time.monotonic(),
+            "sensor_received_s": kwargs["sensor"].observed_at_s,
+            "robot_received_s": kwargs["output"].received_monotonic_s,
+            "host_use_s": kwargs["monotonic_s"],
+            "actual_dt_s": kwargs["actual_dt_s"],
+        }
+        active[0] = row
+        try:
+            return original_command(**kwargs)
+        except BaseException as exc:
+            row["error"] = type(exc).__name__
+            raise
+        finally:
+            row["provider_exit_s"] = time.monotonic()
+            active[0] = None
+            timeline.append(row)
+
+    provider.runtime.step = measured_step
+    provider.command = measured_command
+
+
 from step5d_autotune_contract import ExecutionProfile
 
 
@@ -313,6 +487,12 @@ def build_native_yield_owner(
         provider = create_native_yield_provider(runtime=runtime, binding=binding)
         if request is not None:
             provider.live_path_request = require_live_path_request(request)
+        _prewarm_native_provider(
+            provider,
+            pose=pose,
+            q=home_binding.entry_receipt.final_q,
+        )
+        _install_command_timing(provider)
 
         def factory(**_ignored: Any):
             return provider

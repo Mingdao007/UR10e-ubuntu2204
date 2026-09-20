@@ -253,17 +253,10 @@ class ResidentSupervisor:
 
 
 def _prewarm(method):
-    import numpy as np
+    del method
     from contact_yield_live_writer import _prewarm_qp
     from contact_yield_protocol import QP_LIBRARY_PATH
-    from contact_yield_math import so3_exp
-    from yield_native_route import create_native_yield_runtime, create_native_yield_provider
-    contract=load_identity_contract(); _prewarm_qp(QP_LIBRARY_PATH)
-    rotation=so3_exp(np.array(contract.home_pose[3:]))
-    runtime,binding=create_native_yield_runtime(method=method,qp_library=QP_LIBRARY_PATH,
-        anchor_m=contract.home_pose[:3],task_basis=rotation,approach_inward_base=rotation[:,2])
-    try: create_native_yield_provider(runtime=runtime,binding=binding).snapshot()
-    finally: runtime.close()
+    _prewarm_qp(QP_LIBRARY_PATH)
 
 
 def _write_receipts(directory, row, proof, contract):

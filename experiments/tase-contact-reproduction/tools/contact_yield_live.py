@@ -249,6 +249,8 @@ def run_live(
         "physical_qualification": False,
         "rnn_hash_or_profile": False,
         "prewarmed_before_endpoints": True,
+        "provider_prewarm": getattr(provider, "prewarm_record", None),
+        "command_timeline": getattr(provider, "command_timeline", []),
         "opened": False,
         "armed": False,
         "executed": False,
