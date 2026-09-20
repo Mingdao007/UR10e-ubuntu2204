@@ -76,3 +76,16 @@ def test_real_native_methods_share_input_and_replay_complete_state(name):
         assert controller.snapshot()==after
     finally:
         controller.close()
+
+
+def test_out_of_bounds_extension_rolls_back_without_clipping():
+    class Violating(Extension):
+        def step(self,obs,ref,dt):
+            self.value += 1
+            return {'qdot_rad_s':[.06]*6}
+    registry=MethodRegistry()
+    registry.register(MethodSpec('bad','candidate','test'),lambda:(Violating(),'extension'))
+    handle=registry.initialize('bad');state=handle.snapshot()
+    with pytest.raises(RegistryError,match='joint velocity bounds'):
+        handle.step(observations(),{'reference_force_n':5.},.002)
+    assert handle.snapshot()==state

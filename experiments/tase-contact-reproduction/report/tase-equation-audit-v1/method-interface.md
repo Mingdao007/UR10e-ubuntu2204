@@ -39,3 +39,23 @@ Validation at this checkpoint: 7 tests cover open extension, identity/replay,
 failed-output rollback, stop behavior, evaluator-truth rejection and actual
 native SFC/SFC_RADIAL/DSFC/MSFC one-step replay through the shared interface.
 These are numerical/interface checks, not closed-loop contact or live results.
+
+## Subsequent review checkpoint
+
+The common handle now rejects finite but out-of-bound qdot without clipping,
+and restores its pre-step state. Eight registry tests pass, including a custom
+extension that attempts .06 rad/s under a .05 rad/s limit.
+
+Main independently ran the Astra draft's 40 baseline/dependency tests using the
+fixed contact Python environment. An additional malformed-snapshot probe found
+that missing qp_state is rejected only after tick changes from 0 to 19. The
+exact source digest and result are retained in restore-atomicity-finding.json.
+This is an unresolved draft restore bug, not a passing atomicity claim.
+
+The main registry was also exercised against the isolated draft for both RNN
+signs and native QP, with a shared aligned frame and a 1 mm/s tangential task.
+All three passed one-step save/replay, and their outer commanded twists matched.
+Results are in draft-registry-review.json. The RNN first output remains zero
+from its zero initial state; the QP output approximately matches the task twist.
+This limited interface check does not establish RNN convergence, a controller
+ranking, or main-worktree integration. No hardware was accessed.

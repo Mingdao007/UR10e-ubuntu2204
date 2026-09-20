@@ -1,0 +1,65 @@
+{
+  "TASE_RNN": {
+    "qdot": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "twist": [
+      0.001,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "replay": true,
+    "backend": null,
+    "role": "printed_sign_baseline_with_explicit_outer_adaptation"
+  },
+  "TASE_RNN_MATURE_MINUS": {
+    "qdot": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "twist": [
+      0.001,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "replay": true,
+    "backend": null,
+    "role": "sign_adaptation_reference"
+  },
+  "TASE_QP": {
+    "qdot": [
+      0.0010000014328313824,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "twist": [
+      0.001,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "replay": true,
+    "backend": "native",
+    "role": "matched_outer_solver_ablation"
+  }
+}

@@ -133,7 +133,13 @@ class ControllerHandle:
                 result = asdict(self.backend.step(measured,target,elapsed))
             else:
                 result = self.backend.step(observation,reference,elapsed)
-            finite_vector6(result['qdot_rad_s'],'result qdot')
+            qdot = finite_vector6(result['qdot_rad_s'],'result qdot')
+            # Validate, never clip: clipping would invalidate the backend's
+            # task equality and conceal a failed candidate.
+            from contact_qp import QP_BOUND_VALIDATION_TOLERANCE
+            tolerance = QP_BOUND_VALIDATION_TOLERANCE
+            if np.any(qdot < lower-tolerance) or np.any(qdot > upper+tolerance):
+                raise RegistryError('controller output violates shared joint velocity bounds')
             self.last_time_s = stamp
             return {**result,'registered_method':asdict(self.spec), 'hardware_evidence':False}
         except Exception:

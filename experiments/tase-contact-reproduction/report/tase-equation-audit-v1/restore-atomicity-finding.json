@@ -1,0 +1,8 @@
+{
+  "source": "/home/andy/.codex-worktrees/tase-live-baseline-20260920/experiments/tase-contact-reproduction/tools/tase_live_baseline.py",
+  "source_sha256": "b85ef9e96201e5f30b30e12ab3e6b6fd5ffdce62b51b0fd5cf9dc6a9c048a5d3",
+  "rejected_error": "native snapshot is missing qp_state",
+  "before_tick": 0,
+  "after_tick": 19,
+  "atomic": false
+}
