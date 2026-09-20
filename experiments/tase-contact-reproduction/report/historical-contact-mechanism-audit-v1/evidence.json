@@ -35,11 +35,25 @@
       "missing_or_limited": [
         "no contact PATH force tracking",
         "no tangent drift or controller saturation metric",
-        "single readiness observation is not a force peak over a task window"
+        "exact failed-call actual_dt_s was not stored; only a proven lower bound is available",
+        "dispatch command_timeline is empty but published_packets corroborate wire sends; it is not a zero-send record"
       ],
       "progress": {
-        "command_packets_sent": 0,
+        "dispatch_command_timeline_length": 0,
         "path_started": false,
+        "preflight_summary_command_packets_sent": 0,
+        "published_wire_packets": [
+          {
+            "command_mode": 1,
+            "host_monotonic_s": 73785.161855754,
+            "sequence": 136681
+          },
+          {
+            "command_mode": 4,
+            "host_monotonic_s": 73785.162332347,
+            "sequence": 136682
+          }
+        ],
         "requested_path_duration_s": 62.83185307179586
       },
       "recovery": {
@@ -51,10 +65,19 @@
       },
       "source_paths": [
         "runs/yield-sfc-full-20260920T151241Z/dispatch_receipt.json",
-        "runs/yield-sfc-full-20260920T151241Z/supervisor-result.json"
+        "runs/yield-sfc-full-20260920T151241Z/supervisor-result.json",
+        "report/contact-yield-recovery-20260920/first-qualification-timing-151241.json"
       ],
-      "status": "failed_before_PATH",
-      "tangent_drift_m": null
+      "status": "first_pause_nominally_accepted; following_readiness_call_failed",
+      "tangent_drift_m": null,
+      "timing": {
+        "first_pause_measured": false,
+        "first_pause_nominal_dt_s": 0.002,
+        "interpretation": "The first call hides any pre-call initialization duration behind a nominal 2 ms period. The recorded throw is on the following call, whose actual interval is proven above 4 ms.",
+        "next_call_actual_dt_lower_bound_s": 0.011450823,
+        "next_call_actual_dt_s": null,
+        "robot_frame_receive_gap_s": 0.011737239998183213
+      }
     },
     {
       "capture_duration_s": 10.521649,
@@ -71,8 +94,8 @@
         "no command consumption or contact qualification"
       ],
       "progress": {
-        "command_packets_sent": 0,
-        "load_play_sent": false
+        "load_play_sent": false,
+        "preflight_summary_command_packets_sent": 0
       },
       "source_paths": [
         "runs/yield-sfc-full-20260920T151241Z/summary.json"
@@ -389,7 +412,7 @@
   },
   "mechanism_assessment": {
     "control_law_novelty": "No new repair is introduced here. Baseline-only normal projection at 1f4c44b4 and the current zero-tangent qualification candidate already exist; this audit only proposes a discriminating comparison.",
-    "decision": "The evidence supports one bounded SFC baseline-law candidate for a paired physical test, but does not justify a controller implementation or a cross-method claim.",
+    "decision": "The evidence supports one bounded SFC baseline-law candidate for recorded-input/offline comparison first, but comparative physical data are insufficient to design a novel controller or make a cross-method claim.",
     "not_established": [
       "A common estimator/constraint/execution mechanism across SFC, DSFC, MSFC, and LAC physical runs; comparable DSFC/MSFC/LAC physical rows were not found in the selected source scope.",
       "That the r006 first-tick failure was caused by the SFC law; it stopped before PATH and before command publication.",
@@ -398,7 +421,7 @@
     "shared_geometry_estimation": "Not isolated by the selected real rows; normal tilt, estimator error, task basis, geometry, and command admission remain possible contributors.",
     "supported": [
       {
-        "evidence": "The first live attempt has one readiness observation, zero command packets, no PATH, and then recovers to stopped NORMAL/Home; it cannot identify a contact-law failure.",
+        "evidence": "The first pause uses a nominal 2 ms interval without a measured prior timestamp; the following call has an 11.450823 ms actual lower bound, published mode-1/STOP packets, no PATH, and then recovers to stopped NORMAL/Home. It cannot identify a contact-law failure.",
         "mechanism": "execution/readiness boundary",
         "scope": "r006 only"
       },
@@ -475,6 +498,7 @@
       "1f4c44b4 baseline normal-only residual projection"
     ],
     "authorization": "offline design only; main owns any future hardware execution",
+    "future_physical_gate": "Only consider a physical comparison after an independent acceptable envelope is established and existing protection/recovery gates remain active; do not automatically rerun the known failed parent law.",
     "hold_constant": [
       "same Home/task basis and 5 N figure-eight recipe",
       "same entry/PATH, limits, cadence, and recovery policy",
@@ -485,13 +509,15 @@
       "readiness_passes_and_projection_reduces_drift": "supports the bounded baseline residual mechanism",
       "readiness_passes_but_drift_is_unchanged": "look next at estimator/geometry/constraint coupling before changing the law"
     },
+    "known_risk": "The parent arm is the known shear/force-overload behavior from 120659Z; a live parent rerun would deliberately reintroduce that known failure mode.",
     "measure": [
       "first-tick readiness pass/fail",
       "baseline state-21 duration and corrected/raw force peak",
       "XY tangent drift and stopped raw force",
       "phase reached and recovery outcome"
     ],
-    "platform": "existing UR10e/Kunwei contact platform and already prepared SFC qualification package"
+    "platform": "existing UR10e/Kunwei contact platform and already prepared SFC qualification package",
+    "stage": "recorded-input/offline comparison first"
   },
   "schema": "ur10e.historical-contact-mechanism-audit-v1",
   "source_policy": {

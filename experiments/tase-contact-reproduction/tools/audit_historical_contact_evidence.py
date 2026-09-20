@@ -105,6 +105,9 @@ def build_audit(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
     native_smoke, native_smoke_path = _load(
         root, "report/yield-fair-campaign-native-smoke-v1/result.json"
     )
+    timing, timing_path = _load(
+        root, "report/contact-yield-recovery-20260920/first-qualification-timing-151241.json"
+    )
     offline_campaign, offline_campaign_path = _load(
         root, "report/contact-six-qp-20260917/offline-campaign.json"
     )
@@ -119,7 +122,6 @@ def build_audit(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
     target_stop = target_dispatch["stop"]
     assert target_dispatch["executed"] is False
     assert target_dispatch["physical_qualification"] is False
-    assert target_summary["command_packets_sent"] == 0
     assert recovery["success"] is True
     assert recovery["relief_complete"] is True
     assert recovery["trial_stays_failed"] is True
@@ -130,19 +132,49 @@ def build_audit(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
     assert full_state_replay["claim_scope"].startswith("fresh-instance full-state forward replay")
     assert forceoff["live_executed"] is False
     assert native_smoke["engineering_only"] is True
+    timing_failure = timing["live_stream_evidence"]["dispatch_failure"]
+    published_tail = timing["live_stream_evidence"]["published_packets"]["tail"]
+    published_control = next(packet for packet in published_tail if packet["command_mode"] == 1)
+    published_stop = next(packet for packet in published_tail if packet["command_mode"] == 4)
+    assert timing["finding"]["first_readiness_interval_s"] == 0.002
+    assert timing["finding"]["first_interval_is_measured"] is False
+    assert timing["finding"]["failed_tick_actual_dt_s"] is None
+    assert timing["finding"]["failed_tick_actual_dt_lower_bound_s"] > timing["finding"]["four_ms_limit_s"]
+    assert timing_failure["command_timeline_length"] == 0
 
     rows: list[dict[str, Any]] = [
         {
             "id": "r006-live-first-qualification-tick",
             "evidence_class": "real_physical_attempt",
             "method": target_dispatch["method"],
-            "source_paths": [target_dispatch_path, target_supervisor_path],
-            "status": "failed_before_PATH",
+            "source_paths": [target_dispatch_path, target_supervisor_path, timing_path],
+            "status": "first_pause_nominally_accepted; following_readiness_call_failed",
             "duration_s": None,
             "progress": {
-                "command_packets_sent": target_summary["command_packets_sent"],
+                "preflight_summary_command_packets_sent": target_summary["command_packets_sent"],
+                "dispatch_command_timeline_length": timing_failure["command_timeline_length"],
+                "published_wire_packets": [
+                    {
+                        "sequence": published_control["sequence"],
+                        "command_mode": published_control["command_mode"],
+                        "host_monotonic_s": published_control["host_monotonic_s"],
+                    },
+                    {
+                        "sequence": published_stop["sequence"],
+                        "command_mode": published_stop["command_mode"],
+                        "host_monotonic_s": published_stop["host_monotonic_s"],
+                    },
+                ],
                 "path_started": False,
                 "requested_path_duration_s": target_dispatch["live_path"]["path_duration_s"],
+            },
+            "timing": {
+                "first_pause_nominal_dt_s": timing["finding"]["first_readiness_interval_s"],
+                "first_pause_measured": timing["finding"]["first_interval_is_measured"],
+                "next_call_actual_dt_s": timing["finding"]["failed_tick_actual_dt_s"],
+                "next_call_actual_dt_lower_bound_s": timing["finding"]["failed_tick_actual_dt_lower_bound_s"],
+                "robot_frame_receive_gap_s": timing["live_stream_evidence"]["robot_frames"]["host_receive_delta_s"],
+                "interpretation": timing["finding"]["interpretation"],
             },
             "force": {
                 "one_sample_filtered_normal_peak_n": diag["filtered_max_n"],
@@ -166,7 +198,8 @@ def build_audit(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
             "missing_or_limited": [
                 "no contact PATH force tracking",
                 "no tangent drift or controller saturation metric",
-                "single readiness observation is not a force peak over a task window",
+                "exact failed-call actual_dt_s was not stored; only a proven lower bound is available",
+                "dispatch command_timeline is empty but published_packets corroborate wire sends; it is not a zero-send record",
             ],
         },
         {
@@ -179,7 +212,7 @@ def build_audit(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
                 target_summary["started_at"], target_summary["completed_at"]
             ),
             "progress": {
-                "command_packets_sent": target_summary["command_packets_sent"],
+                "preflight_summary_command_packets_sent": target_summary["command_packets_sent"],
                 "load_play_sent": target_summary["load_play_sent"],
             },
             "force": {
@@ -354,7 +387,7 @@ def build_audit(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
                 {
                     "mechanism": "execution/readiness boundary",
                     "scope": "r006 only",
-                    "evidence": "The first live attempt has one readiness observation, zero command packets, no PATH, and then recovers to stopped NORMAL/Home; it cannot identify a contact-law failure.",
+                    "evidence": "The first pause uses a nominal 2 ms interval without a measured prior timestamp; the following call has an 11.450823 ms actual lower bound, published mode-1/STOP packets, no PATH, and then recovers to stopped NORMAL/Home. It cannot identify a contact-law failure.",
                 },
                 {
                     "mechanism": "baseline SFC full residual admits tangent shear after contact",
@@ -370,7 +403,7 @@ def build_audit(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
             ],
             "shared_geometry_estimation": "Not isolated by the selected real rows; normal tilt, estimator error, task basis, geometry, and command admission remain possible contributors.",
             "control_law_novelty": "No new repair is introduced here. Baseline-only normal projection at 1f4c44b4 and the current zero-tangent qualification candidate already exist; this audit only proposes a discriminating comparison.",
-            "decision": "The evidence supports one bounded SFC baseline-law candidate for a paired physical test, but does not justify a controller implementation or a cross-method claim.",
+            "decision": "The evidence supports one bounded SFC baseline-law candidate for recorded-input/offline comparison first, but comparative physical data are insufficient to design a novel controller or make a cross-method claim.",
         },
         "bounded_hypothesis": {
             "statement": "After contact, the baseline's full 3-D force residual can turn measured tangent shear into tangent command; normal-only residual projection during baseline should reduce XY walk and force escalation while leaving entry/PATH behavior unchanged.",
@@ -384,12 +417,14 @@ def build_audit(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
                 "The current candidate already suppresses baseline tangent command for qualification; that is an intervention to compare, not a new contribution from this audit.",
             ],
         },
-        "paired_experiment": {
+            "paired_experiment": {
             "platform": "existing UR10e/Kunwei contact platform and already prepared SFC qualification package",
             "arms": [
                 "parent baseline controller",
                 "1f4c44b4 baseline normal-only residual projection",
             ],
+            "stage": "recorded-input/offline comparison first",
+            "known_risk": "The parent arm is the known shear/force-overload behavior from 120659Z; a live parent rerun would deliberately reintroduce that known failure mode.",
             "hold_constant": [
                 "same Home/task basis and 5 N figure-eight recipe",
                 "same entry/PATH, limits, cadence, and recovery policy",
@@ -406,6 +441,7 @@ def build_audit(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
                 "readiness_passes_and_projection_reduces_drift": "supports the bounded baseline residual mechanism",
                 "readiness_passes_but_drift_is_unchanged": "look next at estimator/geometry/constraint coupling before changing the law",
             },
+            "future_physical_gate": "Only consider a physical comparison after an independent acceptable envelope is established and existing protection/recovery gates remain active; do not automatically rerun the known failed parent law.",
             "authorization": "offline design only; main owns any future hardware execution",
         },
         "synthetic_injected_force_status": {
