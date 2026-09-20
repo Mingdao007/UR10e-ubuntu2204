@@ -1,0 +1,1268 @@
+{
+  "observed_utc": "2026-09-20T04:04:33.779974+00:00",
+  "scope": "fixed training snapshot for round8; partial campaign, no validation or hardware",
+  "attempts": [
+    {
+      "id": "SFC-00-nominal",
+      "method": "SFC",
+      "unit": 0,
+      "condition": "nominal",
+      "status": "complete",
+      "candidate": {
+        "g": 0.052126826121414976,
+        "m": 4.0,
+        "method": "SFC",
+        "mu": 393.0,
+        "n": 3.0
+      },
+      "evidence": {
+        "artifact_sha256": "e51055b6e96aec95671647c044e7100567a5dafa59343afd7afa0c3adea3e3a9",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible": true,
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-00-nominal/artifact.json"
+    },
+    {
+      "id": "SFC-00-disturbed",
+      "method": "SFC",
+      "unit": 0,
+      "condition": "disturbed",
+      "status": "complete",
+      "candidate": {
+        "g": 0.052126826121414976,
+        "m": 4.0,
+        "method": "SFC",
+        "mu": 393.0,
+        "n": 3.0
+      },
+      "evidence": {
+        "artifact_sha256": "5d835eceb7996ad91e253029522b459c2a5b861d4cfb768c16fce8d6151392aa",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "disturbed_checks": {
+          "full_cycle": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "progress_ok": true
+        },
+        "disturbed_guards_ok": true,
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible_reported": true,
+        "objective": 77.45319425340233,
+        "objective_components": {
+          "J": 77.45319425340233,
+          "Jatt": 22.4942980191699,
+          "Jload": 45.95804016841924,
+          "Jpath": 9.00085606581319
+        },
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible": true,
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-00-disturbed/artifact.json"
+    },
+    {
+      "id": "DSFC-00-nominal",
+      "method": "DSFC",
+      "unit": 0,
+      "condition": "nominal",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "g": 0.052126826121414976,
+        "m": 4.0,
+        "max_iterations": 32.0,
+        "method": "DSFC",
+        "mu": 393.0,
+        "n": 3.0,
+        "p": 0.5,
+        "relative_radius_tolerance": 1e-10,
+        "residual_tolerance_n": 1e-09
+      },
+      "evidence": {
+        "artifact_sha256": "e2c99ad28124832160b936b4334786440a81da031668e129fef0d883206ddd30",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible": true,
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-00-nominal/artifact.json"
+    },
+    {
+      "id": "DSFC-00-disturbed",
+      "method": "DSFC",
+      "unit": 0,
+      "condition": "disturbed",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "g": 0.052126826121414976,
+        "m": 4.0,
+        "max_iterations": 32.0,
+        "method": "DSFC",
+        "mu": 393.0,
+        "n": 3.0,
+        "p": 0.5,
+        "relative_radius_tolerance": 1e-10,
+        "residual_tolerance_n": 1e-09
+      },
+      "evidence": {
+        "artifact_sha256": "80390b0948e4e4a5ec6e7005ad07de9dced9db78223e8e07b6509edb9ea6084e",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "disturbed_checks": {
+          "full_cycle": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "progress_ok": true
+        },
+        "disturbed_guards_ok": true,
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible_reported": true,
+        "objective": 85.82068102011505,
+        "objective_components": {
+          "J": 85.82068102011505,
+          "Jatt": 29.0175168701657,
+          "Jload": 46.801634800360986,
+          "Jpath": 10.00152934958837
+        },
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible": true,
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-00-disturbed/artifact.json"
+    },
+    {
+      "id": "MSFC-00-nominal",
+      "method": "MSFC",
+      "unit": 0,
+      "condition": "nominal",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "force_scale_n": 2.1095928078033372,
+        "g": 0.052126826121414976,
+        "kappa_per_n2_s": 0.6334129092862626,
+        "m": 4.0,
+        "max_iterations": 32.0,
+        "method": "MSFC",
+        "minimum_metric_eigenvalue": 0.026926929041248004,
+        "mu": 393.0,
+        "n": 3.0,
+        "p": 0.5,
+        "residual_tolerance_n": 1e-09,
+        "structure_tolerance": 1e-12,
+        "tau_force_s": 0.19236795686399732,
+        "tau_recovery_s": 0.20212720757006053
+      },
+      "evidence": {
+        "artifact_sha256": "74d541d3674b10b4006b4e82606cef07516a13525e853455f8fb626101f7587c",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible": true,
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-00-nominal/artifact.json"
+    },
+    {
+      "id": "MSFC-00-disturbed",
+      "method": "MSFC",
+      "unit": 0,
+      "condition": "disturbed",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "force_scale_n": 2.1095928078033372,
+        "g": 0.052126826121414976,
+        "kappa_per_n2_s": 0.6334129092862626,
+        "m": 4.0,
+        "max_iterations": 32.0,
+        "method": "MSFC",
+        "minimum_metric_eigenvalue": 0.026926929041248004,
+        "mu": 393.0,
+        "n": 3.0,
+        "p": 0.5,
+        "residual_tolerance_n": 1e-09,
+        "structure_tolerance": 1e-12,
+        "tau_force_s": 0.19236795686399732,
+        "tau_recovery_s": 0.20212720757006053
+      },
+      "evidence": {
+        "artifact_sha256": "b323f738dd3bf67f28a0829bead3c846d971f64b6ac5688e0e89679a22c5191a",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "disturbed_checks": {
+          "full_cycle": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "progress_ok": true
+        },
+        "disturbed_guards_ok": true,
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible_reported": true,
+        "objective": 85.27226534917935,
+        "objective_components": {
+          "J": 85.27226534917935,
+          "Jatt": 28.708162745616775,
+          "Jload": 46.75959645127463,
+          "Jpath": 9.804506152287935
+        },
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible": true,
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-00-disturbed/artifact.json"
+    },
+    {
+      "id": "SFC-01-nominal",
+      "method": "SFC",
+      "unit": 1,
+      "condition": "nominal",
+      "status": "complete",
+      "candidate": {
+        "g": 0.0642,
+        "m": 4.0,
+        "method": "SFC",
+        "mu": 310.66177089084647,
+        "n": 3.0
+      },
+      "evidence": {
+        "artifact_sha256": "7943dd2ae88242eede493ea94bc24ca64a81da0dd4cd7906a89416ba6cafc714",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible": true,
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-01-nominal/artifact.json"
+    },
+    {
+      "id": "SFC-01-disturbed",
+      "method": "SFC",
+      "unit": 1,
+      "condition": "disturbed",
+      "status": "complete",
+      "candidate": {
+        "g": 0.0642,
+        "m": 4.0,
+        "method": "SFC",
+        "mu": 310.66177089084647,
+        "n": 3.0
+      },
+      "evidence": {
+        "artifact_sha256": "b2751ef469193cf86ddad09700ee581644b7f61c431b6c08489c8333ad37a5d9",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "disturbed_checks": {
+          "full_cycle": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "progress_ok": true
+        },
+        "disturbed_guards_ok": true,
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible_reported": true,
+        "objective": 65.64753470850643,
+        "objective_components": {
+          "J": 65.64753470850643,
+          "Jatt": 15.785779832061612,
+          "Jload": 46.09498189255161,
+          "Jpath": 3.7667729838932145
+        },
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible": true,
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-01-disturbed/artifact.json"
+    },
+    {
+      "id": "DSFC-01-nominal",
+      "method": "DSFC",
+      "unit": 1,
+      "condition": "nominal",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "g": 0.0642,
+        "m": 4.0,
+        "max_iterations": 32.0,
+        "method": "DSFC",
+        "mu": 310.66177089084647,
+        "n": 3.0,
+        "p": 0.5,
+        "relative_radius_tolerance": 1e-10,
+        "residual_tolerance_n": 1e-09
+      },
+      "evidence": {
+        "artifact_sha256": "31145a4dc39339177fc6981d19c5b0f62fb5d3daa2b1fbfe14e8820ce66a340b",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible": true,
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-01-nominal/artifact.json"
+    },
+    {
+      "id": "DSFC-01-disturbed",
+      "method": "DSFC",
+      "unit": 1,
+      "condition": "disturbed",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "g": 0.0642,
+        "m": 4.0,
+        "max_iterations": 32.0,
+        "method": "DSFC",
+        "mu": 310.66177089084647,
+        "n": 3.0,
+        "p": 0.5,
+        "relative_radius_tolerance": 1e-10,
+        "residual_tolerance_n": 1e-09
+      },
+      "evidence": {
+        "artifact_sha256": "ddae9fdc48084c2ee3c74a91099134f610a04aef739023398cf2023c05038ac3",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "disturbed_checks": {
+          "full_cycle": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "progress_ok": true
+        },
+        "disturbed_guards_ok": true,
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible_reported": true,
+        "objective": 84.90044295696934,
+        "objective_components": {
+          "J": 84.90044295696934,
+          "Jatt": 29.054189460947594,
+          "Jload": 46.990444598800096,
+          "Jpath": 8.855808897221653
+        },
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible": true,
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-01-disturbed/artifact.json"
+    },
+    {
+      "id": "MSFC-01-nominal",
+      "method": "MSFC",
+      "unit": 1,
+      "condition": "nominal",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "force_scale_n": 2.1095928078033372,
+        "g": 0.0642,
+        "kappa_per_n2_s": 0.6334129092862626,
+        "m": 4.0,
+        "max_iterations": 32.0,
+        "method": "MSFC",
+        "minimum_metric_eigenvalue": 0.026926929041248004,
+        "mu": 310.66177089084647,
+        "n": 3.0,
+        "p": 0.5,
+        "residual_tolerance_n": 1e-09,
+        "structure_tolerance": 1e-12,
+        "tau_force_s": 0.19236795686399732,
+        "tau_recovery_s": 0.20212720757006053
+      },
+      "evidence": {
+        "artifact_sha256": "03bbe1d2123d095ed4def2d0778f065890bbac063b811b86bfb0253ac3f5925b",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible": true,
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-01-nominal/artifact.json"
+    },
+    {
+      "id": "MSFC-01-disturbed",
+      "method": "MSFC",
+      "unit": 1,
+      "condition": "disturbed",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "force_scale_n": 2.1095928078033372,
+        "g": 0.0642,
+        "kappa_per_n2_s": 0.6334129092862626,
+        "m": 4.0,
+        "max_iterations": 32.0,
+        "method": "MSFC",
+        "minimum_metric_eigenvalue": 0.026926929041248004,
+        "mu": 310.66177089084647,
+        "n": 3.0,
+        "p": 0.5,
+        "residual_tolerance_n": 1e-09,
+        "structure_tolerance": 1e-12,
+        "tau_force_s": 0.19236795686399732,
+        "tau_recovery_s": 0.20212720757006053
+      },
+      "evidence": {
+        "artifact_sha256": "103386ceb9fa72414c4b3e724be06b24b7131ba4a7af1b03f31621aba4f741a7",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "disturbed_checks": {
+          "full_cycle": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "progress_ok": true
+        },
+        "disturbed_guards_ok": true,
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible_reported": true,
+        "objective": 84.88656231100076,
+        "objective_components": {
+          "J": 84.88656231100076,
+          "Jatt": 29.071593864281102,
+          "Jload": 46.9653462014661,
+          "Jpath": 8.849622245253567
+        },
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible": true,
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-01-disturbed/artifact.json"
+    },
+    {
+      "id": "SFC-02-nominal",
+      "method": "SFC",
+      "unit": 2,
+      "condition": "nominal",
+      "status": "complete",
+      "candidate": {
+        "g": 0.08583341909109758,
+        "m": 4.0,
+        "method": "SFC",
+        "mu": 1228.1391393367705,
+        "n": 3.0
+      },
+      "evidence": {
+        "artifact_sha256": "e8c852ef4b5db1f396f4ca95be8504d2e7a4922937824edb7f21a91d9bf3bb68",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "nominal_checks": {
+          "attitude_rms_ok": false,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": false,
+          "progress_ok": false
+        },
+        "nominal_feasible": false,
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-02-nominal/artifact.json"
+    },
+    {
+      "id": "SFC-02-disturbed",
+      "method": "SFC",
+      "unit": 2,
+      "condition": "disturbed",
+      "status": "complete",
+      "candidate": {
+        "g": 0.08583341909109758,
+        "m": 4.0,
+        "method": "SFC",
+        "mu": 1228.1391393367705,
+        "n": 3.0
+      },
+      "evidence": {
+        "artifact_sha256": "00844745601772d8fbdbc785caf2977e353a6d0145db506c3051b9be43fee798",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "disturbed_checks": {
+          "full_cycle": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "progress_ok": true
+        },
+        "disturbed_guards_ok": true,
+        "nominal_checks": {
+          "attitude_rms_ok": false,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": false,
+          "progress_ok": false
+        },
+        "nominal_feasible_reported": false,
+        "objective": 68.05116046307418,
+        "objective_components": {
+          "J": 68.05116046307418,
+          "Jatt": 17.57455987211605,
+          "Jload": 45.21048231334306,
+          "Jpath": 5.266118277615072
+        },
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible": false,
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-02-disturbed/artifact.json"
+    },
+    {
+      "id": "DSFC-02-nominal",
+      "method": "DSFC",
+      "unit": 2,
+      "condition": "nominal",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "g": 0.08583341909109758,
+        "m": 4.0,
+        "max_iterations": 32.0,
+        "method": "DSFC",
+        "mu": 1228.1391393367705,
+        "n": 3.0,
+        "p": 0.5,
+        "relative_radius_tolerance": 1e-10,
+        "residual_tolerance_n": 1e-09
+      },
+      "evidence": {
+        "artifact_sha256": "681213de0e2ae22ba75ed97ee953d4a2915aab0ddfea796a7e71101d40ebdde2",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible": true,
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-02-nominal/artifact.json"
+    },
+    {
+      "id": "DSFC-02-disturbed",
+      "method": "DSFC",
+      "unit": 2,
+      "condition": "disturbed",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "g": 0.08583341909109758,
+        "m": 4.0,
+        "max_iterations": 32.0,
+        "method": "DSFC",
+        "mu": 1228.1391393367705,
+        "n": 3.0,
+        "p": 0.5,
+        "relative_radius_tolerance": 1e-10,
+        "residual_tolerance_n": 1e-09
+      },
+      "evidence": {
+        "artifact_sha256": "f9565bc3c7e790a727e25bef62da49350b8c1796990e6467039b7a7d457d5eb5",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "disturbed_checks": {
+          "full_cycle": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "progress_ok": true
+        },
+        "disturbed_guards_ok": true,
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible_reported": true,
+        "objective": 81.25466298766943,
+        "objective_components": {
+          "J": 81.25466298766943,
+          "Jatt": 27.004066034299278,
+          "Jload": 46.73541230117644,
+          "Jpath": 7.5151846521937244
+        },
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible": true,
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-02-disturbed/artifact.json"
+    },
+    {
+      "id": "MSFC-02-nominal",
+      "method": "MSFC",
+      "unit": 2,
+      "condition": "nominal",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "force_scale_n": 2.1095928078033372,
+        "g": 0.08583341909109758,
+        "kappa_per_n2_s": 0.6334129092862626,
+        "m": 4.0,
+        "max_iterations": 32.0,
+        "method": "MSFC",
+        "minimum_metric_eigenvalue": 0.026926929041248004,
+        "mu": 1228.1391393367705,
+        "n": 3.0,
+        "p": 0.5,
+        "residual_tolerance_n": 1e-09,
+        "structure_tolerance": 1e-12,
+        "tau_force_s": 0.19236795686399732,
+        "tau_recovery_s": 0.20212720757006053
+      },
+      "evidence": {
+        "artifact_sha256": "a16f00120e4956ad1c883e897174c5a88d81fe228b32ce2eed27c83f75203ef2",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible": true,
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-02-nominal/artifact.json"
+    },
+    {
+      "id": "MSFC-02-disturbed",
+      "method": "MSFC",
+      "unit": 2,
+      "condition": "disturbed",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "force_scale_n": 2.1095928078033372,
+        "g": 0.08583341909109758,
+        "kappa_per_n2_s": 0.6334129092862626,
+        "m": 4.0,
+        "max_iterations": 32.0,
+        "method": "MSFC",
+        "minimum_metric_eigenvalue": 0.026926929041248004,
+        "mu": 1228.1391393367705,
+        "n": 3.0,
+        "p": 0.5,
+        "residual_tolerance_n": 1e-09,
+        "structure_tolerance": 1e-12,
+        "tau_force_s": 0.19236795686399732,
+        "tau_recovery_s": 0.20212720757006053
+      },
+      "evidence": {
+        "artifact_sha256": "62a4e263f0205ee206d4dc9776a50ebb8e218e759ac063c578db3c4482bf9495",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "disturbed_checks": {
+          "full_cycle": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "progress_ok": true
+        },
+        "disturbed_guards_ok": true,
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible_reported": true,
+        "objective": 81.40724800742119,
+        "objective_components": {
+          "J": 81.40724800742119,
+          "Jatt": 27.147042599162763,
+          "Jload": 46.73268644859276,
+          "Jpath": 7.527518959665667
+        },
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible": true,
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-02-disturbed/artifact.json"
+    },
+    {
+      "id": "SFC-03-nominal",
+      "method": "SFC",
+      "unit": 3,
+      "condition": "nominal",
+      "status": "complete",
+      "candidate": {
+        "g": 0.15615429806676784,
+        "m": 13.20374583825469,
+        "method": "SFC",
+        "mu": 43.19426238094313,
+        "n": 3.0
+      },
+      "evidence": {
+        "artifact_sha256": "ec804e9fd8c215a886eaa8bac9a1bbf151ffd3d68a05b2c692d58aa5556c43d6",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "nominal_checks": {
+          "attitude_rms_ok": false,
+          "full_cycle": true,
+          "load_mae_ok": false,
+          "load_min_ok": true,
+          "load_peak_ok": false,
+          "no_failure": true,
+          "path_rms_ok": false,
+          "progress_ok": true
+        },
+        "nominal_feasible": false,
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-03-nominal/artifact.json"
+    },
+    {
+      "id": "SFC-03-disturbed",
+      "method": "SFC",
+      "unit": 3,
+      "condition": "disturbed",
+      "status": "complete",
+      "candidate": {
+        "g": 0.15615429806676784,
+        "m": 13.20374583825469,
+        "method": "SFC",
+        "mu": 43.19426238094313,
+        "n": 3.0
+      },
+      "evidence": {
+        "artifact_sha256": "9b10e74288ab5fab023239f544679dc47c58e25a9d1653a678be6eba839efd5e",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "disturbed_checks": {
+          "full_cycle": true,
+          "load_min_ok": false,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "progress_ok": true
+        },
+        "disturbed_guards_ok": false,
+        "nominal_checks": {
+          "attitude_rms_ok": false,
+          "full_cycle": true,
+          "load_mae_ok": false,
+          "load_min_ok": true,
+          "load_peak_ok": false,
+          "no_failure": true,
+          "path_rms_ok": false,
+          "progress_ok": true
+        },
+        "nominal_feasible_reported": false,
+        "objective": 96.74920450279919,
+        "objective_components": {
+          "J": 96.74920450279919,
+          "Jatt": 31.138309037680887,
+          "Jload": 49.35018718046672,
+          "Jpath": 16.26070828465158
+        },
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible": false,
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-03-disturbed/artifact.json"
+    },
+    {
+      "id": "DSFC-03-nominal",
+      "method": "DSFC",
+      "unit": 3,
+      "condition": "nominal",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "g": 0.15615429806676784,
+        "m": 13.20374583825469,
+        "max_iterations": 32.0,
+        "method": "DSFC",
+        "mu": 43.19426238094313,
+        "n": 3.0,
+        "p": 0.5,
+        "relative_radius_tolerance": 1e-10,
+        "residual_tolerance_n": 1e-09
+      },
+      "evidence": {
+        "artifact_sha256": "6caf014f2f5b54bc9ccbd02a9c762b0c3c7b34f178f5d5d6df05d1ef412275fc",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": false,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible": false,
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-03-nominal/artifact.json"
+    },
+    {
+      "id": "DSFC-03-disturbed",
+      "method": "DSFC",
+      "unit": 3,
+      "condition": "disturbed",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "g": 0.15615429806676784,
+        "m": 13.20374583825469,
+        "max_iterations": 32.0,
+        "method": "DSFC",
+        "mu": 43.19426238094313,
+        "n": 3.0,
+        "p": 0.5,
+        "relative_radius_tolerance": 1e-10,
+        "residual_tolerance_n": 1e-09
+      },
+      "evidence": {
+        "artifact_sha256": "547db5e177ad9ea9a2ca82184f506c2190bf54a4d2a0b953710a9101af847823",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "disturbed_checks": {
+          "full_cycle": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "progress_ok": true
+        },
+        "disturbed_guards_ok": true,
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": false,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible_reported": false,
+        "objective": 86.1717741761951,
+        "objective_components": {
+          "J": 86.1717741761951,
+          "Jatt": 27.42519453976281,
+          "Jload": 47.62437124481846,
+          "Jpath": 11.122208391613833
+        },
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible": false,
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-03-disturbed/artifact.json"
+    },
+    {
+      "id": "MSFC-03-nominal",
+      "method": "MSFC",
+      "unit": 3,
+      "condition": "nominal",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "force_scale_n": 2.1095928078033372,
+        "g": 0.15615429806676784,
+        "kappa_per_n2_s": 0.6334129092862626,
+        "m": 13.20374583825469,
+        "max_iterations": 32.0,
+        "method": "MSFC",
+        "minimum_metric_eigenvalue": 0.026926929041248004,
+        "mu": 43.19426238094313,
+        "n": 3.0,
+        "p": 0.5,
+        "residual_tolerance_n": 1e-09,
+        "structure_tolerance": 1e-12,
+        "tau_force_s": 0.19236795686399732,
+        "tau_recovery_s": 0.20212720757006053
+      },
+      "evidence": {
+        "artifact_sha256": "0d459958dc4d48deab07971b61e22f2db23a1f7f6f8f6ab525a719abaa331e25",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": false,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible": false,
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-03-nominal/artifact.json"
+    },
+    {
+      "id": "MSFC-03-disturbed",
+      "method": "MSFC",
+      "unit": 3,
+      "condition": "disturbed",
+      "status": "complete",
+      "candidate": {
+        "a": 0.05,
+        "force_scale_n": 2.1095928078033372,
+        "g": 0.15615429806676784,
+        "kappa_per_n2_s": 0.6334129092862626,
+        "m": 13.20374583825469,
+        "max_iterations": 32.0,
+        "method": "MSFC",
+        "minimum_metric_eigenvalue": 0.026926929041248004,
+        "mu": 43.19426238094313,
+        "n": 3.0,
+        "p": 0.5,
+        "residual_tolerance_n": 1e-09,
+        "structure_tolerance": 1e-12,
+        "tau_force_s": 0.19236795686399732,
+        "tau_recovery_s": 0.20212720757006053
+      },
+      "evidence": {
+        "artifact_sha256": "224cd7bd897ffa657a80de1f5007b41c0cb0314f3307eb190f9f295d1680705b",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "disturbed_checks": {
+          "full_cycle": true,
+          "load_min_ok": true,
+          "load_peak_ok": true,
+          "no_failure": true,
+          "progress_ok": true
+        },
+        "disturbed_guards_ok": true,
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": true,
+          "load_min_ok": true,
+          "load_peak_ok": false,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible_reported": false,
+        "objective": 86.96295787430293,
+        "objective_components": {
+          "J": 86.96295787430293,
+          "Jatt": 27.926029699736937,
+          "Jload": 47.639610442884845,
+          "Jpath": 11.397317731681145
+        },
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible": false,
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-03-disturbed/artifact.json"
+    },
+    {
+      "id": "SFC-04-nominal",
+      "method": "SFC",
+      "unit": 4,
+      "condition": "nominal",
+      "status": "complete",
+      "candidate": {
+        "g": 0.02835595401982533,
+        "m": 5.318628389388323,
+        "method": "SFC",
+        "mu": 729.0097584978811,
+        "n": 3.0
+      },
+      "evidence": {
+        "artifact_sha256": "863c6bf56ee4219396ca9e763cb8129d2f929ac656227c39260262d381856c0d",
+        "campaign_protocol_sha256": "ef310e1e96c098de506c02014f11d4269bce79c8c109a5f37b09a7bdb57a4ff3",
+        "nominal_checks": {
+          "attitude_rms_ok": true,
+          "full_cycle": true,
+          "load_mae_ok": false,
+          "load_min_ok": true,
+          "load_peak_ok": false,
+          "no_failure": true,
+          "path_rms_ok": true,
+          "progress_ok": true
+        },
+        "nominal_feasible": false,
+        "objective_eligible": true,
+        "objective_eligible_means": "complete_uncensored_result",
+        "pair_feasible_controls_selection": true,
+        "schema": "yield-contact-training-ledger-v1",
+        "selection_contract_id": "yield-fair-selection-contract-v1",
+        "split": "training",
+        "training_cell_id": "stiff_low_mu",
+        "tuner_config_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+      },
+      "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-04-nominal/artifact.json"
+    }
+  ]
+}
