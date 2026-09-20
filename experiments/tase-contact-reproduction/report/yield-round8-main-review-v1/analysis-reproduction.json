@@ -1,0 +1,17 @@
+{
+  "analysis": {
+    "exact_json_equal": true,
+    "main_output_sha256": "bf0c7c6a24de02610e351c9bda4574fc8528477d923ac071604bb0e245d99399",
+    "advisory_output_sha256": "bf0c7c6a24de02610e351c9bda4574fc8528477d923ac071604bb0e245d99399"
+  },
+  "mechanics": {
+    "exact_json_equal": true,
+    "main_output_sha256": "95ee6c1e6ec28b9a056eb67559032d70bdb6599d83c191cbb36c3c56228a32a5",
+    "advisory_output_sha256": "95ee6c1e6ec28b9a056eb67559032d70bdb6599d83c191cbb36c3c56228a32a5"
+  },
+  "source_hashes": {
+    "report/yield-fair-training-v1/discussion-round8/scripts/analyze_round8.py": "56553bf5f88e06f5dc7ee5a2aa5de19297a9f656419e9bc537bcc417d0a1bd71",
+    "report/yield-fair-training-v1/discussion-round8/scripts/extract_rows_v8.py": "e532e17bfdd558452245e071dacdf8c87efa52dba7c3a4028fd03f8d58cecc29",
+    "report/yield-fair-training-v1/discussion-round8/scripts/analyze_round8_mechanics.py": "7a67123bc7d3186bd9b6a783162343036cb8a0656d174b4dbb37d8b854994b31"
+  }
+}
