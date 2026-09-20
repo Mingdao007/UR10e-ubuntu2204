@@ -1,6 +1,6 @@
 """Native provider + qualification.step inside the mature execute_attempt loop."""
 import pytest
-from contact_yield_protocol import PERIOD_S, law_seed_parameters
+from contact_yield_protocol import PATH_SEAM_CONTINUATION_S, PERIOD_S, law_seed_parameters
 from step5d_autotune_v4_r004_live_writer import LiveWriterError
 from test_contact_benchmark_runtime import lib
 from yield_full_writer_offline import (
@@ -17,8 +17,14 @@ def test_g50_parameters_are_the_frozen_transfer_protocol_not_original_msfc_seed(
     assert PRODUCTION_RUNTIME_DEADLINE_S == 0.0015
 
 
-def test_full_writer_binds_native_instance_qdot_phase_and_retains_formal_evidence(tmp_path, monkeypatch, lib):
-    run = exercise_full_writer(tmp_path, monkeypatch, qp_library=lib, method="MSFC",clock_origin_s=0.)
+@pytest.mark.parametrize("clock_origin_s", [0.0, 100.0])
+@pytest.mark.parametrize("method", ["SFC", "DSFC", "MSFC"])
+def test_full_writer_binds_native_instance_qdot_phase_and_retains_formal_evidence(
+    tmp_path, monkeypatch, lib, clock_origin_s, method
+):
+    run = exercise_full_writer(
+        tmp_path, monkeypatch, qp_library=lib, method=method, clock_origin_s=clock_origin_s
+    )
     assert run.error is None, run.error
     assert run.deadline_s is None
     assert run.runtime.deadline_s is None
@@ -29,7 +35,10 @@ def test_full_writer_binds_native_instance_qdot_phase_and_retains_formal_evidenc
     # Coverage and phase clocks, rather than a special clock origin, decide.
     assert entry_count in (500,501)
     assert run.phases[:entry_count] == ["entry"] * entry_count
-    assert len(run.phases[entry_count:]) in (31415,31416)
+    path_count = len(run.phases[entry_count:])
+    # One or two extra PATH commands are the bounded seam continuation, not a
+    # second period.
+    assert 31415 <= path_count <= 31418
     assert all(p=='path' for p in run.phases[entry_count:])
     assert run.published, "native PATH/entry packets were not published"
     for packet in run.published:
@@ -47,11 +56,15 @@ def test_full_writer_binds_native_instance_qdot_phase_and_retains_formal_evidenc
     assert run.evidence.metrics["entry_in_formal_coverage"] is False
     assert run.evidence.path_duration_s >= PERIOD_S
     assert run.provider.last_result["phase"] == "path"
-    assert run.provider.last_result["formal_time_s"] == pytest.approx(62.830, abs=0.002)
+    assert (
+        PERIOD_S - 0.004
+        <= run.provider.last_result["formal_time_s"]
+        <= PERIOD_S + PATH_SEAM_CONTINUATION_S
+    )
     assert run.runtime.phase == "path"
     assert .998-1e-9 <= run.runtime.last_entry_time < 1.0
     assert run.evidence.eligible is False
-    assert 63.83 < run.clock.t-run.start_t < 63.85
+    assert 63.83 < run.clock.t-run.start_t < 63.86
 
 
 def assert_fault_stopped(run):
@@ -59,16 +72,6 @@ def assert_fault_stopped(run):
     assert run.stop_packets and run.stop_packets[-1]['qdot']==(0.,)*6
     assert run.stop_packets[-1]['sequence']==run.writer._last_writer_sequence
     assert run.before_fault is not None and run.final_snapshot==run.before_fault
-
-
-def test_nonzero_clock_origin_retains_incomplete_duration_rejection(tmp_path,monkeypatch,lib):
-    # Known incomplete execution boundary, NOT a passed full-period trial.
-    # Retain its strict rejection while the writer's termination is repaired.
-    run=exercise_full_writer(tmp_path,monkeypatch,qp_library=lib,method='MSFC',clock_origin_s=100.)
-    assert isinstance(run.error,LiveWriterError)
-    assert 'path duration is 62.830000' in str(run.error)
-    assert run.evidence is None
-    assert run.writer._failed_closed and run.stop_packets[-1]['qdot']==(0.,)*6
 
 
 def test_full_writer_stale_receive_clock_fails_closed_without_commit(tmp_path, monkeypatch, lib):

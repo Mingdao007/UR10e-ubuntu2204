@@ -12,7 +12,7 @@ import copy
 import numpy as np
 
 from contact_benchmark_protocol import disturbance, ENTRY_DURATION_S
-from contact_yield_protocol import PERIOD_S
+from contact_yield_protocol import PATH_SEAM_CONTINUATION_S, PERIOD_S
 from contact_benchmark_provider import ContactReadinessObserver
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import CalibratedCommand
@@ -43,7 +43,9 @@ class YieldContactProvider:
     @staticmethod
     def execution_phase(execution_time_s):
         elapsed = float(execution_time_s)
-        if not math.isfinite(elapsed) or not 0 <= elapsed <= ENTRY_DURATION_S + PERIOD_S:
+        if not math.isfinite(elapsed) or not 0 <= elapsed <= (
+            ENTRY_DURATION_S + PERIOD_S + PATH_SEAM_CONTINUATION_S
+        ):
             raise ValueError("execution clock outside entry plus full PATH")
         if elapsed < ENTRY_DURATION_S:
             return "entry", elapsed

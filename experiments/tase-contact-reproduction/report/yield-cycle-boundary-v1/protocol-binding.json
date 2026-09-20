@@ -1,0 +1,6 @@
+{
+  "old_protocol_sha256": "5be95ccbf95200fbf7651f98ad8684c5b2715f8234155246ba7b374d1c59a67a",
+  "new_protocol_sha256": "97bd952e7b8ac562960f42124ac85ea776dfe597fdb4e066e8672cb3772816c6",
+  "policy": "unwrapped_periodic_v1",
+  "maximum_continuation_s": 0.004
+}

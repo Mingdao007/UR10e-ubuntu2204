@@ -243,8 +243,6 @@ def exercise_full_writer(
 
         gc.callbacks.append(trace_gc)
 
-    # Start at 0 so repeated 2 ms advances stay on the same binary64 grid as
-    # the writer-loop fixture. Starting at 100 s extra-enters by one tick.
     clock = SimpleNamespace(
         t=float(clock_origin_s),
         ticks=0,

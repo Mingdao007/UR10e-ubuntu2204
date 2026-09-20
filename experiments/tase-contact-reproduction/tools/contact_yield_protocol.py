@@ -17,7 +17,7 @@ from contact_benchmark_protocol import (
     ENTRY_DURATION_S,
     FRESH_AGE_S,
     STALE_AGE_S,
-    Task,
+    Task as BenchmarkTask,
     classify_sensor_age,
     quintic_entry,
 )
@@ -54,8 +54,31 @@ SCENARIOS = (
 MATERIALS = ("stiff_low_mu", "compliant_high_mu")
 TIMELINES = ("full_cycle", "diagnostic")
 PERIOD_S = 2.0 * math.pi / 0.1
+# Bounded unwrapped PATH continuation past the nominal 1 s + PERIOD_S
+# endpoint when the sample grid misses the exact entry/PATH seam. Equal to
+# the existing skipped-initial PATH bound (one 2 ms sample plus consume lag).
+PATH_SEAM_CONTINUATION_S = 0.004
+PATH_SEAM_CONTINUATION_POLICY = "unwrapped_periodic_v1"
 DIAGNOSTIC_DURATION_S = 0.60
 DEFAULT_DT_S = 0.002
+
+
+class Task(BenchmarkTask):
+    """Yield task geometry; bounded unwrapped continuation, no endpoint clamp."""
+
+    def reference(self, time_s):
+        if not math.isfinite(time_s) or time_s < 0:
+            raise ValueError("time outside complete task period")
+        if time_s > self.duration_s + PATH_SEAM_CONTINUATION_S:
+            raise ValueError("time outside complete task period")
+        a, b, w = self.along_amplitude_m, self.lateral_amplitude_m, self.omega_rad_s
+        t = float(time_s)
+        return {
+            "position_m": (a * math.sin(w * t), b * math.sin(2 * w * t), 0.0),
+            "velocity_m_s": (a * w * math.cos(w * t), 2 * b * w * math.cos(2 * w * t), 0.0),
+            "acceleration_m_s2": (-a * w * w * math.sin(w * t), -4 * b * w * w * math.sin(2 * w * t), 0.0),
+            "reference_force_n": self.normal_force_n,
+        }
 REFINEMENT_DT_S = 0.001
 LATENCY_ERROR_BOUND_M = 0.001
 LATENCY_EXTRA_S = 0.002
@@ -214,6 +237,8 @@ def protocol() -> dict[str, Any]:
         "task": {
             **asdict(task),
             "duration_s": task.duration_s,
+            "seam_continuation_policy": PATH_SEAM_CONTINUATION_POLICY,
+            "maximum_seam_continuation_s": PATH_SEAM_CONTINUATION_S,
             "span_mm": [80.0, 20.0],
             "orientation": "compliant_changing_estimated_inward_normal",
             "unknown_surface": True,
@@ -377,6 +402,8 @@ __all__ = [
     "MATERIALS",
     "METHODS",
     "METHOD_ROLES",
+    "PATH_SEAM_CONTINUATION_POLICY",
+    "PATH_SEAM_CONTINUATION_S",
     "PERIOD_S",
     "QP_LIBRARY_PATH",
     "REFINEMENT_DT_S",

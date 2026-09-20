@@ -40,6 +40,33 @@ def test_legacy_sixty_seconds_and_one_tick_short_are_not_complete(last):
         c.finalize(return_gate_passed=True,contact_gate_passed=True,home_proof={'stationary':True})
 
 
+@pytest.mark.parametrize('reference_shortfall_s', [0., .002])
+def test_late_first_path_reference_still_requires_full_physical_period(reference_shortfall_s):
+    history=BoundedPacketHistory()
+    history.record(0,published_at_s=100.,qdot=(0.,)*6,reference_phase='path',reference_time_s=.002)
+    c=YieldPathEvidenceCollector(require_path_boundary=True,published_reference_lookup=history.consumed)
+    c.mark_path_start(observed_at_s=100.,rtde_timestamp_s=0.,tp_sequence=0)
+    last=math.floor(PERIOD_S/.002)*.002
+    count=round(last/.002)+1
+    for i in range(count):
+        t=i*.002
+        if i:
+            history.record(i,published_at_s=100.+t,qdot=(0.,)*6,
+                           reference_phase='path',
+                           reference_time_s=t+.002-min(reference_shortfall_s,t*.1))
+        sample=_motion_sample(i,t,final=i==count-1)
+        seq={'writer':i,'rtde':t,'kunwei':i,'tp':i}
+        c.observe(replace(sample,observed_at_s=100.+t,source_sequences=seq,source_sequence=seq))
+    if reference_shortfall_s:
+        with pytest.raises(EvidenceError,match='reference did not complete'):
+            c.finalize(return_gate_passed=True,contact_gate_passed=True,home_proof={'stationary':True})
+        return
+    evidence=c.finalize(return_gate_passed=True,contact_gate_passed=True,home_proof={'stationary':True})
+    assert evidence.path_duration_s>=PERIOD_S
+    assert evidence.metrics['full_path_bin_count']==629
+    assert evidence.metrics['path_seam_first_reference_s']==pytest.approx(.002)
+
+
 def test_entry_echo_cannot_be_relabelled_as_formal_start():
     history=BoundedPacketHistory()
     history.record(1,published_at_s=100.,qdot=(0.,)*6,reference_phase='entry',reference_time_s=.998)

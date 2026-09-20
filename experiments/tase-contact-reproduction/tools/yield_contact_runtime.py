@@ -24,7 +24,10 @@ from contact_benchmark_runtime import validate_measured_observation
 from contact_qp import QpSolverProfile, QP_EQUALITY_VALIDATION_TOLERANCE, QP_BOUND_VALIDATION_TOLERANCE
 from contact_yield_controller import YieldController, YieldControllerError, YieldSettings
 from contact_yield_math import so3_log, transported_roll_anchor, require_rotation
-from contact_yield_protocol import CLAIM_SCOPE, law_seed_parameters
+from contact_yield_protocol import (
+    CLAIM_SCOPE, law_seed_parameters, PATH_SEAM_CONTINUATION_POLICY,
+    PATH_SEAM_CONTINUATION_S,
+)
 from step5c_calibrated_kinematics_audit import build_calibrated_model, rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import tcp_jacobian_base
 
@@ -94,6 +97,8 @@ class YieldContactRuntime:
             "model_urdf_sha256": self.model_urdf_sha256,
             "entry_duration_s": ENTRY_DURATION_S,
             "entry_boundary_policy": "continuous_sample_hold_v2",
+            "path_seam_continuation_policy": PATH_SEAM_CONTINUATION_POLICY,
+            "maximum_path_seam_continuation_s": PATH_SEAM_CONTINUATION_S,
             "deadline_scope": "through_result_materialization_v2",
             "requested_settings": asdict(self.requested_settings),
             "cartesian_numerical_margin": self.cartesian_numerical_margin,

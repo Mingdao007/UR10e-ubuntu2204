@@ -1516,10 +1516,11 @@ class LiveR004Writer:
                         and self._path_command_started_mono_s is None
                     ):
                         if entry_aware:
-                            # Command time starts after entry. Coverage below
-                            # starts at an actual consumed PATH echo, separately.
-                            self._path_command_started_mono_s = (
-                                now - contact_provider.last_result["formal_time_s"])
+                            # Fence and RTDE coverage share the first consumed
+                            # PATH echo. Subtracting the current formal clock
+                            # reconstructed a nominal t=0 origin that is never
+                            # commanded when the sample grid misses 1 s.
+                            self._path_command_started_mono_s = now
                         else:
                             self._path_command_started_mono_s = now
                         path_elapsed_s = now - self._path_command_started_mono_s

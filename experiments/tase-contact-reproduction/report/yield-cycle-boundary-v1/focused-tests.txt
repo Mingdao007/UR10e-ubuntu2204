@@ -1,0 +1,10 @@
+16 passed in 80.13s (full focused set including clock origin 0/100)
+plus 2 passed legacy cached-end / first-interval
+
+tests/test_contact_yield_full_writer.py
+tests/test_contact_yield_evidence.py
+tests/test_contact_yield_provider.py::test_irregular_entry_boundary_does_not_freeze_or_invent_zero
+tests/test_contact_yield_provider.py::test_execution_phase_allows_bounded_unwrapped_seam_continuation
+tests/test_contact_yield_writer_loop.py
+tests/test_step5d_autotune_v4_r004_live_boundary.py::test_path_clock_starts_at_tp_state25_not_early_path_command
+tests/test_step5d_autotune_v4_r004_live_boundary.py::test_cached_state25_at_exact_path_end_uses_zero_path_fence_until_terminal

@@ -166,6 +166,22 @@ def test_irregular_entry_boundary_does_not_freeze_or_invent_zero(lib):
         assert provider.last_result['formal_time_s']==pytest.approx(.002)
 
 
+def test_execution_phase_allows_bounded_unwrapped_seam_continuation():
+    from contact_benchmark_protocol import ENTRY_DURATION_S
+    from contact_yield_protocol import PATH_SEAM_CONTINUATION_S, PERIOD_S, Task
+    from yield_contact_provider import YieldContactProvider
+    elapsed = ENTRY_DURATION_S + PERIOD_S + 0.002
+    phase, clock = YieldContactProvider.execution_phase(elapsed)
+    assert phase == "path"
+    assert clock == pytest.approx(PERIOD_S + 0.002)
+    pose = Task().reference(PERIOD_S + 0.002)
+    assert pose["position_m"][0] != 0.0
+    with pytest.raises(ValueError, match="execution clock"):
+        YieldContactProvider.execution_phase(ENTRY_DURATION_S + PERIOD_S + PATH_SEAM_CONTINUATION_S + 0.002)
+    with pytest.raises(ValueError, match="task period"):
+        Task().reference(PERIOD_S + PATH_SEAM_CONTINUATION_S + 0.002)
+
+
 def test_mature_qualification_entry_and_formal_clock_use_same_native_provider(lib,monkeypatch):
     from test_contact_qualification_provider import _control,_successful_baseline
     from step5d_autotune_v4_r004 import baseline_runtime
@@ -257,3 +273,27 @@ def test_output_materialization_is_inside_runtime_transaction(lib, monkeypatch, 
         # Received-observation diagnostics are retained, even though no command
         # or pause state is committed by the failed transaction.
         assert original_summary()["observation_count"] == 2
+
+
+def test_changed_endpoint_policy_rejects_snapshot_before_mutation(lib, monkeypatch):
+    import yield_contact_runtime as runtime_module
+    runtime, provider, output, sensor = setup(lib)
+    with runtime:
+        call(provider, output, sensor, 0)
+        snapshot = runtime.snapshot()
+        monkeypatch.setattr(runtime_module, 'PATH_SEAM_CONTINUATION_POLICY', 'different_policy_for_binding_test')
+        other, _, _, _ = setup(lib)
+        with other:
+            before = other.snapshot()
+            with pytest.raises(ValueError, match='snapshot identity differs'):
+                other.restore(snapshot)
+            assert other.snapshot() == before
+
+
+def test_protocol_binds_endpoint_policy(monkeypatch):
+    import contact_yield_protocol as protocol_module
+    original = protocol_module.protocol()
+    assert original['task']['seam_continuation_policy'] == 'unwrapped_periodic_v1'
+    assert original['task']['maximum_seam_continuation_s'] == .004
+    monkeypatch.setattr(protocol_module, 'PATH_SEAM_CONTINUATION_POLICY', 'different_policy_for_binding_test')
+    assert protocol_module.protocol()['sha256'] != original['sha256']

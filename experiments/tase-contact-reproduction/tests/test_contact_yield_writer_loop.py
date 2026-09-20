@@ -12,8 +12,7 @@ from step5d_autotune_v4_r004.campaign import build_campaign_plan
 from step5d_autotune_v4_r004.qualification import QualificationCommand
 from step5d_autotune_v4_r004.wire import CommandMode, SessionCommand
 from step5d_autotune_v4_r004.session import SessionPhase
-from contact_benchmark_protocol import Task
-from contact_yield_protocol import PERIOD_S
+from contact_yield_protocol import PERIOD_S, Task
 from yield_contact_provider import YieldContactProvider
 from test_step5d_autotune_v4_r004_live_boundary import _prerequisites
 from test_contact_qualification_provider import _output, _sensor

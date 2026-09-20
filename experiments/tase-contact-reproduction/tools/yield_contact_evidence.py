@@ -8,7 +8,7 @@ supply or infer a physical PATH boundary from a generated command.
 import math
 from dataclasses import replace
 from step5d_autotune_v4_r004.evidence import PathEvidenceCollector, EvidenceError
-from contact_yield_protocol import PERIOD_S
+from contact_yield_protocol import PATH_SEAM_CONTINUATION_S, PERIOD_S
 
 
 class YieldPathEvidenceCollector(PathEvidenceCollector):
@@ -19,6 +19,7 @@ class YieldPathEvidenceCollector(PathEvidenceCollector):
         if not callable(published_reference_lookup):
             raise EvidenceError("yield evidence requires published packet reference lookup")
         self._published_reference_lookup = published_reference_lookup
+        self._first_reference_time_s = None
         self._last_reference_time_s = None
 
     def _reference(self, sequence):
@@ -26,14 +27,16 @@ class YieldPathEvidenceCollector(PathEvidenceCollector):
         if reference.reference_phase != "path" or reference.reference_time_s is None:
             raise EvidenceError("formal coverage requires a consumed published PATH command")
         clock=float(reference.reference_time_s)
-        if not math.isfinite(clock) or not 0 <= clock < PERIOD_S:
+        limit = PERIOD_S + (0.0 if self._first_reference_time_s is None else self._first_reference_time_s)
+        if not math.isfinite(clock) or not 0 <= clock < limit:
             raise EvidenceError("consumed formal reference clock outside full task")
         return clock
 
     def mark_path_start(self, *, observed_at_s, rtde_timestamp_s, tp_sequence):
         clock=self._reference(tp_sequence)
-        if clock > .004:
+        if clock > PATH_SEAM_CONTINUATION_S:
             raise EvidenceError("formal boundary skipped initial PATH commands")
+        self._first_reference_time_s = clock
         super().mark_path_start(observed_at_s=observed_at_s,
             rtde_timestamp_s=rtde_timestamp_s,tp_sequence=tp_sequence)
 
@@ -60,8 +63,9 @@ class YieldPathEvidenceCollector(PathEvidenceCollector):
 
     def _motion_metrics(self):
         metrics=super()._motion_metrics()
-        if (self._last_reference_time_s is None
-            or self._last_reference_time_s + metrics['path_coverage_interval_s'] < PERIOD_S):
+        if (self._first_reference_time_s is None or self._last_reference_time_s is None
+            or self._last_reference_time_s - self._first_reference_time_s
+                + metrics['path_coverage_interval_s'] < PERIOD_S):
             raise EvidenceError("consumed reference did not complete the formal task")
         expected=math.ceil(self.REQUIRED_DURATION_S/self.BIN_WIDTH_S)
         bins={int(sample.path_time_s/self.BIN_WIDTH_S) for sample in self.path_samples
@@ -71,7 +75,9 @@ class YieldPathEvidenceCollector(PathEvidenceCollector):
             raise EvidenceError(f"full yield PATH coverage has missing bins: {missing}")
         return {**metrics, 'full_path_bin_count':len(bins),
                 'required_full_path_bin_count':expected,
-                'entry_in_formal_coverage':False}
+                'entry_in_formal_coverage':False,
+                'path_seam_first_reference_s':self._first_reference_time_s,
+                'path_seam_continuation_s':PATH_SEAM_CONTINUATION_S}
 
     def finalize(self, **kwargs):
         evidence=super().finalize(**kwargs)
@@ -94,6 +100,8 @@ class YieldPathEvidenceCollector(PathEvidenceCollector):
                 'full_path_bin_count':expected,
                 'required_full_path_bin_count':expected,
                 'entry_in_formal_coverage':False,
+                'path_seam_first_reference_s':self._first_reference_time_s,
+                'path_seam_continuation_s':PATH_SEAM_CONTINUATION_S,
                 'legacy_first550_bin_mae_n':evidence.mae_n,
                 'full_force_mae_n':full_mae,
                 'full_force_rmse_n':full_rmse,

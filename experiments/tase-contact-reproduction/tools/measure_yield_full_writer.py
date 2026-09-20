@@ -108,6 +108,7 @@ def measure(out):
             "motion envelope is the existing native qualification figure-8 profile",
             "runtime deadline_s=None records outliers rather than hiding them",
             "not formal timing qualification or IO latency",
+            "PATH seam policy unwrapped_periodic_v1: generation fence starts at first consumed PATH echo; bounded 0.004 s unwrapped continuation past 1+PERIOD when the sample grid misses 1 s",
         ],
     }
     (out / "results.json").write_text(json.dumps(result, indent=2) + "\n")
