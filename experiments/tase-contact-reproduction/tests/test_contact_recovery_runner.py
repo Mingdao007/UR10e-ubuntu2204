@@ -10,7 +10,7 @@ from contact_yield_math import so3_exp
 from contact_yield_task_frame import FIGURE8_CONTACT_HOME_XYZ_M
 HOME=[*FIGURE8_CONTACT_HOME_XYZ_M,2.033134243,2.394988424,0.]
 
-@pytest.mark.parametrize('failure',[None,'reload','no_release','stale','user_interrupt','home_failure'])
+@pytest.mark.parametrize('failure',[None,'reload','no_release','stale','user_interrupt','post_clearance','home_failure'])
 def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure):
     clock=SimpleNamespace(t=100.,played=None)
     events=[]
@@ -60,6 +60,7 @@ def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure)
         def open(self):pass
         def poll(self):
             if failure=='user_interrupt' and elapsed()>.1:raise KeyboardInterrupt('operator stop')
+            if failure=='post_clearance' and elapsed()>2.2:raise RuntimeError('post-clearance observation failed')
             load=25. if clock.played is None else max(0.,25.-elapsed()*50.)
             if failure=='reload' and elapsed()>.15:load=30.
             if failure=='no_release' and clock.played is not None:load=max(5.,load)
@@ -91,14 +92,22 @@ def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure)
     (source/'dispatch_receipt.json').write_text(json.dumps({'armed':True,'stop':{'protective_stop':False}}))
     args=SimpleNamespace(source_run=source,output=tmp_path/'recovery',readback_proof_dir=tmp_path,readback_dir=tmp_path,host='fake',video_url='fake',execute=True)
     result=runner.run(args)
-    assert result['success'] is (failure is None),result
-    assert ('home' in events) is (failure in (None, 'home_failure'))
-    if failure and failure != 'home_failure':
+    assert result['success'] is (failure in (None, 'post_clearance')),result
+    assert ('home' in events) is (failure in (None, 'post_clearance', 'home_failure'))
+    if failure and failure not in ('home_failure', 'post_clearance'):
         assert 'lift_stop' in events
         assert events.index('lift_stop')<events.index('unlock')
+        assert result['home_required'] is True
+        assert result['home_attempted'] is False
+        assert result['home_blocked'] is True
+        assert result['home_blocked_reason']
     if failure == 'home_failure':
         assert result['state']=='BLOCKED'
         assert 'Home read-back failed' in result['error']
+    if failure == 'post_clearance':
+        assert result['home_attempted'] is True
+        assert result['home']['success'] is True
+        assert result['state']=='HOME_RECOVERED'
     assert (args.output/'result.json').exists()
 
 
@@ -118,7 +127,9 @@ def test_recovery_preflight_failure_is_persisted_as_blocked(tmp_path, monkeypatc
     assert result['success'] is False
     assert result['motion'] is False
     assert result['state']=='BLOCKED'
-    assert result['recovery_policy']=='AUTO_HOME_UNLESS_SAFETY_PROOF_BLOCKS'
+    assert result['recovery_policy']=='AUTO_HOME_WHEN_COMMANDABLE'
+    assert result['home_required'] is True
+    assert result['home_attempted'] is False
     record=Path(result['recovery_record'])
     assert record.exists()
     persisted=json.loads(record.read_text())
@@ -139,4 +150,6 @@ def test_recovery_cli_never_emits_unclassified_preflight_error(tmp_path, monkeyp
     persisted=json.loads((output/'result.json').read_text())
     assert persisted['state']=='BLOCKED'
     assert persisted['phase']=='cli-preflight'
-    assert persisted['recovery_policy']=='AUTO_HOME_UNLESS_SAFETY_PROOF_BLOCKS'
+    assert persisted['recovery_policy']=='AUTO_HOME_WHEN_COMMANDABLE'
+    assert persisted['home_required'] is True
+    assert persisted['home_attempted'] is False

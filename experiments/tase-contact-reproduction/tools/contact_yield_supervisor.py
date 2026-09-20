@@ -378,7 +378,11 @@ def main(argv=None):
                 'error':f'{type(exc).__name__}: {exc}',
                 'source_attempt':str(a.run_dir),
                 'trial_stays_failed':True,
-                'recovery_policy':'AUTO_HOME_UNLESS_SAFETY_PROOF_BLOCKS',
+                'recovery_policy':'AUTO_HOME_WHEN_COMMANDABLE',
+                'home_required':True,
+                'home_attempted':False,
+                'home_blocked':True,
+                'home_blocked_reason':f'{type(exc).__name__}: {exc}',
             }
     with (a.run_dir/'supervisor-result.json').open('x') as out: json.dump(result,out,indent=2)
     print(json.dumps(result,indent=2))

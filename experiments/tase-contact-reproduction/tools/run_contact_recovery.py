@@ -1,11 +1,12 @@
 """Sole-owner stopped -> monitored vertical relief -> clearance Home recovery.
 
 Normal task admission is never relaxed. Recovery is a distinct, directional
-operation; a failed trial remains failed. Every recoverable fault enters this
-same Home path. A protective stop is handled by one quiescence check and one
-allow-listed Dashboard unlock, followed by a fresh Safety NORMAL check. The
-only terminal alternative is ``BLOCKED`` when the evidence needed for safe
-motion cannot be established; there is no revoke-only terminal disposition.
+operation; a failed trial remains failed. Every commandable fault enters this
+same Home path, including faults raised while the relief program is running. A
+protective stop is handled by one quiescence check and one allow-listed
+Dashboard unlock, followed by a fresh Safety NORMAL check. The only terminal
+alternative is ``BLOCKED`` when a Home command cannot safely be established or
+the Home owner itself fails; there is no revoke-only terminal disposition.
 """
 import argparse,copy,datetime,json,time
 from pathlib import Path
@@ -25,7 +26,7 @@ from step5c_calibrated_kinematics_audit import build_calibrated_model,base_to_to
 from step5d_autotune_v4_r004.calibrated_runtime import tcp_jacobian_base
 
 DIRECTORY='/programs/andyl/kunwei/step5'
-RECOVERY_POLICY='AUTO_HOME_UNLESS_SAFETY_PROOF_BLOCKS'
+RECOVERY_POLICY='AUTO_HOME_WHEN_COMMANDABLE'
 
 
 def _protective_safety(row):
@@ -94,9 +95,9 @@ def _blocked_recovery_result(source, error, *, phase, output=None):
     Recovery setup can fail before :func:`run` has created its normal result
     directory (for example, a stale read-back proof or a missing package).
     Those failures must not escape as an unclassified exception that looks like
-    the old revoke-only state.  ``BLOCKED`` means that the existing Home owner
-    was requested but physical proof was unavailable; it is an explicit
-    safety result, not permission to leave the attempt silently stopped.
+    the old revoke-only state. ``BLOCKED`` means that a Home attempt could not
+    safely be dispatched or completed; it is an explicit safety result, not
+    permission to leave the attempt silently stopped.
     """
     payload={
         'success':False,
@@ -107,6 +108,10 @@ def _blocked_recovery_result(source, error, *, phase, output=None):
         'source_attempt':str(source),
         'trial_stays_failed':True,
         'recovery_policy':RECOVERY_POLICY,
+        'home_required':True,
+        'home_attempted':False,
+        'home_blocked':True,
+        'home_blocked_reason':f'{type(error).__name__}: {error}',
     }
     if output is not None:
         target=Path(output)
@@ -198,10 +203,60 @@ def run(args):
     dashboard_before=check_dashboard(args.host,allow_protective=True)
     if not args.execute:return {'success':False,'motion':False,'state':'read-only preflight passed','dashboard':dashboard_before,'source_protective_stop':source_protective}
     out.mkdir(parents=True)
-    result={'success':False,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_attempt':str(source),'trial_stays_failed':True,'recovery_policy':RECOVERY_POLICY,'source_receipt_present':bool(source_receipt.get('receipt_present',True)),'source_armed':source_receipt.get('armed'),'source_protective_stop':source_protective,'dashboard_before':dashboard_before}
-    obs=Observer(args.host);sensor=LiveR004KunweiTransport('192.168.50.25',port=5152);video=None;adapter=None;wrench_rows=[];last_sensor=None
+    result={'success':False,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_attempt':str(source),'trial_stays_failed':True,'recovery_policy':RECOVERY_POLICY,'source_receipt_present':bool(source_receipt.get('receipt_present',True)),'source_armed':source_receipt.get('armed'),'source_protective_stop':source_protective,'dashboard_before':dashboard_before,'home_required':True,'home_attempted':False,'home_blocked':False}
+    obs=Observer(args.host);sensor=LiveR004KunweiTransport('192.168.50.25',port=5152);video=None;adapter=None;wrench_rows=[];last_sensor=None;last_force=None;plan=None;geometry=None;home_invoked=False
     lease=WriterLock(INSTALLED_LOCK);lease_held=False
     protective_unlock_attempted=False
+
+    def invoke_home(current, force):
+        """Run the sole verified Home owner once a clearance proof exists.
+
+        This helper is intentionally shared by the success path and the
+        exception path. A relief fault may stop the helper program, but it
+        must not silently end the recovery if the observed pose and force
+        release already make the clearance Home commandable.
+        """
+        nonlocal lease_held, video, home_invoked
+        if home_invoked:
+            return result.get('home')
+        if plan is None or geometry is None:
+            raise ValueError('Home is not commandable: relief geometry proof is missing')
+        if not stationary(current):
+            raise ValueError('Home is not commandable: robot is not stationary')
+        if float(current['actual_TCP_pose'][2]) < float(plan['lift_pose'][2]) - .0001:
+            raise ValueError('Home is not commandable: vertical clearance is incomplete')
+        if not force or force.get('released') is not True:
+            raise ValueError('Home is not commandable: contact force is not released')
+        check_dashboard(args.host)
+        home=json.loads((Path(__file__).resolve().parents[1]/'report/contact-six-qp-20260917/preserved-home.json').read_text())
+        home.pop('bounded_recovery',None);home.pop('bounded_withdrawal',None)
+        home.update(rtde=current,home_pose=list(contract.home_pose),home_q=geometry['home_q'],clearance_entry=True)
+        home_receipt=out/'clearance-home.json';home_receipt.write_text(json.dumps(home,indent=2)+'\n')
+        # Never overlap the monitored relief writer and the independent Home
+        # writer, even when this helper is entered from an exception path.
+        obs.close();sensor.close()
+        if video is not None:
+            video.close();video=None
+        if lease_held:
+            lease.__exit__(None,None,None);lease_held=False
+        home_invoked=True
+        result['home_attempted']=True
+        home_args=SimpleNamespace(host=args.host,home_receipt=home_receipt,validation=Path(args.readback_proof_dir)/f'{BASENAME}-validation.json',package_dir=packages,readback_dir=Path(args.readback_dir)/BASENAME,output=out/'home',execute=True)
+        try:
+            home_result=run_home(home_args)
+        except BaseException as exc:
+            home_result={'success':False,'error':f'{type(exc).__name__}: {exc}'}
+        result['home']=home_result
+        result['success']=home_result.get('success') is True
+        result['home_blocked']=not result['success']
+        if result['success']:
+            result['state']='HOME_RECOVERED'
+        else:
+            result['state']='BLOCKED'
+            result['error']=str(home_result.get('error','verified Home was not completed'))
+            result['home_blocked_reason']=result['error']
+        return home_result
+
     try:
         lease.__enter__();lease_held=True
         obs.start();sensor.open();video=VideoRecorder(args.video_url,out);video.start()
@@ -230,15 +285,15 @@ def run(args):
         else:
             check_dashboard(args.host)
         plan=plan_home_recovery(row['actual_TCP_pose'],contract.home_pose);result['plan']=plan
-        result['geometry']=check_geometry(row,plan)
+        geometry=check_geometry(row,plan);result['geometry']=geometry
         guard=ReliefForceGuard(initial_raw_wrench=raw,no_load_wrench=baseline['mean_wrench_n_nm'],baseline_std_wrench=baseline['std_wrench_n_nm'],rotation=so3_exp(row['actual_TCP_pose'][3:]))
         def check():
-            nonlocal last_sensor
+            nonlocal last_sensor,last_force
             current=obs.latest();validate_robot_sample(current);video.check()
             raw,received=sensor.poll();now=time.monotonic()
             if raw is None or received is None or not 0<=now-received<.08:raise ValueError('recovery Kunwei observation stale')
             if last_sensor is None or received>last_sensor:
-                force=guard.update(raw,now_s=received);last_sensor=received
+                force=guard.update(raw,now_s=received);last_sensor=received;last_force=force
                 wrench_rows.append({'received_monotonic_s':received,'wrench_n_nm':raw,'force_check':force})
             else:force=wrench_rows[-1]['force_check'] if wrench_rows else None
             return current,force
@@ -274,29 +329,8 @@ def run(args):
             until=time.monotonic()+.5
             while time.monotonic()<until:row,force=check();time.sleep(.01)
             if not force['released']:raise ValueError('clearance pose is still loaded; Home withheld')
-        row,force=check();check_dashboard(args.host)
-        home=json.loads((Path(__file__).resolve().parents[1]/'report/contact-six-qp-20260917/preserved-home.json').read_text())
-        home.pop('bounded_recovery',None);home.pop('bounded_withdrawal',None)
-        home.update(rtde=row,home_pose=list(contract.home_pose),home_q=result['geometry']['home_q'],clearance_entry=True)
-        home_receipt=out/'clearance-home.json';home_receipt.write_text(json.dumps(home,indent=2)+'\n')
-        # The lift is stopped and its lease is released before the existing
-        # independent Home owner starts. Never overlap command writers.
-        obs.close();sensor.close();video.close();video=None
-        lease.__exit__(None,None,None);lease_held=False
-        home_args=SimpleNamespace(host=args.host,home_receipt=home_receipt,validation=Path(args.readback_proof_dir)/f'{BASENAME}-validation.json',package_dir=packages,readback_dir=Path(args.readback_dir)/BASENAME,output=out/'home',execute=True)
-        result['home']=run_home(home_args)
-        if result['home'].get('success') is not True:
-            # A Home owner may return a structured failure instead of
-            # raising (for example, a final read-back or stop proof can fail).
-            # That is still the only non-Home terminal state: persist it as an
-            # explicit BLOCKED recovery rather than leaving an ambiguous
-            # ``success: false`` record that looks like a completed route.
-            result['state']='BLOCKED'
-            result['error']=str(result['home'].get('error','verified Home was not completed'))
-            result['trial_stays_failed']=True
-        result['success']=result['home'].get('success') is True
+        row,force=check();invoke_home(row,force)
     except BaseException as exc:
-        result['state']='BLOCKED'
         result['error']=f'{type(exc).__name__}: {exc}'
         if adapter is not None and adapter.play_issued:
             try:
@@ -312,7 +346,23 @@ def run(args):
         try:
             row=obs.latest();result['stopped_sample']=row
             if not stationary(row):result['stop_unconfirmed']=True
-        except BaseException as stop:result['stop_observation_error']=str(stop)
+            # A relief fault is still routed to Home whenever the already
+            # observed clearance and force release make that command safe.
+            # If those facts are unavailable, BLOCKED records the exact
+            # missing proof rather than pretending that a revoke is recovery.
+            if not home_invoked:
+                try:
+                    invoke_home(row,last_force)
+                except BaseException as home_exc:
+                    result['home_blocked']=True
+                    result['home_blocked_reason']=f'{type(home_exc).__name__}: {home_exc}'
+        except BaseException as stop:
+            result['stop_observation_error']=str(stop)
+            result['home_blocked']=True
+            result['home_blocked_reason']=f'{type(stop).__name__}: {stop}'
+        if not result.get('success'):
+            result['state']='BLOCKED'
+            result['trial_stays_failed']=True
         if protective_unlock_attempted and 'protective_unlock' not in result:
             result['protective_unlock_error']='protective stop was observed but its one-shot unlock did not complete'
     finally:
