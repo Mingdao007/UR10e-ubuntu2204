@@ -1,0 +1,117 @@
+.....F........F.                                                         [100%]
+=================================== FAILURES ===================================
+__________ test_exact_final_cell_weights_and_known_analytic_objective __________
+
+    def test_exact_final_cell_weights_and_known_analytic_objective():
+        contract = _contract()
+        assert path_sample_count(0.009, 0.002) == 5
+        assert cell_weight(0.008, 0.002, 0.0, 0.009, 0.009) == pytest.approx(0.001)
+        assert cell_weight(0.008, 0.002, 0.0, 0.009, 0.009) != pytest.approx(0.002)
+        nominal_rows = _rows(contract, load=5.0, attitude=0.0, position=(0.0, 0.0, 0.0))
+        disturbed_rows = _rows(contract, load=5.5, attitude=0.05, position=(0.002, 0.0, 0.0))
+        result = evaluate_pair(
+            _artifact(contract, scenario="nominal", rows=nominal_rows),
+            _artifact(contract, scenario="sustained_release_oblique", rows=disturbed_rows),
+            contract,
+        )
+        assert result.pair_feasible is True
+        assert result.objective_components["Jload"] == pytest.approx(0.005)
+        assert result.objective_components["Jpath"] == pytest.approx(0.003)
+        assert result.objective_components["Jatt"] == pytest.approx(0.005)
+        assert result.objective == pytest.approx(0.013)
+>       assert result.reported_recovery is not None
+E       AssertionError: assert None is not None
+E        +  where None = YieldFairPairResult(schema='ur10e.yield-fair-selection-v1', version=1, valid=True, nominal_feasible=True, disturbed_gu...aim_scope='prospective DEVELOPMENT-model comparison; no real precise-contact, safety, or physical qualification claim').reported_recovery
+
+tests/test_yield_fair_selection.py:269: AssertionError
+__________ test_synthetic_full_24_schedule_freeze_exports_identities ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-andy/pytest-92/test_synthetic_full_24_schedul0')
+
+    def test_synthetic_full_24_schedule_freeze_exports_identities(tmp_path):
+        output = _create(tmp_path)
+        ledger = _ledger(output)
+        selected = {}
+        for method in METHODS:
+            for index in range(24):
+                rows = ledger.training_observations(method)
+                proposal = ledger.tuner.propose(method, rows, index)
+                _seal_pair(ledger, method, index, proposal, objective=float(index + 1))
+                if index == 20:
+                    selected[method] = proposal.candidate.as_dict()
+        ledger.close()
+        frozen = freeze_campaign(output)
+        assert frozen["formal_campaign_complete"] is False
+        assert frozen["holdout_implemented"] is False
+        assert set(frozen["selected_candidates"]) == set(METHODS)
+        assert frozen["selected_candidates"] == selected
+        assert frozen["source_hashes"]
+        assert frozen["selection_contract_id"] == "yield-fair-selection-contract-v1"
+        again = freeze_campaign(output)
+        assert again["freeze_sha256"] == frozen["freeze_sha256"]
+        with pytest.raises(ValueError, match="frozen"):
+>           run_next(output, method="SFC", runner=_fail_artifact)
+
+tests/test_yield_fair_campaign.py:270: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+output = PosixPath('/tmp/pytest-of-andy/pytest-92/test_synthetic_full_24_schedul0/campaign')
+
+    def run_next(
+        output: Path | str,
+        *,
+        method: str,
+        runner: Callable[..., Mapping[str, Any]] | None = None,
+        inspect: Callable[..., Any] | None = None,
+        pair_eval: Callable[..., Any] | None = None,
+    ) -> dict[str, Any]:
+        if method not in METHODS:
+            raise YieldFairCampaignError("method must be SFC, DSFC or MSFC")
+        state = _load_state(output)
+        config, contract, tuner, ledger = _open_bound(state)
+        execute = runner or _default_runner
+        inspect_fn = inspect or inspect_member
+        pair_fn = pair_eval or evaluate_pair
+        try:
+            slot = _next_slot(ledger, method)
+            if slot is None:
+>               raise YieldFairCampaignError(f"{method} paired budget is complete")
+E               yield_fair_campaign.YieldFairCampaignError: SFC paired budget is complete
+
+tools/yield_fair_campaign.py:467: YieldFairCampaignError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/tmp/pytest-of-andy/pytest-92/test_synthetic_full_24_schedul0')
+
+    def test_synthetic_full_24_schedule_freeze_exports_identities(tmp_path):
+        output = _create(tmp_path)
+        ledger = _ledger(output)
+        selected = {}
+        for method in METHODS:
+            for index in range(24):
+                rows = ledger.training_observations(method)
+                proposal = ledger.tuner.propose(method, rows, index)
+                _seal_pair(ledger, method, index, proposal, objective=float(index + 1))
+                if index == 20:
+                    selected[method] = proposal.candidate.as_dict()
+        ledger.close()
+        frozen = freeze_campaign(output)
+        assert frozen["formal_campaign_complete"] is False
+        assert frozen["holdout_implemented"] is False
+        assert set(frozen["selected_candidates"]) == set(METHODS)
+        assert frozen["selected_candidates"] == selected
+        assert frozen["source_hashes"]
+        assert frozen["selection_contract_id"] == "yield-fair-selection-contract-v1"
+        again = freeze_campaign(output)
+        assert again["freeze_sha256"] == frozen["freeze_sha256"]
+>       with pytest.raises(ValueError, match="frozen"):
+E       AssertionError: Regex pattern did not match.
+E        Regex: 'frozen'
+E        Input: 'SFC paired budget is complete'
+
+tests/test_yield_fair_campaign.py:269: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_yield_fair_selection.py::test_exact_final_cell_weights_and_known_analytic_objective
+FAILED tests/test_yield_fair_campaign.py::test_synthetic_full_24_schedule_freeze_exports_identities
+2 failed, 14 passed, 1 deselected in 3.60s
