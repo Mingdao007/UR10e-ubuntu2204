@@ -1,0 +1,30 @@
+Round 8 is delivered. Everything is under `report/yield-fair-training-v1/discussion-round8/` and nothing else in the worktree was touched. HEAD was 4cd78c5c (main's snapshot-freeze commit) at the first read-only check and at receipt time. Only the 25 artifacts listed in `round8-input-snapshot.json` were opened, each re-hashed first (25 of 25 match); the three unlisted attempt directories on disk, the SQLite ledger and the Grok validation-writer worktree were not opened. All 22 bound tool/source files, the native and QP libraries, the three configs and the canonical campaign-protocol digest match the launch binding.
+
+Post-snapshot: read-only git log titles at receipt time show main recorded an SFC initial-feasibility stop (aa1a42bb) and integrated validation execution (e56abf11) after the snapshot; not read, not analysed. If so, section 2.5 path B of the discussion is the live branch.
+
+**What was written**
+
+- `fable-round8.md`: the four answers with decisions first, then the evidence sections.
+- `data/round8-analysis.json`: per-member recomputed metrics, margins and flags (all 25 equal the snapshot), the 12 objectives (equal to 0.0), phase decompositions, recovery, absolute descriptors, the fixed-triple sign table, entry-gate arithmetic, the eight shared triples, and MSFC metric engagement on the training cell.
+- `data/round8-mechanics.json`: 1 s bins over the 0 to 20 s episode, law velocity/force alignment, the disturbed progress-guard decomposition, load-peak timing, release diagnostics.
+- `scripts/`: extractor (hash-verify then parse), two analysis scripts, receipt script. `round8-input-receipt.json`: input hashes, the 25-receipt manifest, binding checks, output hashes.
+
+**Answers in one line each**
+
+1. **First four triples.** The five out-of-band nominals are not one tradeoff: load peak is violated 4 times, path 2, attitude 2, MAE 2, progress 1; only SFC-02 is pure path/attitude/progress. SFC sits at 0.91 to 1.005 of every band at its own seed, the proposals at 0.37 to 0.97, and the proposals have better nominal precision at 4 of 4 shared triples, so the gate is both partly circular and mechanistically real. SFC has 2 pair-feasible of 5 and needs 1 of units 5 to 7. If it stops, the frozen freeze (24 pairs per method) is unreachable and validation cannot launch; I recommend declaring now a reduced-budget SFC incumbent by the already-frozen min-J rule over its 8 units, labelled in every table, with both timings disclosed.
+2. **Fixed triples.** Sign-stable at 4 of 4: the proposals are more precise nominally, hold a higher and earlier disturbed load minimum (+0.49 to +0.78 N), progress more, saturate less, and overshoot more after release. J, its components, attitude excursion and recovery favour SFC only at the three m = 4 triples and reverse at the low-damping triple. MSFC minus DSFC at a shared triple is the memory ablation at fixed coefficients: −0.55, −0.01, +0.15, +0.79 band-s, sign-unstable, under one percent of J. No benefit, CI or resolution claim.
+3. **SFC-02.** Genuine tradeoff, no misreport: the per-axis law's doubled load oscillation in 3 to 10 s drives the motion-based observer to a 6.4 deg tilt that freezes from 12 s to 20.5 s in every arm (updates stop as the path slows), costing path and progress; under the hold SFC-02 tilts less, overshoots less and recovers sooner (the 13.2 band-s), while dropping the load deeper and later (1.49 N at 22.4 s vs 2.26 N at 20.6 s). All flags and objectives recompute exactly. Two declared-but-weak semantics: the disturbed progress guard passes every SFC pair only because the oblique push adds forward progress, and the disturbed peak guard is inert because every load peak occurs before 20 s.
+4. **Memory end-state.** If adverse and resolved, the only mechanism-justified change is subtractive: a versioned identity-metric configuration, which the ablation itself tests. If unresolved everywhere, a reported null with no change. A memory-timescale change only as a new pre-registered development study with a stated engagement hypothesis on unseen cells. RNN optional, task fixed, no portfolio, no new cells, no safety claims.
+
+**Negative evidence worth attention**
+
+- The J ordering between SFC and the proposals reverses at unit 3; the MSFC minus DSFC sign flips across triples.
+- Recovery time is a 2 mm band crossing: SFC-01 reports 0.0 s while DSFC-01 reports 3.46 s because of a 3.5 mm overshoot 2 s after release; 11 of 12 pairs reach their post-release maximum then, SFC-01 at release itself.
+- The metric engagement window is 1.3 to 1.5 s at the m = 4 triples and 7.8 s at the low-damping triple, where the memory effect is largest and adverse (one triple, not a trend).
+- The stop rule and the freeze rule were never reconciled in the frozen code.
+
+**Verification status**
+
+All 25 check sets and all 12 objectives recomputed from rows with the frozen evaluator equal the snapshot; artifact metrics equal `summarize_trial` on their rows. Formal units consumed: zero. Training untouched.
+
+Next is your adjudication. One more advisory iteration remains this round if you want any part revised.

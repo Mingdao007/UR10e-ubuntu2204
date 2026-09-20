@@ -1,0 +1,556 @@
+{
+ "schema": "fable-advisory-round-receipt-v1",
+ "round": 8,
+ "study": "yield-fair-training-v1",
+ "directory": "report/yield-fair-training-v1/discussion-round8/",
+ "role": "advisory, non-blocking; no live authority; not formal acceptance; first of at most two iterations",
+ "model": "claude-fable-5-1",
+ "requested_effort": "xhigh",
+ "effort_evidence": "launch parameter only, not independent server attestation",
+ "head_in_session_opening_git_snapshot": "b0059632",
+ "head_at_first_read_only_check": "4cd78c5c04eac9789a8a47d6b50e81720a275da4",
+ "head_at_receipt": "a812e074cc6a98bbcd18a56b1d250e4999067034",
+ "head_log_since_b0059632": [
+  "a812e074 Keep equal-budget requirement and adjudicate round eight claims",
+  "7e1c7231 Reproduce round eight analysis from all fixed raw samples",
+  "a0fc6d61 Verify integrity of all sixteen SFC initial artifacts",
+  "aa1a42bb Record SFC initial feasibility stop without relaxing campaign",
+  "e56abf11 Integrate reserved validation execution with bound training freeze and native diagnostics",
+  "4cd78c5c Freeze sealed partial training evidence for round-eight research discussion"
+ ],
+ "worktree_status_at_receipt": [
+  "?? report/yield-fair-training-v1/discussion-round8/"
+ ],
+ "written_at_utc": "2026-09-20T04:38:33.816664+00:00",
+ "write_scope": "report/yield-fair-training-v1/discussion-round8/ only; scratch /tmp/yfp8 not retained",
+ "not_done": [
+  "no runtime/test/config/other-report edits",
+  "no git write operations (read-only rev-parse/log/status only)",
+  "no hardware, transport or network access",
+  "no closed-loop runs, campaign, holdout or validation launches",
+  "no native law stepped",
+  "no subagents",
+  "no SQLite/ledger opened",
+  "no running or future artifacts read",
+  "active Grok validation-writer worktree not opened; validation draft not audited",
+  "no formal tuning, validation or holdout unit consumed",
+  "training not mutated; no reweight/reband proposed mid-campaign"
+ ],
+ "snapshot": {
+  "observed_utc": "2026-09-20T04:04:33.779974+00:00",
+  "attempts": 25,
+  "sha256": "b039f98bbcc23b64a816831a6b2735ef07e54367e6097428fda148b2e6447e28"
+ },
+ "raw_receipts": {
+  "count": 25,
+  "all_match": true,
+  "manifest": [
+   {
+    "id": "SFC-00-nominal",
+    "path": "runs/yield-fair-training-v1/attempts/SFC-00-nominal/artifact.json",
+    "sha256_now": "e51055b6e96aec95671647c044e7100567a5dafa59343afd7afa0c3adea3e3a9",
+    "sha256_in_snapshot": "e51055b6e96aec95671647c044e7100567a5dafa59343afd7afa0c3adea3e3a9",
+    "match": true,
+    "bytes": 340008836
+   },
+   {
+    "id": "SFC-00-disturbed",
+    "path": "runs/yield-fair-training-v1/attempts/SFC-00-disturbed/artifact.json",
+    "sha256_now": "5d835eceb7996ad91e253029522b459c2a5b861d4cfb768c16fce8d6151392aa",
+    "sha256_in_snapshot": "5d835eceb7996ad91e253029522b459c2a5b861d4cfb768c16fce8d6151392aa",
+    "match": true,
+    "bytes": 340116904
+   },
+   {
+    "id": "DSFC-00-nominal",
+    "path": "runs/yield-fair-training-v1/attempts/DSFC-00-nominal/artifact.json",
+    "sha256_now": "e2c99ad28124832160b936b4334786440a81da031668e129fef0d883206ddd30",
+    "sha256_in_snapshot": "e2c99ad28124832160b936b4334786440a81da031668e129fef0d883206ddd30",
+    "match": true,
+    "bytes": 339324784
+   },
+   {
+    "id": "DSFC-00-disturbed",
+    "path": "runs/yield-fair-training-v1/attempts/DSFC-00-disturbed/artifact.json",
+    "sha256_now": "80390b0948e4e4a5ec6e7005ad07de9dced9db78223e8e07b6509edb9ea6084e",
+    "sha256_in_snapshot": "80390b0948e4e4a5ec6e7005ad07de9dced9db78223e8e07b6509edb9ea6084e",
+    "match": true,
+    "bytes": 339404496
+   },
+   {
+    "id": "MSFC-00-nominal",
+    "path": "runs/yield-fair-training-v1/attempts/MSFC-00-nominal/artifact.json",
+    "sha256_now": "74d541d3674b10b4006b4e82606cef07516a13525e853455f8fb626101f7587c",
+    "sha256_in_snapshot": "74d541d3674b10b4006b4e82606cef07516a13525e853455f8fb626101f7587c",
+    "match": true,
+    "bytes": 347920549
+   },
+   {
+    "id": "MSFC-00-disturbed",
+    "path": "runs/yield-fair-training-v1/attempts/MSFC-00-disturbed/artifact.json",
+    "sha256_now": "b323f738dd3bf67f28a0829bead3c846d971f64b6ac5688e0e89679a22c5191a",
+    "sha256_in_snapshot": "b323f738dd3bf67f28a0829bead3c846d971f64b6ac5688e0e89679a22c5191a",
+    "match": true,
+    "bytes": 347834315
+   },
+   {
+    "id": "SFC-01-nominal",
+    "path": "runs/yield-fair-training-v1/attempts/SFC-01-nominal/artifact.json",
+    "sha256_now": "7943dd2ae88242eede493ea94bc24ca64a81da0dd4cd7906a89416ba6cafc714",
+    "sha256_in_snapshot": "7943dd2ae88242eede493ea94bc24ca64a81da0dd4cd7906a89416ba6cafc714",
+    "match": true,
+    "bytes": 339933918
+   },
+   {
+    "id": "SFC-01-disturbed",
+    "path": "runs/yield-fair-training-v1/attempts/SFC-01-disturbed/artifact.json",
+    "sha256_now": "b2751ef469193cf86ddad09700ee581644b7f61c431b6c08489c8333ad37a5d9",
+    "sha256_in_snapshot": "b2751ef469193cf86ddad09700ee581644b7f61c431b6c08489c8333ad37a5d9",
+    "match": true,
+    "bytes": 340304899
+   },
+   {
+    "id": "DSFC-01-nominal",
+    "path": "runs/yield-fair-training-v1/attempts/DSFC-01-nominal/artifact.json",
+    "sha256_now": "31145a4dc39339177fc6981d19c5b0f62fb5d3daa2b1fbfe14e8820ce66a340b",
+    "sha256_in_snapshot": "31145a4dc39339177fc6981d19c5b0f62fb5d3daa2b1fbfe14e8820ce66a340b",
+    "match": true,
+    "bytes": 339288510
+   },
+   {
+    "id": "DSFC-01-disturbed",
+    "path": "runs/yield-fair-training-v1/attempts/DSFC-01-disturbed/artifact.json",
+    "sha256_now": "ddae9fdc48084c2ee3c74a91099134f610a04aef739023398cf2023c05038ac3",
+    "sha256_in_snapshot": "ddae9fdc48084c2ee3c74a91099134f610a04aef739023398cf2023c05038ac3",
+    "match": true,
+    "bytes": 339579986
+   },
+   {
+    "id": "MSFC-01-nominal",
+    "path": "runs/yield-fair-training-v1/attempts/MSFC-01-nominal/artifact.json",
+    "sha256_now": "03bbe1d2123d095ed4def2d0778f065890bbac063b811b86bfb0253ac3f5925b",
+    "sha256_in_snapshot": "03bbe1d2123d095ed4def2d0778f065890bbac063b811b86bfb0253ac3f5925b",
+    "match": true,
+    "bytes": 347913556
+   },
+   {
+    "id": "MSFC-01-disturbed",
+    "path": "runs/yield-fair-training-v1/attempts/MSFC-01-disturbed/artifact.json",
+    "sha256_now": "103386ceb9fa72414c4b3e724be06b24b7131ba4a7af1b03f31621aba4f741a7",
+    "sha256_in_snapshot": "103386ceb9fa72414c4b3e724be06b24b7131ba4a7af1b03f31621aba4f741a7",
+    "match": true,
+    "bytes": 348035643
+   },
+   {
+    "id": "SFC-02-nominal",
+    "path": "runs/yield-fair-training-v1/attempts/SFC-02-nominal/artifact.json",
+    "sha256_now": "e8c852ef4b5db1f396f4ca95be8504d2e7a4922937824edb7f21a91d9bf3bb68",
+    "sha256_in_snapshot": "e8c852ef4b5db1f396f4ca95be8504d2e7a4922937824edb7f21a91d9bf3bb68",
+    "match": true,
+    "bytes": 339307580
+   },
+   {
+    "id": "SFC-02-disturbed",
+    "path": "runs/yield-fair-training-v1/attempts/SFC-02-disturbed/artifact.json",
+    "sha256_now": "00844745601772d8fbdbc785caf2977e353a6d0145db506c3051b9be43fee798",
+    "sha256_in_snapshot": "00844745601772d8fbdbc785caf2977e353a6d0145db506c3051b9be43fee798",
+    "match": true,
+    "bytes": 339975090
+   },
+   {
+    "id": "DSFC-02-nominal",
+    "path": "runs/yield-fair-training-v1/attempts/DSFC-02-nominal/artifact.json",
+    "sha256_now": "681213de0e2ae22ba75ed97ee953d4a2915aab0ddfea796a7e71101d40ebdde2",
+    "sha256_in_snapshot": "681213de0e2ae22ba75ed97ee953d4a2915aab0ddfea796a7e71101d40ebdde2",
+    "match": true,
+    "bytes": 338763637
+   },
+   {
+    "id": "DSFC-02-disturbed",
+    "path": "runs/yield-fair-training-v1/attempts/DSFC-02-disturbed/artifact.json",
+    "sha256_now": "f9565bc3c7e790a727e25bef62da49350b8c1796990e6467039b7a7d457d5eb5",
+    "sha256_in_snapshot": "f9565bc3c7e790a727e25bef62da49350b8c1796990e6467039b7a7d457d5eb5",
+    "match": true,
+    "bytes": 339311993
+   },
+   {
+    "id": "MSFC-02-nominal",
+    "path": "runs/yield-fair-training-v1/attempts/MSFC-02-nominal/artifact.json",
+    "sha256_now": "a16f00120e4956ad1c883e897174c5a88d81fe228b32ce2eed27c83f75203ef2",
+    "sha256_in_snapshot": "a16f00120e4956ad1c883e897174c5a88d81fe228b32ce2eed27c83f75203ef2",
+    "match": true,
+    "bytes": 347380988
+   },
+   {
+    "id": "MSFC-02-disturbed",
+    "path": "runs/yield-fair-training-v1/attempts/MSFC-02-disturbed/artifact.json",
+    "sha256_now": "62a4e263f0205ee206d4dc9776a50ebb8e218e759ac063c578db3c4482bf9495",
+    "sha256_in_snapshot": "62a4e263f0205ee206d4dc9776a50ebb8e218e759ac063c578db3c4482bf9495",
+    "match": true,
+    "bytes": 347946670
+   },
+   {
+    "id": "SFC-03-nominal",
+    "path": "runs/yield-fair-training-v1/attempts/SFC-03-nominal/artifact.json",
+    "sha256_now": "ec804e9fd8c215a886eaa8bac9a1bbf151ffd3d68a05b2c692d58aa5556c43d6",
+    "sha256_in_snapshot": "ec804e9fd8c215a886eaa8bac9a1bbf151ffd3d68a05b2c692d58aa5556c43d6",
+    "match": true,
+    "bytes": 339948759
+   },
+   {
+    "id": "SFC-03-disturbed",
+    "path": "runs/yield-fair-training-v1/attempts/SFC-03-disturbed/artifact.json",
+    "sha256_now": "9b10e74288ab5fab023239f544679dc47c58e25a9d1653a678be6eba839efd5e",
+    "sha256_in_snapshot": "9b10e74288ab5fab023239f544679dc47c58e25a9d1653a678be6eba839efd5e",
+    "match": true,
+    "bytes": 340545068
+   },
+   {
+    "id": "DSFC-03-nominal",
+    "path": "runs/yield-fair-training-v1/attempts/DSFC-03-nominal/artifact.json",
+    "sha256_now": "6caf014f2f5b54bc9ccbd02a9c762b0c3c7b34f178f5d5d6df05d1ef412275fc",
+    "sha256_in_snapshot": "6caf014f2f5b54bc9ccbd02a9c762b0c3c7b34f178f5d5d6df05d1ef412275fc",
+    "match": true,
+    "bytes": 339207073
+   },
+   {
+    "id": "DSFC-03-disturbed",
+    "path": "runs/yield-fair-training-v1/attempts/DSFC-03-disturbed/artifact.json",
+    "sha256_now": "547db5e177ad9ea9a2ca82184f506c2190bf54a4d2a0b953710a9101af847823",
+    "sha256_in_snapshot": "547db5e177ad9ea9a2ca82184f506c2190bf54a4d2a0b953710a9101af847823",
+    "match": true,
+    "bytes": 339913775
+   },
+   {
+    "id": "MSFC-03-nominal",
+    "path": "runs/yield-fair-training-v1/attempts/MSFC-03-nominal/artifact.json",
+    "sha256_now": "0d459958dc4d48deab07971b61e22f2db23a1f7f6f8f6ab525a719abaa331e25",
+    "sha256_in_snapshot": "0d459958dc4d48deab07971b61e22f2db23a1f7f6f8f6ab525a719abaa331e25",
+    "match": true,
+    "bytes": 347774089
+   },
+   {
+    "id": "MSFC-03-disturbed",
+    "path": "runs/yield-fair-training-v1/attempts/MSFC-03-disturbed/artifact.json",
+    "sha256_now": "224cd7bd897ffa657a80de1f5007b41c0cb0314f3307eb190f9f295d1680705b",
+    "sha256_in_snapshot": "224cd7bd897ffa657a80de1f5007b41c0cb0314f3307eb190f9f295d1680705b",
+    "match": true,
+    "bytes": 348363569
+   },
+   {
+    "id": "SFC-04-nominal",
+    "path": "runs/yield-fair-training-v1/attempts/SFC-04-nominal/artifact.json",
+    "sha256_now": "863c6bf56ee4219396ca9e763cb8129d2f929ac656227c39260262d381856c0d",
+    "sha256_in_snapshot": "863c6bf56ee4219396ca9e763cb8129d2f929ac656227c39260262d381856c0d",
+    "match": true,
+    "bytes": 339660060
+   }
+  ]
+ },
+ "attempt_directories_on_disk_not_listed_in_snapshot_and_not_read": [
+  "DSFC-04-disturbed",
+  "DSFC-04-nominal",
+  "DSFC-05-disturbed",
+  "DSFC-05-nominal",
+  "DSFC-06-disturbed",
+  "DSFC-06-nominal",
+  "DSFC-07-disturbed",
+  "DSFC-07-nominal",
+  "DSFC-08-disturbed",
+  "DSFC-08-nominal",
+  "MSFC-04-disturbed",
+  "MSFC-04-nominal",
+  "MSFC-05-disturbed",
+  "MSFC-05-nominal",
+  "MSFC-06-disturbed",
+  "MSFC-06-nominal",
+  "MSFC-07-disturbed",
+  "MSFC-07-nominal",
+  "MSFC-08-disturbed",
+  "MSFC-08-nominal",
+  "SFC-04-disturbed",
+  "SFC-05-disturbed",
+  "SFC-05-nominal",
+  "SFC-06-disturbed",
+  "SFC-06-nominal",
+  "SFC-07-disturbed",
+  "SFC-07-nominal"
+ ],
+ "binding_checks": {
+  "count": 27,
+  "all_match": true,
+  "checks": [
+   {
+    "path": "tools/build_contact_laws.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_laws.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_qp.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_benchmark_ledger.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_benchmark_tuner.py",
+    "match": true
+   },
+   {
+    "path": "tools/yield_contact_ledger.py",
+    "match": true
+   },
+   {
+    "path": "tools/yield_contact_tuner.py",
+    "match": true
+   },
+   {
+    "path": "tools/yield_fair_campaign.py",
+    "match": true
+   },
+   {
+    "path": "tools/yield_fair_selection.py",
+    "match": true
+   },
+   {
+    "path": "build/contact-six-laws/contact-laws-733c419baa0884b8859255d4/libcontact_laws.so",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_controller.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_kinematics.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_laws.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_math.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_mechanisms.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_metrics.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_normal.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_protocol.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_qp.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_replay.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_runner.py",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_simulator.py",
+    "match": true
+   },
+   {
+    "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/build/contact-qp/libcontact_qp.so",
+    "match": true
+   },
+   {
+    "path": "config/yield_fair_campaign_v1.json",
+    "match": true
+   },
+   {
+    "path": "config/yield_fair_tuning_v1.json",
+    "match": true
+   },
+   {
+    "path": "config/yield_normal_observer_v3.json",
+    "match": true
+   },
+   {
+    "path": "launch-binding.json:campaign_protocol (canonical sha)",
+    "match": true
+   }
+  ]
+ },
+ "inputs_read": [
+  {
+   "path": "report/yield-fair-training-v1/round8-input-snapshot.json",
+   "sha256": "b039f98bbcc23b64a816831a6b2735ef07e54367e6097428fda148b2e6447e28"
+  },
+  {
+   "path": "report/yield-fair-training-v1/README.md",
+   "sha256": "95b89e4ab4cd745e21a0edd6c4e50f056091ddf5dc235a78fc0ee7c4832d527f"
+  },
+  {
+   "path": "report/yield-fair-training-v1/launch-binding.json",
+   "sha256": "67e649cfce4189863be1bc04f170f39f3c261e0e39eb454a4f12cf47945b5cd9"
+  },
+  {
+   "path": "report/yield-fair-training-v1/initial-descriptors.json",
+   "sha256": "1592dba085a43257ca5ef7fe8a5172034fd8d0f33c2557516a8a7b056db29c46"
+  },
+  {
+   "path": "report/yield-fair-training-v1/initial_descriptors.py",
+   "sha256": "a3b9a0d20ce13cc94ff92b90d67d8390be3f225e9dba58edbf3e14546ada1e1b"
+  },
+  {
+   "path": "report/yield-fair-training-v1/progress.json",
+   "sha256": "2b6fa4589dafb1892f09380517fab87147ae20d683f20420f2bfd7acf4ffcbdd"
+  },
+  {
+   "path": "config/yield_fair_campaign_v1.json",
+   "sha256": "ce36c7a3ba824d4bf4e7c748f3ca77a075e15a381d34b54a0d2b2db81febd27d"
+  },
+  {
+   "path": "config/yield_fair_tuning_v1.json",
+   "sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04"
+  },
+  {
+   "path": "config/yield_normal_observer_v3.json",
+   "sha256": "c9598b42a252e94daf0fa22938f3b26fd4df99f595fc63d608f42065a2cb2715"
+  },
+  {
+   "path": "tools/yield_fair_selection.py",
+   "sha256": "b5987aca7a69c32f8bf0ead6480d6b373c4d508ebc4bf0692fb266691025516d"
+  },
+  {
+   "path": "tools/yield_fair_campaign.py",
+   "sha256": "67e418fabbf7b4bc5afc70f3255843e4fec676794cef909ff0f8efcc5043bc26"
+  },
+  {
+   "path": "tools/yield_contact_ledger.py",
+   "sha256": "234d5eadc1bd001277445bc3fdfd7a2ec8edcbcffaea83def1810895d6d01a67"
+  },
+  {
+   "path": "tools/yield_contact_tuner.py",
+   "sha256": "3f93d53354f6fa08c8e22d837e0e7d997ff9766760dd927045592c2e7f0e0f8c"
+  },
+  {
+   "path": "tools/contact_yield_metrics.py",
+   "sha256": "ac1064303707f48099127e39b3ef0b7ae259a8d7c27203cb37e1000fa6643364"
+  },
+  {
+   "path": "tools/contact_yield_protocol.py",
+   "sha256": "08c5d036c5bc089a7b5b7cd9be0ab297043ef78c818b0962bb276b71d71f3825"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/README.md",
+   "sha256": "8febb78517a89f9289e9bbfae253f4e77ae2b44aceb262d48dc227bba8b4d3f0"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/writer-receipt.json",
+   "sha256": "90805c5226370c59654722efd16fdc7e9cc8cb54015c36c678e656f33fd6b1fe"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion-round7/fable-round7.md",
+   "sha256": "ba87d4a2c84dbfd8368a96155df47563ddc816f69fae67e752c963e23eba9a7a"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion-round7/fable-final.txt",
+   "sha256": "7638ec6e4368000d00ddf766742c6aba5820904d9ec6d8952df3ed548d85de95"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion-round7/main-adjudication.md",
+   "sha256": "9c02c26a06f868240c57f310db6cb843ba261d1c9578e9d57174be718722d02e"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion-round7/main-verification.json",
+   "sha256": "dc1712238ce07317213dcb5be181e89ee5ad775a731f2a5845b4b07b1c7babea"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion-round7/round7-input-receipt.json",
+   "sha256": "8dd523bad0949176fdd1c87f40d510853822a87b2e7f4af2c70bcd22ba5154a2"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion-round7/data/round7-analysis.json",
+   "sha256": "20134452cd48bd4e23beaf87b2219575d84826e599a92fa3f81e1e3cdf06417f"
+  },
+  {
+   "path": "report/yield-validation-reservation-v2/README.md",
+   "sha256": "cdd0bb32df4ee036cbb715b94da0d6c5cffb34521fd0a9c9bfaf722ecc656448"
+  },
+  {
+   "path": "report/yield-validation-reservation-v2/protocol.json",
+   "sha256": "8c0c7820a7441d9e724bb33a53bde4e38c453873203ce10d750c856b83d70236"
+  },
+  {
+   "path": "report/yield-validation-reservation-v2/receipt.json",
+   "sha256": "d1dab9765ad1f09776524a600262b4921b5b12e94619b82bc46a8d5c17f877b1"
+  },
+  {
+   "path": "report/yield-validation-runner-review-v1/missing-ledger-counterexample.json",
+   "sha256": "0694fa779a7bafc796170dbff6260d0354ec67936f1b3711fa4e54c57645118d"
+  },
+  {
+   "path": "report/yield-validation-runner-review-v1/original-delivery.json",
+   "sha256": "ed77874ad595a9b1de2e6e531ed08d0b160f22bd356dd2eaf0b6b94aa50248db"
+  },
+  {
+   "path": "report/yield-validation-runner-review-v1/main-original-tests.txt",
+   "sha256": "f77db202859a866f614ba22749964c81983fb5b006e66f1087222c7f7469378f"
+  }
+ ],
+ "cpu_threads": 1,
+ "python": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/.venv-contact-six/bin/python",
+ "numbers_recomputed_vs_reported": "all 25 nominal/disturbed check sets recomputed from rows equal the snapshot flags; all 12 objectives recomputed with the frozen _objective_components equal the snapshot to 0.0; every artifact metrics block equals summarize_trial on its rows; see data/round8-analysis.json",
+ "outputs": [
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/data/round8-analysis.json",
+   "sha256": "bf0c7c6a24de02610e351c9bda4574fc8528477d923ac071604bb0e245d99399",
+   "bytes": 394808
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/data/round8-mechanics.json",
+   "sha256": "95ee6c1e6ec28b9a056eb67559032d70bdb6599d83c191cbb36c3c56228a32a5",
+   "bytes": 138784
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/fable-final.txt",
+   "sha256": "fe5f335cc71c465596d9b3631f22bc3aa994a3534f571323aed4714a2bb2b926",
+   "bytes": 5118
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/fable-round8.md",
+   "sha256": "a015faab557b73ba89e58cfe5a1ae8b036e4d2e26a5525323233d31512f3fe79",
+   "bytes": 38371
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/scripts/analyze_round8.py",
+   "sha256": "56553bf5f88e06f5dc7ee5a2aa5de19297a9f656419e9bc537bcc417d0a1bd71",
+   "bytes": 29138
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/scripts/analyze_round8_mechanics.py",
+   "sha256": "7a67123bc7d3186bd9b6a783162343036cb8a0656d174b4dbb37d8b854994b31",
+   "bytes": 8270
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/scripts/extract_rows_v8.py",
+   "sha256": "e532e17bfdd558452245e071dacdf8c87efa52dba7c3a4028fd03f8d58cecc29",
+   "bytes": 6239
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/scripts/round8_receipt.py",
+   "sha256": "8e25c6c0a34a1861fa3df60a8128dbe46dcadf37851ff69f7889d2ce3817d35f",
+   "bytes": 6964
+  }
+ ]
+}
