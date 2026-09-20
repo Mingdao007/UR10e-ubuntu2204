@@ -631,6 +631,15 @@ def test_long_observable_gc_never_runs_after_arm_before_execute_packet_service(
         def __init__(self, *_args: object, **_kwargs: object) -> None:
             pass
 
+        def step(self, **_kwargs: object):
+            # The fake TP can already enter State21 on the first serviced
+            # frame. Keep this GC test alive until its intended second-poll
+            # fault rather than failing because its control double is absent.
+            from step5d_autotune_v4_r004.qualification import QualificationCommand
+            from step5d_autotune_v4_r004.wire import CommandMode
+            return QualificationCommand(CommandMode.BASELINE, (0.,) * 6,
+                                        1., 1., 1, "gc-fixture", "")
+
     monkeypatch.setattr(writer_cli, "CanonicalQualificationControl", StubQualificationControl)
     send_packet = writer._send_packet
 

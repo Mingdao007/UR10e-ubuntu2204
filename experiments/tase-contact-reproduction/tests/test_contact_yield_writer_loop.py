@@ -20,7 +20,7 @@ from test_contact_qualification_provider import _output, _sensor
 
 def exercise_writer_loop(tmp_path,monkeypatch, *, entry_aware=True, cached_at_end=False,
                          home_rotation=(0., 0., 0.), terminal_rotation=None,
-                         native_provider=False):
+                         native_provider=False, writer_class=None):
     clock=SimpleNamespace(t=0.,ticks=0,ended=False,cache_injected=False,previous=None)
     transport=SimpleNamespace(send_packet=lambda *_args: None)
     provider=SimpleNamespace(execution_command=lambda **_kw:None,last_result=None,
@@ -54,7 +54,8 @@ def exercise_writer_loop(tmp_path,monkeypatch, *, entry_aware=True, cached_at_en
     monkeypatch.setattr(writer_module,'CanonicalQualificationControl',Control)
     def sleep(seconds):clock.t+=seconds
     samples=[]
-    writer=writer_module.LiveR004Writer(_prerequisites(),authority_root=tmp_path/'authority',
+    writer_type=writer_class or writer_module.LiveR004Writer
+    writer=writer_type(_prerequisites(),authority_root=tmp_path/'authority',
         route_id='r004-test-route',attempt_id='r004-yield-fixture',controller_transport=transport,
         kunwei_transport=object(),mono_clock=lambda:clock.t,wall_clock=lambda:100.,sleep=sleep,
         path_sample_sink=samples.append)

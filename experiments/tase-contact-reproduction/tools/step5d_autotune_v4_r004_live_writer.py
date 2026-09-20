@@ -1473,6 +1473,14 @@ class LiveR004Writer:
             allow_prearm_reconnect=True,
         )
 
+    @staticmethod
+    def _next_publish_deadline(previous_s: float, period_s: float, now_s: float) -> float:
+        """Preserve the historical future-slot scheduler for legacy routes."""
+        deadline = previous_s + period_s
+        if deadline <= now_s:
+            deadline += (math.floor((now_s - deadline) / period_s) + 1) * period_s
+        return deadline
+
     def execute_attempt(
         self,
         attempt: Attempt,
@@ -1557,13 +1565,12 @@ class LiveR004Writer:
                     if state in {78, 80, 90}:
                         terminal = output
                         break
-                    next_publish_s += publish_period_s
                     now_after_cached = self._mono_clock()
-                    if next_publish_s <= now_after_cached:
-                        missed = math.floor(
-                            (now_after_cached - next_publish_s) / publish_period_s
-                        ) + 1
-                        next_publish_s += missed * publish_period_s
+                    # No new input: always wait for a future slot. A native
+                    # late-slot retry applies only after fresh input service.
+                    next_publish_s = LiveR004Writer._next_publish_deadline(
+                        next_publish_s, publish_period_s, now_after_cached
+                    )
                     self._sleep(max(0.0, next_publish_s - now_after_cached))
                     continue
                 sensor = self._read_sensor()
@@ -1839,11 +1846,10 @@ class LiveR004Writer:
                 # V3/r034-style absolute-deadline scheduler. Never add a fixed
                 # sleep to compute/transport time; skip missed slots instead of
                 # bursting stale packets, while actual_dt remains measured.
-                next_publish_s += publish_period_s
                 now_after_tick = self._mono_clock()
-                if next_publish_s <= now_after_tick:
-                    missed = math.floor((now_after_tick - next_publish_s) / publish_period_s) + 1
-                    next_publish_s += missed * publish_period_s
+                next_publish_s = self._next_publish_deadline(
+                    next_publish_s, publish_period_s, now_after_tick
+                )
                 self._sleep(max(0.0, next_publish_s - now_after_tick))
             if terminal is None or terminal.integer_echoes[26] == 90 or self._home is None:
                 raise LiveWriterError("r004 attempt terminated without a valid return")

@@ -1,0 +1,8 @@
+{
+  "started_at_utc": "2026-09-20T11:50:23Z",
+  "engineering_budget_s": 14400,
+  "deadline_without_operator_wait_utc": "2026-09-20T15:50:23Z",
+  "operator_wait_intervals": [],
+  "status": "active",
+  "stop_rule": "No further Python timing patches after budget; no automatic C++ or ROS2 extension. Original research goal remains intact."
+}

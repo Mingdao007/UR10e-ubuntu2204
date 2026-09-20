@@ -1,0 +1,10 @@
+{
+  "session_id": "01a0be50-5ef6-7631-9f4f-bf49d1c529f2",
+  "launcher": "hp-astra",
+  "session_model_provider": "hp-astra",
+  "model": "gpt-6-astra",
+  "effort": "xhigh",
+  "turn_timestamp": "2026-09-20T11:58:54.125Z",
+  "scope": "second exchange this hour, read-only; main implementation; no hardware",
+  "review_resolution": "native override only; cached branch always uses historical future-slot scheduler; all seven focused cases pass"
+}

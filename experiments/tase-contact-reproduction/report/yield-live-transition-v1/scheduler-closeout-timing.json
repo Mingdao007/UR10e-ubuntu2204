@@ -1,0 +1,129 @@
+{
+  "observed_cpu2_governor": "performance",
+  "scope": "offline computation diagnosis; measured-contact repeat plus synthetic-clock writer fixture; not live admission",
+  "results": {
+    "contact_idle": {
+      "selected_cpu": 2,
+      "policy": "SCHED_FIFO20",
+      "governor": "performance",
+      "sleep_between_repeats_s": 0.01,
+      "scope": "transport-free repeat of measured contact provider computation; 10ms idle between repeats, deadlines disabled for profiling only; no hardware and not physical qualification",
+      "initial_pause_times": "reconstructed from measured raw host-use deltas and exact active-command clock; microsecond entry uncertainty",
+      "first_s": 0.0012129599999752827,
+      "runtime_first_s": 0.0010466589956195094,
+      "runtime_max_s": 0.0012940629967488348,
+      "runtime_over_1p5ms": 0,
+      "count": 100,
+      "min_s": 0.0007832870032871142,
+      "median_s": 0.0009338179988844786,
+      "p99_s": 0.0014219959744514198,
+      "max_s": 0.0014263499979279004,
+      "restores_between_calls": true
+    },
+    "full_writer_unpaced": {
+      "scope": "offline unpaced stationary-observation full-writer composition; in-memory transport; simulated receive clocks; existing writer GC policy; not formal timing qualification, IO latency, transport admission, or physical task evidence",
+      "cpu": 2,
+      "governor": "performance",
+      "error": "LiveWriterError('canonical V4 qualification tick failed: PATH soft CBF infeasible: outside_tube; baseline_diag={\"filtered_max_n\": 4.4, \"filtered_min_n\": 4.4, \"force_norm_max_n\": 5.0, \"last\": {\"filtered_normal_n\": 4.4, \"force_norm_n\": 5.0, \"mode\": 2, \"raw_normal_n\": 5.0, \"setpoint_n\": 5.0, \"torque_norm_nm\": 0.0}, \"raw_max_n\": 5.0, \"raw_min_n\": 5.0, \"readiness_samples\": 1, \"samples\": 1, \"torque_norm_max_nm\": 0.0}')",
+      "packets": 2688,
+      "phases": {
+        "entry": 500,
+        "path": 2185
+      },
+      "loop": {
+        "n": 2687,
+        "first_ms": 0.089828,
+        "median_ms": 0.91912,
+        "p99_ms": 1.128195,
+        "max_ms": 51.541604,
+        "over_1p5ms": 1,
+        "over_2ms": 1
+      },
+      "native": {
+        "n": 2687,
+        "first_ms": 0.815196,
+        "median_ms": 0.522027,
+        "p99_ms": 0.7137714,
+        "max_ms": 50.416367,
+        "over_1p5ms": 1,
+        "over_2ms": 1
+      },
+      "qualification": {
+        "n": 2687,
+        "first_ms": 1.365115,
+        "median_ms": 0.797613,
+        "p99_ms": 0.99717914,
+        "max_ms": 51.200675,
+        "over_1p5ms": 1,
+        "over_2ms": 1
+      }
+    },
+    "full_writer_paced": {
+      "scope": "offline unpaced stationary-observation full-writer composition; in-memory transport; simulated receive clocks; existing writer GC policy; not formal timing qualification, IO latency, transport admission, or physical task evidence; wall pacing added around original fixture sleep; observations remain synthetic",
+      "loop_cpu": {
+        "n": 2688,
+        "first_ms": 0.092143,
+        "median_ms": 1.3700139999999998,
+        "p99_ms": 1.8828956300000002,
+        "max_ms": 12.931833,
+        "over_1p5ms": 924,
+        "over_2ms": 2
+      },
+      "native_cpu": {
+        "n": 2687,
+        "first_ms": 0.809424,
+        "median_ms": 0.746698,
+        "p99_ms": 1.2842549399999978,
+        "max_ms": 1.424496,
+        "over_1p5ms": 0,
+        "over_2ms": 0
+      },
+      "cpu": 2,
+      "governor": "performance",
+      "error": "LiveWriterError('canonical V4 qualification tick failed: PATH soft CBF infeasible: outside_tube; baseline_diag={\"filtered_max_n\": 4.4, \"filtered_min_n\": 4.4, \"force_norm_max_n\": 5.0, \"last\": {\"filtered_normal_n\": 4.4, \"force_norm_n\": 5.0, \"mode\": 2, \"raw_normal_n\": 5.0, \"setpoint_n\": 5.0, \"torque_norm_nm\": 0.0}, \"raw_max_n\": 5.0, \"raw_min_n\": 5.0, \"readiness_samples\": 1, \"samples\": 1, \"torque_norm_max_nm\": 0.0}')",
+      "packets": 2688,
+      "phases": {
+        "entry": 500,
+        "path": 2185
+      },
+      "loop": {
+        "n": 2687,
+        "first_ms": 0.093014,
+        "median_ms": 1.371307,
+        "p99_ms": 1.88330054,
+        "max_ms": 2.134295,
+        "over_1p5ms": 930,
+        "over_2ms": 1
+      },
+      "native": {
+        "n": 2687,
+        "first_ms": 0.812671,
+        "median_ms": 0.74816,
+        "p99_ms": 1.2864867999999978,
+        "max_ms": 1.425849,
+        "over_1p5ms": 0,
+        "over_2ms": 0
+      },
+      "qualification": {
+        "n": 2687,
+        "first_ms": 2.01997,
+        "median_ms": 1.212369,
+        "p99_ms": 1.7318342799999997,
+        "max_ms": 2.01997,
+        "over_1p5ms": 441,
+        "over_2ms": 1
+      }
+    }
+  },
+  "interpretation": [
+    "Measured low-duty runtime 100/100 under1.5ms; first1.047ms, max1.294ms.",
+    "Paced writer includes first cold qualification2.020ms; median whole loop1.371ms,p991.883ms. Fixture ultimately outside_tube because pose stationary. No complete task claim.",
+    "Unpaced51ms outlier is consistent with RT quota950ms/1s; not proven solely by correlation.",
+    "Native scheduler no longer adds a whole wait cycle after a mild overrun. Real dt/deadline/freshness gates unchanged."
+  ],
+  "tests": {
+    "late_slot": "7 passed",
+    "prewarm_loop_gc_regressions": "13 passed plus one preexisting missing-step fixture repaired; repaired test passed"
+  },
+  "next": "fresh hardware/IO/readback gates, then physical qualification"
+}

@@ -552,6 +552,19 @@ class NativeYieldLiveWriter(R006LiveWriter):
     cannot guard the pre-contact phases. Raw limits include gravity and bias.
     """
 
+    @staticmethod
+    def _next_publish_deadline(previous_s: float, period_s: float, now_s: float) -> float:
+        """Poll the latest due slot without adding a cycle after a small overrun.
+
+        No queued command is replayed: execute_attempt still requires a fresh
+        RTDE frame before control/publish and passes the real elapsed interval
+        through the unchanged admission checks. Whole obsolete slots are skipped.
+        """
+        deadline = previous_s + period_s
+        if deadline <= now_s:
+            deadline += math.floor((now_s - deadline) / period_s) * period_s
+        return deadline
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.raw_observations = []
