@@ -121,3 +121,19 @@ def test_recovery_preflight_failure_is_persisted_as_blocked(tmp_path, monkeypatc
     persisted=json.loads(record.read_text())
     assert persisted['state']=='BLOCKED'
     assert persisted['phase']=='recovery-preflight'
+
+
+def test_recovery_cli_never_emits_unclassified_preflight_error(tmp_path, monkeypatch):
+    source=tmp_path/'source'
+    source.mkdir()
+    output=tmp_path/'cli-recovery'
+    def fail(_args):
+        raise RuntimeError('dashboard unavailable')
+    monkeypatch.setattr(runner, 'run', fail)
+
+    assert runner.main(['--source-run', str(source), '--output', str(output)]) == 1
+
+    persisted=json.loads((output/'result.json').read_text())
+    assert persisted['state']=='BLOCKED'
+    assert persisted['phase']=='cli-preflight'
+    assert persisted['recovery_policy']=='AUTO_HOME_UNLESS_SAFETY_PROOF_BLOCKS'

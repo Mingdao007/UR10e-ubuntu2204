@@ -348,7 +348,13 @@ def recover_failed_contact_run(source_run, host, video_url):
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--source-run',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--readback-proof-dir',type=Path);p.add_argument('--readback-dir',type=Path);p.add_argument('--package-dir',type=Path);p.add_argument('--host',default='192.168.1.18');p.add_argument('--video-url',default='rtsp://127.0.0.1:8554/arm');p.add_argument('--execute',action='store_true');args=p.parse_args(argv)
     try:result=run(args)
-    except Exception as exc:result={'success':False,'error':f'{type(exc).__name__}: {exc}'}
-    print(json.dumps(result,indent=2));return 0 if result.get('success') or result.get('motion') is False else 1
+    except BaseException as exc:
+        result=_blocked_recovery_result(
+            args.source_run,
+            exc,
+            phase='cli-preflight',
+            output=args.output,
+        )
+    print(json.dumps(result,indent=2));return 0 if result.get('success') or (result.get('motion') is False and result.get('state') != 'BLOCKED') else 1
 
 if __name__=='__main__':raise SystemExit(main())
