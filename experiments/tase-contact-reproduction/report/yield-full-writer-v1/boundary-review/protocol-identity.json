@@ -1,0 +1,14 @@
+[
+  {
+    "worktree": "contact-yield-recovery-20260920",
+    "sha256": "5be95ccbf95200fbf7651f98ad8684c5b2715f8234155246ba7b374d1c59a67a",
+    "schema": "ur10e.contact-yield-protocol-v2",
+    "version": 1
+  },
+  {
+    "worktree": "yield-full-writer-20260920",
+    "sha256": "5be95ccbf95200fbf7651f98ad8684c5b2715f8234155246ba7b374d1c59a67a",
+    "schema": "ur10e.contact-yield-protocol-v2",
+    "version": 1
+  }
+]

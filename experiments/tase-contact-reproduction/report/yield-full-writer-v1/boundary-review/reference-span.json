@@ -1,0 +1,9 @@
+{
+  "scope": "adversarial offline evidence collector check, not actual emitted runtime",
+  "accepted": true,
+  "physical_duration_s": 62.832,
+  "first_reference_s": 0.002,
+  "last_reference_s": 62.83,
+  "reference_span_plus_coverage_s": 62.83,
+  "required_s": 62.83185307179586
+}
