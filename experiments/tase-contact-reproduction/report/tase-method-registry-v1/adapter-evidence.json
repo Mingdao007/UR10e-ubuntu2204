@@ -1,0 +1,49 @@
+{
+  "schema": "tase-offline-method-registry-evidence-v1",
+  "scope": "offline_dry_run_only",
+  "live_eligibility": {
+    "TASE_RNN": false,
+    "TASE_QP": false,
+    "live_resolver_behavior": "contact_yield_method_registry.resolve_method continues to raise MethodUnavailableError"
+  },
+  "offline_methods": {
+    "TASE_RNN": {
+      "provider": "TaseOfflineMethodAdapter",
+      "solver": "rnn",
+      "variant": "printed_eq23_plus",
+      "projection": "J.T @ lambda_state",
+      "lambda_update": "lambda_state += (dt / epsilon) * (J @ theta_dot_state - xdot_c)"
+    },
+    "TASE_RNN_MATURE_MINUS": {
+      "provider": "TaseOfflineMethodAdapter",
+      "solver": "rnn",
+      "variant": "mature_minus",
+      "projection": "J.T @ lambda_state",
+      "lambda_update": "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)"
+    },
+    "TASE_QP": {
+      "provider": "TaseOfflineMethodAdapter",
+      "solver": "qp",
+      "variant": "matched_outer_qp"
+    }
+  },
+  "shared_contract": {
+    "outer_loop": "existing compute_step5d_outer_loop",
+    "bounds": "same observation joint_velocity_lower/joint_velocity_upper per method",
+    "private_state": "each adapter owns independent outer_loop and solver snapshot",
+    "lifecycle": ["initialize", "step", "snapshot", "restore", "stop"]
+  },
+  "fixture": {
+    "kinematics": "contact_yield_kinematics.load_kinematics(require_ur10e=True)",
+    "claim_scope": "offline calibrated UR10e FK/Jacobian; not hardware qualification",
+    "jacobian": "actual non-identity 6x6 calibrated Pinocchio TCP Jacobian",
+    "synthetic_contact_evidence": false
+  },
+  "checks": {
+    "tests/test_tase_method_registry.py": "4 passed",
+    "tests/test_contact_method_registry.py": "8 passed",
+    "tests/test_contact_yield_method_registry.py": "2 passed",
+    "tests/test_tase_offline_baselines.py": "10 passed"
+  },
+  "hardware_or_endpoint_action": false
+}

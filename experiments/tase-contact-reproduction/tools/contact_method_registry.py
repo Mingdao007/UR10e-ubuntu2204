@@ -71,6 +71,9 @@ class ControllerHandle:
 
     def stop(self):
         self.stopped = True
+        stop = getattr(self.backend, 'stop', None)
+        if callable(stop):
+            stop('controller_handle_stop')
 
     def close(self):
         self.stop()
@@ -155,19 +158,28 @@ def _yield_factory(name):
 
 
 def _tase_factory(solver, variant):
-    def create(config=None):
+    def create(config=None, qp_library=None, outer_config=None):
+        from contact_yield_method_registry import resolve_offline_method
+        from tase_method_adapters import create_tase_offline_adapter
+
+        method_name = 'TASE_RNN' if solver == 'rnn' and variant == 'printed_eq23_plus' else (
+            'TASE_RNN_MATURE_MINUS' if solver == 'rnn' else 'TASE_QP'
+        )
         try:
-            from tase_live_baseline import TaseLiveBaseline, TaseBaselineConfig
-        except ImportError as exc:
-            raise RegistryError('TASE source is not integrated') from exc
-        options = {} if config is None else dict(config)
-        unknown = set(options)-set(TaseBaselineConfig.__dataclass_fields__)
-        if unknown:
-            raise RegistryError('unknown TASE configuration: ' + ','.join(sorted(unknown)))
-        if 'lambda_variant' in options and options['lambda_variant'] != variant:
-            raise RegistryError('choose the explicitly named TASE sign variant')
-        options['lambda_variant'] = variant
-        return TaseLiveBaseline(TaseBaselineConfig(**options),solver=solver),'tase'
+            resolve_offline_method(method_name)
+            options = {} if config is None else dict(config)
+            if 'lambda_variant' in options and options.pop('lambda_variant') != variant:
+                raise RegistryError('choose the explicitly named TASE sign variant')
+            return create_tase_offline_adapter(
+                method_name=method_name,
+                solver_name=solver,
+                variant=variant,
+                config=options,
+                qp_library=qp_library,
+                outer_config=outer_config,
+            ), 'tase'
+        except (ImportError, ValueError) as exc:
+            raise RegistryError(f'{method_name} offline adapter is unavailable: {exc}') from exc
     return create
 
 
@@ -176,8 +188,8 @@ def default_registry():
     for name,role in [('SFC','baseline'),('SFC_RADIAL','geometry_ablation'),('DSFC','proposal'),('MSFC','proposal')]:
         registry.register(MethodSpec(name,role,'YieldController'),_yield_factory(name))
     for name,solver,variant,role in [
-        ('TASE_RNN','rnn','paper_plus','printed_sign_baseline_with_explicit_outer_adaptation'),
-        ('TASE_RNN_MATURE_MINUS','rnn','mature_minus','sign_adaptation_reference'),
-        ('TASE_QP','qp','paper_plus','matched_outer_solver_ablation')]:
-        registry.register(MethodSpec(name,role,'TaseLiveBaseline'),_tase_factory(solver,variant))
+        ('TASE_RNN','rnn','printed_eq23_plus','printed_sign_eq23_plus_offline_baseline_with_explicit_outer_adaptation'),
+        ('TASE_RNN_MATURE_MINUS','rnn','mature_minus','explicit_lambda_minus_adaptation_reference'),
+        ('TASE_QP','qp','matched_outer_qp','matched_outer_solver_ablation')]:
+        registry.register(MethodSpec(name,role,'TaseOfflineMethodAdapter'),_tase_factory(solver,variant))
     return registry

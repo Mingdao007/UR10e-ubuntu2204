@@ -7,11 +7,15 @@ prove that a backend is installed or verified; initialization raises if its
 source is unavailable.
 
 Built-in names are SFC, SFC_RADIAL, DSFC, MSFC, TASE_RNN,
-TASE_RNN_MATURE_MINUS and TASE_QP. TASE_RNN explicitly selects the printed dual
-sign with an identified UR10e outer-loop adaptation. It is not labeled a fully
-literal or successful paper reproduction. TASE_RNN_MATURE_MINUS identifies the
-existing sign modification. TASE_QP changes solver on the same TASE outer
-configuration. The TASE source remains pending integration in this checkpoint.
+TASE_RNN_MATURE_MINUS and TASE_QP. TASE_RNN explicitly selects the printed
+Eq.23 sign variant (`J.T @ lambda_state` projection and `lambda_state +=`
+update) with the identified UR10e outer-loop adaptation. It is not labeled a
+fully literal or successful paper reproduction. TASE_RNN_MATURE_MINUS
+explicitly selects the existing `lambda_state -=` adaptation. TASE_QP changes
+only the solver on the same TASE outer configuration. All three are now
+integrated as transport-free offline adapters; the yield live-entry registry
+continues to mark TASE_RNN and TASE_QP unavailable and no live eligibility is
+promoted.
 
 Each initialized handle offers step(observation, reference, dt), snapshot(),
 restore(state), stop() and close(). Snapshots include method identity, adapter
@@ -35,10 +39,12 @@ mapped to the native force_n field instead of silently accepting its default.
 Evaluator surface truth is rejected. Nonzero software injection must be composed
 explicitly upstream; it is not silently ignored for a subset of methods.
 
-Validation at this checkpoint: 7 tests cover open extension, identity/replay,
-failed-output rollback, stop behavior, evaluator-truth rejection and actual
-native SFC/SFC_RADIAL/DSFC/MSFC one-step replay through the shared interface.
-These are numerical/interface checks, not closed-loop contact or live results.
+Validation at this checkpoint: the focused registry integration tests cover
+offline discovery, initialization of all three TASE names, printed-versus-
+mature sign metadata, independent private state, full snapshot/replay and
+stop behavior using a calibrated non-identity UR10e Jacobian. The existing
+native registry tests remain green. These are numerical/interface checks, not
+closed-loop contact or live results.
 
 ## Subsequent review checkpoint
 

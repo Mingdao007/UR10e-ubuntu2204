@@ -24,6 +24,7 @@ CONTACT_PROGRAM = "step5d_contact_six_qp_v1"
 HOME_PROGRAM = "step5d_contact_home_v1"
 NATIVE_FAMILY = "native_yield"
 REGISTERED_UNAVAILABLE = ("TASE_RNN", "TASE_QP")
+OFFLINE_TASE_METHODS = ("TASE_RNN", "TASE_RNN_MATURE_MINUS", "TASE_QP")
 DIAGNOSTIC_DURATIONS_S = (2.0, 10.0)
 
 
@@ -57,6 +58,28 @@ class MethodRecord:
         if self.reason is not None:
             payload["reason"] = self.reason
         return payload
+
+
+@dataclass(frozen=True)
+class OfflineMethodRecord:
+    """Selectable software adapter metadata, separate from live eligibility."""
+
+    name: str
+    family: str
+    provider: str
+    variant: str
+    offline_only: bool = True
+    live_eligible: bool = False
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "family": self.family,
+            "provider": self.provider,
+            "variant": self.variant,
+            "offline_only": self.offline_only,
+            "live_eligible": self.live_eligible,
+        }
 
 
 def _require_mapping(value: Any, name: str) -> Mapping[str, Any]:
@@ -171,6 +194,38 @@ def resolve_method(name: str, *, config: Mapping[str, Any] | None = None) -> Met
     if record.family != NATIVE_FAMILY:
         raise MethodUnavailableError(f"{name} is not a native yield method")
     return record
+
+
+def load_offline_method_records() -> dict[str, OfflineMethodRecord]:
+    """Return software-only TASE adapters without changing live config."""
+
+    return {
+        "TASE_RNN": OfflineMethodRecord(
+            name="TASE_RNN",
+            family="tase_rnn",
+            provider="TaseOfflineMethodAdapter",
+            variant="printed_eq23_plus",
+        ),
+        "TASE_RNN_MATURE_MINUS": OfflineMethodRecord(
+            name="TASE_RNN_MATURE_MINUS",
+            family="tase_rnn",
+            provider="TaseOfflineMethodAdapter",
+            variant="mature_minus",
+        ),
+        "TASE_QP": OfflineMethodRecord(
+            name="TASE_QP",
+            family="tase_qp",
+            provider="TaseOfflineMethodAdapter",
+            variant="matched_outer_qp",
+        ),
+    }
+
+
+def resolve_offline_method(name: str) -> OfflineMethodRecord:
+    records = load_offline_method_records()
+    if name not in records:
+        raise MethodRegistryError(f"unknown offline method {name!r}")
+    return records[name]
 
 
 def native_status_payload(records: Mapping[str, MethodRecord] | None = None) -> dict[str, Any]:

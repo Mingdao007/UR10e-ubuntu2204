@@ -39,6 +39,7 @@ class TaseOfflineConfig:
     sigr_exponent_r: float = 0.2
     qdot_limit_rad_s: float = 0.15
     dt_s: float = 0.002
+    lambda_update_sign: str = "minus"
 
     def validate(self) -> None:
         values = (
@@ -53,6 +54,8 @@ class TaseOfflineConfig:
             raise ValueError("TASE offline epsilon/r are outside the paper domain")
         if self.qdot_limit_rad_s <= 0.0 or self.dt_s <= 0.0:
             raise ValueError("TASE offline limits and dt must be positive")
+        if self.lambda_update_sign not in {"plus", "minus"}:
+            raise ValueError("TASE offline lambda_update_sign must be plus or minus")
 
 
 @dataclass(frozen=True)
@@ -107,6 +110,7 @@ class TaseRnnBaseline:
                 sigr_exponent_r=config.sigr_exponent_r,
                 backend="numpy",
                 offline_hypothesis=True,
+                lambda_update_sign=config.lambda_update_sign,
             )
         )
 

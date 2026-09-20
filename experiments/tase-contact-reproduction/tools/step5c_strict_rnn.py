@@ -37,6 +37,7 @@ class StrictRnnConfig:
     inner_iterations: int = 1
     backend: str = "numpy"
     offline_hypothesis: bool = False
+    lambda_update_sign: str = "minus"
 
 
 @dataclass(frozen=True)
@@ -211,6 +212,10 @@ class StrictTaseRnnSolver:
             raise ValueError("inner_iterations must be a positive integer")
         if self.config.backend not in {"numpy", "cupy"}:
             raise ValueError("backend must be 'numpy' or 'cupy'")
+        if self.config.lambda_update_sign not in {"plus", "minus"}:
+            raise ValueError("lambda_update_sign must be 'plus' or 'minus'")
+        if self.config.backend == "cupy" and self.config.lambda_update_sign != "minus":
+            raise ValueError("CuPy backend currently exposes only the mature minus sign variant")
 
     def freeze(self) -> None:
         """Hold RNN state unchanged when the command path is invalid."""
@@ -295,7 +300,11 @@ class StrictTaseRnnSolver:
         if not math.isfinite(eps) or eps <= 0.0:
             raise ValueError("epsilon must be finite and positive")
         exponent = self.config.sigr_exponent_r if r is None else float(r)
-        lambda_update_form = "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)"
+        lambda_update_form = (
+            "lambda_state += (dt / epsilon) * (J @ theta_dot_state - xdot_c)"
+            if self.config.lambda_update_sign == "plus"
+            else "lambda_state -= (dt / epsilon) * (J @ theta_dot_state - xdot_c)"
+        )
 
         if cmd_valid:
             proj_input = jacobian.T @ self.lambda_state
@@ -310,7 +319,11 @@ class StrictTaseRnnSolver:
                 self.theta_dot_state + theta_delta,
             )
             constraint_residual = jacobian @ self.theta_dot_state - xdot
-            self.lambda_state = self.lambda_state - (step_s / eps) * constraint_residual
+            lambda_delta = (step_s / eps) * constraint_residual
+            if self.config.lambda_update_sign == "plus":
+                self.lambda_state = self.lambda_state + lambda_delta
+            else:
+                self.lambda_state = self.lambda_state - lambda_delta
         else:
             proj_input = jacobian.T @ self.lambda_state
             projected = np.clip(proj_input, lower, upper)
