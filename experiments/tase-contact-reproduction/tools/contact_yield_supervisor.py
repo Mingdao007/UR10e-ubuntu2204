@@ -215,7 +215,12 @@ class ResidentSupervisor:
     def run(self, body, before_load=None):
         play_attempted = False
         try:
-            self.observer.start(); self.video.start()
+            # Establish the video barrier before starting the bounded RTDE
+            # observer queue.  Starting the observer first lets ffmpeg's
+            # startup delay fill the four-row queue; the child then drops
+            # samples while the parent is not draining it and the first
+            # resident check can report a false stale-observation failure.
+            self.video.start(); self.observer.start()
             self.check(idle=True)
             initial=self.read_dashboard()
             if (initial['is in remote control']!='true' or initial['safetymode']!='Safetymode: NORMAL'

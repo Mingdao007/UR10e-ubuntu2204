@@ -318,7 +318,14 @@ class CompletionGate:
 
 
 def apply_disposition(lifecycle: ResidentLifecycle, disposition: Disposition) -> str:
-    """Apply the four terminal dispositions without auto-Home."""
+    """Apply terminal dispositions and route hard failures through Home recovery.
+
+    A stopped resident is not a completed recovery. The caller must execute
+    the existing verified Home route and record its receipt before the attempt
+    can be closed. ``STOP_AND_REVOKE_NO_AUTO_HOME`` used to encode the
+    opposite policy and allowed a fault to strand the robot at an arbitrary
+    pose.
+    """
 
     if disposition is Disposition.OBJECTIVE:
         return "TELL"
@@ -327,7 +334,7 @@ def apply_disposition(lifecycle: ResidentLifecycle, disposition: Disposition) ->
     if disposition in {Disposition.CODE_OR_EVIDENCE_BUG, Disposition.SAFETY_OR_RETURN_FAILURE}:
         if lifecycle.state not in {LifecycleState.STOPPED, LifecycleState.COMPLETE}:
             lifecycle.transition(LifecycleState.STOPPED)
-        return "STOP_AND_REVOKE_NO_AUTO_HOME"
+        return "STOP_AND_RECOVER_HOME"
     raise R006RuntimeError("unknown disposition")
 
 

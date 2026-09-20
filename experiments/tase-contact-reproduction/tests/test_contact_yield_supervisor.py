@@ -51,7 +51,7 @@ def test_ack_is_not_completion_and_observers_span_body_and_stop():
     s,body,t,events=rig()
     result=s.run(body)
     assert result['success']
-    assert events[:3]==['observer.start','video.start','load /programs/test.urp']
+    assert events[:3]==['video.start','observer.start','load /programs/test.urp']
     assert events.index('body')<events.index('stop')<events.index('observer.close')
     assert result['dashboard_stop']['sample']['received_monotonic_s']>=t.stop_at+.1
     assert t.stop_at-t.play_at>=1.1

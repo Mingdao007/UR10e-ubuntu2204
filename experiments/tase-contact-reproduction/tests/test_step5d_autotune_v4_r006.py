@@ -407,6 +407,9 @@ def test_terminal_dispositions_hard_stop_and_crash_resume_identity(tmp_path: Pat
     with pytest.raises(R006RuntimeError):
         lifecycle.safe_return()
     assert apply_disposition(ResidentLifecycle(), Disposition.SAFE_NONTRAINABLE) == "CONTINUE_AT_HOME"
+    hard_lifecycle = ResidentLifecycle()
+    assert apply_disposition(hard_lifecycle, Disposition.SAFETY_OR_RETURN_FAILURE) == "STOP_AND_RECOVER_HOME"
+    assert hard_lifecycle.state is LifecycleState.STOPPED
     store_path = tmp_path / "attempt-store"
     store = OfflineR006AttemptStore(store_path)
     identity = AttemptIdentity(9, "execution-9", "logical-9", "BO_TRIAL", ANCHOR_POINT)
