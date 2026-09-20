@@ -10,7 +10,7 @@ from contact_yield_math import so3_exp
 from contact_yield_task_frame import FIGURE8_CONTACT_HOME_XYZ_M
 HOME=[*FIGURE8_CONTACT_HOME_XYZ_M,2.033134243,2.394988424,0.]
 
-@pytest.mark.parametrize('failure',[None,'reload','no_release','stale','user_interrupt'])
+@pytest.mark.parametrize('failure',[None,'reload','no_release','stale','user_interrupt','home_failure'])
 def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure):
     clock=SimpleNamespace(t=100.,played=None)
     events=[]
@@ -84,7 +84,7 @@ def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure)
     def home(args):
         events.append('home')
         assert events[-2]=='unlock'
-        return {'success':True}
+        return {'success':failure != 'home_failure', 'error':'Home read-back failed'}
     monkeypatch.setattr(runner,'run_home',home)
     source=tmp_path/'source';source.mkdir()
     (source/'software_baseline_receipt.json').write_text(json.dumps({'eoat_identity_sha256':'tool','mean_wrench_n_nm':[0.]*6,'std_wrench_n_nm':[.02]*6}))
@@ -92,10 +92,13 @@ def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure)
     args=SimpleNamespace(source_run=source,output=tmp_path/'recovery',readback_proof_dir=tmp_path,readback_dir=tmp_path,host='fake',video_url='fake',execute=True)
     result=runner.run(args)
     assert result['success'] is (failure is None),result
-    assert ('home' in events) is (failure is None)
-    if failure:
+    assert ('home' in events) is (failure in (None, 'home_failure'))
+    if failure and failure != 'home_failure':
         assert 'lift_stop' in events
         assert events.index('lift_stop')<events.index('unlock')
+    if failure == 'home_failure':
+        assert result['state']=='BLOCKED'
+        assert 'Home read-back failed' in result['error']
     assert (args.output/'result.json').exists()
 
 

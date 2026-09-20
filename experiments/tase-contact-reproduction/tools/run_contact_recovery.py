@@ -284,7 +284,17 @@ def run(args):
         obs.close();sensor.close();video.close();video=None
         lease.__exit__(None,None,None);lease_held=False
         home_args=SimpleNamespace(host=args.host,home_receipt=home_receipt,validation=Path(args.readback_proof_dir)/f'{BASENAME}-validation.json',package_dir=packages,readback_dir=Path(args.readback_dir)/BASENAME,output=out/'home',execute=True)
-        result['home']=run_home(home_args);result['success']=result['home']['success']
+        result['home']=run_home(home_args)
+        if result['home'].get('success') is not True:
+            # A Home owner may return a structured failure instead of
+            # raising (for example, a final read-back or stop proof can fail).
+            # That is still the only non-Home terminal state: persist it as an
+            # explicit BLOCKED recovery rather than leaving an ambiguous
+            # ``success: false`` record that looks like a completed route.
+            result['state']='BLOCKED'
+            result['error']=str(result['home'].get('error','verified Home was not completed'))
+            result['trial_stays_failed']=True
+        result['success']=result['home'].get('success') is True
     except BaseException as exc:
         result['state']='BLOCKED'
         result['error']=f'{type(exc).__name__}: {exc}'
