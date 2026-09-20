@@ -870,6 +870,58 @@ def test_protective_stop_attempts_home_before_terminalizing() -> None:
     assert receipt.home_attempted is True
 
 
+@pytest.mark.parametrize(
+    ("message", "failure_class"),
+    [
+        ("emergency stop asserted", "EMERGENCY_STOP"),
+        ("home unsafe was reported", "HOME_UNSAFE"),
+    ],
+)
+def test_stage_failure_never_uses_failure_label_as_no_home_veto(
+    tmp_path: Path, message: str, failure_class: str
+) -> None:
+    """Every owner failure still calls the automatic Home capability once."""
+
+    from types import SimpleNamespace
+
+    from run_v4_stage_live import _record_recovery_failure
+    from step5d_autotune_v4_r013.v4_two_stage_campaign import V4Stage
+
+    calls: list[str] = []
+
+    class Campaign:
+        in_flight = SimpleNamespace(ordinal=1)
+        attempt_count = 0
+
+        def record_failure(self, *args, **kwargs):
+            self.recorded = (args, kwargs)
+
+        def record_recoverable_failure(self, *args, **kwargs):
+            self.recorded = (args, kwargs)
+
+        def status(self):
+            return {"recorded": True}
+
+    context = SimpleNamespace(
+        safe_home_after_failure=lambda: calls.append("home")
+        or {"home_verified": True}
+    )
+    receipt = _record_recovery_failure(
+        stage_campaign=Campaign(),
+        run_dir=tmp_path / "run",
+        status_path=tmp_path / "status.json",
+        stage=V4Stage.FF_IOFF_100,
+        error=RuntimeError(message),
+        context=context,
+    )
+
+    assert receipt is not None
+    assert receipt.failure_class.value == failure_class.lower()
+    assert calls == ["home"]
+    assert receipt.home_attempted is True
+    assert receipt.home_status.value == "verified"
+
+
 def test_recovery_rejects_stale_resident_epoch_before_resume() -> None:
     from step5d_autotune_v4_r013.recovery import (
         safe_home_then_resume_for_recoverable_failures_only,

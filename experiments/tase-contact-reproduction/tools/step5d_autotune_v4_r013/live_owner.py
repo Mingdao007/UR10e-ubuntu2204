@@ -1974,15 +1974,18 @@ def build_r013_live_context(
             return configure_r013_handoff_policy(policy)
 
         def safe_home_permitted(failure: Any) -> bool:
-            """Report whether the fault itself proves Home unsafe.
+            """Keep the historical field true; it is not a Home veto.
 
-            This value is evidence only.  Recovery always invokes the owner
-            Home callback when it exists; that callback performs the live
-            quiescence and identity checks and can return a blocked receipt.
+            Recovery invokes ``safe_home_after_failure`` for every failure
+            class.  The callback performs the live quiescence, transport, and
+            identity checks and records a failed/blocked Home receipt when the
+            physical command cannot be completed.  In particular, an
+            Emergency Stop or a label such as ``HOME_UNSAFE`` must not silently
+            strand the robot under the old no-auto-Home policy.
             """
 
-            failure_class = getattr(getattr(failure, "failure_class", None), "value", None)
-            return failure_class not in {"emergency_stop", "home_unsafe"}
+            del failure
+            return True
 
         def safe_home_after_failure() -> Mapping[str, Any]:
             runtime.home()
