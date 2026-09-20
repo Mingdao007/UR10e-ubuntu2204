@@ -330,10 +330,10 @@ def _record_recovery_failure(
     owner_home = getattr(context, "safe_home_after_failure", None)
     # Home is the first response to every failure.  Do not turn a failure
     # label, including Protective Stop, Emergency Stop, or HOME_UNSAFE, into a
-    # silent ``STOP_AND_REVOKE_NO_AUTO_HOME`` outcome.  The verified owner
-    # callback is the only place that can decide whether a physical Home
-    # command can actually be issued; if it cannot, its blocked/failed receipt
-    # is retained after the attempt has been made.
+    # silent revoke-only outcome.  The verified owner callback is the only
+    # place that can decide whether a physical Home command can actually be
+    # issued; if it cannot, its blocked/failed receipt is retained after the
+    # attempt has been made.
     home_action = owner_home if callable(owner_home) else None
     receipt = safe_home_then_resume_for_recoverable_failures_only(
         failure=evidence,
