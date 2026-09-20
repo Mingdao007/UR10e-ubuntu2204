@@ -4,7 +4,11 @@ import json
 from pathlib import Path
 import numpy as np
 import pytest
-from tase_contact_provider import TaseContactProvider, current_model_binding
+from tase_contact_provider import (
+    TASE_PAPER_OUTER_CONFIG,
+    TaseContactProvider,
+    current_model_binding,
+)
 from step5d_autotune_v4.contracts import V4Candidate
 from step5d_autotune_v4_r014.solver_profile import LEGACY_R1
 from contact_yield_live_writer import native_motion_profile, _prewarm_observation
@@ -44,6 +48,28 @@ def test_real_rnn_full_state_replay_and_json_snapshot(provider):
     np.testing.assert_array_equal(first.qdot,second.qdot)
     assert p.last_result['phase']=='entry'
     assert p.solver_profile.profile_id=='legacy-r1'
+
+
+def test_live_tase_binds_paper_outer_parameters(provider):
+    config = provider.runtime.outer_loop_config
+    assert config is TASE_PAPER_OUTER_CONFIG
+    assert (config.kp, config.ko, config.kf, config.Md_scalar, config.Bd_scalar) == (
+        4.0, 5.0, 1.0, 12.0, 550.0
+    )
+    # The R006 candidate has a different derived force mapping; checking the
+    # runtime binding prevents candidate tuning from silently replacing the
+    # TASE Eq. 16/17 anchors.
+    assert provider.runtime.candidate.motion_kp != config.kp
+    o, s = tick(provider, .002)
+    provider.command(
+        output=o,
+        sensor=s,
+        monotonic_s=.002,
+        actual_dt_s=.002,
+        mode='baseline',
+        internal_setpoint_n=1.,
+    )
+    assert provider.last_result['outer_loop_binding']['equations'] == ['Eq16', 'Eq17']
 
 
 def test_stale_observation_does_not_advance_control_state(provider):

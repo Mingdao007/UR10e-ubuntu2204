@@ -22,6 +22,40 @@ from contact_yield_task_frame import require_figure8_home
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime
 from step5d_autotune_v4_r004.timing import MAX_FRESH_GAP_S
+from step5d_paper_outer_loop import Step5dOuterLoopConfig
+
+
+# Parameters copied from config/step5c_tase_paper_truth.json (Eq. 16/17).
+# Runtime-only setpoint, actual dt, integral authority and normal-velocity
+# safety limits are applied by V4CalibratedRuntime on each live tick.
+TASE_PAPER_OUTER_CONFIG = Step5dOuterLoopConfig(
+    kp=4.0,
+    ko=5.0,
+    kf=1.0,
+    Md_scalar=12.0,
+    Bd_scalar=550.0,
+    force_target_n=5.0,
+    force_integral_limit_n_s=5.0,
+    delay_T_s=None,
+    force_sign_convention='step5_step6_positive_normal_load',
+)
+
+TASE_PAPER_OUTER_BINDING = {
+    'source': 'config/step5c_tase_paper_truth.json',
+    'equations': ['Eq16', 'Eq17'],
+    'paper_parameters': {
+        'kp': 4.0,
+        'ko': 5.0,
+        'kf': 1.0,
+        'Md_scalar': 12.0,
+        'Bd_scalar': 550.0,
+    },
+    'live_adaptations': [
+        'force target from internal setpoint',
+        'delay T from actual dt',
+        'shared live integral and normal-velocity safety limits',
+    ],
+}
 
 
 @dataclass(frozen=True)
@@ -41,7 +75,10 @@ def current_model_binding():
     paths = {'ur_xacro': DEFAULT_XACRO_PATH, 'calibration_yaml': DEFAULT_CALIBRATION_YAML,
         'strict_rnn': root/'tools/step5c_strict_rnn.py',
         'paper_outer': root/'tools/step5d_paper_outer_loop.py',
-        'calibrated_runtime': root/'tools/step5d_autotune_v4_r004/calibrated_runtime.py'}
+        'calibrated_runtime': root/'tools/step5d_autotune_v4_r004/calibrated_runtime.py',
+        # The live adapter selects the paper-anchored outer loop here; bind
+        # this seam too so a run cannot claim the old provider identity.
+        'tase_provider': Path(__file__).resolve()}
     hashes = {name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name,path in paths.items()}
     return TaseModelBinding({'robot_model_binding': {
         name+'_path': str(Path(path).resolve()) for name,path in paths.items()}}, hashes)
@@ -65,7 +102,8 @@ class TaseContactProvider(ContactCommandProvider):
         self.runtime = V4CalibratedRuntime(
             contract, candidate, motion_profile=motion_profile,
             solver_profile=solver_profile, path_reference=self.reference,
-            target_rotvec=pose[3:], force_normal_velocity_limit_m_s=.003)
+            target_rotvec=pose[3:], force_normal_velocity_limit_m_s=.003,
+            outer_loop_config=TASE_PAPER_OUTER_CONFIG)
         self.contract = contract
         self.model_hashes = dict(self.runtime.model_hashes)
         self.solver_profile = solver_profile
@@ -211,7 +249,8 @@ class TaseContactProvider(ContactCommandProvider):
                 'entry_time_s': t if phase == 'entry' else None,
                 'formal_time_s': t if phase == 'path' else None,
                 'actual_dt_s': actual_dt_s, 'solver': copy.deepcopy(self.runtime.last_solver_diagnostics),
-                'implementation': 'mature_local_tase_rnn'}
+                'implementation': 'mature_local_tase_rnn',
+                'outer_loop_binding': copy.deepcopy(TASE_PAPER_OUTER_BINDING)}
             return command
         except BaseException:
             self.restore(checkpoint)

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
@@ -172,11 +172,23 @@ class V4CalibratedRuntime:
         solver_profile: SolverProfile | QpSolverProfile = LEGACY_R1,
         path_reference=None,
         target_rotvec: Sequence[float] = TARGET_ROTVEC,
+        outer_loop_config: Step5dOuterLoopConfig | None = None,
     ) -> None:
         if path_reference is not None and not callable(path_reference):
             raise CalibratedRuntimeError("path_reference must be callable")
         self.path_reference = path_reference
         self.target_rotvec = _finite_vector(target_rotvec, 3, "target_rotvec").copy()
+        if outer_loop_config is not None and not isinstance(
+            outer_loop_config, Step5dOuterLoopConfig
+        ):
+            raise CalibratedRuntimeError(
+                "outer_loop_config must be a typed Step5dOuterLoopConfig"
+            )
+        # ``None`` preserves the historical candidate-derived path used by
+        # the other V4 runtime callers.  TASE's live adapter passes the
+        # paper-anchored config explicitly so candidate tuning cannot silently
+        # replace the published outer-loop parameters.
+        self.outer_loop_config = outer_loop_config
         self.contract = contract
         self.candidate = candidate
         if motion_profile is not None:
@@ -521,9 +533,9 @@ class V4CalibratedRuntime:
             + (float(filtered_normal_n) - raw_normal) * reaction_normal_base
         )
         filtered_force_tcp = rotation_base_from_tcp.T @ filtered_force_base
-        terms = derive_force_terms(self.candidate)
-        output = compute_step5d_outer_loop(
-            Step5dOuterLoopConfig(
+        if self.outer_loop_config is None:
+            terms = derive_force_terms(self.candidate)
+            outer_config = Step5dOuterLoopConfig(
                 kp=self.candidate.motion_kp,
                 ko=self.candidate.orientation_ko,
                 kf=terms["kf"],
@@ -536,7 +548,24 @@ class V4CalibratedRuntime:
                 force_normal_velocity_limit_m_s=self.force_normal_velocity_limit_m_s,
                 delay_T_s=float(actual_dt_s),
                 force_sign_convention="step5_step6_positive_normal_load",
-            ),
+            )
+        else:
+            # Keep the TASE paper gains (kp=4, ko=5, kf=1, Md=12, Bd=550)
+            # fixed.  Only values that are necessarily live/runtime-specific
+            # are adapted: the requested setpoint, actual sample interval and
+            # the shared integral/safety limits.
+            outer_config = replace(
+                self.outer_loop_config,
+                force_target_n=float(internal_setpoint_n),
+                force_integral_limit_n_s=float(self.force_integral_limit_n_s),
+                force_integral_policy=self.force_integral_policy,
+                force_integral_authority_error_n=self.force_integral_authority_error_n,
+                force_normal_velocity_limit_m_s=self.force_normal_velocity_limit_m_s,
+                delay_T_s=float(actual_dt_s),
+                force_sign_convention="step5_step6_positive_normal_load",
+            )
+        output = compute_step5d_outer_loop(
+            outer_config,
             self._outer_state,
             Step5dOuterLoopInputs(
                 tcp_pose_base=tuple(float(value) for value in pose),
