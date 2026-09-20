@@ -21,17 +21,22 @@ class ContactReadinessObserver:
     It observes every acquisition tick, including stationary seams. The native
     controller's separate vector filter follows the explicit freeze-carry policy.
     """
-    def __init__(self, tau_s):
+    def __init__(self, tau_s, *, max_dt_s=.004, strict_dt_upper=False):
         if not math.isfinite(tau_s) or tau_s <= 0:
             raise ValueError('invalid readiness filter time constant')
+        if not math.isfinite(max_dt_s) or max_dt_s <= 0:
+            raise ValueError('invalid readiness interval bound')
+        self.max_dt_s=max_dt_s
+        self.strict_dt_upper=strict_dt_upper
         self.tau_s=tau_s
         self.filtered_normal_n=None
         self.last_log=None
 
     def step(self, *, actual_dt_s, raw_normal_n, setpoint_n, mode,
              orientation_error_rad=(0.,0.,0.), tangential_error_m=(0.,0.)):
-        if not math.isfinite(actual_dt_s) or not 0 < actual_dt_s <= .004:
-            raise ValueError('readiness observation interval outside (0,4ms]')
+        upper = actual_dt_s < self.max_dt_s if self.strict_dt_upper else actual_dt_s <= self.max_dt_s
+        if not math.isfinite(actual_dt_s) or actual_dt_s <= 0 or not upper:
+            raise ValueError(f'readiness observation interval outside configured bound {self.max_dt_s}s')
         if not math.isfinite(raw_normal_n):
             raise ValueError('nonfinite readiness force')
         if self.filtered_normal_n is None:

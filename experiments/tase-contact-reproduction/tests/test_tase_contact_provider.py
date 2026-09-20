@@ -96,3 +96,31 @@ def test_mature_owner_factory_restores_real_solver_before_endpoints(tmp_path):
         assert control._runtime is p
     finally:
         runtime.close()
+
+
+@pytest.mark.parametrize('dt', [.006, .012, .019])
+def test_mature_actual_dt_uses_existing_twenty_ms_timing_bound(provider, dt):
+    o,s=tick(provider,.002)
+    provider.command(output=o,sensor=s,monotonic_s=.002,actual_dt_s=.002,
+                     mode='baseline',internal_setpoint_n=1.)
+    o,s=tick(provider,.002+dt)
+    provider.lifecycle_observer.step(actual_dt_s=dt,raw_normal_n=1.,setpoint_n=1.,mode='path')
+    result=provider.command(output=o,sensor=s,monotonic_s=.002+dt,actual_dt_s=dt,
+                            mode='path',path_time_s=.01,internal_setpoint_n=1.)
+    assert np.isfinite(result.qdot).all()
+    assert provider.last_result['actual_dt_s']==dt
+
+
+def test_mature_twenty_ms_is_rejected_even_on_first_tick(provider):
+    o,s=tick(provider,.02)
+    before=provider.snapshot()
+    with pytest.raises(ValueError,match='timing bound'):
+        provider.command(output=o,sensor=s,monotonic_s=.02,actual_dt_s=.02,
+                         mode='path',path_time_s=0.,internal_setpoint_n=1.)
+    assert provider.snapshot()==before
+
+
+def test_native_readiness_default_still_rejects_above_four_ms():
+    from contact_benchmark_provider import ContactReadinessObserver
+    with pytest.raises(ValueError,match='interval'):
+        ContactReadinessObserver(.1).step(actual_dt_s=.006,raw_normal_n=1.,setpoint_n=1.,mode='baseline')

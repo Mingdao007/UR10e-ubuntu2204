@@ -21,6 +21,7 @@ from contact_yield_protocol import Task, PERIOD_S
 from contact_yield_task_frame import require_figure8_home
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime
+from step5d_autotune_v4_r004.timing import MAX_FRESH_GAP_S
 
 
 @dataclass(frozen=True)
@@ -59,7 +60,8 @@ class TaseContactProvider(ContactCommandProvider):
         self.freshness = SensorFreshnessTracker()
         self.last_result = self.last_pause = None
         self.command_history = None
-        self.lifecycle_observer = ContactReadinessObserver(candidate.normal_filter_tau_s)
+        self.lifecycle_observer = ContactReadinessObserver(candidate.normal_filter_tau_s,
+            max_dt_s=MAX_FRESH_GAP_S, strict_dt_upper=True)
         self.runtime = V4CalibratedRuntime(
             contract, candidate, motion_profile=motion_profile,
             solver_profile=solver_profile, path_reference=self.reference,
@@ -111,7 +113,9 @@ class TaseContactProvider(ContactCommandProvider):
         for name, value in state.items():
             setattr(self, name, value)
 
-    def _observe(self, output, sensor, now, dt, *, maximum=.004):
+    def _observe(self, output, sensor, now, dt, *, maximum=MAX_FRESH_GAP_S):
+        if not math.isfinite(dt) or not 0 < dt < maximum:
+            raise ValueError('TASE actual interval outside mature timing bound')
         if sensor.stop_request or not output.safety_normal:
             raise ValueError('TASE observation requests stop')
         if self.last_sample_s is not None and not math.isclose(now-self.last_sample_s, dt, abs_tol=1e-7, rel_tol=0):
