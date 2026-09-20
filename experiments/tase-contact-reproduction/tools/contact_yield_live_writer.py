@@ -589,6 +589,13 @@ class NativeYieldLiveWriter(R006LiveWriter):
     """
 
     @staticmethod
+    def _new_qualification_timing_collector():
+        # Reuse the collector already used by the successful R013 live route.
+        # Same distinct echoes and 460 Hz threshold; no global runtime patch.
+        from step5d_autotune_v4_r013.live_runtime import R013LightweightTimingEvidenceCollector
+        return R013LightweightTimingEvidenceCollector()
+
+    @staticmethod
     def _next_publish_deadline(previous_s: float, period_s: float, now_s: float) -> float:
         """Poll the latest due slot without adding a cycle after a small overrun.
 

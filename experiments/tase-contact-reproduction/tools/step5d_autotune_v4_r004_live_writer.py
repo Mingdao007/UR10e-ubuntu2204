@@ -1481,6 +1481,11 @@ class LiveR004Writer:
             deadline += (math.floor((now_s - deadline) / period_s) + 1) * period_s
         return deadline
 
+    @staticmethod
+    def _new_qualification_timing_collector():
+        # Keep the legacy/R013 scoped binding for historical owners.
+        return TimingEvidenceCollector()
+
     def execute_attempt(
         self,
         attempt: Attempt,
@@ -1519,7 +1524,7 @@ class LiveR004Writer:
                 PathEvidenceCollector(require_path_boundary=True) if path_requested else None
             )
         qualification_collector = QualificationEvidenceCollector() if not path_requested else None
-        qualification_timing = TimingEvidenceCollector()
+        qualification_timing = self._new_qualification_timing_collector()
         self._r013_path_end_requested = False
         self._r013_path_end_request_sequence = None
         self._r013_path_end_request_mono_s = None
