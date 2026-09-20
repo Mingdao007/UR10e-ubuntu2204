@@ -1974,16 +1974,15 @@ def build_r013_live_context(
             return configure_r013_handoff_policy(policy)
 
         def safe_home_permitted(failure: Any) -> bool:
-            """Owner capability: protective/raw anomaly stops cannot Home."""
+            """Report whether the fault itself proves Home unsafe.
+
+            This value is evidence only.  Recovery always invokes the owner
+            Home callback when it exists; that callback performs the live
+            quiescence and identity checks and can return a blocked receipt.
+            """
 
             failure_class = getattr(getattr(failure, "failure_class", None), "value", None)
-            return not bool(getattr(failure, "safety_fault", False)) and failure_class not in {
-                "protective_stop",
-                "emergency_stop",
-                "raw_sensor_anomaly",
-                "joint_anomaly",
-                "home_unsafe",
-            }
+            return failure_class not in {"emergency_stop", "home_unsafe"}
 
         def safe_home_after_failure() -> Mapping[str, Any]:
             runtime.home()

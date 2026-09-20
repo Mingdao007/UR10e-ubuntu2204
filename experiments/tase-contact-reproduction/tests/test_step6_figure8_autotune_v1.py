@@ -1744,7 +1744,7 @@ def test_mature_profile_seam_keeps_cycloid_defaults_and_figure8_profile() -> Non
     assert writer.writer._path_duration_s == 60.0
 
 
-def test_safety_fault_latches_and_never_auto_homes_or_retries(tmp_path: Path) -> None:
+def test_safety_fault_attempts_home_before_latching_without_retry(tmp_path: Path) -> None:
     config, fingerprint = _fingerprint()
     scheduler = FigureEightSchedulerV1(PersistedSobolCursorV1(tmp_path / "sobol.json"))
     plan = scheduler.ask()
@@ -1762,7 +1762,13 @@ def test_safety_fault_latches_and_never_auto_homes_or_retries(tmp_path: Path) ->
             writer=writer, campaign=campaign, scheduler=scheduler,
             fingerprint=fingerprint, candidate=plan.candidate, trial_id="fault", epoch_id="e1",
         )
-    assert writer.events == ["Home", "ARM/apply", "60 s PATH", "release:force_hard_fault"]
+    assert writer.events == [
+        "Home",
+        "ARM/apply",
+        "60 s PATH",
+        "Home",
+        "release:force_hard_fault",
+    ]
 
 
 def test_convergence_batches_never_stop_before_exact_novel_target(tmp_path: Path) -> None:

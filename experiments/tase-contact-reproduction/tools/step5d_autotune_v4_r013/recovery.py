@@ -1,4 +1,10 @@
-"""Fail-closed recovery decision seam for the V4 stage owner."""
+"""Fail-closed recovery decision seam for the V4 stage owner.
+
+Every failure asks the verified owner for its automatic Home operation.  The
+failure remains terminal when appropriate, and a Home operation that cannot
+be established or verified remains ``BLOCKED``.  A caller must not silently
+turn ``home_permitted=False`` into a revoke-only outcome.
+"""
 
 from __future__ import annotations
 
@@ -27,13 +33,19 @@ def safe_home_then_resume_for_recoverable_failures_only(
     dispatched_ids: Iterable[str] = (),
     home_action: Callable[[], Any] | None = None,
 ) -> V4RecoveryReceiptV1:
-    """Apply the sole recovery seam: safe Home first, then fresh resume only.
+    """Apply the sole recovery seam: automatic Home first, then fresh resume.
 
-    ``home_action`` is an owner-provided capability.  The runner never calls
-    it unless the owner evidence explicitly sets ``home_permitted``.  This
-    helper only returns ``auto_dispatch_permitted`` after a new resident epoch
-    and readiness are supplied; callers must use the stage campaign's typed
-    ``resume_after_recovery`` boundary to create the next append-only dispatch.
+    ``home_action`` is an owner-provided safety capability.  If it exists, it
+    is attempted for every failure, including protective, force, sensor, and
+    identity faults.  The owner callback performs the physical safety checks
+    and can return ``home_blocked`` when those checks cannot be established.
+    ``home_permitted`` is retained as evidence about the fault; it is not a
+    silent veto that strands the robot after authority is revoked.
+
+    This helper only returns ``auto_dispatch_permitted`` after a new resident
+    epoch and readiness are supplied; callers must use the stage campaign's
+    typed ``resume_after_recovery`` boundary to create the next append-only
+    dispatch.
     """
 
     if current_attempt_ordinal <= 0 or attempt_count < current_attempt_ordinal:
@@ -52,14 +64,10 @@ def safe_home_then_resume_for_recoverable_failures_only(
     home_receipt: Mapping[str, Any] | None = None
     if failure.home_verified:
         home_status = V4HomeStatus.VERIFIED
-    elif not failure.home_permitted:
-        home_status = (
-            V4HomeStatus.BLOCKED
-            if failure.protective_stop or failure.emergency_stop
-            else V4HomeStatus.NOT_PERMITTED
-        )
     elif home_action is None:
-        home_status = V4HomeStatus.FAILED
+        # No owner capability is a real recovery blocker.  It is never
+        # represented as the old revoke-only ``NOT_PERMITTED`` disposition.
+        home_status = V4HomeStatus.BLOCKED
     else:
         home_attempted = True
         try:

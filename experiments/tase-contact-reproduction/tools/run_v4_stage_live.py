@@ -328,7 +328,19 @@ def _record_recovery_failure(
     )
     current_attempt = stage_campaign.in_flight
     owner_home = getattr(context, "safe_home_after_failure", None)
-    home_action = owner_home if evidence.home_permitted and callable(owner_home) else None
+    # Home is the first response to every commandable failure.  Only an
+    # explicitly unsafe Home condition (or an emergency stop) suppresses the
+    # command; the owner callback owns the remaining physical quiescence,
+    # safety, and identity checks.  The evidence flag must not silently create
+    # a revoke-only terminal state for an ordinary protective/force/sensor
+    # fault.
+    home_action = (
+        owner_home
+        if callable(owner_home)
+        and evidence.failure_class
+        not in {V4FailureClass.HOME_UNSAFE, V4FailureClass.EMERGENCY_STOP}
+        else None
+    )
     receipt = safe_home_then_resume_for_recoverable_failures_only(
         failure=evidence,
         current_attempt_ordinal=current_attempt.ordinal,

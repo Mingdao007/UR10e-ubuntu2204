@@ -327,8 +327,22 @@ class CandidateWriter(Protocol):
     def release_ownership(self, reason: str) -> None: ...
 
 
+def _automatic_home_after_fault(writer: Any) -> None:
+    """Run the writer's first-response Home seam before releasing authority."""
+
+    recover = getattr(writer, "recoverable_home", None)
+    if callable(recover):
+        recover()
+        return
+    home = getattr(writer, "home", None)
+    if callable(home):
+        home()
+        return
+    raise FigureEightError("fault recovery has no automatic Home seam")
+
+
 class SafetyFaultError(RuntimeError):
-    """Latched physical fault: evidence/release only, never retry or Home."""
+    """Latched physical fault: Home first, then evidence/release without retry."""
 
 
 @dataclass
@@ -615,7 +629,15 @@ def execute_candidate_transaction(
     """Execute one supplied writer transaction in the fixed observable order."""
     typed_candidate = CompleteCandidateV1.from_mapping(candidate)
     samples: list[Mapping[str, Any]] = []
-    safety_fault = False
+    fault_home_attempted = False
+
+    def automatic_fault_home() -> None:
+        nonlocal fault_home_attempted
+        if fault_home_attempted:
+            return
+        fault_home_attempted = True
+        _automatic_home_after_fault(writer)
+
     try:
         writer.home()
         writer.arm_apply(typed_candidate.as_dict())
@@ -644,16 +666,18 @@ def execute_candidate_transaction(
                 mae_n=receipt.sealed_mae_n,
                 fingerprint_sha256=fingerprint.sha256,
             )
-        if hasattr(writer, "recoverable_home"):
-            writer.recoverable_home()
-        else:
-            writer.home()
+        automatic_fault_home()
         return receipt
     except SafetyFaultError as exc:
-        safety_fault = True
-        # Preserve the partial raw evidence and release ownership.  There is
-        # deliberately no retry and no automatic Home motion on a latched
-        # protective/force/torque/sensor fault.
+        # Preserve the partial raw evidence, but make the first response an
+        # automatic Home attempt.  A latched protective stop or lost
+        # transport can block that seam; in that case the blocked recovery is
+        # retained and authority is still released without retry.
+        recovery_error: Exception | None = None
+        try:
+            automatic_fault_home()
+        except Exception as recovery_exc:
+            recovery_error = recovery_exc
         try:
             trial = TrialEvidenceV1(
                 epoch_id=epoch_id,
@@ -663,7 +687,14 @@ def execute_candidate_transaction(
                 timing_gate=False,
                 metric_result=None,
                 raw_samples=tuple(samples),
-                evidence={"safety_fault": str(exc), "latched": True},
+                evidence={
+                    "safety_fault": str(exc),
+                    "latched": True,
+                    "automatic_home": recovery_error is None,
+                    "automatic_home_error": (
+                        None if recovery_error is None else str(recovery_error)
+                    ),
+                },
             )
             receipt = campaign.tell_exact(candidate=typed_candidate.as_dict(), trial=trial)
             if scheduler.in_flight is not None:
@@ -672,13 +703,26 @@ def execute_candidate_transaction(
             writer.release_ownership(str(exc))
         raise
     except Exception as exc:
-        # Ordinary pre-motion failures may be repaired by a later unchanged
-        # fingerprint; this transaction records the failure and uses only the
-        # writer's mature recoverable Home seam when available.
+        # Every failure gets the same best-effort automatic Home response.  A
+        # later unchanged fingerprint may repair an ordinary failure, but the
+        # current transaction is never retried in place.
+        try:
+            automatic_fault_home()
+        except Exception:
+            # Preserve the original transaction exception; the owner/release
+            # layer records the blocked Home attempt separately.
+            pass
         if scheduler.in_flight is not None:
-            scheduler.complete(scheduler.in_flight, accepted=False, failure_signature=f"ordinary_failure:{type(exc).__name__}")
-        if not safety_fault and hasattr(writer, "recoverable_home"):
-            writer.recoverable_home()
+            try:
+                scheduler.complete(
+                    scheduler.in_flight,
+                    accepted=False,
+                    failure_signature=f"ordinary_failure:{type(exc).__name__}",
+                )
+            except Exception:
+                # The original fault remains authoritative; a ledger/report
+                # failure must not suppress the automatic Home attempt.
+                pass
         raise
 
 

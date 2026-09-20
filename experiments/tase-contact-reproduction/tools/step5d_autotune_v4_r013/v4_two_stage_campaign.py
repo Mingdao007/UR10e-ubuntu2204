@@ -155,6 +155,8 @@ class V4FailureEvidenceV1:
 
     failure_class: V4FailureClass
     reason: str
+    # Evidence about whether the fault itself proves Home unsafe. Recovery
+    # still invokes the owner Home capability when one is available.
     home_permitted: bool
     home_verified: bool = False
     safety_fault: bool = False

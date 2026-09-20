@@ -834,7 +834,7 @@ def test_force_invariant_homes_when_permitted_but_is_terminal(tmp_path: Path) ->
     assert receipt.auto_dispatch_permitted is False
 
 
-def test_protective_stop_records_home_blocked_without_home_attempt() -> None:
+def test_protective_stop_attempts_home_before_terminalizing() -> None:
     from step5d_autotune_v4_r013.recovery import (
         safe_home_then_resume_for_recoverable_failures_only,
     )
@@ -861,12 +861,13 @@ def test_protective_stop_records_home_blocked_without_home_attempt() -> None:
         fresh_epoch=None,
         fresh_readiness=False,
         dispatch_in_flight=False,
-        home_action=lambda: home_calls.append("must-not-run") or {"home_verified": True},
+        home_action=lambda: home_calls.append("home") or {"home_verified": True},
     )
-    assert home_calls == []
+    assert home_calls == ["home"]
     assert receipt.disposition is V4FailureDisposition.HARD_TERMINAL
-    assert receipt.status is V4RecoveryStatus.HOME_BLOCKED
-    assert receipt.home_status is V4HomeStatus.BLOCKED
+    assert receipt.status is V4RecoveryStatus.TERMINAL
+    assert receipt.home_status is V4HomeStatus.VERIFIED
+    assert receipt.home_attempted is True
 
 
 def test_recovery_rejects_stale_resident_epoch_before_resume() -> None:
