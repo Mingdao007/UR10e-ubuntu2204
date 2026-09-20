@@ -222,7 +222,7 @@ class TaseOfflineProvider:
             "qp": self.qp.snapshot(),
         }
 
-    def restore(self, state: dict[str, Any]) -> None:
+    def _restore_unchecked(self, state: dict[str, Any]) -> None:
         try:
             outer = state["outer_loop"]
             force_integral = float(outer["force_integral_n_s"])
@@ -238,6 +238,23 @@ class TaseOfflineProvider:
         self.rnn.restore(state["rnn"])
         self.qp.restore(state["qp"])
 
+    def restore(self, state: dict[str, Any]) -> None:
+        """Restore the complete boundary atomically.
+
+        Solver restore can fail after validating the outer-loop section. Keep
+        a local rollback point so a malformed or incompatible snapshot cannot
+        leave a provider with mixed outer/RNN/QP state.
+        """
+        before = self.snapshot()
+        try:
+            self._restore_unchecked(state)
+        except Exception as exc:
+            try:
+                self._restore_unchecked(before)
+            except Exception as rollback_exc:  # pragma: no cover - invariant breach
+                raise RuntimeError("TASE provider restore rollback failed") from rollback_exc
+            raise exc
+
     def step(
         self,
         inputs: Step5dOuterLoopInputs,
@@ -247,24 +264,29 @@ class TaseOfflineProvider:
         omega_plus: Any,
         include_diagnostics: bool | str = True,
     ) -> TaseOfflineProviderStep:
-        outer = compute_step5d_outer_loop(
-            self.outer_config,
-            self.outer_state,
-            inputs,
-            include_diagnostics=include_diagnostics,
-        )
-        self.outer_state = outer.next_state
-        sample = TaseJointSample(
-            jacobian=jacobian,
-            xdot_c=np.asarray(outer.xdot_c, dtype=float),
-            omega_minus=omega_minus,
-            omega_plus=omega_plus,
-            dt_s=inputs.dt_s,
-            cmd_valid=outer.cmd_valid,
-        )
-        rnn = self.rnn.step(sample)
-        qp = self.qp.step(sample)
-        return TaseOfflineProviderStep(outer=outer, sample=sample, rnn=rnn, qp=qp)
+        before = self.snapshot()
+        try:
+            outer = compute_step5d_outer_loop(
+                self.outer_config,
+                self.outer_state,
+                inputs,
+                include_diagnostics=include_diagnostics,
+            )
+            self.outer_state = outer.next_state
+            sample = TaseJointSample(
+                jacobian=jacobian,
+                xdot_c=np.asarray(outer.xdot_c, dtype=float),
+                omega_minus=omega_minus,
+                omega_plus=omega_plus,
+                dt_s=inputs.dt_s,
+                cmd_valid=outer.cmd_valid,
+            )
+            rnn = self.rnn.step(sample)
+            qp = self.qp.step(sample)
+            return TaseOfflineProviderStep(outer=outer, sample=sample, rnn=rnn, qp=qp)
+        except Exception:
+            self._restore_unchecked(before)
+            raise
 
 
 def compare_joint_baselines(

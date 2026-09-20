@@ -146,7 +146,7 @@ class TaseOfflineMethodAdapter:
             "solver": self.solver.snapshot(),
         }
 
-    def restore(self, state: Mapping[str, Any]) -> None:
+    def _restore_unchecked(self, state: Mapping[str, Any]) -> None:
         if (
             state.get("schema") != self.schema
             or state.get("method_name") != self.method_name
@@ -171,6 +171,18 @@ class TaseOfflineMethodAdapter:
         )
         self.solver.restore(dict(solver_state))
         self.stopped = bool(state["stopped"])
+
+    def restore(self, state: Mapping[str, Any]) -> None:
+        """Restore outer and solver state as one transaction."""
+        before = self.snapshot()
+        try:
+            self._restore_unchecked(state)
+        except Exception as exc:
+            try:
+                self._restore_unchecked(before)
+            except Exception as rollback_exc:  # pragma: no cover - invariant breach
+                raise RuntimeError("TASE adapter restore rollback failed") from rollback_exc
+            raise exc
 
     def _outer_inputs(
         self,
@@ -222,62 +234,67 @@ class TaseOfflineMethodAdapter:
             raise RuntimeError("TASE offline adapter is stopped")
         if not math.isfinite(float(dt_s)) or float(dt_s) <= 0.0:
             raise ValueError("dt_s must be finite and positive")
-        inputs, jacobian, lower, upper = self._outer_inputs(measured, target, dt_s)
-        outer_config = replace(
-            self.outer_config,
-            force_target_n=float(target["force_target_n"]),
-        )
-        outer = compute_step5d_outer_loop(outer_config, self.outer_state, inputs)
-        self.outer_state = outer.next_state
-        sample = TaseJointSample(
-            jacobian=jacobian,
-            xdot_c=np.asarray(outer.xdot_c, dtype=float),
-            omega_minus=lower,
-            omega_plus=upper,
-            dt_s=float(dt_s),
-            cmd_valid=outer.cmd_valid,
-        )
-        solver_result = self.solver.step(sample)
-        if self.solver_name == "rnn":
-            assert isinstance(solver_result, StrictRnnStepDiagnostics)
-            qdot = np.asarray(solver_result.theta_dot_state, dtype=float)
-            residual = float(solver_result.constraint_residual_norm)
-            status = 40.0
-            solver_diagnostics = {
-                "lambda_state": solver_result.lambda_state,
-                "active_bounds_mask": solver_result.active_bounds_mask,
-                "proj_input_form": solver_result.proj_input_form,
-                "lambda_update_form": solver_result.lambda_update_form,
-            }
-        else:
-            if solver_result is None:
-                qdot = self.solver.qdot_state
-                residual = float(np.linalg.norm(jacobian @ qdot - np.asarray(outer.xdot_c)))
-                status = 0.0
-                solver_diagnostics = {"invalid_sample": True}
-            else:
-                qdot = np.asarray(solver_result.qdot, dtype=float)
-                residual = float(solver_result.equality_residual)
-                status = 1.0
+        before = self.snapshot()
+        try:
+            inputs, jacobian, lower, upper = self._outer_inputs(measured, target, dt_s)
+            outer_config = replace(
+                self.outer_config,
+                force_target_n=float(target["force_target_n"]),
+            )
+            outer = compute_step5d_outer_loop(outer_config, self.outer_state, inputs)
+            self.outer_state = outer.next_state
+            sample = TaseJointSample(
+                jacobian=jacobian,
+                xdot_c=np.asarray(outer.xdot_c, dtype=float),
+                omega_minus=lower,
+                omega_plus=upper,
+                dt_s=float(dt_s),
+                cmd_valid=outer.cmd_valid,
+            )
+            solver_result = self.solver.step(sample)
+            if self.solver_name == "rnn":
+                assert isinstance(solver_result, StrictRnnStepDiagnostics)
+                qdot = np.asarray(solver_result.theta_dot_state, dtype=float)
+                residual = float(solver_result.constraint_residual_norm)
+                status = 40.0
                 solver_diagnostics = {
-                    "iterations": solver_result.iterations,
-                    "bound_violation": solver_result.bound_violation,
+                    "lambda_state": solver_result.lambda_state,
+                    "active_bounds_mask": solver_result.active_bounds_mask,
+                    "proj_input_form": solver_result.proj_input_form,
+                    "lambda_update_form": solver_result.lambda_update_form,
                 }
-        return TaseAdapterResult(
-            qdot_rad_s=_tuple6(qdot),
-            xdot_c=_tuple6(outer.xdot_c),
-            residual_norm=residual,
-            solver_status=status,
-            diagnostics={
-                "offline_only": True,
-                "live_eligible": False,
-                "method_name": self.method_name,
-                "solver_name": self.solver_name,
-                "variant": self.variant,
-                "outer": outer.diagnostics,
-                "solver": solver_diagnostics,
-            },
-        )
+            else:
+                if solver_result is None:
+                    qdot = self.solver.qdot_state
+                    residual = float(np.linalg.norm(jacobian @ qdot - np.asarray(outer.xdot_c)))
+                    status = 0.0
+                    solver_diagnostics = {"invalid_sample": True}
+                else:
+                    qdot = np.asarray(solver_result.qdot, dtype=float)
+                    residual = float(solver_result.equality_residual)
+                    status = 1.0
+                    solver_diagnostics = {
+                        "iterations": solver_result.iterations,
+                        "bound_violation": solver_result.bound_violation,
+                    }
+            return TaseAdapterResult(
+                qdot_rad_s=_tuple6(qdot),
+                xdot_c=_tuple6(outer.xdot_c),
+                residual_norm=residual,
+                solver_status=status,
+                diagnostics={
+                    "offline_only": True,
+                    "live_eligible": False,
+                    "method_name": self.method_name,
+                    "solver_name": self.solver_name,
+                    "variant": self.variant,
+                    "outer": outer.diagnostics,
+                    "solver": solver_diagnostics,
+                },
+            )
+        except Exception:
+            self._restore_unchecked(before)
+            raise
 
 
 def _offline_config(value: Mapping[str, Any] | None) -> TaseOfflineConfig:

@@ -306,6 +306,39 @@ def test_full_provider_snapshot_restores_outer_and_solver_states(qp_library: Pat
     np.testing.assert_allclose(first_replay, second_replay, atol=1e-10)
 
 
+def test_full_provider_rejects_infeasible_qp_without_partial_state_commit(qp_library: Path) -> None:
+    provider = TaseOfflineProvider(qp_library=qp_library, outer_config=_shared_outer_config())
+    valid_inputs, valid_jacobian = _changing_outer_inputs(0)
+    provider.step(
+        valid_inputs,
+        jacobian=valid_jacobian,
+        omega_minus=np.full(6, -0.15),
+        omega_plus=np.full(6, 0.15),
+    )
+    before = provider.snapshot()
+
+    # The outer task is valid, but a zero Jacobian cannot realize its nonzero
+    # tangential position command.  Native QP status=3 is therefore an input
+    # feasibility boundary, not a fabricated fallback result.
+    infeasible = Step5dOuterLoopInputs(
+        tcp_pose_base=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        tcp_speed_base=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        force_tcp_n=(0.0, 0.0, -2.0),
+        x_pd_base=(0.2, 0.0, 0.0),
+        xdot_pd_base=(0.0, 0.0, 0.0),
+        control_reaction_normal_base=(0.0, 0.0, -1.0),
+        dt_s=0.002,
+    )
+    with pytest.raises(Exception, match="status=3|did not solve"):
+        provider.step(
+            infeasible,
+            jacobian=np.zeros((6, 6)),
+            omega_minus=np.full(6, -0.15),
+            omega_plus=np.full(6, 0.15),
+        )
+    assert provider.snapshot() == before
+
+
 def test_communication_delay_mapping_is_explicitly_labeled() -> None:
     inputs, _ = _changing_outer_inputs(0)
     fallback = compute_step5d_outer_loop(
