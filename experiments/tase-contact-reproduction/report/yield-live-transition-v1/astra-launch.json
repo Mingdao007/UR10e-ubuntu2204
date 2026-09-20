@@ -1,0 +1,13 @@
+{
+  "utc_launch": "2026-09-20T07:14:16Z",
+  "session_id": "01a0bdaa-67dd-71e1-893e-2be06df9980e",
+  "provider": "hp-astra",
+  "model": "gpt-6-astra",
+  "effort": "xhigh",
+  "cwd": "/home/andy/.codex-worktrees/tase-live-baseline-20260920/experiments/tase-contact-reproduction",
+  "evidence": "Explicit argv and native session_meta/turn_context checked; not independent server attestation",
+  "writable_scope": "isolated new tase_live modules, tests and baseline report; no hardware",
+  "discussion_cadence": "about60min active work, substantive progress only, max2iterations perround",
+  "first_process": "session24703",
+  "no_fallback": true
+}

@@ -1,0 +1,20 @@
+{
+  "reason": "User explicitly replaced simulator-first plan with direct live",
+  "launcher_exit_code": 143,
+  "cause": "Main sent SIGTERM to verified task process group149006",
+  "completed_count": 22,
+  "interrupted_registration": {
+    "actual_method": "MSFC",
+    "arm": "MSFC",
+    "condition": "nominal",
+    "index": 22,
+    "pair_id": "u0-MSFC-plant_refinement",
+    "registered": true,
+    "slot_id": "u0-MSFC-plant_refinement-nominal"
+  },
+  "raw_state_preserved": true,
+  "classification": "interrupted by scope change, not numerical/control failure",
+  "report_writer_exit_code": 0,
+  "report_writer_worktree": "/home/andy/.codex-worktrees/yield-mechanism-phase-report-20260920",
+  "report_writer_delivery": "preserved unreviewed; no continuation"
+}

@@ -1,0 +1,7 @@
+{
+  "position_error_m": 2.8745445666370504e-05,
+  "relative_rotation_error_rad": 5.442207632594686e-05,
+  "relative_rotation_error_deg": 0.0031181552858155887,
+  "velocity_zero_observed": true,
+  "scope": "Fresh stopped Home observation, no Home movement; compare rotations on SO3, not rotation vector coordinates."
+}

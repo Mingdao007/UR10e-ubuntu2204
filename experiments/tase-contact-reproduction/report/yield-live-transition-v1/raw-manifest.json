@@ -1,0 +1,110 @@
+{
+  "utc": "2026-09-20T07:20:34.891008+00:00",
+  "files": [
+    {
+      "path": "runs/yield-live-transition-20260920/dashboard-151340.json",
+      "bytes": 579,
+      "sha256": "cc2a37d19fa4e557afb67e9aa0dd91e47274d0488699f16d436df834fd21c089"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/home-observation.json",
+      "bytes": 318,
+      "sha256": "0bbe339dcda953364d15aaee37328df3ea9842d02cff471173649094d9c0f0a7"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/kunwei-static/bridge_rtde_125hz.csv",
+      "bytes": 163327,
+      "sha256": "e12195a5fd59a8b219a9a33ff14bdf2600f1f0c4ac8cfba1e7a489dff324c0b0"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/kunwei-static/bridge_run_manifest.json",
+      "bytes": 555,
+      "sha256": "fb9877884456edcf90da02d6468e65ba83ed63cba58f35bf7b1db86047bef6cb"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/kunwei-static/kunwei_sensor_1khz.csv",
+      "bytes": 1048148,
+      "sha256": "691ea09dfeceb8f0c02e93633abb2639437f7bd21a6d67654208c4d895672aa6"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/kunwei-static/metadata.json",
+      "bytes": 29791,
+      "sha256": "7c52733cc224d7a5e56f8b2c5cfb606915ec17ed501f5decc7e8d9f1d6b2ce69"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/kunwei-static/raw_frames.bin",
+      "bytes": 83580,
+      "sha256": "ce019cca3ed329f598e077247f28868efa4810f9f0250b80d2b232fdd11abd28"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/kunwei-static/summary.json",
+      "bytes": 5449,
+      "sha256": "23c81097b6c76e5d04df7ce1aa93e1d52c17b9758eb9b2cf3d2a62f337f0c803"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/resident-stop.json",
+      "bytes": 2437,
+      "sha256": "1201ee63ecda860e7e5c921d6d73b23536124fcb94bff1c32f9263fa0c699d8b"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/step5d_contact_home_v1-fresh-readback/step5d_contact_home_v1.script",
+      "bytes": 6198,
+      "sha256": "4db58acdf5e095d54b86d2fe630e5e7cb3be9e560b362700cd72940819743f8b"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/step5d_contact_home_v1-fresh-readback/step5d_contact_home_v1.txt",
+      "bytes": 69,
+      "sha256": "d6375d033e931ea57f3f34beb04fbcec75ca484346907c241d99d1c437c5d09f"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/step5d_contact_home_v1-fresh-readback/step5d_contact_home_v1.urp",
+      "bytes": 2389,
+      "sha256": "ba8fe8593afa29940a00de0c32d6ce1450a73bcaddecb3c9bc8992ceb02223e0"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/step5d_contact_home_v1-readback-manifest.json",
+      "bytes": 1126,
+      "sha256": "7a4e8e130ab12ed87b9073d48ab59f987140f35c88a5bf1f48877c0c76b24acd"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/step5d_contact_home_v1-readback-result.txt",
+      "bytes": 1627,
+      "sha256": "a0f5d77186111312226956cbb6aeb411fa901e0af0e02b565c0a7d054ac519b7"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/step5d_contact_home_v1-validation.json",
+      "bytes": 9210,
+      "sha256": "29440eb1c45a0b6aac468b4f4c10eb2ab9a70d29841f3f88b9c04de96331693f"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/step5d_contact_six_qp_v1-fresh-readback/step5d_contact_six_qp_v1.script",
+      "bytes": 36723,
+      "sha256": "87c789d9ad1879a7e448cef2867689d133bbb34c3978f94fcebae91a1a6d1142"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/step5d_contact_six_qp_v1-fresh-readback/step5d_contact_six_qp_v1.txt",
+      "bytes": 146,
+      "sha256": "36ce492f4945ba917b43ac695327dd092a2979f9d999fc867af3984c893d06bb"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/step5d_contact_six_qp_v1-fresh-readback/step5d_contact_six_qp_v1.urp",
+      "bytes": 8039,
+      "sha256": "41b94445425a59aad5659ecf34cbeecc27613493fa23e8a73d84313e6bad8210"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/step5d_contact_six_qp_v1-readback-manifest.json",
+      "bytes": 1140,
+      "sha256": "7dabe0b033843990556ace751659f26254729d9f4c839db08d3a8a7c404891a8"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/step5d_contact_six_qp_v1-readback-result.txt",
+      "bytes": 1645,
+      "sha256": "fa583f0f0bc4a9c2d1ed1e68be6558ba4eb85fec7ee9e2c94c3f991c7f8e462f"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/step5d_contact_six_qp_v1-validation.json",
+      "bytes": 9361,
+      "sha256": "6963999902ad0ab9d8d182d1a0c2ac039f2633035c7508d65dcd98428edac493"
+    }
+  ]
+}

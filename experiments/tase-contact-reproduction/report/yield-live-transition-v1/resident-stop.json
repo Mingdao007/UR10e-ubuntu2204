@@ -1,0 +1,121 @@
+{
+  "utc": "2026-09-20T07:16:34.323662+00:00",
+  "scope": "owned resident controlled stop only; no Load/Play/Home/zero/motion",
+  "rtde_before": {
+    "actual_q": [
+      0.6101683974266052,
+      -1.831353326837057,
+      -2.5315604209899902,
+      -0.34878380716357427,
+      1.5723252296447754,
+      3.5908660888671875
+    ],
+    "actual_qd": [
+      -0.0,
+      -0.0,
+      -0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "actual_TCP_pose": [
+      0.48785018859076623,
+      0.12935489733991595,
+      0.032998159833357465,
+      -2.033108646835153,
+      -2.3949934948380203,
+      -2.3545873769146923e-05
+    ],
+    "actual_TCP_speed": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "payload": 0.413,
+    "payload_cog": [
+      0.0011,
+      0.0031,
+      0.0163
+    ],
+    "tcp_offset": [
+      0.0,
+      0.0,
+      0.0874,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "runtime_state": 2,
+    "safety_mode": 1
+  },
+  "dashboard_before": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "true",
+    "safetymode": "Safetymode: NORMAL",
+    "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
+    "programState": "PLAYING step5d_contact_six_qp_v1.urp"
+  },
+  "stop": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "stop": "Stopped"
+  },
+  "dashboard_after": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "programState": "STOPPED step5d_contact_six_qp_v1.urp",
+    "running": "Program running: false",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "rtde_after": {
+    "actual_q": [
+      0.6101571321487427,
+      -1.8313147030272425,
+      -2.531623601913452,
+      -0.3488214772990723,
+      1.5723165273666382,
+      3.5908870697021484
+    ],
+    "actual_qd": [
+      -0.0,
+      -0.0,
+      -0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "actual_TCP_pose": [
+      0.4878128489399107,
+      0.1293199832915904,
+      0.03299199251039771,
+      -2.0331427147478034,
+      -2.3949552161189414,
+      7.453948581281833e-05
+    ],
+    "actual_TCP_speed": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "payload": 0.413,
+    "payload_cog": [
+      0.0011,
+      0.0031,
+      0.0163
+    ],
+    "tcp_offset": [
+      0.0,
+      0.0,
+      0.0874,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "runtime_state": 1,
+    "safety_mode": 1
+  }
+}

@@ -1,0 +1,198 @@
+{
+  "anchor_epoch": 0,
+  "anchor_ready": false,
+  "baseline_drift_si": {
+    "fx_n": NaN,
+    "fy_n": NaN,
+    "fz_n": NaN,
+    "mx_nm": NaN,
+    "my_nm": NaN,
+    "mz_nm": NaN
+  },
+  "baseline_epoch": 0,
+  "baseline_quality_flags": [],
+  "baseline_quality_ok": false,
+  "baseline_ready": false,
+  "baseline_samples": 2985,
+  "baseline_si_offsets": {
+    "fx_n": 0.0,
+    "fy_n": 0.0,
+    "fz_n": 0.0,
+    "mx_nm": 0.0,
+    "my_nm": 0.0,
+    "mz_nm": 0.0
+  },
+  "bias_estimator_logging_contract": {
+    "bias_est_fields": [
+      "bias_est_fx_n",
+      "bias_est_fy_n",
+      "bias_est_fz_n",
+      "bias_est_mx_nm",
+      "bias_est_my_nm",
+      "bias_est_mz_nm"
+    ],
+    "bias_rate_est_fields": [
+      "bias_rate_est_fx_n_per_s",
+      "bias_rate_est_fy_n_per_s",
+      "bias_rate_est_fz_n_per_s",
+      "bias_rate_est_mx_nm_per_s",
+      "bias_rate_est_my_nm_per_s",
+      "bias_rate_est_mz_nm_per_s"
+    ],
+    "bias_rate_estimator": "held finite difference between completed software-zero baseline estimates",
+    "contact_mask": "bias-estimation contact mask; use it to gate/freeze bias estimation",
+    "control_contact_window": "control-state contact window, logged separately from contact_mask",
+    "derived_kinematics_fields": [
+      "ur_actual_qdd_0",
+      "ur_actual_qdd_1",
+      "ur_actual_qdd_2",
+      "ur_actual_qdd_3",
+      "ur_actual_qdd_4",
+      "ur_actual_qdd_5",
+      "ur_actual_TCP_accel_0",
+      "ur_actual_TCP_accel_1",
+      "ur_actual_TCP_accel_2",
+      "ur_actual_TCP_accel_3",
+      "ur_actual_TCP_accel_4",
+      "ur_actual_TCP_accel_5",
+      "ur_kinematics_dt_s"
+    ],
+    "force_norm_threshold_n": 2.0,
+    "normal_threshold_n": 0.75,
+    "source": "STARS-2024-001-inspired logging only; no online Kalman bias estimator is run here",
+    "zero_event_id": "alias of software baseline epoch, emitted per sensor and bridge row"
+  },
+  "bias_rate_estimate_si_per_s": {
+    "fx_n": 0.0,
+    "fy_n": 0.0,
+    "fz_n": 0.0,
+    "mx_nm": 0.0,
+    "my_nm": 0.0,
+    "mz_nm": 0.0
+  },
+  "bridge_write_deadline": {
+    "max_lateness_s": 0.012598121735209133,
+    "missed_slots": 181,
+    "overrun_events": 181,
+    "period_s": 0.008,
+    "policy": "skip_missed_slots_no_burst_catchup"
+  },
+  "bridge_write_timing": {
+    "dt_max_s": 0.018521870995755307,
+    "dt_mean_s": 0.015399801917933824,
+    "dt_p95_s": 0.017685672299558065,
+    "dt_p99_s": 0.017989582421287197,
+    "elapsed_s": 3.0029613739970955,
+    "rate_hz": 64.93590017125162,
+    "samples": 196
+  },
+  "bridge_writes": 196,
+  "campaign_anchor_si_offsets": {
+    "fx_n": 0.0,
+    "fy_n": 0.0,
+    "fz_n": 0.0,
+    "mx_nm": 0.0,
+    "my_nm": 0.0,
+    "mz_nm": 0.0
+  },
+  "diagnostic_baseline_si_offsets": {
+    "fx_n": NaN,
+    "fy_n": NaN,
+    "fz_n": NaN,
+    "mx_nm": NaN,
+    "my_nm": NaN,
+    "mz_nm": NaN
+  },
+  "diagnostic_epoch": 0,
+  "dropped_sync_bytes": 0,
+  "echo_heartbeat_transitions": {
+    "rate_hz": 0.0,
+    "samples": 0
+  },
+  "finished_at": "2026-09-20T15:18:55",
+  "force_norm_stats_n": {
+    "max": 8.942721532687772,
+    "mean": 8.617487114895003,
+    "min": 8.310646932424326,
+    "samples": 2985,
+    "std": 0.15143226967186366
+  },
+  "last_echo_heartbeat": null,
+  "last_zero_request": null,
+  "normal_force_stats_n": {
+    "max": 2.6238167637333274,
+    "mean": 2.093604902935157,
+    "min": 1.5562886545076966,
+    "samples": 2985,
+    "std": 0.268074142950855
+  },
+  "parse_errors": 0,
+  "paths": {
+    "bridge_csv": "runs/yield-live-transition-20260920/kunwei-static/bridge_rtde_125hz.csv",
+    "metadata": "runs/yield-live-transition-20260920/kunwei-static/metadata.json",
+    "raw_frames": "runs/yield-live-transition-20260920/kunwei-static/raw_frames.bin",
+    "sensor_csv": "runs/yield-live-transition-20260920/kunwei-static/kunwei_sensor_1khz.csv",
+    "summary": "runs/yield-live-transition-20260920/kunwei-static/summary.json"
+  },
+  "raw_all_force_norm_stats_n": {
+    "max": 8.942721532687772,
+    "mean": 8.617487114895003,
+    "min": 8.310646932424326,
+    "samples": 2985,
+    "std": 0.15143226967186366
+  },
+  "raw_all_normal_force_stats_n": {
+    "max": 2.6238167637333274,
+    "mean": 2.093604902935157,
+    "min": 1.5562886545076966,
+    "samples": 2985,
+    "std": 0.268074142950855
+  },
+  "raw_all_torque_norm_stats_nm": {
+    "max": 0.3608518552376844,
+    "mean": 0.3575415852773002,
+    "min": 0.35466257457432854,
+    "samples": 2985,
+    "std": 0.0005898192011729091
+  },
+  "rtde_output_timing": {
+    "rate_hz": 0.0,
+    "samples": 0
+  },
+  "rtde_reconnect_event_count": 0,
+  "rtde_reconnect_events": [],
+  "samples": 2985,
+  "startup_untrusted_spikes": [],
+  "stop_reason": "duration",
+  "torque_norm_stats_nm": {
+    "max": 0.3608518552376844,
+    "mean": 0.3575415852773002,
+    "min": 0.35466257457432854,
+    "samples": 2985,
+    "std": 0.0005898192011729091
+  },
+  "trusted_force_norm_stats_n": {
+    "samples": 0
+  },
+  "trusted_normal_force_stats_n": {
+    "samples": 0
+  },
+  "trusted_torque_norm_stats_nm": {
+    "samples": 0
+  },
+  "v29_safety_fail_stop": {
+    "dashboard_stop_attempts": 0,
+    "dashboard_stop_delivered": false,
+    "dashboard_stop_error": "",
+    "dashboard_stop_response": "",
+    "enabled": false,
+    "first_rtde_packet_output_sequence": null,
+    "heartbeat_max_sent": null,
+    "heartbeat_min_sent": null,
+    "latched_reason": null,
+    "rtde_reason3_packets_sent": 0,
+    "termination_channel": null,
+    "tp_reason3_observed": false
+  },
+  "zero_events": []
+}
