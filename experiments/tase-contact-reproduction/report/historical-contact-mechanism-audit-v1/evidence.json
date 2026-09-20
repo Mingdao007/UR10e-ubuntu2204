@@ -1,0 +1,511 @@
+{
+  "bounded_hypothesis": {
+    "evidence_paths": [
+      "report/yield-live-transition-v1/scheduler-closeout-contact-result.json",
+      "report/yield-live-transition-v1/qualification-force-walk.json"
+    ],
+    "existing_repairs_acknowledged": [
+      "1f4c44b4 already applies baseline-only outward-normal residual projection.",
+      "The current candidate already suppresses baseline tangent command for qualification; that is an intervention to compare, not a new contribution from this audit."
+    ],
+    "limitations": [
+      "This is a candidate mechanism, not evidence that the current zero-tangent candidate is a safe contact hold.",
+      "Normal tilt, estimator error, geometry, and command admission remain confounders."
+    ],
+    "statement": "After contact, the baseline's full 3-D force residual can turn measured tangent shear into tangent command; normal-only residual projection during baseline should reduce XY walk and force escalation while leaving entry/PATH behavior unchanged."
+  },
+  "claim_scope": "offline evidence audit; real, replay, synthetic/model, and simulation artifacts are separated",
+  "evidence_table": [
+    {
+      "duration_s": null,
+      "evidence_class": "real_physical_attempt",
+      "force": {
+        "one_sample_filtered_normal_peak_n": 2.5483088499416224,
+        "one_sample_force_norm_peak_n": 2.559538967199946,
+        "provenance": "source-reported baseline_diag from dispatch receipt; not recomputed from raw logs",
+        "readiness_samples": 0
+      },
+      "id": "r006-live-first-qualification-tick",
+      "memory_or_saturation": {
+        "controller_state": "fresh startup; no PATH state",
+        "observations": 1,
+        "startup_reason": "startup_two_increments_pending"
+      },
+      "method": "SFC",
+      "missing_or_limited": [
+        "no contact PATH force tracking",
+        "no tangent drift or controller saturation metric",
+        "single readiness observation is not a force peak over a task window"
+      ],
+      "progress": {
+        "command_packets_sent": 0,
+        "path_started": false,
+        "requested_path_duration_s": 62.83185307179586
+      },
+      "recovery": {
+        "autonomous_home_success": true,
+        "autonomous_relief_success": true,
+        "safety_mode": 1,
+        "stop_requested": true,
+        "trial_stays_failed": true
+      },
+      "source_paths": [
+        "runs/yield-sfc-full-20260920T151241Z/dispatch_receipt.json",
+        "runs/yield-sfc-full-20260920T151241Z/supervisor-result.json"
+      ],
+      "status": "failed_before_PATH",
+      "tangent_drift_m": null
+    },
+    {
+      "capture_duration_s": 10.521649,
+      "evidence_class": "real_transport_preflight",
+      "force": {
+        "provenance": "source-reported stopped preflight summary; separate capture window",
+        "raw_force_norm_max_n": 9.005927197841237,
+        "raw_torque_norm_max_nm": 0.3611446927828668
+      },
+      "id": "r006-stopped-preflight-transport",
+      "method": "SFC",
+      "missing_or_limited": [
+        "separate stopped preflight window; cannot explain the later live first tick",
+        "no command consumption or contact qualification"
+      ],
+      "progress": {
+        "command_packets_sent": 0,
+        "load_play_sent": false
+      },
+      "source_paths": [
+        "runs/yield-sfc-full-20260920T151241Z/summary.json"
+      ],
+      "status": "stopped_diagnostic_only",
+      "tangent_drift_m": null,
+      "transport": {
+        "100": 0.01386702700983733,
+        "50": 0.0019979289936600253,
+        "95": 0.0020754999946802854,
+        "99": 0.0021484349190723155
+      }
+    },
+    {
+      "duration_s": 2.235969314002432,
+      "evidence_class": "real_physical_contact",
+      "force": {
+        "corrected_force_norm_peak_n": 20.246030711105245,
+        "final_signed_normal_load_n": 16.15450876071491,
+        "provenance": {
+          "active_state21": "source-reported scheduler-closeout values",
+          "final_signed_normal_load_n": "source-reported final signed normal/compensated channel; not a raw norm peak",
+          "stopped_raw_force_norm_n": "source-reported stopped raw peak from a later stop window"
+        },
+        "raw_force_norm_peak_n": 18.783000332008612,
+        "stopped_raw_force_norm_n": 25.42917749365988
+      },
+      "id": "sfc-120659-baseline-shear",
+      "mechanism_text": "At contact, ~4 N shear in XY plus 120 N/m hold (0.24 N at 2 mm) lets axis-decoupled SFC command tangent velocity. The probe slides on the unknown surface and normal load rises from the 2 N setpoint to 16-25 N. Not a scheduler failure.",
+      "memory_or_saturation": {
+        "active_state21_samples": 1119,
+        "readiness_samples": 12,
+        "saturation_metric": null
+      },
+      "method": "SFC",
+      "missing_or_limited": [
+        "no independent normal ground truth",
+        "no DSFC/MSFC/LAC physical paired run in the selected index"
+      ],
+      "progress": {
+        "active_state21_samples": 1119,
+        "xy_walk_m": 0.002444038846675598
+      },
+      "recovery": {
+        "automatic_withdrawal": "gates failed; operator action pending",
+        "protective_stop": false,
+        "safety_mode": "Safetymode: NORMAL"
+      },
+      "source_paths": [
+        "report/yield-live-transition-v1/scheduler-closeout-contact-result.json",
+        "report/yield-live-transition-v1/qualification-force-walk.json"
+      ],
+      "status": "qualification_failed_after_active_contact",
+      "tangent_drift_m": 0.002444038846675598
+    },
+    {
+      "claim_scope": "recorded-input controller-law comparison only; open-loop replay, not a prediction of new physical force or closed-loop robot behavior",
+      "evidence_class": "open_loop_replay",
+      "id": "sfc-recorded-input-open-loop-replay",
+      "initialization_assumption": {
+        "controller_state": "fresh cold controller per version",
+        "filter_native_law_qp": "zero initial state",
+        "host_command_history": "excluded from law comparison; recorded qd is admitted and summarized",
+        "normal_estimator": "Home task basis +Z approach mapped to inward base normal",
+        "physical_closed_loop": false
+      },
+      "method": "SFC",
+      "metrics": {
+        "comparison": {
+          "candidate_integrated_applied_tangent_reduction_fraction": 0.9999999999999994,
+          "candidate_peak_applied_tangent_reduction_fraction": 0.9999999999999997,
+          "original_patch_integrated_applied_tangent_reduction_fraction": 0.1806836734469811,
+          "original_patch_peak_applied_tangent_reduction_fraction": -0.16092018596651214
+        },
+        "current_candidate": {
+          "integrated_applied_tangent_m": 1.3751751074780837e-18,
+          "max_recorded_qd_rad_s": 0.032803796231746674,
+          "max_sensor_age_s": 0.0017814149978221394,
+          "peak_applied_tangent_m_s": 1.0845434901213692e-18,
+          "peak_command_tangent_m_s": 1.0845434901213692e-18,
+          "peak_residual_tangent_n": 4.428842168696153e-15,
+          "ticks": 1118
+        },
+        "original_patch_1f4c44b4": {
+          "integrated_applied_tangent_m": 0.0020805852705921097,
+          "max_recorded_qd_rad_s": 0.032803796231746674,
+          "max_sensor_age_s": 0.0017814149978221394,
+          "peak_applied_tangent_m_s": 0.0033383413402126487,
+          "peak_command_tangent_m_s": 0.0033383413402126487,
+          "peak_residual_tangent_n": 4.428842168696153e-15,
+          "ticks": 1118
+        },
+        "parent": {
+          "integrated_applied_tangent_m": 0.002539416344045565,
+          "max_recorded_qd_rad_s": 0.032803796231746674,
+          "max_sensor_age_s": 0.0017814149978221394,
+          "peak_applied_tangent_m_s": 0.00287559935693025,
+          "peak_command_tangent_m_s": 0.00287559935693025,
+          "peak_residual_tangent_n": 4.019683958342216,
+          "ticks": 1118
+        }
+      },
+      "missing_or_limited": [
+        "open loop; not a new physical force prediction",
+        "fresh cold state per version; retained warm-state effect is not represented"
+      ],
+      "source_paths": [
+        "report/contact-yield-recovery-20260920/open-loop-replay.json"
+      ],
+      "source_run": "runs/yield-sfc-qualification-20260920T120659Z",
+      "versions": {
+        "candidate_worktree": {
+          "commit": "working-tree",
+          "controller_sha256": "bf1064cdc449613dc608cb35acd188b190ab81c6f06a7e232da3319fc94bc564"
+        },
+        "original_patch": {
+          "commit": "1f4c44b4",
+          "controller_sha256": "f3f90b6a6d7c5167b1b2c329bd0fcfd4ea85a4c0164c9d2302c449a98ab058ec"
+        },
+        "parent": {
+          "commit": "69c818c7",
+          "controller_sha256": "d27996937ed57e7baf83a078ae29658266f753536dd848f63f5cd8fe614201bb"
+        }
+      }
+    },
+    {
+      "claim_scope": "fresh-instance full-state forward replay; same implementation, not independent physics proof",
+      "evidence_class": "replay",
+      "id": "full-state-forward-replay",
+      "missing_or_limited": [
+        "same implementation replay; not independent physics evidence"
+      ],
+      "passed": true,
+      "samples": 31916,
+      "source_paths": [
+        "report/contact-yield-recovery-20260920/full-state-replay.json"
+      ]
+    },
+    {
+      "claim_scope": "simulation only",
+      "dataset_role": "development",
+      "evidence_class": "synthetic_model_ablation",
+      "id": "dsfc-force-direction-model-ablation",
+      "live_executed": false,
+      "method": "DSFC",
+      "metrics": {
+        "actual_progress_m": 0.1657382495327749,
+        "campaign_kind": "mechanism_seed",
+        "claim_scope": "simulation only",
+        "contact_loss_duration_s": 0.0,
+        "failed": false,
+        "failure_message": null,
+        "force_diagnostic_limit_n": 8.0,
+        "force_error_peak_n": 1.0659704997284392,
+        "force_mae_n": 0.05016204794349251,
+        "force_overlimit_duration_s": 0.0,
+        "force_peak_n": 6.065970499728439,
+        "force_rmse_n": 0.12134506234801241,
+        "kinematics_kind": "ur10e_calibrated_pinocchio",
+        "material": "stiff_low_mu",
+        "method": "DSFC",
+        "n_samples": 31416,
+        "normal_estimation_rmse_rad": 0.02369257300123267,
+        "objective_eligible": true,
+        "orientation_peak_rad": 0.031074036975901737,
+        "orientation_rmse_rad": 0.023651041701893354,
+        "path_peak_m": 0.007236008892194106,
+        "path_rmse_m": 0.005044111621224975,
+        "progress_ratio": 0.8717511789989145,
+        "qp_intervention_ticks": 0,
+        "recovery_definition": "computed only against a matched nominal trial after release",
+        "recovery_s": null,
+        "reference_progress_m": 0.19012105004905452,
+        "residual_path_m": 0.006076853943376924,
+        "saturation_ticks": 0,
+        "scenario": "nominal"
+      },
+      "missing_or_limited": [
+        "synthetic/model data; no physical force equivalence"
+      ],
+      "model_role": "force-direction correction ablation; not a recorded sensor injection",
+      "source_paths": [
+        "report/yield-normal-v2/forceoff-summary.json"
+      ]
+    },
+    {
+      "claim_scope": "simulation only",
+      "evidence_class": "simulation",
+      "id": "sfc-training-model",
+      "method": "SFC",
+      "missing_or_limited": [
+        "simulation-only contact model; no physical force equivalence",
+        "no physical recovery or controller-law ranking"
+      ],
+      "recovery_s": 3.652000000000001,
+      "scenario_pair": {
+        "disturbed": {
+          "force_mae_n": 0.47674119664245423,
+          "force_peak_n": 6.2229208470709985,
+          "progress_ratio": 0.8764786341118302,
+          "saturation_ticks": 638
+        },
+        "nominal": {
+          "force_mae_n": 0.11188810693038811,
+          "force_peak_n": 6.2229208470709985,
+          "progress_ratio": 0.8546370428890967,
+          "saturation_ticks": 0
+        }
+      },
+      "source_paths": [
+        "report/yield-fair-training-v1/initial-descriptors.json"
+      ],
+      "tangent_drift_m": {
+        "disturbed_path_peak_m": 0.015526130891130373,
+        "nominal_path_peak_m": 0.008198691423808593
+      }
+    },
+    {
+      "claim_scope": "simulation only",
+      "evidence_class": "simulation",
+      "id": "dsfc-training-model",
+      "method": "DSFC",
+      "missing_or_limited": [
+        "simulation-only contact model; no physical force equivalence",
+        "no physical recovery or controller-law ranking"
+      ],
+      "recovery_s": 3.9780000000000015,
+      "scenario_pair": {
+        "disturbed": {
+          "force_mae_n": 0.4467751729175687,
+          "force_peak_n": 6.059742532074173,
+          "progress_ratio": 0.8940443716520181,
+          "saturation_ticks": 0
+        },
+        "nominal": {
+          "force_mae_n": 0.07527003873112191,
+          "force_peak_n": 6.059742532074173,
+          "progress_ratio": 0.8768818180569369,
+          "saturation_ticks": 0
+        }
+      },
+      "source_paths": [
+        "report/yield-fair-training-v1/initial-descriptors.json"
+      ],
+      "tangent_drift_m": {
+        "disturbed_path_peak_m": 0.013722203528058087,
+        "nominal_path_peak_m": 0.007966665608094461
+      }
+    },
+    {
+      "claim_scope": "simulation only",
+      "evidence_class": "simulation",
+      "id": "msfc-training-model",
+      "method": "MSFC",
+      "missing_or_limited": [
+        "simulation-only contact model; no physical force equivalence",
+        "no physical recovery or controller-law ranking"
+      ],
+      "recovery_s": 3.9440000000000026,
+      "scenario_pair": {
+        "disturbed": {
+          "force_mae_n": 0.44796350936774537,
+          "force_peak_n": 6.072974608708175,
+          "progress_ratio": 0.8939720435823436,
+          "saturation_ticks": 275
+        },
+        "nominal": {
+          "force_mae_n": 0.07679269940629867,
+          "force_peak_n": 6.072974608708175,
+          "progress_ratio": 0.8765636486096647,
+          "saturation_ticks": 0
+        }
+      },
+      "source_paths": [
+        "report/yield-fair-training-v1/initial-descriptors.json"
+      ],
+      "tangent_drift_m": {
+        "disturbed_path_peak_m": 0.013713094034080543,
+        "nominal_path_peak_m": 0.007970575594991352
+      }
+    },
+    {
+      "claim_scope": "simulation only",
+      "duration_s": 76.1500192880012,
+      "evidence_class": "simulation",
+      "force_peak_n": 6.2229208470709985,
+      "full_cycle": true,
+      "id": "native-sfc-development-smoke",
+      "method": "SFC",
+      "missing_or_limited": [
+        "no hardware accessed; engineering smoke only"
+      ],
+      "progress_ratio": 0.8546370428890967,
+      "source_paths": [
+        "report/yield-fair-campaign-native-smoke-v1/result.json"
+      ]
+    }
+  ],
+  "historical_pointer_audit": {
+    "limitation": "This bounded audit does not scan other worktrees, raw logs, or unindexed archives; the requested historical denominator/acceptance pointer remains unresolved.",
+    "requested_pointer": "Aug-20 100 physical trials / 78 accepted",
+    "searched_paths": [
+      "config/step5d_review_index_v2.json",
+      "config/step5d_review_index_v3.json",
+      "config/step5d_v29_imported_evidence_manifest.json",
+      "config/step5d_v30_revisit_ledger.json",
+      "config/step5/step5d_autotune_v3_attempt_ledger.json",
+      "report/yield-training-report-real-v1/report.json",
+      "report/yield-fair-training-v1/launcher-result.json",
+      "report/contact-six-qp-20260917/offline-campaign.json",
+      "report/contact-six-qp-20260917/holdout-schedule.json"
+    ],
+    "status": "not_found_in_selected_scope"
+  },
+  "mechanism_assessment": {
+    "control_law_novelty": "No new repair is introduced here. Baseline-only normal projection at 1f4c44b4 and the current zero-tangent qualification candidate already exist; this audit only proposes a discriminating comparison.",
+    "decision": "The evidence supports one bounded SFC baseline-law candidate for a paired physical test, but does not justify a controller implementation or a cross-method claim.",
+    "not_established": [
+      "A common estimator/constraint/execution mechanism across SFC, DSFC, MSFC, and LAC physical runs; comparable DSFC/MSFC/LAC physical rows were not found in the selected source scope.",
+      "That the r006 first-tick failure was caused by the SFC law; it stopped before PATH and before command publication.",
+      "A physical force ranking from the simulation, synthetic/model-ablation, or replay rows."
+    ],
+    "shared_geometry_estimation": "Not isolated by the selected real rows; normal tilt, estimator error, task basis, geometry, and command admission remain possible contributors.",
+    "supported": [
+      {
+        "evidence": "The first live attempt has one readiness observation, zero command packets, no PATH, and then recovers to stopped NORMAL/Home; it cannot identify a contact-law failure.",
+        "mechanism": "execution/readiness boundary",
+        "scope": "r006 only"
+      },
+      {
+        "causal_status": "source-report hypothesis; the raw/compensated values support the coincident observation but do not isolate a counterfactual cause",
+        "evidence": "The indexed report records 2.444 mm XY walk, 4 N-class XY shear, 120 N/m path hold, 16.1545 N final signed normal/compensated load, 20.2460 N active corrected peak, and 25.4292 N later stopped raw peak.",
+        "mechanism": "baseline SFC full residual admits tangent shear after contact",
+        "scope": "120659Z baseline"
+      }
+    ]
+  },
+  "method_coverage": {
+    "DSFC": {
+      "note": "Selected rows are simulation/model development only; this is not a claim that no older physical artifact exists elsewhere.",
+      "offline_rows": [
+        "dsfc-training-model",
+        "dsfc-force-direction-model-ablation"
+      ],
+      "physical_status": "not found in selected source scope",
+      "real_physical_rows": [],
+      "searched_paths": [
+        "report/yield-fair-training-v1/initial-descriptors.json",
+        "report/contact-six-qp-20260917/offline-campaign.json"
+      ]
+    },
+    "LAC": {
+      "note": "LAC is indexed here as offline synthetic replay/holdout only; no physical result is claimed.",
+      "offline_facts": {
+        "claim_scope": "offline equal-budget native-law/QP replay with explicit synthetic contact-plant proxy; no live or physical acceptance",
+        "completed_trials": 48,
+        "failed_trials": 0,
+        "hardware_qualified": false,
+        "holdout_complete_count": 25,
+        "holdout_trial_count": 25,
+        "live_qualified": false,
+        "motion_authorized": false,
+        "schedule_lac_rows": 25,
+        "schedule_rows": 150
+      },
+      "offline_rows": [
+        "lac-offline-holdout"
+      ],
+      "physical_status": "not found in selected source scope",
+      "real_physical_rows": [],
+      "searched_paths": [
+        "report/contact-six-qp-20260917/offline-campaign.json",
+        "report/contact-six-qp-20260917/holdout-schedule.json"
+      ]
+    },
+    "MSFC": {
+      "note": "Selected rows are simulation/model development only; this is not a claim that no older physical artifact exists elsewhere.",
+      "offline_rows": [
+        "msfc-training-model"
+      ],
+      "physical_status": "not found in selected source scope",
+      "real_physical_rows": [],
+      "searched_paths": [
+        "report/yield-fair-training-v1/initial-descriptors.json",
+        "report/contact-six-qp-20260917/offline-campaign.json"
+      ]
+    },
+    "SFC": {
+      "note": "Real evidence exists, but the two rows fail at different phases and are not a paired law comparison.",
+      "physical_status": "indexed real attempts exist",
+      "real_physical_rows": [
+        "r006-live-first-qualification-tick",
+        "sfc-120659-baseline-shear"
+      ]
+    }
+  },
+  "paired_experiment": {
+    "arms": [
+      "parent baseline controller",
+      "1f4c44b4 baseline normal-only residual projection"
+    ],
+    "authorization": "offline design only; main owns any future hardware execution",
+    "hold_constant": [
+      "same Home/task basis and 5 N figure-eight recipe",
+      "same entry/PATH, limits, cadence, and recovery policy",
+      "one qualification attempt per arm with no limit or duration change"
+    ],
+    "interpretation": {
+      "readiness_fails_both": "execution/admission remains unresolved; do not rank controller laws",
+      "readiness_passes_and_projection_reduces_drift": "supports the bounded baseline residual mechanism",
+      "readiness_passes_but_drift_is_unchanged": "look next at estimator/geometry/constraint coupling before changing the law"
+    },
+    "measure": [
+      "first-tick readiness pass/fail",
+      "baseline state-21 duration and corrected/raw force peak",
+      "XY tangent drift and stopped raw force",
+      "phase reached and recovery outcome"
+    ],
+    "platform": "existing UR10e/Kunwei contact platform and already prepared SFC qualification package"
+  },
+  "schema": "ur10e.historical-contact-mechanism-audit-v1",
+  "source_policy": {
+    "hardware_accessed": false,
+    "raw_logs_read": false,
+    "scheduling_or_controller_changes": false,
+    "selected_real_runs": [
+      "runs/yield-sfc-full-20260920T151241Z",
+      "runs/yield-sfc-qualification-20260920T120659Z"
+    ]
+  },
+  "synthetic_injected_force_status": {
+    "classification": "offline-campaign is an explicit synthetic contact-plant proxy; forceoff is a simulation/model ablation, not a synthetic sensor-injection trace; no physical equivalence is claimed",
+    "nearest_selected_artifact": "report/contact-six-qp-20260917/offline-campaign.json",
+    "status": "not independently indexed"
+  }
+}

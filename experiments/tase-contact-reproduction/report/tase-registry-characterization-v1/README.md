@@ -11,7 +11,8 @@ It performs a 2 s run at 2 ms and 1 ms, with private method state per run.
 From the repository root:
 
 ```bash
-PYTHONPATH=experiments/tase-contact-reproduction/tools \
+source /opt/ros/humble/setup.bash
+PYTHONPATH=/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages:experiments/tase-contact-reproduction/tools \
 python3 experiments/tase-contact-reproduction/tools/characterize_tase_registry.py \
   --output experiments/tase-contact-reproduction/report/tase-registry-characterization-v1/characterization.json \
   --duration-s 2.0 --dt-s 0.002 \
