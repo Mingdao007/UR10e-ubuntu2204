@@ -374,24 +374,35 @@ def main(argv=None):
             from run_contact_recovery import recover_failed_contact_run
             result['autonomous_home_recovery']=recover_failed_contact_run(a.run_dir,a.controller_host,a.video_url)
         except BaseException as exc:
-            # Recovery setup must never disappear as an unclassified
-            # exception.  A missing proof or unavailable owner is an explicit
-            # BLOCKED outcome under the same policy; the attempt remains
-            # failed and cannot be mistaken for a successful Home return.
-            result['autonomous_home_recovery']={
-                'success':False,
-                'motion':False,
-                'state':'BLOCKED',
-                'phase':'recovery-dispatch',
-                'error':f'{type(exc).__name__}: {exc}',
-                'source_attempt':str(a.run_dir),
-                'trial_stays_failed':True,
-                'recovery_policy':'AUTO_HOME_WHEN_COMMANDABLE',
-                'home_required':True,
-                'home_attempted':False,
-                'home_blocked':True,
-                'home_blocked_reason':f'{type(exc).__name__}: {exc}',
-            }
+            # A recovery-owner exception is itself a commandable recovery
+            # event.  Give the Home module one last direct, monitored attempt
+            # before recording BLOCKED; only its communication/safety/
+            # geometry denial may leave the robot without a verified Home.
+            try:
+                from run_contact_recovery import _emergency_home_when_commandable
+                from contact_yield_live_contract import PACKAGE_DIR
+                result['autonomous_home_recovery'] = _emergency_home_when_commandable(
+                    a.run_dir,
+                    a.run_dir.with_name(a.run_dir.name + '-autonomous-home-fallback'),
+                    a.controller_host,
+                    PACKAGE_DIR,
+                    reason=exc,
+                )
+            except BaseException as fallback_exc:
+                result['autonomous_home_recovery']={
+                    'success':False,
+                    'motion':False,
+                    'state':'BLOCKED',
+                    'phase':'recovery-dispatch',
+                    'error':f'{type(fallback_exc).__name__}: {fallback_exc}',
+                    'source_attempt':str(a.run_dir),
+                    'trial_stays_failed':True,
+                    'recovery_policy':'AUTO_HOME_WHEN_COMMANDABLE',
+                    'home_required':True,
+                    'home_attempted':False,
+                    'home_blocked':True,
+                    'home_blocked_reason':f'{type(fallback_exc).__name__}: {fallback_exc}',
+                }
     with (a.run_dir/'supervisor-result.json').open('x') as out: json.dump(result,out,indent=2)
     print(json.dumps(result,indent=2))
     return 0 if result['success'] else 1

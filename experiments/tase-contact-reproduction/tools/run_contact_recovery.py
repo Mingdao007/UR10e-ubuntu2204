@@ -151,6 +151,149 @@ def _blocked_recovery_result(source, error, *, phase, output=None, previous_outp
     return payload
 
 
+def _emergency_home_when_commandable(source, output, host, packages, *, reason,
+                                     previous_output=None):
+    """Attempt the installed Home owner even when relief setup failed.
+
+    A recovery-package/read-back failure is a failure of the preferred
+    vertical-relief route; it is not, by itself, a reason to leave a
+    commandable robot stopped.  This fallback deliberately does *not* bypass
+    the Home owner's geometry, fresh RTDE, safety, video, or package checks.
+    It first obtains a fresh stationary sample and admits only the existing
+    clearance-entry Home corridor.  If the sample is below that corridor, or
+    the controller/package cannot be proved, the result is an explicit
+    communication/safety/geometry BLOCKED receipt.
+    """
+    source = Path(source)
+    output = Path(output)
+    payload = {
+        'success': False,
+        'motion': False,
+        'state': 'BLOCKED',
+        'source_attempt': str(source),
+        'trial_stays_failed': True,
+        'recovery_policy': RECOVERY_POLICY,
+        'home_required': True,
+        'home_attempted': False,
+        'home_blocked': True,
+        'preflight_error': str(reason),
+    }
+    if previous_output is not None:
+        payload['previous_recovery_output'] = str(previous_output)
+    if not host:
+        payload['home_blocked_reason'] = 'controller host is unavailable for monitored Home recovery'
+        return payload
+
+    obs = None
+    try:
+        packages = Path(packages)
+        if not (packages / f'{BASENAME}.script').exists():
+            raise ValueError('Home package is not installed')
+        from contact_recovery_readback import fetch_recovery_readback
+        contract = load_identity_contract()
+        # The read-back is intentionally Home-only here.  A missing relief
+        # package must not prevent the independent Home owner from being
+        # attempted when its own installed triplet is valid.
+        proof = fetch_recovery_readback(
+            output.with_name(output.name + '-fallback-readback'),
+            packages,
+            basenames=(BASENAME,),
+        )
+        dashboard = check_dashboard(host, allow_protective=True, stop_if_running=True)
+        obs = Observer(host)
+        obs.start()
+        deadline = time.monotonic() + 8.0
+        while time.monotonic() < deadline:
+            row = obs.latest()
+            if stationary(row):
+                break
+            time.sleep(.02)
+        else:
+            raise ValueError('fresh stationary RTDE sample unavailable for Home fallback')
+        # Protective Stop may be commandable after a fresh stationary sample,
+        # but it must be unlocked exactly once and re-verified before Home.
+        if _protective_safety(dashboard):
+            if dashboard.get('running') == 'Program running: true':
+                dashboard = _dashboard_until_stopped(host)
+            _unlock_protective_stop_once(
+                host, target=f'{DIRECTORY}/{BASENAME}.urp'
+            )
+            dashboard = check_dashboard(host)
+        else:
+            check_dashboard(host)
+
+        pose = np.asarray(row['actual_TCP_pose'], dtype=float)
+        target = np.asarray(contract.home_pose, dtype=float)
+        # Match the clearance-entry guard generated in build_contact_home;
+        # do not convert an unknown low/contact pose into a lateral Home move.
+        from contact_yield_math import so3_exp, so3_log
+        if pose[2] < target[2] - .001:
+            raise ValueError('current TCP is below the clearance-entry Home floor')
+        if np.linalg.norm(pose[:3] - target[:3]) > .080:
+            raise ValueError('Home fallback transfer exceeds 80mm bound')
+        if np.linalg.norm(so3_log(so3_exp(pose[3:]) @ so3_exp(target[3:]).T)) > .010:
+            raise ValueError('Home fallback attitude is outside the clearance corridor')
+
+        preserved = json.loads(
+            (Path(__file__).resolve().parents[1]
+             / 'report/contact-six-qp-20260917/preserved-home.json').read_text()
+        )
+        preserved.pop('bounded_recovery', None)
+        preserved.pop('bounded_withdrawal', None)
+        preserved.update(
+            rtde=row,
+            home_pose=list(contract.home_pose),
+            clearance_entry=True,
+            fallback_reason=str(reason),
+        )
+        home_receipt = output.with_name(output.name + '-fallback-home-receipt.json')
+        home_receipt.write_text(json.dumps(preserved, indent=2) + '\n')
+        if obs is not None:
+            obs.close()
+            obs = None
+
+        output.mkdir(parents=True, exist_ok=False)
+        home_args = SimpleNamespace(
+            host=host,
+            home_receipt=home_receipt,
+            validation=Path(proof) / f'{BASENAME}-validation.json',
+            package_dir=packages,
+            readback_dir=Path(proof) / 'readback' / BASENAME,
+            output=output / 'fallback-home',
+            execute=True,
+        )
+        payload['home_attempted'] = True
+        home_result = run_home(home_args)
+        payload['home'] = home_result
+        payload['motion'] = bool(
+            home_result.get('success') is True or home_result.get('play') is not None
+        )
+        payload['success'] = home_result.get('success') is True
+        payload['home_blocked'] = not payload['success']
+        if payload['success']:
+            payload['state'] = 'HOME_RECOVERED'
+        else:
+            payload['home_blocked_reason'] = str(
+                home_result.get('failure') or home_result.get('error') or 'Home fallback failed'
+            )
+    except BaseException as exc:
+        payload['home_blocked_reason'] = f'{type(exc).__name__}: {exc}'
+    finally:
+        if obs is not None:
+            try:
+                obs.close()
+            except BaseException:
+                pass
+    try:
+        output.mkdir(parents=True, exist_ok=True)
+        record = output / 'result.json'
+        record.write_text(json.dumps(payload, indent=2, default=str) + '\n')
+        payload['recovery_record'] = str(record)
+    except BaseException as exc:
+        payload['recovery_record_error'] = f'{type(exc).__name__}: {exc}'
+    return payload
+
+
 def _read_recovery_result(path):
     """Read a prior recovery receipt without treating it as live authority."""
     for name in ('result.json', 'blocked-preflight.json'):
@@ -466,11 +609,12 @@ def recover_failed_contact_run(source_run, host, video_url):
         return prior_success
     try:
         if not (PACKAGE_DIR/f'{RELIEF_PROGRAM}.script').exists():
-            return _blocked_recovery_result(
+            return _emergency_home_when_commandable(
                 source,
-                ValueError('relief package is not installed; Home recovery cannot be proven'),
-                phase='package-preflight',
-                output=output,
+                output,
+                host,
+                PACKAGE_DIR,
+                reason=ValueError('relief package is not installed; Home recovery cannot be proven'),
                 previous_output=previous_output,
             )
         result=run(SimpleNamespace(source_run=source,output=output,readback_proof_dir=None,readback_dir=None,package_dir=PACKAGE_DIR,host=host,video_url=video_url,execute=True))
@@ -483,18 +627,26 @@ def recover_failed_contact_run(source_run, host, video_url):
                 pass
         return result
     except BaseException as exc:
-        return _blocked_recovery_result(source,exc,phase='recovery-preflight',output=output,previous_output=previous_output)
+        return _emergency_home_when_commandable(
+            source,
+            output,
+            host,
+            PACKAGE_DIR,
+            reason=exc,
+            previous_output=previous_output,
+        )
 
 
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--source-run',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--readback-proof-dir',type=Path);p.add_argument('--readback-dir',type=Path);p.add_argument('--package-dir',type=Path);p.add_argument('--host',default='192.168.1.18');p.add_argument('--video-url',default='rtsp://127.0.0.1:8554/arm');p.add_argument('--execute',action='store_true');args=p.parse_args(argv)
     try:result=run(args)
     except BaseException as exc:
-        result=_blocked_recovery_result(
+        result = _emergency_home_when_commandable(
             args.source_run,
-            exc,
-            phase='cli-preflight',
-            output=args.output,
+            args.output,
+            args.host,
+            args.package_dir or PACKAGE_DIR,
+            reason=exc,
         )
     print(json.dumps(result,indent=2));return 0 if result.get('success') or (result.get('motion') is False and result.get('state') != 'BLOCKED') else 1
 

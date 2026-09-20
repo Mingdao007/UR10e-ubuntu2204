@@ -7,7 +7,7 @@ raw-wrench limits, command slew/Jacobian checks and physical stopping.
 from __future__ import annotations
 
 import copy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 import hashlib
 import json
@@ -21,6 +21,7 @@ from contact_yield_protocol import Task, PERIOD_S
 from contact_yield_task_frame import require_figure8_home
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime
+from step5d_autotune_v4_r004.motion_profile import same_direction_qdot_rescale
 from step5d_autotune_v4_r004.timing import MAX_FRESH_GAP_S
 from step5d_paper_outer_loop import Step5dOuterLoopConfig
 
@@ -261,10 +262,31 @@ class TaseContactProvider(ContactCommandProvider):
             command = self.runtime.command(actual_q=output.q_rad, actual_qd=output.qd_rad_s,
                 actual_tcp_pose=output.tcp_pose_m_rad, desired_twist=twist,
                 actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
+            # The mature writer intentionally rejects provider output that
+            # exceeds its typed host-slew envelope.  TASE owns the complete
+            # outer loop, so apply the same-direction scalar ramp at this
+            # provider boundary instead of asking the generic qualification
+            # layer to silently rescale a TASE command.  The ramp is a shared
+            # execution safety adaptation; its scale is retained in evidence.
+            host_slew_scale = 1.0
+            host_slew_limit = None
+            if self.command_history is not None:
+                ramp = same_direction_qdot_rescale(
+                    command.qdot,
+                    self.command_history.get('previous_qdot'),
+                    dt_s=actual_dt_s,
+                    max_slew_rad_s2=float(self.command_history['slew_rad_s2']),
+                )
+                host_slew_scale = float(ramp.scale)
+                host_slew_limit = float(ramp.delta_limit_rad_s)
+                if host_slew_scale < 1.0:
+                    command = replace(command, qdot=tuple(ramp.qdot))
             self._commit_clock(obs)
             self.phase = phase
             self.last_result = {'phase': phase, 'sample_time_s': monotonic_s,
                 'qdot_rad_s': command.qdot,
+                'host_slew_scale': host_slew_scale,
+                'host_slew_limit_rad_s': host_slew_limit,
                 'filtered_normal_n': float(filtered),
                 'control_normal_n': float(control_normal),
                 'entry_time_s': t if phase == 'entry' else None,

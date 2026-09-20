@@ -121,6 +121,24 @@ def test_recovery_preflight_failure_is_persisted_as_blocked(tmp_path, monkeypatc
     def fail(*_args):
         raise ValueError('read-back proof expired')
     monkeypatch.setattr(runner, 'validate_recovery_packages', fail)
+    def fallback(*args, **kwargs):
+        output = Path(args[1])
+        output.mkdir(parents=True, exist_ok=True)
+        payload = {
+            'success': False,
+            'motion': False,
+            'state': 'BLOCKED',
+            'recovery_policy': 'AUTO_HOME_WHEN_COMMANDABLE',
+            'home_required': True,
+            'home_attempted': True,
+            'home_blocked': True,
+            'home_blocked_reason': 'controller safety denied Home fallback',
+            'preflight_error': str(kwargs['reason']),
+        }
+        (output/'result.json').write_text(json.dumps(payload))
+        payload['recovery_record'] = str(output/'result.json')
+        return payload
+    monkeypatch.setattr(runner, '_emergency_home_when_commandable', fallback)
 
     result=runner.recover_failed_contact_run(source, 'fake', 'fake')
 
@@ -129,12 +147,12 @@ def test_recovery_preflight_failure_is_persisted_as_blocked(tmp_path, monkeypatc
     assert result['state']=='BLOCKED'
     assert result['recovery_policy']=='AUTO_HOME_WHEN_COMMANDABLE'
     assert result['home_required'] is True
-    assert result['home_attempted'] is False
+    assert result['home_attempted'] is True
     record=Path(result['recovery_record'])
     assert record.exists()
     persisted=json.loads(record.read_text())
     assert persisted['state']=='BLOCKED'
-    assert persisted['phase']=='recovery-preflight'
+    assert persisted['home_attempted'] is True
 
 
 def test_recovery_cli_never_emits_unclassified_preflight_error(tmp_path, monkeypatch):
@@ -144,15 +162,31 @@ def test_recovery_cli_never_emits_unclassified_preflight_error(tmp_path, monkeyp
     def fail(_args):
         raise RuntimeError('dashboard unavailable')
     monkeypatch.setattr(runner, 'run', fail)
+    def fallback(*args, **kwargs):
+        output = Path(args[1])
+        output.mkdir(parents=True, exist_ok=True)
+        payload = {
+            'success': False,
+            'motion': False,
+            'state': 'BLOCKED',
+            'recovery_policy': 'AUTO_HOME_WHEN_COMMANDABLE',
+            'home_required': True,
+            'home_attempted': True,
+            'home_blocked': True,
+            'home_blocked_reason': 'dashboard unavailable',
+        }
+        (output/'result.json').write_text(json.dumps(payload))
+        payload['recovery_record'] = str(output/'result.json')
+        return payload
+    monkeypatch.setattr(runner, '_emergency_home_when_commandable', fallback)
 
     assert runner.main(['--source-run', str(source), '--output', str(output)]) == 1
 
     persisted=json.loads((output/'result.json').read_text())
     assert persisted['state']=='BLOCKED'
-    assert persisted['phase']=='cli-preflight'
     assert persisted['recovery_policy']=='AUTO_HOME_WHEN_COMMANDABLE'
     assert persisted['home_required'] is True
-    assert persisted['home_attempted'] is False
+    assert persisted['home_attempted'] is True
 
 
 def test_recovery_retries_after_prior_blocked_output(tmp_path, monkeypatch):
@@ -235,3 +269,110 @@ def test_commandable_playing_race_is_stopped_before_home_preflight(monkeypatch):
     assert commands == ['stop']
     assert result['running'] == 'Program running: false'
     assert result['recovery_stop_command']['command'] == 'stop'
+
+
+def test_preflight_fault_attempts_direct_home_when_clearance_is_commandable(tmp_path, monkeypatch):
+    packages = tmp_path / 'packages'
+    packages.mkdir()
+    (packages / f'{runner.BASENAME}.script').write_text('home')
+    source = tmp_path / 'source'
+    source.mkdir()
+    output = tmp_path / 'recovery'
+    proof = tmp_path / 'proof'
+    (proof / 'readback' / runner.BASENAME).mkdir(parents=True)
+    (proof / f'{runner.BASENAME}-validation.json').write_text(json.dumps({
+        'pass': True, 'state': 'controller read-back verified', 'basename': runner.BASENAME,
+    }))
+
+    monkeypatch.setattr(runner, 'load_identity_contract', lambda: SimpleNamespace(home_pose=HOME))
+    monkeypatch.setattr(runner, 'check_dashboard', lambda *_, **__: {
+        'safetymode': 'Safetymode: NORMAL', 'running': 'Program running: false',
+        'robotmode': 'Robotmode: RUNNING', 'is in remote control': 'true',
+    })
+    monkeypatch.setattr(
+        'contact_recovery_readback.fetch_recovery_readback',
+        lambda out, *_args, **_kwargs: proof,
+    )
+
+    class Obs:
+        def __init__(self, *_):
+            self.rows = []
+        def start(self):
+            self.rows.append({
+                'actual_TCP_pose': HOME[:], 'actual_TCP_speed': [0.] * 6,
+                'actual_q': [0.] * 6, 'actual_qd': [0.] * 6,
+                'tcp_offset': [0., 0., .0874, 0., 0., 0.],
+                'payload': .413, 'payload_cog': [.0011, .0031, .0163],
+                'safety_status_bits': 1, 'monotonic_s': 1.,
+            })
+        def latest(self):
+            return self.rows[-1]
+        def close(self):
+            pass
+    monkeypatch.setattr(runner, 'Observer', Obs)
+    monkeypatch.setattr(runner, 'run_home', lambda args: {
+        'success': True, 'play': {'action': 'PLAY'}, 'output': str(args.output),
+    })
+
+    result = runner._emergency_home_when_commandable(
+        source, output, 'fake', packages,
+        reason=ValueError('relief preflight failed'),
+    )
+
+    assert result['success'] is True
+    assert result['state'] == 'HOME_RECOVERED'
+    assert result['home_attempted'] is True
+    assert result['motion'] is True
+    assert Path(result['recovery_record']).exists()
+
+
+def test_preflight_fault_records_blocked_when_direct_home_corridor_is_impossible(tmp_path, monkeypatch):
+    packages = tmp_path / 'packages'
+    packages.mkdir()
+    (packages / f'{runner.BASENAME}.script').write_text('home')
+    source = tmp_path / 'source'
+    source.mkdir()
+    output = tmp_path / 'recovery'
+    proof = tmp_path / 'proof'
+    (proof / 'readback' / runner.BASENAME).mkdir(parents=True)
+    (proof / f'{runner.BASENAME}-validation.json').write_text(json.dumps({
+        'pass': True, 'state': 'controller read-back verified', 'basename': runner.BASENAME,
+    }))
+    low_pose = HOME[:]
+    low_pose[2] -= .010
+    monkeypatch.setattr(runner, 'load_identity_contract', lambda: SimpleNamespace(home_pose=HOME))
+    monkeypatch.setattr(runner, 'check_dashboard', lambda *_, **__: {
+        'safetymode': 'Safetymode: NORMAL', 'running': 'Program running: false',
+        'robotmode': 'Robotmode: RUNNING', 'is in remote control': 'true',
+    })
+    monkeypatch.setattr(
+        'contact_recovery_readback.fetch_recovery_readback',
+        lambda out, *_args, **_kwargs: proof,
+    )
+
+    class Obs:
+        def __init__(self, *_):
+            self.row = {
+                'actual_TCP_pose': low_pose, 'actual_TCP_speed': [0.] * 6,
+                'actual_q': [0.] * 6, 'actual_qd': [0.] * 6,
+            }
+        def start(self):
+            pass
+        def latest(self):
+            return self.row
+        def close(self):
+            pass
+    monkeypatch.setattr(runner, 'Observer', Obs)
+    home_calls = []
+    monkeypatch.setattr(runner, 'run_home', lambda args: home_calls.append(args))
+
+    result = runner._emergency_home_when_commandable(
+        source, output, 'fake', packages,
+        reason=ValueError('relief preflight failed'),
+    )
+
+    assert result['success'] is False
+    assert result['state'] == 'BLOCKED'
+    assert result['home_attempted'] is False
+    assert 'below the clearance-entry Home floor' in result['home_blocked_reason']
+    assert home_calls == []
