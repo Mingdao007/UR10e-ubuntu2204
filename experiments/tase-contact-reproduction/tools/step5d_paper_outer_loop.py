@@ -26,6 +26,7 @@ from contact_semantics import (
 
 LEGACY_FORCE_INTEGRAL_POLICY = "legacy-clamp-v1"
 CONDITIONAL_DOUBLE_CLAMP_POLICY = "conditional-double-clamp-v1"
+CONTACT_GATED_LEAKY_POLICY = "contact-gated-leaky-antiwindup-v1"
 
 
 def _finite_array(values: Any, shape: tuple[int, ...], name: str) -> np.ndarray:
@@ -70,6 +71,8 @@ class Step5dOuterLoopConfig:
     force_integral_limit_n_s: float = 5.0
     force_integral_policy: str = LEGACY_FORCE_INTEGRAL_POLICY
     force_integral_authority_error_n: float = 0.5
+    force_integral_leak_tau_s: float = 0.5
+    force_contact_gate_n: float = 0.5
     force_normal_velocity_limit_m_s: float | None = None
     min_force_norm_n: float = 1e-9
     control_reaction_normal_fallback_base: tuple[float, float, float] = (0.0, 0.0, -1.0)
@@ -127,6 +130,180 @@ class ConditionalAntiWindupResult:
     conditional_frozen: bool
     velocity_saturated: bool
     reset_reason: str = ""
+
+
+@dataclass(frozen=True)
+class ContactGatedLeakyResult:
+    """One typed transition of the offline contact-gated leaky policy.
+
+    The policy is intentionally a task-space outer-loop primitive.  It uses
+    only the current signed normal load and actual ``dt_s``; it has no surface
+    curvature or learned-model input.  A saturated trial suppresses only the
+    same-sign gated innovation, while the exponential leak still bleeds the
+    stored state.
+    """
+
+    schema: str
+    integral_state_n_s: float
+    raw_integral_state_n_s: float
+    leaky_integral_state_n_s: float
+    effective_integral_limit_n_s: float
+    i_term: float
+    raw_normal_velocity_m_s: float
+    applied_normal_velocity_m_s: float
+    contact_gated: bool
+    leak_factor: float
+    state_clamped: bool
+    authority_clamped: bool
+    conditional_frozen: bool
+    velocity_saturated: bool
+    integral_saturated: bool
+    reset_reason: str = ""
+
+
+def contact_gated_leaky_step(
+    *,
+    force_error_n: float,
+    normal_load_n: float,
+    contact_gate_force_n: float,
+    integral_state_n_s: float,
+    dt_s: float,
+    leak_tau_s: float,
+    force_p_gain: float,
+    force_i_gain: float,
+    force_damping: float,
+    normal_velocity_m_s: float,
+    normal_velocity_limit_m_s: float,
+    state_limit_n_s: float = 1.0,
+    authority_error_n: float = 0.5,
+    integral_enabled: bool = True,
+    reset_reason: str = "",
+) -> ContactGatedLeakyResult:
+    """Advance a bounded contact-gated leaky integral with anti-windup.
+
+    ``normal_load_n`` is the signed load in the supplied local reaction-normal
+    frame.  Integration is enabled only at or above ``contact_gate_force_n``.
+    The state first leaks by ``exp(-dt_s / leak_tau_s)`` and then receives the
+    gated force-error innovation.  If that trial would drive a saturated
+    normal velocity farther into the same direction, only the innovation is
+    frozen; leakage remains active so the state can unwind.
+    """
+
+    values = {
+        "force_error_n": force_error_n,
+        "normal_load_n": normal_load_n,
+        "contact_gate_force_n": contact_gate_force_n,
+        "integral_state_n_s": integral_state_n_s,
+        "dt_s": dt_s,
+        "leak_tau_s": leak_tau_s,
+        "force_p_gain": force_p_gain,
+        "force_i_gain": force_i_gain,
+        "force_damping": force_damping,
+        "normal_velocity_m_s": normal_velocity_m_s,
+        "normal_velocity_limit_m_s": normal_velocity_limit_m_s,
+        "state_limit_n_s": state_limit_n_s,
+        "authority_error_n": authority_error_n,
+    }
+    parsed = {name: float(value) for name, value in values.items()}
+    if not all(math.isfinite(value) for value in parsed.values()):
+        raise ValueError("contact-gated-leaky-v1 inputs must be finite")
+    if parsed["dt_s"] < 0.0:
+        raise ValueError("contact-gated-leaky-v1 requires dt_s >= 0")
+    if parsed["leak_tau_s"] <= 0.0:
+        raise ValueError("contact-gated-leaky-v1 requires leak_tau_s > 0")
+    if parsed["force_p_gain"] <= 0.0 or parsed["force_i_gain"] <= 0.0:
+        raise ValueError("contact-gated-leaky-v1 requires P > 0 and I > 0")
+    if parsed["force_damping"] < 0.0:
+        raise ValueError("contact-gated-leaky-v1 requires damping >= 0")
+    if parsed["contact_gate_force_n"] < 0.0:
+        raise ValueError("contact-gated-leaky-v1 requires a non-negative contact gate")
+    if parsed["normal_velocity_limit_m_s"] <= 0.0:
+        raise ValueError("contact-gated-leaky-v1 requires a positive velocity limit")
+    if parsed["state_limit_n_s"] <= 0.0 or parsed["authority_error_n"] <= 0.0:
+        raise ValueError("contact-gated-leaky-v1 fixed limits must be positive")
+
+    p_gain = parsed["force_p_gain"]
+    i_gain = parsed["force_i_gain"]
+    state_limit = parsed["state_limit_n_s"]
+    authority_limit = parsed["authority_error_n"] * p_gain / i_gain
+    effective_limit = min(state_limit, authority_limit)
+    parsed_reset_reason = str(reset_reason).strip()
+    if not integral_enabled and not parsed_reset_reason:
+        raise ValueError("disabled contact-gated integration requires a reset reason")
+
+    contact_gated = bool(
+        integral_enabled and parsed["normal_load_n"] >= parsed["contact_gate_force_n"]
+    )
+    leak_factor = math.exp(-parsed["dt_s"] / parsed["leak_tau_s"])
+    raw_old_state = 0.0 if not integral_enabled else parsed["integral_state_n_s"]
+    state_limited_old = clamp(raw_old_state, -state_limit, state_limit)
+    old_state = clamp(state_limited_old, -effective_limit, effective_limit)
+    prior_state_clamped = not math.isclose(
+        raw_old_state, state_limited_old, rel_tol=0.0, abs_tol=1e-15
+    )
+    prior_authority_clamped = not math.isclose(
+        state_limited_old, old_state, rel_tol=0.0, abs_tol=1e-15
+    )
+    leaky_state = leak_factor * old_state
+    raw_trial = leaky_state + (
+        parsed["force_error_n"] * parsed["dt_s"] if contact_gated else 0.0
+    )
+    state_limited_trial = clamp(raw_trial, -state_limit, state_limit)
+    trial_state = clamp(state_limited_trial, -effective_limit, effective_limit)
+    state_clamped = prior_state_clamped or not math.isclose(
+        raw_trial, state_limited_trial, rel_tol=0.0, abs_tol=1e-15
+    )
+    authority_clamped = prior_authority_clamped or not math.isclose(
+        state_limited_trial, trial_state, rel_tol=0.0, abs_tol=1e-15
+    )
+
+    def raw_velocity(integral: float) -> float:
+        acceleration = (
+            p_gain * parsed["force_error_n"]
+            + i_gain * integral
+            - parsed["force_damping"] * parsed["normal_velocity_m_s"]
+        )
+        return parsed["normal_velocity_m_s"] + acceleration * parsed["dt_s"]
+
+    raw_trial_velocity = raw_velocity(trial_state)
+    velocity_limit = parsed["normal_velocity_limit_m_s"]
+    pushes_upper = (
+        raw_trial_velocity > velocity_limit
+        and parsed["force_error_n"] > 0.0
+        and contact_gated
+    )
+    pushes_lower = (
+        raw_trial_velocity < -velocity_limit
+        and parsed["force_error_n"] < 0.0
+        and contact_gated
+    )
+    conditional_frozen = bool(pushes_upper or pushes_lower)
+    next_state = leaky_state if conditional_frozen else trial_state
+    next_state = clamp(next_state, -effective_limit, effective_limit)
+    raw_applied_state = raw_velocity(next_state)
+    applied_velocity = clamp(raw_applied_state, -velocity_limit, velocity_limit)
+    return ContactGatedLeakyResult(
+        schema=CONTACT_GATED_LEAKY_POLICY,
+        integral_state_n_s=next_state,
+        raw_integral_state_n_s=raw_trial,
+        leaky_integral_state_n_s=leaky_state,
+        effective_integral_limit_n_s=effective_limit,
+        i_term=i_gain * next_state,
+        raw_normal_velocity_m_s=raw_applied_state,
+        applied_normal_velocity_m_s=applied_velocity,
+        contact_gated=contact_gated,
+        leak_factor=leak_factor,
+        state_clamped=state_clamped,
+        authority_clamped=authority_clamped,
+        conditional_frozen=conditional_frozen,
+        velocity_saturated=not math.isclose(
+            raw_applied_state, applied_velocity, rel_tol=0.0, abs_tol=1e-15
+        ),
+        integral_saturated=not math.isclose(
+            raw_trial, next_state, rel_tol=0.0, abs_tol=1e-15
+        ),
+        reset_reason=parsed_reset_reason if not integral_enabled else "",
+    )
 
 
 def conditional_double_clamp_step(
@@ -397,7 +574,8 @@ def compute_step5d_outer_loop(
         xdot_zero = np.zeros(3, dtype=float)
         next_state = (
             Step5dOuterLoopState()
-            if config.force_integral_policy == CONDITIONAL_DOUBLE_CLAMP_POLICY
+            if config.force_integral_policy
+            in {CONDITIONAL_DOUBLE_CLAMP_POLICY, CONTACT_GATED_LEAKY_POLICY}
             else state
         )
         return Step5dOuterLoopOutput(
@@ -412,7 +590,8 @@ def compute_step5d_outer_loop(
                 "force_integral_policy": config.force_integral_policy,
                 "integral_reset_reason": (
                     "invalid_command_or_control_normal"
-                    if config.force_integral_policy == CONDITIONAL_DOUBLE_CLAMP_POLICY
+                    if config.force_integral_policy
+                    in {CONDITIONAL_DOUBLE_CLAMP_POLICY, CONTACT_GATED_LEAKY_POLICY}
                     else ""
                 ),
                 "control_normal_valid": control_normal_valid,
@@ -438,7 +617,7 @@ def compute_step5d_outer_loop(
     normal_load_n = signed_normal_load_n(force_base, control_reaction_normal_base)
     e_f = force_error_n(target_load_n=float(config.force_target_n), normal_load_n=normal_load_n)
     xdot_p_prev = _finite_array(state.xdot_p_prev_m_s, (3,), "xdot_p_prev_m_s")
-    anti_windup: ConditionalAntiWindupResult | None = None
+    anti_windup: ConditionalAntiWindupResult | ContactGatedLeakyResult | None = None
     if config.force_integral_policy == CONDITIONAL_DOUBLE_CLAMP_POLICY:
         velocity_limit = _finite_float(
             config.force_normal_velocity_limit_m_s,
@@ -456,6 +635,47 @@ def compute_step5d_outer_loop(
             force_p_gain=p_gain,
             force_i_gain=i_gain,
             force_damping=damping,
+            normal_velocity_limit_m_s=velocity_limit,
+            state_limit_n_s=abs(float(config.force_integral_limit_n_s)),
+            authority_error_n=float(config.force_integral_authority_error_n),
+            integral_enabled=bool(inputs.integral_enabled),
+            reset_reason=str(inputs.integral_reset_reason),
+        )
+        force_integral = anti_windup.integral_state_n_s
+        xddot_p = force_motion_acceleration_base(
+            force_error=e_f,
+            force_integral=force_integral,
+            kf=float(config.kf),
+            Md=Md,
+            Bd=Bd,
+            xdot_p_prev_base=xdot_p_prev,
+            reaction_normal=control_reaction_normal_base,
+        )
+        xdot_force_candidate = xdot_p_prev + xddot_p * T_s
+        raw_normal_velocity = float(np.dot(xdot_force_candidate, approach_normal_base))
+        xdot_force_candidate = xdot_force_candidate + (
+            anti_windup.applied_normal_velocity_m_s - raw_normal_velocity
+        ) * approach_normal_base
+    elif config.force_integral_policy == CONTACT_GATED_LEAKY_POLICY:
+        velocity_limit = _finite_float(
+            config.force_normal_velocity_limit_m_s,
+            "force_normal_velocity_limit_m_s",
+        )
+        p_gain = 1.0 / Md
+        i_gain = float(config.kf) / Md
+        damping = Bd / Md
+        normal_velocity = float(np.dot(xdot_p_prev, approach_normal_base))
+        anti_windup = contact_gated_leaky_step(
+            force_error_n=e_f,
+            normal_load_n=normal_load_n,
+            contact_gate_force_n=float(config.force_contact_gate_n),
+            integral_state_n_s=state.force_integral_n_s,
+            dt_s=dt_s,
+            leak_tau_s=float(config.force_integral_leak_tau_s),
+            force_p_gain=p_gain,
+            force_i_gain=i_gain,
+            force_damping=damping,
+            normal_velocity_m_s=normal_velocity,
             normal_velocity_limit_m_s=velocity_limit,
             state_limit_n_s=abs(float(config.force_integral_limit_n_s)),
             authority_error_n=float(config.force_integral_authority_error_n),
@@ -543,7 +763,24 @@ def compute_step5d_outer_loop(
             "force_load_n": normal_load_n,
             "e_f": e_f,
             "force_integral_n_s": float(force_integral),
+            "integral_state_n_s": float(force_integral),
             "force_integral_policy": config.force_integral_policy,
+            "integral_raw_state_n_s": (
+                float(getattr(anti_windup, "raw_integral_state_n_s", force_integral))
+                if anti_windup is not None
+                else float(force_integral)
+            ),
+            "integral_leaky_state_n_s": (
+                float(getattr(anti_windup, "leaky_integral_state_n_s", force_integral))
+                if anti_windup is not None
+                else float(force_integral)
+            ),
+            "integral_contact_gated": bool(
+                getattr(anti_windup, "contact_gated", False)
+            ),
+            "integral_leak_factor": float(
+                getattr(anti_windup, "leak_factor", 1.0)
+            ),
             "integral_effective_limit_n_s": (
                 anti_windup.effective_integral_limit_n_s
                 if anti_windup is not None
@@ -556,6 +793,11 @@ def compute_step5d_outer_loop(
             "integral_authority_clamped": anti_windup.authority_clamped if anti_windup is not None else False,
             "integral_conditional_frozen": anti_windup.conditional_frozen if anti_windup is not None else False,
             "integral_velocity_saturated": anti_windup.velocity_saturated if anti_windup is not None else False,
+            "integral_saturated": bool(
+                (anti_windup.state_clamped or anti_windup.authority_clamped)
+                if anti_windup is not None
+                else False
+            ) or bool(getattr(anti_windup, "integral_saturated", False)),
             "integral_reset_reason": anti_windup.reset_reason if anti_windup is not None else "",
             "xddot_p": _tuple3(xddot_p),
             "xdot_force_candidate": _tuple3(xdot_force_candidate),
@@ -584,7 +826,24 @@ def compute_step5d_outer_loop(
             "outer_orientation_angle_rad": outer_orientation_angle_rad,
             "R_d_z_dot_R_cur_z": float(np.dot(R_d[:, 2], R_cur[:, 2])),
             "force_integral_n_s": float(force_integral),
+            "integral_state_n_s": float(force_integral),
             "force_integral_policy": config.force_integral_policy,
+            "integral_raw_state_n_s": (
+                float(getattr(anti_windup, "raw_integral_state_n_s", force_integral))
+                if anti_windup is not None
+                else float(force_integral)
+            ),
+            "integral_leaky_state_n_s": (
+                float(getattr(anti_windup, "leaky_integral_state_n_s", force_integral))
+                if anti_windup is not None
+                else float(force_integral)
+            ),
+            "integral_contact_gated": bool(
+                getattr(anti_windup, "contact_gated", False)
+            ),
+            "integral_leak_factor": float(
+                getattr(anti_windup, "leak_factor", 1.0)
+            ),
             "integral_effective_limit_n_s": (
                 anti_windup.effective_integral_limit_n_s
                 if anti_windup is not None
@@ -597,6 +856,11 @@ def compute_step5d_outer_loop(
             "integral_authority_clamped": anti_windup.authority_clamped if anti_windup is not None else False,
             "integral_conditional_frozen": anti_windup.conditional_frozen if anti_windup is not None else False,
             "integral_velocity_saturated": anti_windup.velocity_saturated if anti_windup is not None else False,
+            "integral_saturated": bool(
+                (anti_windup.state_clamped or anti_windup.authority_clamped)
+                if anti_windup is not None
+                else False
+            ) or bool(getattr(anti_windup, "integral_saturated", False)),
             "integral_reset_reason": anti_windup.reset_reason if anti_windup is not None else "",
             "T_s": T_s,
             "delay_T_mapping": delay_T_mapping,

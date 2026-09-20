@@ -75,11 +75,19 @@ def test_live_registry_stays_unavailable_while_offline_discovery_is_explicit() -
         resolve_method("TASE_QP")
 
     offline = load_offline_method_records()
-    assert set(offline) == {"TASE_RNN", "TASE_RNN_MATURE_MINUS", "TASE_QP"}
+    assert set(offline) == {
+        "TASE_RNN",
+        "TASE_RNN_MATURE_MINUS",
+        "TASE_QP",
+        "TASE_IMPROVED",
+    }
     assert all(record.offline_only and not record.live_eligible for record in offline.values())
     assert offline["TASE_RNN"].variant == "printed_eq23_plus"
     assert offline["TASE_RNN_MATURE_MINUS"].variant == "mature_minus"
     assert offline["TASE_QP"].variant == "matched_outer_qp"
+    assert offline["TASE_IMPROVED"].variant == (
+        "local-normal-gated-leaky-normal-priority-slack-qp"
+    )
 
 
 def test_default_registry_initializes_each_advertised_offline_name(qp_library: Path) -> None:
@@ -98,6 +106,11 @@ def test_default_registry_initializes_each_advertised_offline_name(qp_library: P
         assert handle.backend.live_eligible is False
         if sign is not None:
             assert handle.backend.config.lambda_update_sign == sign
+    improved = registry.initialize("TASE_IMPROVED", qp_library=qp_library)
+    assert improved.spec.implementation == "TaseImprovedOfflineMethodAdapter"
+    assert improved.spec.qualification == "software_only"
+    assert improved.backend.variant == "local-normal-gated-leaky-normal-priority-slack-qp"
+    assert improved.backend.live_eligible is False
 
 
 def test_rnn_sign_metadata_matches_the_selected_equation_variant(
