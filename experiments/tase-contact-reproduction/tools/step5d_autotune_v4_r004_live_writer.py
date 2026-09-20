@@ -391,6 +391,13 @@ class LiveR004Writer:
         self.session = ResidentSession(self.contract)
         self._opened = False
         self._stopped = False
+        self._runtime_transport_opened = False
+        self._entry_runtime_open_mono_s: float | None = None
+        self._stop_command_attempted = False
+        self._stop_command_delivered = False
+        self._stop_send_error: BaseException | None = None
+        self._stop_terminal_receipt: dict[str, Any] | None = None
+        self._stop_packet_provenance: str | None = None
         self._packet_sequence = 0
         self._session_command_sequence = 0
         self._session_command = SessionCommand.HOLD
@@ -771,20 +778,97 @@ class LiveR004Writer:
             and not self._r013_path_end_requested
         )
 
+    def _preserve_runtime_during_sensor_wait(self) -> None:
+        """Keep RTDE outputs fresh during Kunwei wait/warmup.
+
+        Base is a no-op so existing writers still only poll Kunwei here.
+        Native overrides this to service the sole open RTDE channel without
+        HOLD/ARM publication.
+        """
+
+        return
+
+    def _entry_output_after_sensor_wait(self, rtde: R004RTDETransport) -> R004OutputSnapshot:
+        output = rtde.poll_output()
+        if output is None:
+            raise LiveWriterError("r004 runtime output is missing at entry")
+        return output
+
+    def _commit_entry_runtime_freshness(self, output: R004OutputSnapshot) -> None:
+        self._last_poll_was_fresh = True
+        self._last_rtde_frame_mono_s = self._mono_clock()
+        self._last_rtde_frame_sequence = output.timestamp
+
+    def _safe_stop_sensor_packet(self) -> SensorPacket:
+        return self._sensor_packet(raw=(0.0,) * 6, observed_at_s=self._mono_clock())
+
+    def _stop_only_sensor_packet(self) -> SensorPacket:
+        """Zero wrench that is not a baseline-compensated measurement."""
+
+        self._stop_packet_provenance = "stop_only"
+        return SensorPacket(
+            normal_load_n=0.0,
+            force_norm_n=0.0,
+            heartbeat=float(self._packet_sequence),
+            sensor_fresh=False,
+            stop_request=True,
+            eoat_get_ack=self._last_output is not None,
+            torque_norm_nm=0.0,
+            wrench=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            filtered_normal_n=0.0,
+            observed_at_s=None,
+        )
+
+    def _swallow_safe_stop_send_errors(self) -> bool:
+        return True
+
+    def _observe_stop_before_close(self) -> None:
+        """Optional bounded STOP observation while the sole RTDE channel is open."""
+
+        return
+
+    def _runtime_transport_is_open(self) -> bool:
+        transport = self._controller_transport
+        if transport is None:
+            return False
+        opened = getattr(transport, "opened", None)
+        if opened is False:
+            return False
+        if opened is True:
+            return True
+        return bool(self._runtime_transport_opened)
+
+    @staticmethod
+    def _output_mode_detail(output: R004OutputSnapshot) -> str:
+        echoes = getattr(output, "integer_echoes", {}) or {}
+        tcp = getattr(output, "tcp_speed_m_s_rad_s", ())
+        qd = getattr(output, "qd_rad_s", ())
+        return (
+            f"safety_mode={getattr(output, 'safety_mode', None)!r} "
+            f"robot_mode={getattr(output, 'robot_mode', None)!r} "
+            f"runtime_state={getattr(output, 'runtime_state', None)!r} "
+            f"runtime_mode={echoes.get(26) if hasattr(echoes, 'get') else None} "
+            f"tcp_speed={list(tcp)} qd={list(qd)}"
+        )
+
     def _send_safe_stop(self) -> None:
         rtde = self._controller_transport
         if rtde is None:
             return
+        if self._stop_command_attempted:
+            return
         self._session_command_sequence += 1
         self._session_command = SessionCommand.STOP
         self._stopped = True
-        sensor = self._sensor_packet(raw=(0.0,) * 6, observed_at_s=self._mono_clock())
+        self._stop_command_attempted = True
+        sensor = self._safe_stop_sensor_packet()
         try:
             self._send_packet(sensor, command_mode=CommandMode.STOP, structural_stop=True)
-        except Exception:
-            # Cleanup must continue through Kunwei, RTDE, and the lease even if
-            # the final safe packet cannot be delivered.
-            pass
+            self._stop_command_delivered = True
+        except Exception as exc:
+            self._stop_send_error = exc
+            if not self._swallow_safe_stop_send_errors():
+                raise
 
     def _validate_output(
         self,
@@ -800,8 +884,16 @@ class LiveR004Writer:
             raise LiveWriterError("runtime V4 CoG readback differs")
         if any(not math.isclose(actual, expected, rel_tol=0.0, abs_tol=0.00005) for actual, expected in zip(output.tcp_offset_m_rad, tcp, strict=True)):
             raise LiveWriterError("runtime V4 TCP readback differs")
-        if not output.safety_normal or (require_stationary and not output.stationary):
-            raise LiveWriterError("runtime Safety/stationary gate failed")
+        if not output.safety_normal:
+            raise LiveWriterError(
+                "runtime Safety/stationary gate failed: safety invalid "
+                + self._output_mode_detail(output)
+            )
+        if require_stationary and not output.stationary:
+            raise LiveWriterError(
+                "runtime Safety/stationary gate failed: stationarity invalid "
+                + self._output_mode_detail(output)
+            )
         if not output.program_running:
             raise LiveWriterError("r004 resident program is not running")
         hi, lo = runtime_identity_limbs(
@@ -1071,10 +1163,15 @@ class LiveR004Writer:
             self._begin_authority()
             rtde, kunwei = self._transport_pair()
             rtde.open()
+            self._runtime_transport_opened = True
+            self._entry_runtime_open_mono_s = self._mono_clock()
+            self._last_output_seen_wall_s = self._wall_clock()
             kunwei.open()
+            self._preserve_runtime_during_sensor_wait()
             raw, observed_at = kunwei.poll()
             first_frame_deadline = self._mono_clock() + PACKET_STALE_S
             while raw is None and self._mono_clock() < first_frame_deadline:
+                self._preserve_runtime_during_sensor_wait()
                 self._sleep(0.002)
                 raw, observed_at = kunwei.poll()
             if raw is None:
@@ -1085,6 +1182,7 @@ class LiveR004Writer:
             # collected; this is not a motion or sensor-configuration write.
             warmup_deadline = self._mono_clock() + KUNWEI_STREAM_WARMUP_S
             while self._mono_clock() < warmup_deadline:
+                self._preserve_runtime_during_sensor_wait()
                 candidate_raw, candidate_observed_at = kunwei.poll()
                 if candidate_raw is not None:
                     raw, observed_at = candidate_raw, candidate_observed_at
@@ -1092,15 +1190,12 @@ class LiveR004Writer:
             # Reconcile a resident TP packet/cache echo before the first write.
             # The controller may retain this register across Play/restart; the
             # first new host packet must therefore be strictly newer than it.
-            output = rtde.poll_output()
-            if output is None:
-                raise LiveWriterError("r004 runtime output is missing at entry")
+            self._preserve_runtime_during_sensor_wait()
+            output = self._entry_output_after_sensor_wait(rtde)
             self._validate_output(output, require_stationary=True, allow_prearm_epoch=True)
             if output.consumed_packet_sequence < -1:
                 raise LiveWriterError("resident TP packet sequence echo is invalid")
-            self._last_poll_was_fresh = True
-            self._last_rtde_frame_mono_s = self._mono_clock()
-            self._last_rtde_frame_sequence = output.timestamp
+            self._commit_entry_runtime_freshness(output)
             self._session_command_sequence = max(
                 self._session_command_sequence,
                 output.integer_echoes[29],
@@ -1875,6 +1970,10 @@ class LiveR004Writer:
         except Exception as exc:  # pragma: no cover - defensive cleanup path
             errors.append(exc)
         try:
+            self._observe_stop_before_close()
+        except Exception as exc:  # pragma: no cover - defensive cleanup path
+            errors.append(exc)
+        try:
             self.release_timing_scheduler_lease()
         except Exception as exc:  # pragma: no cover - defensive cleanup path
             errors.append(exc)
@@ -1887,6 +1986,7 @@ class LiveR004Writer:
                     transport.close()
                 except Exception as exc:  # pragma: no cover - defensive cleanup path
                     errors.append(exc)
+        self._runtime_transport_opened = False
         try:
             self._revoke_authority(reason=revoke_reason)
         except Exception as exc:  # pragma: no cover - defensive cleanup path

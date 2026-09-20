@@ -71,7 +71,7 @@ def test_stop_needs_fresh_stationary_controller_observation(fresh,state,stationa
     clock = NS(now=1.)
     output = NS(timestamp=2., received_monotonic_s=1. if fresh else .1,
         stationary=stationary, safety_normal=True,
-        integer_echoes={26:state,28:4,32:606006,33:18,34:618001},
+        integer_echoes={26:state,28:4,32:606006,33:20,34:618001},
         qd_rad_s=(0.,)*6, tcp_speed_m_s_rad_s=(0.,)*6)
     writer = NS(_mono_clock=lambda:clock.now, _last_output=NS(timestamp=1.),
         stop=lambda reason:None, _opened=True,
@@ -165,6 +165,9 @@ def test_revoked_live_authority_rejects_before_receipts_or_devices(monkeypatch, 
         pytest.fail("revoked hardware request reached admission/device construction")
     monkeypatch.setattr(entry,'load_run_dir_receipts',forbidden)
     monkeypatch.setattr(entry,'build_native_yield_owner',forbidden)
+    config=entry.load_live_entry_config()
+    config['user_standing_live_authority']=False
+    monkeypatch.setattr(entry, 'load_live_entry_config', lambda:config)
     assert entry.status_payload()['user_standing_live_authority'] is False
     with pytest.raises(entry.YieldLiveError,match='discontinued by the user'):
         entry.run_live(args)

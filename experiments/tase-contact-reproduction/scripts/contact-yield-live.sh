@@ -14,9 +14,10 @@ else
 fi
 usage() {
   cat <<'EOF'
-Usage: contact-yield-live.sh <status|qualify|pilot|stop> [options]
+Usage: contact-yield-live.sh <status|supervise|qualify|pilot|stop> [options]
 
 status     Software/registry/package identity. No devices.
+supervise  Continuously observe Load/Play, resident-check or writer, and Stop.
 qualify    Open the mature writer, ARM, qualification attempt, stop/Home.
 pilot      Open, ARM, PATH --method SFC|DSFC|MSFC --duration 2|10|full.
 stop       Signal the bound owner process and read its physical stop receipt.
@@ -30,11 +31,16 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" || $# -eq 0 ]]; then
   usage
   exit 0
 fi
+entry="${EXPERIMENT_ROOT}/tools/contact_yield_live.py"
 case "$1" in
+  supervise)
+    "${EXPERIMENT_ROOT}/scripts/contact-six.sh" status >&2
+    entry="${EXPERIMENT_ROOT}/tools/contact_yield_supervisor.py"
+    shift ;;
   qualify|pilot) "${EXPERIMENT_ROOT}/scripts/contact-six.sh" status >&2 ;;
 esac
 exec env -u VIRTUAL_ENV -u PYTHONHOME \
   PYTHONPATH="${EXPERIMENT_ROOT}/tools:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages" \
   PYTHONNOUSERSITE=1 AMENT_PREFIX_PATH="/opt/ros/humble" \
   OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
-  "$interpreter" -B "${EXPERIMENT_ROOT}/tools/contact_yield_live.py" "$@"
+  "$interpreter" -B "$entry" "$@"

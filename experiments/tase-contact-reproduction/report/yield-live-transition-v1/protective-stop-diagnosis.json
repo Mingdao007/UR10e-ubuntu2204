@@ -1,0 +1,43 @@
+{
+  "schema": "yield-protective-stop-diagnosis-v1",
+  "alarm": "C207A0",
+  "alarm_controller_local": "2026-09-20 10:22:15 CEST",
+  "controller_clock_behind_host_s_approx": 1831,
+  "elapsed_since_second_play_s_approx": 3.23,
+  "sfc_armed": false,
+  "confirmed": [
+    "Effective PolyScope program injects OnRobot 6.6.1 installation preamble.",
+    "OnRobot requests input integer 24 for one status value and sets a 5 Hz stop watchdog.",
+    "Old admission observer R012LiveRTDETransport requested input integers 24..32 and 35, thus overlapping input24.",
+    "Controller-local OnRobot RTDE feed emitted malformed size=0/id=0 packages during overlapping client startup.",
+    "setWatchdog input_int_register_24 is not in use precedes C207A0 by approximately 0.203 seconds."
+  ],
+  "inference": "The input ownership collision prevented a valid OnRobot heartbeat and triggered its watchdog. Native remap success still requires current on-controller verification.",
+  "repairs": [
+    "Output-only independent observation from before Load through observed STOPPED.",
+    "Native logical input integer24 moves to physical36; integers25..32 and35 unchanged. Float and output banks unchanged.",
+    "Keep OnRobot installation and watchdog; do not spoof its status.",
+    "Service real RTDE frames during Kunwei warmup.",
+    "Consume STOP once, preserve the first terminal fault, and observe STOP before closing transport."
+  ],
+  "evidence": {
+    "controller-log-history.txt": {
+      "path": "runs/yield-lifecycle-repair-20260920T1030Z/controller-log-history.txt",
+      "sha256": "062b442df32c5d7a4e73fd205f49c7a9fd3b65b26b82c539d0c63f4b34a2a720"
+    },
+    "URControl.log.0": {
+      "path": "runs/yield-lifecycle-repair-20260920T1030Z/URControl.log.0",
+      "sha256": "37f9b4c0d6cf64ff23de6cd0cb27926b6f04d8a44524381c3db9471bb64ab777"
+    },
+    "polyscope.in.memory.program.script": {
+      "path": "runs/yield-lifecycle-repair-20260920T1030Z/polyscope.in.memory.program.script",
+      "sha256": "8db6d105f0134e1305a19af8becf3021d3471a03c7eb15e5265f0e98e7169a5d"
+    },
+    "recording20260920_10_22_15.zip": {
+      "path": "runs/yield-lifecycle-repair-20260920T1030Z/recording20260920_10_22_15.zip",
+      "sha256": "66fec80b0240c8c10ecd58b7a8be0e0bcda745e5889d6335a17ebdad699ce6ef"
+    }
+  },
+  "official_reference": "https://www.universal-robots.com/manuals/EN/HTML/SW5_23/Content/prod-err-codes/topics/CODE_207.html",
+  "physical_repair_verified": false
+}

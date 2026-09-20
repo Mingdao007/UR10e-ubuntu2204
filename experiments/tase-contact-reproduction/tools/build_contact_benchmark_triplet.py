@@ -12,7 +12,7 @@ SOURCE=ROOT/'programs/step5/step5d/step5d_strict_rnn_autotune_v4_r012.script'
 BASENAME='step5d_contact_six_qp_v1'
 CONTROLLER_DIR='/programs/andyl/kunwei/step5'
 PROTOCOL=618001
-REVISION=19
+REVISION=20
 
 
 def transform(source,home,stamp):
@@ -32,7 +32,19 @@ def transform(source,home,stamp):
     body=re.sub(r'local fixed_home_pose = p\[[^\]]+\]',f'local fixed_home_pose = {home_text}',body)
     body=re.sub(r'^# FIXED_HOME_POSE: .*$',f'# FIXED_HOME_POSE: {home_text}',body,flags=re.M)
     body=body.replace('while path_elapsed_s < 60.000000000 and',f'while path_elapsed_s < {Task().duration_s:.12f} and')
-    # Narrow inherited speed bounds; leave register layout and fault/return lifecycle intact.
+    # The active installation owns integer input24 for OnRobot's RTDE watchdog.
+    # Remap only the native logical slot; float24 and output24 are different banks.
+    if body.count('read_input_integer_register(24)') != 7:
+        raise ValueError('native input24 read sites differ')
+    body=body.replace('read_input_integer_register(24)', 'read_input_integer_register(36)')
+    if 'read_input_integer_register(24)' in body or body.count('read_input_integer_register(36)') != 7:
+        raise ValueError('native physical register allocation differs')
+    # A stop-only packet has no sensor measurement. Explicit STOP still means
+    # external_stop in active loops; preserve any earlier terminal fault.
+    guard='  if packet_reason != 0:\n    return packet_reason\n  elif read_input_float_register(27) < 0.5'
+    if body.count(guard)!=1:raise ValueError('native packet guard differs')
+    body=body.replace(guard,'  if packet_reason != 0:\n    return packet_reason\n  elif read_input_integer_register(27) == 3:\n    return 4\n  elif read_input_float_register(27) < 0.5')
+    # Narrow inherited speed bounds; leave the fault/return lifecycle intact.
     body=body.replace('codex_r006_finite(qdot, 5.000000000)','codex_r006_finite(qdot, 0.050000000)')
     body=body.replace('speedj(baseline_qdot, 40.000000000,','speedj(baseline_qdot, 5.000000000,')
     body=body.replace('speedj(path_qdot, 40.000000000,','speedj(path_qdot, 5.000000000,')
@@ -66,6 +78,7 @@ def transform(source,home,stamp):
         '# CONTACT_SEARCH: constant 0.0002m/s; travel<=0.015m; timeout=90s; original Home XYZ with current aligned attitude',
         '# EOAT: payload=0.413kg CoG=[0.0011,0.0031,0.0163]m TCP=[0,0,0.0874,0,0,0]',
         '# HOST_BACKEND: native-six-law + osqp-codegen-c; legacy RNN qualification is not reusable']
+    lines.insert(6, '# NATIVE_INTEGER_INPUTS: logical24->physical36; 25..32 and 35 unchanged; OnRobot owns input24')
     body='\n'.join(lines)+'\n'
     validate_urscript_block_balance(body)
     for forbidden in ('set_tcp(', 'set_payload(', 'zero_ftsensor(', 'speedj(path_qdot, 40.'):

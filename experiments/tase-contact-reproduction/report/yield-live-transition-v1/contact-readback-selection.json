@@ -2,25 +2,26 @@
   "schema": "contact-readback-selection-v1",
   "status": "controller read-back verified",
   "program": "step5d_contact_six_qp_v1",
-  "source_validation": "report/yield-live-transition-v1/step5d_contact_six_qp_v1-validation.json",
-  "readback_directory": "runs/yield-live-transition-20260920/step5d_contact_six_qp_v1-fresh-readback",
+  "source_validation": "runs/yield-resident-repair-20260920T104847Z/step5d_contact_six_qp_v1-validation.json",
+  "readback_directory": "runs/yield-resident-repair-20260920T104847Z/readback/step5d_contact_six_qp_v1",
   "readback_time_policy": "original capture retained; selection does not refresh hardware observation time",
   "sha256": {
     "local": {
-      ".script": "87c789d9ad1879a7e448cef2867689d133bbb34c3978f94fcebae91a1a6d1142",
-      ".txt": "36ce492f4945ba917b43ac695327dd092a2979f9d999fc867af3984c893d06bb",
-      ".urp": "41b94445425a59aad5659ecf34cbeecc27613493fa23e8a73d84313e6bad8210"
+      ".script": "06e719591fc3792d023037de0db211d4cc4cea86aec6c66733de4489e8a1fb00",
+      ".txt": "c25b0199f5cb34bedad492122b11b4332f237140b779b8aa5162207a6844ab3e",
+      ".urp": "71a5ee4eecc45b425ee286dc02f7fc02d26009e6c6a9a855553d8b3e93ce77b3"
     },
     "controller": {
-      ".script": "87c789d9ad1879a7e448cef2867689d133bbb34c3978f94fcebae91a1a6d1142",
-      ".txt": "36ce492f4945ba917b43ac695327dd092a2979f9d999fc867af3984c893d06bb",
-      ".urp": "41b94445425a59aad5659ecf34cbeecc27613493fa23e8a73d84313e6bad8210"
+      ".script": "06e719591fc3792d023037de0db211d4cc4cea86aec6c66733de4489e8a1fb00",
+      ".txt": "c25b0199f5cb34bedad492122b11b4332f237140b779b8aa5162207a6844ab3e",
+      ".urp": "71a5ee4eecc45b425ee286dc02f7fc02d26009e6c6a9a855553d8b3e93ce77b3"
     },
     "readback": {
-      ".script": "87c789d9ad1879a7e448cef2867689d133bbb34c3978f94fcebae91a1a6d1142",
-      ".txt": "36ce492f4945ba917b43ac695327dd092a2979f9d999fc867af3984c893d06bb",
-      ".urp": "41b94445425a59aad5659ecf34cbeecc27613493fa23e8a73d84313e6bad8210"
+      ".script": "06e719591fc3792d023037de0db211d4cc4cea86aec6c66733de4489e8a1fb00",
+      ".txt": "c25b0199f5cb34bedad492122b11b4332f237140b779b8aa5162207a6844ab3e",
+      ".urp": "71a5ee4eecc45b425ee286dc02f7fc02d26009e6c6a9a855553d8b3e93ce77b3"
     }
   },
-  "claim_scope": "byte identity of retained fresh controller GET only; no runtime freshness, ARM or task qualification"
+  "claim_scope": "byte identity of retained fresh controller GET only; no runtime freshness, ARM or task qualification",
+  "observed_at_s": 1789901330.45085
 }

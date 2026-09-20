@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-09-20T08:57:28.205680+00:00",
+  "updated_at": "2026-09-20T10:50:27.892454+00:00",
   "current_stage_id": "step5d_contact_six_qp_v1",
   "current_step": "Step5d",
   "program": "step5d_contact_six_qp_v1",
@@ -11,23 +11,23 @@
   "local_triplet": "programs/step5/step5d/contact-six-qp/step5d_contact_six_qp_v1",
   "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection.json",
   "sha256": {
-    ".script": "87c789d9ad1879a7e448cef2867689d133bbb34c3978f94fcebae91a1a6d1142",
-    ".txt": "36ce492f4945ba917b43ac695327dd092a2979f9d999fc867af3984c893d06bb",
-    ".urp": "41b94445425a59aad5659ecf34cbeecc27613493fa23e8a73d84313e6bad8210"
+    ".script": "06e719591fc3792d023037de0db211d4cc4cea86aec6c66733de4489e8a1fb00",
+    ".txt": "c25b0199f5cb34bedad492122b11b4332f237140b779b8aa5162207a6844ab3e",
+    ".urp": "71a5ee4eecc45b425ee286dc02f7fc02d26009e6c6a9a855553d8b3e93ce77b3"
   },
-  "status": "live_discontinued_by_user",
+  "status": "revision20_deployed_supervised_resident_check_pending",
   "liveprep_status": "blocked",
   "liveprep_readiness_path": "runs/contact-yield-live/readiness.json",
   "reproduction_status": "incomplete",
   "standing_task_authority": {
-    "source": "user live-first implementation plan and confirmed exclusive attended bench",
-    "scope": "offline baseline implementation, code review and existing-data analysis only",
+    "source": "User: \u53eflive\u4e86, 2026-09-20",
+    "scope": "lifecycle repair, supervised resident check, and existing bounded live task after fresh gates",
     "requires_fresh_machine_admission": true,
-    "live_revoked_by_user": true
+    "live_revoked_by_user": false
   },
   "bridge_trigger": {
     "bridge_has_started": false,
-    "blocked_reason": "User explicitly abandoned further live after Protective Stop; no Load/Play/ARM/motion/unlock"
+    "blocked_reason": "lifecycle repair and fresh hardware admission pending"
   },
   "bridge_profile": {
     "runtime_protocol": 618001,
@@ -76,11 +76,13 @@
     "stopped_transport": "report/yield-live-transition-v1/rtde-stopped-transport-summary.json",
     "contact_pilot_completed": false,
     "full_writer_qualified": false,
-    "latest_live_attempt": "report/yield-live-transition-v1/first-live-admission-failure.json"
+    "latest_live_attempt": "report/yield-live-transition-v1/first-live-admission-failure.json",
+    "protective_stop_diagnosis": "report/yield-live-transition-v1/protective-stop-diagnosis.json"
   },
   "notes": [
     "Selection fixes the old RNN/native route mismatch only. No Load, Play, ARM or motion performed by this change.",
     "The generic resolver live_authorized field represents accepted machine admission, not the standing user instruction above.",
     "Legacy governed release and frozen offline protocols are retained separately and are not this native execution route."
-  ]
+  ],
+  "runtime_revision": 20
 }

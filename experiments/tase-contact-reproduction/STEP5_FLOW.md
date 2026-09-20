@@ -1,8 +1,8 @@
 # Step5 Flow
 
-The current task selects `step5d_contact_six_qp_v1` on the existing UR10e/Kunwei platform. The native live entry is under review; no contact pilot or full writer qualification has passed. Package read-back and stopped transport evidence are in `report/yield-live-transition-v1/`. Standing user live authority exists, but fresh machine admission remains mandatory.
+The current task selects `step5d_contact_six_qp_v1` on the existing UR10e/Kunwei platform. The native live entry uses revision 20 with input integer 24 remapped to 36, continuous output-only observation, and bounded STOP confirmation. The C207A0 OnRobot watchdog conflict is documented in `report/yield-live-transition-v1/protective-stop-diagnosis.json`; the controller resident check is pending. No contact pilot or full writer qualification has passed. Package read-back and stopped transport evidence are in `report/yield-live-transition-v1/`. Standing user live authority exists, but fresh machine admission remains mandatory.
 
-The task remains constant 5 N + unknown surface + attitude compliance. SFC and original TASE/RNN are required baselines; DSFC/MSFC and evidence-driven new controllers are proposals; TASE-QP changes only the solver. Native entry will use `scripts/contact-yield-live.sh` after integration. Simulation is not a prerequisite.
+The task remains constant 5 N + unknown surface + attitude compliance. SFC and original TASE/RNN are required baselines; DSFC/MSFC and evidence-driven new controllers are proposals; TASE-QP changes only the solver. Native entry uses `scripts/contact-yield-live.sh supervise` with fresh read-back, state and capture evidence. Simulation is not a prerequisite.
 
 The old governed release (`config/step5d/current.json`), its incomplete runs, and the historical preparation sections below are retained. They are not the selected native runtime and must not be dispatched for this task.
 

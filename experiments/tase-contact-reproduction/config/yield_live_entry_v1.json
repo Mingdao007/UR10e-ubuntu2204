@@ -66,8 +66,8 @@
     "path_constraint_frame": "native_task_basis",
     "path_constraint_binding": "pre_joint_qp_projection_and_actual_solution_validation"
   },
-  "user_standing_live_authority": false,
+  "user_standing_live_authority": true,
   "machine_evidence_fresh": false,
   "physical_qualification": false,
-  "live_discontinued_reason": "User abandoned further live after Protective Stop on 2026-09-20"
+  "live_reauthorized_reason": "User explicitly reauthorized live on 2026-09-20 after implementation request; requires fresh machine admission"
 }

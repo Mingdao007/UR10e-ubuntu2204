@@ -173,6 +173,7 @@ def run_live(
     sleep=None,
     now_s: float | None = None,
     owner_holder: list[Any] | None = None,
+    observer_guard=None,
 ) -> dict[str, Any]:
     if args.command not in {"qualify", "pilot"}:
         raise YieldLiveError(f"unknown live command {args.command!r}")
@@ -218,6 +219,11 @@ def run_live(
         mono_clock=mono_clock,
         sleep=sleep,
     )
+    if observer_guard is not None:
+        mature.writer._controller_transport = ObservedTransport(
+            mature.writer._controller_transport, observer_guard,
+            stopping=lambda: mature.writer._stopped,
+            clock=mature.writer._mono_clock)
     if owner_holder is not None:
         owner_holder[:] = [mature, runtime]
     from dataclasses import asdict
@@ -230,6 +236,8 @@ def run_live(
         "program": CONTACT_PROGRAM,
         "home_program": HOME_PROGRAM,
         "runtime_protocol": RUNTIME_PROTOCOL,
+        "requested_input_recipe": list(__import__('contact_yield_transport').NATIVE_INPUT_FIELDS),
+        "controller_readback_triplet": dict(contract.triplet),
         "readable_runtime_identity": list(READABLE_RUNTIME_IDENTITY),
         "provider": type(provider).__name__,
         "provider_id": id(provider),
@@ -375,6 +383,28 @@ def time_clock(now_s: float | None) -> float:
     import time as _time
 
     return float(now_s) if now_s is not None else float(_time.time())
+
+
+class ObservedTransport:
+    """Propagate observer aborts to the same writer, including admission.
+
+    Terminal polling stays available after STOP so a fault cannot prevent its
+    own physical-stop observation. The observer itself never writes commands.
+    """
+    def __init__(self, transport, guard, *, stopping, clock):
+        self.transport, self.guard = transport, guard
+        self.stopping, self.clock = stopping, clock
+        self.checked_at = None
+
+    def __getattr__(self, name):
+        return getattr(self.transport, name)
+
+    def poll_output(self, **kwargs):
+        now = self.clock()
+        if not self.stopping() and (self.checked_at is None or now-self.checked_at >= .020):
+            self.guard()
+            self.checked_at = now
+        return self.transport.poll_output(**kwargs)
 
 
 def stop_owner(owner_holder: list[Any] | None) -> dict[str, Any]:

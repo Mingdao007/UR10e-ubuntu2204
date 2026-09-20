@@ -49,6 +49,7 @@ from step5d_autotune_v4_r006.live_adapter import (
     _R006ScopedRuntimeInjection,
     r006_runtime_path_reference,
 )
+from step5d_autotune_v4_r004_live_writer import RUNTIME_OUTPUT_MAX_AGE_S, LiveWriterError
 from step5d_autotune_v4_r006.tp import RUNTIME_PROTOCOL as R006_RUNTIME_PROTOCOL
 from step5d_autotune_v4_r012.live_host import PathEarlyEndController
 from step5d_eoat_profiles import load_new_eoat_profile
@@ -139,6 +140,28 @@ def _require_run_file(run_dir: Path, name: str) -> Path:
     return path
 
 
+def load_software_baseline(run_dir: Path, contract, *, now_s: float):
+    baseline_path = _require_run_file(run_dir, "software_baseline_receipt.json")
+    baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+    values = tuple(float(x) for x in baseline["mean_wrench_n_nm"])
+    if len(values) != 6 or not all(math.isfinite(x) for x in values):
+        raise YieldLiveWriterError("software baseline requires six finite SI values")
+    if (baseline.get("stationary") is not True
+        or baseline.get("no_contact") is not True
+        or baseline.get("eoat_identity_sha256") != contract.eoat_sha256):
+        raise YieldLiveWriterError("software baseline context differs")
+    capture_name = baseline["capture_file"]
+    if not isinstance(capture_name, str) or Path(capture_name).name != capture_name:
+        raise YieldLiveWriterError("baseline capture must be a run-local file")
+    capture_path = _require_run_file(run_dir, capture_name)
+    if hashlib.sha256(capture_path.read_bytes()).hexdigest() != baseline["capture_sha256"]:
+        raise YieldLiveWriterError("software baseline capture digest differs")
+    observed = float(baseline["observed_at_s"])
+    if not 0 <= now_s-observed <= CONTROLLER_READBACK_MAX_AGE_S:
+        raise YieldLiveWriterError("software baseline is stale or from the future")
+    return baseline_path, baseline, values
+
+
 def load_run_dir_receipts(
     run_dir: Path,
     *,
@@ -175,21 +198,7 @@ def load_run_dir_receipts(
         )
     else:
         raise YieldLiveWriterError(f"missing admission receipt: {home_path}")
-    baseline_path = _require_run_file(run_dir, "software_baseline_receipt.json")
-    baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
-    values = tuple(float(x) for x in baseline["mean_wrench_n_nm"])
-    if len(values) != 6 or not all(math.isfinite(x) for x in values):
-        raise YieldLiveWriterError("software baseline requires six finite SI values")
-    if (baseline.get("stationary") is not True
-        or baseline.get("no_contact") is not True
-        or baseline.get("eoat_identity_sha256") != contract.eoat_sha256):
-        raise YieldLiveWriterError("software baseline context differs")
-    capture_name = baseline["capture_file"]
-    if not isinstance(capture_name, str) or Path(capture_name).name != capture_name:
-        raise YieldLiveWriterError("baseline capture must be a run-local file")
-    capture_path = _require_run_file(run_dir, capture_name)
-    if hashlib.sha256(capture_path.read_bytes()).hexdigest() != baseline["capture_sha256"]:
-        raise YieldLiveWriterError("software baseline capture digest differs")
+    baseline_path, baseline, values = load_software_baseline(run_dir, contract, now_s=now_s)
     prerequisites = YieldLivePrerequisites(
         contract=contract,
         controller=controller,
@@ -334,8 +343,8 @@ def build_native_yield_owner(
         if sleep is not None:
             kwargs["sleep"] = sleep
         writer = NativeYieldLiveWriter(prerequisites, **kwargs)
-        from step5d_autotune_v4_r012.register_transport import install_r012_register_transport
-        controller_transport = install_r012_register_transport(writer)
+        from contact_yield_transport import install_native_yield_transport
+        controller_transport = install_native_yield_transport(writer)
         writer.live_path_request = request
         writer.session.identity = _R005SessionIdentityGate(prerequisites.contract)
         writer._readable_runtime_identity = READABLE_RUNTIME_IDENTITY
@@ -370,6 +379,7 @@ class NativeYieldLiveWriter(R006LiveWriter):
         self.robot_observations = []
         self.admission_robot_observations = []
         self.rejected_robot_observations = []
+        self._first_output_error = None
 
     @staticmethod
     def _record(buffer, value):
@@ -402,10 +412,18 @@ class NativeYieldLiveWriter(R006LiveWriter):
         try:
             return super()._validate_output(output, **kwargs)
         except Exception as exc:
-            self._record(self.rejected_robot_observations, {
+            evidence = {
                 "output": output, "host_monotonic_s": self._mono_clock(),
                 "error": f"{type(exc).__name__}: {exc}",
-            })
+                "safety_mode": getattr(output, "safety_mode", None),
+                "robot_mode": getattr(output, "robot_mode", None),
+                "runtime_state": getattr(output, "runtime_state", None),
+                "tcp_speed_m_s_rad_s": getattr(output, "tcp_speed_m_s_rad_s", None),
+                "qd_rad_s": getattr(output, "qd_rad_s", None),
+            }
+            if getattr(self, "_first_output_error", None) is None:
+                self._first_output_error = evidence
+            self._record(self.rejected_robot_observations, evidence)
             raise
 
     def _poll_checked(self, *args, **kwargs):
@@ -433,6 +451,219 @@ class NativeYieldLiveWriter(R006LiveWriter):
             })
         return sensor
 
+    def _swallow_safe_stop_send_errors(self) -> bool:
+        return False
+
+    def _safe_stop_sensor_packet(self):
+        return self._stop_only_sensor_packet()
+
+    def _preserve_runtime_during_sensor_wait(self) -> None:
+        transport = self._controller_transport
+        if transport is None or not self._runtime_transport_is_open():
+            return
+        now = self._mono_clock()
+        if self._entry_runtime_open_mono_s is None:
+            self._entry_runtime_open_mono_s = now
+        output = transport.poll_output(wait_s=0.0)
+        now = self._mono_clock()
+        if output is None:
+            origin = self._last_rtde_frame_mono_s
+            if origin is None:
+                origin = self._entry_runtime_open_mono_s
+            if now - origin >= RUNTIME_OUTPUT_MAX_AGE_S:
+                raise LiveWriterError(
+                    "runtime identity output is stale: missing RTDE output "
+                    f"for {now - origin:.3f}s without refreshing cached timestamps"
+                )
+            return
+        if (
+            self._last_rtde_frame_sequence is not None
+            and output.timestamp <= self._last_rtde_frame_sequence
+        ):
+            origin = self._last_rtde_frame_mono_s
+            if origin is not None and now - origin >= RUNTIME_OUTPUT_MAX_AGE_S:
+                raise LiveWriterError(
+                    "runtime identity output is stale: RTDE timestamp did not "
+                    "advance without refreshing cached timestamps"
+                )
+            self._last_poll_was_fresh = False
+            return
+        received = output.received_monotonic_s
+        if received is None or not 0 <= now - received < RUNTIME_OUTPUT_MAX_AGE_S:
+            raise LiveWriterError('runtime sensor-wait observation has no fresh receive timestamp')
+        self._validate_output(output, require_stationary=True, allow_prearm_epoch=True)
+        self._last_poll_was_fresh = True
+        self._last_rtde_frame_mono_s = received
+        self._last_rtde_frame_sequence = output.timestamp
+        self._observe_runtime(output)
+        self._last_output = output
+        self._last_output_seen_wall_s = self._wall_clock()
+
+    def _entry_output_after_sensor_wait(self, rtde):
+        del rtde
+        self._preserve_runtime_during_sensor_wait()
+        output = self._last_output
+        if output is None:
+            raise LiveWriterError("r004 runtime output is missing at entry")
+        origin = self._last_rtde_frame_mono_s
+        now = self._mono_clock()
+        if origin is None or now - origin >= RUNTIME_OUTPUT_MAX_AGE_S:
+            raise LiveWriterError("runtime identity output is stale")
+        return output
+
+    def _commit_entry_runtime_freshness(self, output) -> None:
+        if (
+            self._last_output is output
+            and self._last_rtde_frame_sequence == output.timestamp
+            and self._last_rtde_frame_mono_s is not None
+        ):
+            return
+        super()._commit_entry_runtime_freshness(output)
+
+    def _expected_runtime_echo(self) -> tuple[int, tuple[int, int]]:
+        from step5d_autotune_v4_r004.contracts import runtime_identity_limbs
+
+        readable = getattr(self, "_readable_runtime_identity", None)
+        if readable is None:
+            expected = runtime_identity_limbs(
+                self.contract.raw["program"],
+                self.contract.sha256,
+                self.contract.campaign_fingerprint,
+            )
+        else:
+            expected = tuple(readable)
+        return self._runtime_protocol, expected
+
+    def _fresh_stop_observation(self, output, *, requested_at, prior_timestamp, now):
+        received = getattr(output, "received_monotonic_s", None)
+        timestamp = getattr(output, "timestamp", None)
+        if received is None or timestamp is None:
+            return False
+        if not (requested_at <= received <= now and now - received < RUNTIME_OUTPUT_MAX_AGE_S):
+            return False
+        if prior_timestamp is not None and not (timestamp > prior_timestamp):
+            return False
+        return True
+
+    def _identity_matches(self, output) -> bool:
+        protocol, expected = self._expected_runtime_echo()
+        echoes = getattr(output, "integer_echoes", {}) or {}
+        return echoes.get(32) == protocol and (echoes.get(33), echoes.get(34)) == expected
+
+    def stop_and_observe(self, *, timeout_s=1.0, reason="operator_stop"):
+        """Send at most one STOP on the open transport and observe the result."""
+
+        if self._stop_terminal_receipt is not None:
+            return dict(self._stop_terminal_receipt)
+        requested_at = self._mono_clock()
+        prior = self._last_output
+        prior_timestamp = None if prior is None else prior.timestamp
+        send_error = None
+        if not self._stop_command_attempted:
+            try:
+                self.stop(reason)
+            except Exception as exc:
+                send_error = exc
+                self._stop_send_error = exc
+        if send_error is None:
+            send_error = self._stop_send_error
+        send_ok = self._stop_command_delivered and send_error is None
+        requested_session_sequence = self._session_command_sequence
+        requested_packet_sequence = self._last_writer_sequence
+        receipt = {
+            "stop_requested": True,
+            "stopped": False,
+            "stop_send_ok": send_ok,
+            "requested_session_sequence": requested_session_sequence,
+            "requested_packet_sequence": requested_packet_sequence,
+            "stop_send_error": None if send_error is None else f"{type(send_error).__name__}: {send_error}",
+            "tp_ack": False,
+            "observed_stationary": False,
+            "protective_stop": False,
+            "safety_mode": None,
+            "robot_mode": None,
+            "runtime_state": None,
+            "runtime_mode": None,
+            "state": None,
+            "reason": "no_open_transport_for_confirmation",
+            "stop_packet_provenance": self._stop_packet_provenance,
+        }
+        if not self._runtime_transport_is_open():
+            self._stop_terminal_receipt = receipt
+            return dict(receipt)
+        deadline = requested_at + float(timeout_s)
+        last_output = None
+        while self._mono_clock() <= deadline:
+            output = self._controller_transport.poll_output(wait_s=0.002)
+            now = self._mono_clock()
+            if output is not None:
+                last_output = output
+                echoes = getattr(output, "integer_echoes", {}) or {}
+                safety_normal = bool(getattr(output, "safety_normal", False))
+                stationary = bool(getattr(output, "stationary", False))
+                state = echoes.get(26)
+                stop_reason = echoes.get(28)
+                protective = not safety_normal
+                consumed_packet = getattr(output, 'consumed_packet_sequence', -1)
+                tp_ack = (safety_normal and state == 90
+                          and echoes.get(29) == requested_session_sequence
+                          and requested_packet_sequence is not None
+                          and consumed_packet >= requested_packet_sequence)
+                fresh = self._fresh_stop_observation(
+                    output,
+                    requested_at=requested_at,
+                    prior_timestamp=prior_timestamp,
+                    now=now,
+                )
+                identity = self._identity_matches(output)
+                receipt.update({
+                    "safety_mode": getattr(output, "safety_mode", None),
+                    "robot_mode": getattr(output, "robot_mode", None),
+                    "runtime_state": getattr(output, "runtime_state", None),
+                    "runtime_mode": state,
+                    "state": state,
+                    "stop_reason": stop_reason,
+                    "consumed_session_sequence": echoes.get(29),
+                    "consumed_packet_sequence": consumed_packet,
+                    "observed_stationary": stationary,
+                    "protective_stop": protective,
+                    "tp_ack": tp_ack,
+                    "controller_timestamp": output.timestamp,
+                    "received_monotonic_s": getattr(output, "received_monotonic_s", None),
+                    "actual_qd": list(getattr(output, "qd_rad_s", ())),
+                    "actual_tcp_speed": list(getattr(output, "tcp_speed_m_s_rad_s", ())),
+                })
+                if send_ok and fresh and identity and stationary and tp_ack:
+                    receipt["stopped"] = True
+                    receipt["reason"] = stop_reason
+                    self._last_output = output
+                    self._stop_terminal_receipt = receipt
+                    return dict(receipt)
+                if fresh and identity and stationary and protective:
+                    receipt["reason"] = "protective_stop_is_not_tp_stop_ack"
+                    self._stop_terminal_receipt = receipt
+                    return dict(receipt)
+                if not send_ok:
+                    receipt["reason"] = "stop_send_error"
+                    self._stop_terminal_receipt = receipt
+                    return dict(receipt)
+            self._sleep(0.002)
+        if last_output is None:
+            receipt["reason"] = "fresh_stationary_stop_confirmation_timeout"
+        elif not send_ok:
+            receipt["reason"] = "stop_send_error"
+        elif receipt.get("protective_stop"):
+            receipt["reason"] = "protective_stop_is_not_tp_stop_ack"
+        elif not receipt.get("tp_ack"):
+            receipt["reason"] = "fresh_stationary_stop_confirmation_timeout"
+        else:
+            receipt["reason"] = "fresh_stationary_stop_confirmation_timeout"
+        self._stop_terminal_receipt = receipt
+        return dict(receipt)
+
+    def _observe_stop_before_close(self) -> None:
+        self.stop_and_observe(timeout_s=1.0, reason="cleanup_stop")
+
 
 def native_attempt(*, command: str, epoch: int, sequence: int) -> Attempt:
     kind = "QUALIFICATION" if command == "qualify" else "BOOTSTRAP_PD"
@@ -454,6 +685,9 @@ def stop_and_confirm(writer, *, timeout_s=1.0):
     therefore cannot be used as an acknowledgement. No new command channel is
     opened here. A missing transport or observation is an unconfirmed stop.
     """
+    observe = getattr(writer, "stop_and_observe", None)
+    if callable(observe):
+        return observe(timeout_s=timeout_s, reason="operator_stop")
     requested_at = writer._mono_clock()
     prior = getattr(writer, '_last_output', None)
     prior_timestamp = None if prior is None else prior.timestamp

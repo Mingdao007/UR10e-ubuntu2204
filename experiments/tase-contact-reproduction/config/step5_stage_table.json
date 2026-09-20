@@ -11510,7 +11510,7 @@
       "contact": true,
       "complete": false,
       "blocked": true,
-      "block_reason": "native live entry under review and real writer qualification pending",
+      "block_reason": "physical resident check and writer qualification pending",
       "duration_s": 62.83185307179586,
       "current_binding": {
         "is_current": true,
@@ -11525,7 +11525,8 @@
         "controller_readback_status": "controller read-back verified"
       },
       "entrypoint": "scripts/contact-yield-live.sh",
-      "entrypoint_status": "implementation_under_review",
+      "entrypoint_status": "lifecycle_repaired_software_verified",
+      "runtime_revision": 20,
       "task": [
         "constant_force",
         "unknown_surface",
