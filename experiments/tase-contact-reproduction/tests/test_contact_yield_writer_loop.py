@@ -20,7 +20,7 @@ from test_contact_qualification_provider import _output, _sensor
 
 def exercise_writer_loop(tmp_path,monkeypatch, *, entry_aware=True, cached_at_end=False,
                          home_rotation=(0., 0., 0.), terminal_rotation=None,
-                         native_provider=False, writer_class=None, late_baseline=False):
+                         native_provider=False, writer_class=None, late_baseline=False, qualification=False):
     clock=SimpleNamespace(t=0.,ticks=0,ended=False,cache_injected=False,previous=None,sent=[])
     transport=SimpleNamespace(send_packet=lambda *args: clock.sent.append(args))
     provider=SimpleNamespace(execution_command=lambda **_kw:None,last_result=None,
@@ -73,7 +73,7 @@ def exercise_writer_loop(tmp_path,monkeypatch, *, entry_aware=True, cached_at_en
         kunwei_transport=object(),mono_clock=lambda:clock.t,wall_clock=lambda:100.,sleep=sleep,
         path_sample_sink=samples.append)
     # Admission is outside this unit's scope: no open/arm/device operation.
-    attempt=build_campaign_plan(writer.contract)[3]
+    attempt=build_campaign_plan(writer.contract)[0 if qualification else 3]
     writer.session=SimpleNamespace(phase=SessionPhase.RUNNING,finish_attempt=lambda _d:None)
     writer._ordinal=attempt.ordinal;writer._kind=attempt.kind;writer._candidate_token=17
     writer._baseline_successes=3;writer._session_command=SessionCommand.HOLD
@@ -84,6 +84,8 @@ def exercise_writer_loop(tmp_path,monkeypatch, *, entry_aware=True, cached_at_en
     writer._r013_path_early_end_controller=SimpleNamespace(request_early_end=end,requested=False)
     def poll(**_kwargs):
         state=78 if clock.ended else 20 if clock.ticks==0 else 21 if clock.ticks==1 else 25
+        if qualification:
+            state = (20, 21, 22, 78)[min(clock.ticks, 3)]
         if cached_at_end and state==25 and clock.t>=60.004 and not clock.cache_injected:
             clock.cache_injected=True
             writer._last_poll_was_fresh=False
@@ -144,3 +146,27 @@ def test_writer_sends_the_late_cycle_zero_baseline_packet(tmp_path, monkeypatch)
         and double_values[20] == pytest.approx(3.0)
         for double_values, _integer_values in qualification_packets
     )
+
+
+def test_qualification_search_and_return_do_not_reuse_host_command(tmp_path, monkeypatch):
+    observed = []
+
+    class Captured(Exception):
+        pass
+
+    class Collector:
+        def observe(self, sample):
+            observed.append(sample)
+            if sample.state == 22:
+                raise Captured("captured search baseline return")
+
+    monkeypatch.setattr(writer_module, "QualificationEvidenceCollector", Collector)
+    with pytest.raises(writer_module.LiveWriterError, match="captured search baseline return"):
+        exercise_writer_loop(tmp_path, monkeypatch, qualification=True, late_baseline=True)
+    assert [sample.state for sample in observed] == [20, 21, 22]
+    assert observed[1].late_cycle
+    assert observed[1].actual_dt_s == pytest.approx(.0115)
+    for sample in (observed[0], observed[2]):
+        assert sample.actual_dt_s is None
+        assert sample.native_law_dt_s is None
+        assert sample.late_cycle is False

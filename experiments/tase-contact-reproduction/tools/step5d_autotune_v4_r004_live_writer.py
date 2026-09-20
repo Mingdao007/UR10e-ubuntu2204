@@ -1578,6 +1578,9 @@ class LiveR004Writer:
                 path_elapsed_s: float | None = None
                 path_clock_time_s: float | None = None
                 path_end_fence = False
+                # TP-owned search/return ticks have no host law invocation.
+                # Reset each tick so evidence cannot borrow the prior command.
+                command = None
                 if state == 25 and self._path_command_started_mono_s is not None:
                     path_elapsed_s = max(0.0, now - self._path_command_started_mono_s)
                     path_end_fence = path_elapsed_s >= formal_duration_s
@@ -1744,9 +1747,9 @@ class LiveR004Writer:
                             state=state,
                             command_mode=int(mode),
                             sticky_one_newton_latched=self._sticky_latched,
-                            actual_dt_s=command.actual_dt_s,
-                            late_cycle=command.late_cycle,
-                            native_law_dt_s=command.native_law_dt_s,
+                            actual_dt_s=command.actual_dt_s if command is not None else None,
+                            late_cycle=command.late_cycle if command is not None else False,
+                            native_law_dt_s=command.native_law_dt_s if command is not None else None,
                         )
                     )
                     # Qualification's host-driven closed loop is state 21.
