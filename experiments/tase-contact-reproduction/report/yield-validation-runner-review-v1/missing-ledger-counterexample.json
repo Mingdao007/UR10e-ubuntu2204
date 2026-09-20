@@ -1,0 +1,8 @@
+{
+  "source_sha256": "70fa94f3c4e81353d9e688f9544ed072035e3843646eec77e04998d457abb2ce",
+  "probe": "test fixture _write_freeze in temporary directory then default load_training_freeze(path)",
+  "accepted_without_training_ledger": true,
+  "ledger_path": null,
+  "campaign_protocol_sha256": null,
+  "formal_units_used": 0
+}
