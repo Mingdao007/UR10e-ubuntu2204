@@ -12,6 +12,7 @@ from step5d_autotune_v4_r004_live_writer import (
     LiveWriterError,
 )
 from step5d_autotune_v4_r004.wire import CommandMode
+from contact_benchmark_provider import ContactReadinessObserver
 from test_contact_qualification_provider import (
     _Provider,
     _control,
@@ -64,6 +65,49 @@ def test_first_sample_is_explicitly_nominal_and_next_tick_propagates_measured_dt
     assert second.actual_dt_s == pytest.approx(0.0115)
     assert provider.late_cycle_calls[-1]["actual_dt_s"] == pytest.approx(0.0115)
     assert provider.late_cycle_calls[-1]["monotonic_s"] == pytest.approx(0.0135)
+
+
+def test_r006_readiness_observer_does_not_reject_stationary_pre_path_late_cycle():
+    """The native R006 seam uses the readiness observer as its path object.
+
+    A delayed stationary frame before PATH is retained as evidence-only.  It
+    must not reach the observer's native 4 ms admission, which would turn the
+    already-reviewed bounded late-cycle policy back into a startup failure.
+    """
+
+    provider = _Provider()
+    control = _control(provider, path_requested=False)
+    control._path_controller = ContactReadinessObserver(0.02)
+    control._baseline_state = baseline_runtime.BaselineState()
+    control._last_monotonic_s = None
+    control._origin_monotonic_s = None
+    control._startup_ready_latched = False
+    control._startup = SimpleNamespace(
+        observe=lambda _heartbeat, _elapsed: False,
+        stopped=False,
+        stop_reason="",
+    )
+
+    first = control.step(
+        output=_output(state=21),
+        sensor=_sensor(),
+        monotonic_s=0.002,
+        command_sequence=1,
+    )
+    assert first.first_sample is True
+
+    delayed = control.step(
+        output=_output(state=21),
+        sensor=_sensor(),
+        monotonic_s=0.0136,
+        command_sequence=2,
+    )
+
+    assert delayed.canonical_phase == "late_cycle"
+    assert delayed.late_cycle is True
+    assert delayed.actual_dt_s == pytest.approx(0.0116)
+    assert provider.late_cycle_calls[-1]["actual_dt_s"] == pytest.approx(0.0116)
+    assert control._path_controller.last_log.actual_dt_s == pytest.approx(0.002)
 
 
 def test_failed_tick_rolls_back_provider_and_control_time_anchor(monkeypatch):
