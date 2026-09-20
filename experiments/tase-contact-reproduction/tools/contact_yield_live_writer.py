@@ -617,6 +617,20 @@ class NativeYieldLiveWriter(R006LiveWriter):
         self.rejected_robot_observations = []
         self._first_output_error = None
 
+    def recovery_lifecycle(self, *, home_transition=None, ownership_registry=None):
+        """Expose the offline recovery seam on this existing sole writer.
+
+        The returned object only records identity and recovery decisions.  It
+        does not replace this writer, open a transport, unlock, or issue Home.
+        """
+        from contact_yield_recovery_contract import RecoveryLifecycle
+
+        return RecoveryLifecycle.from_writer(
+            self,
+            home_transition=home_transition,
+            ownership_registry=ownership_registry,
+        )
+
     @staticmethod
     def _record(buffer, value):
         # One public pilot owns three qualifications and one PATH attempt.
