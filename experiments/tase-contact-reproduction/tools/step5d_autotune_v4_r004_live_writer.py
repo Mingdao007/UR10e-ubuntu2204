@@ -1869,7 +1869,8 @@ class LiveR004Writer:
             # the same attitude; Euclidean rotvec distance is not. Legacy RNN
             # routes keep the original coordinate comparison.
             from yield_contact_provider import YieldContactProvider
-            if isinstance(contact_provider, YieldContactProvider):
+            from tase_contact_provider import TaseContactProvider
+            if isinstance(contact_provider, (YieldContactProvider, TaseContactProvider)):
                 from contact_yield_math import so3_exp, so3_log
                 import numpy as np
                 orientation_error = float(

@@ -166,7 +166,7 @@ def test_wrong_protocol_fails_before_arm(tmp_path: Path, lib):
     )
     kunwei = FakeLiveKunweiTransport(observed_clock=clock.now)
     code = main(
-        _argv("qualify", tmp_path, qp_library=str(lib), attempt_id="r006-yield-live-qualify"),
+        _argv("qualify", tmp_path, qp_library=str(lib), attempt_id="r006-yield-live-qualify", method=method),
         controller_transport=rtde,
         kunwei_transport=kunwei,
         wall_clock=lambda: 100.0,
@@ -186,7 +186,7 @@ def test_stale_receipt_fails_before_arm(tmp_path: Path, lib):
     )
     kunwei = FakeLiveKunweiTransport(observed_clock=clock.now)
     code = main(
-        _argv("qualify", tmp_path, qp_library=str(lib), attempt_id="r006-yield-live-qualify"),
+        _argv("qualify", tmp_path, qp_library=str(lib), attempt_id="r006-yield-live-qualify", method=method),
         controller_transport=rtde,
         kunwei_transport=kunwei,
         wall_clock=lambda: 400.0,
@@ -197,7 +197,8 @@ def test_stale_receipt_fails_before_arm(tmp_path: Path, lib):
     assert code == 1
 
 
-def test_endpoint_qualify_uses_real_open_arm_execute(tmp_path: Path, lib):
+@pytest.mark.parametrize("method", ["SFC", "TASE_RNN_MATURE"])
+def test_endpoint_qualify_uses_real_open_arm_execute(tmp_path: Path, lib, method):
     contract = _prepare(tmp_path)
     clock = Clock(0.01)
     events: list[str] = []
@@ -212,7 +213,7 @@ def test_endpoint_qualify_uses_real_open_arm_execute(tmp_path: Path, lib):
     kunwei = FakeLiveKunweiTransport(observed_clock=clock.now)
     holder: list = []
     code = main(
-        _argv("qualify", tmp_path, qp_library=str(lib), attempt_id="r006-yield-live-qualify"),
+        _argv("qualify", tmp_path, qp_library=str(lib), attempt_id="r006-yield-live-qualify", method=method),
         controller_transport=rtde,
         kunwei_transport=kunwei,
         wall_clock=lambda: 100.0,
