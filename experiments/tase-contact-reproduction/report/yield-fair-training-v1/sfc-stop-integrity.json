@@ -1,0 +1,126 @@
+{
+  "observed_utc": "2026-09-20T04:30:16.467143+00:00",
+  "scope": "SFC initial eight-pair artifact integrity and read-only ledger cardinality; metrics not independently recomputed by this check",
+  "verified_artifacts": [
+    {
+      "id": "SFC-00-disturbed",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-00-disturbed/artifact.json",
+      "sha256": "5d835eceb7996ad91e253029522b459c2a5b861d4cfb768c16fce8d6151392aa",
+      "bytes": 340116904,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-00-nominal",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-00-nominal/artifact.json",
+      "sha256": "e51055b6e96aec95671647c044e7100567a5dafa59343afd7afa0c3adea3e3a9",
+      "bytes": 340008836,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-01-disturbed",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-01-disturbed/artifact.json",
+      "sha256": "b2751ef469193cf86ddad09700ee581644b7f61c431b6c08489c8333ad37a5d9",
+      "bytes": 340304899,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-01-nominal",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-01-nominal/artifact.json",
+      "sha256": "7943dd2ae88242eede493ea94bc24ca64a81da0dd4cd7906a89416ba6cafc714",
+      "bytes": 339933918,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-02-disturbed",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-02-disturbed/artifact.json",
+      "sha256": "00844745601772d8fbdbc785caf2977e353a6d0145db506c3051b9be43fee798",
+      "bytes": 339975090,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-02-nominal",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-02-nominal/artifact.json",
+      "sha256": "e8c852ef4b5db1f396f4ca95be8504d2e7a4922937824edb7f21a91d9bf3bb68",
+      "bytes": 339307580,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-03-disturbed",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-03-disturbed/artifact.json",
+      "sha256": "9b10e74288ab5fab023239f544679dc47c58e25a9d1653a678be6eba839efd5e",
+      "bytes": 340545068,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-03-nominal",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-03-nominal/artifact.json",
+      "sha256": "ec804e9fd8c215a886eaa8bac9a1bbf151ffd3d68a05b2c692d58aa5556c43d6",
+      "bytes": 339948759,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-04-disturbed",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-04-disturbed/artifact.json",
+      "sha256": "7bbeeadc62fbb0c3d520258aaa4ff9b30075fc7a68170080d45099a20ffc1d4f",
+      "bytes": 339787935,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-04-nominal",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-04-nominal/artifact.json",
+      "sha256": "863c6bf56ee4219396ca9e763cb8129d2f929ac656227c39260262d381856c0d",
+      "bytes": 339660060,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-05-disturbed",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-05-disturbed/artifact.json",
+      "sha256": "71f68ecbed1a5df337143f34e7c2ede3533573cb51ca136f79602dfe4068e813",
+      "bytes": 340290281,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-05-nominal",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-05-nominal/artifact.json",
+      "sha256": "965fb7133bded642fe699013ba5f256d1f0fb6f5fa59234f9305f28613c7e4ed",
+      "bytes": 339804102,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-06-disturbed",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-06-disturbed/artifact.json",
+      "sha256": "2099693f44cba134503858677b3d71f2b96f7a62679ccb2f14419352efd178cb",
+      "bytes": 340244325,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-06-nominal",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-06-nominal/artifact.json",
+      "sha256": "6a870d9d70b3f9f81892af537852266755223312952b3dc724b41e1c5d0ef8df",
+      "bytes": 339339788,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-07-disturbed",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-07-disturbed/artifact.json",
+      "sha256": "7e0b7469b10135cbc106facd00931c1f0c8b132b06128e7ce509d54998c82cae",
+      "bytes": 339177931,
+      "status": "complete"
+    },
+    {
+      "id": "SFC-07-nominal",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-07-nominal/artifact.json",
+      "sha256": "2bd0dafc6c3332b4ef9ce90b697a9319af53d2fa99b05821e28263ef5bd12b94",
+      "bytes": 338392161,
+      "status": "complete"
+    }
+  ],
+  "feasible_units": [
+    0,
+    1
+  ],
+  "minimum_required": 3,
+  "stop_before_ei": true,
+  "training_modified": false,
+  "validation_executed": false
+}
