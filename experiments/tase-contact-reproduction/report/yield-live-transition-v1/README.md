@@ -124,3 +124,13 @@ resolve the physical event. See first-live-admission-failure.json and the bound
 raw files. Hardware continuation waits for the operator investigation; TASE
 software work remains active. Astra was briefly suspended during the writer
 attempt and resumed after confirmed stopping.
+
+
+## User discontinued live
+
+After the Protective Stop, the user explicitly instructed abandoning further
+live work. This supersedes the earlier standing live authority and any pending
+operator-recovery question. No further Load/Play, ARM, motion or unlock is in
+scope. The last confirmed machine state is STOPPED with Protective Stop and
+zero measured joint velocities. Remaining work is restricted to software, TASE
+baselines and existing-data analysis; it must not automatically resume hardware.

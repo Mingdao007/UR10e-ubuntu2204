@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-09-20T08:57:00.049257+00:00",
+  "updated_at": "2026-09-20T08:57:28.205680+00:00",
   "current_stage_id": "step5d_contact_six_qp_v1",
   "current_step": "Step5d",
   "program": "step5d_contact_six_qp_v1",
@@ -15,18 +15,19 @@
     ".txt": "36ce492f4945ba917b43ac695327dd092a2979f9d999fc867af3984c893d06bb",
     ".urp": "41b94445425a59aad5659ecf34cbeecc27613493fa23e8a73d84313e6bad8210"
   },
-  "status": "protective_stop_pending_operator_diagnosis",
+  "status": "live_discontinued_by_user",
   "liveprep_status": "blocked",
   "liveprep_readiness_path": "runs/contact-yield-live/readiness.json",
   "reproduction_status": "incomplete",
   "standing_task_authority": {
     "source": "user live-first implementation plan and confirmed exclusive attended bench",
-    "scope": "native contact pilots, TASE baselines and measured intervention/recovery on original platform",
-    "requires_fresh_machine_admission": true
+    "scope": "offline baseline implementation, code review and existing-data analysis only",
+    "requires_fresh_machine_admission": true,
+    "live_revoked_by_user": true
   },
   "bridge_trigger": {
     "bridge_has_started": false,
-    "blocked_reason": "observed Protective Stop at first writer open; await TP alarm and physical inspection; no automatic unlock"
+    "blocked_reason": "User explicitly abandoned further live after Protective Stop; no Load/Play/ARM/motion/unlock"
   },
   "bridge_profile": {
     "runtime_protocol": 618001,
