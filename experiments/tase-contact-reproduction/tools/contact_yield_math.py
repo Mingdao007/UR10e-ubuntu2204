@@ -22,6 +22,12 @@ from contact_semantics import (
 
 _LOG_SMALL = 1e-12
 _ORTHONORMAL_ATOL = 1e-8
+_ROTATION_IDENTITY = np.eye(3)
+# Preserve np.allclose's existing diagonal relative tolerance exactly. The
+# finite 3x3 inputs need no generic broadcasting/NaN/Inf handling per tick.
+_ROTATION_TOLERANCE = _ORTHONORMAL_ATOL + 1e-5 * _ROTATION_IDENTITY
+_ROTATION_IDENTITY.flags.writeable = False
+_ROTATION_TOLERANCE.flags.writeable = False
 
 
 class YieldMathError(ValueError):
@@ -65,7 +71,7 @@ def optional_finite_time(value: Any, name: str) -> float | None:
 
 def require_rotation(matrix: Any, name: str = "rotation") -> np.ndarray:
     rotation = finite_matrix3(matrix, name)
-    if not np.allclose(rotation.T @ rotation, np.eye(3), atol=_ORTHONORMAL_ATOL):
+    if not (np.abs(rotation.T @ rotation - _ROTATION_IDENTITY) <= _ROTATION_TOLERANCE).all():
         raise YieldMathError(f"{name} must be orthonormal")
     if float(np.linalg.det(rotation)) < 0.999:
         raise YieldMathError(f"{name} must be right-handed")
