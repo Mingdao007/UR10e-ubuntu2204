@@ -1,0 +1,337 @@
+{
+ "report_inputs": [
+  {
+   "path": "config/yield_fair_tuning_v1.json",
+   "sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04",
+   "round6_sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04",
+   "status_vs_round6": "unchanged"
+  },
+  {
+   "path": "config/yield_normal_observer_v3.json",
+   "sha256": "c9598b42a252e94daf0fa22938f3b26fd4df99f595fc63d608f42065a2cb2715",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/contact-yield-recovery-20260920/advancement.json",
+   "sha256": "c5bc4260c927f67641db9c08869b461de24393a370b60a609f2242ae79dbe02a",
+   "round6_sha256": "9d9287435ca03ac3a4da8867c3caab05bd90fb3c6a9e44928b938cbafbec9bf5",
+   "status_vs_round6": "changed_since_round6"
+  },
+  {
+   "path": "report/yield-cycle-boundary-v1/README.md",
+   "sha256": "b009e36f7b33ca814c791eed713247dbce5e29b0d49601d5436ab469ce89037b",
+   "round6_sha256": "b009e36f7b33ca814c791eed713247dbce5e29b0d49601d5436ab469ce89037b",
+   "status_vs_round6": "unchanged"
+  },
+  {
+   "path": "report/yield-cycle-boundary-v1/focused-tests.txt",
+   "sha256": "f8e1c5c8d2f893f43e7fc6cb0d8825c9290565d3248f4814e309576ffec134c6",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-cycle-boundary-v1/main-additional-methods.txt",
+   "sha256": "254d4caf4789b2a0d1a3ff9f56ff1341ad02a4bcf71c64f48ec1b0a531e358b6",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-cycle-boundary-v1/main-integration.md",
+   "sha256": "27cd58a9c2bfa65b577d9adcadfe25ca7d138c16a4270b55233c31ad4f5adde8",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-cycle-boundary-v1/main-tests.txt",
+   "sha256": "3197295f8018e2fc5f185192b8acffaf6bf6b61a18cbdf155b3b1a0c53e53881",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-cycle-boundary-v1/protocol-binding.json",
+   "sha256": "c93fc3cf64553c32a2473923171824b873ed44d7a72dfc014e8c0e894d981f38",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-cycle-boundary-v1/writer-receipt.json",
+   "sha256": "2135aec4a43e7efd83cde104b9e89a75951361404f60a26b98ca27f4838c5fc6",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-campaign-review-v1/README.md",
+   "sha256": "0be199a5bc6623fb608530c8df43a98f7b250f36036105b6783acc57edd1f9c0",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-campaign-review-v1/main-draft-tests.txt",
+   "sha256": "2c558e012926a32945300c26db482c4daf3b0358a81150f56aadc89b0026f3d0",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-campaign-review-v1/main-original-tests.txt",
+   "sha256": "d30b7844fd0870f10b1971dd56e8dd48d8e114bc305f498b859bc0e02ac06327",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-campaign-review-v1/null-snapshots.json",
+   "sha256": "dc779cd262fa98d4cd9157d894f6489ebe409ccaf5463be76f2be9ebd1dedba9",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-campaign-review-v1/original-delivery-hashes.json",
+   "sha256": "08c21222a1adde28d8fb2fb11b6a8ce1d20aaa131b55f4c68d4618378d72843c",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-campaign-review-v1/pair-bypass.json",
+   "sha256": "7780915c2634692b5b3eb71e48ef3bafb6ce3e2b2a342a2c4c9ebec03d2b89b1",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-campaign-review-v1/writer-receipt.json",
+   "sha256": "bf7727d50f8563176c2581466d338c6f9556b66c6ebf00daf3f70075e8938bcb",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/README.md",
+   "sha256": "8febb78517a89f9289e9bbfae253f4e77ae2b44aceb262d48dc227bba8b4d3f0",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/data/round6-analysis.json",
+   "sha256": "879757b3be024d039b642f6b706e7ad06d743dbe0e30839754cf9c2197a97e2d",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/data/round6-input-hashes.json",
+   "sha256": "1732dd568d8e6267c80f55c12bfa8151de6c4a8af0870ca7ceae827a173d1a78",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/data/round6-receipt-manifest.json",
+   "sha256": "d4be1b6f7f9f1270269128b7a4dd5d4f39b39c75f0faeab2ed6a70b62c659af3",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/fable-final.txt",
+   "sha256": "de97afee670a9b32ee080a0c865220560a821c486d6bcf01eefe495d3229a2cf",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/fable-round6.md",
+   "sha256": "989b9d5b266a926ca02c77739915dc47f7ce436f12bb58cfe0f8165cd523d98d",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/main-adjudication.md",
+   "sha256": "9bf9ceeea5f7787de8f7e64d9322725adba773871d6cb6dd82f196540a58a606",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/main-verification.json",
+   "sha256": "98da83282b5055885ab643b8275aff1091171b49dda180a06920d90b28bd4a45",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/round6-input-receipt.json",
+   "sha256": "7ae404ef0ab0aa3b6676051b5d185751ab07a961314026d6e6821de3a571eef7",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/scripts/analyze_round6.py",
+   "sha256": "5170d0c683232b0712fa423efe52fc69408d2ab382a34cab0cb8143def0153f4",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/scripts/extract_rows_v6.py",
+   "sha256": "b3d9662dfbaf4210b3c886f9b34166a863de54ab30c58652c595a252d3528178",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/scripts/main_verify_round6.py",
+   "sha256": "1b1fd6c0968ea71cd558199b8a725c9a2add467042daeaceb525c2078ab3d322",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion/scripts/round6_receipt.py",
+   "sha256": "3c52a9109bf40f6e26e54068c8ce06c6ee253ceb5df1d9eda8dad3b22a5a119e",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/writer-receipt.json",
+   "sha256": "90805c5226370c59654722efd16fdc7e9cc8cb54015c36c678e656f33fd6b1fe",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/writer-task.md",
+   "sha256": "786dcb42176c7c9def964ee0294e2820b13c04e4c8ffb7507fcfaad7e3182b54",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/discussion/scripts/extract_ticks_v5.py",
+   "sha256": "f318c016c2849fa3f20f90bb26155e3a819095882d7511ff3c7dd6a55cf8bc3b",
+   "round6_sha256": "f318c016c2849fa3f20f90bb26155e3a819095882d7511ff3c7dd6a55cf8bc3b",
+   "status_vs_round6": "unchanged"
+  },
+  {
+   "path": "report/yield-native-route-v1/main-binding-tests.txt",
+   "sha256": "b768956d3f7d7dc92407f09cfe2735dc9c60bb791e03a3ade3bec0bcbd87f9e1",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-native-route-v1/main-integration.md",
+   "sha256": "36b87f37b1159b6ca825ae77bc13a15f073f4a2a44b9629dee4b6b9809ca4f36",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-native-route-v1/main-test-path-error.txt",
+   "sha256": "6ef81c40d74ca8d2221ddebdd8757aae7c0ce2520b34ff394398d743fd9ee27c",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-native-route-v1/main-tests.txt",
+   "sha256": "544471445e817aedbf0f4b8c535e3c4f29f0e1d491e271d2846bc36ba7c53881",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-native-route-v1/notes.md",
+   "sha256": "a3008ca99e8ef5e7742705bc8a255a9fa7066453c632e4b9d7d3f5ffb2d264b3",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-native-route-v1/testlog.txt",
+   "sha256": "10b27157b4ef1142f099b9f1c5ec3c19fcf65c5ae8366acb2d133b7f7a9ecd10",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-native-route-v1/writer-file-hashes.json",
+   "sha256": "02695ebe081779a45ce4406fd52c45f9515380faed6202bcad45433843d887bd",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-native-route-v1/writer-receipt.json",
+   "sha256": "001ab9cb9f37fb28ad0a15550c7ee3f43158e7018526ec60e30939458a3af95d",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-validation-reservation-v1/README.md",
+   "sha256": "05797b4e7ea5205e89b8f7b54b0192d21c939f2d8472c3029708bda41dd982ed",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-validation-reservation-v1/protocol.json",
+   "sha256": "4454ce1a216bb014e5e48bb1d0eb1c94937cfbf9600255407d65b7c1060db956",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-validation-reservation-v1/receipt.json",
+   "sha256": "d468b4a35b8b533c03244cb1ca46683eceb1ff26bbf10383f4a5c3abb3514b25",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-warm-memory-v1/README.md",
+   "sha256": "f800e37b129d9120e0c37fcea755553c62a3ba6bd39ca3fb2431c95af743b5b0",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-warm-memory-v1/check.py",
+   "sha256": "0ce3315e1f167cb6a4e3ab0be71e9ab41e18b665bfda242ec8a8f103572be05e",
+   "status_vs_round6": "not_in_round6_list"
+  },
+  {
+   "path": "report/yield-warm-memory-v1/result.json",
+   "sha256": "662d38925f96cb8b5d2e175ea8d2792a9ae7648207563ad0e90996ecf4050470",
+   "status_vs_round6": "not_in_round6_list"
+  }
+ ],
+ "tool_inputs": [
+  {
+   "path": "build/contact-six-laws/contact-laws-733c419baa0884b8859255d4/native_seven_laws.cpp",
+   "sha256": "5a63d33de7e0ef51ca2ac177e843e68193e5d8a4826d25cba4720b4f11292bcf",
+   "status_vs_round6": "not_in_round6_list",
+   "tracked_by_git": false,
+   "note": "native source in the build tree (fingerprint 733c419b); not a tracked file"
+  },
+  {
+   "path": "tools/contact_laws.py",
+   "sha256": "b660eab0863013fb8456d9b29757122dfdacdb46506329dd5cd71a1f315b1b19",
+   "status_vs_round6": "not_in_round6_list",
+   "sha256_at_head_96a3c8bd": "b660eab0863013fb8456d9b29757122dfdacdb46506329dd5cd71a1f315b1b19",
+   "changed_between_96a3c8bd_and_worktree": false
+  },
+  {
+   "path": "tools/contact_yield_controller.py",
+   "sha256": "034422fbc23ee4cefce13eeac6ca3f62bedfa1dc4e72f349f06e5aaf633b82bc",
+   "status_vs_round6": "not_in_round6_list",
+   "sha256_at_head_96a3c8bd": "034422fbc23ee4cefce13eeac6ca3f62bedfa1dc4e72f349f06e5aaf633b82bc",
+   "changed_between_96a3c8bd_and_worktree": false
+  },
+  {
+   "path": "tools/contact_yield_laws.py",
+   "sha256": "77c58e226d40d996394a4138b9f980abe50595e0f38eb43d8ebed3c209d1580c",
+   "status_vs_round6": "not_in_round6_list",
+   "sha256_at_head_96a3c8bd": "77c58e226d40d996394a4138b9f980abe50595e0f38eb43d8ebed3c209d1580c",
+   "changed_between_96a3c8bd_and_worktree": false
+  },
+  {
+   "path": "tools/contact_yield_metrics.py",
+   "sha256": "ac1064303707f48099127e39b3ef0b7ae259a8d7c27203cb37e1000fa6643364",
+   "round6_sha256": "ac1064303707f48099127e39b3ef0b7ae259a8d7c27203cb37e1000fa6643364",
+   "status_vs_round6": "unchanged",
+   "sha256_at_head_96a3c8bd": "ac1064303707f48099127e39b3ef0b7ae259a8d7c27203cb37e1000fa6643364",
+   "changed_between_96a3c8bd_and_worktree": false
+  },
+  {
+   "path": "tools/contact_yield_normal.py",
+   "sha256": "1758790e264c4fb18d3fd6066cbe4b6129e4e7efce549b0992ec68e9a2130856",
+   "round6_sha256": "1758790e264c4fb18d3fd6066cbe4b6129e4e7efce549b0992ec68e9a2130856",
+   "status_vs_round6": "unchanged",
+   "sha256_at_head_96a3c8bd": "1758790e264c4fb18d3fd6066cbe4b6129e4e7efce549b0992ec68e9a2130856",
+   "changed_between_96a3c8bd_and_worktree": false
+  },
+  {
+   "path": "tools/contact_yield_protocol.py",
+   "sha256": "08c5d036c5bc089a7b5b7cd9be0ab297043ef78c818b0962bb276b71d71f3825",
+   "round6_sha256": "08c5d036c5bc089a7b5b7cd9be0ab297043ef78c818b0962bb276b71d71f3825",
+   "status_vs_round6": "unchanged",
+   "sha256_at_head_96a3c8bd": "08c5d036c5bc089a7b5b7cd9be0ab297043ef78c818b0962bb276b71d71f3825",
+   "changed_between_96a3c8bd_and_worktree": false
+  },
+  {
+   "path": "tools/contact_yield_replay.py",
+   "sha256": "151936f764facbab0c57ec445119c13def475ae17c4acdf67550c338a535cd3e",
+   "status_vs_round6": "not_in_round6_list",
+   "sha256_at_head_96a3c8bd": "151936f764facbab0c57ec445119c13def475ae17c4acdf67550c338a535cd3e",
+   "changed_between_96a3c8bd_and_worktree": false
+  },
+  {
+   "path": "tools/contact_yield_runner.py",
+   "sha256": "f2554ed3010f92a5dc92d968527f3bfb6219a7403696219a30bfd2c1ee1e184f",
+   "round6_sha256": "f2554ed3010f92a5dc92d968527f3bfb6219a7403696219a30bfd2c1ee1e184f",
+   "status_vs_round6": "unchanged",
+   "sha256_at_head_96a3c8bd": "f2554ed3010f92a5dc92d968527f3bfb6219a7403696219a30bfd2c1ee1e184f",
+   "changed_between_96a3c8bd_and_worktree": false
+  },
+  {
+   "path": "tools/contact_yield_simulator.py",
+   "sha256": "36b9123ad280114a7d988deeda269d6722cb6ebdef3c692a7bde2d3f773023b4",
+   "round6_sha256": "36b9123ad280114a7d988deeda269d6722cb6ebdef3c692a7bde2d3f773023b4",
+   "status_vs_round6": "unchanged",
+   "sha256_at_head_96a3c8bd": "36b9123ad280114a7d988deeda269d6722cb6ebdef3c692a7bde2d3f773023b4",
+   "changed_between_96a3c8bd_and_worktree": false
+  }
+ ],
+ "raw_artifacts": [
+  {
+   "path": "runs/yield-warm-memory-v1/native-history.json.gz",
+   "sha256": "236fc41ef5deff1bf05a4b4aacdd1044657c2b49ecbc044b670a310ecb64c081",
+   "bytes": 986901
+  }
+ ],
+ "missing_inputs": [],
+ "summary": {
+  "report_inputs": 47,
+  "tools": 10,
+  "changed_since_round6": [
+   "report/contact-yield-recovery-20260920/advancement.json"
+  ],
+  "unchanged_since_round6": 8,
+  "not_in_round6_list": 48
+ }
+}

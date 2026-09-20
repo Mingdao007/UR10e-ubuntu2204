@@ -1,0 +1,8 @@
+..................................................                       [100%]
+=============================== warnings summary ===============================
+tests/test_yield_fair_campaign.py::test_development_native_diagnostic_smoke_does_not_spend_formal_budget
+  /opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115: DeprecationWarning: private variables, such as '_ConstructUnits__ConstructUnitsValue', will be normal attributes in 3.11
+    __ConstructUnitsValue = collections.namedtuple('__ConstructUnitsValue', ['tag', 'conversion_constant'])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+50 passed, 1 warning in 12.24s

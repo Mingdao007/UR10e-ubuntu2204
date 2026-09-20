@@ -1,0 +1,8 @@
+{
+  "tools/yield_fair_campaign.py": "d8b13e40353d9ee0a391c17c5948e5f9ae0e9cd4fa765572d82ad0e0dc287a82",
+  "tools/yield_fair_selection.py": "b5987aca7a69c32f8bf0ead6480d6b373c4d508ebc4bf0692fb266691025516d",
+  "tools/yield_contact_ledger.py": "9c614f1f2493785a45539f80ff0c4fe3b4f7e39db68b8e461a8425619731c769",
+  "config/yield_fair_campaign_v1.json": "ce36c7a3ba824d4bf4e7c748f3ca77a075e15a381d34b54a0d2b2db81febd27d",
+  "tests/test_yield_fair_campaign.py": "223cc0a74fce73463d9a15fcbdf09a9a0e6dd35a8c5ff86cf041b62ee43d1407",
+  "tests/test_yield_fair_selection.py": "54254303458dd2cdf54ca4f28976bb984179288d63b8cfc85163b8ec82a6e380"
+}

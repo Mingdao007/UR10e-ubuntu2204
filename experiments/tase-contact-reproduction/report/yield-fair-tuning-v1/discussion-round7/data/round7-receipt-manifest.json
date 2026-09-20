@@ -1,0 +1,313 @@
+{
+ "receipts": [
+  {
+   "cache_key": "nom-SFC",
+   "cache": "/tmp/yfp5",
+   "path": "runs/yield-frozen-transfer-v1/SFC-nominal.json.gz",
+   "sha256_now": "4802cd3c4a5d2ae4ff3573c6ebbdb141f8e1dc53cc2c1b60308c34959a5ef7b3",
+   "sha256_in_cache": "4802cd3c4a5d2ae4ff3573c6ebbdb141f8e1dc53cc2c1b60308c34959a5ef7b3",
+   "sha256_recorded_by_study": [
+    "4802cd3c4a5d2ae4ff3573c6ebbdb141f8e1dc53cc2c1b60308c34959a5ef7b3"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "nom-DSFC",
+   "cache": "/tmp/yfp5",
+   "path": "runs/yield-observer-prior-v1/DSFC-stiff_low_mu-approach.json.gz",
+   "sha256_now": "234fe77c39660394b4a98b45eb6e546b3ff6c99e4a056167523202d741718a21",
+   "sha256_in_cache": "234fe77c39660394b4a98b45eb6e546b3ff6c99e4a056167523202d741718a21",
+   "sha256_recorded_by_study": [
+    "234fe77c39660394b4a98b45eb6e546b3ff6c99e4a056167523202d741718a21"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "nom-MSFC",
+   "cache": "/tmp/yfp5",
+   "path": "runs/yield-frozen-transfer-v1/MSFC-nominal.json.gz",
+   "sha256_now": "b953f4041fa44b6c325b638974d32486d2ff5856dfe9194d7d0dd9818839a2b3",
+   "sha256_in_cache": "b953f4041fa44b6c325b638974d32486d2ff5856dfe9194d7d0dd9818839a2b3",
+   "sha256_recorded_by_study": [
+    "b953f4041fa44b6c325b638974d32486d2ff5856dfe9194d7d0dd9818839a2b3"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "nom-MSFCid",
+   "cache": "/tmp/yfp5",
+   "path": "runs/yield-frozen-memory-v1/MSFC-nominal.json.gz",
+   "sha256_now": "6d415aa1c394d3206b93c1fc80edd8750bc6db3efa5bd1a458c206863302cd13",
+   "sha256_in_cache": "6d415aa1c394d3206b93c1fc80edd8750bc6db3efa5bd1a458c206863302cd13",
+   "sha256_recorded_by_study": [
+    "6d415aa1c394d3206b93c1fc80edd8750bc6db3efa5bd1a458c206863302cd13"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "tan-SFC",
+   "cache": "/tmp/yfp5",
+   "path": "runs/yield-frozen-transfer-v1/SFC-sustained_release_tangent.json.gz",
+   "sha256_now": "c7c5d28b78051a480a3cde74304841c7da9697d027f43136956b781a75653fa7",
+   "sha256_in_cache": "c7c5d28b78051a480a3cde74304841c7da9697d027f43136956b781a75653fa7",
+   "sha256_recorded_by_study": [
+    "c7c5d28b78051a480a3cde74304841c7da9697d027f43136956b781a75653fa7"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "tan-DSFC",
+   "cache": "/tmp/yfp5",
+   "path": "runs/yield-normal-v3/frozen-tangent-hold.json.gz",
+   "sha256_now": "a85285e1cc35169fca06a46f90cc21fbcc9c3727f62ba0a46c9b920c8c45b638",
+   "sha256_in_cache": "a85285e1cc35169fca06a46f90cc21fbcc9c3727f62ba0a46c9b920c8c45b638",
+   "sha256_recorded_by_study": [
+    "a85285e1cc35169fca06a46f90cc21fbcc9c3727f62ba0a46c9b920c8c45b638"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "tan-MSFC",
+   "cache": "/tmp/yfp5",
+   "path": "runs/yield-frozen-transfer-v1/MSFC-sustained_release_tangent.json.gz",
+   "sha256_now": "e764b57ab98a056ee0dd551a9ff63a11a47992b508029da4af62a6a943b99342",
+   "sha256_in_cache": "e764b57ab98a056ee0dd551a9ff63a11a47992b508029da4af62a6a943b99342",
+   "sha256_recorded_by_study": [
+    "e764b57ab98a056ee0dd551a9ff63a11a47992b508029da4af62a6a943b99342"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "tan-MSFCid",
+   "cache": "/tmp/yfp5",
+   "path": "runs/yield-frozen-memory-v1/MSFC-sustained_release_tangent.json.gz",
+   "sha256_now": "a883afdf6b164c0ed8ab2383bfcd7c47f0004e97338de5961796ef5fceceed99",
+   "sha256_in_cache": "a883afdf6b164c0ed8ab2383bfcd7c47f0004e97338de5961796ef5fceceed99",
+   "sha256_recorded_by_study": [
+    "a883afdf6b164c0ed8ab2383bfcd7c47f0004e97338de5961796ef5fceceed99"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "pulse-SFC",
+   "cache": "/tmp/yfp5",
+   "path": "runs/yield-frozen-pulse-v1/SFC/SFC-short_pulse_oblique.json.gz",
+   "sha256_now": "5944e27df2e6f628c4b547b955177c3fca852e36cd9d0b72fc20ed8ced710d3f",
+   "sha256_in_cache": "5944e27df2e6f628c4b547b955177c3fca852e36cd9d0b72fc20ed8ced710d3f",
+   "sha256_recorded_by_study": [
+    "5944e27df2e6f628c4b547b955177c3fca852e36cd9d0b72fc20ed8ced710d3f"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "pulse-DSFC",
+   "cache": "/tmp/yfp5",
+   "path": "runs/yield-frozen-pulse-v1/DSFC/DSFC-short_pulse_oblique.json.gz",
+   "sha256_now": "b8cfc3afe337dce7ed3c1a5cd0305e71730c0c61080174c30fbc38564a247333",
+   "sha256_in_cache": "b8cfc3afe337dce7ed3c1a5cd0305e71730c0c61080174c30fbc38564a247333",
+   "sha256_recorded_by_study": [
+    "b8cfc3afe337dce7ed3c1a5cd0305e71730c0c61080174c30fbc38564a247333"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "pulse-MSFC",
+   "cache": "/tmp/yfp5",
+   "path": "runs/yield-frozen-pulse-v1/MSFC/MSFC-short_pulse_oblique.json.gz",
+   "sha256_now": "b5ff75ba1ba6baab2e198b7606ded211caefe367673c3df9017a48d8feb12ab9",
+   "sha256_in_cache": "b5ff75ba1ba6baab2e198b7606ded211caefe367673c3df9017a48d8feb12ab9",
+   "sha256_recorded_by_study": [
+    "b5ff75ba1ba6baab2e198b7606ded211caefe367673c3df9017a48d8feb12ab9"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "pulse-MSFCid",
+   "cache": "/tmp/yfp5",
+   "path": "runs/yield-frozen-pulse-v1/MSFC-identity/MSFC-short_pulse_oblique.json.gz",
+   "sha256_now": "1f507fae4d44e463f23f6cbca36e45e860c0d1cbdbbd3f05135fc461f7865e57",
+   "sha256_in_cache": "1f507fae4d44e463f23f6cbca36e45e860c0d1cbdbbd3f05135fc461f7865e57",
+   "sha256_recorded_by_study": [
+    "1f507fae4d44e463f23f6cbca36e45e860c0d1cbdbbd3f05135fc461f7865e57"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "no3-nom-SFC",
+   "cache": "/tmp/yfp6",
+   "path": "runs/yield-observer-transfer-v1/SFC-nominal.json.gz",
+   "sha256_now": "2c786a2ad5208858d31576cd747929fe6671dc2ac6b6e336d8b6434b28d4a2ac",
+   "sha256_in_cache": "2c786a2ad5208858d31576cd747929fe6671dc2ac6b6e336d8b6434b28d4a2ac",
+   "sha256_recorded_by_study": [
+    "2c786a2ad5208858d31576cd747929fe6671dc2ac6b6e336d8b6434b28d4a2ac"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "no3-nrm-SFC",
+   "cache": "/tmp/yfp6",
+   "path": "runs/yield-observer-transfer-v1/SFC-sustained_release_normal.json.gz",
+   "sha256_now": "ac695e5652561379d49568f6f07f1f563c0d14d27ba262fb19e75b937107a01f",
+   "sha256_in_cache": "ac695e5652561379d49568f6f07f1f563c0d14d27ba262fb19e75b937107a01f",
+   "sha256_recorded_by_study": [
+    "ac695e5652561379d49568f6f07f1f563c0d14d27ba262fb19e75b937107a01f"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "no3-tan-SFC",
+   "cache": "/tmp/yfp6",
+   "path": "runs/yield-observer-transfer-v1/SFC-sustained_release_tangent.json.gz",
+   "sha256_now": "53f7e2ef79c9b0c22bd9b45d4915b39612f77e2ba7dd1c11f6616464f9452da6",
+   "sha256_in_cache": "53f7e2ef79c9b0c22bd9b45d4915b39612f77e2ba7dd1c11f6616464f9452da6",
+   "sha256_recorded_by_study": [
+    "53f7e2ef79c9b0c22bd9b45d4915b39612f77e2ba7dd1c11f6616464f9452da6"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "no3-nom-DSFC",
+   "cache": "/tmp/yfp6",
+   "path": "runs/yield-normal-v3/combined-mild-approach.json.gz",
+   "sha256_now": "bed69746e5e12835dbc64b502c21677b992d3662dbbcf94cc3b733b5d9aeb706",
+   "sha256_in_cache": "bed69746e5e12835dbc64b502c21677b992d3662dbbcf94cc3b733b5d9aeb706",
+   "sha256_recorded_by_study": [
+    "bed69746e5e12835dbc64b502c21677b992d3662dbbcf94cc3b733b5d9aeb706"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "no3-nrm-DSFC",
+   "cache": "/tmp/yfp6",
+   "path": "runs/yield-normal-v3/combined-normal-hold.json.gz",
+   "sha256_now": "5fe0b6f04ca345c07e82c3cc1661cdc4fc4ad26ba653da1619e195029e9ff5b2",
+   "sha256_in_cache": "5fe0b6f04ca345c07e82c3cc1661cdc4fc4ad26ba653da1619e195029e9ff5b2",
+   "sha256_recorded_by_study": [
+    "5fe0b6f04ca345c07e82c3cc1661cdc4fc4ad26ba653da1619e195029e9ff5b2"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "no3-tan-DSFC",
+   "cache": "/tmp/yfp6",
+   "path": "runs/yield-normal-v3/combined-tangent-hold.json.gz",
+   "sha256_now": "e02b1820c1b85510efd1ff291b6f7f0fd898707a507c45717d5ff0210fae2d15",
+   "sha256_in_cache": "e02b1820c1b85510efd1ff291b6f7f0fd898707a507c45717d5ff0210fae2d15",
+   "sha256_recorded_by_study": [
+    "e02b1820c1b85510efd1ff291b6f7f0fd898707a507c45717d5ff0210fae2d15"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "no3-nom-MSFC",
+   "cache": "/tmp/yfp6",
+   "path": "runs/yield-observer-transfer-v1/MSFC-nominal.json.gz",
+   "sha256_now": "8b490c06bc68a62f4773b01960361f4c30f0cfc63c49ebf4d2d5d9fb6d3e0609",
+   "sha256_in_cache": "8b490c06bc68a62f4773b01960361f4c30f0cfc63c49ebf4d2d5d9fb6d3e0609",
+   "sha256_recorded_by_study": [
+    "8b490c06bc68a62f4773b01960361f4c30f0cfc63c49ebf4d2d5d9fb6d3e0609"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "no3-nrm-MSFC",
+   "cache": "/tmp/yfp6",
+   "path": "runs/yield-observer-transfer-v1/MSFC-sustained_release_normal.json.gz",
+   "sha256_now": "7079dae875ca1b1ac40cacfad833823d3ec9e9bd09b5bd15129e571001cdaabc",
+   "sha256_in_cache": "7079dae875ca1b1ac40cacfad833823d3ec9e9bd09b5bd15129e571001cdaabc",
+   "sha256_recorded_by_study": [
+    "7079dae875ca1b1ac40cacfad833823d3ec9e9bd09b5bd15129e571001cdaabc"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "no3-tan-MSFC",
+   "cache": "/tmp/yfp6",
+   "path": "runs/yield-observer-transfer-v1/MSFC-sustained_release_tangent.json.gz",
+   "sha256_now": "bbf2862bbc170e8501c4b25df39679240d483f7511310e466ac7727a6a0cbab6",
+   "sha256_in_cache": "bbf2862bbc170e8501c4b25df39679240d483f7511310e466ac7727a6a0cbab6",
+   "sha256_recorded_by_study": [
+    "bbf2862bbc170e8501c4b25df39679240d483f7511310e466ac7727a6a0cbab6"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "no3-strong-DSFC",
+   "cache": "/tmp/yfp6",
+   "path": "runs/yield-normal-v3/combined-strong-approach.json.gz",
+   "sha256_now": "23e9b8d4b23aefa89adbe1c4410279f4dbd8f69e17456d101d005614ec0210cc",
+   "sha256_in_cache": "23e9b8d4b23aefa89adbe1c4410279f4dbd8f69e17456d101d005614ec0210cc",
+   "sha256_recorded_by_study": [
+    "23e9b8d4b23aefa89adbe1c4410279f4dbd8f69e17456d101d005614ec0210cc"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "no3-nom-MSFC",
+   "cache": "/tmp/yfp7",
+   "path": "runs/yield-observer-transfer-v1/MSFC-nominal.json.gz",
+   "sha256_now": "8b490c06bc68a62f4773b01960361f4c30f0cfc63c49ebf4d2d5d9fb6d3e0609",
+   "sha256_in_cache": "8b490c06bc68a62f4773b01960361f4c30f0cfc63c49ebf4d2d5d9fb6d3e0609",
+   "sha256_recorded_by_study": [
+    "8b490c06bc68a62f4773b01960361f4c30f0cfc63c49ebf4d2d5d9fb6d3e0609"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "no3-tan-MSFC",
+   "cache": "/tmp/yfp7",
+   "path": "runs/yield-observer-transfer-v1/MSFC-sustained_release_tangent.json.gz",
+   "sha256_now": "bbf2862bbc170e8501c4b25df39679240d483f7511310e466ac7727a6a0cbab6",
+   "sha256_in_cache": "bbf2862bbc170e8501c4b25df39679240d483f7511310e466ac7727a6a0cbab6",
+   "sha256_recorded_by_study": [
+    "bbf2862bbc170e8501c4b25df39679240d483f7511310e466ac7727a6a0cbab6"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  },
+  {
+   "cache_key": "no3-nrm-MSFC",
+   "cache": "/tmp/yfp7",
+   "path": "runs/yield-observer-transfer-v1/MSFC-sustained_release_normal.json.gz",
+   "sha256_now": "7079dae875ca1b1ac40cacfad833823d3ec9e9bd09b5bd15129e571001cdaabc",
+   "sha256_in_cache": "7079dae875ca1b1ac40cacfad833823d3ec9e9bd09b5bd15129e571001cdaabc",
+   "sha256_recorded_by_study": [
+    "7079dae875ca1b1ac40cacfad833823d3ec9e9bd09b5bd15129e571001cdaabc"
+   ],
+   "cache_matches_file": true,
+   "study_record_matches_file": true
+  }
+ ],
+ "count": 25,
+ "all_cache_match": true,
+ "all_study_records_match": true,
+ "without_scanned_study_record": [],
+ "caches": {
+  "/tmp/yfp5": "round-5 extract_ticks_v5.py (rows + records incl. law22)",
+  "/tmp/yfp6": "round-6 extract_rows_v6.py (rows only)",
+  "/tmp/yfp7": "this round, extract_ticks_v5.py on three NO-v3 MSFC receipts (rows + records incl. law22)"
+ }
+}

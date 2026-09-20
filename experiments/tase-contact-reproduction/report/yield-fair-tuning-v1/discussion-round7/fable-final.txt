@@ -1,0 +1,26 @@
+Round 7 is delivered. Everything is under `report/yield-fair-tuning-v1/discussion-round7/` and nothing else in the worktree was touched. HEAD stayed at 96a3c8bd for the whole session. The uncommitted repair files that appeared in the worktree near the end (ledger, campaign runner, selection evaluator, config, tests, two report directories) are main's, were not read, and are listed as such in the receipt.
+
+**What was written**
+
+- `fable-round7.md`: the four answers with decisions first, then evidence sections.
+- `round7-input-receipt.json` plus `data/`: hashes of 47 report/config inputs, 9 tools and the native source; comparison against the round 6 hash list (only `advancement.json` changed); a manifest of 25 raw receipts re-hashed against disk and the owning studies, all matching; output hashes.
+- `scripts/`: the analysis script and the receipt script. All derived numbers are in `data/round7-analysis.json`.
+
+**Answers in one line each**
+
+1. **Floor retained by all methods.** No pre-existing contradiction makes the campaign pointless. The defensible reading is conditional: the floor is attributed to the frozen module by the observer-swap evidence, not by the campaign, because J never rewards nominal precision. Add one column: each incumbent's nominal descriptors against its own seed, since a DSFC or MSFC incumbent can drift to the SFC band and still be feasible.
+2. **Reserved six cells.** No fatal confound for within-cell cross-arm comparisons. Across cells the design attributes nothing, which is lack of attribution rather than invalidity. No essential factor is missing. Three rules should be added in a superseding version before any run: training bands are flags on validation cells, refinements are skipped for failed base pairs, and J is never pooled across cells.
+3. **Memory causality.** The identity arm at the MSFC incumbent is the minimal valid ablation and needs no new waveform. In closed loop the metric is engaged only for 1.3 to 1.8 s after a transient and sits within 1 percent of identity everywhere else, including at onset and at every sustained release. A state-level branch is feasible without controller redesign, but the runner lacks a branch-from-record entry point, and a mid-trajectory identity switch is rejected by both binding checks.
+4. **J and feasibility.** Retained counterexample on the frozen pulse: J prefers DSFC to SFC while DSFC has the higher peak and lower minimum load. Reporting fix without touching the metric: absolute descriptors beside J for every pair, "better" only when no descriptor moves the other way beyond its resolution, seed-relative nominal columns, no weight refit.
+
+**Negative evidence worth attention**
+
+- My expected relative-versus-absolute attitude flip did not occur on retained data. Orderings are identical, and that is recorded rather than argued around.
+- The warm-memory artifact's 2 s residual is the velocity state to 0.07 percent, confirming main's reading.
+- Half the validation cells sit at a curvature whose nearest evidence has progress 0.745, so an all-arm guard failure there is a live possibility to plan for in the report, not a reason to change values.
+
+**Verification status**
+
+The recomputed three-term objective matches round 6 to 0.0 on ten pairs. The warm-memory artifact and check script match the hashes in its result file. The steady-state metric formula matches the tangent-hold plateau to 6.6e-7. Three NO-v3 MSFC receipts were extracted this round into a temporary cache to make the memory-engagement claim hold under the current observer, not only the frozen prior. Formal units consumed: zero.
+
+Next is your adjudication. One more advisory iteration remains this round if you want any part revised.

@@ -1,0 +1,364 @@
+{
+  "hash_count": 89,
+  "all_hashes_match": true,
+  "checks": [
+    {
+      "path": "config/yield_fair_tuning_v1.json",
+      "match": true
+    },
+    {
+      "path": "config/yield_normal_observer_v3.json",
+      "match": true
+    },
+    {
+      "path": "report/contact-yield-recovery-20260920/advancement.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-cycle-boundary-v1/README.md",
+      "match": true
+    },
+    {
+      "path": "report/yield-cycle-boundary-v1/focused-tests.txt",
+      "match": true
+    },
+    {
+      "path": "report/yield-cycle-boundary-v1/main-additional-methods.txt",
+      "match": true
+    },
+    {
+      "path": "report/yield-cycle-boundary-v1/main-integration.md",
+      "match": true
+    },
+    {
+      "path": "report/yield-cycle-boundary-v1/main-tests.txt",
+      "match": true
+    },
+    {
+      "path": "report/yield-cycle-boundary-v1/protocol-binding.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-cycle-boundary-v1/writer-receipt.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-campaign-review-v1/README.md",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-campaign-review-v1/main-draft-tests.txt",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-campaign-review-v1/main-original-tests.txt",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-campaign-review-v1/null-snapshots.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-campaign-review-v1/original-delivery-hashes.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-campaign-review-v1/pair-bypass.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-campaign-review-v1/writer-receipt.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/README.md",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion/data/round6-analysis.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion/data/round6-input-hashes.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion/data/round6-receipt-manifest.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion/fable-final.txt",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion/fable-round6.md",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion/main-adjudication.md",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion/main-verification.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion/round6-input-receipt.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion/scripts/analyze_round6.py",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion/scripts/extract_rows_v6.py",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion/scripts/main_verify_round6.py",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion/scripts/round6_receipt.py",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/writer-receipt.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/writer-task.md",
+      "match": true
+    },
+    {
+      "path": "report/yield-frozen-pulse-v1/discussion/scripts/extract_ticks_v5.py",
+      "match": true
+    },
+    {
+      "path": "report/yield-native-route-v1/main-binding-tests.txt",
+      "match": true
+    },
+    {
+      "path": "report/yield-native-route-v1/main-integration.md",
+      "match": true
+    },
+    {
+      "path": "report/yield-native-route-v1/main-test-path-error.txt",
+      "match": true
+    },
+    {
+      "path": "report/yield-native-route-v1/main-tests.txt",
+      "match": true
+    },
+    {
+      "path": "report/yield-native-route-v1/notes.md",
+      "match": true
+    },
+    {
+      "path": "report/yield-native-route-v1/testlog.txt",
+      "match": true
+    },
+    {
+      "path": "report/yield-native-route-v1/writer-file-hashes.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-native-route-v1/writer-receipt.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-validation-reservation-v1/README.md",
+      "match": true
+    },
+    {
+      "path": "report/yield-validation-reservation-v1/protocol.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-validation-reservation-v1/receipt.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-warm-memory-v1/README.md",
+      "match": true
+    },
+    {
+      "path": "report/yield-warm-memory-v1/check.py",
+      "match": true
+    },
+    {
+      "path": "report/yield-warm-memory-v1/result.json",
+      "match": true
+    },
+    {
+      "path": "build/contact-six-laws/contact-laws-733c419baa0884b8859255d4/native_seven_laws.cpp",
+      "match": true
+    },
+    {
+      "path": "tools/contact_laws.py",
+      "match": true
+    },
+    {
+      "path": "tools/contact_yield_controller.py",
+      "match": true
+    },
+    {
+      "path": "tools/contact_yield_laws.py",
+      "match": true
+    },
+    {
+      "path": "tools/contact_yield_metrics.py",
+      "match": true
+    },
+    {
+      "path": "tools/contact_yield_normal.py",
+      "match": true
+    },
+    {
+      "path": "tools/contact_yield_protocol.py",
+      "match": true
+    },
+    {
+      "path": "tools/contact_yield_replay.py",
+      "match": true
+    },
+    {
+      "path": "tools/contact_yield_runner.py",
+      "match": true
+    },
+    {
+      "path": "tools/contact_yield_simulator.py",
+      "match": true
+    },
+    {
+      "path": "runs/yield-warm-memory-v1/native-history.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-frozen-transfer-v1/SFC-nominal.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-observer-prior-v1/DSFC-stiff_low_mu-approach.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-frozen-transfer-v1/MSFC-nominal.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-frozen-memory-v1/MSFC-nominal.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-frozen-transfer-v1/SFC-sustained_release_tangent.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-normal-v3/frozen-tangent-hold.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-frozen-transfer-v1/MSFC-sustained_release_tangent.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-frozen-memory-v1/MSFC-sustained_release_tangent.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-frozen-pulse-v1/SFC/SFC-short_pulse_oblique.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-frozen-pulse-v1/DSFC/DSFC-short_pulse_oblique.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-frozen-pulse-v1/MSFC/MSFC-short_pulse_oblique.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-frozen-pulse-v1/MSFC-identity/MSFC-short_pulse_oblique.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/SFC-nominal.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/SFC-sustained_release_normal.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/SFC-sustained_release_tangent.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-normal-v3/combined-mild-approach.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-normal-v3/combined-normal-hold.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-normal-v3/combined-tangent-hold.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/MSFC-nominal.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/MSFC-sustained_release_normal.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/MSFC-sustained_release_tangent.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-normal-v3/combined-strong-approach.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/MSFC-nominal.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/MSFC-sustained_release_tangent.json.gz",
+      "match": true
+    },
+    {
+      "path": "runs/yield-observer-transfer-v1/MSFC-sustained_release_normal.json.gz",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion-round7/data/round7-analysis.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion-round7/data/round7-input-hashes.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion-round7/data/round7-receipt-manifest.json",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion-round7/fable-round7.md",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion-round7/scripts/analyze_round7.py",
+      "match": true
+    },
+    {
+      "path": "report/yield-fair-tuning-v1/discussion-round7/scripts/round7_receipt.py",
+      "match": true
+    }
+  ],
+  "analysis_exact_match": true,
+  "formal_units": 0
+}

@@ -6,6 +6,7 @@ verifying full-task evidence. It never turns holdout rows into training data.
 """
 from __future__ import annotations
 import hashlib
+import json
 from collections.abc import Mapping
 from types import MappingProxyType
 from contact_benchmark_ledger import ContactLedger, canonical
@@ -55,17 +56,44 @@ class YieldContactLedger(ContactLedger):
                 raise ValueError(f'training evidence {key} differs')
         return super().seal(attempt_id,status=status,evidence=dict(evidence))
 
+    def inflight(self):
+        self._verify_tuner_binding()
+        row=self.db.execute(
+            "SELECT id,controller,unit,condition FROM attempts WHERE status='running'").fetchone()
+        if row is None:
+            return None
+        return {'attempt_id':row[0],'controller':row[1],'unit':int(row[2]),'condition':row[3]}
+
     def training_observations(self, controller):
         self._verify_tuner_binding()
         base=super().training_observations(controller)
         rows=[]
         for index,row in enumerate(base):
-            pair={condition:status for condition,status in self.db.execute(
-                'SELECT condition,status FROM attempts WHERE controller=? AND unit=?',
-                (controller,index))}
+            sealed=list(self.db.execute(
+                'SELECT condition,status,evidence FROM attempts WHERE controller=? AND unit=?',
+                (controller,index)))
+            pair={condition:status for condition,status,_ in sealed}
+            adapted=row.nominal_feasible
+            if row.status=='completed':
+                evidence={condition:(json.loads(payload) if payload else None)
+                          for condition,_,payload in sealed}
+                disturbed=evidence.get('disturbed') or {}
+                guards=disturbed.get('disturbed_guards_ok')
+                pair_feasible=disturbed.get('pair_feasible')
+                if 'disturbed_guards_ok' in disturbed or 'pair_feasible' in disturbed:
+                    if type(row.nominal_feasible) is not bool:
+                        raise ValueError('paired feasibility requires bool nominal_feasible')
+                    if type(guards) is not bool:
+                        raise ValueError('disturbed_guards_ok must be bool')
+                    if type(pair_feasible) is not bool:
+                        raise ValueError('pair_feasible must be bool')
+                    computed=row.nominal_feasible and guards
+                    if pair_feasible is not computed:
+                        raise ValueError('pair_feasible contradicts member feasibility')
+                    adapted=computed
             rows.append(YieldTrainingObservation(
                 method=controller,candidate=row.candidate,status=row.status,
-                nominal_feasible=row.nominal_feasible,objective=row.objective,
+                nominal_feasible=adapted,objective=row.objective,
                 unit_index=index,pair_complete=True,pair=pair,split='training',
                 training_cell_id=self.tuner.training_cell_id,
                 selection_contract_id=self.tuner.selection_contract_id))

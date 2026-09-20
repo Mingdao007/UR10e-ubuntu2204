@@ -1,0 +1,107 @@
+{
+  "schema": "ur10e.yield-fair-campaign-v1",
+  "version": 1,
+  "offline_only": true,
+  "hardware_qualified": false,
+  "endpoint": "none",
+  "simulation_only": true,
+  "campaign_kind": "training",
+  "claim_scope": "prospective DEVELOPMENT-model comparison; no real precise-contact, safety, or physical qualification claim",
+  "scientific_status": "development_model_comparison",
+  "does_not_implement_holdout": true,
+  "holdout_used_for_tuning": false,
+  "formal_campaign_complete": false,
+  "methods": ["SFC", "DSFC", "MSFC"],
+  "tuner_config": "config/yield_fair_tuning_v1.json",
+  "observer_config": "config/yield_normal_observer_v3.json",
+  "training_cell_id": "stiff_low_mu",
+  "selection_contract_id": "yield-fair-selection-contract-v1",
+  "training_cell": {
+    "id": "stiff_low_mu",
+    "material": "stiff_low_mu",
+    "surface": {"kappa_xx": 0.8, "kappa_yy": 0.4},
+    "prior": "approach",
+    "preparation": "cold",
+    "nominal_scenario": "nominal",
+    "disturbed_scenario": "sustained_release_oblique",
+    "timeline": "full_cycle",
+    "duration_s": 62.83185307179586,
+    "dt_s": 0.002,
+    "plant_substeps": 8,
+    "record_fullstate": true,
+    "require_ur10e": true,
+    "all_pairs_same_cell": true
+  },
+  "outer": {
+    "path_stiffness_n_per_m": 120.0,
+    "compliance_stiffness_n_per_m": 0.0,
+    "note": "shared outer unchanged; Kp=120, Kz=0"
+  },
+  "feasibility": {
+    "kind": "empirical_prospective_development_bands_not_user_precision_or_physical_safety",
+    "nominal": {
+      "path_rms_m_max": 0.00548,
+      "progress_ratio_min": 0.85,
+      "attitude_rms_deg_max": 2.81,
+      "load_mae_n_max": 0.127,
+      "load_peak_n_max": 6.27,
+      "load_min_n_min": 1.0
+    },
+    "disturbed_guards": {
+      "load_min_n_min": 1.0,
+      "load_peak_n_max": 8.0,
+      "progress_ratio_min": 0.85
+    },
+    "report_nominal_and_disturbed_separately": true,
+    "do_not_overload_nominal_feasible_with_pair_feasibility": true
+  },
+  "objective": {
+    "unit": "seconds",
+    "scalar": "Jload_plus_Jpath_plus_Jatt",
+    "Jload": {
+      "window_start_s": 20.0,
+      "window_end": "T",
+      "scale_n": 0.5,
+      "quantity": "abs(load_d-load_n)"
+    },
+    "Jpath": {
+      "window_start_s": 35.5,
+      "window_end": "T",
+      "scale_m": 0.002,
+      "quantity": "norm(position_d-position_n)"
+    },
+    "Jatt": {
+      "window_start_s": 20.0,
+      "window_end": "T",
+      "scale_rad": 0.05,
+      "quantity": "abs(orientation_error_d-orientation_error_n)",
+      "normalization_note": "declared normalization choice, NOT guaranteed observer error correction in 1s"
+    },
+    "quadrature": "left_sample_hold_cell_intersection",
+    "T": "exact_PERIOD",
+    "completed_pairs_may_report_objective": true,
+    "only_pair_feasible_trains_gp": true,
+    "failed_pairs_never_objective_eligible": true
+  },
+  "schedule": {
+    "total_units": 24,
+    "initial_units": 8,
+    "bayesian_ei_units": 12,
+    "repeat_incumbent_units": 4,
+    "unit_definition": "one_nominal_disturbed_pair",
+    "literal_repeats": true,
+    "no_ci_from_identical_deterministic_repeats": true,
+    "stop_before_ei_if_initial_feasible_lt": 3,
+    "failed_unit_consumes_ordinal": true,
+    "do_not_relax_or_refund": true,
+    "repeat_rows_cannot_change_incumbent": true,
+    "holdout_used_for_tuning": false
+  },
+  "runtime": {
+    "campaign_kind": "training",
+    "record_fullstate": true,
+    "require_ur10e": true,
+    "qp_library": "build/contact-qp/libcontact_qp.so",
+    "native_laws_root": "build/contact-six-laws"
+  }
+}

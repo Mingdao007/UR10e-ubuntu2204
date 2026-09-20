@@ -1,0 +1,104 @@
+{
+ "schema": "fable-advisory-round-receipt-v1",
+ "round": 7,
+ "study": "yield-fair-tuning-v1",
+ "directory": "report/yield-fair-tuning-v1/discussion-round7/",
+ "role": "advisory, non-blocking; no live authority; not formal acceptance; first of at most two iterations",
+ "model": "claude-fable-5-1",
+ "requested_effort": "xhigh",
+ "effort_evidence": "launch parameter only, not independent server attestation",
+ "head_at_session_start": "96a3c8bd03933c40be718af5516582fe1b6c6024",
+ "head_at_receipt": "96a3c8bd03933c40be718af5516582fe1b6c6024",
+ "head_log_since_start": [],
+ "worktree_status_at_receipt": [
+  "M tools/yield_contact_ledger.py",
+  "?? config/yield_fair_campaign_v1.json",
+  "?? report/yield-fair-campaign-native-smoke-v1/",
+  "?? report/yield-fair-campaign-review-v1/repair-delivery.json",
+  "?? report/yield-fair-campaign-review-v1/repair-source-hashes.json",
+  "?? report/yield-fair-campaign-v1/",
+  "?? report/yield-fair-tuning-v1/discussion-round7/",
+  "?? tests/test_yield_fair_campaign.py",
+  "?? tests/test_yield_fair_selection.py",
+  "?? tools/yield_fair_campaign.py",
+  "?? tools/yield_fair_selection.py"
+ ],
+ "worktree_clean_at_session_start": true,
+ "live_grok_worktree_not_read": "/home/andy/.codex-worktrees/yield-fair-campaign-20260920 (active repair) was not opened; tools/yield_fair_campaign.py, tools/yield_fair_selection.py and config/yield_fair_campaign_v1.json are absent at 96a3c8bd; tools/yield_contact_ledger.py is tracked at 96a3c8bd (pre-draft, commit aeb9b61d) and was not read",
+ "files_appearing_in_worktree_during_session_not_read_or_touched": [
+  "M tools/yield_contact_ledger.py",
+  "?? config/yield_fair_campaign_v1.json",
+  "?? report/yield-fair-campaign-native-smoke-v1/",
+  "?? report/yield-fair-campaign-review-v1/repair-delivery.json",
+  "?? report/yield-fair-campaign-review-v1/repair-source-hashes.json",
+  "?? report/yield-fair-campaign-v1/",
+  "?? tests/test_yield_fair_campaign.py",
+  "?? tests/test_yield_fair_selection.py",
+  "?? tools/yield_fair_campaign.py",
+  "?? tools/yield_fair_selection.py"
+ ],
+ "written_at_utc": "2026-09-20T03:28:23.282347+00:00",
+ "write_scope": "report/yield-fair-tuning-v1/discussion-round7/ only",
+ "not_done": [
+  "no runtime/test/config/other-report edits",
+  "no git write operations (read-only rev-parse/log/status/show only)",
+  "no hardware, transport or network access",
+  "no closed-loop runs, campaigns, holdout or validation launches",
+  "no native law stepped",
+  "no subagents",
+  "no external literature claims",
+  "no formal tuning, validation or holdout unit consumed"
+ ],
+ "inputs": {
+  "report_and_config": 47,
+  "tools_and_native_source": 10,
+  "raw_artifacts": 1,
+  "changed_since_round6": [
+   "report/contact-yield-recovery-20260920/advancement.json"
+  ],
+  "file": "report/yield-fair-tuning-v1/discussion-round7/data/round7-input-hashes.json"
+ },
+ "raw_receipts": {
+  "count": 25,
+  "all_match": true,
+  "manifest": "report/yield-fair-tuning-v1/discussion-round7/data/round7-receipt-manifest.json"
+ },
+ "tick_caches": {
+  "/tmp/yfp5": "round-5 cache, not retained",
+  "/tmp/yfp6": "round-6 cache, not retained",
+  "/tmp/yfp7": "this round, three NO-v3 MSFC receipts through extract_ticks_v5.py, not retained"
+ },
+ "numbers_recomputed_vs_reported": "data/round7-analysis.json: J3 recomputed on ten development pairs equals data/round6-analysis.json to 0.0; warm-memory artifact and check.py hashes match result.json; warm-x/cold command difference at 2 s reproduced (0.0024473 m/s) and shown equal to g*w(0); steady-state metric formula matches the tangent-hold plateau to 6.6e-7",
+ "outputs": [
+  {
+   "path": "report/yield-fair-tuning-v1/discussion-round7/data/round7-analysis.json",
+   "sha256": "20134452cd48bd4e23beaf87b2219575d84826e599a92fa3f81e1e3cdf06417f",
+   "bytes": 87551
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion-round7/data/round7-input-hashes.json",
+   "sha256": "caa94b1bc51a5a4b047bce1eeedbff6938e4a57ac07949a375d8ae18d0618954",
+   "bytes": 13933
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion-round7/data/round7-receipt-manifest.json",
+   "sha256": "3b0d3db21f8dac40601c00ebd8b707420fe40ba7322bcb5226769f2d92efefe3",
+   "bytes": 12695
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion-round7/fable-round7.md",
+   "sha256": "ba87d4a2c84dbfd8368a96155df47563ddc816f69fae67e752c963e23eba9a7a",
+   "bytes": 29878
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion-round7/scripts/analyze_round7.py",
+   "sha256": "5ff686cc9881404454ae5230b7339d3b87e1413553696ea69ed89883412b9c02",
+   "bytes": 26739
+  },
+  {
+   "path": "report/yield-fair-tuning-v1/discussion-round7/scripts/round7_receipt.py",
+   "sha256": "cb26d86b0518b33ff4cf008cc905ff23763f93ab5aecd0f82259008c50c0ac89",
+   "bytes": 13602
+  }
+ ]
+}
