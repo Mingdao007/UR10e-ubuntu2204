@@ -1074,7 +1074,7 @@ def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
                 seen.add(key)
                 fieldnames.append(key)
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore", lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow({key: row.get(key) if row.get(key) is not None else "" for key in fieldnames})
