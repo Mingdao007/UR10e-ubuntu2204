@@ -1,0 +1,173 @@
+{
+  "scope": "Axis restriction of full recorded PATH law-force input, zero initial state, each force component replayed separately; 1ms uses zero-order-held 2ms input. Not a closed-loop trial or physical evidence.",
+  "results": [
+    {
+      "unit": 0,
+      "dt_s": 0.002,
+      "axis": 0,
+      "ticks": 31416,
+      "max_command_difference_m_s": 0.0,
+      "parameters": {
+        "g": 0.052126826121414976,
+        "m": 4.0,
+        "mu": 393.0,
+        "n": 3.0
+      },
+      "cache_sha256": "8c03aebcd0663dd53950de0ace01f03e78eb39a430fb4c2bf398d72c9bf04f1e"
+    },
+    {
+      "unit": 0,
+      "dt_s": 0.002,
+      "axis": 1,
+      "ticks": 31416,
+      "max_command_difference_m_s": 0.0,
+      "parameters": {
+        "g": 0.052126826121414976,
+        "m": 4.0,
+        "mu": 393.0,
+        "n": 3.0
+      },
+      "cache_sha256": "8c03aebcd0663dd53950de0ace01f03e78eb39a430fb4c2bf398d72c9bf04f1e"
+    },
+    {
+      "unit": 0,
+      "dt_s": 0.002,
+      "axis": 2,
+      "ticks": 31416,
+      "max_command_difference_m_s": 0.0,
+      "parameters": {
+        "g": 0.052126826121414976,
+        "m": 4.0,
+        "mu": 393.0,
+        "n": 3.0
+      },
+      "cache_sha256": "8c03aebcd0663dd53950de0ace01f03e78eb39a430fb4c2bf398d72c9bf04f1e"
+    },
+    {
+      "unit": 0,
+      "dt_s": 0.001,
+      "axis": 0,
+      "ticks": 62832,
+      "max_command_difference_m_s": 0.0,
+      "parameters": {
+        "g": 0.052126826121414976,
+        "m": 4.0,
+        "mu": 393.0,
+        "n": 3.0
+      },
+      "cache_sha256": "8c03aebcd0663dd53950de0ace01f03e78eb39a430fb4c2bf398d72c9bf04f1e"
+    },
+    {
+      "unit": 0,
+      "dt_s": 0.001,
+      "axis": 1,
+      "ticks": 62832,
+      "max_command_difference_m_s": 0.0,
+      "parameters": {
+        "g": 0.052126826121414976,
+        "m": 4.0,
+        "mu": 393.0,
+        "n": 3.0
+      },
+      "cache_sha256": "8c03aebcd0663dd53950de0ace01f03e78eb39a430fb4c2bf398d72c9bf04f1e"
+    },
+    {
+      "unit": 0,
+      "dt_s": 0.001,
+      "axis": 2,
+      "ticks": 62832,
+      "max_command_difference_m_s": 0.0,
+      "parameters": {
+        "g": 0.052126826121414976,
+        "m": 4.0,
+        "mu": 393.0,
+        "n": 3.0
+      },
+      "cache_sha256": "8c03aebcd0663dd53950de0ace01f03e78eb39a430fb4c2bf398d72c9bf04f1e"
+    },
+    {
+      "unit": 4,
+      "dt_s": 0.002,
+      "axis": 0,
+      "ticks": 31416,
+      "max_command_difference_m_s": 0.0,
+      "parameters": {
+        "g": 0.02835595401982533,
+        "m": 5.318628389388323,
+        "mu": 729.0097584978811,
+        "n": 3.0
+      },
+      "cache_sha256": "6977aada185424cb8a443b3f30909b596f8c7d1c72d3aa1842233266a128ce4f"
+    },
+    {
+      "unit": 4,
+      "dt_s": 0.002,
+      "axis": 1,
+      "ticks": 31416,
+      "max_command_difference_m_s": 0.0,
+      "parameters": {
+        "g": 0.02835595401982533,
+        "m": 5.318628389388323,
+        "mu": 729.0097584978811,
+        "n": 3.0
+      },
+      "cache_sha256": "6977aada185424cb8a443b3f30909b596f8c7d1c72d3aa1842233266a128ce4f"
+    },
+    {
+      "unit": 4,
+      "dt_s": 0.002,
+      "axis": 2,
+      "ticks": 31416,
+      "max_command_difference_m_s": 0.0,
+      "parameters": {
+        "g": 0.02835595401982533,
+        "m": 5.318628389388323,
+        "mu": 729.0097584978811,
+        "n": 3.0
+      },
+      "cache_sha256": "6977aada185424cb8a443b3f30909b596f8c7d1c72d3aa1842233266a128ce4f"
+    },
+    {
+      "unit": 4,
+      "dt_s": 0.001,
+      "axis": 0,
+      "ticks": 62832,
+      "max_command_difference_m_s": 0.0,
+      "parameters": {
+        "g": 0.02835595401982533,
+        "m": 5.318628389388323,
+        "mu": 729.0097584978811,
+        "n": 3.0
+      },
+      "cache_sha256": "6977aada185424cb8a443b3f30909b596f8c7d1c72d3aa1842233266a128ce4f"
+    },
+    {
+      "unit": 4,
+      "dt_s": 0.001,
+      "axis": 1,
+      "ticks": 62832,
+      "max_command_difference_m_s": 0.0,
+      "parameters": {
+        "g": 0.02835595401982533,
+        "m": 5.318628389388323,
+        "mu": 729.0097584978811,
+        "n": 3.0
+      },
+      "cache_sha256": "6977aada185424cb8a443b3f30909b596f8c7d1c72d3aa1842233266a128ce4f"
+    },
+    {
+      "unit": 4,
+      "dt_s": 0.001,
+      "axis": 2,
+      "ticks": 62832,
+      "max_command_difference_m_s": 0.0,
+      "parameters": {
+        "g": 0.02835595401982533,
+        "m": 5.318628389388323,
+        "mu": 729.0097584978811,
+        "n": 3.0
+      },
+      "cache_sha256": "6977aada185424cb8a443b3f30909b596f8c7d1c72d3aa1842233266a128ce4f"
+    }
+  ]
+}

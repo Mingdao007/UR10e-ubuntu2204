@@ -1,0 +1,1960 @@
+{
+ "summary": {
+  "shared_triples_total": 14,
+  "DSFC_MSFC_shared": 14,
+  "three_way_shared": 8,
+  "ei_phase_coincidences": [
+   [
+    8,
+    8
+   ],
+   [
+    9,
+    9
+   ],
+   [
+    10,
+    16
+   ],
+   [
+    12,
+    14
+   ],
+   [
+    16,
+    12
+   ],
+   [
+    14,
+    13
+   ]
+  ],
+  "mechanism_note": "the frozen EI proposer scores a fixed 512-point scrambled-Sobol acquisition pool (seed 20260920+1009) shared by all methods, so exact coincidences are structural, not accidental"
+ },
+ "triples": [
+  {
+   "m": 4.0,
+   "mu": 393.0,
+   "g": 0.052126826121414976,
+   "slots": {
+    "SFC": {
+     "unit": 0,
+     "phase": "initial",
+     "state": "completed_feasible",
+     "pair_feasible": true,
+     "J": 77.45319425340233,
+     "Jload": 45.95804016841924,
+     "Jpath": 9.00085606581319,
+     "Jatt": 22.4942980191699,
+     "recovery_s": 3.652000000000001,
+     "postrelease_max_offset_mm": 3.418515452946853,
+     "nominal": {
+      "force_mae_n": 0.11188810693038811,
+      "force_peak_n": 6.2229208470709985,
+      "load_min_n": 3.8430835002299393,
+      "path_rms_m": 0.005433278689033889,
+      "attitude_rms_rad": 0.0446786495194316,
+      "progress_ratio": 0.8546370428890967,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 120.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.575187860641054,
+      "load_min_n": 1.4248121393589457,
+      "path_rms_m": 0.0070785307293931956,
+      "attitude_rms_rad": 0.05534519349258227,
+      "attitude_peak_rad": 0.10319676914783553,
+      "progress_ratio": 0.8764786341118302,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 638.0,
+      "qp_intervention_ticks": 2466.0
+     }
+    },
+    "DSFC": {
+     "unit": 0,
+     "phase": "initial",
+     "state": "completed_feasible",
+     "pair_feasible": true,
+     "J": 85.82068102011505,
+     "Jload": 46.801634800360986,
+     "Jpath": 10.00152934958837,
+     "Jatt": 29.0175168701657,
+     "recovery_s": 3.9780000000000015,
+     "postrelease_max_offset_mm": 3.817802518518263,
+     "nominal": {
+      "force_mae_n": 0.07527003873112191,
+      "force_peak_n": 6.059742532074173,
+      "load_min_n": 4.203773374978011,
+      "path_rms_m": 0.005220403371608704,
+      "attitude_rms_rad": 0.018199933302152072,
+      "progress_ratio": 0.8768818180569369,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 44.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.082480454956901,
+      "load_min_n": 1.9175195450430993,
+      "path_rms_m": 0.006427730487016917,
+      "attitude_rms_rad": 0.05203510081368613,
+      "attitude_peak_rad": 0.1561816853670266,
+      "progress_ratio": 0.8940443716520181,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 4154.0
+     }
+    },
+    "MSFC": {
+     "unit": 0,
+     "phase": "initial",
+     "state": "completed_feasible",
+     "pair_feasible": true,
+     "J": 85.27226534917935,
+     "Jload": 46.75959645127463,
+     "Jpath": 9.804506152287935,
+     "Jatt": 28.708162745616775,
+     "recovery_s": 3.9440000000000026,
+     "postrelease_max_offset_mm": 3.763298862408872,
+     "nominal": {
+      "force_mae_n": 0.07679269940629867,
+      "force_peak_n": 6.072974608708175,
+      "load_min_n": 4.185973499485057,
+      "path_rms_m": 0.005220504172400269,
+      "attitude_rms_rad": 0.018493545633586288,
+      "progress_ratio": 0.8765636486096647,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 45.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.1005691499062857,
+      "load_min_n": 1.8994308500937143,
+      "path_rms_m": 0.006423416401111193,
+      "attitude_rms_rad": 0.05167642332969033,
+      "attitude_peak_rad": 0.15549920576889487,
+      "progress_ratio": 0.8939720435823436,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 275.0,
+      "qp_intervention_ticks": 4416.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": -0.5484156709356967,
+    "Jload": -0.04203834908635429,
+    "Jpath": -0.19702319730043527,
+    "Jatt": -0.30935412454892486,
+    "recovery_s": -0.03399999999999892,
+    "postrelease_max_offset_mm": -0.054503656109390786,
+    "nominal": {
+     "force_mae_n": 0.0015226606751767569,
+     "force_peak_n": 0.013232076634001722,
+     "load_min_n": -0.017799875492954698,
+     "path_rms_m": 1.0080079156527672e-07,
+     "attitude_rms_rad": 0.00029361233143421553,
+     "progress_ratio": -0.000318169447272143,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 1.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.01808869494938481,
+     "load_min_n": -0.01808869494938503,
+     "path_rms_m": -4.314085905723561e-06,
+     "attitude_rms_rad": -0.00035867748399580346,
+     "attitude_peak_rad": -0.0006824795981317244,
+     "progress_ratio": -7.232806967449878e-05,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 275.0,
+     "qp_intervention_ticks": 262.0
+    }
+   },
+   "SFC_minus_DSFC": {
+    "J": -8.367486766712716,
+    "Jload": -0.8435946319417482,
+    "Jpath": -1.0006732837751802,
+    "Jatt": -6.5232188509958,
+    "recovery_s": -0.3260000000000005,
+    "postrelease_max_offset_mm": -0.3992870655714098,
+    "nominal": {
+     "force_mae_n": 0.036618068199266204,
+     "force_peak_n": 0.16317831499682534,
+     "load_min_n": -0.360689874748072,
+     "path_rms_m": 0.00021287531742518462,
+     "attitude_rms_rad": 0.02647871621727953,
+     "progress_ratio": -0.02224477516784018,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 76.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.49270740568415317,
+     "load_min_n": -0.4927074056841536,
+     "path_rms_m": 0.0006508002423762788,
+     "attitude_rms_rad": 0.0033100926788961343,
+     "attitude_peak_rad": -0.05298491621919106,
+     "progress_ratio": -0.017565737540187865,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 638.0,
+     "qp_intervention_ticks": -1688.0
+    }
+   }
+  },
+  {
+   "m": 4.0,
+   "mu": 310.66177089084647,
+   "g": 0.0642,
+   "slots": {
+    "SFC": {
+     "unit": 1,
+     "phase": "initial",
+     "state": "completed_feasible",
+     "pair_feasible": true,
+     "J": 65.64753470850643,
+     "Jload": 46.09498189255161,
+     "Jpath": 3.7667729838932145,
+     "Jatt": 15.785779832061612,
+     "recovery_s": 0.0,
+     "postrelease_max_offset_mm": 1.87535307780046,
+     "nominal": {
+      "force_mae_n": 0.09718506912345974,
+      "force_peak_n": 6.0233649423024405,
+      "load_min_n": 4.039837527928946,
+      "path_rms_m": 0.005473348594427759,
+      "attitude_rms_rad": 0.04769489488022242,
+      "progress_ratio": 0.8524582232595659,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 92.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.6796156326815384,
+      "load_min_n": 1.3203843673184614,
+      "path_rms_m": 0.00703748535657297,
+      "attitude_rms_rad": 0.05210949249485563,
+      "attitude_peak_rad": 0.09830172653931436,
+      "progress_ratio": 0.8689372551318754,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 1121.0,
+      "qp_intervention_ticks": 2234.0
+     }
+    },
+    "DSFC": {
+     "unit": 1,
+     "phase": "initial",
+     "state": "completed_feasible",
+     "pair_feasible": true,
+     "J": 84.90044295696934,
+     "Jload": 46.990444598800096,
+     "Jpath": 8.855808897221653,
+     "Jatt": 29.054189460947594,
+     "recovery_s": 3.460000000000001,
+     "postrelease_max_offset_mm": 3.4896177055104816,
+     "nominal": {
+      "force_mae_n": 0.07148544211264947,
+      "force_peak_n": 5.886298765527051,
+      "load_min_n": 4.271373160201399,
+      "path_rms_m": 0.0052188688454084834,
+      "attitude_rms_rad": 0.020286003562893343,
+      "progress_ratio": 0.8750531086196801,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 82.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.0347786696567463,
+      "load_min_n": 1.9652213303432535,
+      "path_rms_m": 0.006486968402664049,
+      "attitude_rms_rad": 0.0522204128800451,
+      "attitude_peak_rad": 0.15517010060269817,
+      "progress_ratio": 0.886158806622667,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 579.0,
+      "qp_intervention_ticks": 4994.0
+     }
+    },
+    "MSFC": {
+     "unit": 1,
+     "phase": "initial",
+     "state": "completed_feasible",
+     "pair_feasible": true,
+     "J": 84.88656231100076,
+     "Jload": 46.9653462014661,
+     "Jpath": 8.849622245253567,
+     "Jatt": 29.071593864281102,
+     "recovery_s": 3.456000000000003,
+     "postrelease_max_offset_mm": 3.492157190536696,
+     "nominal": {
+      "force_mae_n": 0.07201019950739586,
+      "force_peak_n": 5.892614256409829,
+      "load_min_n": 4.266685478776627,
+      "path_rms_m": 0.005218855337696128,
+      "attitude_rms_rad": 0.020364847148215764,
+      "progress_ratio": 0.8749717274120868,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 85.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.043460448424172,
+      "load_min_n": 1.956539551575828,
+      "path_rms_m": 0.006496374309824224,
+      "attitude_rms_rad": 0.05230645610018082,
+      "attitude_peak_rad": 0.15522920778229704,
+      "progress_ratio": 0.8864545025343473,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 644.0,
+      "qp_intervention_ticks": 4967.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": -0.013880645968583849,
+    "Jload": -0.025098397333998435,
+    "Jpath": -0.00618665196808621,
+    "Jatt": 0.0174044033335079,
+    "recovery_s": -0.003999999999997783,
+    "postrelease_max_offset_mm": 0.002539485026214372,
+    "nominal": {
+     "force_mae_n": 0.000524757394746389,
+     "force_peak_n": 0.006315490882778718,
+     "load_min_n": -0.004687681424772272,
+     "path_rms_m": -1.3507712355760593e-08,
+     "attitude_rms_rad": 7.884358532242106e-05,
+     "progress_ratio": -8.138120759326739e-05,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 3.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.008681778767425818,
+     "load_min_n": -0.008681778767425596,
+     "path_rms_m": 9.40590716017476e-06,
+     "attitude_rms_rad": 8.604322013572308e-05,
+     "attitude_peak_rad": 5.9107179598866244e-05,
+     "progress_ratio": 0.00029569591168032705,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 65.0,
+     "qp_intervention_ticks": -27.0
+    }
+   },
+   "SFC_minus_DSFC": {
+    "J": -19.252908248462916,
+    "Jload": -0.8954627062484875,
+    "Jpath": -5.089035913328439,
+    "Jatt": -13.268409628885982,
+    "recovery_s": -3.460000000000001,
+    "postrelease_max_offset_mm": -1.6142646277100217,
+    "nominal": {
+     "force_mae_n": 0.025699627010810272,
+     "force_peak_n": 0.1370661767753898,
+     "load_min_n": -0.2315356322724531,
+     "path_rms_m": 0.0002544797490192756,
+     "attitude_rms_rad": 0.027408891317329074,
+     "progress_ratio": -0.022594885360114225,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 10.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.6448369630247921,
+     "load_min_n": -0.6448369630247921,
+     "path_rms_m": 0.0005505169539089215,
+     "attitude_rms_rad": -0.00011092038518947106,
+     "attitude_peak_rad": -0.05686837406338381,
+     "progress_ratio": -0.01722155149079163,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 542.0,
+     "qp_intervention_ticks": -2760.0
+    }
+   }
+  },
+  {
+   "m": 4.0,
+   "mu": 1228.1391393367705,
+   "g": 0.08583341909109758,
+   "slots": {
+    "SFC": {
+     "unit": 2,
+     "phase": "initial",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 68.05116046307418,
+     "Jload": 45.21048231334306,
+     "Jpath": 5.266118277615072,
+     "Jatt": 17.57455987211605,
+     "recovery_s": 2.146000000000001,
+     "postrelease_max_offset_mm": 2.094237466484988,
+     "nominal": {
+      "force_mae_n": 0.11313619255555807,
+      "force_peak_n": 6.141665463311146,
+      "load_min_n": 3.9376595337646476,
+      "path_rms_m": 0.00553513037589012,
+      "attitude_rms_rad": 0.056395580436336426,
+      "progress_ratio": 0.846943968381901,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 0.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.5118676620474734,
+      "load_min_n": 1.4881323379525266,
+      "path_rms_m": 0.007257580489414662,
+      "attitude_rms_rad": 0.05803578476227215,
+      "attitude_peak_rad": 0.11197244932275698,
+      "progress_ratio": 0.8627352514887834,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 1052.0,
+      "qp_intervention_ticks": 1999.0
+     }
+    },
+    "DSFC": {
+     "unit": 2,
+     "phase": "initial",
+     "state": "completed_feasible",
+     "pair_feasible": true,
+     "J": 81.25466298766943,
+     "Jload": 46.73541230117644,
+     "Jpath": 7.5151846521937244,
+     "Jatt": 27.004066034299278,
+     "recovery_s": 2.9919999999999973,
+     "postrelease_max_offset_mm": 2.8807698841006952,
+     "nominal": {
+      "force_mae_n": 0.060147431805473835,
+      "force_peak_n": 5.716996111008771,
+      "load_min_n": 4.221315431038503,
+      "path_rms_m": 0.005215761908083787,
+      "attitude_rms_rad": 0.022554950936157583,
+      "progress_ratio": 0.8735073591739986,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 0.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 2.7363392533303528,
+      "load_min_n": 2.2636607466696472,
+      "path_rms_m": 0.006356078416555873,
+      "attitude_rms_rad": 0.05027800833540363,
+      "attitude_peak_rad": 0.15130795443999878,
+      "progress_ratio": 0.8827789513125344,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 367.0,
+      "qp_intervention_ticks": 5090.0
+     }
+    },
+    "MSFC": {
+     "unit": 2,
+     "phase": "initial",
+     "state": "completed_feasible",
+     "pair_feasible": true,
+     "J": 81.40724800742119,
+     "Jload": 46.73268644859276,
+     "Jpath": 7.527518959665667,
+     "Jatt": 27.147042599162763,
+     "recovery_s": 2.9939999999999998,
+     "postrelease_max_offset_mm": 2.8832558101187664,
+     "nominal": {
+      "force_mae_n": 0.0608973258008069,
+      "force_peak_n": 5.72553015436953,
+      "load_min_n": 4.212228381254095,
+      "path_rms_m": 0.005216500366643571,
+      "attitude_rms_rad": 0.02279958835882959,
+      "progress_ratio": 0.873291810617147,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 0.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 2.7469816968455247,
+      "load_min_n": 2.2530183031544753,
+      "path_rms_m": 0.006360166951222105,
+      "attitude_rms_rad": 0.050550336006106325,
+      "attitude_peak_rad": 0.1518700395818797,
+      "progress_ratio": 0.8826840215047375,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 469.0,
+      "qp_intervention_ticks": 5109.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": 0.1525850197517542,
+    "Jload": -0.0027258525836799663,
+    "Jpath": 0.012334307471942196,
+    "Jatt": 0.14297656486348487,
+    "recovery_s": 0.0020000000000024443,
+    "postrelease_max_offset_mm": 0.002485926018071183,
+    "nominal": {
+     "force_mae_n": 0.0007498939953330674,
+     "force_peak_n": 0.00853404336075858,
+     "load_min_n": -0.009087049784408663,
+     "path_rms_m": 7.384585597840221e-07,
+     "attitude_rms_rad": 0.00024463742267200744,
+     "progress_ratio": -0.0002155485568515747,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 0.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.010642443515171962,
+     "load_min_n": -0.010642443515171962,
+     "path_rms_m": 4.088534666231609e-06,
+     "attitude_rms_rad": 0.00027232767070269753,
+     "attitude_peak_rad": 0.0005620851418809136,
+     "progress_ratio": -9.49298077969063e-05,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 102.0,
+     "qp_intervention_ticks": 19.0
+    }
+   },
+   "SFC_minus_DSFC": {
+    "J": -13.203502524595251,
+    "Jload": -1.5249299878333815,
+    "Jpath": -2.2490663745786525,
+    "Jatt": -9.429506162183227,
+    "recovery_s": -0.8459999999999965,
+    "postrelease_max_offset_mm": -0.7865324176157071,
+    "nominal": {
+     "force_mae_n": 0.052988760750084234,
+     "force_peak_n": 0.42466935230237457,
+     "load_min_n": -0.28365589727385565,
+     "path_rms_m": 0.00031936846780633316,
+     "attitude_rms_rad": 0.03384062950017884,
+     "progress_ratio": -0.026563390792097574,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 0.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.7755284087171206,
+     "load_min_n": -0.7755284087171206,
+     "path_rms_m": 0.0009015020728587887,
+     "attitude_rms_rad": 0.007757776426868521,
+     "attitude_peak_rad": -0.039335505117241806,
+     "progress_ratio": -0.020043699823750982,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 685.0,
+     "qp_intervention_ticks": -3091.0
+    }
+   }
+  },
+  {
+   "m": 13.20374583825469,
+   "mu": 43.19426238094313,
+   "g": 0.15615429806676784,
+   "slots": {
+    "SFC": {
+     "unit": 3,
+     "phase": "initial",
+     "state": "completed_nominal_and_disturbed_guard_infeasible",
+     "pair_feasible": false,
+     "J": 96.74920450279919,
+     "Jload": 49.35018718046672,
+     "Jpath": 16.26070828465158,
+     "Jatt": 31.138309037680887,
+     "recovery_s": 3.794000000000004,
+     "postrelease_max_offset_mm": 3.8998193050830183,
+     "nominal": {
+      "force_mae_n": 0.13533841233280755,
+      "force_peak_n": 6.474312841876694,
+      "load_min_n": 3.593814506865799,
+      "path_rms_m": 0.005496731049800218,
+      "attitude_rms_rad": 0.04948083661953684,
+      "progress_ratio": 0.8512108062179564,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 204.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 4.438408189313924,
+      "load_min_n": 0.5615918106860763,
+      "path_rms_m": 0.007771413260053093,
+      "attitude_rms_rad": 0.06596276486926417,
+      "attitude_peak_rad": 0.13142577562342708,
+      "progress_ratio": 0.8613213903985367,
+      "low_load_duration_s": 0.61,
+      "saturation_ticks": 3123.0,
+      "qp_intervention_ticks": 1051.0
+     }
+    },
+    "DSFC": {
+     "unit": 3,
+     "phase": "initial",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 86.1717741761951,
+     "Jload": 47.62437124481846,
+     "Jpath": 11.122208391613833,
+     "Jatt": 27.42519453976281,
+     "recovery_s": 3.759999999999998,
+     "postrelease_max_offset_mm": 4.1172585056274835,
+     "nominal": {
+      "force_mae_n": 0.12566956951139982,
+      "force_peak_n": 6.4436914822985285,
+      "load_min_n": 3.729344866796209,
+      "path_rms_m": 0.005466874657774124,
+      "attitude_rms_rad": 0.047078831197096965,
+      "progress_ratio": 0.8521951516701318,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 155.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.911522442461579,
+      "load_min_n": 1.0884775575384211,
+      "path_rms_m": 0.007699578598865492,
+      "attitude_rms_rad": 0.06350511149539273,
+      "attitude_peak_rad": 0.12741556003836874,
+      "progress_ratio": 0.8652395252622735,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 2113.0,
+      "qp_intervention_ticks": 1023.0
+     }
+    },
+    "MSFC": {
+     "unit": 3,
+     "phase": "initial",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 86.96295787430293,
+     "Jload": 47.639610442884845,
+     "Jpath": 11.397317731681145,
+     "Jatt": 27.926029699736937,
+     "recovery_s": 3.7959999999999994,
+     "postrelease_max_offset_mm": 4.210115420307405,
+     "nominal": {
+      "force_mae_n": 0.12570481399611355,
+      "force_peak_n": 6.443780650133773,
+      "load_min_n": 3.7291293931564495,
+      "path_rms_m": 0.005466543734404649,
+      "attitude_rms_rad": 0.047090493102011216,
+      "progress_ratio": 0.8521961592415797,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 155.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.9111683718270367,
+      "load_min_n": 1.088831628172963,
+      "path_rms_m": 0.007712635816162791,
+      "attitude_rms_rad": 0.06403766714823364,
+      "attitude_peak_rad": 0.12917630645775044,
+      "progress_ratio": 0.8650614940646373,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 2134.0,
+      "qp_intervention_ticks": 1023.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": 0.7911836981078295,
+    "Jload": 0.015239198066382187,
+    "Jpath": 0.2751093400673117,
+    "Jatt": 0.5008351599741268,
+    "recovery_s": 0.036000000000001364,
+    "postrelease_max_offset_mm": 0.09285691467992141,
+    "nominal": {
+     "force_mae_n": 3.5244484713731206e-05,
+     "force_peak_n": 8.916783524437477e-05,
+     "load_min_n": -0.00021547363975926714,
+     "path_rms_m": -3.309233694752736e-07,
+     "attitude_rms_rad": 1.1661904914250787e-05,
+     "progress_ratio": 1.0075714478308129e-06,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 0.0
+    },
+    "disturbed": {
+     "force_error_peak_n": -0.00035407063454240273,
+     "load_min_n": 0.00035407063454195864,
+     "path_rms_m": 1.3057217297298557e-05,
+     "attitude_rms_rad": 0.0005325556528409103,
+     "attitude_peak_rad": 0.0017607464193817035,
+     "progress_ratio": -0.00017803119763626363,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 21.0,
+     "qp_intervention_ticks": 0.0
+    }
+   },
+   "SFC_minus_DSFC": {
+    "J": 10.577430326604087,
+    "Jload": 1.7258159356482565,
+    "Jpath": 5.138499893037748,
+    "Jatt": 3.7131144979180775,
+    "recovery_s": 0.034000000000006025,
+    "postrelease_max_offset_mm": -0.2174392005444652,
+    "nominal": {
+     "force_mae_n": 0.00966884282140773,
+     "force_peak_n": 0.030621359578165475,
+     "load_min_n": -0.13553035993040963,
+     "path_rms_m": 2.985639202609386e-05,
+     "attitude_rms_rad": 0.0024020054224398735,
+     "progress_ratio": -0.0009843454521754058,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 49.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.5268857468523445,
+     "load_min_n": -0.5268857468523448,
+     "path_rms_m": 7.183466118760098e-05,
+     "attitude_rms_rad": 0.002457653373871438,
+     "attitude_peak_rad": 0.0040102155850583465,
+     "progress_ratio": -0.003918134863736822,
+     "low_load_duration_s": 0.61,
+     "saturation_ticks": 1010.0,
+     "qp_intervention_ticks": 28.0
+    }
+   }
+  },
+  {
+   "m": 5.318628389388323,
+   "mu": 729.0097584978811,
+   "g": 0.02835595401982533,
+   "slots": {
+    "SFC": {
+     "unit": 4,
+     "phase": "initial",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 102.25201513844289,
+     "Jload": 49.44150077484031,
+     "Jpath": 20.108442984883887,
+     "Jatt": 32.70207137871869,
+     "recovery_s": 7.109999999999999,
+     "postrelease_max_offset_mm": 5.4844342465514995,
+     "nominal": {
+      "force_mae_n": 0.2510874628727247,
+      "force_peak_n": 6.806078222377252,
+      "load_min_n": 2.8664830022775862,
+      "path_rms_m": 0.005406090887044303,
+      "attitude_rms_rad": 0.027011459014932057,
+      "progress_ratio": 0.8711694349034743,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 532.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.3738806841186855,
+      "load_min_n": 1.6261193158813145,
+      "path_rms_m": 0.006627346247498779,
+      "attitude_rms_rad": 0.05564870860905356,
+      "attitude_peak_rad": 0.11705202695154275,
+      "progress_ratio": 0.8889715041611989,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 1895.0
+     }
+    },
+    "DSFC": {
+     "unit": 4,
+     "phase": "initial",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 93.0239462190647,
+     "Jload": 46.48456326800357,
+     "Jpath": 17.878615596431107,
+     "Jatt": 28.660767354630018,
+     "recovery_s": 7.201999999999998,
+     "postrelease_max_offset_mm": 5.9341162483499375,
+     "nominal": {
+      "force_mae_n": 0.12676009552772685,
+      "force_peak_n": 6.539447662192978,
+      "load_min_n": 2.9574865436387148,
+      "path_rms_m": 0.0052370192313916245,
+      "attitude_rms_rad": 0.016251369892740314,
+      "progress_ratio": 0.8713493986554545,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 248.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.0960416147650296,
+      "load_min_n": 1.9039583852349702,
+      "path_rms_m": 0.006567236734163667,
+      "attitude_rms_rad": 0.04835479344825716,
+      "attitude_peak_rad": 0.11315415927489561,
+      "progress_ratio": 0.8894295931410348,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 248.0
+     }
+    },
+    "MSFC": {
+     "unit": 4,
+     "phase": "initial",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 93.93568727851668,
+     "Jload": 46.43160781522935,
+     "Jpath": 18.85810124849166,
+     "Jatt": 28.645978214795672,
+     "recovery_s": 7.597999999999999,
+     "postrelease_max_offset_mm": 6.62551395811568,
+     "nominal": {
+      "force_mae_n": 0.13706222177104851,
+      "force_peak_n": 6.695593668382103,
+      "load_min_n": 2.8534298796807214,
+      "path_rms_m": 0.005255004721686169,
+      "attitude_rms_rad": 0.017578559186705492,
+      "progress_ratio": 0.8702139222856352,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 306.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.167722968918736,
+      "load_min_n": 1.8322770310812644,
+      "path_rms_m": 0.0064666753485446895,
+      "attitude_rms_rad": 0.04859030957835234,
+      "attitude_peak_rad": 0.10872018073688634,
+      "progress_ratio": 0.8890783528191102,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 1609.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": 0.9117410594519839,
+    "Jload": -0.052955452774220646,
+    "Jpath": 0.9794856520605535,
+    "Jatt": -0.014789139834345377,
+    "recovery_s": 0.3960000000000008,
+    "postrelease_max_offset_mm": 0.6913977097657424,
+    "nominal": {
+     "force_mae_n": 0.010302126243321663,
+     "force_peak_n": 0.15614600618912533,
+     "load_min_n": -0.1040566639579934,
+     "path_rms_m": 1.7985490294544423e-05,
+     "attitude_rms_rad": 0.001327189293965178,
+     "progress_ratio": -0.001135476369819255,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 58.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.07168135415370624,
+     "load_min_n": -0.0716813541537058,
+     "path_rms_m": -0.0001005613856189776,
+     "attitude_rms_rad": 0.00023551613009518274,
+     "attitude_peak_rad": -0.004433978538009267,
+     "progress_ratio": -0.000351240321924573,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 1361.0
+    }
+   },
+   "SFC_minus_DSFC": {
+    "J": 9.228068919378188,
+    "Jload": 2.956937506836738,
+    "Jpath": 2.2298273884527795,
+    "Jatt": 4.041304024088674,
+    "recovery_s": -0.09199999999999875,
+    "postrelease_max_offset_mm": -0.449682001798438,
+    "nominal": {
+     "force_mae_n": 0.12432736734499786,
+     "force_peak_n": 0.2666305601842742,
+     "load_min_n": -0.09100354136112854,
+     "path_rms_m": 0.00016907165565267866,
+     "attitude_rms_rad": 0.010760089122191743,
+     "progress_ratio": -0.00017996375198015002,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 284.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.2778390693536559,
+     "load_min_n": -0.27783906935365565,
+     "path_rms_m": 6.0109513335112295e-05,
+     "attitude_rms_rad": 0.007293915160796402,
+     "attitude_peak_rad": 0.0038978676766471404,
+     "progress_ratio": -0.00045808897983590224,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 1647.0
+    }
+   }
+  },
+  {
+   "m": 7.644104387611151,
+   "mu": 249.36420361772792,
+   "g": 0.07711120568140055,
+   "slots": {
+    "SFC": {
+     "unit": 5,
+     "phase": "initial",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 66.88780105191351,
+     "Jload": 48.00519285586601,
+     "Jpath": 4.275777482752372,
+     "Jatt": 14.606830713295128,
+     "recovery_s": 2.6940000000000026,
+     "postrelease_max_offset_mm": 2.2390110605654043,
+     "nominal": {
+      "force_mae_n": 0.17278002991441335,
+      "force_peak_n": 6.806009276316506,
+      "load_min_n": 3.2625592625693334,
+      "path_rms_m": 0.005496828782913424,
+      "attitude_rms_rad": 0.04152273098421946,
+      "progress_ratio": 0.8566540320504021,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 217.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.840663798996218,
+      "load_min_n": 1.1593362010037824,
+      "path_rms_m": 0.0070834996679398415,
+      "attitude_rms_rad": 0.049065171511186736,
+      "attitude_peak_rad": 0.09478212664389984,
+      "progress_ratio": 0.8766104265779981,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 1229.0,
+      "qp_intervention_ticks": 1319.0
+     }
+    },
+    "DSFC": {
+     "unit": 5,
+     "phase": "initial",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 85.54206567791805,
+     "Jload": 46.66372226843788,
+     "Jpath": 10.766556804894043,
+     "Jatt": 28.11178660458612,
+     "recovery_s": 4.314,
+     "postrelease_max_offset_mm": 4.347888717882833,
+     "nominal": {
+      "force_mae_n": 0.14686579325623492,
+      "force_peak_n": 6.6931823557521435,
+      "load_min_n": 3.2933668526595787,
+      "path_rms_m": 0.005440926261733109,
+      "attitude_rms_rad": 0.04316160133526774,
+      "progress_ratio": 0.8553672203843645,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 151.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.406240654147852,
+      "load_min_n": 1.5937593458521484,
+      "path_rms_m": 0.007215944820889832,
+      "attitude_rms_rad": 0.06134995366854207,
+      "attitude_peak_rad": 0.13501895423260754,
+      "progress_ratio": 0.877228027502501,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 1173.0,
+      "qp_intervention_ticks": 3732.0
+     }
+    },
+    "MSFC": {
+     "unit": 5,
+     "phase": "initial",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 85.33125380744583,
+     "Jload": 46.655460964725734,
+     "Jpath": 10.942648449849488,
+     "Jatt": 27.733144392870617,
+     "recovery_s": 4.288000000000004,
+     "postrelease_max_offset_mm": 4.389837007140358,
+     "nominal": {
+      "force_mae_n": 0.1471244146999262,
+      "force_peak_n": 6.698040666857737,
+      "load_min_n": 3.29071775334838,
+      "path_rms_m": 0.005442017256649604,
+      "attitude_rms_rad": 0.04325882336209715,
+      "progress_ratio": 0.8552979377749519,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 156.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.503098827474676,
+      "load_min_n": 1.4969011725253238,
+      "path_rms_m": 0.007284013937111276,
+      "attitude_rms_rad": 0.060731414603409355,
+      "attitude_peak_rad": 0.12439366282879594,
+      "progress_ratio": 0.8771502396064944,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 1061.0,
+      "qp_intervention_ticks": 3298.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": -0.21081187047221306,
+    "Jload": -0.008261303712146173,
+    "Jpath": 0.17609164495544505,
+    "Jatt": -0.3786422117155013,
+    "recovery_s": -0.02599999999999625,
+    "postrelease_max_offset_mm": 0.04194828925752425,
+    "nominal": {
+     "force_mae_n": 0.0002586214436912926,
+     "force_peak_n": 0.004858311105593316,
+     "load_min_n": -0.0026490993111987216,
+     "path_rms_m": 1.0909949164951416e-06,
+     "attitude_rms_rad": 9.722202682941467e-05,
+     "progress_ratio": -6.928260941263531e-05,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 5.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.09685817332682412,
+     "load_min_n": -0.09685817332682456,
+     "path_rms_m": 6.806911622144439e-05,
+     "attitude_rms_rad": -0.000618539065132713,
+     "attitude_peak_rad": -0.010625291403811604,
+     "progress_ratio": -7.778789600654257e-05,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": -112.0,
+     "qp_intervention_ticks": -434.0
+    }
+   },
+   "SFC_minus_DSFC": {
+    "J": -18.654264626004533,
+    "Jload": 1.3414705874281267,
+    "Jpath": -6.4907793221416705,
+    "Jatt": -13.50495589129099,
+    "recovery_s": -1.6199999999999974,
+    "postrelease_max_offset_mm": -2.108877657317429,
+    "nominal": {
+     "force_mae_n": 0.025914236658178436,
+     "force_peak_n": 0.11282692056436261,
+     "load_min_n": -0.030807590090245363,
+     "path_rms_m": 5.5902521180315086e-05,
+     "attitude_rms_rad": -0.0016388703510482813,
+     "progress_ratio": 0.0012868116660376128,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 66.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.43442314484836597,
+     "load_min_n": -0.43442314484836597,
+     "path_rms_m": -0.00013244515294999048,
+     "attitude_rms_rad": -0.012284782157355331,
+     "attitude_peak_rad": -0.040236827588707696,
+     "progress_ratio": -0.0006176009245028036,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 56.0,
+     "qp_intervention_ticks": -2413.0
+    }
+   }
+  },
+  {
+   "m": 11.020339835435152,
+   "mu": 983.5695741547144,
+   "g": 0.009344731645416986,
+   "slots": {
+    "SFC": {
+     "unit": 6,
+     "phase": "initial",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 152.5412884705478,
+     "Jload": 98.47004087330932,
+     "Jpath": 44.294094726361635,
+     "Jatt": 9.777152870876854,
+     "recovery_s": null,
+     "postrelease_max_offset_mm": 13.143822755164795,
+     "nominal": {
+      "force_mae_n": 0.567434078186193,
+      "force_peak_n": 7.003982717280114,
+      "load_min_n": 3.368063700660376,
+      "path_rms_m": 0.004905641262154749,
+      "attitude_rms_rad": 0.012245589409508744,
+      "progress_ratio": 0.8254738748957029,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 393.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.2648442716724424,
+      "load_min_n": 1.7351557283275576,
+      "path_rms_m": 0.004987485724803178,
+      "attitude_rms_rad": 0.01806132688825693,
+      "attitude_peak_rad": 0.039953011821517656,
+      "progress_ratio": 0.8600355995555831,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 393.0
+     }
+    },
+    "DSFC": {
+     "unit": 6,
+     "phase": "initial",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 97.66390265094928,
+     "Jload": 46.35510513591137,
+     "Jpath": 45.38672644714644,
+     "Jatt": 5.922071067891475,
+     "recovery_s": 11.786000000000001,
+     "postrelease_max_offset_mm": 12.215381756592686,
+     "nominal": {
+      "force_mae_n": 0.13545838360257198,
+      "force_peak_n": 6.9758156849792545,
+      "load_min_n": 3.7318302875163982,
+      "path_rms_m": 0.004506212869752748,
+      "attitude_rms_rad": 0.012009155407511372,
+      "progress_ratio": 0.8334828145679664,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 0.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.183806704166355,
+      "load_min_n": 1.816193295833645,
+      "path_rms_m": 0.00482238782560032,
+      "attitude_rms_rad": 0.01683066856243482,
+      "attitude_peak_rad": 0.03592735732004464,
+      "progress_ratio": 0.8756191765149465,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 0.0
+     }
+    },
+    "MSFC": {
+     "unit": 6,
+     "phase": "initial",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 94.8174162685535,
+     "Jload": 46.50937143756883,
+     "Jpath": 41.56836815870152,
+     "Jatt": 6.739676672283147,
+     "recovery_s": 11.114000000000004,
+     "postrelease_max_offset_mm": 12.159116042349131,
+     "nominal": {
+      "force_mae_n": 0.1663765549361389,
+      "force_peak_n": 7.070464840932684,
+      "load_min_n": 3.555319649384367,
+      "path_rms_m": 0.004575522753718935,
+      "attitude_rms_rad": 0.012743064843863955,
+      "progress_ratio": 0.8316914138153187,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 180.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.289384917639395,
+      "load_min_n": 1.7106150823606052,
+      "path_rms_m": 0.00492934964330821,
+      "attitude_rms_rad": 0.01810594548281981,
+      "attitude_peak_rad": 0.03808845821095322,
+      "progress_ratio": 0.8706124411154301,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 180.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": -2.8464863823957813,
+    "Jload": 0.15426630165745792,
+    "Jpath": -3.8183582884449194,
+    "Jatt": 0.8176056043916713,
+    "recovery_s": -0.671999999999997,
+    "postrelease_max_offset_mm": -0.056265714243554754,
+    "nominal": {
+     "force_mae_n": 0.03091817133356692,
+     "force_peak_n": 0.09464915595342926,
+     "load_min_n": -0.17651063813203116,
+     "path_rms_m": 6.930988396618674e-05,
+     "attitude_rms_rad": 0.0007339094363525821,
+     "progress_ratio": -0.0017914007526476095,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 180.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.10557821347303964,
+     "load_min_n": -0.10557821347303986,
+     "path_rms_m": 0.00010696181770789015,
+     "attitude_rms_rad": 0.0012752769203849892,
+     "attitude_peak_rad": 0.002161100890908582,
+     "progress_ratio": -0.005006735399516349,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 180.0
+    }
+   },
+   "SFC_minus_DSFC": {
+    "J": 54.87738581959853,
+    "Jload": 52.11493573739794,
+    "Jpath": -1.0926317207848015,
+    "Jatt": 3.855081802985379,
+    "recovery_s": null,
+    "postrelease_max_offset_mm": 0.9284409985721087,
+    "nominal": {
+     "force_mae_n": 0.43197569458362095,
+     "force_peak_n": 0.028167032300859596,
+     "load_min_n": -0.36376658685602203,
+     "path_rms_m": 0.00039942839240200093,
+     "attitude_rms_rad": 0.00023643400199737166,
+     "progress_ratio": -0.00800893967226346,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 393.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.08103756750608726,
+     "load_min_n": -0.08103756750608748,
+     "path_rms_m": 0.00016509789920285834,
+     "attitude_rms_rad": 0.001230658325822108,
+     "attitude_peak_rad": 0.004025654501473019,
+     "progress_ratio": -0.01558357695936341,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 393.0
+    }
+   }
+  },
+  {
+   "m": 12.060580734163523,
+   "mu": 186.1273012706193,
+   "g": 0.01340957019628624,
+   "slots": {
+    "SFC": {
+     "unit": 7,
+     "phase": "initial",
+     "state": "completed_nominal_and_disturbed_guard_infeasible",
+     "pair_feasible": false,
+     "J": 180.91020527211674,
+     "Jload": 103.69853642548772,
+     "Jpath": 58.633455878296395,
+     "Jatt": 18.578212968332632,
+     "recovery_s": null,
+     "postrelease_max_offset_mm": 11.024587308977546,
+     "nominal": {
+      "force_mae_n": 1.3298762256712655,
+      "force_peak_n": 7.7776761756778985,
+      "load_min_n": 2.2084723636401526,
+      "path_rms_m": 0.006235586343771092,
+      "attitude_rms_rad": 0.04526006403261628,
+      "progress_ratio": 0.8530010771413349,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 3796.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.903942999409688,
+      "load_min_n": 1.096057000590312,
+      "path_rms_m": 0.006931987232828644,
+      "attitude_rms_rad": 0.05023999760209604,
+      "attitude_peak_rad": 0.0944314475436326,
+      "progress_ratio": 0.828133655838419,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 3310.0
+     }
+    },
+    "DSFC": {
+     "unit": 7,
+     "phase": "initial",
+     "state": "completed_nominal_and_disturbed_guard_infeasible",
+     "pair_feasible": false,
+     "J": 171.21693169131214,
+     "Jload": 82.34152711028389,
+     "Jpath": 61.991385449088874,
+     "Jatt": 26.88401913193938,
+     "recovery_s": null,
+     "postrelease_max_offset_mm": 11.705076481821246,
+     "nominal": {
+      "force_mae_n": 0.7852395897427239,
+      "force_peak_n": 7.513459612475573,
+      "load_min_n": 2.621487601779658,
+      "path_rms_m": 0.005878883958107587,
+      "attitude_rms_rad": 0.028409869706908508,
+      "progress_ratio": 0.855667864740343,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 2099.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.312666625218795,
+      "load_min_n": 1.6873333747812047,
+      "path_rms_m": 0.006989239070708478,
+      "attitude_rms_rad": 0.05072542181538209,
+      "attitude_peak_rad": 0.08184931541149583,
+      "progress_ratio": 0.8179082473788628,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 2099.0
+     }
+    },
+    "MSFC": {
+     "unit": 7,
+     "phase": "initial",
+     "state": "completed_nominal_and_disturbed_guard_infeasible",
+     "pair_feasible": false,
+     "J": 173.52830815034625,
+     "Jload": 86.26114430651327,
+     "Jpath": 61.1097255708658,
+     "Jatt": 26.157438272967177,
+     "recovery_s": null,
+     "postrelease_max_offset_mm": 11.646756150660629,
+     "nominal": {
+      "force_mae_n": 0.8715908827603798,
+      "force_peak_n": 7.5815001028182785,
+      "load_min_n": 2.40353724853005,
+      "path_rms_m": 0.005944996417209174,
+      "attitude_rms_rad": 0.03055368183448462,
+      "progress_ratio": 0.8527148179754833,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 2303.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.514227677238507,
+      "load_min_n": 1.4857723227614932,
+      "path_rms_m": 0.007023881802634192,
+      "attitude_rms_rad": 0.051809490683707805,
+      "attitude_peak_rad": 0.08194471190876675,
+      "progress_ratio": 0.8120447821907739,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 2647.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": 2.3113764590341077,
+    "Jload": 3.9196171962293818,
+    "Jpath": -0.8816598782230756,
+    "Jatt": -0.726580858972202,
+    "recovery_s": null,
+    "postrelease_max_offset_mm": -0.0583203311606173,
+    "nominal": {
+     "force_mae_n": 0.08635129301765587,
+     "force_peak_n": 0.06804049034270587,
+     "load_min_n": -0.21795035324960788,
+     "path_rms_m": 6.611245910158672e-05,
+     "attitude_rms_rad": 0.0021438121275761113,
+     "progress_ratio": -0.002953046764859635,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 204.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.20156105201971197,
+     "load_min_n": -0.20156105201971153,
+     "path_rms_m": 3.464273192571414e-05,
+     "attitude_rms_rad": 0.0010840688683257174,
+     "attitude_peak_rad": 9.539649727091648e-05,
+     "progress_ratio": -0.00586346518808889,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 548.0
+    }
+   },
+   "SFC_minus_DSFC": {
+    "J": 9.6932735808046,
+    "Jload": 21.357009315203825,
+    "Jpath": -3.3579295707924786,
+    "Jatt": -8.305806163606746,
+    "recovery_s": null,
+    "postrelease_max_offset_mm": -0.6804891728436999,
+    "nominal": {
+     "force_mae_n": 0.5446366359285416,
+     "force_peak_n": 0.2642165632023259,
+     "load_min_n": -0.41301523813950514,
+     "path_rms_m": 0.000356702385663505,
+     "attitude_rms_rad": 0.016850194325707772,
+     "progress_ratio": -0.002666787599008069,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 1697.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.5912763741908931,
+     "load_min_n": -0.5912763741908926,
+     "path_rms_m": -5.7251837879833574e-05,
+     "attitude_rms_rad": -0.00048542421328604674,
+     "attitude_peak_rad": 0.01258213213213677,
+     "progress_ratio": 0.010225408459556218,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 1211.0
+    }
+   }
+  },
+  {
+   "m": 4.73858780413866,
+   "mu": 2113.87351171066,
+   "g": 0.11955633179496716,
+   "slots": {
+    "DSFC": {
+     "unit": 8,
+     "phase": "bayesian_ei",
+     "state": "completed_feasible",
+     "pair_feasible": true,
+     "J": 80.57101094611647,
+     "Jload": 46.39520598620803,
+     "Jpath": 7.747737872361156,
+     "Jatt": 26.428067087547277,
+     "recovery_s": 2.9239999999999995,
+     "postrelease_max_offset_mm": 2.9570367693969417,
+     "nominal": {
+      "force_mae_n": 0.08359195466144587,
+      "force_peak_n": 6.032611596816165,
+      "load_min_n": 4.014945126086592,
+      "path_rms_m": 0.005283292032575636,
+      "attitude_rms_rad": 0.03659385102810199,
+      "progress_ratio": 0.8628061619258621,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 0.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 2.6460550012205513,
+      "load_min_n": 2.3539449987794487,
+      "path_rms_m": 0.006650134906497864,
+      "attitude_rms_rad": 0.054827073075231464,
+      "attitude_peak_rad": 0.14338170897241503,
+      "progress_ratio": 0.8716805576440889,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 529.0,
+      "qp_intervention_ticks": 5169.0
+     }
+    },
+    "MSFC": {
+     "unit": 8,
+     "phase": "bayesian_ei",
+     "state": "completed_feasible",
+     "pair_feasible": true,
+     "J": 80.63685412807027,
+     "Jload": 46.38052980031234,
+     "Jpath": 7.764602904886662,
+     "Jatt": 26.49172142287127,
+     "recovery_s": 2.926000000000002,
+     "postrelease_max_offset_mm": 2.9627083205505,
+     "nominal": {
+      "force_mae_n": 0.08447678313169336,
+      "force_peak_n": 6.041583384718819,
+      "load_min_n": 4.00639289033627,
+      "path_rms_m": 0.005285803050269684,
+      "attitude_rms_rad": 0.03692753956616071,
+      "progress_ratio": 0.8625465954563036,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 0.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 2.6512405653971096,
+      "load_min_n": 2.3487594346028904,
+      "path_rms_m": 0.006657891169148111,
+      "attitude_rms_rad": 0.055056748281677656,
+      "attitude_peak_rad": 0.1435237094351089,
+      "progress_ratio": 0.8715729622854386,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 594.0,
+      "qp_intervention_ticks": 5171.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": 0.06584318195379524,
+    "Jload": -0.014676185895694971,
+    "Jpath": 0.016865032525505974,
+    "Jatt": 0.06365433532399223,
+    "recovery_s": 0.0020000000000024443,
+    "postrelease_max_offset_mm": 0.00567155115355833,
+    "nominal": {
+     "force_mae_n": 0.0008848284702474979,
+     "force_peak_n": 0.008971787902654071,
+     "load_min_n": -0.00855223575032138,
+     "path_rms_m": 2.5110176940477957e-06,
+     "attitude_rms_rad": 0.00033368853805872123,
+     "progress_ratio": -0.00025956646955849205,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 0.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.005185564176558355,
+     "load_min_n": -0.005185564176558355,
+     "path_rms_m": 7.756262650247293e-06,
+     "attitude_rms_rad": 0.0002296752064461921,
+     "attitude_peak_rad": 0.0001420004626938587,
+     "progress_ratio": -0.00010759535865034753,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 65.0,
+     "qp_intervention_ticks": 2.0
+    }
+   }
+  },
+  {
+   "m": 5.139566652476788,
+   "mu": 1226.9916466942548,
+   "g": 0.16728819660975902,
+   "slots": {
+    "DSFC": {
+     "unit": 9,
+     "phase": "bayesian_ei",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 492.62095554593424,
+     "Jload": 153.1627552966821,
+     "Jpath": 163.4313232360129,
+     "Jatt": 176.02687701323924,
+     "recovery_s": null,
+     "postrelease_max_offset_mm": 20.154100103580216,
+     "nominal": {
+      "force_mae_n": 1.3731064972491485,
+      "force_peak_n": 9.718595923414545,
+      "load_min_n": 2.093609883580144,
+      "path_rms_m": 0.010946308862392144,
+      "attitude_rms_rad": 0.2250653825283018,
+      "progress_ratio": 0.8988066977676038,
+      "saturation_ticks": 19024.0,
+      "qp_intervention_ticks": 2.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 3.791703735505637,
+      "load_min_n": 1.208296264494363,
+      "path_rms_m": 0.00841970808539009,
+      "attitude_rms_rad": 0.09480055465810647,
+      "attitude_peak_rad": 0.21820952616224118,
+      "progress_ratio": 0.8636567602742937,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 7533.0,
+      "qp_intervention_ticks": 1358.0
+     }
+    },
+    "MSFC": {
+     "unit": 9,
+     "phase": "bayesian_ei",
+     "state": "completed_nominal_and_disturbed_guard_infeasible",
+     "pair_feasible": false,
+     "J": 491.9802166167749,
+     "Jload": 151.26946976071446,
+     "Jpath": 164.16759398629506,
+     "Jatt": 176.54315286976535,
+     "recovery_s": null,
+     "postrelease_max_offset_mm": 20.586939854489415,
+     "nominal": {
+      "force_mae_n": 1.3876086637062204,
+      "force_peak_n": 9.866277351670313,
+      "load_min_n": 2.0506815945289656,
+      "path_rms_m": 0.011045083168421673,
+      "attitude_rms_rad": 0.22712180129971649,
+      "progress_ratio": 0.8964508148532162,
+      "saturation_ticks": 19243.0,
+      "qp_intervention_ticks": 3.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 4.191900466650892,
+      "load_min_n": 0.8080995333491083,
+      "path_rms_m": 0.008473019831406242,
+      "attitude_rms_rad": 0.09595133707909237,
+      "attitude_peak_rad": 0.2194878471660998,
+      "progress_ratio": 0.8637955767711297,
+      "low_load_duration_s": 0.056,
+      "saturation_ticks": 7705.0,
+      "qp_intervention_ticks": 1190.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": -0.6407389291593404,
+    "Jload": -1.8932855359676353,
+    "Jpath": 0.7362707502821593,
+    "Jatt": 0.5162758565261072,
+    "recovery_s": null,
+    "postrelease_max_offset_mm": 0.43283975090919924,
+    "nominal": {
+     "force_mae_n": 0.014502166457071919,
+     "force_peak_n": 0.14768142825576724,
+     "load_min_n": -0.0429282890511784,
+     "path_rms_m": 9.877430602952923e-05,
+     "attitude_rms_rad": 0.0020564187714146864,
+     "progress_ratio": -0.002355882914387597,
+     "saturation_ticks": 219.0,
+     "qp_intervention_ticks": 1.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.4001967311452548,
+     "load_min_n": -0.40019673114525456,
+     "path_rms_m": 5.331174601615196e-05,
+     "attitude_rms_rad": 0.0011507824209859019,
+     "attitude_peak_rad": 0.0012783210038586068,
+     "progress_ratio": 0.00013881649683600283,
+     "low_load_duration_s": 0.056,
+     "saturation_ticks": 172.0,
+     "qp_intervention_ticks": -168.0
+    }
+   }
+  },
+  {
+   "m": 6.6197215244174,
+   "mu": 1100.0452562751716,
+   "g": 0.15795104746396607,
+   "slots": {
+    "DSFC": {
+     "unit": 10,
+     "phase": "bayesian_ei",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 80.12036898900607,
+     "Jload": 46.3087915261665,
+     "Jpath": 8.276868223647934,
+     "Jatt": 25.534709239191628,
+     "recovery_s": 3.0459999999999994,
+     "postrelease_max_offset_mm": 3.2840300245449727,
+     "nominal": {
+      "force_mae_n": 0.13143659753807665,
+      "force_peak_n": 6.313318685213937,
+      "load_min_n": 3.7820142624209665,
+      "path_rms_m": 0.005555270083233741,
+      "attitude_rms_rad": 0.04959300355083147,
+      "progress_ratio": 0.8504251143481791,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 0.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 2.766830841122231,
+      "load_min_n": 2.233169158877769,
+      "path_rms_m": 0.007085633572363683,
+      "attitude_rms_rad": 0.06296647484495212,
+      "attitude_peak_rad": 0.13283282641949912,
+      "progress_ratio": 0.8645224528977895,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 979.0,
+      "qp_intervention_ticks": 4139.0
+     }
+    },
+    "MSFC": {
+     "unit": 16,
+     "phase": "bayesian_ei",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 79.37854714651027,
+     "Jload": 46.2332509510382,
+     "Jpath": 8.016428913698958,
+     "Jatt": 25.128867281773108,
+     "recovery_s": 2.980000000000004,
+     "postrelease_max_offset_mm": 3.1912267800041194,
+     "nominal": {
+      "force_mae_n": 0.13247559163085998,
+      "force_peak_n": 6.3176858017777375,
+      "load_min_n": 3.778831300017938,
+      "path_rms_m": 0.005559367263227322,
+      "attitude_rms_rad": 0.04971411029337092,
+      "progress_ratio": 0.8502766927866808,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 0.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 2.767217056249078,
+      "load_min_n": 2.232782943750922,
+      "path_rms_m": 0.007082929335812115,
+      "attitude_rms_rad": 0.06279199602705361,
+      "attitude_peak_rad": 0.13140403594760458,
+      "progress_ratio": 0.8641688990101453,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 1019.0,
+      "qp_intervention_ticks": 4160.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": -0.7418218424957956,
+    "Jload": -0.0755405751283007,
+    "Jpath": -0.26043930994897657,
+    "Jatt": -0.40584195741852014,
+    "recovery_s": -0.0659999999999954,
+    "postrelease_max_offset_mm": -0.09280324454085331,
+    "nominal": {
+     "force_mae_n": 0.001038994092783324,
+     "force_peak_n": 0.0043671165638006215,
+     "load_min_n": -0.003182962403028622,
+     "path_rms_m": 4.097179993580585e-06,
+     "attitude_rms_rad": 0.00012110674253944936,
+     "progress_ratio": -0.000148421561498302,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 0.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.0003862151268467784,
+     "load_min_n": -0.0003862151268467784,
+     "path_rms_m": -2.7042365515683384e-06,
+     "attitude_rms_rad": -0.0001744788178985046,
+     "attitude_peak_rad": -0.0014287904718945366,
+     "progress_ratio": -0.00035355388764424234,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 40.0,
+     "qp_intervention_ticks": 21.0
+    }
+   }
+  },
+  {
+   "m": 6.028121277689934,
+   "mu": 575.7828492740656,
+   "g": 0.19946395551236445,
+   "slots": {
+    "DSFC": {
+     "unit": 12,
+     "phase": "bayesian_ei",
+     "state": "completed_nominal_and_disturbed_guard_infeasible",
+     "pair_feasible": false,
+     "J": 564.8624749183757,
+     "Jload": 177.369793199854,
+     "Jpath": 188.5079527028483,
+     "Jatt": 198.98472901567337,
+     "recovery_s": null,
+     "postrelease_max_offset_mm": 25.177839968565376,
+     "nominal": {
+      "force_mae_n": 1.5846948742048341,
+      "force_peak_n": 11.051599135935465,
+      "load_min_n": 1.4267880945187752,
+      "path_rms_m": 0.012432507018611599,
+      "attitude_rms_rad": 0.2546375427936872,
+      "progress_ratio": 0.8908615381166753,
+      "saturation_ticks": 21280.0,
+      "qp_intervention_ticks": 24.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 5.0,
+      "load_min_n": 0.0,
+      "path_rms_m": 0.008653548679413295,
+      "attitude_rms_rad": 0.10527548003882747,
+      "attitude_peak_rad": 0.2406665386024911,
+      "progress_ratio": 0.8618148507540581,
+      "low_load_duration_s": 0.788,
+      "saturation_ticks": 9212.0,
+      "qp_intervention_ticks": 2522.0
+     }
+    },
+    "MSFC": {
+     "unit": 14,
+     "phase": "bayesian_ei",
+     "state": "completed_nominal_and_disturbed_guard_infeasible",
+     "pair_feasible": false,
+     "J": 371.4293579035631,
+     "Jload": 204.60568084269923,
+     "Jpath": 72.49853838770233,
+     "Jatt": 94.32513867316153,
+     "recovery_s": null,
+     "postrelease_max_offset_mm": 8.697743354526592,
+     "nominal": {
+      "force_mae_n": 1.6060168243901614,
+      "force_peak_n": 11.316362126010198,
+      "load_min_n": 1.3002425885803703,
+      "path_rms_m": 0.012524364246708533,
+      "attitude_rms_rad": 0.25610081891037945,
+      "progress_ratio": 0.8883958898615485,
+      "saturation_ticks": 21360.0,
+      "qp_intervention_ticks": 24.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 5.326248325600478,
+      "load_min_n": 0.0,
+      "path_rms_m": 0.011261196713997996,
+      "attitude_rms_rad": 0.1801488844448917,
+      "attitude_peak_rad": 0.37063296789147077,
+      "progress_ratio": 0.8879542966885283,
+      "low_load_duration_s": 1.034,
+      "saturation_ticks": 17008.0,
+      "qp_intervention_ticks": 2128.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": -193.43311701481264,
+    "Jload": 27.235887642845228,
+    "Jpath": -116.00941431514599,
+    "Jatt": -104.65959034251183,
+    "recovery_s": null,
+    "postrelease_max_offset_mm": -16.480096614038786,
+    "nominal": {
+     "force_mae_n": 0.021321950185327232,
+     "force_peak_n": 0.2647629900747326,
+     "load_min_n": -0.12654550593840486,
+     "path_rms_m": 9.185722809693445e-05,
+     "attitude_rms_rad": 0.0014632761166922248,
+     "progress_ratio": -0.002465648255126851,
+     "saturation_ticks": 80.0,
+     "qp_intervention_ticks": 0.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.3262483256004778,
+     "load_min_n": 0.0,
+     "path_rms_m": 0.0026076480345847003,
+     "attitude_rms_rad": 0.07487340440606421,
+     "attitude_peak_rad": 0.12996642928897967,
+     "progress_ratio": 0.026139445934470262,
+     "low_load_duration_s": 0.246,
+     "saturation_ticks": 7796.0,
+     "qp_intervention_ticks": -394.0
+    }
+   }
+  },
+  {
+   "m": 4.230093881487846,
+   "mu": 830.3760070910777,
+   "g": 0.1332833383787024,
+   "slots": {
+    "DSFC": {
+     "unit": 16,
+     "phase": "bayesian_ei",
+     "state": "completed_nominal_and_disturbed_guard_infeasible",
+     "pair_feasible": false,
+     "J": 471.0400471124922,
+     "Jload": 146.2762192655404,
+     "Jpath": 155.71106359817418,
+     "Jatt": 169.05276424877763,
+     "recovery_s": null,
+     "postrelease_max_offset_mm": 18.933315430704624,
+     "nominal": {
+      "force_mae_n": 1.297077712654031,
+      "force_peak_n": 9.45867904345479,
+      "load_min_n": 2.2155393511644643,
+      "path_rms_m": 0.010307801142710816,
+      "attitude_rms_rad": 0.21087661110645534,
+      "progress_ratio": 0.8993132210836837,
+      "saturation_ticks": 17569.0,
+      "qp_intervention_ticks": 0.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 4.26402755838458,
+      "load_min_n": 0.7359724416154203,
+      "path_rms_m": 0.00819497213701811,
+      "attitude_rms_rad": 0.08637992957329947,
+      "attitude_peak_rad": 0.19972879041731426,
+      "progress_ratio": 0.8656676812479794,
+      "low_load_duration_s": 0.066,
+      "saturation_ticks": 5979.0,
+      "qp_intervention_ticks": 999.0
+     }
+    },
+    "MSFC": {
+     "unit": 12,
+     "phase": "bayesian_ei",
+     "state": "completed_nominal_and_disturbed_guard_infeasible",
+     "pair_feasible": false,
+     "J": 475.5308126517949,
+     "Jload": 146.72719921799543,
+     "Jpath": 157.57159147933544,
+     "Jatt": 171.232021954464,
+     "recovery_s": null,
+     "postrelease_max_offset_mm": 19.065930710368914,
+     "nominal": {
+      "force_mae_n": 1.3185153868888644,
+      "force_peak_n": 9.589668175808198,
+      "load_min_n": 2.1694085000109813,
+      "path_rms_m": 0.010395520722289569,
+      "attitude_rms_rad": 0.21280495718563255,
+      "progress_ratio": 0.8995991623557145,
+      "saturation_ticks": 17791.0,
+      "qp_intervention_ticks": 0.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 4.009301176820105,
+      "load_min_n": 0.9906988231798953,
+      "path_rms_m": 0.00818807966565997,
+      "attitude_rms_rad": 0.08638047745932097,
+      "attitude_peak_rad": 0.19958922388589617,
+      "progress_ratio": 0.8655518502757605,
+      "low_load_duration_s": 0.012,
+      "saturation_ticks": 6027.0,
+      "qp_intervention_ticks": 1021.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": 4.490765539302743,
+    "Jload": 0.4509799524550431,
+    "Jpath": 1.8605278811612607,
+    "Jatt": 2.1792577056863536,
+    "recovery_s": null,
+    "postrelease_max_offset_mm": 0.13261527966428943,
+    "nominal": {
+     "force_mae_n": 0.021437674234833448,
+     "force_peak_n": 0.1309891323534078,
+     "load_min_n": -0.04613085115348303,
+     "path_rms_m": 8.771957957875304e-05,
+     "attitude_rms_rad": 0.0019283460791772178,
+     "progress_ratio": 0.00028594127203074304,
+     "saturation_ticks": 222.0,
+     "qp_intervention_ticks": 0.0
+    },
+    "disturbed": {
+     "force_error_peak_n": -0.2547263815644749,
+     "load_min_n": 0.254726381564475,
+     "path_rms_m": -6.892471358139682e-06,
+     "attitude_rms_rad": 5.478860214958026e-07,
+     "attitude_peak_rad": -0.00013956653141808384,
+     "progress_ratio": -0.00011583097221889993,
+     "low_load_duration_s": -0.054000000000000006,
+     "saturation_ticks": 48.0,
+     "qp_intervention_ticks": 22.0
+    }
+   }
+  },
+  {
+   "m": 5.058902736753225,
+   "mu": 1633.9529127884553,
+   "g": 0.1342754677665016,
+   "slots": {
+    "DSFC": {
+     "unit": 14,
+     "phase": "bayesian_ei",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 81.67817669553123,
+     "Jload": 46.51623167804819,
+     "Jpath": 8.290525241896129,
+     "Jatt": 26.871419775586915,
+     "recovery_s": 2.966000000000001,
+     "postrelease_max_offset_mm": 3.1293049008541827,
+     "nominal": {
+      "force_mae_n": 0.12182921069785121,
+      "force_peak_n": 6.271310668345878,
+      "load_min_n": 3.8101316093740034,
+      "path_rms_m": 0.005497071353260702,
+      "attitude_rms_rad": 0.04634041305235155,
+      "progress_ratio": 0.854130189221651,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 0.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 2.623869727292123,
+      "load_min_n": 2.376130272707877,
+      "path_rms_m": 0.006882938268104079,
+      "attitude_rms_rad": 0.06181278102867333,
+      "attitude_peak_rad": 0.14125433186502728,
+      "progress_ratio": 0.861713208989788,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 696.0,
+      "qp_intervention_ticks": 5201.0
+     }
+    },
+    "MSFC": {
+     "unit": 13,
+     "phase": "bayesian_ei",
+     "state": "completed_nominal_infeasible",
+     "pair_feasible": false,
+     "J": 81.78408322324438,
+     "Jload": 46.51220856632911,
+     "Jpath": 8.325957237413744,
+     "Jatt": 26.94591741950153,
+     "recovery_s": 2.9720000000000013,
+     "postrelease_max_offset_mm": 3.1430491267270675,
+     "nominal": {
+      "force_mae_n": 0.12357484382089577,
+      "force_peak_n": 6.274466509416778,
+      "load_min_n": 3.8089432330120396,
+      "path_rms_m": 0.005506256949532354,
+      "attitude_rms_rad": 0.0468441436333516,
+      "progress_ratio": 0.8536872137192074,
+      "saturation_ticks": 0.0,
+      "qp_intervention_ticks": 0.0
+     },
+     "disturbed": {
+      "force_error_peak_n": 2.6264108516499025,
+      "load_min_n": 2.3735891483500975,
+      "path_rms_m": 0.0068949603485047375,
+      "attitude_rms_rad": 0.062214234767758135,
+      "attitude_peak_rad": 0.141268797934293,
+      "progress_ratio": 0.8614790706842061,
+      "low_load_duration_s": 0.0,
+      "saturation_ticks": 723.0,
+      "qp_intervention_ticks": 5193.0
+     }
+    }
+   },
+   "MSFC_minus_DSFC": {
+    "J": 0.10590652771314524,
+    "Jload": -0.004023111719085648,
+    "Jpath": 0.03543199551761589,
+    "Jatt": 0.074497643914615,
+    "recovery_s": 0.006000000000000227,
+    "postrelease_max_offset_mm": 0.013744225872884819,
+    "nominal": {
+     "force_mae_n": 0.001745633123044557,
+     "force_peak_n": 0.0031558410709005003,
+     "load_min_n": -0.0011883763619637833,
+     "path_rms_m": 9.185596271651941e-06,
+     "attitude_rms_rad": 0.0005037305810000475,
+     "progress_ratio": -0.00044297550244354333,
+     "saturation_ticks": 0.0,
+     "qp_intervention_ticks": 0.0
+    },
+    "disturbed": {
+     "force_error_peak_n": 0.002541124357779534,
+     "load_min_n": -0.002541124357779534,
+     "path_rms_m": 1.2022080400658774e-05,
+     "attitude_rms_rad": 0.0004014537390848033,
+     "attitude_peak_rad": 1.4466069265722803e-05,
+     "progress_ratio": -0.00023413830558183246,
+     "low_load_duration_s": 0.0,
+     "saturation_ticks": 27.0,
+     "qp_intervention_ticks": -8.0
+    }
+   }
+  }
+ ]
+}

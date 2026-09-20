@@ -1,0 +1,844 @@
+{
+ "schema": "fable-advisory-round-receipt-v1",
+ "round": 10,
+ "study": "yield-fair-training-v1",
+ "directory": "report/yield-fair-training-v1/discussion-round10/",
+ "role": "advisory, non-blocking; no live authority; not formal acceptance; first of at most two iterations",
+ "model": "claude-fable-5-1",
+ "requested_effort": "xhigh",
+ "effort_evidence": "launch parameter only, not independent server attestation",
+ "head_at_start": "4e5b36bf5763dab2b6f28471d33e46eb509beeda",
+ "head_at_receipt": "8dc090fc33ab65a56315dbfab827e910c796fb06",
+ "head_log_since_start": [
+  "8dc090fc Continue fixed development diagnostic without retry or reselection",
+  "29632fae Freeze fixed development mechanism diagnostic schedule",
+  "d76da76e Add bounded development mechanism diagnostic with verified frozen bindings"
+ ],
+ "inputs_changed_by_commits_since_start": [
+  "experiments/tase-contact-reproduction/report/yield-mechanism-development-v1/README.md",
+  "experiments/tase-contact-reproduction/report/yield-mechanism-development-v1/frozen-campaign.json",
+  "experiments/tase-contact-reproduction/report/yield-mechanism-development-v1/main-review.md"
+ ],
+ "worktree_status_at_receipt": [
+  "?? report/yield-fair-training-v1/discussion-round10/"
+ ],
+ "written_at_utc": "2026-09-20T06:50:46.810915+00:00",
+ "write_scope": "report/yield-fair-training-v1/discussion-round10/ only; scratch /tmp/yfp10 (not retained as evidence)",
+ "round9_note": "round9-attempt1-status.json records exit 143 without advisory delivery; not treated as completed; no cause inferred",
+ "not_done": [
+  "no runtime/test/config/controller/other-report edits",
+  "no Git writes",
+  "no subagents",
+  "no network",
+  "no devices or hardware",
+  "no simulation or native execution",
+  "no tuning or validation",
+  "no SQLite ledger or progress.json read",
+  "no runs/yield-mechanism-development-v1 content read",
+  "no lane or writer receipt read",
+  "no active writer worktree read",
+  "no artifact outside the final manifest read",
+  "no raw artifact modified"
+ ],
+ "raw_scope": {
+  "manifest": "report/yield-training-report-final-v1/artifact_digest_manifest.csv",
+  "members_listed": 112,
+  "members_read": 34,
+  "members_read_ids": [
+   "DSFC-00-disturbed",
+   "DSFC-00-nominal",
+   "DSFC-01-disturbed",
+   "DSFC-01-nominal",
+   "DSFC-02-disturbed",
+   "DSFC-02-nominal",
+   "DSFC-03-disturbed",
+   "DSFC-03-nominal",
+   "DSFC-04-disturbed",
+   "DSFC-04-nominal",
+   "DSFC-08-disturbed",
+   "DSFC-08-nominal",
+   "MSFC-00-disturbed",
+   "MSFC-00-nominal",
+   "MSFC-01-disturbed",
+   "MSFC-01-nominal",
+   "MSFC-02-disturbed",
+   "MSFC-02-nominal",
+   "MSFC-03-disturbed",
+   "MSFC-03-nominal",
+   "MSFC-04-disturbed",
+   "MSFC-04-nominal",
+   "MSFC-08-disturbed",
+   "MSFC-08-nominal",
+   "SFC-00-disturbed",
+   "SFC-00-nominal",
+   "SFC-01-disturbed",
+   "SFC-01-nominal",
+   "SFC-02-disturbed",
+   "SFC-02-nominal",
+   "SFC-03-disturbed",
+   "SFC-03-nominal",
+   "SFC-04-disturbed",
+   "SFC-04-nominal"
+  ],
+  "all_hashes_match_final_manifest": true,
+  "one_at_a_time": true,
+  "hash_before_parse": true
+ },
+ "round8_snapshot_artifacts_identical_in_final_manifest": true,
+ "binding_checks": {
+  "count": 21,
+  "all_match": true,
+  "checks": [
+   {
+    "path": "tools/contact_yield_controller.py",
+    "expected": "034422fbc23ee4cefce13eeac6ca3f62bedfa1dc4e72f349f06e5aaf633b82bc",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_kinematics.py",
+    "expected": "46282c8982c1c73fd54a6c14cf9ea1f160b6272a814d8c0ccc170a4936a088e6",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_laws.py",
+    "expected": "77c58e226d40d996394a4138b9f980abe50595e0f38eb43d8ebed3c209d1580c",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_math.py",
+    "expected": "41ed96dcf91a13a96bb75eb060de9ed36003b379b09e91a71d4c9315e770925d",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_mechanisms.py",
+    "expected": "fce58327c877320c50b50ff24dd54fd082ab1c2daabc08dae158a45b86aaee96",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_metrics.py",
+    "expected": "ac1064303707f48099127e39b3ef0b7ae259a8d7c27203cb37e1000fa6643364",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_normal.py",
+    "expected": "1758790e264c4fb18d3fd6066cbe4b6129e4e7efce549b0992ec68e9a2130856",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_protocol.py",
+    "expected": "08c5d036c5bc089a7b5b7cd9be0ab297043ef78c818b0962bb276b71d71f3825",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_qp.py",
+    "expected": "d87107f1e93ab7b6f60799e52daf3368caf711978d4b03b50f2bb1b33051c3bc",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_replay.py",
+    "expected": "151936f764facbab0c57ec445119c13def475ae17c4acdf67550c338a535cd3e",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_runner.py",
+    "expected": "f2554ed3010f92a5dc92d968527f3bfb6219a7403696219a30bfd2c1ee1e184f",
+    "match": true
+   },
+   {
+    "path": "tools/contact_yield_simulator.py",
+    "expected": "36b9123ad280114a7d988deeda269d6722cb6ebdef3c692a7bde2d3f773023b4",
+    "match": true
+   },
+   {
+    "path": "tools/contact_benchmark_ledger.py",
+    "expected": "e0989f062e17ad613db693d5056029a6e9415c427a1b26b6ff1c03dca3f9a876",
+    "match": true
+   },
+   {
+    "path": "tools/contact_benchmark_tuner.py",
+    "expected": "32f5ac9815deebb2ef67daa5a00e70a2a0c7b715646ba9aeeea911da961b5f0a",
+    "match": true
+   },
+   {
+    "path": "tools/yield_contact_ledger.py",
+    "expected": "234d5eadc1bd001277445bc3fdfd7a2ec8edcbcffaea83def1810895d6d01a67",
+    "match": true
+   },
+   {
+    "path": "tools/yield_contact_tuner.py",
+    "expected": "3f93d53354f6fa08c8e22d837e0e7d997ff9766760dd927045592c2e7f0e0f8c",
+    "match": true
+   },
+   {
+    "path": "tools/yield_fair_campaign.py",
+    "expected": "67e418fabbf7b4bc5afc70f3255843e4fec676794cef909ff0f8efcc5043bc26",
+    "match": true
+   },
+   {
+    "path": "tools/yield_fair_selection.py",
+    "expected": "b5987aca7a69c32f8bf0ead6480d6b373c4d508ebc4bf0692fb266691025516d",
+    "match": true
+   },
+   {
+    "path": "config/yield_fair_campaign_v1.json",
+    "expected": "ce36c7a3ba824d4bf4e7c748f3ca77a075e15a381d34b54a0d2b2db81febd27d",
+    "match": true
+   },
+   {
+    "path": "config/yield_normal_observer_v3.json",
+    "expected": "c9598b42a252e94daf0fa22938f3b26fd4df99f595fc63d608f42065a2cb2715",
+    "match": true
+   },
+   {
+    "path": "config/yield_fair_tuning_v1.json",
+    "expected": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04",
+    "match": true
+   }
+  ]
+ },
+ "reproduction_checks": {
+  "all_summaries_equal_artifact_metrics": true,
+  "all_summaries_equal_members_csv": true,
+  "all_J_equal_registered": true,
+  "max_J_abs_diff": 0.0,
+  "all_recovery_equal_registered": true,
+  "all_pre_onset_rows_bitwise_equal": true,
+  "all_whole_episode_peaks_equal_nominal": true
+ },
+ "inputs_read": [
+  {
+   "path": "report/yield-training-report-final-v1/report.md",
+   "sha256": "0e223e0cb369fa42d77e623a5936f235217fb2ed5c22b48c79e22e85456741c9",
+   "bytes": 34453
+  },
+  {
+   "path": "report/yield-training-report-final-v1/report.json",
+   "sha256": "be083a58e57cd7c52066f722ebf1f837c668de47a3dfc092c59efc6fbdf6e638",
+   "bytes": 496689
+  },
+  {
+   "path": "report/yield-training-report-final-v1/members.csv",
+   "sha256": "27fbdd63d346c9a95789dfb5515e4858e5c4c208813ef2889da67080e1ebb3ec",
+   "bytes": 60380
+  },
+  {
+   "path": "report/yield-training-report-final-v1/slots.csv",
+   "sha256": "b4fe5ce7079ca9e66ed7f3c06e17595936fb72d9374dce7a5db0128a4f6bb542",
+   "bytes": 18658
+  },
+  {
+   "path": "report/yield-training-report-final-v1/initial_triples.csv",
+   "sha256": "3579211112f02714494a074c89394e225b605c08c191ccee28fcfca8300fafd4",
+   "bytes": 15770
+  },
+  {
+   "path": "report/yield-training-report-final-v1/best_so_far.csv",
+   "sha256": "4958a2b08ca1ddf42fb913a0c1a3f4c3bf94efaf11495201785a95615713d1e8",
+   "bytes": 6320
+  },
+  {
+   "path": "report/yield-training-report-final-v1/artifact_digest_manifest.csv",
+   "sha256": "8f9dc6a1bc68a235bfe1e27d2f8038b823cd2958f12883b87189d2eb820acc46",
+   "bytes": 18226
+  },
+  {
+   "path": "report/yield-training-report-final-v1/main-interpretation.md",
+   "sha256": "7b03f30af2f1cde3ee5031804c8ba93d21017830cc930cbcefd30aede3ecc3d9",
+   "bytes": 2958
+  },
+  {
+   "path": "report/yield-fair-training-v1/launcher-result.json",
+   "sha256": "802ad564f17aea4f7666450804a1182939047949ca5eb07d2b6ef5dce1b42d47",
+   "bytes": 1288
+  },
+  {
+   "path": "report/yield-fair-training-v1/README.md",
+   "sha256": "95b89e4ab4cd745e21a0edd6c4e50f056091ddf5dc235a78fc0ee7c4832d527f",
+   "bytes": 998
+  },
+  {
+   "path": "report/yield-fair-training-v1/sfc-initial-stop.md",
+   "sha256": "9fe30bdf56e326e8a4fa509475e2590bf3fdcb37af7512ab0ff57db0fc9828ad",
+   "bytes": 2174
+  },
+  {
+   "path": "report/yield-fair-training-v1/launch-binding.json",
+   "sha256": "67e649cfce4189863be1bc04f170f39f3c261e0e39eb454a4f12cf47945b5cd9",
+   "bytes": 4821
+  },
+  {
+   "path": "report/yield-fair-training-v1/dsfc-first-repeat-verification.json",
+   "sha256": "88cd785474f733e1d5e6c048f0f586df8b91c72f55452493cf8139208968447c",
+   "bytes": 4476
+  },
+  {
+   "path": "report/yield-fair-training-v1/round9-attempt1-status.json",
+   "sha256": "7117e5b00d0435a91664232f001a853d4f60f0a543e2d4966d95769684e8b36c",
+   "bytes": 834
+  },
+  {
+   "path": "report/yield-fair-training-v1/round8-input-snapshot.json",
+   "sha256": "b039f98bbcc23b64a816831a6b2735ef07e54367e6097428fda148b2e6447e28",
+   "bytes": 47753
+  },
+  {
+   "path": "report/yield-round8-main-review-v1/main-adjudication.md",
+   "sha256": "bf893cbec3d81af24e260286cde55de63bd4cf458fafdff7d40f3a5caa0fcf16",
+   "bytes": 5499
+  },
+  {
+   "path": "report/yield-round8-main-review-v1/README.md",
+   "sha256": "700d95ab54c902142e7dab548c17efbe59bbd60d0f9863a8aadfabdabc847bda",
+   "bytes": 2020
+  },
+  {
+   "path": "report/yield-round8-main-review-v1/cache-verification.json",
+   "sha256": "848fa3dcea27bbd72f1d541b328710b154e1653d02cd3ed4b36463e0d0964fb9",
+   "bytes": 5647
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/fable-round8.md",
+   "sha256": "a015faab557b73ba89e58cfe5a1ae8b036e4d2e26a5525323233d31512f3fe79",
+   "bytes": 38371
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/round8-input-receipt.json",
+   "sha256": "3d652a45a5207f65d69a5fa6180d2b01a38dcac3a31f228aeb489c69a1a93651",
+   "bytes": 20244
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/data/round8-analysis.json",
+   "sha256": "bf0c7c6a24de02610e351c9bda4574fc8528477d923ac071604bb0e245d99399",
+   "bytes": 394808
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/data/round8-mechanics.json",
+   "sha256": "95ee6c1e6ec28b9a056eb67559032d70bdb6599d83c191cbb36c3c56228a32a5",
+   "bytes": 138784
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/scripts/extract_rows_v8.py",
+   "sha256": "e532e17bfdd558452245e071dacdf8c87efa52dba7c3a4028fd03f8d58cecc29",
+   "bytes": 6239
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round8/scripts/analyze_round8.py",
+   "sha256": "56553bf5f88e06f5dc7ee5a2aa5de19297a9f656419e9bc537bcc417d0a1bd71",
+   "bytes": 29138
+  },
+  {
+   "path": "report/yield-validation-reservation-v1/protocol.json",
+   "sha256": "4454ce1a216bb014e5e48bb1d0eb1c94937cfbf9600255407d65b7c1060db956",
+   "bytes": 8394
+  },
+  {
+   "path": "report/yield-validation-reservation-v1/README.md",
+   "sha256": "05797b4e7ea5205e89b8f7b54b0192d21c939f2d8472c3029708bda41dd982ed",
+   "bytes": 1917
+  },
+  {
+   "path": "report/yield-validation-native-smoke-v1/README.md",
+   "sha256": "7ac6da3d05fa0ab6a9dcf582020027d597338c99036a4f6694c903d7be6060a5",
+   "bytes": 567
+  },
+  {
+   "path": "config/yield_fair_campaign_v1.json",
+   "sha256": "ce36c7a3ba824d4bf4e7c748f3ca77a075e15a381d34b54a0d2b2db81febd27d",
+   "bytes": 3516
+  },
+  {
+   "path": "config/yield_fair_tuning_v1.json",
+   "sha256": "db8183bb7d1469beeb76ac7899422ca1a57baaf5d337cb2c940648275bba0f04",
+   "bytes": 5525
+  },
+  {
+   "path": "config/yield_normal_observer_v3.json",
+   "sha256": "c9598b42a252e94daf0fa22938f3b26fd4df99f595fc63d608f42065a2cb2715",
+   "bytes": 207
+  },
+  {
+   "path": "config/contact_yield_protocol.json",
+   "sha256": "2640d336a603ed9d87c3434d7609a5a870a551366da4ef188c00552527a79e49",
+   "bytes": 8384
+  },
+  {
+   "path": "tools/yield_fair_selection.py",
+   "sha256": "b5987aca7a69c32f8bf0ead6480d6b373c4d508ebc4bf0692fb266691025516d",
+   "bytes": 48045
+  },
+  {
+   "path": "tools/contact_yield_metrics.py",
+   "sha256": "ac1064303707f48099127e39b3ef0b7ae259a8d7c27203cb37e1000fa6643364",
+   "bytes": 4725
+  },
+  {
+   "path": "tools/contact_yield_protocol.py",
+   "sha256": "08c5d036c5bc089a7b5b7cd9be0ab297043ef78c818b0962bb276b71d71f3825",
+   "bytes": 15135
+  },
+  {
+   "path": "tools/contact_yield_laws.py",
+   "sha256": "77c58e226d40d996394a4138b9f980abe50595e0f38eb43d8ebed3c209d1580c",
+   "bytes": 8460
+  },
+  {
+   "path": "tools/yield_contact_tuner.py",
+   "sha256": "3f93d53354f6fa08c8e22d837e0e7d997ff9766760dd927045592c2e7f0e0f8c",
+   "bytes": 42660
+  },
+  {
+   "path": "tools/yield_validation_selection.py",
+   "sha256": "7e7c75b149ea2ee67da2343a3ca0d1471af053af1655b1c3238336c61ad5e071",
+   "bytes": 48997
+  },
+  {
+   "path": "tools/yield_validation_runner.py",
+   "sha256": "df258625f85d24b894a5687aba8c3c2efc65c59e0594b85eb6ed331c141273ee",
+   "bytes": 68219
+  },
+  {
+   "path": "tools/build_contact_laws.py",
+   "sha256": "52a13124b37efae2f6b2435de5ac18c7c479a5548ce5e2a84506f37a50c72792",
+   "bytes": 31823
+  },
+  {
+   "path": "report/yield-mechanism-development-v1/README.md",
+   "sha256": "c5d74fce0de09650f3db35c23883dce8ec08b4cddefebe52156ff5b00acebf5c",
+   "bytes": 5472
+  },
+  {
+   "path": "report/yield-mechanism-development-v1/frozen-campaign.json",
+   "sha256": "b063fe6684bf0282e6b84df20eba4cbe3c88eadff30d39dc45a53515d401586c",
+   "bytes": 8286
+  },
+  {
+   "path": "report/yield-mechanism-development-v1/main-review.md",
+   "sha256": "80423a3ea3715ccbaad500f832344bec3768bb5c443917e95d51cb0a4b4b4df7",
+   "bytes": 1295
+  }
+ ],
+ "inputs_read_via_git_show_at_start_head": [
+  "tools/yield_contact_tuner.py",
+  "tools/contact_yield_metrics.py",
+  "tools/contact_yield_protocol.py",
+  "tools/contact_yield_laws.py",
+  "config/yield_fair_campaign_v1.json",
+  "tools/build_contact_laws.py (grep only)",
+  "report/yield-mechanism-development-v1/{README.md,frozen-campaign.json,main-review.md} at receipt HEAD"
+ ],
+ "cache": [
+  {
+   "id": "DSFC-00-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-00-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "80390b0948e4e4a5ec6e7005ad07de9dced9db78223e8e07b6509edb9ea6084e",
+   "artifact_sha256_final_manifest": "80390b0948e4e4a5ec6e7005ad07de9dced9db78223e8e07b6509edb9ea6084e",
+   "match": true,
+   "artifact_bytes": 339404496,
+   "npz_sha256": "e57b2b842bc8f88902e69244c6c2b2868d8492fa2cddeb9734fc3c1367777a2d",
+   "meta_sha256": "c8988f06f544cc055f313d66df94ded8461f42ebf5858eee0bbf0829a289afdb",
+   "extract_seconds": 5.1
+  },
+  {
+   "id": "DSFC-00-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-00-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "e2c99ad28124832160b936b4334786440a81da031668e129fef0d883206ddd30",
+   "artifact_sha256_final_manifest": "e2c99ad28124832160b936b4334786440a81da031668e129fef0d883206ddd30",
+   "match": true,
+   "artifact_bytes": 339324784,
+   "npz_sha256": "669e6d86456da51ba14b852a40d73615488ca487e6b11761713ae10fe6903f14",
+   "meta_sha256": "782f34b90205a9735ec22cad503fd188c71b6589ba07bd95e3252d4e1f29db0f",
+   "extract_seconds": 5.2
+  },
+  {
+   "id": "DSFC-01-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-01-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "ddae9fdc48084c2ee3c74a91099134f610a04aef739023398cf2023c05038ac3",
+   "artifact_sha256_final_manifest": "ddae9fdc48084c2ee3c74a91099134f610a04aef739023398cf2023c05038ac3",
+   "match": true,
+   "artifact_bytes": 339579986,
+   "npz_sha256": "50b2c3eae5bb7b868170695e772b8769d1c94d92498d10b326429f7aa38300f0",
+   "meta_sha256": "1a4d1d16a58442c1dfecbdc2df69f5c456ad168bc4bb8f32828e8567fff17096",
+   "extract_seconds": 5.9
+  },
+  {
+   "id": "DSFC-01-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-01-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "31145a4dc39339177fc6981d19c5b0f62fb5d3daa2b1fbfe14e8820ce66a340b",
+   "artifact_sha256_final_manifest": "31145a4dc39339177fc6981d19c5b0f62fb5d3daa2b1fbfe14e8820ce66a340b",
+   "match": true,
+   "artifact_bytes": 339288510,
+   "npz_sha256": "42199a8f7b474915e424796850d6fb7d8bd4abe2412986c40c9bb907827d3d98",
+   "meta_sha256": "0666b771061a7d19505a065e96c1418c8f6f19c69d79fc7098faae161c97ea26",
+   "extract_seconds": 5.7
+  },
+  {
+   "id": "DSFC-02-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-02-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "f9565bc3c7e790a727e25bef62da49350b8c1796990e6467039b7a7d457d5eb5",
+   "artifact_sha256_final_manifest": "f9565bc3c7e790a727e25bef62da49350b8c1796990e6467039b7a7d457d5eb5",
+   "match": true,
+   "artifact_bytes": 339311993,
+   "npz_sha256": "08bf085dbbef20aeffcafb8548ec366a553c2d8a4d56e9d798ebc3e0f49d6921",
+   "meta_sha256": "cde704842f649a8366c933a160e99efc0427bd8bf98b4811b0f830577aa187d5",
+   "extract_seconds": 5.5
+  },
+  {
+   "id": "DSFC-02-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-02-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "681213de0e2ae22ba75ed97ee953d4a2915aab0ddfea796a7e71101d40ebdde2",
+   "artifact_sha256_final_manifest": "681213de0e2ae22ba75ed97ee953d4a2915aab0ddfea796a7e71101d40ebdde2",
+   "match": true,
+   "artifact_bytes": 338763637,
+   "npz_sha256": "60644bfef2866a902bca194de73ec433b0feb8f03300c2cacbcb9690d452f0c9",
+   "meta_sha256": "bd4b1a1a9269044d63068649eaa503b60446eecd06581ac8015797e2986764af",
+   "extract_seconds": 5.1
+  },
+  {
+   "id": "DSFC-03-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-03-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "547db5e177ad9ea9a2ca82184f506c2190bf54a4d2a0b953710a9101af847823",
+   "artifact_sha256_final_manifest": "547db5e177ad9ea9a2ca82184f506c2190bf54a4d2a0b953710a9101af847823",
+   "match": true,
+   "artifact_bytes": 339913775,
+   "npz_sha256": "0ffb75bd9298881e9e972e8ed2bd613512eeba352b6ba9cd33f789e0e43b1f19",
+   "meta_sha256": "f301e45675d03a98b2b7445c5f9e3fa8941a9c4d0b621e7530d6cf2824305487",
+   "extract_seconds": 5.7
+  },
+  {
+   "id": "DSFC-03-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-03-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "6caf014f2f5b54bc9ccbd02a9c762b0c3c7b34f178f5d5d6df05d1ef412275fc",
+   "artifact_sha256_final_manifest": "6caf014f2f5b54bc9ccbd02a9c762b0c3c7b34f178f5d5d6df05d1ef412275fc",
+   "match": true,
+   "artifact_bytes": 339207073,
+   "npz_sha256": "a2c7cf1dcb9efc5bc3b528ee1ae47d3143f1dbbcc023a4b80a5c8ceb73c8e3a6",
+   "meta_sha256": "61012327b2db30cb70d7a0b8946ef192c4080a7c7566a6921c0351495d0dfd18",
+   "extract_seconds": 6.1
+  },
+  {
+   "id": "DSFC-04-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-04-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "4a00a855d3f6754c5fc6ba46148bc6930dcca2043b974df069c3128af315c7a2",
+   "artifact_sha256_final_manifest": "4a00a855d3f6754c5fc6ba46148bc6930dcca2043b974df069c3128af315c7a2",
+   "match": true,
+   "artifact_bytes": 339250705,
+   "npz_sha256": "37aec52c4e3e01bbc728040a081839f8ac77c60e94e9e5a41fd4d36439e401be",
+   "meta_sha256": "f8f267fbce3c2c0bafa8dc03ca9a88ace305f450ca6764e9d1d5702f6bafd7b9",
+   "extract_seconds": 5.6
+  },
+  {
+   "id": "DSFC-04-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-04-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "8d130644c2c0b9c1d579593a03faa7152f59c7bec3f8efa59b2af093523f38ef",
+   "artifact_sha256_final_manifest": "8d130644c2c0b9c1d579593a03faa7152f59c7bec3f8efa59b2af093523f38ef",
+   "match": true,
+   "artifact_bytes": 339120682,
+   "npz_sha256": "bdb697e98c1e5c48e5175e825b3d3b44c59b5128e6ebc378c13a944af47ca18e",
+   "meta_sha256": "e7a083d6605f85cc5d6affecedd781cec3d49d7311f99064734139c0e5fdb9db",
+   "extract_seconds": 5.4
+  },
+  {
+   "id": "DSFC-08-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-08-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "762ea4d7363df69fb8fd010c8990e4f0b542608ad62c26aba864da42a4b8edd5",
+   "artifact_sha256_final_manifest": "762ea4d7363df69fb8fd010c8990e4f0b542608ad62c26aba864da42a4b8edd5",
+   "match": true,
+   "artifact_bytes": 339323902,
+   "npz_sha256": "11bbe9d5c533c2f297a6dc15929381e22825881c773328c48775144ec1c4e40c",
+   "meta_sha256": "7154108b10c01784061c22da874dae129407deb76f163e6f776af18e8157d86b",
+   "extract_seconds": 5.7
+  },
+  {
+   "id": "DSFC-08-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/DSFC-08-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "1104d5c90c3f46cd0d4e290c33f1494d5316db3a65982e3b8a6291015f37d168",
+   "artifact_sha256_final_manifest": "1104d5c90c3f46cd0d4e290c33f1494d5316db3a65982e3b8a6291015f37d168",
+   "match": true,
+   "artifact_bytes": 338656509,
+   "npz_sha256": "14f7a1df7313178b04db5fb6b4564111e3e2bdd54b9c90e23171088accf97b62",
+   "meta_sha256": "4ad79b5d9bf93f78fcfc0c76c1ad1370c288a12addfbd03a2217e5c7a7dd56e1",
+   "extract_seconds": 5.3
+  },
+  {
+   "id": "MSFC-00-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-00-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "b323f738dd3bf67f28a0829bead3c846d971f64b6ac5688e0e89679a22c5191a",
+   "artifact_sha256_final_manifest": "b323f738dd3bf67f28a0829bead3c846d971f64b6ac5688e0e89679a22c5191a",
+   "match": true,
+   "artifact_bytes": 347834315,
+   "npz_sha256": "2a9d94ff865a5c11195c808fea415c98e255e7d53bfaef24ce994daff42dcb65",
+   "meta_sha256": "da33cb3706d410d9a7b70f7f78d909d33a7b59e887d234d79dc618384f3366c8",
+   "extract_seconds": 5.5
+  },
+  {
+   "id": "MSFC-00-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-00-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "74d541d3674b10b4006b4e82606cef07516a13525e853455f8fb626101f7587c",
+   "artifact_sha256_final_manifest": "74d541d3674b10b4006b4e82606cef07516a13525e853455f8fb626101f7587c",
+   "match": true,
+   "artifact_bytes": 347920549,
+   "npz_sha256": "7ba2724824df08109d68804cff4ec8008d53801a8b1c515bb54a1b440e364d8d",
+   "meta_sha256": "217f49ff681b801983b2bb50b1315e828d7de254a74ea16a2a9d183828170627",
+   "extract_seconds": 5.2
+  },
+  {
+   "id": "MSFC-01-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-01-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "103386ceb9fa72414c4b3e724be06b24b7131ba4a7af1b03f31621aba4f741a7",
+   "artifact_sha256_final_manifest": "103386ceb9fa72414c4b3e724be06b24b7131ba4a7af1b03f31621aba4f741a7",
+   "match": true,
+   "artifact_bytes": 348035643,
+   "npz_sha256": "34987b94a46e707664f788a4f03f12a35af800bd7a51b8dfa7d36a311b431b24",
+   "meta_sha256": "aa732ebe97900d204ce8fc1c276c5319abee552edcdedaa842274594ffea2c11",
+   "extract_seconds": 5.2
+  },
+  {
+   "id": "MSFC-01-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-01-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "03bbe1d2123d095ed4def2d0778f065890bbac063b811b86bfb0253ac3f5925b",
+   "artifact_sha256_final_manifest": "03bbe1d2123d095ed4def2d0778f065890bbac063b811b86bfb0253ac3f5925b",
+   "match": true,
+   "artifact_bytes": 347913556,
+   "npz_sha256": "037fc60a5b1ef66f1d632a1f941f4f032d0025682315c69f3331b241563b76f9",
+   "meta_sha256": "2f6639709e72a40bf3cf9425009b098643dd3f97a921149f9e56385a71575ada",
+   "extract_seconds": 5.3
+  },
+  {
+   "id": "MSFC-02-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-02-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "62a4e263f0205ee206d4dc9776a50ebb8e218e759ac063c578db3c4482bf9495",
+   "artifact_sha256_final_manifest": "62a4e263f0205ee206d4dc9776a50ebb8e218e759ac063c578db3c4482bf9495",
+   "match": true,
+   "artifact_bytes": 347946670,
+   "npz_sha256": "e3adace51c7f1ed4f9570594b490c676fe9b7bb35c0766c6e3134c70bce6bf78",
+   "meta_sha256": "291c9ee2333ac7519b4d6633ac39440287b6a87bd4d9070b01f3ba0e6f4aad61",
+   "extract_seconds": 5.2
+  },
+  {
+   "id": "MSFC-02-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-02-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "a16f00120e4956ad1c883e897174c5a88d81fe228b32ce2eed27c83f75203ef2",
+   "artifact_sha256_final_manifest": "a16f00120e4956ad1c883e897174c5a88d81fe228b32ce2eed27c83f75203ef2",
+   "match": true,
+   "artifact_bytes": 347380988,
+   "npz_sha256": "b5586c91e5f89212390fd42066b3779c15614e51883b512b3d9b0a34302179cd",
+   "meta_sha256": "f9371ab6654031d43a1238b0f2bf32a765c67727c9e80dd452cf4aa8073f8263",
+   "extract_seconds": 5.2
+  },
+  {
+   "id": "MSFC-03-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-03-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "224cd7bd897ffa657a80de1f5007b41c0cb0314f3307eb190f9f295d1680705b",
+   "artifact_sha256_final_manifest": "224cd7bd897ffa657a80de1f5007b41c0cb0314f3307eb190f9f295d1680705b",
+   "match": true,
+   "artifact_bytes": 348363569,
+   "npz_sha256": "6d3cbecd82b910584337d372e5b6c3b68b85400f5f68f1b29646b36fb3e3078f",
+   "meta_sha256": "e636fabe45843f12663dce1b93f3a6754d035cd9b2a0cdc965da1be3fba4883d",
+   "extract_seconds": 5.8
+  },
+  {
+   "id": "MSFC-03-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-03-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "0d459958dc4d48deab07971b61e22f2db23a1f7f6f8f6ab525a719abaa331e25",
+   "artifact_sha256_final_manifest": "0d459958dc4d48deab07971b61e22f2db23a1f7f6f8f6ab525a719abaa331e25",
+   "match": true,
+   "artifact_bytes": 347774089,
+   "npz_sha256": "9c9143d19c196c55c89f0abc8c589f6fb9addf6bd27f01f1d5d74739b3161862",
+   "meta_sha256": "0e56bf690e591b87373013b044c132d1db4e62e089014e88ae32bf0ac5870bd0",
+   "extract_seconds": 5.5
+  },
+  {
+   "id": "MSFC-04-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-04-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "380f5e4d62747038f37cc36b72773c53b9d055b3ef5f320bbac88ce11a1d992b",
+   "artifact_sha256_final_manifest": "380f5e4d62747038f37cc36b72773c53b9d055b3ef5f320bbac88ce11a1d992b",
+   "match": true,
+   "artifact_bytes": 347554686,
+   "npz_sha256": "fc67b44cd0e413836ee2120987792c250dae2654339d5b25897d9cb1d14c519e",
+   "meta_sha256": "05f04d579459a36f76aabcf80dfa8111f33eee84c3169a65f412558d46455bb4",
+   "extract_seconds": 5.6
+  },
+  {
+   "id": "MSFC-04-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-04-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "6a3e93a848cbb46636673b57f183908e6e2be53f3ee5103948bf0672ab0fdc5b",
+   "artifact_sha256_final_manifest": "6a3e93a848cbb46636673b57f183908e6e2be53f3ee5103948bf0672ab0fdc5b",
+   "match": true,
+   "artifact_bytes": 347481836,
+   "npz_sha256": "12e727a89593378ee381c96c666eab7615056f00930afa998288b67bfcc8737a",
+   "meta_sha256": "18b6c5558eee2975718678af694783093c1f963baa540aad3724ae3bdfd0a3c5",
+   "extract_seconds": 5.4
+  },
+  {
+   "id": "MSFC-08-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-08-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "550fee4a62630ac3a2b4508789042d40b696879ff097446f90252585be7ed62d",
+   "artifact_sha256_final_manifest": "550fee4a62630ac3a2b4508789042d40b696879ff097446f90252585be7ed62d",
+   "match": true,
+   "artifact_bytes": 347840181,
+   "npz_sha256": "3586b112fe1054cfe5aab8f73c054f799eed92ab02190be05c0e414ae7a74801",
+   "meta_sha256": "d7243e56ba6820674c72e3caeaa555b66c2a7abc459e32996b5c4ee3021bba55",
+   "extract_seconds": 5.3
+  },
+  {
+   "id": "MSFC-08-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/MSFC-08-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "d14fa0c3a49102f17d8229eb0bd718061475994271edd8eda820b0f5f20ff358",
+   "artifact_sha256_final_manifest": "d14fa0c3a49102f17d8229eb0bd718061475994271edd8eda820b0f5f20ff358",
+   "match": true,
+   "artifact_bytes": 347271504,
+   "npz_sha256": "488ec04addb4472fea31b4bb650db56414ad3bcbd657b8277bb4250e53db1fa2",
+   "meta_sha256": "23d7751c69d29308a53944102b41b7149abc269d1fb76fc9da06b65516b9a2aa",
+   "extract_seconds": 5.3
+  },
+  {
+   "id": "SFC-00-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-00-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "5d835eceb7996ad91e253029522b459c2a5b861d4cfb768c16fce8d6151392aa",
+   "artifact_sha256_final_manifest": "5d835eceb7996ad91e253029522b459c2a5b861d4cfb768c16fce8d6151392aa",
+   "match": true,
+   "artifact_bytes": 340116904,
+   "npz_sha256": "8c03aebcd0663dd53950de0ace01f03e78eb39a430fb4c2bf398d72c9bf04f1e",
+   "meta_sha256": "b6688f105412bd1a3408d539ac8a4ea6e15d0ecc6098b1b2f6c575d77e24b9aa",
+   "extract_seconds": 4.9
+  },
+  {
+   "id": "SFC-00-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-00-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "e51055b6e96aec95671647c044e7100567a5dafa59343afd7afa0c3adea3e3a9",
+   "artifact_sha256_final_manifest": "e51055b6e96aec95671647c044e7100567a5dafa59343afd7afa0c3adea3e3a9",
+   "match": true,
+   "artifact_bytes": 340008836,
+   "npz_sha256": "a94213765635a85093b704c1771be8fc7c315103bf79c34e61c728555e785108",
+   "meta_sha256": "291989631ec611b5960ce904fd187a41caa584af85938bd01aa05808695b8f9f",
+   "extract_seconds": 5.5
+  },
+  {
+   "id": "SFC-01-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-01-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "b2751ef469193cf86ddad09700ee581644b7f61c431b6c08489c8333ad37a5d9",
+   "artifact_sha256_final_manifest": "b2751ef469193cf86ddad09700ee581644b7f61c431b6c08489c8333ad37a5d9",
+   "match": true,
+   "artifact_bytes": 340304899,
+   "npz_sha256": "9abfbc3b33a897fe2b29f1c872aa28bab8fdae583d7c2e3afee119e670c779ca",
+   "meta_sha256": "e0359498e3fc746596141abd2ad7570e2c443171fe55f30c52428837285a2a8d",
+   "extract_seconds": 5.5
+  },
+  {
+   "id": "SFC-01-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-01-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "7943dd2ae88242eede493ea94bc24ca64a81da0dd4cd7906a89416ba6cafc714",
+   "artifact_sha256_final_manifest": "7943dd2ae88242eede493ea94bc24ca64a81da0dd4cd7906a89416ba6cafc714",
+   "match": true,
+   "artifact_bytes": 339933918,
+   "npz_sha256": "db62bbdf39ee9b69ab7db6d5b77a76b36913d66fd285d9f6e8e6867578c61123",
+   "meta_sha256": "c138389edc138097f9766a02d61cdfb0bf910bc33f975f667a61289cc5c1da4c",
+   "extract_seconds": 5.0
+  },
+  {
+   "id": "SFC-02-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-02-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "00844745601772d8fbdbc785caf2977e353a6d0145db506c3051b9be43fee798",
+   "artifact_sha256_final_manifest": "00844745601772d8fbdbc785caf2977e353a6d0145db506c3051b9be43fee798",
+   "match": true,
+   "artifact_bytes": 339975090,
+   "npz_sha256": "2232d99601540e33a4dcfd8a48bb7e6935772681c96c3bd42cfbb22c4f66870d",
+   "meta_sha256": "786dbda8c55bf90ae819eb895af7fa4925a82a5c88d51eea2c3a3184cc2c54a4",
+   "extract_seconds": 5.4
+  },
+  {
+   "id": "SFC-02-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-02-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "e8c852ef4b5db1f396f4ca95be8504d2e7a4922937824edb7f21a91d9bf3bb68",
+   "artifact_sha256_final_manifest": "e8c852ef4b5db1f396f4ca95be8504d2e7a4922937824edb7f21a91d9bf3bb68",
+   "match": true,
+   "artifact_bytes": 339307580,
+   "npz_sha256": "1eb7119abab6d1b5661c56311e31e2c91a44e36aae02299cbdba370dd2a32859",
+   "meta_sha256": "5ac194b91bf9fa90ff28e063f091a6543d83f86ca1664cb381137d2e5fcfc5a5",
+   "extract_seconds": 5.2
+  },
+  {
+   "id": "SFC-03-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-03-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "9b10e74288ab5fab023239f544679dc47c58e25a9d1653a678be6eba839efd5e",
+   "artifact_sha256_final_manifest": "9b10e74288ab5fab023239f544679dc47c58e25a9d1653a678be6eba839efd5e",
+   "match": true,
+   "artifact_bytes": 340545068,
+   "npz_sha256": "1a36d6b126e1411598bc4f6e02d0ba6af85b5c7b5eb4d9afab6e88198a5632ec",
+   "meta_sha256": "01f7e8037b1b9d6f8c4817eca1298a063998f883079588430e0163ad934aefdb",
+   "extract_seconds": 7.5
+  },
+  {
+   "id": "SFC-03-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-03-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "ec804e9fd8c215a886eaa8bac9a1bbf151ffd3d68a05b2c692d58aa5556c43d6",
+   "artifact_sha256_final_manifest": "ec804e9fd8c215a886eaa8bac9a1bbf151ffd3d68a05b2c692d58aa5556c43d6",
+   "match": true,
+   "artifact_bytes": 339948759,
+   "npz_sha256": "4abbcbc61aabcf0131216dd06f7741b2ea8e5a20332284a508c5414eb4880f6b",
+   "meta_sha256": "addf7d401de48a1b657cc3eacd04749263c3bff1f29f491a155af1bddde2b841",
+   "extract_seconds": 5.2
+  },
+  {
+   "id": "SFC-04-disturbed",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-04-disturbed/artifact.json",
+   "artifact_sha256_verified_at_extract": "7bbeeadc62fbb0c3d520258aaa4ff9b30075fc7a68170080d45099a20ffc1d4f",
+   "artifact_sha256_final_manifest": "7bbeeadc62fbb0c3d520258aaa4ff9b30075fc7a68170080d45099a20ffc1d4f",
+   "match": true,
+   "artifact_bytes": 339787935,
+   "npz_sha256": "6977aada185424cb8a443b3f30909b596f8c7d1c72d3aa1842233266a128ce4f",
+   "meta_sha256": "23525c7e07c4241979ac42536598293a2f4e6e42ad2d8d131837e08351ccb946",
+   "extract_seconds": 5.3
+  },
+  {
+   "id": "SFC-04-nominal",
+   "artifact_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-fair-training-v1/attempts/SFC-04-nominal/artifact.json",
+   "artifact_sha256_verified_at_extract": "863c6bf56ee4219396ca9e763cb8129d2f929ac656227c39260262d381856c0d",
+   "artifact_sha256_final_manifest": "863c6bf56ee4219396ca9e763cb8129d2f929ac656227c39260262d381856c0d",
+   "match": true,
+   "artifact_bytes": 339660060,
+   "npz_sha256": "7deed7f9a5febe7e32335f73a9b7561297a74a2f201b453cd50211dc4a2c7d06",
+   "meta_sha256": "de238748a4ebb0c68133bf5de4257a50c90346fa330633ad2ec0b697d5031c09",
+   "extract_seconds": 5.3
+  }
+ ],
+ "outputs": [
+  {
+   "path": "report/yield-fair-training-v1/discussion-round10/data/round10-analysis.json",
+   "sha256": "b64aadab17492d4087d5bd8a95da21b2f4946209ff4e2c44bc2f2eb83e1bff49",
+   "bytes": 479555
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round10/data/round10-shared-triples.json",
+   "sha256": "1bbf808e36d3daccf0526ad1af86759fe6198dcde62e71cfc6e2cae04ca94e9d",
+   "bytes": 63761
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round10/fable-round10.md",
+   "sha256": "a220f66a78900715b8617c6a99796d965f93c8ce96e7203dd381e0d2ed40e720",
+   "bytes": 37100
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round10/scripts/analyze_round10.py",
+   "sha256": "5dab71ca9c396f592ae7be76d2d9ee6b91aafd712d7f5c9eb553846f800c2ade",
+   "bytes": 19529
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round10/scripts/extract_rows_v10.py",
+   "sha256": "4f07d2dbde988df19b0d5d15be7c6b1195209b8db1caa8602a66d0946943aea7",
+   "bytes": 7098
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round10/scripts/round10_receipt.py",
+   "sha256": "e75a76aa4c0b13cc1a11771b029a8132baf51bc29dd6156bfb3a104faa64c707",
+   "bytes": 8691
+  },
+  {
+   "path": "report/yield-fair-training-v1/discussion-round10/scripts/shared_triples_round10.py",
+   "sha256": "53735df39ae5ea7957f5edd1672067a8f12642a71549ef1b5937e5c76f8bccd9",
+   "bytes": 3370
+  }
+ ],
+ "python": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/.venv-contact-six/bin/python",
+ "cpu_threads": "1"
+}

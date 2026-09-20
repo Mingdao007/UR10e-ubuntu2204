@@ -1,0 +1,35 @@
+{
+  "exact": true,
+  "summary": {
+    "shared_triples_total": 14,
+    "DSFC_MSFC_shared": 14,
+    "three_way_shared": 8,
+    "ei_phase_coincidences": [
+      [
+        8,
+        8
+      ],
+      [
+        9,
+        9
+      ],
+      [
+        10,
+        16
+      ],
+      [
+        12,
+        14
+      ],
+      [
+        16,
+        12
+      ],
+      [
+        14,
+        13
+      ]
+    ],
+    "mechanism_note": "the frozen EI proposer scores a fixed 512-point scrambled-Sobol acquisition pool (seed 20260920+1009) shared by all methods, so exact coincidences are structural, not accidental"
+  }
+}

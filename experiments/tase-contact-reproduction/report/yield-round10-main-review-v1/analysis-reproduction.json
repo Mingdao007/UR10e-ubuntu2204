@@ -1,0 +1,15 @@
+{
+  "analysis_exactly_reproduced_from_main_extracted_cache": true,
+  "member_count": 34,
+  "pair_count": 17,
+  "checks": {
+    "all_summaries_equal_artifact_metrics": true,
+    "all_summaries_equal_members_csv": true,
+    "all_J_equal_registered": true,
+    "max_J_abs_diff": 0.0,
+    "all_recovery_equal_registered": true,
+    "all_pre_onset_rows_bitwise_equal": true,
+    "all_whole_episode_peaks_equal_nominal": true
+  },
+  "scope": "Rerun supplied analysis with separately extracted and hash-verified raw inputs; not an independently implemented analysis."
+}
