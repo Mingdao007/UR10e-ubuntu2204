@@ -111,6 +111,27 @@ def test_freshness_raw_guard_identity_deadline_and_evolving_orientation(lib):
         assert np.linalg.norm(changed-initial)>.01
 
 
+def test_snapshot_rejects_different_urdf_with_same_calibration(lib,monkeypatch):
+    import yield_contact_runtime as runtime_module
+    runtime,provider,output,sensor=setup(lib)
+    with runtime:
+        call(provider,output,sensor,0)
+        snapshot=runtime.snapshot()
+        model=runtime.model
+        # A different source model must not share restore authority merely
+        # because it carries the same robot calibration identifier.
+        changed=replace(model,urdf_text=model.urdf_text+'\n<!-- changed model source -->')
+        monkeypatch.setattr(runtime_module,'build_calibrated_model',lambda:changed)
+        other,_,_,_=setup(lib)
+        with other:
+            assert other.model.calibration_hash==runtime.model.calibration_hash
+            assert other.model_urdf_sha256!=runtime.model_urdf_sha256
+            before=other.snapshot()
+            with pytest.raises(ValueError,match='snapshot identity differs'):
+                other.restore(snapshot)
+            assert other.snapshot()==before
+
+
 def test_task_basis_rejects_unit_determinant_shear(lib):
     receipt=json.loads((ROOT/'report/contact-six-qp-20260917/preserved-home.json').read_text())
     with pytest.raises(ValueError,match='orthonormal'):

@@ -1,0 +1,99 @@
+{
+  "contract": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/config/step5d/autotune_v4_r003.json",
+  "contract_sha256": "88b2236818457594dcbd7cb8989191745483a0b6d66c693d3e2794edfebb51b3",
+  "inherited_contract": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/config/step5d/autotune_v4_r001.json",
+  "inheritance_hash_verified": true,
+  "bindings": [
+    {
+      "role": "ur_xacro",
+      "path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+      "exists": true,
+      "expected": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c",
+      "actual": "00891217ae0912468ef625996b259d58c1aac4d348bc468a9306d0b0bf8d3810",
+      "matches": false,
+      "runtime_only_excludes": false
+    },
+    {
+      "role": "calibration_yaml",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/../../src/ur10e_bringup/config/ur10e_calibration.yaml",
+      "exists": true,
+      "expected": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
+      "actual": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
+      "matches": true,
+      "runtime_only_excludes": false
+    },
+    {
+      "role": "jacobian_gate",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/tools/step5c_calibrated_kinematics_audit.py",
+      "exists": true,
+      "expected": "25f1640c796511efcc1097b27aa10b802eeb8dfee3bc3083b7cf0d3edf67186a",
+      "actual": "25f1640c796511efcc1097b27aa10b802eeb8dfee3bc3083b7cf0d3edf67186a",
+      "matches": true,
+      "runtime_only_excludes": false
+    },
+    {
+      "role": "kinematics_solver",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/tools/step5c_dls_joint_solver.py",
+      "exists": true,
+      "expected": "f78a8434314596eff7cac6c99a36bff8d451923f04dc97591fae4c11fa9d1b09",
+      "actual": "f78a8434314596eff7cac6c99a36bff8d451923f04dc97591fae4c11fa9d1b09",
+      "matches": true,
+      "runtime_only_excludes": false
+    },
+    {
+      "role": "strict_rnn",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/tools/step5c_strict_rnn.py",
+      "exists": true,
+      "expected": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7",
+      "actual": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7",
+      "matches": true,
+      "runtime_only_excludes": false
+    },
+    {
+      "role": "contact_semantics",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/tools/contact_semantics.py",
+      "exists": true,
+      "expected": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+      "actual": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+      "matches": true,
+      "runtime_only_excludes": false
+    },
+    {
+      "role": "calibrated_runtime",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/tools/step5d_autotune_v4/calibrated_runtime.py",
+      "exists": true,
+      "expected": "811cbdd1a75786ef9dbc071b53179419bc0a839782d83d0358a5a1c4b7bfd4dd",
+      "actual": "811cbdd1a75786ef9dbc071b53179419bc0a839782d83d0358a5a1c4b7bfd4dd",
+      "matches": true,
+      "runtime_only_excludes": false
+    },
+    {
+      "role": "path_reference",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/tools/step5_table.py",
+      "exists": true,
+      "expected": "3fae8f76574e9c12e024c04887417ba06160f9e5b1265ddf60943071b3bca56f",
+      "actual": "3fae8f76574e9c12e024c04887417ba06160f9e5b1265ddf60943071b3bca56f",
+      "matches": true,
+      "runtime_only_excludes": false
+    },
+    {
+      "role": "path_table",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/config/step5_stage_table.json",
+      "exists": true,
+      "expected": "0a1372a5dd0220268a4e304f02f3f666bd7df402a9056a566b8048131a10f81c",
+      "actual": "976740a794d984f05d3f8117cbde9d1f3a54b148a2bf34291e72744b9b428201",
+      "matches": false,
+      "runtime_only_excludes": true
+    },
+    {
+      "role": "strict_rnn_gate",
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
+      "exists": true,
+      "expected": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555",
+      "actual": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555",
+      "matches": true,
+      "runtime_only_excludes": false
+    }
+  ],
+  "scope": "read-only audit of effective inherited canonical model binding; no contract edited"
+}

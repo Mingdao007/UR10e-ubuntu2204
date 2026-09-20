@@ -2347,9 +2347,10 @@ class _R006ScopedRuntimeInjection:
             if release_contract.raw.get('program')!='step5d_contact_six_qp_v1':
                 raise R006LiveAdapterError('contact provider requires its dedicated TP contract')
             from contact_benchmark_provider import ContactCommandProvider
+            from yield_contact_provider import YieldContactProvider
             contact_provider=self.contact_command_provider_factory(
                 candidate=candidate,attempt_id=attempt_id,release_contract=release_contract)
-            if not isinstance(contact_provider,ContactCommandProvider):
+            if not isinstance(contact_provider,(ContactCommandProvider,YieldContactProvider)):
                 raise R006LiveAdapterError('contact factory returned a different command provider')
         control = control_factory(
             candidate,

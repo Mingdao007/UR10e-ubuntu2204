@@ -1,0 +1,12 @@
+{
+  "artifacts": {
+    "runtime-tests.txt": "6f940015ff9393641f8459b5bf8dd937d7a9b2bfa0956d16accf6ab74e14ef87",
+    "legacy-baseline-failure.txt": "7fd38f955ffb125513e4e769dbcf5a83aef9e57b468ca8b7b6ea5cfb918e52bc",
+    "README.md": "fb9c861a6349a36fcb77b4a4548a22c15f841fd053b84ced770034ef15030b6d",
+    "legacy-fixture-failure.txt": "afed73cd0efb1f96a8dc452b59f544f2f5eb0cc66da91873d9b82347662bb767",
+    "effective-legacy-binding-audit.json": "b7335a957d48d88a614d3d3368b6c6e061b39ac944beb9e07c7a2a58941a6a42",
+    "initial-contract-failure.txt": "8b9f6268a7ae34175c0cd7c9cd1c449616945c47cc563115e54353f9c0288288",
+    "prepared-tests.txt": "f95b80f2e0cbabd53a1729627afe28befcabb823db3200727d5a54ecebc9e3a3"
+  },
+  "scope": "offline implementation and retained failures; no robot command"
+}

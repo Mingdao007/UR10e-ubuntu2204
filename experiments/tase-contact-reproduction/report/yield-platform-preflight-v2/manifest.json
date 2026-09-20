@@ -1,0 +1,36 @@
+{
+  "assembled_at": "2026-09-20T01:05:37.220546+00:00",
+  "claim_class": "read-only network/Dashboard and local scheduler-permission diagnostic",
+  "robot_write_performed": false,
+  "queries": [
+    "is in remote control",
+    "safetymode",
+    "robotmode",
+    "running",
+    "programState",
+    "get loaded program",
+    "PolyscopeVersion"
+  ],
+  "inputs": [
+    {
+      "source": "/tmp/yield-fifo-permission-only-20260920.json",
+      "path": "report/yield-platform-preflight-v2/yield-fifo-permission-only-20260920.json",
+      "sha256": "0735c7504b4f4c9f3e4704fc58e84ffd881c9142884de4710f7b1b45cabf3c1b",
+      "source_mtime_utc": "2026-09-20T01:03:42.603744+00:00"
+    },
+    {
+      "source": "/tmp/yield-platform-network-v2-20260920.json",
+      "path": "report/yield-platform-preflight-v2/yield-platform-network-v2-20260920.json",
+      "sha256": "28c5765e4082d921fd2b70043f173f5c1f5acbd9fa938e6e52aeedc8b1fc637c",
+      "source_mtime_utc": "2026-09-20T01:04:21.786464+00:00"
+    },
+    {
+      "source": "/tmp/yield-dashboard-readonly-v2-20260920.json",
+      "path": "report/yield-platform-preflight-v2/yield-dashboard-readonly-v2-20260920.json",
+      "sha256": "7245656aec48f246c2d9712a521db6aafa1b7aa449f766d045c298e4bbe614db",
+      "source_mtime_utc": "2026-09-20T01:04:26.962806+00:00"
+    }
+  ],
+  "owner_reference": "/home/andy/codex-private-skills-shared-main/skills/ur10e-realsetup/references/bench-context-and-live-workflows.md",
+  "owner_reference_sha256": "a36193bcb694543b6879ab3c396e731139ddf7451586d5f240cae40480ec8687"
+}

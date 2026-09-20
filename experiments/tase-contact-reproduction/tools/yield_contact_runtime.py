@@ -57,6 +57,7 @@ class YieldContactRuntime:
         self.deadline_s = deadline_s
         self.solver_profile = QpSolverProfile(qp_library)
         self.model = build_calibrated_model()
+        self.model_urdf_sha256 = hashlib.sha256(self.model.urdf_text.encode()).hexdigest()
         self.anchor = finite(anchor_m, (3,), "contact anchor")
         self.basis = require_rotation(task_basis, "task basis").copy()
         if abs(float(np.linalg.det(self.basis)) - 1.0) > 1e-6:
@@ -90,6 +91,7 @@ class YieldContactRuntime:
             "controller": self.controller.identity,
             "anchor_m": self.anchor.tolist(), "basis": self.basis.tolist(),
             "calibration": self.model.calibration_hash,
+            "model_urdf_sha256": self.model_urdf_sha256,
             "entry_duration_s": ENTRY_DURATION_S,
             "entry_boundary_policy": "continuous_sample_hold_v2",
             "deadline_scope": "through_result_materialization_v2",

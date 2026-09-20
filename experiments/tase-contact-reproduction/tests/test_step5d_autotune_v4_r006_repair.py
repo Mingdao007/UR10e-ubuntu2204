@@ -314,6 +314,7 @@ def _activate_fake_r006_control_injection(monkeypatch):
             path_requested=False,
             motion_profile=None,
             canonical_runtime_only=False,
+            r013_baseline_transition_profile=None,
         ) -> None:
             events.append(("construct", self))
             self.candidate = candidate
@@ -323,6 +324,7 @@ def _activate_fake_r006_control_injection(monkeypatch):
             self.path_requested = path_requested
             self.motion_profile = motion_profile
             self.canonical_runtime_only = canonical_runtime_only
+            self.r013_baseline_transition_profile = r013_baseline_transition_profile
 
     monkeypatch.setattr(r006_live.r004_writer_module, "CanonicalQualificationControl", FakeControl)
     injection = r006_live._R006ScopedRuntimeInjection(

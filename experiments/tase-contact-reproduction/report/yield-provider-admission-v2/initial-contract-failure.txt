@@ -1,0 +1,233 @@
+.....F                                                                   [100%]
+=================================== FAILURES ===================================
+__ test_real_yield_provider_uses_native_prepared_control_without_state_reset ___
+
+self = _R006NativeCanonicalQualificationControl(candidate=R006Candidate(force_p_gain=0.0003535533906, force_i_gain=0.0, force...ovider object at 0x7fe655d34940>, _setpoint_n=1.0, _sticky_latched=0, _last_monotonic_s=None, _origin_monotonic_s=None)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.candidate, R006Candidate):
+            raise _R004QualificationControlError(
+                "r006 native canonical control requires an r006 candidate"
+            )
+        if not isinstance(self.attempt_id, str) or not self.attempt_id:
+            raise _R004QualificationControlError("qualification attempt identity is missing")
+        if not isinstance(self.canonical_runtime_only, bool):
+            raise _R004QualificationControlError("canonical runtime-only policy is not typed")
+        if self.motion_profile is not None and not isinstance(self.motion_profile, type(R004_MOTION_PROFILE)):
+            raise _R004QualificationControlError("qualification motion profile is not typed")
+        if self.r013_baseline_transition_profile is not None:
+            from step5d_autotune_v4_r013.baseline_policy import (
+                R013BaselineTransitionProfileV1,
+            )
+    
+            if not isinstance(
+                self.r013_baseline_transition_profile,
+                R013BaselineTransitionProfileV1,
+            ):
+                raise _R004QualificationControlError(
+                    "R013 baseline transition profile is not typed"
+                )
+        policy = self.release_contract.raw["live_boundary"][
+            "canonical_calibrated_numeric_residual_policy"
+        ]
+        self._tangential_tolerance_m_s = float(policy["tangential_m_s_max"])
+        self._angular_tolerance_rad_s = float(policy["angular_rad_s_max"])
+        self._required_hold_s = (
+            float(self.release_contract.raw["live_boundary"]["qualified_path_trial_hold_s"])
+            if self.path_requested
+            else 10.0
+        )
+        if (
+            self._tangential_tolerance_m_s != 2e-6
+            or self._angular_tolerance_rad_s != 2e-6
+        ):
+            raise _R004QualificationControlError("qualification residual policy differs")
+        try:
+            from step5d_autotune_v4.contracts import load_contract
+            from step5d_autotune_v4_r004.baseline_runtime import (
+                BaselineReadinessGate,
+                BaselineState,
+                PathEntryReleaseGate,
+                PathEntryReleaseState,
+            )
+            from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime
+            from step5d_autotune_v4_r004.path_controller import V4PathController
+            from step5d_autotune_v4_r004.runtime import StartupHeartbeatGate, TimingGuard
+    
+            # The r006 object itself is the canonical candidate consumed by
+            # the mature runtime primitives.  No r004 V4Candidate is built.
+>           self._contract = load_contract(runtime_only=self.canonical_runtime_only)
+
+tools/step5d_autotune_v4_r006/live_adapter.py:498: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tools/step5d_autotune_v4/contracts.py:399: in load_contract
+    _require_hash(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path_text = '/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro'
+digest = '618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c'
+role = 'ur_xacro'
+
+    def _require_hash(
+        path_text: Any, digest: Any, role: str, *, local_only: bool = False
+    ) -> Path:
+        path = _resolve(path_text, role)
+        expected = _digest(digest, f"{role} digest")
+        if local_only and EXPERIMENT_ROOT not in path.parents:
+            raise V4ContractError(f"{role} source must remain inside the experiment root")
+        if path.is_symlink() or not path.is_file() or _sha256(path) != expected:
+>           raise V4ContractError(f"{role} source binding differs")
+E           step5d_autotune_v4.contracts.V4ContractError: ur_xacro source binding differs
+
+tools/step5d_autotune_v4/contracts.py:105: V4ContractError
+
+The above exception was the direct cause of the following exception:
+
+lib = PosixPath('/tmp/pytest-of-andy/pytest-55/runtime-qp0/libcontact_qp.so')
+
+    def test_real_yield_provider_uses_native_prepared_control_without_state_reset(lib):
+        from copy import deepcopy
+        from test_contact_yield_provider import setup,call
+        from step5d_autotune_v4_r004.contracts import load_contract
+        from step5d_autotune_v4_r006.live_adapter import R006Candidate
+        from step6_figure8_autotune_v1.live_composition import figure8_motion_profile
+        runtime,provider,output,sensor=setup(lib)
+        with runtime:
+            call(provider,output,sensor,0)
+            before=provider.snapshot()
+            # Fixture contract projection only; it is never admitted to a device.
+            raw=deepcopy(load_contract().raw)
+            raw['program']='step5d_contact_six_qp_v1'
+            inj=_R006ScopedRuntimeInjection(motion_profile=figure8_motion_profile(),
+                path_reference=lambda *_args,**_kwargs:None,
+                contact_command_provider_factory=lambda **_kwargs:provider)
+            inj.activate()
+            try:
+>               control=inj.prepare_control(candidate=R006Candidate(),attempt_id='yield-prepared-test',
+                    release_contract=SimpleNamespace(raw=raw),path_requested=True,
+                    canonical_runtime_only=True)
+
+tests/test_contact_provider_injection.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tools/step5d_autotune_v4_r006/live_adapter.py:2355: in prepare_control
+    control = control_factory(
+<string>:16: in __init__
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = _R006NativeCanonicalQualificationControl(candidate=R006Candidate(force_p_gain=0.0003535533906, force_i_gain=0.0, force...ovider object at 0x7fe655d34940>, _setpoint_n=1.0, _sticky_latched=0, _last_monotonic_s=None, _origin_monotonic_s=None)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.candidate, R006Candidate):
+            raise _R004QualificationControlError(
+                "r006 native canonical control requires an r006 candidate"
+            )
+        if not isinstance(self.attempt_id, str) or not self.attempt_id:
+            raise _R004QualificationControlError("qualification attempt identity is missing")
+        if not isinstance(self.canonical_runtime_only, bool):
+            raise _R004QualificationControlError("canonical runtime-only policy is not typed")
+        if self.motion_profile is not None and not isinstance(self.motion_profile, type(R004_MOTION_PROFILE)):
+            raise _R004QualificationControlError("qualification motion profile is not typed")
+        if self.r013_baseline_transition_profile is not None:
+            from step5d_autotune_v4_r013.baseline_policy import (
+                R013BaselineTransitionProfileV1,
+            )
+    
+            if not isinstance(
+                self.r013_baseline_transition_profile,
+                R013BaselineTransitionProfileV1,
+            ):
+                raise _R004QualificationControlError(
+                    "R013 baseline transition profile is not typed"
+                )
+        policy = self.release_contract.raw["live_boundary"][
+            "canonical_calibrated_numeric_residual_policy"
+        ]
+        self._tangential_tolerance_m_s = float(policy["tangential_m_s_max"])
+        self._angular_tolerance_rad_s = float(policy["angular_rad_s_max"])
+        self._required_hold_s = (
+            float(self.release_contract.raw["live_boundary"]["qualified_path_trial_hold_s"])
+            if self.path_requested
+            else 10.0
+        )
+        if (
+            self._tangential_tolerance_m_s != 2e-6
+            or self._angular_tolerance_rad_s != 2e-6
+        ):
+            raise _R004QualificationControlError("qualification residual policy differs")
+        try:
+            from step5d_autotune_v4.contracts import load_contract
+            from step5d_autotune_v4_r004.baseline_runtime import (
+                BaselineReadinessGate,
+                BaselineState,
+                PathEntryReleaseGate,
+                PathEntryReleaseState,
+            )
+            from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime
+            from step5d_autotune_v4_r004.path_controller import V4PathController
+            from step5d_autotune_v4_r004.runtime import StartupHeartbeatGate, TimingGuard
+    
+            # The r006 object itself is the canonical candidate consumed by
+            # the mature runtime primitives.  No r004 V4Candidate is built.
+            self._contract = load_contract(runtime_only=self.canonical_runtime_only)
+            self._canonical_candidate = self.candidate
+            self._runtime = self.contact_command_provider
+            if self._runtime is None:
+                self._runtime = V4CalibratedRuntime(
+                    self._contract,
+                    self._canonical_candidate,
+                    motion_profile=self.motion_profile,
+                    force_integral_limit_n_s=float(self.force_integral_limit_n_s),
+                )
+            self._path_controller = (
+                self.contact_command_provider.lifecycle_observer
+                if self.contact_command_provider is not None
+                else V4PathController(
+                    self._canonical_candidate,
+                    motion_profile=self.motion_profile,
+                )
+            )
+            self._baseline_state = BaselineState()
+            self._readiness_gate = (
+                BaselineReadinessGate(
+                    filtered_min_n=3.0,
+                    filtered_max_n=7.0,
+                    raw_min_n=3.0,
+                    raw_max_n=8.0,
+                    force_norm_max_n=10.0,
+                    torque_norm_max_nm=0.30,
+                )
+                if self.path_requested
+                else BaselineReadinessGate()
+            )
+            self._path_entry_release_gate = (
+                PathEntryReleaseGate() if self.path_requested else None
+            )
+            self._path_entry_release_state = PathEntryReleaseState()
+            self._timing = TimingGuard()
+            self._startup = StartupHeartbeatGate()
+            try:
+                from step5d_autotune_v4_r008.tube_cbf_live import TubeCbfLiveFilter
+    
+                self._tube_cbf = TubeCbfLiveFilter.from_environ()
+            except Exception:
+                self._tube_cbf = None
+            self.last_tube_cbf = None
+        except _R004QualificationControlError:
+            raise
+        except Exception as exc:
+>           raise _R004QualificationControlError(
+                f"r006 native canonical qualification stack is unavailable: {exc}"
+            ) from exc
+E           step5d_autotune_v4_r004.qualification.QualificationControlError: r006 native canonical qualification stack is unavailable: ur_xacro source binding differs
+
+tools/step5d_autotune_v4_r006/live_adapter.py:545: QualificationControlError
+=============================== warnings summary ===============================
+../../../../../../opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115
+  /opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115: DeprecationWarning: private variables, such as '_ConstructUnits__ConstructUnitsValue', will be normal attributes in 3.11
+    __ConstructUnitsValue = collections.namedtuple('__ConstructUnitsValue', ['tag', 'conversion_constant'])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_contact_provider_injection.py::test_real_yield_provider_uses_native_prepared_control_without_state_reset
+1 failed, 5 passed, 1 warning in 1.01s

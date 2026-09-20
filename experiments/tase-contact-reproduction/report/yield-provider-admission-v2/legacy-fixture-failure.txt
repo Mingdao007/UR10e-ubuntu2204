@@ -1,0 +1,235 @@
+......FFF                                                                [100%]
+=================================== FAILURES ===================================
+_______ test_r006_prepared_control_is_built_before_arm_and_consumed_once _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f17877c97e0>
+
+    def test_r006_prepared_control_is_built_before_arm_and_consumed_once(monkeypatch) -> None:
+        injection, events, calibrated, original_path_reference = _activate_fake_r006_control_injection(monkeypatch)
+        try:
+            adapted, writer, attempt, release_contract = _r006_arm_fixture(injection, events)
+>           adapted.arm(attempt)
+
+tests/test_step5d_autotune_v4_r006_repair.py:377: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tools/step5d_autotune_v4_r006/live_adapter.py:2530: in arm
+    self.injection.prepare_control(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <step5d_autotune_v4_r006.live_adapter._R006ScopedRuntimeInjection object at 0x7f17877c8f10>
+
+    def prepare_control(
+        self,
+        *,
+        candidate: Any,
+        attempt_id: str,
+        release_contract: Any,
+        path_requested: bool,
+        canonical_runtime_only: bool,
+    ) -> Any:
+        """Construct the expensive canonical control before the mature ARM call."""
+    
+        if not self.active or self._original_control is None:
+            raise R006LiveAdapterError("r006 runtime injection is not active")
+        if self._prepared_key is not None:
+            raise R006LiveAdapterError("r006 prepared canonical control already exists")
+        if not isinstance(path_requested, bool) or not isinstance(canonical_runtime_only, bool):
+            raise R006LiveAdapterError("r006 prepared control policies are not typed")
+        key = _R006PreparedControlKey(
+            candidate=candidate,
+            attempt_id=attempt_id,
+            release_contract=release_contract,
+            path_requested=path_requested,
+            canonical_runtime_only=canonical_runtime_only,
+        )
+        control_factory = (
+            _R006NativeCanonicalQualificationControl
+            if isinstance(candidate, R006Candidate)
+            else self._original_control
+        )
+        contact_provider=None
+        if self.contact_command_provider_factory is not None:
+            if release_contract.raw.get('program')!='step5d_contact_six_qp_v1':
+                raise R006LiveAdapterError('contact provider requires its dedicated TP contract')
+            from contact_benchmark_provider import ContactCommandProvider
+            from yield_contact_provider import YieldContactProvider
+            contact_provider=self.contact_command_provider_factory(
+                candidate=candidate,attempt_id=attempt_id,release_contract=release_contract)
+            if not isinstance(contact_provider,(ContactCommandProvider,YieldContactProvider)):
+                raise R006LiveAdapterError('contact factory returned a different command provider')
+>       control = control_factory(
+            candidate,
+            attempt_id=attempt_id,
+            release_contract=release_contract,
+            path_requested=path_requested,
+            motion_profile=self.motion_profile,
+            canonical_runtime_only=canonical_runtime_only,
+            force_integral_limit_n_s=float(self.force_integral_limit_n_s),
+            r013_baseline_transition_profile=self.qualification_profile,
+            **({"contact_command_provider":contact_provider} if contact_provider is not None else {}),
+        )
+E       TypeError: _activate_fake_r006_control_injection.<locals>.FakeControl.__init__() got an unexpected keyword argument 'r013_baseline_transition_profile'
+
+tools/step5d_autotune_v4_r006/live_adapter.py:2355: TypeError
+_____________ test_r006_prepared_control_key_mismatch_fails_closed _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f17872c8340>
+
+    def test_r006_prepared_control_key_mismatch_fails_closed(monkeypatch) -> None:
+        injection, events, _calibrated, _original_path_reference = _activate_fake_r006_control_injection(monkeypatch)
+        try:
+            candidate = object()
+            release_contract = object()
+>           injection.prepare_control(
+                candidate=candidate,
+                attempt_id="r006-test-attempt-e3-o8",
+                release_contract=release_contract,
+                path_requested=True,
+                canonical_runtime_only=True,
+            )
+
+tests/test_step5d_autotune_v4_r006_repair.py:411: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <step5d_autotune_v4_r006.live_adapter._R006ScopedRuntimeInjection object at 0x7f1797ad8a90>
+
+    def prepare_control(
+        self,
+        *,
+        candidate: Any,
+        attempt_id: str,
+        release_contract: Any,
+        path_requested: bool,
+        canonical_runtime_only: bool,
+    ) -> Any:
+        """Construct the expensive canonical control before the mature ARM call."""
+    
+        if not self.active or self._original_control is None:
+            raise R006LiveAdapterError("r006 runtime injection is not active")
+        if self._prepared_key is not None:
+            raise R006LiveAdapterError("r006 prepared canonical control already exists")
+        if not isinstance(path_requested, bool) or not isinstance(canonical_runtime_only, bool):
+            raise R006LiveAdapterError("r006 prepared control policies are not typed")
+        key = _R006PreparedControlKey(
+            candidate=candidate,
+            attempt_id=attempt_id,
+            release_contract=release_contract,
+            path_requested=path_requested,
+            canonical_runtime_only=canonical_runtime_only,
+        )
+        control_factory = (
+            _R006NativeCanonicalQualificationControl
+            if isinstance(candidate, R006Candidate)
+            else self._original_control
+        )
+        contact_provider=None
+        if self.contact_command_provider_factory is not None:
+            if release_contract.raw.get('program')!='step5d_contact_six_qp_v1':
+                raise R006LiveAdapterError('contact provider requires its dedicated TP contract')
+            from contact_benchmark_provider import ContactCommandProvider
+            from yield_contact_provider import YieldContactProvider
+            contact_provider=self.contact_command_provider_factory(
+                candidate=candidate,attempt_id=attempt_id,release_contract=release_contract)
+            if not isinstance(contact_provider,(ContactCommandProvider,YieldContactProvider)):
+                raise R006LiveAdapterError('contact factory returned a different command provider')
+>       control = control_factory(
+            candidate,
+            attempt_id=attempt_id,
+            release_contract=release_contract,
+            path_requested=path_requested,
+            motion_profile=self.motion_profile,
+            canonical_runtime_only=canonical_runtime_only,
+            force_integral_limit_n_s=float(self.force_integral_limit_n_s),
+            r013_baseline_transition_profile=self.qualification_profile,
+            **({"contact_command_provider":contact_provider} if contact_provider is not None else {}),
+        )
+E       TypeError: _activate_fake_r006_control_injection.<locals>.FakeControl.__init__() got an unexpected keyword argument 'r013_baseline_transition_profile'
+
+tools/step5d_autotune_v4_r006/live_adapter.py:2355: TypeError
+_ test_r006_prepared_control_cache_clears_on_arm_failure_close_and_deactivate __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1797955870>
+
+    def test_r006_prepared_control_cache_clears_on_arm_failure_close_and_deactivate(monkeypatch) -> None:
+        injection, events, calibrated, original_path_reference = _activate_fake_r006_control_injection(monkeypatch)
+        try:
+            adapted, _writer, attempt, _release_contract = _r006_arm_fixture(
+                injection,
+                events,
+                arm_raises=True,
+            )
+            with pytest.raises(RuntimeError, match="synthetic mature ARM failure"):
+>               adapted.arm(attempt)
+
+tests/test_step5d_autotune_v4_r006_repair.py:450: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tools/step5d_autotune_v4_r006/live_adapter.py:2530: in arm
+    self.injection.prepare_control(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <step5d_autotune_v4_r006.live_adapter._R006ScopedRuntimeInjection object at 0x7f1797956fb0>
+
+    def prepare_control(
+        self,
+        *,
+        candidate: Any,
+        attempt_id: str,
+        release_contract: Any,
+        path_requested: bool,
+        canonical_runtime_only: bool,
+    ) -> Any:
+        """Construct the expensive canonical control before the mature ARM call."""
+    
+        if not self.active or self._original_control is None:
+            raise R006LiveAdapterError("r006 runtime injection is not active")
+        if self._prepared_key is not None:
+            raise R006LiveAdapterError("r006 prepared canonical control already exists")
+        if not isinstance(path_requested, bool) or not isinstance(canonical_runtime_only, bool):
+            raise R006LiveAdapterError("r006 prepared control policies are not typed")
+        key = _R006PreparedControlKey(
+            candidate=candidate,
+            attempt_id=attempt_id,
+            release_contract=release_contract,
+            path_requested=path_requested,
+            canonical_runtime_only=canonical_runtime_only,
+        )
+        control_factory = (
+            _R006NativeCanonicalQualificationControl
+            if isinstance(candidate, R006Candidate)
+            else self._original_control
+        )
+        contact_provider=None
+        if self.contact_command_provider_factory is not None:
+            if release_contract.raw.get('program')!='step5d_contact_six_qp_v1':
+                raise R006LiveAdapterError('contact provider requires its dedicated TP contract')
+            from contact_benchmark_provider import ContactCommandProvider
+            from yield_contact_provider import YieldContactProvider
+            contact_provider=self.contact_command_provider_factory(
+                candidate=candidate,attempt_id=attempt_id,release_contract=release_contract)
+            if not isinstance(contact_provider,(ContactCommandProvider,YieldContactProvider)):
+                raise R006LiveAdapterError('contact factory returned a different command provider')
+>       control = control_factory(
+            candidate,
+            attempt_id=attempt_id,
+            release_contract=release_contract,
+            path_requested=path_requested,
+            motion_profile=self.motion_profile,
+            canonical_runtime_only=canonical_runtime_only,
+            force_integral_limit_n_s=float(self.force_integral_limit_n_s),
+            r013_baseline_transition_profile=self.qualification_profile,
+            **({"contact_command_provider":contact_provider} if contact_provider is not None else {}),
+        )
+E       TypeError: _activate_fake_r006_control_injection.<locals>.FakeControl.__init__() got an unexpected keyword argument 'r013_baseline_transition_profile'
+
+tools/step5d_autotune_v4_r006/live_adapter.py:2355: TypeError
+=============================== warnings summary ===============================
+../../../../../../opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115
+  /opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115: DeprecationWarning: private variables, such as '_ConstructUnits__ConstructUnitsValue', will be normal attributes in 3.11
+    __ConstructUnitsValue = collections.namedtuple('__ConstructUnitsValue', ['tag', 'conversion_constant'])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_step5d_autotune_v4_r006_repair.py::test_r006_prepared_control_is_built_before_arm_and_consumed_once
+FAILED tests/test_step5d_autotune_v4_r006_repair.py::test_r006_prepared_control_key_mismatch_fails_closed
+FAILED tests/test_step5d_autotune_v4_r006_repair.py::test_r006_prepared_control_cache_clears_on_arm_failure_close_and_deactivate
+3 failed, 6 passed, 15 deselected, 1 warning in 1.08s

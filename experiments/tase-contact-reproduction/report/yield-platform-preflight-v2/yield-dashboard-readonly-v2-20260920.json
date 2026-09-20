@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "host": "192.168.1.18",
+  "port": 29999,
+  "responses": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "true",
+    "safetymode": "Safetymode: NORMAL",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: true",
+    "programState": "PLAYING step5d_contact_six_qp_v1.urp",
+    "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
+    "PolyscopeVersion": "URSoftware 5.26.0.140462 (Jul 08 2026)"
+  }
+}
