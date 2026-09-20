@@ -982,6 +982,7 @@ class R006LiveWriter(LiveR004Writer):
     """
 
     def _send_packet(self, *args: Any, **kwargs: Any) -> Any:
+        self._hot_path_mark("pre_send_tracing_enter")
         # Observation-only (B3 Wave 1): record travel-vs-force while TP is in
         # state 20, without editing the frozen LiveR004Writer source closure.
         # PATH (state 25) force+integral ring is likewise observation-only so a
@@ -1146,7 +1147,9 @@ class R006LiveWriter(LiveR004Writer):
             except (TypeError, ValueError, AttributeError, OSError):
                 pass
 
+        self._hot_path_mark("pre_send_tracing_exit")
         packet = super()._send_packet(*args, **kwargs)
+        self._hot_path_mark("post_send_tracing_enter")
 
         # R013's canonical full-lifecycle recorder is intentionally duck
         # typed here.  The mature R006/R008 writer remains reusable, while
@@ -1229,6 +1232,7 @@ class R006LiveWriter(LiveR004Writer):
                     context=context,
                 )
             )
+        self._hot_path_mark("post_send_tracing_exit")
         return packet
 
 

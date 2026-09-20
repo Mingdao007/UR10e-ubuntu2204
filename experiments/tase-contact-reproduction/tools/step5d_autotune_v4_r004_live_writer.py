@@ -228,6 +228,84 @@ class LiveWriterError(RuntimeError):
     """The r004 live boundary failed closed."""
 
 
+class HotPathTimingTrace:
+    """Opt-in monotonic boundary trace for the existing writer tick.
+
+    The recorder is deliberately inert until a caller installs it.  It keeps
+    raw ``monotonic_ns`` marks instead of deriving missing intervals from a
+    prior packet timestamp, so an offline replay can distinguish an observed
+    boundary from an unavailable one.
+    """
+
+    SCHEMA = "contact-yield-hot-path-timing-v1"
+
+    def __init__(
+        self,
+        *,
+        max_ticks: int = 512,
+        clock_ns: Callable[[], int] = time.monotonic_ns,
+    ) -> None:
+        if isinstance(max_ticks, bool) or not isinstance(max_ticks, int) or max_ticks <= 0:
+            raise LiveWriterError("hot-path timing trace capacity is invalid")
+        if not callable(clock_ns):
+            raise LiveWriterError("hot-path timing trace clock is not callable")
+        self.max_ticks = max_ticks
+        self._clock_ns = clock_ns
+        self._rows: list[dict[str, Any]] = []
+        self._active: dict[str, Any] | None = None
+
+    @property
+    def rows(self) -> tuple[Mapping[str, Any], ...]:
+        return tuple(self._rows)
+
+    def begin_tick(
+        self,
+        *,
+        sample_monotonic_s: float,
+        state: int,
+        first_sample: bool,
+    ) -> bool:
+        if self._active is not None:
+            raise LiveWriterError("hot-path timing trace already has an active tick")
+        if len(self._rows) >= self.max_ticks:
+            return False
+        self._active = {
+            "schema": self.SCHEMA,
+            "tick_index": len(self._rows),
+            "sample_monotonic_s": float(sample_monotonic_s),
+            "state": int(state),
+            "first_sample": bool(first_sample),
+            "actual_dt_s": None,
+            "marks": {},
+        }
+        self.mark("tick_start")
+        return True
+
+    def update(self, **values: Any) -> None:
+        if self._active is not None:
+            self._active.update(values)
+
+    def mark(self, name: str, **values: Any) -> None:
+        if self._active is None:
+            return
+        if not isinstance(name, str) or not name:
+            raise LiveWriterError("hot-path timing mark name is empty")
+        self._active["marks"][name] = {
+            "monotonic_ns": int(self._clock_ns()),
+            **values,
+        }
+
+    def finish(self, *, success: bool, error: BaseException | None = None) -> None:
+        if self._active is None:
+            return
+        self.mark("tick_end")
+        self._active["success"] = bool(success)
+        if error is not None:
+            self._active["error_type"] = type(error).__name__
+        self._rows.append(self._active)
+        self._active = None
+
+
 @dataclass(frozen=True)
 class PacketHistoryEntry:
     published_at_s: float
@@ -338,6 +416,7 @@ class LiveR004Writer:
         runtime_protocol: int = RUNTIME_PROTOCOL,
         canonical_runtime_only: bool = False,
         fresh_frame_wait_policy: FreshFrameWaitPolicyV1 = FreshFrameWaitPolicyV1(),
+        hot_path_timing: HotPathTimingTrace | None = None,
     ) -> None:
         if route_id != prerequisites.route_id:
             raise LiveWriterError(f"{identity_namespace} route id differs from receipt bundle")
@@ -353,6 +432,8 @@ class LiveR004Writer:
             raise LiveWriterError("canonical runtime-only policy is not typed")
         if not isinstance(fresh_frame_wait_policy, FreshFrameWaitPolicyV1):
             raise LiveWriterError("fresh-frame wait policy is not typed")
+        if hot_path_timing is not None and not isinstance(hot_path_timing, HotPathTimingTrace):
+            raise LiveWriterError("hot-path timing trace is not typed")
         baseline = tuple(float(value) for value in software_baseline_n)
         if len(baseline) != 6 or not all(math.isfinite(value) for value in baseline):
             raise LiveWriterError("software baseline must contain six finite SI values")
@@ -375,6 +456,8 @@ class LiveR004Writer:
         self._wall_clock = wall_clock
         self._mono_clock = mono_clock
         self._sleep = sleep
+        self._hot_path_timing = hot_path_timing
+        self._hot_path_timing_active = False
         # Additive r005 evidence seam.  The default is None, so the mature
         # r004 writer retains its existing evidence and timing behavior.
         self._path_sample_sink = path_sample_sink
@@ -446,6 +529,66 @@ class LiveR004Writer:
     @property
     def active(self) -> bool:
         return self._opened and not self._stopped
+
+    @property
+    def hot_path_timing(self) -> tuple[Mapping[str, Any], ...]:
+        trace = getattr(self, "_hot_path_timing", None)
+        if trace is None:
+            return ()
+        return trace.rows
+
+    def install_hot_path_timing(self, trace: HotPathTimingTrace) -> None:
+        """Install bounded offline diagnostics on this same sole writer."""
+
+        if not isinstance(trace, HotPathTimingTrace):
+            raise LiveWriterError("hot-path timing trace is not typed")
+        if getattr(self, "_hot_path_timing", None) is not None:
+            raise LiveWriterError("hot-path timing trace is already installed")
+        self._hot_path_timing = trace
+        self._hot_path_timing_active = False
+
+    def _hot_path_begin_tick(
+        self, *, sample_monotonic_s: float, state: int, first_sample: bool
+    ) -> None:
+        trace = getattr(self, "_hot_path_timing", None)
+        self._hot_path_timing_active = False
+        if trace is None:
+            return
+        try:
+            self._hot_path_timing_active = trace.begin_tick(
+                sample_monotonic_s=sample_monotonic_s,
+                state=state,
+                first_sample=first_sample,
+            )
+        except Exception:
+            # Diagnostics cannot change the fail-closed control path.
+            self._hot_path_timing_active = False
+
+    def _hot_path_update(self, **values: Any) -> None:
+        if not getattr(self, "_hot_path_timing_active", False):
+            return
+        try:
+            self._hot_path_timing.update(**values)
+        except Exception:
+            pass
+
+    def _hot_path_mark(self, name: str, **values: Any) -> None:
+        if not getattr(self, "_hot_path_timing_active", False):
+            return
+        try:
+            self._hot_path_timing.mark(name, **values)
+        except Exception:
+            pass
+
+    def _hot_path_finish(self, *, success: bool, error: BaseException | None = None) -> None:
+        if not getattr(self, "_hot_path_timing_active", False):
+            return
+        try:
+            self._hot_path_timing.finish(success=success, error=error)
+        except Exception:
+            pass
+        finally:
+            self._hot_path_timing_active = False
 
     @property
     def controller_receipt_sha256(self) -> str:
@@ -725,6 +868,7 @@ class LiveR004Writer:
         BoundedPacketHistory.validate_reference(reference_phase, reference_time_s)
         rtde, _kunwei = self._transport_pair()
         mode = CommandMode.STOP if self._stopped else command_mode
+        self._hot_path_mark("wire_build_enter")
         packet = build_wire_packet(
             self.contract,
             self.candidate,
@@ -736,10 +880,15 @@ class LiveR004Writer:
             structural_stop=structural_stop or self._stopped,
             motion_profile=R004_MOTION_PROFILE,
         )
+        self._hot_path_mark("wire_build_exit")
+        self._hot_path_mark("transport_send_enter")
         rtde.send_packet(packet.double_values, packet.integer_values)
+        self._hot_path_mark("transport_send_exit")
         published_at = self._mono_clock()
         self._last_writer_publish_mono_s = published_at
         self._last_writer_sequence = packet.sequence
+        self._hot_path_mark("publish_timestamp", published_monotonic_s=published_at)
+        self._hot_path_mark("packet_history_enter")
         self._packet_history.record(
             packet.sequence,
             published_at_s=published_at,
@@ -747,6 +896,7 @@ class LiveR004Writer:
             reference_phase=reference_phase if mode not in {CommandMode.HOLD, CommandMode.STOP} else None,
             reference_time_s=reference_time_s if mode not in {CommandMode.HOLD, CommandMode.STOP} else None,
         )
+        self._hot_path_mark("packet_history_exit")
         self._packet_sequence += 1
         return packet
 
@@ -1598,11 +1748,33 @@ class LiveR004Writer:
                         setpoint = 5.0
                         qdot = (0.0,) * 6
                     else:
-                        command = self._qualification_control.step(
-                            output=output,
-                            sensor=sensor,
-                            monotonic_s=now,
-                            command_sequence=self._packet_sequence,
+                        first_sample = (
+                            getattr(self._qualification_control, "_last_monotonic_s", None)
+                            is None
+                        )
+                        self._hot_path_begin_tick(
+                            sample_monotonic_s=now,
+                            state=state,
+                            first_sample=first_sample,
+                        )
+                        self._hot_path_mark("control_step_enter")
+                        try:
+                            command = self._qualification_control.step(
+                                output=output,
+                                sensor=sensor,
+                                monotonic_s=now,
+                                command_sequence=self._packet_sequence,
+                            )
+                        except BaseException as exc:
+                            self._hot_path_mark(
+                                "control_step_error", error_type=type(exc).__name__
+                            )
+                            self._hot_path_finish(success=False, error=exc)
+                            raise
+                        self._hot_path_mark("control_step_exit")
+                        self._hot_path_update(
+                            actual_dt_s=getattr(command, "actual_dt_s", None),
+                            command_mode=int(command.command_mode),
                         )
                         self._sticky_latched = command.sticky_one_newton_latched
                         sensor = replace(sensor, filtered_normal_n=command.filtered_normal_n)
@@ -1716,13 +1888,26 @@ class LiveR004Writer:
                             "reference_time_s": (result["entry_time_s"] if result["phase"] == "entry"
                                                  else result["formal_time_s"]),
                         }
-                    packet = self._send_packet(
-                        sensor,
-                        command_mode=mode,
-                        proposed_qdot=qdot,
-                        internal_setpoint_n=setpoint,
-                        **reference_kwargs,
+                    self._hot_path_mark("pre_send_enter")
+                    try:
+                        packet = self._send_packet(
+                            sensor,
+                            command_mode=mode,
+                            proposed_qdot=qdot,
+                            internal_setpoint_n=setpoint,
+                            **reference_kwargs,
+                        )
+                    except BaseException as exc:
+                        self._hot_path_mark(
+                            "send_wrapper_error", error_type=type(exc).__name__
+                        )
+                        self._hot_path_finish(success=False, error=exc)
+                        raise
+                    self._hot_path_mark(
+                        "send_wrapper_return",
+                        published_monotonic_s=self._last_writer_publish_mono_s,
                     )
+                self._hot_path_mark("packet_evidence_enter")
                 source_sequences: dict[str, Any] = {}
                 source_ages: dict[str, float] = {}
                 if packet is not None and self._last_writer_publish_mono_s is not None:
@@ -1849,6 +2034,7 @@ class LiveR004Writer:
                             and observed_path_sample.path_time_s < formal_duration_s
                         ):
                             self._path_sample_sink(observed_path_sample)
+                self._hot_path_mark("packet_evidence_exit")
                 if state in {78, 80, 90}:
                     terminal = output
                     break
@@ -1859,7 +2045,16 @@ class LiveR004Writer:
                 next_publish_s = self._next_publish_deadline(
                     next_publish_s, publish_period_s, now_after_tick
                 )
-                self._sleep(max(0.0, next_publish_s - now_after_tick))
+                self._hot_path_mark(
+                    "scheduler_enter",
+                    now_monotonic_s=now_after_tick,
+                    next_publish_monotonic_s=next_publish_s,
+                )
+                sleep_s = max(0.0, next_publish_s - now_after_tick)
+                self._hot_path_mark("scheduler_sleep_enter", sleep_s=sleep_s)
+                self._sleep(sleep_s)
+                self._hot_path_mark("scheduler_exit")
+                self._hot_path_finish(success=True)
             if terminal is None or terminal.integer_echoes[26] == 90 or self._home is None:
                 raise LiveWriterError("r004 attempt terminated without a valid return")
             pose_error = math.dist(terminal.tcp_pose_m_rad[:3], self._home.pose[:3])
@@ -1948,6 +2143,7 @@ class LiveR004Writer:
                 )
             return evidence
         except Exception as exc:
+            self._hot_path_finish(success=False, error=exc)
             diagnostic = {
                 key: value
                 for key, value in baseline_diag.items()
@@ -2126,6 +2322,7 @@ if __name__ == "__main__":
 __all__ = [
     "LIVE_ACK",
     "LIVE_WRITER_SCHEMA",
+    "HotPathTimingTrace",
     "LiveR004Writer",
     "LiveWriterError",
     "OfflineR004Writer",

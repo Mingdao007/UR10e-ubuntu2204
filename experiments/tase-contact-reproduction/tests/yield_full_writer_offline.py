@@ -87,6 +87,7 @@ class FullWriterRun:
     before_fault: dict | None = None
     final_snapshot: dict | None = None
     loop_kinds: list = field(default_factory=list)
+    hot_path_timing: tuple = ()
     scope: str = (
         "offline unpaced stationary-observation full-writer composition; "
         "in-memory transport; simulated receive clocks; existing writer GC "
@@ -140,6 +141,7 @@ def exercise_full_writer(
     hash_mismatch=False,
     allow_safe_nontrainable=True,
     clock_origin_s=0.0,
+    writer_class=None,
 ):
     """Run the mature execute_attempt loop with the native yield provider.
 
@@ -164,6 +166,7 @@ def exercise_full_writer(
         runtime=runtime,
         model_hashes={"calibration": runtime.model.calibration_hash},
     )
+    hot_path_timing = writer_module.HotPathTimingTrace() if measure else None
     original_runtime_step = runtime.step
     original_qualification_step = writer_module.CanonicalQualificationControl.step
     published = []
@@ -263,8 +266,13 @@ def exercise_full_writer(
         internal_setpoint_n=5.0,
     )
     transport = SimpleNamespace(send_packet=lambda *_args, **_kwargs: None)
+    if measure:
+        from contact_yield_live_writer import _install_command_timing
+
+        _install_command_timing(provider)
     samples = []
-    writer = writer_module.LiveR004Writer(
+    writer_type = writer_module.LiveR004Writer if writer_class is None else writer_class
+    writer = writer_type(
         _prerequisites(),
         authority_root=tmp_path / "authority",
         route_id="r004-test-route",
@@ -275,6 +283,7 @@ def exercise_full_writer(
         wall_clock=lambda: 1_000_000_000.0 + clock.t,
         sleep=lambda seconds: None,
         path_sample_sink=samples.append,
+        hot_path_timing=hot_path_timing,
     )
     attempt = build_campaign_plan(writer.contract)[3]
     writer.session = SimpleNamespace(
@@ -436,4 +445,7 @@ def exercise_full_writer(
         before_fault=before_fault[0],
         final_snapshot=final_snapshot,
         loop_kinds=loop_kinds,
+        hot_path_timing=()
+        if hot_path_timing is None
+        else hot_path_timing.rows,
     )

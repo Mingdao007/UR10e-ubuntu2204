@@ -37,6 +37,7 @@ class QualificationCommand:
     canonical_phase: str
     canonical_reason: str
     actual_dt_s: float | None = None
+    first_sample: bool = False
     late_cycle: bool = False
     native_law_dt_s: float | None = None
 
@@ -238,6 +239,74 @@ class CanonicalQualificationControl:
     ) -> QualificationCommand:
         provider_checkpoint = None
         provider_restore = None
+        first_sample = self._last_monotonic_s is None
+        previous_last_monotonic_s = self._last_monotonic_s
+        previous_origin_monotonic_s = self._origin_monotonic_s
+        previous_startup_ready_latched = self._startup_ready_latched
+        previous_sticky_latched = self._sticky_latched
+        previous_setpoint_n = self._setpoint_n
+        previous_path_origin_monotonic_s = self._path_origin_monotonic_s
+        previous_qualification_retract_issued = self._qualification_retract_issued
+        previous_previous_qdot = self._previous_qdot
+        previous_baseline_state = getattr(self, "_baseline_state", None)
+        previous_path_entry_release_state = getattr(
+            self, "_path_entry_release_state", None
+        )
+        previous_last_pre_path_late_cycle = self.last_pre_path_late_cycle
+        previous_last_baseline_transition = self.last_baseline_transition
+        previous_last_baseline_residual = self.last_baseline_residual
+        previous_last_path_entry_rate_limit = self.last_path_entry_rate_limit
+        previous_last_tube_cbf = self.last_tube_cbf
+        timing_checkpoint = None
+        if hasattr(self._timing, "timestamps_s") and hasattr(self._timing, "gaps_s"):
+            timing_checkpoint = (
+                len(self._timing.timestamps_s),
+                len(self._timing.gaps_s),
+                self._timing.stopped,
+                self._timing.stop_reason,
+            )
+        startup_checkpoint = dict(vars(self._startup))
+        path_controller_checkpoint = dict(vars(self._path_controller))
+        path_controller_list_lengths = {
+            key: len(value)
+            for key, value in path_controller_checkpoint.items()
+            if isinstance(value, list)
+        }
+
+        def restore_control_checkpoint() -> None:
+            """Undo observation/control bookkeeping from a failed tick."""
+
+            self._last_monotonic_s = previous_last_monotonic_s
+            self._origin_monotonic_s = previous_origin_monotonic_s
+            self._startup_ready_latched = previous_startup_ready_latched
+            self._sticky_latched = previous_sticky_latched
+            self._setpoint_n = previous_setpoint_n
+            self._path_origin_monotonic_s = previous_path_origin_monotonic_s
+            self._qualification_retract_issued = previous_qualification_retract_issued
+            self._previous_qdot = previous_previous_qdot
+            self._baseline_state = previous_baseline_state
+            self._path_entry_release_state = previous_path_entry_release_state
+            self.last_pre_path_late_cycle = previous_last_pre_path_late_cycle
+            self.last_baseline_transition = previous_last_baseline_transition
+            self.last_baseline_residual = previous_last_baseline_residual
+            self.last_path_entry_rate_limit = previous_last_path_entry_rate_limit
+            self.last_tube_cbf = previous_last_tube_cbf
+            if timing_checkpoint is not None:
+                timestamp_len, gap_len, stopped, stop_reason = timing_checkpoint
+                del self._timing.timestamps_s[timestamp_len:]
+                del self._timing.gaps_s[gap_len:]
+                self._timing.stopped = stopped
+                self._timing.stop_reason = stop_reason
+            vars(self._startup).clear()
+            vars(self._startup).update(startup_checkpoint)
+            current_path_state = vars(self._path_controller)
+            current_path_state.clear()
+            current_path_state.update(path_controller_checkpoint)
+            for key, length in path_controller_list_lengths.items():
+                value = current_path_state.get(key)
+                if isinstance(value, list):
+                    del value[length:]
+
         try:
             from step5d_autotune_v4_r004.baseline_runtime import (
                 BaselineHardLimits,
@@ -266,6 +335,12 @@ class CanonicalQualificationControl:
             if not 0.0 < actual_dt_s < 0.080:
                 raise QualificationControlError("qualification actual dt is outside (0,80ms)")
             self._last_monotonic_s = now
+            reported_actual_dt_s = None if first_sample else actual_dt_s
+
+            def make_command(**kwargs: Any) -> QualificationCommand:
+                kwargs.setdefault("actual_dt_s", reported_actual_dt_s)
+                kwargs.setdefault("first_sample", first_sample)
+                return QualificationCommand(**kwargs)
 
             elapsed = now - self._origin_monotonic_s
             observed_dt = self._timing.observe(elapsed)
@@ -290,7 +365,7 @@ class CanonicalQualificationControl:
                 if sensor.stop_request or not sensor.sensor_fresh or not output.safety_normal:
                     raise QualificationControlError("unsafe observation while awaiting RETRACT echo")
                 self._previous_qdot = (0.0,) * 6
-                return QualificationCommand(
+                return make_command(
                     command_mode=CommandMode.RETRACT, qdot=(0.0,) * 6,
                     internal_setpoint_n=self._setpoint_n,
                     filtered_normal_n=sensor.filtered_normal_n,
@@ -351,7 +426,7 @@ class CanonicalQualificationControl:
                     )
                 self.last_pre_path_late_cycle = dict(late_result)
                 self._previous_qdot = (0.0,) * 6
-                return QualificationCommand(
+                return make_command(
                     command_mode=CommandMode.BASELINE,
                     qdot=(0.0,) * 6,
                     internal_setpoint_n=self._setpoint_n,
@@ -381,7 +456,7 @@ class CanonicalQualificationControl:
                     reason="startup_two_increments_pending",
                 )
                 self._previous_qdot = (0.0,) * 6
-                return QualificationCommand(
+                return make_command(
                     command_mode=CommandMode.BASELINE,
                     qdot=(0.0,) * 6,
                     internal_setpoint_n=1.0,
@@ -457,7 +532,7 @@ class CanonicalQualificationControl:
                 if not self.path_requested:
                     self._previous_qdot = (0.0,) * 6
                     if self._qualification_retract_issued:
-                        return QualificationCommand(
+                        return make_command(
                             command_mode=CommandMode.RETRACT,
                             qdot=(0.0,) * 6,
                             internal_setpoint_n=self._setpoint_n,
@@ -471,7 +546,7 @@ class CanonicalQualificationControl:
                         # that still reports the preceding force-control
                         # velocity.  Command a zero-qdot baseline hold until a
                         # fresh stationary sample opens the retract gate.
-                        return QualificationCommand(
+                        return make_command(
                             command_mode=CommandMode.BASELINE,
                             qdot=(0.0,) * 6,
                             internal_setpoint_n=self._setpoint_n,
@@ -481,7 +556,7 @@ class CanonicalQualificationControl:
                             canonical_reason="stationary_retract_gate_pending",
                         )
                     self._qualification_retract_issued = True
-                    return QualificationCommand(
+                    return make_command(
                         command_mode=CommandMode.RETRACT,
                         qdot=(0.0,) * 6,
                         internal_setpoint_n=self._setpoint_n,
@@ -514,7 +589,7 @@ class CanonicalQualificationControl:
                         reason="path_entry_release_dwell_pending",
                     )
                     self._previous_qdot = (0.0,) * 6
-                    return QualificationCommand(
+                    return make_command(
                         command_mode=CommandMode.BASELINE,
                         qdot=(0.0,) * 6,
                         internal_setpoint_n=self._setpoint_n,
@@ -536,7 +611,7 @@ class CanonicalQualificationControl:
                         ),
                     )
                     self._previous_qdot = (0.0,) * 6
-                    return QualificationCommand(
+                    return make_command(
                         command_mode=CommandMode.PATH,
                         qdot=(0.0,) * 6,
                         internal_setpoint_n=self._setpoint_n,
@@ -762,7 +837,7 @@ class CanonicalQualificationControl:
                     self.last_baseline_residual = residual.as_dict()
                     if residual.failed_closed:
                         self._previous_qdot = (0.0,) * 6
-                        return QualificationCommand(
+                        return make_command(
                             command_mode=CommandMode.BASELINE,
                             qdot=(0.0,) * 6,
                             internal_setpoint_n=self._setpoint_n,
@@ -825,7 +900,7 @@ class CanonicalQualificationControl:
                 # baseline; keep ticking the canonical solver behind a
                 # zero-qdot BASELINE packet until it converges.
                 self._previous_qdot = (0.0,) * 6
-                return QualificationCommand(
+                return make_command(
                     command_mode=CommandMode.BASELINE,
                     qdot=(0.0,) * 6,
                     internal_setpoint_n=self._setpoint_n,
@@ -850,7 +925,7 @@ class CanonicalQualificationControl:
                         "contact provider filtered_normal_n is nonfinite"
                     )
             self._previous_qdot = tuple(float(value) for value in pre_gate.qdot)
-            return QualificationCommand(
+            return make_command(
                 command_mode=CommandMode.PATH if mode == "path" else CommandMode.BASELINE,
                 qdot=tuple(float(value) for value in pre_gate.qdot),
                 internal_setpoint_n=self._setpoint_n,
@@ -860,10 +935,12 @@ class CanonicalQualificationControl:
                 canonical_reason="",
             )
         except QualificationControlError:
+            restore_control_checkpoint()
             if provider_checkpoint is not None:
                 provider_restore(provider_checkpoint)
             raise
         except Exception as exc:
+            restore_control_checkpoint()
             if provider_checkpoint is not None:
                 provider_restore(provider_checkpoint)
             raise QualificationControlError(

@@ -395,22 +395,17 @@ def _install_command_timing(provider):
     timeline = provider.command_timeline = []
     active = [None]
     original_command = provider.command
-    original_step = provider.runtime.step
+    runtime_method_name = (
+        "step" if callable(getattr(provider.runtime, "step", None)) else "command"
+    )
+    original_runtime = getattr(provider.runtime, runtime_method_name, None)
 
-    def measured_step(**kwargs):
-        row = active[0]
-        if row is not None:
-            row["runtime_enter_s"] = time.monotonic()
-        try:
-            return original_step(**kwargs)
-        finally:
-            if row is not None:
-                row["runtime_exit_s"] = time.monotonic()
-
-    def measured_command(**kwargs):
+    def measured_provider_call(original, operation, kwargs):
         if len(timeline) >= 512:
-            return original_command(**kwargs)
+            return original(**kwargs)
         row = {
+            "operation": operation,
+            "provider_enter_ns": time.monotonic_ns(),
             "provider_enter_s": time.monotonic(),
             "sensor_received_s": kwargs["sensor"].observed_at_s,
             "robot_received_s": kwargs["output"].received_monotonic_s,
@@ -419,17 +414,48 @@ def _install_command_timing(provider):
         }
         active[0] = row
         try:
-            return original_command(**kwargs)
+            return original(**kwargs)
         except BaseException as exc:
             row["error"] = type(exc).__name__
             raise
         finally:
+            row["provider_exit_ns"] = time.monotonic_ns()
             row["provider_exit_s"] = time.monotonic()
             active[0] = None
             timeline.append(row)
 
-    provider.runtime.step = measured_step
+    def measured_runtime(*args, **kwargs):
+        row = active[0]
+        if row is not None:
+            row["runtime_enter_ns"] = time.monotonic_ns()
+            row["runtime_enter_s"] = time.monotonic()
+        try:
+            return original_runtime(*args, **kwargs)
+        finally:
+            if row is not None:
+                row["runtime_exit_ns"] = time.monotonic_ns()
+                row["runtime_exit_s"] = time.monotonic()
+
+    def measured_command(**kwargs):
+        return measured_provider_call(original_command, "command", kwargs)
+
+    original_pause = getattr(provider, "pause", None)
+
+    def measured_pause(**kwargs):
+        return measured_provider_call(original_pause, "pause", kwargs)
+
+    original_late_hold = getattr(provider, "hold_pre_path_late_cycle", None)
+
+    def measured_late_hold(**kwargs):
+        return measured_provider_call(original_late_hold, "late_hold", kwargs)
+
+    if callable(original_runtime):
+        setattr(provider.runtime, runtime_method_name, measured_runtime)
     provider.command = measured_command
+    if callable(original_pause):
+        provider.pause = measured_pause
+    if callable(original_late_hold):
+        provider.hold_pre_path_late_cycle = measured_late_hold
 
 
 from step5d_autotune_contract import ExecutionProfile
@@ -528,7 +554,7 @@ def build_native_yield_owner(
             _prewarm_tase_provider(provider, pose=pose, q=home_binding.entry_receipt.final_q)
         else:
             _prewarm_native_provider(provider, pose=pose, q=home_binding.entry_receipt.final_q)
-            _install_command_timing(provider)
+        _install_command_timing(provider)
 
         def factory(**_ignored: Any):
             return provider
