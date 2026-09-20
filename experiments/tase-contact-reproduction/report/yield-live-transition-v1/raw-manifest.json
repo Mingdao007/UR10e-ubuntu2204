@@ -140,6 +140,31 @@
       "path": "runs/yield-live-transition-20260920/combined-stopped-transport/summary.json",
       "bytes": 2330,
       "sha256": "0517bb4c3d788a3a5f0d3df3ebd7c142d1a3f57b37def96b3566ff549ea6d649"
+    },
+    {
+      "path": "runs/yield-first-qualification-20260920T082110Z/capture.py",
+      "bytes": 5832,
+      "sha256": "1c62871ccfdac1ee2943c056f0097c7be2e05a8513c01f8939abe5f96b8e50fc"
+    },
+    {
+      "path": "runs/yield-first-qualification-20260920T082110Z/frames.json",
+      "bytes": 5773789,
+      "sha256": "bfa1aaf73c71bcddef7086fb52973a34da9ced17d5cb5f127fb5953745d54d54"
+    },
+    {
+      "path": "runs/yield-first-qualification-20260920T082110Z/prewarm.json",
+      "bytes": 10952,
+      "sha256": "6fa6b82cc8ad57457130fdc5d7f7e1e1f213972f5a8388268518c076322bda04"
+    },
+    {
+      "path": "runs/yield-first-qualification-20260920T082110Z/software_baseline_receipt.json",
+      "bytes": 942,
+      "sha256": "59e9a222e1401d12ad016cb704a486b621608cbb16c0ee553819caceeea9b75e"
+    },
+    {
+      "path": "runs/yield-first-qualification-20260920T082110Z/summary.json",
+      "bytes": 2332,
+      "sha256": "3ad2a984c5f6949d3f788ba4ada063f218e9c58a965aaee63893330535fb6ce4"
     }
   ]
 }

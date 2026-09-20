@@ -1,0 +1,69 @@
+{
+  "schema": "yield-stopped-combined-diagnostic-v1",
+  "claim_scope": "stopped concurrent real transport diagnostic, no command publication, no software baseline applied; not command-consumption or contact qualification",
+  "started_at": "2026-09-20T08:21:10.210840+00:00",
+  "command_packets_sent": 0,
+  "load_play_sent": false,
+  "sensor_commands": [
+    "stream_start",
+    "stream_stop"
+  ],
+  "selected_cpu": 1,
+  "dashboard_before": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "true",
+    "safetystatus": "Safetystatus: NORMAL",
+    "robotmode": "Robotmode: RUNNING",
+    "programState": "STOPPED step5d_contact_six_qp_v1.urp",
+    "running": "Program running: false",
+    "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp"
+  },
+  "ok": true,
+  "dashboard_after": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "true",
+    "safetystatus": "Safetystatus: NORMAL",
+    "robotmode": "Robotmode: RUNNING",
+    "programState": "STOPPED step5d_contact_six_qp_v1.urp",
+    "running": "Program running: false",
+    "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp"
+  },
+  "completed_at": "2026-09-20T08:21:20.730700+00:00",
+  "robot_frames": 4996,
+  "sensor_physical_frames": 9997,
+  "steady_samples": 4746,
+  "sensor_age_s": {
+    "50": 3.927001671399921e-06,
+    "95": 1.0186751751461998e-05,
+    "99": 1.2361499466351246e-05,
+    "100": 1.9035993318539113e-05
+  },
+  "rtde_receive_gap_s": {
+    "50": 0.001999273998080753,
+    "95": 0.00204877399810357,
+    "99": 0.0020801869599381463,
+    "100": 0.012097439997887705
+  },
+  "sensor_held_samples": 0,
+  "sensor_stale_samples": 0,
+  "rtde_gaps_above_4ms": 1,
+  "raw_force_norm_max_n": 9.004595498508042,
+  "raw_torque_norm_max_nm": 0.36126177144322674,
+  "raw_wrench_mean": [
+    7.208236201410995,
+    4.322133058915572,
+    2.1043013077342136,
+    0.2408235249617763,
+    -0.2516840322608828,
+    0.08404319634957753
+  ],
+  "raw_wrench_std": [
+    0.07230132884057362,
+    0.06760476668166096,
+    0.2675650584306862,
+    0.0023563732417768114,
+    0.0011311524443735166,
+    0.008792228075342369
+  ],
+  "frames_sha256": "bfa1aaf73c71bcddef7086fb52973a34da9ced17d5cb5f127fb5953745d54d54"
+}

@@ -144,7 +144,9 @@ class R012LiveRTDETransport(LiveR004RTDETransport):
             }
             if raw is None:
                 return None
-            candidate = R004OutputSnapshot.from_mapping(time.time(), raw)
+            received_monotonic_s = time.monotonic()
+            candidate = R004OutputSnapshot.from_mapping(
+                time.time(), raw, received_monotonic_s=received_monotonic_s)
             # The mature TP briefly emits READY_HOME_NEXT/reason=0/guard=123,
             # then its next sync sees the still-published ARM image and
             # overwrites only the reason with replay marker 62.  At this exact
