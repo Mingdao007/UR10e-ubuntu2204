@@ -18,7 +18,7 @@ from contact_yield_supervisor import VideoRecorder
 from run_contact_home import INSTALLED_LOCK
 from run_contact_recovery import check_dashboard
 from step5d_autotune_v4_r004.transport import LiveR004KunweiTransport
-from step5d_autotune_v4_r012.register_transport import R012LiveRTDETransport
+from contact_yield_transport import NativeYieldRTDETransport
 from step5d_autotune_v4_r014.dispatcher import WriterLock
 from step5d_eoat_profiles import load_new_eoat_profile
 
@@ -54,13 +54,30 @@ def prepare(run_dir, method):
     with WriterLock(INSTALLED_LOCK):
         check_dashboard('192.168.1.18')
         fetch_recovery_readback(out, basenames=(CONTACT_PROGRAM, HOME_PROGRAM))
-        rtde = R012LiveRTDETransport('192.168.1.18')
+        # Use the same logical24 -> physical36 allocation as the live writer;
+        # the OnRobot installation owns physical input register 24.
+        rtde = NativeYieldRTDETransport('192.168.1.18')
         sensor = LiveR004KunweiTransport('192.168.50.25', port=5152)
         video_dir = out/'baseline-video'
         video_dir.mkdir()
         video = VideoRecorder('rtsp://127.0.0.1:8554/arm', video_dir)
         try:
             video.start(); rtde.open(); sensor.open()
+            # A previous resident STOP/ARM image survives Dashboard Load/Play.
+            # Publish one neutral layout-606 HOLD before the next Play so the
+            # newly started TP cannot consume stale command/session fields.
+            neutral_doubles = [0.0] * 24
+            neutral_doubles[-1] = 606.0
+            rtde.send_packet(neutral_doubles, [0] * 9)
+            (out/'neutral-hold-receipt.json').write_text(json.dumps({
+                'schema': 'yield-figure8/neutral-hold-v1',
+                'layout_tag': 606.0,
+                'session_command': 0,
+                'session_command_name': 'HOLD',
+                'attempt_dispatched': False,
+                'physical_input_allocation': 'logical24->physical36',
+                'observed_at_s': time.time(),
+            }, indent=2) + '\n')
             started = time.monotonic()
             last_sensor = None
             latest_output = None

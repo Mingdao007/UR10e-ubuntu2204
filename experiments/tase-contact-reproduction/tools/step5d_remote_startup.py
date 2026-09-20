@@ -51,6 +51,14 @@ _DASHBOARD_COMMANDS = [
 _DASHBOARD_SUCCESS_PREFIXES = {
     "play": ("Starting program",),
     "stop": ("Stopped",),
+    # Protective-stop recovery is a one-shot, explicitly gated Dashboard
+    # operation.  The caller must first prove a fresh, stationary robot and
+    # must re-read Safety NORMAL after this response before any Home motion.
+    "unlock protective stop": (
+        "Protective stop releasing",
+        "Protective stop unlocked",
+        "No protective stop",
+    ),
 }
 _LOAD_SUCCESS_PREFIX = "Loading program"
 
@@ -165,8 +173,9 @@ class RemoteDashboardWriter:
     """Allow-list Dashboard writes for one exact startup binding.
 
     The generic ``write`` method is intentionally the only write seam.  It
-    accepts ``play`` and bounded ``stop`` compensation, plus ``load`` for the
-    one exact target supplied at construction.  It cannot issue arbitrary
+    accepts ``play`` and bounded ``stop`` compensation, the single
+    ``unlock protective stop`` recovery command, plus ``load`` for the one
+    exact target supplied at construction.  It cannot issue arbitrary
     Dashboard commands or load a different program.
     """
 

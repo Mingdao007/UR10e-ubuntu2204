@@ -17,7 +17,19 @@ def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure)
     def sleep(dt):clock.t+=dt
     monkeypatch.setattr(runner,'time',SimpleNamespace(time=lambda:clock.t,monotonic=lambda:clock.t,sleep=sleep))
     monkeypatch.setattr(runner,'validate_recovery_packages',lambda *_:None)
-    monkeypatch.setattr(runner,'check_dashboard',lambda _:events.append('stopped_read'))
+    monkeypatch.setattr(
+        runner,
+        'check_dashboard',
+        lambda *_, **__: (
+            events.append('stopped_read')
+            or {
+                'safetymode':'Safetymode: NORMAL',
+                'running':'Program running: false',
+                'robotmode':'Robotmode: RUNNING',
+                'is in remote control':'true',
+            }
+        ),
+    )
     def terminal_read(*_):
         events.append('terminal_read')
         return {'safetymode':'Safetymode: NORMAL',

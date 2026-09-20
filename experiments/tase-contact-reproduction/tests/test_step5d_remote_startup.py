@@ -115,6 +115,21 @@ def test_remote_dashboard_writer_allows_exact_load_and_no_arbitrary_command() ->
         writer.write(f"load {SCRIPT2_TARGET}")
 
 
+def test_remote_dashboard_writer_allows_one_protective_stop_unlock() -> None:
+    fake = _Socket([b"Protective stop releasing\n"])
+    writer = RemoteDashboardWriter(
+        "robot",
+        load_target=SCRIPT1_TARGET,
+        timeout_s=0.2,
+        connector=lambda *_args, **_kwargs: fake,
+    )
+    outcome = writer.write("unlock protective stop")
+    assert outcome.response == "Protective stop releasing"
+    assert outcome.command_sent is True
+    assert writer.last_command_sent == "unlock protective stop"
+    assert fake.sent == b"unlock protective stop\n"
+
+
 def test_script1_refuses_remote_false_before_any_write() -> None:
     manifest = load_manifest(MANIFEST)
     writer = _Writer(SCRIPT1_TARGET)

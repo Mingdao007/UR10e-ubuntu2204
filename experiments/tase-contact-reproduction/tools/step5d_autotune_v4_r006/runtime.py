@@ -322,9 +322,9 @@ def apply_disposition(lifecycle: ResidentLifecycle, disposition: Disposition) ->
 
     A stopped resident is not a completed recovery. The caller must execute
     the existing verified Home route and record its receipt before the attempt
-    can be closed. ``STOP_AND_REVOKE_NO_AUTO_HOME`` used to encode the
-    opposite policy and allowed a fault to strand the robot at an arbitrary
-    pose.
+    can be closed. The legacy revoke-only terminal policy is intentionally
+    removed: a fault may close an attempt only after Home recovery or an
+    explicit, evidence-backed ``BLOCKED`` result.
     """
 
     if disposition is Disposition.OBJECTIVE:

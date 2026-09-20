@@ -1,8 +1,11 @@
 """Sole-owner stopped -> monitored vertical relief -> clearance Home recovery.
 
 Normal task admission is never relaxed. Recovery is a distinct, directional
-operation; a failed trial remains failed. Protective/emergency stops, lost
-observations, force increase, or failed clearance keep the robot stopped.
+operation; a failed trial remains failed. Every recoverable fault enters this
+same Home path. A protective stop is handled by one quiescence check and one
+allow-listed Dashboard unlock, followed by a fresh Safety NORMAL check. The
+only terminal alternative is ``BLOCKED`` when the evidence needed for safe
+motion cannot be established; there is no revoke-only terminal disposition.
 """
 import argparse,copy,datetime,json,time
 from pathlib import Path
@@ -24,11 +27,59 @@ from step5d_autotune_v4_r004.calibrated_runtime import tcp_jacobian_base
 DIRECTORY='/programs/andyl/kunwei/step5'
 
 
-def check_dashboard(host):
+def _protective_safety(row):
+    return 'PROTECTIVE_STOP' in str(row.get('safetymode','')).upper()
+
+
+def check_dashboard(host, *, allow_protective=False):
+    """Read the recovery gate without hiding a Protective Stop.
+
+    ``allow_protective`` is only for the pre-unlock observation. It does not
+    authorize motion; callers must prove stationary/fresh RTDE and then
+    re-read NORMAL after the single unlock command.
+    """
     row=dashboard_exchange(host,['safetymode','running','robotmode','is in remote control'])
-    if row!={'safetymode':'Safetymode: NORMAL','running':'Program running: false','robotmode':'Robotmode: RUNNING','is in remote control':'true'}:
-        raise ValueError(f'recovery requires NORMAL, stopped, powered Remote robot: {row}')
-    return row
+    common = {
+        'robotmode':'Robotmode: RUNNING',
+        'is in remote control':'true',
+    }
+    if any(row.get(key) != value for key,value in common.items()):
+        raise ValueError(f'recovery requires a stopped, powered Remote robot: {row}')
+    if row.get('safetymode') == 'Safetymode: NORMAL':
+        if row.get('running') != 'Program running: false':
+            raise ValueError(f'recovery requires NORMAL but stopped Dashboard: {row}')
+        return row
+    if allow_protective and _protective_safety(row):
+        return row
+    raise ValueError(f'recovery safety gate is not NORMAL: {row}')
+
+
+def _dashboard_until_stopped(host, *, timeout_s=5.0):
+    deadline=time.monotonic()+float(timeout_s)
+    last=None
+    while time.monotonic() < deadline:
+        last=dashboard_exchange(host,['safetymode','running','robotmode','is in remote control'])
+        if last.get('running') == 'Program running: false':
+            return last
+        time.sleep(.05)
+    raise ValueError(f'recovery could not confirm Dashboard STOPPED: {last}')
+
+
+def _unlock_protective_stop_once(host, *, target):
+    """Unlock exactly once, then require Dashboard Safety NORMAL."""
+    writer=RemoteDashboardWriter(host,load_target=target)
+    outcome=writer.write('unlock protective stop')
+    deadline=time.monotonic()+5.
+    last=None
+    while time.monotonic() < deadline:
+        last=dashboard_exchange(host,['safetymode','running','robotmode','is in remote control'])
+        if (last.get('safetymode') == 'Safetymode: NORMAL'
+            and last.get('running') == 'Program running: false'
+            and last.get('robotmode') == 'Robotmode: RUNNING'
+            and last.get('is in remote control') == 'true'):
+            return {'command':outcome.command,'response':outcome.response,'dashboard':last}
+        time.sleep(.05)
+    raise ValueError(f'protective stop did not return to NORMAL after one unlock: {last}')
 
 
 def package_dir_from(args):
@@ -94,17 +145,25 @@ def run(args):
         args.readback_proof_dir=proof;args.readback_dir=proof/'readback'
     validate_recovery_packages(Path(args.readback_proof_dir),Path(args.readback_dir),packages)
     baseline=json.loads((source/'software_baseline_receipt.json').read_text())
-    source_receipt=json.loads((source/'dispatch_receipt.json').read_text())
-    if source_receipt.get('armed') is not True or source_receipt.get('stop',{}).get('protective_stop') is not False:
-        raise ValueError('recovery requires a known non-protective stopped attempt')
+    receipt_path=source/'dispatch_receipt.json'
+    if receipt_path.exists():
+        source_receipt=json.loads(receipt_path.read_text())
+    else:
+        # A qualification can fail before ARM or before the writer emits its
+        # dispatch receipt. That is still a recovery event: the Dashboard and
+        # fresh RTDE observation, not a missing host receipt, decide whether
+        # the existing Home route can be run.
+        source_receipt={'receipt_present':False,'armed':False,'stop':{}}
+    source_protective=source_receipt.get('stop',{}).get('protective_stop') is True
     contract=load_identity_contract()
     if baseline.get('eoat_identity_sha256')!=contract.eoat_sha256:raise ValueError('baseline tool identity differs')
-    check_dashboard(args.host)
-    if not args.execute:return {'success':False,'motion':False,'state':'read-only preflight passed'}
+    dashboard_before=check_dashboard(args.host,allow_protective=True)
+    if not args.execute:return {'success':False,'motion':False,'state':'read-only preflight passed','dashboard':dashboard_before,'source_protective_stop':source_protective}
     out.mkdir(parents=True)
-    result={'success':False,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_attempt':str(source),'trial_stays_failed':True}
+    result={'success':False,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_attempt':str(source),'trial_stays_failed':True,'recovery_policy':'AUTO_HOME_UNLESS_SAFETY_PROOF_BLOCKS','source_receipt_present':bool(source_receipt.get('receipt_present',True)),'source_armed':source_receipt.get('armed'),'source_protective_stop':source_protective,'dashboard_before':dashboard_before}
     obs=Observer(args.host);sensor=LiveR004KunweiTransport('192.168.50.25',port=5152);video=None;adapter=None;wrench_rows=[];last_sensor=None
     lease=WriterLock(INSTALLED_LOCK);lease_held=False
+    protective_unlock_attempted=False
     try:
         lease.__enter__();lease_held=True
         obs.start();sensor.open();video=VideoRecorder(args.video_url,out);video.start()
@@ -115,6 +174,23 @@ def run(args):
             time.sleep(.01)
         else:raise ValueError('recovery observer/video barrier failed')
         if not stationary(row):raise ValueError('robot is not stationary before recovery')
+        live_protective=_protective_safety(dashboard_before)
+        if live_protective:
+            # The source writer may still have a Dashboard PLAY state after a
+            # protective stop. Stop it first, then use the already fresh,
+            # stationary observer sample as the quiescence proof.
+            stopper=RemoteDashboardWriter(args.host,load_target=f'{DIRECTORY}/{BASENAME}.urp')
+            stopper.write('stop')
+            dashboard_before=_dashboard_until_stopped(args.host)
+            if not _protective_safety(dashboard_before):
+                raise ValueError(f'protective-stop source changed unexpectedly: {dashboard_before}')
+            quiescence=row
+            result['protective_quiescence']={'stationary':stationary(quiescence),'fresh':True,'safety_mode':dashboard_before.get('safetymode'),'attempted_at':time.monotonic()}
+            protective_unlock_attempted=True
+            result['protective_unlock']=_unlock_protective_stop_once(args.host,target=f'{DIRECTORY}/{BASENAME}.urp')
+            check_dashboard(args.host)
+        else:
+            check_dashboard(args.host)
         plan=plan_home_recovery(row['actual_TCP_pose'],contract.home_pose);result['plan']=plan
         result['geometry']=check_geometry(row,plan)
         guard=ReliefForceGuard(initial_raw_wrench=raw,no_load_wrench=baseline['mean_wrench_n_nm'],baseline_std_wrench=baseline['std_wrench_n_nm'],rotation=so3_exp(row['actual_TCP_pose'][3:]))
@@ -172,6 +248,7 @@ def run(args):
         home_args=SimpleNamespace(host=args.host,home_receipt=home_receipt,validation=Path(args.readback_proof_dir)/f'{BASENAME}-validation.json',package_dir=packages,readback_dir=Path(args.readback_dir)/BASENAME,output=out/'home',execute=True)
         result['home']=run_home(home_args);result['success']=result['home']['success']
     except BaseException as exc:
+        result['state']='BLOCKED'
         result['error']=f'{type(exc).__name__}: {exc}'
         if adapter is not None and adapter.play_issued:
             try:
@@ -188,6 +265,8 @@ def run(args):
             row=obs.latest();result['stopped_sample']=row
             if not stationary(row):result['stop_unconfirmed']=True
         except BaseException as stop:result['stop_observation_error']=str(stop)
+        if protective_unlock_attempted and 'protective_unlock' not in result:
+            result['protective_unlock_error']='protective stop was observed but its one-shot unlock did not complete'
     finally:
         if hasattr(obs,'thread'):obs.close()
         sensor.close()
@@ -205,9 +284,16 @@ def run(args):
 
 
 def recover_failed_contact_run(source_run, host, video_url):
-    """Call after a confirmed non-protective contact stop. Packages must already be installed."""
+    """Route every failed contact attempt through the existing Home owner.
+
+    Packages must already be installed. Protective stops are handled inside
+    :func:`run` by the one-shot quiescence/unlock gate; a missing or pre-ARM
+    dispatch receipt is also recoverable. A failure to establish the required
+    physical proof is returned as ``success=False``/``BLOCKED`` and never
+    silently relabeled as a successful trial.
+    """
     if not (PACKAGE_DIR/f'{RELIEF_PROGRAM}.script').exists():
-        return {'success':False,'error':'relief package is not installed; autonomous Home withheld'}
+        return {'success':False,'state':'BLOCKED','error':'relief package is not installed; Home recovery cannot be proven'}
     source=Path(source_run)
     return run(SimpleNamespace(source_run=source,output=source.with_name(source.name+'-autonomous-home'),readback_proof_dir=None,readback_dir=None,package_dir=PACKAGE_DIR,host=host,video_url=video_url,execute=True))
 
