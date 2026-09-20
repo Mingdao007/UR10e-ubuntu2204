@@ -1,0 +1,8 @@
+{
+  "scope": "draft fullstate helper only, not entire pair evaluator acceptance",
+  "source_sha256": "0169c8cb076eca0490e3162b3fdc7ae2e1a4b39753d9c27b695d1110a8c40580",
+  "source_stable": true,
+  "records": 31916,
+  "null_snapshots_accepted": true,
+  "error": null
+}

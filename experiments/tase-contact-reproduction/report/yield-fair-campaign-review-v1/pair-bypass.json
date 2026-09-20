@@ -1,0 +1,9 @@
+{
+  "scope": "synthetic temporary ledger, no scientific budget",
+  "nominal_evidence_feasible": false,
+  "disturbed_guards_missing": true,
+  "caller_pair_feasible": true,
+  "training_observation_feasible": true,
+  "source_sha256": "e61aac9474324218ec25f1b4d571e4369f1c2127afc1e84db09eeb62e61733e2",
+  "source_stable": true
+}
