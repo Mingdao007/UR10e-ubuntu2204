@@ -392,6 +392,7 @@ def _prewarm_tase_provider(provider, *, pose, q):
 
 def _install_command_timing(provider):
     """Bounded real-clock diagnostics; never changes observations or command state."""
+    setattr(provider, "_command_timing_installed", True)
     timeline = provider.command_timeline = []
     active = [None]
     original_command = provider.command
@@ -515,7 +516,10 @@ def build_native_yield_owner(
     mono_clock: Callable[[], float] | None = None,
     sleep: Callable[[float], None] | None = None,
     path_sample_sink: Callable[..., Any] | None = None,
+    capture_command_timing: bool = False,
 ) -> tuple[R006MatureWriter, Any, Any, LivePathRequest | None]:
+    if type(capture_command_timing) is not bool:
+        raise YieldLiveWriterError("capture_command_timing must be bool")
     if R006_RUNTIME_PROTOCOL != RUNTIME_PROTOCOL:
         raise YieldLiveWriterError("R006 runtime protocol is not 606006")
     record = resolve_method(method)
@@ -554,7 +558,12 @@ def build_native_yield_owner(
             _prewarm_tase_provider(provider, pose=pose, q=home_binding.entry_receipt.final_q)
         else:
             _prewarm_native_provider(provider, pose=pose, q=home_binding.entry_receipt.final_q)
-        _install_command_timing(provider)
+        # Command timing wraps every provider call with several wall-clock
+        # reads and a list append. Keep it available for offline replay and
+        # explicit diagnostics, but never pay that cost on the live 500 Hz
+        # path by default.
+        if capture_command_timing:
+            _install_command_timing(provider)
 
         def factory(**_ignored: Any):
             return provider

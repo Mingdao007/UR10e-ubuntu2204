@@ -250,6 +250,7 @@ def test_owner_prewarms_actual_instance_before_writer_without_opening_endpoints(
         assert mature.writer.command_observations == []
         assert mature.writer.raw_observations == []
         assert mature.writer.robot_observations == []
+        assert getattr(provider, "_command_timing_installed", False) is False
         record = provider.prewarm_record
         assert record["purpose"] == PREWARM_PURPOSE
         assert record["command_count"] == 4
