@@ -1,5 +1,5 @@
 {
-  "utc": "2026-09-20T07:28:19.043392+00:00",
+  "utc": "2026-09-20T07:39:10.712788+00:00",
   "files": [
     {
       "path": "runs/yield-live-transition-20260920/dashboard-151340.json",
@@ -120,6 +120,26 @@
       "path": "runs/yield-live-transition-20260920/rtde-stopped-transport/summary.json",
       "bytes": 1690,
       "sha256": "0280083c0b97e48ebc96e58d389329e0b4996185f3bb3eec3a5fb95a03615f96"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/combined-stopped-transport/capture.py",
+      "bytes": 4245,
+      "sha256": "e24498a1d325c41e4d4f1bca137c1b9f731a57a227f26fa4ce38aba2aaef2250"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/combined-stopped-transport/frames.json",
+      "bytes": 5793318,
+      "sha256": "eca8f5f761f3358a8cf72972b605dd6fd8a955bb323fe260b5cadccdcb76f6b4"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/combined-stopped-transport/prewarm.json",
+      "bytes": 10952,
+      "sha256": "6fa6b82cc8ad57457130fdc5d7f7e1e1f213972f5a8388268518c076322bda04"
+    },
+    {
+      "path": "runs/yield-live-transition-20260920/combined-stopped-transport/summary.json",
+      "bytes": 2330,
+      "sha256": "0517bb4c3d788a3a5f0d3df3ebd7c142d1a3f57b37def96b3566ff549ea6d649"
     }
   ]
 }

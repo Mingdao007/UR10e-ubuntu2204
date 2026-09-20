@@ -1,0 +1,20 @@
+{
+  "schema": "yield-static-home-geometry-diagnostic-v1",
+  "frames": 4999,
+  "reference": "report/contact-six-qp-20260917/preserved-home.json",
+  "max_position_error_m": 9.446234062040506e-05,
+  "max_relative_so3_error_rad": 0.00018039277299937835,
+  "max_naive_rotvec_distance_rad": 6.2831842969445555,
+  "naive_home_guard_false_reject_frames_at_0p01rad": 2495,
+  "max_joint_speed_rad_s": 1.6209740351769142e-05,
+  "max_tcp_speed_components": [
+    1.965780812007091e-06,
+    1.36849308340881e-06,
+    7.682204060044927e-06,
+    9.288151364913311e-06,
+    1.328479667000445e-05,
+    1.0194649108307784e-08
+  ],
+  "receive_gaps_above_4ms": 1,
+  "claim_scope": "stationary read-only observations; SO3/rotation-vector branch diagnostic; not robot accuracy or control qualification"
+}
