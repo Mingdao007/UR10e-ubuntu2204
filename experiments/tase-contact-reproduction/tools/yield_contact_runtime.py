@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 import hashlib
 import json
+import copy
 from dataclasses import asdict, replace
 import time
 from pathlib import Path
@@ -29,6 +30,7 @@ from contact_yield_protocol import (
     CLAIM_SCOPE, law_seed_parameters, PATH_SEAM_CONTINUATION_POLICY,
     PATH_SEAM_CONTINUATION_S,
 )
+from step5d_autotune_v4_r004.timing import MAX_FRESH_GAP_S as PRE_PATH_LATE_CYCLE_MAX_S
 from step5c_calibrated_kinematics_audit import build_calibrated_model, rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import tcp_jacobian_base
 
@@ -105,6 +107,8 @@ class YieldContactRuntime:
             "entry_boundary_policy": "continuous_sample_hold_v2",
             "path_seam_continuation_policy": PATH_SEAM_CONTINUATION_POLICY,
             "maximum_path_seam_continuation_s": PATH_SEAM_CONTINUATION_S,
+            "pre_path_late_cycle_policy": "evidence_only_stationary_zero_baseline_v1",
+            "pre_path_late_cycle_max_s": PRE_PATH_LATE_CYCLE_MAX_S,
             "deadline_scope": "through_result_materialization_v2",
             "requested_settings": asdict(self.requested_settings),
             "cartesian_numerical_margin": self.cartesian_numerical_margin,
@@ -117,6 +121,8 @@ class YieldContactRuntime:
         self.phase = None
         self.last_entry_time = None
         self.freshness = SensorFreshnessTracker()
+        self.late_cycle_count = 0
+        self.last_late_cycle = None
 
     def freshness_summary(self):
         return self.freshness.as_dict()
@@ -131,6 +137,8 @@ class YieldContactRuntime:
             "paused_s": self.paused_s,
             "phase": self.phase,
             "last_entry_time_s": self.last_entry_time,
+            "late_cycle_count": self.late_cycle_count,
+            "last_late_cycle": copy.deepcopy(self.last_late_cycle),
         }
 
     def restore(self, state: Mapping[str, Any]) -> None:
@@ -143,6 +151,8 @@ class YieldContactRuntime:
         self.paused_s = state["paused_s"]
         self.phase = state["phase"]
         self.last_entry_time = state["last_entry_time_s"]
+        self.late_cycle_count = int(state.get("late_cycle_count", 0))
+        self.last_late_cycle = copy.deepcopy(state.get("last_late_cycle"))
 
     def close(self) -> None:
         self.controller.close()
@@ -153,7 +163,16 @@ class YieldContactRuntime:
     def __exit__(self, *args: Any) -> None:
         self.close()
 
-    def _validate_observation(self, robot, wrench_tcp, sensor_observed_at_s, sample_time_s):
+    def _validate_observation(
+        self,
+        robot,
+        wrench_tcp,
+        sensor_observed_at_s,
+        sample_time_s,
+        *,
+        max_dt_s=.004,
+        strict_dt_upper=False,
+    ):
         return validate_measured_observation(
             robot=robot,
             wrench_tcp=wrench_tcp,
@@ -164,6 +183,8 @@ class YieldContactRuntime:
             last_sensor_timestamp=self.last_sensor_timestamp,
             freshness=self.freshness,
             model=self.model,
+            max_dt_s=max_dt_s,
+            strict_dt_upper=strict_dt_upper,
         )
 
     def _commit_clocks(self, obs) -> None:
@@ -216,6 +237,72 @@ class YieldContactRuntime:
             result["runtime_wall_s"] = elapsed
             if self.deadline_s is not None and elapsed > self.deadline_s:
                 raise KernelDeadlineError("pause observation deadline exceeded")
+            return result
+        except Exception:
+            self.restore(before)
+            raise
+
+    def hold_pre_path_late_cycle(
+        self, *, robot, wrench_tcp, sensor_observed_at_s, sample_time_s, reason
+    ):
+        """Commit one bounded pre-PATH late receive as evidence-only hold.
+
+        This is separate from ``pause``: the measured interval may exceed the
+        native 4 ms controller admission, but remains below the existing
+        qualification fresh-gap bound.  No control law or readiness filter is
+        called, and the real sample clock is committed transactionally.
+        """
+        started = time.perf_counter()
+        obs = self._validate_observation(
+            robot,
+            wrench_tcp,
+            sensor_observed_at_s,
+            sample_time_s,
+            max_dt_s=PRE_PATH_LATE_CYCLE_MAX_S,
+            strict_dt_upper=True,
+        )
+        if self.phase not in (None, "baseline") or self.controller.last_path_time_s is not None:
+            raise ValueError("pre-PATH late cycle is only allowed before entry/PATH")
+        speed = finite(robot["actual_TCP_speed"], (6,), "TCP speed")
+        if (
+            np.linalg.norm(speed[:3]) > 0.0005
+            or np.linalg.norm(speed[3:]) > 0.005
+            or np.max(np.abs(obs["qd"])) > 0.001
+        ):
+            raise ValueError("pre-PATH late cycle requires stationary robot")
+        if not isinstance(reason, str) or not reason:
+            raise ValueError("late-cycle reason required")
+        self.controller.validate_geometric_latency(obs["age"])
+        before = self.snapshot()
+        try:
+            self.controller.hold_pre_path_late_cycle(
+                time_s=obs["now"],
+                dt_s=obs["dt"],
+                max_elapsed_s=PRE_PATH_LATE_CYCLE_MAX_S,
+            )
+            self._commit_clocks(obs)
+            self.late_cycle_count += 1
+            result = {
+                "policy": "pre_path_late_cycle_evidence_only",
+                "reason": reason,
+                "late_cycle": True,
+                "law_state_advanced": False,
+                "law_invoked": False,
+                "native_law_dt_s": float(self.controller.dt_s),
+                "readiness_filter_advanced": False,
+                "sample_time_s": obs["now"],
+                "actual_dt_s": obs["dt"],
+                "late_cycle_count": self.late_cycle_count,
+                "actual_tcp_speed_m_s_rad_s": tuple(float(value) for value in speed),
+                "observation_age_s": obs["age"],
+                "age_band": obs["age_band"],
+                "freshness": self.freshness_summary(),
+            }
+            elapsed = time.perf_counter() - started
+            result["runtime_wall_s"] = elapsed
+            self.last_late_cycle = result
+            if self.deadline_s is not None and elapsed > self.deadline_s:
+                raise KernelDeadlineError("late-cycle observation deadline exceeded")
             return result
         except Exception:
             self.restore(before)

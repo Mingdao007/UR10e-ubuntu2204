@@ -35,6 +35,8 @@ def validate_measured_observation(
     last_sensor_timestamp,
     freshness,
     model,
+    max_dt_s=.004,
+    strict_dt_upper=False,
 ):
     """Shared robot/sensor admission used by the sole measured-observation runtimes.
 
@@ -60,9 +62,14 @@ def validate_measured_observation(
         raise ValueError('controller timestamp regressed')
     if last_sensor_timestamp is not None and sensor_t < last_sensor_timestamp:
         raise ValueError('sensor timestamp regressed')
+    max_dt = float(max_dt_s)
+    if not math.isfinite(max_dt) or max_dt <= 0.0:
+        raise ValueError('observation interval upper bound is invalid')
     dt = .002 if last_sample_s is None else now - last_sample_s
-    if not 0 < dt <= .004:
-        raise ValueError('writer sample interval outside (0,4ms]')
+    within_upper = dt < max_dt if strict_dt_upper else dt <= max_dt
+    if not 0 < dt or not within_upper:
+        bracket = '(0,{:.0f}ms)'.format(max_dt * 1000.0) if strict_dt_upper else '(0,{:.0f}ms]'.format(max_dt * 1000.0)
+        raise ValueError(f'writer sample interval outside {bracket}')
     if 'safety_status_bits' in robot:
         normal = robot['safety_status_bits'] in (1, 2049)
     else:

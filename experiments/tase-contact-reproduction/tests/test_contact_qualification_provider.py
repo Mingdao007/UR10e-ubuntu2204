@@ -130,6 +130,7 @@ class _Provider:
         self.path_errors_calls: list[dict[str, object]] = []
         self.command_calls: list[dict[str, object]] = []
         self.pause_calls: list[dict[str, object]] = []
+        self.late_cycle_calls: list[dict[str, object]] = []
         self.last_result = None
 
     def path_errors(self, **kwargs):
@@ -143,6 +144,17 @@ class _Provider:
 
     def pause(self, **kwargs):
         self.pause_calls.append(kwargs)
+
+    def hold_pre_path_late_cycle(self, **kwargs):
+        self.late_cycle_calls.append(kwargs)
+        return {
+            "policy": "pre_path_late_cycle_evidence_only",
+            "actual_dt_s": kwargs["actual_dt_s"],
+            "filtered_normal_n": 4.75,
+            "law_state_advanced": False,
+            "readiness_filter_advanced": False,
+            "native_law_dt_s": 0.002,
+        }
 
 
 def _successful_baseline(candidate, state, observation, **kwargs):
@@ -312,6 +324,39 @@ def test_contact_provider_is_not_called_at_state21_zero_command_seam(monkeypatch
     assert provider.path_errors_calls == []
     assert len(provider.pause_calls) == 1
     assert provider.pause_calls[0]["reason"] == "path_entry_release_open"
+
+
+def test_contact_provider_late_cycle_bypasses_readiness_and_returns_zero_hold(monkeypatch) -> None:
+    provider = _Provider()
+    control = _control(provider)
+    control._baseline_state = baseline_runtime.BaselineState(
+        phase=baseline_runtime.BaselinePhase.RAMP
+    )
+    control._last_monotonic_s = 0.002
+    control._origin_monotonic_s = 0.0
+    control._setpoint_n = 3.0
+
+    result = control.step(
+        output=_output(state=21),
+        sensor=_sensor(),
+        monotonic_s=0.0135,
+        command_sequence=2,
+    )
+
+    assert result.command_mode.value == 1
+    assert result.qdot == (0.0,) * 6
+    assert result.canonical_phase == "late_cycle"
+    assert result.canonical_reason == "pre_path_late_cycle_evidence_only"
+    assert result.actual_dt_s == pytest.approx(0.0115)
+    assert result.internal_setpoint_n == pytest.approx(3.0)
+    assert result.late_cycle is True
+    assert result.native_law_dt_s == pytest.approx(0.002)
+    assert provider.command_calls == []
+    assert provider.pause_calls == []
+    assert len(provider.late_cycle_calls) == 1
+    assert provider.late_cycle_calls[0]["actual_dt_s"] == pytest.approx(0.0115)
+    assert control._path_controller.calls == []
+    assert control._previous_qdot == (0.0,) * 6
 
 
 def test_contact_provider_pauses_while_path_release_dwell_is_pending(monkeypatch) -> None:

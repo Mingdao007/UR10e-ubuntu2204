@@ -149,6 +149,137 @@ def test_first_interval_cannot_be_silently_replaced(lib):
         assert before==runtime.snapshot()
 
 
+def test_pre_path_late_cycle_is_evidence_only_and_resumes_at_native_dt(lib):
+    runtime, provider, output, sensor = setup(lib)
+    with runtime:
+        call(provider, output, sensor, 0)
+        before_controller = json.loads(json.dumps(runtime.controller.snapshot()))
+        readiness_log = provider.lifecycle_observer.last_log
+        now = 100.0115
+        output.received_monotonic_s = now
+        output.timestamp = 1234.0115
+        late = provider.hold_pre_path_late_cycle(
+            output=output,
+            sensor=replace(sensor, observed_at_s=now),
+            monotonic_s=now,
+            actual_dt_s=0.0115,
+            reason="test_pre_path_late_cycle",
+        )
+        after_controller = json.loads(json.dumps(runtime.controller.snapshot()))
+        assert late["policy"] == "pre_path_late_cycle_evidence_only"
+        assert late["actual_dt_s"] == pytest.approx(0.0115)
+        assert late["law_state_advanced"] is False
+        assert late["law_invoked"] is False
+        assert late["native_law_dt_s"] == pytest.approx(0.002)
+        assert late["readiness_filter_advanced"] is False
+        assert provider.lifecycle_observer.last_log == readiness_log
+        before_controller["time_s"] = after_controller["time_s"]
+        assert after_controller == before_controller
+        assert runtime.last_sample_s == pytest.approx(now)
+        assert runtime.late_cycle_count == 1
+
+        next_now = 100.0135
+        output.received_monotonic_s = next_now
+        output.timestamp = 1234.0135
+        command = provider.command(
+            output=output,
+            sensor=replace(sensor, observed_at_s=next_now),
+            monotonic_s=next_now,
+            actual_dt_s=0.002,
+            mode="baseline",
+            internal_setpoint_n=5.0,
+        )
+        assert command.qdot == provider.last_result["qdot_rad_s"]
+        assert provider.last_result["elapsed_dt_s"] == pytest.approx(0.002)
+
+
+@pytest.mark.parametrize(
+    "kind",
+    ["stale", "too_wide", "moving", "geometric_latency", "path"],
+)
+def test_pre_path_late_cycle_keeps_all_admission_guards(lib, kind):
+    runtime, provider, output, sensor = setup(lib)
+    with runtime:
+        call(provider, output, sensor, 0)
+        now = 100.0115
+        output.received_monotonic_s = now
+        output.timestamp = 1234.0115
+        late_sensor = replace(sensor, observed_at_s=now)
+        late_dt = 0.0115
+        expected = ""
+        if kind == "stale":
+            output.received_monotonic_s = now - 0.080001
+            output.timestamp = 1234.0015
+            late_sensor = replace(sensor, observed_at_s=100.001)
+            expected = "80ms"
+        elif kind == "too_wide":
+            late_dt = 0.020
+            expected = "20ms"
+        elif kind == "moving":
+            output.tcp_speed_m_s_rad_s = (0.001, 0.0, 0.0, 0.0, 0.0, 0.0)
+            expected = "stationary"
+        elif kind == "geometric_latency":
+            output.received_monotonic_s = now - 0.078
+            output.timestamp = 1234.0015
+            late_sensor = replace(sensor, observed_at_s=100.001)
+            expected = "geometric latency"
+        elif kind == "path":
+            runtime.phase = "path"
+            runtime.controller.last_path_time_s = 0.0
+            expected = "before entry/PATH"
+        error_type = YieldControllerError if kind == "geometric_latency" else ValueError
+        with pytest.raises(error_type, match=expected):
+            provider.hold_pre_path_late_cycle(
+                output=output,
+                sensor=late_sensor,
+                monotonic_s=now,
+                actual_dt_s=late_dt,
+                reason=f"test_{kind}",
+            )
+
+
+def test_pre_path_late_cycle_cannot_cross_into_entry(lib):
+    runtime, provider, output, sensor = setup(lib)
+    with runtime:
+        call(provider, output, sensor, 0)
+        call(provider, output, sensor, 1, mode="entry", entry_time_s=0.0)
+        before = provider.snapshot()
+        now = 100.0135
+        output.received_monotonic_s = now
+        output.timestamp = 1234.0135
+        with pytest.raises(ValueError, match="before entry/PATH"):
+            provider.hold_pre_path_late_cycle(
+                output=output,
+                sensor=replace(sensor, observed_at_s=now),
+                monotonic_s=now,
+                actual_dt_s=0.0115,
+                reason="test_invalid_entry_late_cycle",
+            )
+        assert provider.snapshot() == before
+
+
+def test_late_cycle_deadline_rolls_back_dynamic_state_but_keeps_freshness_evidence(lib):
+    runtime, provider, output, sensor = setup(lib)
+    with runtime:
+        call(provider, output, sensor, 0)
+        before = provider.snapshot()
+        observations_before = runtime.freshness_summary()["observation_count"]
+        runtime.deadline_s = 1e-12
+        now = 100.0115
+        output.received_monotonic_s = now
+        output.timestamp = 1234.0115
+        with pytest.raises(KernelDeadlineError, match="late-cycle observation deadline"):
+            provider.hold_pre_path_late_cycle(
+                output=output,
+                sensor=replace(sensor, observed_at_s=now),
+                monotonic_s=now,
+                actual_dt_s=0.0115,
+                reason="test_late_cycle_deadline",
+            )
+        assert provider.snapshot() == before
+        assert runtime.freshness_summary()["observation_count"] == observations_before + 1
+
+
 def test_irregular_entry_boundary_does_not_freeze_or_invent_zero(lib):
     runtime,provider,output,sensor=setup(lib)
     with runtime:

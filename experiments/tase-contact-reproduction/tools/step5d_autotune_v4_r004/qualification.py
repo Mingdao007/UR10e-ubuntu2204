@@ -16,6 +16,7 @@ from .contracts import Candidate, R004Contract
 from .motion_profile import R004_MOTION_PROFILE, V4MotionProfile
 from .transport import R004OutputSnapshot
 from .wire import CommandMode, SensorPacket
+from step5d_autotune_v4_r004.timing import MAX_FRESH_GAP_S as PRE_PATH_LATE_CYCLE_MAX_S
 
 
 class QualificationControlError(RuntimeError):
@@ -35,6 +36,9 @@ class QualificationCommand:
     sticky_one_newton_latched: int
     canonical_phase: str
     canonical_reason: str
+    actual_dt_s: float | None = None
+    late_cycle: bool = False
+    native_law_dt_s: float | None = None
 
 
 @dataclass
@@ -86,6 +90,9 @@ class CanonicalQualificationControl:
         default=None, init=False, repr=False
     )
     last_baseline_residual: dict[str, Any] | None = field(
+        default=None, init=False, repr=False
+    )
+    last_pre_path_late_cycle: dict[str, Any] | None = field(
         default=None, init=False, repr=False
     )
 
@@ -260,8 +267,6 @@ class CanonicalQualificationControl:
                 raise QualificationControlError("qualification actual dt is outside (0,80ms)")
             self._last_monotonic_s = now
 
-            if sensor.normal_load_n >= 0.8 or sensor.force_norm_n >= 1.0:
-                self._sticky_latched = 1
             elapsed = now - self._origin_monotonic_s
             observed_dt = self._timing.observe(elapsed)
             startup_ready = self._startup.observe(sensor.heartbeat, elapsed)
@@ -275,6 +280,73 @@ class CanonicalQualificationControl:
                 raise QualificationControlError(
                     self._timing.stop_reason or self._startup.stop_reason
                 )
+            pre_path_phase = self._baseline_state.phase not in {
+                BaselinePhase.SUCCESS,
+                BaselinePhase.FAILED,
+            }
+            if (
+                actual_dt_s > 0.004
+                and self.contact_command_provider is not None
+                and pre_path_phase
+                and output.stationary
+            ):
+                if actual_dt_s >= PRE_PATH_LATE_CYCLE_MAX_S:
+                    raise QualificationControlError(
+                        "pre-PATH late cycle exceeds the strict 20ms evidence bound"
+                    )
+                late_hold = getattr(
+                    self.contact_command_provider,
+                    "hold_pre_path_late_cycle",
+                    None,
+                )
+                if not callable(late_hold):
+                    raise QualificationControlError(
+                        "contact provider lacks the pre-PATH late-cycle seam"
+                    )
+                late_result = late_hold(
+                    output=output,
+                    sensor=sensor,
+                    monotonic_s=now,
+                    actual_dt_s=actual_dt_s,
+                    reason="pre_path_late_cycle_evidence_only",
+                )
+                if not isinstance(late_result, dict):
+                    raise QualificationControlError(
+                        "contact provider late-cycle result is not a mapping"
+                    )
+                filtered_normal_n = float(
+                    late_result.get("filtered_normal_n", sensor.filtered_normal_n)
+                )
+                if not math.isfinite(filtered_normal_n):
+                    raise QualificationControlError(
+                        "contact provider late-cycle filtered normal is nonfinite"
+                    )
+                if "native_law_dt_s" not in late_result:
+                    raise QualificationControlError(
+                        "contact provider late-cycle law dt evidence is missing"
+                    )
+                native_law_dt_s = float(late_result["native_law_dt_s"])
+                if not math.isfinite(native_law_dt_s) or native_law_dt_s <= 0.0:
+                    raise QualificationControlError(
+                        "contact provider late-cycle law dt evidence is invalid"
+                    )
+                self.last_pre_path_late_cycle = dict(late_result)
+                self._previous_qdot = (0.0,) * 6
+                return QualificationCommand(
+                    command_mode=CommandMode.BASELINE,
+                    qdot=(0.0,) * 6,
+                    internal_setpoint_n=self._setpoint_n,
+                    filtered_normal_n=filtered_normal_n,
+                    sticky_one_newton_latched=self._sticky_latched,
+                    canonical_phase="late_cycle",
+                    canonical_reason="pre_path_late_cycle_evidence_only",
+                    actual_dt_s=actual_dt_s,
+                    late_cycle=True,
+                    native_law_dt_s=native_law_dt_s,
+                )
+
+            if sensor.normal_load_n >= 0.8 or sensor.force_norm_n >= 1.0:
+                self._sticky_latched = 1
             tick_log = self._path_controller.step(
                 actual_dt_s=actual_dt_s,
                 raw_normal_n=sensor.normal_load_n,

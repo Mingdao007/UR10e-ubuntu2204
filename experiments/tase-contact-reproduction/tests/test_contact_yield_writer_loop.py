@@ -20,9 +20,9 @@ from test_contact_qualification_provider import _output, _sensor
 
 def exercise_writer_loop(tmp_path,monkeypatch, *, entry_aware=True, cached_at_end=False,
                          home_rotation=(0., 0., 0.), terminal_rotation=None,
-                         native_provider=False, writer_class=None):
-    clock=SimpleNamespace(t=0.,ticks=0,ended=False,cache_injected=False,previous=None)
-    transport=SimpleNamespace(send_packet=lambda *_args: None)
+                         native_provider=False, writer_class=None, late_baseline=False):
+    clock=SimpleNamespace(t=0.,ticks=0,ended=False,cache_injected=False,previous=None,sent=[])
+    transport=SimpleNamespace(send_packet=lambda *args: clock.sent.append(args))
     provider=SimpleNamespace(execution_command=lambda **_kw:None,last_result=None,
         runtime=SimpleNamespace(anchor=np.zeros(3),basis=np.eye(3),controller=SimpleNamespace(task=Task())))
     if native_provider:
@@ -42,6 +42,19 @@ def exercise_writer_loop(tmp_path,monkeypatch, *, entry_aware=True, cached_at_en
         contact_command_provider=provider
         def __init__(self,*_a,**_kw):self.origin=None
         def step(self,*,output,sensor,monotonic_s,command_sequence):
+            if late_baseline and output.integer_echoes[26] == 21:
+                return QualificationCommand(
+                    CommandMode.BASELINE,
+                    (0.,) * 6,
+                    3.0,
+                    4.5,
+                    1,
+                    'late_cycle',
+                    'pre_path_late_cycle_evidence_only',
+                    actual_dt_s=.0115,
+                    late_cycle=True,
+                    native_law_dt_s=.002,
+                )
             if output.integer_echoes[26]==25:
                 if self.origin is None:self.origin=monotonic_s
                 phase,t=(YieldContactProvider.execution_phase(monotonic_s-self.origin) if entry_aware
@@ -114,3 +127,20 @@ def test_real_writer_excludes_entry_echoes_and_keeps_complete_formal_period(tmp_
     assert samples[0].observed_at_s>=1.
     assert samples[-1].path_time_s>62.82
     assert 63.83<clock.t<63.85
+
+
+def test_writer_sends_the_late_cycle_zero_baseline_packet(tmp_path, monkeypatch):
+    _evidence, _samples, clock = exercise_writer_loop(
+        tmp_path, monkeypatch, late_baseline=True
+    )
+    qualification_packets = [
+        (double_values, integer_values)
+        for double_values, integer_values in clock.sent
+        if integer_values[1] == int(CommandMode.BASELINE)
+    ]
+    assert qualification_packets
+    assert any(
+        all(abs(value) <= 1e-12 for value in double_values[13:19])
+        and double_values[20] == pytest.approx(3.0)
+        for double_values, _integer_values in qualification_packets
+    )

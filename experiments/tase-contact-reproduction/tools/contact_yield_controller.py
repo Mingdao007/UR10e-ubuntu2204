@@ -308,6 +308,45 @@ class YieldController:
             raise YieldControllerError("sample clock must advance by the actual dt")
         self.last_time_s = sample
 
+    def hold_pre_path_late_cycle(
+        self, *, time_s: float, dt_s: float, max_elapsed_s: float
+    ) -> None:
+        """Record one bounded pre-PATH late cycle without running the law.
+
+        The elapsed interval is real receive/dispatch time.  This seam only
+        advances the controller's sample clock, so the next admitted 2 ms
+        sample cannot replay an old timestamp while no filter, estimator,
+        integral, native law, or QP state is advanced by the late interval.
+        """
+        sample = finite_scalar(time_s, "time_s")
+        elapsed = finite_scalar(dt_s, "dt")
+        maximum = finite_scalar(max_elapsed_s, "max_elapsed_s")
+        if maximum <= 0.004:
+            raise YieldControllerError("late-cycle bound must exceed the native 4ms law bound")
+        if not 0.0 < elapsed < maximum:
+            raise YieldControllerError("late pre-PATH cycle is outside its bounded evidence interval")
+        if sample < 0.0:
+            raise YieldControllerError("invalid sample clock")
+        if self.last_path_time_s is not None:
+            raise YieldControllerError("active path cannot accept a pre-PATH late cycle")
+        if self.last_time_s is None:
+            return
+        if not math.isclose(sample, self.last_time_s + elapsed, rel_tol=0.0, abs_tol=1e-12):
+            raise YieldControllerError("sample clock must advance by the actual late dt")
+        self.last_time_s = sample
+
+    def validate_geometric_latency(self, age_s: float) -> None:
+        """Apply the same geometric-latency bound used by a normal law tick."""
+        age = finite_scalar(age_s, "state_age_s")
+        if age < 0.0:
+            raise YieldControllerError("invalid observation age")
+        relative_speed = (
+            self.settings.tangent_speed_cap_m_s
+            + float(self.task.sanity()["speed_upper_bound_m_s"])
+        )
+        if (age + self.settings.latency_extra_s) * relative_speed > self.settings.latency_error_bound_m:
+            raise YieldControllerError("geometric latency uncertainty exceeds 0.001 m bound")
+
     def step(self, observation: Mapping[str, Any], reference: Mapping[str, Any], dt: float) -> dict[str, Any]:
         dt_s = finite_scalar(dt, "dt")
         if not 0.0 < dt_s <= 0.004:
@@ -357,12 +396,7 @@ class YieldController:
         age_band = classify_sensor_age(age_s)
         if age_band == "stale":
             raise YieldControllerError("stale observation at 80ms")
-        relative_speed = (
-            self.settings.tangent_speed_cap_m_s
-            + float(self.task.sanity()["speed_upper_bound_m_s"])
-        )
-        if (age_s + self.settings.latency_extra_s) * relative_speed > self.settings.latency_error_bound_m:
-            raise YieldControllerError("geometric latency uncertainty exceeds 0.001 m bound")
+        self.validate_geometric_latency(age_s)
         position = finite_vector3(observation["position_m"], "position_m")
         rotation = require_rotation(observation["rotation"], "rotation")
         raw_force = finite_vector3(observation["raw_force_base_n"], "raw_force_base_n")

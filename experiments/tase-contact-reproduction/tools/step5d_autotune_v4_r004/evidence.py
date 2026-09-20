@@ -453,6 +453,9 @@ class QualificationSample:
     state: int
     command_mode: int
     sticky_one_newton_latched: int
+    actual_dt_s: float | None = None
+    late_cycle: bool = False
+    native_law_dt_s: float | None = None
 
     def __post_init__(self) -> None:
         values = (self.observed_at_s, self.filtered_normal_n, self.internal_setpoint_n)
@@ -464,6 +467,20 @@ class QualificationSample:
             raise EvidenceError("qualification sample flags are not typed")
         if self.command_mode not in {0, 1, 3} or self.sticky_one_newton_latched not in {0, 1}:
             raise EvidenceError("qualification wire state is invalid")
+        if self.actual_dt_s is not None:
+            if not math.isfinite(float(self.actual_dt_s)) or not 0.0 < float(self.actual_dt_s) < 0.080:
+                raise EvidenceError("qualification actual dt is invalid")
+        if not isinstance(self.late_cycle, bool):
+            raise EvidenceError("qualification late-cycle flag is not typed")
+        if self.late_cycle and (
+            self.actual_dt_s is None or float(self.actual_dt_s) <= 0.004
+        ):
+            raise EvidenceError("qualification late-cycle sample lacks a late interval")
+        if self.native_law_dt_s is not None:
+            if not math.isfinite(float(self.native_law_dt_s)) or float(self.native_law_dt_s) <= 0.0:
+                raise EvidenceError("qualification native law dt is invalid")
+        if self.late_cycle and self.native_law_dt_s is None:
+            raise EvidenceError("qualification late-cycle sample lacks native law dt")
 
 
 @dataclass(frozen=True)
@@ -594,6 +611,15 @@ class QualificationEvidenceCollector:
             "timing_gate_passed": timing_gate,
             "setpoint_min_n": min(sample.internal_setpoint_n for sample in baseline_samples),
             "setpoint_max_n": max(sample.internal_setpoint_n for sample in baseline_samples),
+            "late_cycle_samples": sum(1 for sample in self._samples if sample.late_cycle),
+            "late_cycle_max_dt_s": max(
+                (float(sample.actual_dt_s) for sample in self._samples if sample.late_cycle and sample.actual_dt_s is not None),
+                default=None,
+            ),
+            "late_cycle_native_law_dt_s": max(
+                (float(sample.native_law_dt_s) for sample in self._samples if sample.late_cycle and sample.native_law_dt_s is not None),
+                default=None,
+            ),
         }
         if timing_evidence is not None:
             metrics["timing_evidence"] = timing_evidence.as_dict()

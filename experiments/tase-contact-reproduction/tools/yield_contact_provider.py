@@ -13,6 +13,7 @@ import numpy as np
 
 from contact_benchmark_protocol import disturbance, ENTRY_DURATION_S
 from contact_yield_protocol import PATH_SEAM_CONTINUATION_S, PERIOD_S
+from yield_contact_runtime import PRE_PATH_LATE_CYCLE_MAX_S
 from contact_benchmark_provider import ContactReadinessObserver, ContactForceObservation
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import CalibratedCommand
@@ -127,9 +128,21 @@ class YieldContactProvider:
         omega = self.runtime.orientation_error_rad(rotvec_to_matrix(pose[3:]))
         return tuple(float(-value) for value in task_error[:2]), omega
 
-    def _observation(self, output, sensor, monotonic_s, actual_dt_s):
-        if not math.isfinite(actual_dt_s) or not 0 < actual_dt_s <= .004:
-            raise ValueError("actual dt outside (0,4ms]")
+    def _observation(
+        self,
+        output,
+        sensor,
+        monotonic_s,
+        actual_dt_s,
+        *,
+        max_dt_s=.004,
+        strict_dt_upper=False,
+    ):
+        maximum = float(max_dt_s)
+        within_upper = actual_dt_s < maximum if strict_dt_upper else actual_dt_s <= maximum
+        if not math.isfinite(actual_dt_s) or not math.isfinite(maximum) or not 0 < actual_dt_s or not within_upper:
+            bracket = '(0,{:.0f}ms)'.format(maximum * 1000.0) if strict_dt_upper else '(0,{:.0f}ms]'.format(maximum * 1000.0)
+            raise ValueError(f"actual dt outside {bracket}")
         if self.runtime.last_sample_s is None and not math.isclose(
             actual_dt_s, self.runtime.controller.dt_s, rel_tol=0, abs_tol=1e-12
         ):
@@ -168,6 +181,28 @@ class YieldContactProvider:
             sample_time_s=monotonic_s,
             reason=reason,
         )
+        return self.last_pause
+
+    def hold_pre_path_late_cycle(self, *, output, sensor, monotonic_s, actual_dt_s, reason):
+        """Pass a measured late pre-PATH tick to the evidence-only runtime seam."""
+        robot = self._observation(
+            output,
+            sensor,
+            monotonic_s,
+            actual_dt_s,
+            max_dt_s=PRE_PATH_LATE_CYCLE_MAX_S,
+            strict_dt_upper=True,
+        )
+        self.last_pause = self.runtime.hold_pre_path_late_cycle(
+            robot=robot,
+            wrench_tcp=sensor.wrench,
+            sensor_observed_at_s=sensor.observed_at_s,
+            sample_time_s=monotonic_s,
+            reason=reason,
+        )
+        filtered = self.lifecycle_observer.filtered_normal_n
+        if filtered is not None:
+            self.last_pause["filtered_normal_n"] = float(filtered)
         return self.last_pause
 
     def command(

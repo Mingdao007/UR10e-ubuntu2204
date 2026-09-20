@@ -1744,6 +1744,9 @@ class LiveR004Writer:
                             state=state,
                             command_mode=int(mode),
                             sticky_one_newton_latched=self._sticky_latched,
+                            actual_dt_s=command.actual_dt_s,
+                            late_cycle=command.late_cycle,
+                            native_law_dt_s=command.native_law_dt_s,
                         )
                     )
                     # Qualification's host-driven closed loop is state 21.
