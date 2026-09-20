@@ -63,8 +63,12 @@ def prepare(run_dir, method):
             video.start(); rtde.open(); sensor.open()
             started = time.monotonic()
             last_sensor = None
+            latest_output = None
             while time.monotonic()-started < 10.:
-                output = rtde.poll_output(wait_s=.004)
+                fresh_output = rtde.poll_output(wait_s=.004)
+                if fresh_output is not None:
+                    latest_output = fresh_output
+                output = latest_output  # Keep its real receive timestamp.
                 wrench, received = sensor.poll()
                 now = time.monotonic()
                 video.check()
