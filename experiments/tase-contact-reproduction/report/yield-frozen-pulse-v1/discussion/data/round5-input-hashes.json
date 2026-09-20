@@ -1,0 +1,297 @@
+{
+ "report_inputs": [
+  {
+   "path": "report/contact-yield-recovery-20260920/README.md",
+   "sha256": "c5d643d02da543e089b91d3c0759dc6561677c0b74db3737e905eb387b5739e4"
+  },
+  {
+   "path": "report/contact-yield-recovery-20260920/advancement.json",
+   "sha256": "29bcbe582cc155c3b10f83bce573170f6d1c51f2ffe666120b027a2fd130051a"
+  },
+  {
+   "path": "report/yield-normal-v3/discussion/fable-round4.md",
+   "sha256": "e91bdbd1673ef0463b9cd48094cf37374b686568fd4c1c4d54bbc70b844be431"
+  },
+  {
+   "path": "report/yield-normal-v3/discussion/main-adjudication.md",
+   "sha256": "5a549643d4585a67a282f72081f63f39a3c023f603788ee24fecf8c40d1959e2"
+  },
+  {
+   "path": "report/yield-normal-v3/discussion/main-verification.json",
+   "sha256": "9bd96954da292efebedcbcfb989976599ccf72e002725ff3007d0d378534eb38"
+  },
+  {
+   "path": "report/yield-normal-v3/discussion/scripts/extract_ticks_v3.py",
+   "sha256": "360528fab20971155d8932b849364a143a2e7cbac0ffd635756f65674262f13e"
+  },
+  {
+   "path": "report/yield-observer-transfer-v1/README.md",
+   "sha256": "83a65f7aa9392f6f74af10cad6a239ce5ec3436ba1f1df8c906b4c5879cc13f7"
+  },
+  {
+   "path": "report/yield-observer-transfer-v1/results.md",
+   "sha256": "267ff4449e03013337007c5ee30ffbe165bf575627a908744d47d360c6824bd2"
+  },
+  {
+   "path": "report/yield-observer-transfer-v1/validation.md",
+   "sha256": "487ec7a739318bf509bced3148c26ffe3fba250474abdfddbfe7042c99c92607"
+  },
+  {
+   "path": "report/yield-observer-transfer-v1/results.json",
+   "sha256": "ff3464febdd9b81338cb412ca86f8527ba49216dc9017f6334a34232005b8cf9"
+  },
+  {
+   "path": "report/yield-discretization-v1/README.md",
+   "sha256": "2e8805539f625bda0aee8da920f9496c6817c30dcee091a84a1bc9cdbd77de9d"
+  },
+  {
+   "path": "report/yield-discretization-v1/results.md",
+   "sha256": "79c2e153893a234703ae9a8ccc06e722e7e32d61661cf3c26ca971b5cf817518"
+  },
+  {
+   "path": "report/yield-discretization-v1/recovery-leak-check.json",
+   "sha256": "e38ca59ebec55840db3598796a7e7378a82486ba49cb4b940a54b12c589fae30"
+  },
+  {
+   "path": "report/yield-discretization-v1/results.json",
+   "sha256": "f84b5594cd35a89d4f1a8e160864a6f94a0d5269780736479f6166b5fab31bed"
+  },
+  {
+   "path": "report/yield-frozen-transfer-v1/README.md",
+   "sha256": "458920f2926f17c2f05ff29aac195537d73a00db143baad34cff3dd7f20eedf7"
+  },
+  {
+   "path": "report/yield-frozen-transfer-v1/results.md",
+   "sha256": "235c750156909fb76a820500ec045b4be13ca8084ba4a570ba1d0d0dc85e97f1"
+  },
+  {
+   "path": "report/yield-frozen-transfer-v1/results.json",
+   "sha256": "74f226dd97ae1aac72757d13c65c89ebeba3a2615895731225476400eecb4dd8"
+  },
+  {
+   "path": "report/yield-frozen-transfer-v1/protocol.json",
+   "sha256": "36cfc820f73b74c12f86ac42011ec0c429c3b83050176178a37e634739ff0290"
+  },
+  {
+   "path": "report/yield-frozen-transfer-v1/msfc-replay.json",
+   "sha256": "cf2b19d83b16a6adabee19626f5b59228630674bc434df3686a577741031a85f"
+  },
+  {
+   "path": "report/yield-frozen-transfer-v1/manifest.json",
+   "sha256": "3f0e8d088ecbf1384c4b08be17cdf53d6a26552497bde2c9fe593a7a0b8a43b9"
+  },
+  {
+   "path": "report/yield-frozen-transfer-v1/start.json",
+   "sha256": "e715d2cef1a263da702b05ef13d29d440075126ec4a273bf4e87e9d9d4d3630d"
+  },
+  {
+   "path": "report/yield-frozen-memory-v1/README.md",
+   "sha256": "6fe33c6da799f68bb0d4425b991b8fb928b19b0e1b1a9d16d9155aa88757adc0"
+  },
+  {
+   "path": "report/yield-frozen-memory-v1/results.md",
+   "sha256": "28eba82007bd0db9b70931787e86dc58d5aea7ee259992d5d2b295cec1282304"
+  },
+  {
+   "path": "report/yield-frozen-memory-v1/results.json",
+   "sha256": "897d5cb50e08a1bf8898e88d7c3bbd8cfcf9acbea3ba5a3f840a0d85295442b7"
+  },
+  {
+   "path": "report/yield-frozen-memory-v1/protocol.json",
+   "sha256": "20b1e33e7a68e2c7b7a41699ced5c78ad21b49ffa07991130b028dbaa7f41604"
+  },
+  {
+   "path": "report/yield-frozen-memory-v1-initial-check/README.md",
+   "sha256": "e8ca698281526ca77746774bde35253dc656a1c431e8b83e92fc2051f75a8392"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/README.md",
+   "sha256": "1bbdd3beafa947bfe79a45c1daefef2136aa415f66d11e8fe9e79a7917797415"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/results.md",
+   "sha256": "79b8803dcafafe7f25f2e6fd48791c7ba59cb3c469f8c478121c23364935d72e"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/results.json",
+   "sha256": "4faafb4c56af0a2a299393ba5500e6560912b6d97248ef278bf204f7db5113fc"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/protocol.json",
+   "sha256": "eff1587fee05336ab9802a3bb0af72bb5d8a160cd3c7097012424639027d5b9c"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/observer-parameter-check.json",
+   "sha256": "1afe7d183e43df835c5226998a73f39b72ce27e85b1101da857f6c113586c9c2"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/parallel_run_manifest.json",
+   "sha256": "5577dfd987e1e9ac9f0d8114dc13f144fa34c1a80b68e6620ff56734db5194c1"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/refinement/README.md",
+   "sha256": "dc1269324dae3324a8cfe8118eb6131e7ae48e89f3f185d4855cb29b34eb11ce"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/refinement/results.json",
+   "sha256": "67588957a2190e1b1627d22fcd1bb0dd3bd44f12be7fa4600ef02e91fa2e1811"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/refinement/protocol.json",
+   "sha256": "3ea549312068a2c14c84d816d61ed425173e47ff0e279ce2071077b7c46260af"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/refinement/validation.json",
+   "sha256": "06ed7431cad3e77270f0adb00638d4fe3f8bd86764a489629209666daf9694b2"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/refinement/parallel_run_manifest.json",
+   "sha256": "3f895bb3f81461aa205135cb243509f949149549b154283ce898f69c7b3ebb36"
+  },
+  {
+   "path": "report/yield-frozen-pulse-v1/refinement/start.json",
+   "sha256": "4cf637e11a25c546e136b454e4df7c22904acbd49f156e6fd353e181895c6829"
+  },
+  {
+   "path": "report/yield-gain-memory-v1/README.md",
+   "sha256": "833aab647a245d1ec26f223e0ebb8f794f44ca70972f3914faeb885729f04fd3"
+  },
+  {
+   "path": "report/yield-gain-memory-v1/results.md",
+   "sha256": "89c88ecbc269dded84d0ce2cfac02748044a4dee5a32078772e49c6fc956ace1"
+  },
+  {
+   "path": "report/yield-gain-memory-v1/mechanism-hypothesis.md",
+   "sha256": "722b579c962079ea01088b60947aca3461ca1e5aa6fad015cc859f5e6768c86d"
+  },
+  {
+   "path": "report/yield-gain-memory-v1/memory-activation.json",
+   "sha256": "1c1563e55d7ada1aba2699df4dced4294b399be41531f85fd7255d158f3dbd89"
+  },
+  {
+   "path": "report/yield-gain-memory-v1/summary.json",
+   "sha256": "a9bf8ddf80d46a9055beade520bb7523a64741b3216d547115b6c9e810b4203a"
+  },
+  {
+   "path": "report/yield-gain-memory-v1/discussion/main-adjudication.md",
+   "sha256": "0e26315c63528a9f367ca16b859d87472cb5bdffbeae0087b143012cd520d37d"
+  },
+  {
+   "path": "report/yield-transfer-v1/README.md",
+   "sha256": "e1c3f420d832abf60cf199563bee7f1e82753f5a065f2812e6a3d37c598f2455"
+  },
+  {
+   "path": "report/yield-transfer-v1/results.md",
+   "sha256": "e9fc14ec229d0c46e260ac26fabefb6120e251e77470bd2c3279b2e63584c5bb"
+  },
+  {
+   "path": "report/yield-observer-identifiability-v1/README.md",
+   "sha256": "9fa12d3010ab1199724361766575c86c2056097c358fbbc2e735d168250578fa"
+  },
+  {
+   "path": "report/yield-observer-coupling-v1/README.md",
+   "sha256": "ecb8c1718aa8962a96884de39901560da91b14572fce346d715ea6ea2896e345"
+  },
+  {
+   "path": "report/yield-surface-excitation-v1/README.md",
+   "sha256": "4b3b18585686622f61afb1de77b9b045dcaf2b4239bef975c1d416d7b338349e"
+  },
+  {
+   "path": "report/yield-platform-preflight-v2/README.md",
+   "sha256": "12edb8f0b4709bba0ca2d7ee1d15514587f6bdcec1394ecf3b0aa0c0100baf4a"
+  },
+  {
+   "path": "report/yield-provider-integration-v1/README.md",
+   "sha256": "b6130d1c451b1c87ffdbce707ebe9b4add05d94bbd696c69961ea5620ac0a9e8"
+  },
+  {
+   "path": "runs/yield-gain-memory-v1/protocol.json",
+   "sha256": "50738dd775866c2c6e60638c4a33a0c882eff254a30d5af48d9e31cfa33e18bb"
+  },
+  {
+   "path": "runs/yield-frozen-pulse-v1-check/results.json",
+   "sha256": "67588957a2190e1b1627d22fcd1bb0dd3bd44f12be7fa4600ef02e91fa2e1811"
+  },
+  {
+   "path": "config/contact_yield_candidates/sfc.json",
+   "sha256": "60a678a94cf10f5b60ab83a9ea03003e05071317df00e9178f4ba9940e7420e7"
+  },
+  {
+   "path": "config/contact_yield_candidates/dsfc.json",
+   "sha256": "7b2419a1e20c4c0c1fa6f081461627814c9385c2c15a958ee45688fb3bbae5fd"
+  },
+  {
+   "path": "config/contact_yield_candidates/msfc.json",
+   "sha256": "a72ef1efee2c5a514eac8deb3dbfdfcd640048197b25891a8dd0b60998e0e25c"
+  },
+  {
+   "path": "config/contact_yield_candidates/manifest.json",
+   "sha256": "0f114c023b0e13c3289e871a8d5871dd0e4eb9fe18c28760bb9400705121f22e"
+  },
+  {
+   "path": "build/contact-six-laws/contact-laws-733c419baa0884b8859255d4/provenance.json",
+   "sha256": "f9b2a5acfc71e1fcc234b2d90b9db7e0dec5adf88062b68a3d63c09777abe306"
+  }
+ ],
+ "tool_inputs": [
+  {
+   "path": "tools/contact_yield_laws.py",
+   "sha256": "77c58e226d40d996394a4138b9f980abe50595e0f38eb43d8ebed3c209d1580c"
+  },
+  {
+   "path": "tools/contact_laws.py",
+   "sha256": "b660eab0863013fb8456d9b29757122dfdacdb46506329dd5cd71a1f315b1b19"
+  },
+  {
+   "path": "tools/contact_yield_protocol.py",
+   "sha256": "40c959548c56eac474775fee21627944f799c06516f31cd9c6c77cd2a8197475"
+  },
+  {
+   "path": "tools/contact_yield_metrics.py",
+   "sha256": "ac1064303707f48099127e39b3ef0b7ae259a8d7c27203cb37e1000fa6643364"
+  },
+  {
+   "path": "tools/contact_yield_simulator.py",
+   "sha256": "36b9123ad280114a7d988deeda269d6722cb6ebdef3c692a7bde2d3f773023b4"
+  },
+  {
+   "path": "tools/build_contact_laws.py",
+   "sha256": "52a13124b37efae2f6b2435de5ac18c7c479a5548ce5e2a84506f37a50c72792"
+  },
+  {
+   "path": "tools/study_yield_frozen_pulse_v1.py",
+   "sha256": "623c6c8ac5a188a3b7248260455ee6885e77b4f2cdc8f30b2f950630925897a6"
+  }
+ ],
+ "native_sources_read": [
+  {
+   "path": "/home/andy/.codex-worktrees/smysfc-tro-ubuntu-followup-20260906/cpp/controller_suite/native_seven_laws.cpp",
+   "sha256": "5a63d33de7e0ef51ca2ac177e843e68193e5d8a4826d25cba4720b4f11292bcf"
+  },
+  {
+   "path": "/home/andy/.codex-worktrees/smysfc-tro-ubuntu-followup-20260906/cpp/controller_suite/native_seven_laws.hpp",
+   "sha256": "5ebc768e83153e98cea5a50b1d7868408794e0dcf9eca723f5865bac6f88e562"
+  },
+  {
+   "path": "/home/andy/.codex-worktrees/smysfc-tro-ubuntu-followup-20260906/cpp/controller_suite/controller_suite.cpp",
+   "sha256": "105f3cc3903eedeb7ea31a3b8b4df915a2fe5eb568d813e4f8ae7514d5b6d9e8"
+  },
+  {
+   "path": "/home/andy/.codex-worktrees/smysfc-tro-ubuntu-followup-20260906/cpp/controller_suite/controller_suite.hpp",
+   "sha256": "1451725e0b8c8e9096cf7a9a654caa4f9fb064f7250547ccd8148d7769fb4b4f"
+  }
+ ],
+ "native_build_fingerprint_in_receipts": "733c419baa0884b8859255d469c9e3bd415d1d2cc295db2d2dd9982288ffc912",
+ "native_sources_match_receipt_provenance": true,
+ "identity_vs_b7008df4": {
+  "checked": 61,
+  "differ": [],
+  "not_tracked": [
+   "report/yield-platform-preflight-v2/README.md",
+   "runs/yield-gain-memory-v1/protocol.json",
+   "runs/yield-frozen-pulse-v1-check/results.json",
+   "build/contact-six-laws/contact-laws-733c419baa0884b8859255d4/provenance.json"
+  ],
+  "head_at_receipt": "b84004ab95752050b219557daa7a3d459dfd0c64"
+ }
+}

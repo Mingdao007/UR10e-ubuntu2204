@@ -1,0 +1,142 @@
+[
+  {
+    "path": "runs/yield-full-writer-v1/DSFC-gc.json",
+    "bytes": 696,
+    "sha256": "050efc1df1754a8934899164d00c949b5e2759c279a88b9854919a70f6fb57ad"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/DSFC-loop-cpu-ns.npy",
+    "bytes": 255488,
+    "sha256": "c47470e5a923471f2eee7b12bccc0c5002e13b9de7f13931b9defbe3d7b59d5f"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/DSFC-loop-kinds.json",
+    "bytes": 702249,
+    "sha256": "fa14f0e5a0e54fe26e94662ac78a1643a0e74983b8807378c572e9a694405771"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/DSFC-loop-wall-ns.npy",
+    "bytes": 255488,
+    "sha256": "7e776583a9f910fb9fe0270dceaf66914a08a593013c6daa413b7bb37cbdb7fc"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/DSFC-native-cpu-ns.npy",
+    "bytes": 255464,
+    "sha256": "ca46dfa9004d800c4e2132bbab3ec778e7885b7620b3054d1f64b99c99f86dbc"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/DSFC-native-wall-ns.npy",
+    "bytes": 255464,
+    "sha256": "438170c7b0608e5e85dd593a87f9b7a39f407e2e4d0ec15fdfd0fad85a3c28eb"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/DSFC-qualification-cpu-ns.npy",
+    "bytes": 255464,
+    "sha256": "b9e33d524580b6130939c39780afbd2a464aee0fc6ca9c8f0cef61fb3fbc84ad"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/DSFC-qualification-wall-ns.npy",
+    "bytes": 255464,
+    "sha256": "71415cafac72b60f7bf6cbf509cf495e573a693fd518d31d6e69ab0988ece6f3"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/MSFC-gc.json",
+    "bytes": 696,
+    "sha256": "c9b4c98be0a3d870fde1e5cc42eb2895059e8bcd0b55ce8b14c0bd5d6336d027"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/MSFC-loop-cpu-ns.npy",
+    "bytes": 255488,
+    "sha256": "52d9460f7511b0024e0efb3ddd25b10956478435e3988e83ca1dd78c2d3b75f3"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/MSFC-loop-kinds.json",
+    "bytes": 702249,
+    "sha256": "fa14f0e5a0e54fe26e94662ac78a1643a0e74983b8807378c572e9a694405771"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/MSFC-loop-wall-ns.npy",
+    "bytes": 255488,
+    "sha256": "9d76ff720fb4f7fd041a5f74e3be15c40d0e648600361a1b88e67f6510ac9417"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/MSFC-native-cpu-ns.npy",
+    "bytes": 255464,
+    "sha256": "d0bbe04c90ee5a48377d5a4175631d19194339d308690ff608a1f7e0df56976c"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/MSFC-native-wall-ns.npy",
+    "bytes": 255464,
+    "sha256": "67f9134f7a262ac010c94f2fbdb1b6bffe2b6a587cec5382034249c0ac5325cb"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/MSFC-qualification-cpu-ns.npy",
+    "bytes": 255464,
+    "sha256": "648e1fceb73f24d891fa4a231505b0d1e1d929bfc3412047c84fde2842aa76e0"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/MSFC-qualification-wall-ns.npy",
+    "bytes": 255464,
+    "sha256": "ad3e6834bb2939ca0697678520ee126cdb2bb9f221bb159ecd021df8f12f5698"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/SFC-gc.json",
+    "bytes": 1030,
+    "sha256": "a0074c328c4f8b1305d34847fbec118d74391aebbcaa7e27dd6c4b7457bc2d9a"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/SFC-loop-cpu-ns.npy",
+    "bytes": 255488,
+    "sha256": "1c2d78ec00818ef17b75ac1c463aceb1d422eab9710aa25ef2045622c83b5116"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/SFC-loop-kinds.json",
+    "bytes": 702249,
+    "sha256": "fa14f0e5a0e54fe26e94662ac78a1643a0e74983b8807378c572e9a694405771"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/SFC-loop-wall-ns.npy",
+    "bytes": 255488,
+    "sha256": "a9c8c4b04c23da3dba260b2bd4291d3bc8182c23139d59316f142f5290698bb5"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/SFC-native-cpu-ns.npy",
+    "bytes": 255464,
+    "sha256": "ee53c60a982b29bae8fd04535e24522b657f9756fcc5c774f353459aa41abe42"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/SFC-native-wall-ns.npy",
+    "bytes": 255464,
+    "sha256": "9e1898a18dd6e4c74546d6e7f2325a1c319da85ae0705548bcf0426db5bb6ca3"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/SFC-qualification-cpu-ns.npy",
+    "bytes": 255464,
+    "sha256": "8d3de9f04bd3548c2a740a2474652859a5c5c6ae899a24e705575d0f9d343da3"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/SFC-qualification-wall-ns.npy",
+    "bytes": 255464,
+    "sha256": "8dd8a9f509a24831072d7d0f312df7757eac798492e46cf609606f5d4f77141f"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/bindings.json",
+    "bytes": 1780,
+    "sha256": "a8540eb7d23adc6bf1ec70045358117bfc9628db258f5e53926cdfc95ca618e9"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/parallel_run_manifest.json",
+    "bytes": 699,
+    "sha256": "feef046b311adf20097e0fd757169f342ddd36b78b49320a8680e12bbc4a034b"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/results.json",
+    "bytes": 28263,
+    "sha256": "d7f3987b4ae73c94abc3fa77b6bfb0cc038d2f61aacbb4a0f7f8ba7d88100ff7"
+  },
+  {
+    "path": "runs/yield-full-writer-v1/start.json",
+    "bytes": 649,
+    "sha256": "28ffe69286666290fec34bc708e03fcfc422401c9c3b454a77f6df717de471aa"
+  }
+]

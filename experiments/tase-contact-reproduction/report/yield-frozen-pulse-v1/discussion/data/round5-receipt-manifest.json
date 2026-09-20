@@ -1,0 +1,278 @@
+{
+ "head": "b7008df419e201e1527ea058e78c36e85f6825fa",
+ "receipts": [
+  {
+   "path": "runs/yield-discretization-v1/dt-0.001-substeps-4.json.gz",
+   "expected_sha256": "f9034aa912e0347a265f9c1442804a506ba9874d50f7409f4aabeb32deb87b59",
+   "actual_sha256": "f9034aa912e0347a265f9c1442804a506ba9874d50f7409f4aabeb32deb87b59",
+   "match": true,
+   "declared_in": "DC-v1 results.json"
+  },
+  {
+   "path": "runs/yield-discretization-v1/dt-0.002-substeps-16.json.gz",
+   "expected_sha256": "ff05c6dcea08c73841b069ccbf05cbb9249ca966323f7ddda3b7d93c5ae097d2",
+   "actual_sha256": "ff05c6dcea08c73841b069ccbf05cbb9249ca966323f7ddda3b7d93c5ae097d2",
+   "match": true,
+   "declared_in": "DC-v1 results.json"
+  },
+  {
+   "path": "runs/yield-frozen-memory-v1/MSFC-nominal.json.gz",
+   "expected_sha256": "6d415aa1c394d3206b93c1fc80edd8750bc6db3efa5bd1a458c206863302cd13",
+   "actual_sha256": "6d415aa1c394d3206b93c1fc80edd8750bc6db3efa5bd1a458c206863302cd13",
+   "match": true,
+   "declared_in": "FM-v1 results.json"
+  },
+  {
+   "path": "runs/yield-frozen-memory-v1/MSFC-sustained_release_tangent.json.gz",
+   "expected_sha256": "a883afdf6b164c0ed8ab2383bfcd7c47f0004e97338de5961796ef5fceceed99",
+   "actual_sha256": "a883afdf6b164c0ed8ab2383bfcd7c47f0004e97338de5961796ef5fceceed99",
+   "match": true,
+   "declared_in": "FM-v1 results.json"
+  },
+  {
+   "path": "runs/yield-frozen-pulse-v1-check/MSFC-identity/nominal.json.gz",
+   "expected_sha256": "b429de054c5544f015547c10a5e40e57ea84d23b16726c169ba6daccbde72a2e",
+   "actual_sha256": "b429de054c5544f015547c10a5e40e57ea84d23b16726c169ba6daccbde72a2e",
+   "match": true,
+   "declared_in": "FP-v1 refinement validation.json"
+  },
+  {
+   "path": "runs/yield-frozen-pulse-v1-check/MSFC-identity/short_pulse_oblique.json.gz",
+   "expected_sha256": "5769d72f25e07fbaba23e60fddfb7389b60bc6c433780a6feb6c8cb705e6339d",
+   "actual_sha256": "5769d72f25e07fbaba23e60fddfb7389b60bc6c433780a6feb6c8cb705e6339d",
+   "match": true,
+   "declared_in": "FP-v1 refinement validation.json"
+  },
+  {
+   "path": "runs/yield-frozen-pulse-v1-check/MSFC/nominal.json.gz",
+   "expected_sha256": "6db73f5f915fbcf6e435482763125c1438676c32d9935f9e218290f91efad7cd",
+   "actual_sha256": "6db73f5f915fbcf6e435482763125c1438676c32d9935f9e218290f91efad7cd",
+   "match": true,
+   "declared_in": "FP-v1 refinement validation.json"
+  },
+  {
+   "path": "runs/yield-frozen-pulse-v1-check/MSFC/short_pulse_oblique.json.gz",
+   "expected_sha256": "c597127722ab32f0fe5e4fe0d6343afdfd19d9029703754ee3184b90fbaff1af",
+   "actual_sha256": "c597127722ab32f0fe5e4fe0d6343afdfd19d9029703754ee3184b90fbaff1af",
+   "match": true,
+   "declared_in": "FP-v1 refinement validation.json"
+  },
+  {
+   "path": "runs/yield-frozen-pulse-v1/DSFC/DSFC-short_pulse_oblique.json.gz",
+   "expected_sha256": "b8cfc3afe337dce7ed3c1a5cd0305e71730c0c61080174c30fbc38564a247333",
+   "actual_sha256": "b8cfc3afe337dce7ed3c1a5cd0305e71730c0c61080174c30fbc38564a247333",
+   "match": true,
+   "declared_in": "FP-v1 results.json"
+  },
+  {
+   "path": "runs/yield-frozen-pulse-v1/MSFC-identity/MSFC-short_pulse_oblique.json.gz",
+   "expected_sha256": "1f507fae4d44e463f23f6cbca36e45e860c0d1cbdbbd3f05135fc461f7865e57",
+   "actual_sha256": "1f507fae4d44e463f23f6cbca36e45e860c0d1cbdbbd3f05135fc461f7865e57",
+   "match": true,
+   "declared_in": "FP-v1 refinement validation.json"
+  },
+  {
+   "path": "runs/yield-frozen-pulse-v1/MSFC/MSFC-short_pulse_oblique.json.gz",
+   "expected_sha256": "b5ff75ba1ba6baab2e198b7606ded211caefe367673c3df9017a48d8feb12ab9",
+   "actual_sha256": "b5ff75ba1ba6baab2e198b7606ded211caefe367673c3df9017a48d8feb12ab9",
+   "match": true,
+   "declared_in": "FP-v1 refinement validation.json"
+  },
+  {
+   "path": "runs/yield-frozen-pulse-v1/SFC/SFC-short_pulse_oblique.json.gz",
+   "expected_sha256": "5944e27df2e6f628c4b547b955177c3fca852e36cd9d0b72fc20ed8ced710d3f",
+   "actual_sha256": "5944e27df2e6f628c4b547b955177c3fca852e36cd9d0b72fc20ed8ced710d3f",
+   "match": true,
+   "declared_in": "FP-v1 results.json"
+  },
+  {
+   "path": "runs/yield-frozen-transfer-v1/MSFC-nominal.json.gz",
+   "expected_sha256": "b953f4041fa44b6c325b638974d32486d2ff5856dfe9194d7d0dd9818839a2b3",
+   "actual_sha256": "b953f4041fa44b6c325b638974d32486d2ff5856dfe9194d7d0dd9818839a2b3",
+   "match": true,
+   "declared_in": "FM-v1 results.json"
+  },
+  {
+   "path": "runs/yield-frozen-transfer-v1/MSFC-sustained_release_tangent.json.gz",
+   "expected_sha256": "e764b57ab98a056ee0dd551a9ff63a11a47992b508029da4af62a6a943b99342",
+   "actual_sha256": "e764b57ab98a056ee0dd551a9ff63a11a47992b508029da4af62a6a943b99342",
+   "match": true,
+   "declared_in": "FM-v1 results.json"
+  },
+  {
+   "path": "runs/yield-frozen-transfer-v1/SFC-nominal.json.gz",
+   "expected_sha256": "4802cd3c4a5d2ae4ff3573c6ebbdb141f8e1dc53cc2c1b60308c34959a5ef7b3",
+   "actual_sha256": "4802cd3c4a5d2ae4ff3573c6ebbdb141f8e1dc53cc2c1b60308c34959a5ef7b3",
+   "match": true,
+   "declared_in": "FT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-frozen-transfer-v1/SFC-sustained_release_tangent.json.gz",
+   "expected_sha256": "c7c5d28b78051a480a3cde74304841c7da9697d027f43136956b781a75653fa7",
+   "actual_sha256": "c7c5d28b78051a480a3cde74304841c7da9697d027f43136956b781a75653fa7",
+   "match": true,
+   "declared_in": "FT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-gain-memory-v1/MSFC-GM-v1-g50-on-nominal-plant8.json.gz",
+   "expected_sha256": "6b1a330dc5274082f78801205f713108492d23fe8ba2d6903783790e6a3dc3d5",
+   "actual_sha256": "6b1a330dc5274082f78801205f713108492d23fe8ba2d6903783790e6a3dc3d5",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-gain-memory-v1/MSFC-GM-v1-g50-on-sustained_release_normal-plant8.json.gz",
+   "expected_sha256": "333f7852a6f1843aae0cb42f8275fc779feff13bece8afc2ef9e3de8c29f6234",
+   "actual_sha256": "333f7852a6f1843aae0cb42f8275fc779feff13bece8afc2ef9e3de8c29f6234",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-normal-v3/combined-mild-approach.json.gz",
+   "expected_sha256": "bed69746e5e12835dbc64b502c21677b992d3662dbbcf94cc3b733b5d9aeb706",
+   "actual_sha256": "bed69746e5e12835dbc64b502c21677b992d3662dbbcf94cc3b733b5d9aeb706",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-normal-v3/combined-normal-hold.json.gz",
+   "expected_sha256": "5fe0b6f04ca345c07e82c3cc1661cdc4fc4ad26ba653da1619e195029e9ff5b2",
+   "actual_sha256": "5fe0b6f04ca345c07e82c3cc1661cdc4fc4ad26ba653da1619e195029e9ff5b2",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-normal-v3/combined-tangent-hold.json.gz",
+   "expected_sha256": "e02b1820c1b85510efd1ff291b6f7f0fd898707a507c45717d5ff0210fae2d15",
+   "actual_sha256": "e02b1820c1b85510efd1ff291b6f7f0fd898707a507c45717d5ff0210fae2d15",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-normal-v3/frozen-tangent-hold.json.gz",
+   "expected_sha256": "a85285e1cc35169fca06a46f90cc21fbcc9c3727f62ba0a46c9b920c8c45b638",
+   "actual_sha256": "a85285e1cc35169fca06a46f90cc21fbcc9c3727f62ba0a46c9b920c8c45b638",
+   "match": true,
+   "declared_in": "FT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-observer-prior-v1/DSFC-stiff_low_mu-approach.json.gz",
+   "expected_sha256": "234fe77c39660394b4a98b45eb6e546b3ff6c99e4a056167523202d741718a21",
+   "actual_sha256": "234fe77c39660394b4a98b45eb6e546b3ff6c99e4a056167523202d741718a21",
+   "match": true,
+   "declared_in": "FT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-observer-transfer-v1-check/fine.json.gz",
+   "expected_sha256": "ea7edb173388033303b3b270396763eccdd02400c398b20d1c8c67d40401b238",
+   "actual_sha256": "ea7edb173388033303b3b270396763eccdd02400c398b20d1c8c67d40401b238",
+   "match": true,
+   "declared_in": "DC-v1 results.json"
+  },
+  {
+   "path": "runs/yield-observer-transfer-v1/MSFC-nominal.json.gz",
+   "expected_sha256": "8b490c06bc68a62f4773b01960361f4c30f0cfc63c49ebf4d2d5d9fb6d3e0609",
+   "actual_sha256": "8b490c06bc68a62f4773b01960361f4c30f0cfc63c49ebf4d2d5d9fb6d3e0609",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-observer-transfer-v1/MSFC-sustained_release_normal.json.gz",
+   "expected_sha256": "7079dae875ca1b1ac40cacfad833823d3ec9e9bd09b5bd15129e571001cdaabc",
+   "actual_sha256": "7079dae875ca1b1ac40cacfad833823d3ec9e9bd09b5bd15129e571001cdaabc",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-observer-transfer-v1/MSFC-sustained_release_tangent.json.gz",
+   "expected_sha256": "bbf2862bbc170e8501c4b25df39679240d483f7511310e466ac7727a6a0cbab6",
+   "actual_sha256": "bbf2862bbc170e8501c4b25df39679240d483f7511310e466ac7727a6a0cbab6",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-observer-transfer-v1/SFC-nominal.json.gz",
+   "expected_sha256": "2c786a2ad5208858d31576cd747929fe6671dc2ac6b6e336d8b6434b28d4a2ac",
+   "actual_sha256": "2c786a2ad5208858d31576cd747929fe6671dc2ac6b6e336d8b6434b28d4a2ac",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-observer-transfer-v1/SFC-sustained_release_normal.json.gz",
+   "expected_sha256": "ac695e5652561379d49568f6f07f1f563c0d14d27ba262fb19e75b937107a01f",
+   "actual_sha256": "ac695e5652561379d49568f6f07f1f563c0d14d27ba262fb19e75b937107a01f",
+   "match": true,
+   "declared_in": "DC-v1 results.json"
+  },
+  {
+   "path": "runs/yield-observer-transfer-v1/SFC-sustained_release_tangent.json.gz",
+   "expected_sha256": "53f7e2ef79c9b0c22bd9b45d4915b39612f77e2ba7dd1c11f6616464f9452da6",
+   "actual_sha256": "53f7e2ef79c9b0c22bd9b45d4915b39612f77e2ba7dd1c11f6616464f9452da6",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-offset-ablation/DSFC-nominal.json.gz",
+   "expected_sha256": "eadaddc8080ab312df2b70e349d228021aa2b39153c314598c99aba06e6d674c",
+   "actual_sha256": "eadaddc8080ab312df2b70e349d228021aa2b39153c314598c99aba06e6d674c",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-offset-ablation/DSFC-sustained_release_tangent.json.gz",
+   "expected_sha256": "41301e4be54a257037eebf30079c52dd3776790a173fa4fd08ea4104bfae4956",
+   "actual_sha256": "41301e4be54a257037eebf30079c52dd3776790a173fa4fd08ea4104bfae4956",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-offset-ablation/SFC-nominal.json.gz",
+   "expected_sha256": "042934b294bbf9efbedb823762708ef6253e7bd3b5ece25095e77067fdf00d52",
+   "actual_sha256": "042934b294bbf9efbedb823762708ef6253e7bd3b5ece25095e77067fdf00d52",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-offset-ablation/SFC-sustained_release_tangent.json.gz",
+   "expected_sha256": "a83ff0957f58a48770aa96dccaeb18753b91b52a9b58a3154c2251073803d802",
+   "actual_sha256": "a83ff0957f58a48770aa96dccaeb18753b91b52a9b58a3154c2251073803d802",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-transfer-v1/DSFC-stiff_low_mu-sustained_release_normal.json.gz",
+   "expected_sha256": "a99ed3a75efe54c571e2486a9285cc5041d215092aa3bf140dabf98171443b39",
+   "actual_sha256": "a99ed3a75efe54c571e2486a9285cc5041d215092aa3bf140dabf98171443b39",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-transfer-v1/MSFC-GM-v1-g50-on-stiff_low_mu-sustained_release_tangent.json.gz",
+   "expected_sha256": "15352e6fea2265a9d14fcf6b5c5ba490cc2177c7dcad860a73666a2da2586fd3",
+   "actual_sha256": "15352e6fea2265a9d14fcf6b5c5ba490cc2177c7dcad860a73666a2da2586fd3",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-transfer-v1/SFC-stiff_low_mu-sustained_release_normal.json.gz",
+   "expected_sha256": "074b12e3f86dab2b0530217e548b6f90a081424a09e590e64fd80600c15ee83b",
+   "actual_sha256": "074b12e3f86dab2b0530217e548b6f90a081424a09e590e64fd80600c15ee83b",
+   "match": true,
+   "declared_in": "OT-v1 results.json"
+  },
+  {
+   "path": "runs/yield-gain-memory-v1/MSFC-GM-v1-g50-identity_metric-nominal-plant8.json.gz",
+   "expected_sha256": "ebb2816e9058685616c259a857c3f85a44535d392087602701c22b53779d101b",
+   "actual_sha256": "ebb2816e9058685616c259a857c3f85a44535d392087602701c22b53779d101b",
+   "match": true,
+   "declared_in": "GM-v1 summary.json"
+  },
+  {
+   "path": "runs/yield-gain-memory-v1/MSFC-GM-v1-g50-identity_metric-sustained_release_normal-plant8.json.gz",
+   "expected_sha256": "a633cc5ab044d4c2ab3a23a75906b50a706a96a61b463b9973359db81ab351c0",
+   "actual_sha256": "a633cc5ab044d4c2ab3a23a75906b50a706a96a61b463b9973359db81ab351c0",
+   "match": true,
+   "declared_in": "GM-v1 summary.json"
+  }
+ ]
+}

@@ -1,0 +1,49 @@
+{
+  "protocol_sha256": "36cfc820f73b74c12f86ac42011ec0c429c3b83050176178a37e634739ff0290",
+  "methods": {
+    "SFC": {
+      "m": 4.0,
+      "mu": 393.0,
+      "n": 3.0,
+      "g": 0.052126826121414976
+    },
+    "DSFC": {
+      "m": 4.0,
+      "g": 0.0642,
+      "p": 0.5,
+      "a": 0.05,
+      "n": 3.0,
+      "mu": 310.66177089084647,
+      "max_iterations": 32.0,
+      "residual_tolerance_n": 1e-09,
+      "relative_radius_tolerance": 1e-10
+    },
+    "MSFC": {
+      "m": 4.0,
+      "g": 0.08583341909109758,
+      "p": 0.5,
+      "a": 0.05,
+      "n": 3.0,
+      "mu": 1228.1391393367705,
+      "force_scale_n": 2.1095928078033372,
+      "tau_force_s": 0.19236795686399732,
+      "tau_recovery_s": 0.20212720757006053,
+      "kappa_per_n2_s": 0.6334129092862626,
+      "max_iterations": 32.0,
+      "residual_tolerance_n": 1e-09,
+      "structure_tolerance": 1e-12,
+      "minimum_metric_eigenvalue": 0.026926929041248004
+    }
+  },
+  "production_runtime_deadline_s": 0.0015,
+  "offline_runtime_deadline_s": null,
+  "source_sha256": {
+    "yield_full_writer_offline.py": "2120a7874eaef66b4e79b14917a5f74e9bd98d0c9e0f1356d95aa6fbe5b75f50",
+    "measure_yield_full_writer.py": "d8041efc1e3373ad36540fde5c83533d523b645fafaebc9cb372ce9a07205b7d",
+    "yield_contact_provider.py": "bfbd6bd516fe829f660972b33ada4beb8cb40a01b8032491f7902cdb1542e892",
+    "yield_contact_runtime.py": "30810dd50aba2c424104722a66dccda42d6f5e6e58142de6497d1f6ec7f2a5b8",
+    "qualification.py": "22bf003ff264955f2fc431ddb4273ede94b0c463eddc462b3a3026ba5286ef90",
+    "step5d_autotune_v4_r004_live_writer.py": "b841a76dc543831ec4959f474b77f9bfdc4774e01efa07303c3cfdecb3808322"
+  },
+  "note": "MSFC uses FT-v1 g50, never the original protocol seed. Timing is host compute with fake logical clocks."
+}

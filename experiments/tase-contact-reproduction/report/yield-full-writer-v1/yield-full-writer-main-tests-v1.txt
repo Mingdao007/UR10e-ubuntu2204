@@ -1,0 +1,65 @@
+..F..F                                                                   [100%]
+=================================== FAILURES ===================================
+_ test_full_writer_binds_native_instance_qdot_phase_and_retains_formal_evidence[100.0] _
+
+tmp_path = PosixPath('/tmp/pytest-of-andy/pytest-67/test_full_writer_binds_native_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc677801210>
+lib = PosixPath('/tmp/pytest-of-andy/pytest-67/runtime-qp0/libcontact_qp.so')
+clock_origin_s = 100.0
+
+    @pytest.mark.parametrize('clock_origin_s',[0.0,100.0])
+    def test_full_writer_binds_native_instance_qdot_phase_and_retains_formal_evidence(tmp_path, monkeypatch, lib,clock_origin_s):
+        run = exercise_full_writer(tmp_path, monkeypatch, qp_library=lib, method="MSFC",clock_origin_s=clock_origin_s)
+>       assert run.error is None, run.error
+E       AssertionError: LiveWriterError('r004 path duration is 62.830000 s, below 62.8319 s (observed_span=62.828000, coverage_interval=0.0020..._norm_nm": 0.0}, "raw_max_n": 5.0, "raw_min_n": 5.0, "readiness_samples": 1, "samples": 1, "torque_norm_max_nm": 0.0}')
+E       assert LiveWriterError('r004 path duration is 62.830000 s, below 62.8319 s (observed_span=62.828000, coverage_interval=0.0020..._norm_nm": 0.0}, "raw_max_n": 5.0, "raw_min_n": 5.0, "readiness_samples": 1, "samples": 1, "torque_norm_max_nm": 0.0}') is None
+E        +  where LiveWriterError('r004 path duration is 62.830000 s, below 62.8319 s (observed_span=62.828000, coverage_interval=0.0020..._norm_nm": 0.0}, "raw_max_n": 5.0, "raw_min_n": 5.0, "readiness_samples": 1, "samples": 1, "torque_norm_max_nm": 0.0}') = FullWriterRun(method='MSFC', parameters={'m': 4.0, 'g': 0.08583341909109758, 'p': 0.5, 'a': 0.05, 'n': 3.0, 'mu': 1228...xisting writer GC policy; not formal timing qualification, IO latency, transport admission, or physical task evidence').error
+
+tests/test_contact_yield_full_writer.py:23: AssertionError
+____________ test_full_writer_hash_mismatch_rolls_back_native_state ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-andy/pytest-67/test_full_writer_hash_mismatch0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc66902f7c0>
+lib = PosixPath('/tmp/pytest-of-andy/pytest-67/runtime-qp0/libcontact_qp.so')
+
+    def test_full_writer_hash_mismatch_rolls_back_native_state(tmp_path, monkeypatch, lib):
+        run = exercise_full_writer(
+            tmp_path, monkeypatch, qp_library=lib, method="MSFC", hash_mismatch=True
+        )
+        assert run.error is not None
+        assert "hash binding differs" in str(run.error)
+        assert run.runtime.phase == "baseline"
+        assert run.provider.last_result["phase"] == "baseline"
+        assert run.phases == []
+        assert run.writer._qualification_control.contact_command_provider is run.provider
+>       assert_fault_stopped(run)
+
+tests/test_contact_yield_full_writer.py:106: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = FullWriterRun(method='MSFC', parameters={'m': 4.0, 'g': 0.08583341909109758, 'p': 0.5, 'a': 0.05, 'n': 3.0, 'mu': 1228...xisting writer GC policy; not formal timing qualification, IO latency, transport admission, or physical task evidence')
+
+    def assert_fault_stopped(run):
+        assert run.writer._failed_closed and run.writer._stopped
+        assert run.stop_packets and run.stop_packets[-1]['qdot']==(0.,)*6
+        assert run.stop_packets[-1]['sequence']==run.writer._last_writer_sequence
+>       assert run.before_fault is not None and run.final_snapshot==run.before_fault
+E       AssertionError: assert ({'last_result': {'actual_dt_s': 0.002, 'actual_tcp_speed_m_s_rad_s': (0.0, 0.0, 0.0, 0.0, 0.0, 0.0), 'age_band': 'fres...160ef363d455fb1416b07ab2022a3df60b800f5429ebf3de83', 'last_controller_timestamp': 0.0, 'last_entry_time_s': None, ...}} is not None and {'last_result...': None, ...}} == {'last_result...': None, ...}}
+E        +  where {'last_result': {'actual_dt_s': 0.002, 'actual_tcp_speed_m_s_rad_s': (0.0, 0.0, 0.0, 0.0, 0.0, 0.0), 'age_band': 'fres...160ef363d455fb1416b07ab2022a3df60b800f5429ebf3de83', 'last_controller_timestamp': 0.0, 'last_entry_time_s': None, ...}} = FullWriterRun(method='MSFC', parameters={'m': 4.0, 'g': 0.08583341909109758, 'p': 0.5, 'a': 0.05, 'n': 3.0, 'mu': 1228...xisting writer GC policy; not formal timing qualification, IO latency, transport admission, or physical task evidence').before_fault
+E         
+E         Omitting 1 identical items, use -vv to show
+E         Differing items:
+E         {'runtime': {'controller': {'filter': {'filtered_force_base_n': [1.2259503457865376e-15, -1.0407229247352042e-15, 4.99...0ef363d455fb1416b07ab2022a3df60b800f5429ebf3de83', 'last_controller_timestamp': 0.002, 'last_entry_time_s': None, ...}} != {'runtime': {'controller': {'filter': {'filtered_force_base_n': [1.2259503457865376e-15, -1.0407229247352042e-15, 4.99...160ef363d455fb1416b07ab2022a3df60b800f5429ebf3de83', 'last_controller_timestamp': 0.0, 'last_entry_time_s': None, ...}}
+E         Use -v to get more diff)
+
+tests/test_contact_yield_full_writer.py:62: AssertionError
+=============================== warnings summary ===============================
+../../../../../../opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115
+  /opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115: DeprecationWarning: private variables, such as '_ConstructUnits__ConstructUnitsValue', will be normal attributes in 3.11
+    __ConstructUnitsValue = collections.namedtuple('__ConstructUnitsValue', ['tag', 'conversion_constant'])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_contact_yield_full_writer.py::test_full_writer_binds_native_instance_qdot_phase_and_retains_formal_evidence[100.0]
+FAILED tests/test_contact_yield_full_writer.py::test_full_writer_hash_mismatch_rolls_back_native_state
+2 failed, 4 passed, 1 warning in 59.37s

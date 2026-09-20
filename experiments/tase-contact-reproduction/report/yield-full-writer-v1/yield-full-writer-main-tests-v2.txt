@@ -1,0 +1,48 @@
+.....F                                                                   [100%]
+=================================== FAILURES ===================================
+____________ test_full_writer_hash_mismatch_rolls_back_native_state ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-andy/pytest-68/test_full_writer_hash_mismatch0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f86c3dffe20>
+lib = PosixPath('/tmp/pytest-of-andy/pytest-68/runtime-qp0/libcontact_qp.so')
+
+    def test_full_writer_hash_mismatch_rolls_back_native_state(tmp_path, monkeypatch, lib):
+        run = exercise_full_writer(
+            tmp_path, monkeypatch, qp_library=lib, method="MSFC", hash_mismatch=True
+        )
+        assert run.error is not None
+        assert "hash binding differs" in str(run.error)
+        assert run.runtime.phase == "baseline"
+        assert run.provider.last_result["phase"] == "baseline"
+        assert run.phases == []
+        assert run.writer._qualification_control.contact_command_provider is run.provider
+>       assert_fault_stopped(run)
+
+tests/test_contact_yield_full_writer.py:115: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+run = FullWriterRun(method='MSFC', parameters={'m': 4.0, 'g': 0.08583341909109758, 'p': 0.5, 'a': 0.05, 'n': 3.0, 'mu': 1228...xisting writer GC policy; not formal timing qualification, IO latency, transport admission, or physical task evidence')
+
+    def assert_fault_stopped(run):
+        assert run.writer._failed_closed and run.writer._stopped
+        assert run.stop_packets and run.stop_packets[-1]['qdot']==(0.,)*6
+        assert run.stop_packets[-1]['sequence']==run.writer._last_writer_sequence
+>       assert run.before_fault is not None and run.final_snapshot==run.before_fault
+E       AssertionError: assert ({'last_result': {'actual_dt_s': 0.002, 'actual_tcp_speed_m_s_rad_s': (0.0, 0.0, 0.0, 0.0, 0.0, 0.0), 'age_band': 'fres...b611cd27cc8a5ca03be87708f1e34cc68a2de571fc0fc8d8ab', 'last_controller_timestamp': 0.0, 'last_entry_time_s': None, ...}} is not None and {'last_result...': None, ...}} == {'last_result...': None, ...}}
+E        +  where {'last_result': {'actual_dt_s': 0.002, 'actual_tcp_speed_m_s_rad_s': (0.0, 0.0, 0.0, 0.0, 0.0, 0.0), 'age_band': 'fres...b611cd27cc8a5ca03be87708f1e34cc68a2de571fc0fc8d8ab', 'last_controller_timestamp': 0.0, 'last_entry_time_s': None, ...}} = FullWriterRun(method='MSFC', parameters={'m': 4.0, 'g': 0.08583341909109758, 'p': 0.5, 'a': 0.05, 'n': 3.0, 'mu': 1228...xisting writer GC policy; not formal timing qualification, IO latency, transport admission, or physical task evidence').before_fault
+E         
+E         Omitting 1 identical items, use -vv to show
+E         Differing items:
+E         {'runtime': {'controller': {'filter': {'filtered_force_base_n': [1.2259503457865376e-15, -1.0407229247352042e-15, 4.99...11cd27cc8a5ca03be87708f1e34cc68a2de571fc0fc8d8ab', 'last_controller_timestamp': 0.002, 'last_entry_time_s': None, ...}} != {'runtime': {'controller': {'filter': {'filtered_force_base_n': [1.2259503457865376e-15, -1.0407229247352042e-15, 4.99...b611cd27cc8a5ca03be87708f1e34cc68a2de571fc0fc8d8ab', 'last_controller_timestamp': 0.0, 'last_entry_time_s': None, ...}}
+E         Use -v to get more diff)
+
+tests/test_contact_yield_full_writer.py:61: AssertionError
+=============================== warnings summary ===============================
+../../../../../../opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115
+  /opt/ros/humble/local/lib/python3.10/dist-packages/xacro/__init__.py:115: DeprecationWarning: private variables, such as '_ConstructUnits__ConstructUnitsValue', will be normal attributes in 3.11
+    __ConstructUnitsValue = collections.namedtuple('__ConstructUnitsValue', ['tag', 'conversion_constant'])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_contact_yield_full_writer.py::test_full_writer_hash_mismatch_rolls_back_native_state
+1 failed, 5 passed, 1 warning in 60.83s (0:01:00)

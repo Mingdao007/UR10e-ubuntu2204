@@ -1,0 +1,22 @@
+{
+  "session_id": "fd88b090-e029-41c9-9691-84f87df57d7e",
+  "models": [
+    "claude-fable-5-1"
+  ],
+  "last_stop_reason": "end_turn",
+  "route": "ubuntu-homepool",
+  "requested_effort": "xhigh",
+  "effort_evidence": "launch only, not server attestation",
+  "iterations_used": 1,
+  "native_metadata": "/home/andy/.claude-homepool/projects/-home-andy--codex-worktrees-contact-yield-recovery-20260920-experiments-tase-contact-reproduction/fd88b090-e029-41c9-9691-84f87df57d7e.jsonl",
+  "verified_hash_counts": {
+    "report_inputs": 58,
+    "tool_inputs": 7,
+    "native_sources": 4,
+    "raw_receipts": 39,
+    "outputs": 6
+  },
+  "mismatches": [],
+  "analysis_recomputed_equal": true,
+  "recomputation_scope": "rerun delivered analysis against retained /tmp/yfp5 extracted arrays; raw receipts independently hashed; no new simulation"
+}

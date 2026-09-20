@@ -1,0 +1,17 @@
+{
+  "contract_id": "ur10e_concurrency_contract_v1",
+  "task": "native full-writer composition diagnostic",
+  "dependencies": [
+    "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/report/yield-frozen-transfer-v1/protocol.json"
+  ],
+  "resource_lane": "CPU throughput",
+  "workers": 1,
+  "claim_class": "offline unpaced development diagnostic",
+  "live_executed": false,
+  "started_at": "2026-09-20T01:37:05.171712+00:00",
+  "output_paths": [
+    "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-full-writer-v1"
+  ],
+  "exit_code": 0,
+  "finished_at": "2026-09-20T01:38:36.829257+00:00"
+}
