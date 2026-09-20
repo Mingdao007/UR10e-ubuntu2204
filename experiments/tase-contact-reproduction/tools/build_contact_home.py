@@ -72,11 +72,25 @@ def build(receipt,output):
     halt
   end
 '''
+    if home.get('clearance_entry') is True:
+        # Recovery owns the observed vertical lift. This reusable Home phase
+        # starts only at clearance, so a new lateral start does not require
+        # rewriting a hard-coded initial pose after every contact failure.
+        guard='''  # Home transfer is admitted only after the separate monitored lift.
+  local home_delta = pose_trans(pose_inv(target_pose), current_pose)
+  local home_distance = sqrt(home_delta[0]*home_delta[0] + home_delta[1]*home_delta[1] + home_delta[2]*home_delta[2])
+  local home_angle = sqrt(home_delta[3]*home_delta[3] + home_delta[4]*home_delta[4] + home_delta[5]*home_delta[5])
+  if current_pose[2] < 0.032 or home_distance > 0.080 or home_angle > 0.010:
+    textmsg("contact_home: clearance entry rejected; no motion")
+    halt
+  end
+'''
+        text=text.replace('a=0.050, v=0.010','a=0.010, v=0.002')
     if text.count(marker)!=1:raise ValueError('Home helper source differs')
     text=text.replace(marker,guard+marker)
     text='\n'.join(l for l in text.splitlines() if not l.startswith(('# MOTION_SEGMENT_', '# GEOMETRY_BASIS_')))+'\n'
     text=text.replace('# BLEND_RADIUS_M:', '# MOTION: preserve height for XY transfer, then descend to original Home; a=0.05m/s2 v=0.01m/s\n# BLEND_RADIUS_M:')
-    if recovery is not None or withdrawal is not None:text=text.replace('a=0.05m/s2 v=0.01m/s','a=0.01m/s2 v=0.002m/s')
+    if recovery is not None or withdrawal is not None or home.get('clearance_entry') is True:text=text.replace('a=0.05m/s2 v=0.01m/s','a=0.01m/s2 v=0.002m/s')
     validate_urscript_block_balance(text)
     for forbidden in ('zero_ftsensor(', 'set_tcp(', 'set_payload(', 'speedj(', 'read_input_'):
         if forbidden in text:raise ValueError('forbidden Home helper side effect')
@@ -86,8 +100,9 @@ def build(receipt,output):
     info={'basename':BASENAME,'stamp':stamp,'controller_directory':CONTROLLER_DIR,'home_pose':target.tolist(),
           'bounded_recovery':recovery is not None,
           'bounded_withdrawal':withdrawal is not None,
+          'clearance_entry':home.get('clearance_entry') is True,
           'numeric_sanity':{'max_transfer_distance_m':float(np.linalg.norm(target[:3]-observed[:3])),
-                            'speed_m_s':.002 if recovery is not None or withdrawal is not None else .01,'acceleration_m_s2':.01 if recovery is not None or withdrawal is not None else .05,'initial_position_tolerance_m':.002,
+                            'speed_m_s':.002 if recovery is not None or withdrawal is not None or home.get('clearance_entry') is True else .01,'acceleration_m_s2':.01 if recovery is not None or withdrawal is not None or home.get('clearance_entry') is True else .05,'initial_position_tolerance_m':.002,
                             'contact':withdrawal is not None,'force_control':False,'joint_path_check':'required separately'},'live_executed':False}
     (output/f'{BASENAME}.binding.json').write_text(json.dumps(info,indent=2)+'\n');return info
 

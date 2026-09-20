@@ -20,7 +20,7 @@ TARGET=f'{CONTROLLER_DIR}/{BASENAME}.urp'
 INSTALLED_LOCK=Path('/home/andy/.codex-worktrees/step5d-r014-fixed-confidence-20260821/experiments/tase-contact-reproduction/runs/r014_autotuner/live-writer.lock')
 
 
-def admit_sample(sample,home, *, initial):
+def validate_robot_sample(sample):
     for key,n in [('actual_TCP_pose',6),('actual_TCP_speed',6),('actual_q',6),('actual_qd',6),('tcp_offset',6),('payload_cog',3)]:
         value=np.asarray(sample[key]);
         if value.shape!=(n,) or not np.isfinite(value).all():raise ValueError(f'invalid {key}')
@@ -28,6 +28,11 @@ def admit_sample(sample,home, *, initial):
     # https://docs.universal-robots.com/tutorials/communication-protocol-tutorials/rtde-guide.html
     if sample['safety_status_bits'] not in (1, 2049):raise ValueError('RTDE safety is not NORMAL')
     if not np.isclose(sample['payload'],.413,atol=1e-6) or not np.allclose(sample['payload_cog'],[.0011,.0031,.0163],atol=1e-6) or not np.allclose(sample['tcp_offset'],[0,0,.0874,0,0,0],atol=1e-9):raise ValueError('active tool binding changed')
+    if np.linalg.norm(sample['actual_TCP_speed'][:3])>.02 or max(abs(x) for x in sample['actual_qd'])>.06:raise ValueError('Home speed envelope violated')
+
+
+def admit_sample(sample,home, *, initial):
+    validate_robot_sample(sample)
     current=np.asarray(sample['actual_TCP_pose']);start=np.asarray(home['rtde']['actual_TCP_pose']);target=np.asarray(home['home_pose'])
     low=np.minimum(start[:3],target[:3])-.003;high=np.maximum(start[:3],target[:3])+.003
     if np.any(current[:3]<low) or np.any(current[:3]>high):raise ValueError('Home transfer envelope violated')
@@ -57,7 +62,6 @@ def admit_sample(sample,home, *, initial):
             raise ValueError('bounded recovery angular/joint speed exceeded')
         if initial and (np.linalg.norm(current[:3]-start[:3])>.0005 or np.linalg.norm(travelled)>.003):
             raise ValueError('bounded recovery initial observation changed')
-    if np.linalg.norm(sample['actual_TCP_speed'][:3])>.02 or max(abs(x) for x in sample['actual_qd'])>.06:raise ValueError('Home speed envelope violated')
     if initial:
         if np.linalg.norm(current[:3]-start[:3])>.002 or np.linalg.norm(sample['actual_TCP_speed'])>.0005:raise ValueError('initial Home observation changed/not stationary')
 

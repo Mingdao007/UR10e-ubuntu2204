@@ -356,6 +356,12 @@ def main(argv=None):
         if a.action=='pilot':cli+=['--duration',a.duration]
         return run_live(_parse_args(cli),observer_guard=lambda:s.check(identity=True))
     with WriterLock(INSTALLED_LOCK): result=supervisor.run(body,before_load=before_load)
+    if a.action in ('qualify','pilot') and not result.get('success'):
+        try:
+            from run_contact_recovery import recover_failed_contact_run
+            result['autonomous_home_recovery']=recover_failed_contact_run(a.run_dir,a.controller_host,a.video_url)
+        except Exception as exc:
+            result['autonomous_home_recovery']={'success':False,'error':f'{type(exc).__name__}: {exc}'}
     with (a.run_dir/'supervisor-result.json').open('x') as out: json.dump(result,out,indent=2)
     print(json.dumps(result,indent=2))
     return 0 if result['success'] else 1
