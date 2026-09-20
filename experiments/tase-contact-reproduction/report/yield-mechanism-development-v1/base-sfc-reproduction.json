@@ -1,0 +1,70 @@
+{
+  "utc": "2026-09-20T06:59:15.133069+00:00",
+  "scope": "Exact scientific-field reproduction of completed unit0 SFC base pair. Both raw files hash-verified before parsing; metrics.campaign_kind is explicitly excluded (diagnostic_seed versus training); runtime timing and campaign identity are not asserted identical. No simulation, no retuning, no validation use.",
+  "results": [
+    {
+      "slot": "u0-SFC-base-nominal",
+      "training_attempt": "SFC-00-nominal",
+      "development_artifact_sha256": "d65853e559f2a235f4c7ceb416d79577fabc282427e7cc7a9fffa019c1593ae9",
+      "training_artifact_sha256": "e51055b6e96aec95671647c044e7100567a5dafa59343afd7afa0c3adea3e3a9",
+      "excluded_metadata_difference": {
+        "metrics.campaign_kind": {
+          "development": "diagnostic_seed",
+          "training": "training"
+        }
+      },
+      "fields_equal_after_explicit_label_exclusion": {
+        "rows": true,
+        "records": true,
+        "metrics": true,
+        "initial_controller_snapshot": true,
+        "initial_simulator_snapshot": true,
+        "formal_initial_snapshot": true,
+        "final_controller_snapshot": true,
+        "final_simulator_snapshot": true
+      },
+      "scientific_field_sha256": {
+        "rows": "c6293069d0e83ba7665e8aa14ab7f7110fad7b298d51ac348d0e4ff4ffe39ba4",
+        "records": "c65b753b5e320ec721b3811374d51ac89c268be28cbdfe9a8c17817503f8f38a",
+        "metrics": "846c3a207fc7fc1c4d4c4c1858b057bd92981df1606b034010c220fd7e6c5acf",
+        "initial_controller_snapshot": "3d23fda8ea96d5eec1c06fe53f4ec095dd6ef32a15b538feadb688028acb2e0e",
+        "initial_simulator_snapshot": "a338427b40df480f413bf01dec8311e5c02c8648bc6aef8f0d895cb75fa81daa",
+        "formal_initial_snapshot": "510046e4d58f54f264f3a088f7e6f2c6abf44cb33926c67b985903f960aedb65",
+        "final_controller_snapshot": "f4ef4cd99a0148ae25728fe9660e20018d858d352083ad48e2b8b9bdedb38085",
+        "final_simulator_snapshot": "0c1f1bfb05afa57b8419dcf57c5e4511b21b17f017d7254677cd81590d900da2"
+      }
+    },
+    {
+      "slot": "u0-SFC-base-disturbed",
+      "training_attempt": "SFC-00-disturbed",
+      "development_artifact_sha256": "fe57b4b5303279b7f8e209820a14248d9b2ea6b4ba6e6551bc916353e8a310fe",
+      "training_artifact_sha256": "5d835eceb7996ad91e253029522b459c2a5b861d4cfb768c16fce8d6151392aa",
+      "excluded_metadata_difference": {
+        "metrics.campaign_kind": {
+          "development": "diagnostic_seed",
+          "training": "training"
+        }
+      },
+      "fields_equal_after_explicit_label_exclusion": {
+        "rows": true,
+        "records": true,
+        "metrics": true,
+        "initial_controller_snapshot": true,
+        "initial_simulator_snapshot": true,
+        "formal_initial_snapshot": true,
+        "final_controller_snapshot": true,
+        "final_simulator_snapshot": true
+      },
+      "scientific_field_sha256": {
+        "rows": "7e14c014636a9851e8fea7dffe5687cbf95faf9aee08a4ee3e1c7b03b35c35cf",
+        "records": "8c16ef4b409757a5fd04d669458008c3aa4d4a3ee80db4b935026e52b73191bb",
+        "metrics": "d2be565940d28f0c3c1717891bff6d3708146e5d4725f9658baf1a2400a0e9c4",
+        "initial_controller_snapshot": "3d23fda8ea96d5eec1c06fe53f4ec095dd6ef32a15b538feadb688028acb2e0e",
+        "initial_simulator_snapshot": "a338427b40df480f413bf01dec8311e5c02c8648bc6aef8f0d895cb75fa81daa",
+        "formal_initial_snapshot": "510046e4d58f54f264f3a088f7e6f2c6abf44cb33926c67b985903f960aedb65",
+        "final_controller_snapshot": "83db1c9f6e62476289e0881d1b5898d2ec0519c283392b3abe150ad24d344dd4",
+        "final_simulator_snapshot": "23af00e862cb632f360896b5355c7b3086fe11286023270b03a511e46a41452d"
+      }
+    }
+  ]
+}
