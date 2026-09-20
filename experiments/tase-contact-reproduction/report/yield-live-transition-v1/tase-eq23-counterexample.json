@@ -1,0 +1,36 @@
+{
+  "schema": "tase-eq23-scalar-interior-counterexample-v1",
+  "assumptions": {
+    "r": 1.0,
+    "J": 1.0,
+    "xdot_c": "constant feasible",
+    "projection": "inactive near equilibrium",
+    "epsilon": 0.022
+  },
+  "printed_error_matrix": [
+    [
+      -45.45454545454546,
+      45.45454545454546
+    ],
+    [
+      45.45454545454546,
+      0
+    ]
+  ],
+  "printed_eigenvalues_per_s": [
+    28.092454034086135,
+    -73.54699948863158
+  ],
+  "existing_code_error_matrix": [
+    [
+      -45.45454545454546,
+      45.45454545454546
+    ],
+    [
+      -45.45454545454546,
+      0
+    ]
+  ],
+  "existing_code_eigenvalue_real_part_per_s": -22.72727272727273,
+  "scope": "inner solver sign discrepancy only; no robot, no closed-loop performance comparison"
+}
