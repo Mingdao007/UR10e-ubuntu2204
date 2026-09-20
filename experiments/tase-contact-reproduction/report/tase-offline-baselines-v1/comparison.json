@@ -1,0 +1,70 @@
+{
+  "schema": "tase-offline-baseline-comparison-v1",
+  "scope": "offline_research_only_no_robot_io_no_physical_claim",
+  "sources": {
+    "equation_mapping": "experiments/tase-contact-reproduction/STEP5D_RNN_MAPPING_REVIEW.md",
+    "outer_loop": "experiments/tase-contact-reproduction/tools/step5d_paper_outer_loop.py",
+    "rnn_solver": "experiments/tase-contact-reproduction/tools/step5c_strict_rnn.py",
+    "qp_solver": "experiments/tase-contact-reproduction/tools/contact_qp.py",
+    "offline_adapter": "experiments/tase-contact-reproduction/tools/tase_offline_baselines.py",
+    "offline_truth_gate": "experiments/tase-contact-reproduction/config/step5c_tase_offline_baseline_truth.json"
+  },
+  "equation_to_code": {
+    "eq_7_8_13_14_16_17": "step5d_paper_outer_loop.compute_step5d_outer_loop",
+    "eq_20": "contact_qp.NativeContactQp.solve",
+    "eq_23a": "step5c_strict_rnn.StrictTaseRnnSolver.step.theta_dot_state",
+    "eq_23b": "step5c_strict_rnn.StrictTaseRnnSolver.step.lambda_state",
+    "remark_5_sigr": "step5c_strict_rnn.sigr"
+  },
+  "shared_contract": {
+    "task_source": "existing paper outer loop including force error, unknown reaction normal, Phi projectors, quaternion orientation error, and xdot_c",
+    "jacobian": "same 6x6 J supplied to both baselines",
+    "joint_bounds": "same element-wise omega_minus/omega_plus supplied to both baselines",
+    "dt_s": 0.002,
+    "epsilon": 0.022,
+    "sigr_exponent_r": 0.2,
+    "offline_qdot_bound_rad_s": 0.15,
+    "platform_deviation": "The 0.15 rad/s bound is the paper-style offline comparison bound; UR10e live integration remains separately gated and is not changed."
+  },
+  "measurement": {
+    "qp_build_dir": "/tmp/tase-offline-baselines-20260920T1600Z",
+    "samples": 1600,
+    "task": [0.025, -0.012, 0.006, 0.004, -0.003, 0.002],
+    "jacobian": "identity_6x6",
+    "bounds": "[-0.15, 0.15]^6",
+    "rnn": {
+      "max_equality_residual": 0.028879058156387305,
+      "final_equality_residual": 2.0571289854941606e-17,
+      "max_bound_violation": 0.0,
+      "interpretation": "Stateful Eq.(23) starts from zero state and has a bounded transient before converging; this is not a physical force or timing result."
+    },
+    "qp": {
+      "max_equality_residual": 1.3577038090364254e-09,
+      "final_equality_residual": 1.3444971814856339e-09,
+      "max_bound_violation": 0.0,
+      "interpretation": "Matched Eq.(20) native equality+box solve on the same offline task."
+    }
+  },
+  "validation": {
+    "focused_tests": "33 passed in 1.07s",
+    "tests": [
+      "tests/test_tase_offline_baselines.py",
+      "tests/test_step5d_strict_rnn_solver.py",
+      "tests/test_step5d_paper_outer_loop.py"
+    ],
+    "full_chain_sanity": {
+      "status": "blocked_by_environment",
+      "reason": "The selected .venv-contact-six lacks pandas while tests/test_step5d_full_chain_sanity.py imports pandas."
+    }
+  },
+  "authorization": {
+    "live_paper_truth_config": "experiments/tase-contact-reproduction/config/step5c_tase_paper_truth.json remains strict_rnn_enabled=false with unresolved fields.",
+    "offline_truth_file_does_not_authorize_live": true,
+    "hardware_or_endpoint_action": false
+  },
+  "remaining_blockers": [
+    "Paper-truth/local-adaptation questions remain unresolved for live authorization.",
+    "No physical contact, force, unknown-surface, orientation, or timing claim is made by this artifact.",
+    "The full-chain sanity test needs the existing pandas dependency installed in its designated environment."
+  ]
+}

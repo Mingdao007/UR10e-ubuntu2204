@@ -1,0 +1,10 @@
+{
+  "schema": "tase-offline-baseline-truth-v1",
+  "scope": "offline_research_only",
+  "strict_rnn_enabled": true,
+  "status": "offline_candidate_not_live_authorized",
+  "pending_pdf_verify": [],
+  "sections": {},
+  "equation_source": "config/step5c_tase_paper_truth.json",
+  "live_authorization": "blocked"
+}
