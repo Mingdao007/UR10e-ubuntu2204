@@ -338,7 +338,13 @@ class CanonicalQualificationControl:
             reported_actual_dt_s = None if first_sample else actual_dt_s
 
             def make_command(**kwargs: Any) -> QualificationCommand:
-                kwargs.setdefault("actual_dt_s", reported_actual_dt_s)
+                if first_sample:
+                    # The provider still receives the bounded nominal first
+                    # interval above; the command/evidence metadata must not
+                    # present it as a measured inter-sample interval.
+                    kwargs["actual_dt_s"] = None
+                else:
+                    kwargs.setdefault("actual_dt_s", reported_actual_dt_s)
                 kwargs.setdefault("first_sample", first_sample)
                 return QualificationCommand(**kwargs)
 
