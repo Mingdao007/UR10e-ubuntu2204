@@ -1,0 +1,22 @@
+{
+  "schema": "contact-readback-registration-v1",
+  "registered_at": "2026-09-21T06:39:12+08:00",
+  "program": "step5d_contact_six_qp_v1",
+  "selection": "report/yield-live-transition-v1/contact-readback-selection-20260921T063352+0800.json",
+  "selection_sha256": "da91a1b50ca776ed80bc985a99a7806c9d852f2ca08da7377d1666bad00b901c",
+  "fresh_delivery_manifest": "runs/controller_readback_step5d_contact_six_qp_v1_20260921_063347/manifest.json",
+  "fresh_delivery_manifest_sha256": "9a9385ae108fcd1829b4c22fb2bef4a13693767d4a90a5865757b127713372ac",
+  "previous_selection": "report/yield-live-transition-v1/contact-readback-selection.json",
+  "previous_selection_sha256": "37cf5f27702eeccad6b9838cc9c7656b6f2a439ce1566a5213e35662299080c4",
+  "triplet_sha256": {
+    ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
+    ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
+    ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+  },
+  "current_stage_updated": true,
+  "stage_table_updated": true,
+  "live_authority_changed": false,
+  "motion_performed": false,
+  "bridge_started": false,
+  "claim_boundary": "fresh package identity only; no Home observation, resolver readiness, qualification, or figure-eight acceptance"
+}

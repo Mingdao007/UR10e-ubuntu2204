@@ -58,6 +58,14 @@ def test_ack_is_not_completion_and_observers_span_body_and_stop():
     assert events.count('play')==events.count('stop')==1
 
 
+def test_idle_resident_check_never_loads_plays_or_stops():
+    s,body,t,events=rig()
+    result=s.run(body, execute_program=False)
+    assert result['success']
+    assert events == ['video.start','observer.start','body','video.close','observer.close']
+    assert not any(event == 'play' or event == 'stop' or event.startswith('load ') for event in events)
+
+
 def test_first_body_failure_survives_stop_timeout():
     s,body,t,events=rig(body_error=True,stop_delay=10.)
     result=s.run(body)

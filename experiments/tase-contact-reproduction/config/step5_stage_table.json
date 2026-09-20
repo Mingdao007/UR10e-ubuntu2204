@@ -11517,12 +11517,22 @@
         "stage_id": "step5d_contact_six_qp_v1",
         "program": "step5d_contact_six_qp_v1",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
-        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection.json",
-        "controller_readback_status": "controller read-back verified"
+        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T063352+0800.json",
+        "controller_readback_status": "verified_current"
       },
       "package_delivery": {
         "controller_readback_verified": true,
-        "controller_readback_status": "controller read-back verified"
+        "controller_readback_status": "verified_current",
+        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T063352+0800.json",
+        "controller_readback_manifest_sha256": "da91a1b50ca776ed80bc985a99a7806c9d852f2ca08da7377d1666bad00b901c",
+        "delivery_mode": "full_upload_readback",
+        "fresh_controller_sha_verified": true,
+        "fresh_controller_checked_at": "2026-09-21T06:33:52+08:00",
+        "sha256": {
+          ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
+          ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
+          ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+        }
       },
       "entrypoint": "scripts/contact-yield-live.sh",
       "entrypoint_status": "lifecycle_repaired_software_verified",
@@ -11550,6 +11560,16 @@
         "contact_live_accepted": false,
         "reproduction_complete": false,
         "whole_writer_qualified": false
+      },
+      "local_delivery_evidence": {
+        "controller_readback_verified": true,
+        "controller_readback_status": "verified_current",
+        "sha256": {
+          ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
+          ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
+          ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+        },
+        "source_delivery_manifest": "runs/controller_readback_step5d_contact_six_qp_v1_20260921_063347/manifest.json"
       }
     }
   ],

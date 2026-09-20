@@ -1,0 +1,60 @@
+{
+  "schema": "contact-readback-selection-v2",
+  "status": "controller read-back verified",
+  "program": "step5d_contact_six_qp_v1",
+  "source_delivery_manifest": "runs/controller_readback_step5d_contact_six_qp_v1_20260921_063347/manifest.json",
+  "source_delivery_manifest_sha256": "9a9385ae108fcd1829b4c22fb2bef4a13693767d4a90a5865757b127713372ac",
+  "readback_directory": "runs/controller_readback_step5d_contact_six_qp_v1_20260921_063347",
+  "readback_time_policy": "fresh controller GET captured at the recorded check time; this selection does not assert runtime freshness or task qualification",
+  "sha256": {
+    "local": {
+      ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
+      ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
+      ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+    },
+    "controller": {
+      ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
+      ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
+      ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+    },
+    "readback": {
+      ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
+      ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
+      ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+    }
+  },
+  "delivery_mode": "full_upload_readback",
+  "fresh_controller_sha_verified": true,
+  "fresh_controller_checked_at": "2026-09-21T06:33:52+08:00",
+  "readback_source": "fresh_controller_get",
+  "safety_boundary": [
+    "ssh/scp file deploy only",
+    "no URScript send",
+    "no program load",
+    "no program start",
+    "no live bridge",
+    "no robot motion command"
+  ],
+  "supersedes": {
+    "path": "report/yield-live-transition-v1/contact-readback-selection.json",
+    "sha256": "37cf5f27702eeccad6b9838cc9c7656b6f2a439ce1566a5213e35662299080c4",
+    "prior_schema": "contact-readback-selection-v1",
+    "prior_sha256": {
+      "local": {
+        ".script": "06e719591fc3792d023037de0db211d4cc4cea86aec6c66733de4489e8a1fb00",
+        ".txt": "c25b0199f5cb34bedad492122b11b4332f237140b779b8aa5162207a6844ab3e",
+        ".urp": "71a5ee4eecc45b425ee286dc02f7fc02d26009e6c6a9a855553d8b3e93ce77b3"
+      },
+      "controller": {
+        ".script": "06e719591fc3792d023037de0db211d4cc4cea86aec6c66733de4489e8a1fb00",
+        ".txt": "c25b0199f5cb34bedad492122b11b4332f237140b779b8aa5162207a6844ab3e",
+        ".urp": "71a5ee4eecc45b425ee286dc02f7fc02d26009e6c6a9a855553d8b3e93ce77b3"
+      },
+      "readback": {
+        ".script": "06e719591fc3792d023037de0db211d4cc4cea86aec6c66733de4489e8a1fb00",
+        ".txt": "c25b0199f5cb34bedad492122b11b4332f237140b779b8aa5162207a6844ab3e",
+        ".urp": "71a5ee4eecc45b425ee286dc02f7fc02d26009e6c6a9a855553d8b3e93ce77b3"
+      }
+    }
+  }
+}

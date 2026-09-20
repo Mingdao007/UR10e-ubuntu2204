@@ -9,13 +9,13 @@
   "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
   "controller_script": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script",
   "local_triplet": "programs/step5/step5d/contact-six-qp/step5d_contact_six_qp_v1",
-  "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection.json",
+  "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T063352+0800.json",
   "sha256": {
-    ".script": "06e719591fc3792d023037de0db211d4cc4cea86aec6c66733de4489e8a1fb00",
-    ".txt": "c25b0199f5cb34bedad492122b11b4332f237140b779b8aa5162207a6844ab3e",
-    ".urp": "71a5ee4eecc45b425ee286dc02f7fc02d26009e6c6a9a855553d8b3e93ce77b3"
+    ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
+    ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
+    ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
   },
-  "status": "prewarm_contact_retry_failed_timing_stopped_at_home",
+  "status": "fresh_controller_readback_verified_pending_liveprep_admission",
   "liveprep_status": "blocked",
   "liveprep_readiness_path": "runs/contact-yield-live/readiness.json",
   "reproduction_status": "incomplete",
@@ -82,7 +82,19 @@
     "latest_resident_check": "report/yield-live-transition-v1/revision20-resident-check.json",
     "latest_home_recovery": "runs/yield-home-recovery-20260920/live-1/result.json",
     "latest_contact_withdrawal": "runs/yield-sfc-qualification-20260920T113129Z/withdrawal/result.json",
-    "native_writer_previously_armed": true
+    "native_writer_previously_armed": true,
+    "v1_controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T063352+0800.json",
+    "fresh_contact_controller_delivery_manifest": "runs/controller_readback_step5d_contact_six_qp_v1_20260921_063347/manifest.json",
+    "fresh_contact_controller_delivery_manifest_sha256": "9a9385ae108fcd1829b4c22fb2bef4a13693767d4a90a5865757b127713372ac",
+    "fresh_contact_controller_checked_at": "2026-09-21T06:33:52+08:00",
+    "previous_contact_readback_selection": {
+      "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection.json",
+      "sha256": {
+        ".script": "06e719591fc3792d023037de0db211d4cc4cea86aec6c66733de4489e8a1fb00",
+        ".txt": "c25b0199f5cb34bedad492122b11b4332f237140b779b8aa5162207a6844ab3e",
+        ".urp": "71a5ee4eecc45b425ee286dc02f7fc02d26009e6c6a9a855553d8b3e93ce77b3"
+      }
+    }
   },
   "notes": [
     "Selection fixes the old RNN/native route mismatch only. No Load, Play, ARM or motion performed by this change.",

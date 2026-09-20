@@ -77,6 +77,7 @@ class ProcessObserver:
             args=(host, str(path), self.samples, self.errors, self.ready, self.done))
         self.row = None
         self.error = None
+        self.sample_count = 0
 
     def start(self):
         self.process.start()
@@ -91,7 +92,9 @@ class ProcessObserver:
 
     def _drain(self):
         while True:
-            try: self.row = self.samples.get_nowait()
+            try:
+                self.row = self.samples.get_nowait()
+                self.sample_count += 1
             except queue.Empty: break
         try:
             error = self.errors.get_nowait()
@@ -212,7 +215,7 @@ class ResidentSupervisor:
             self.sleep(.02)
         raise RuntimeError(f'{desired} was not observed before timeout')
 
-    def run(self, body, before_load=None):
+    def run(self, body, before_load=None, *, execute_program=True):
         play_attempted = False
         try:
             # Establish the video barrier before starting the bounded RTDE
@@ -227,15 +230,16 @@ class ResidentSupervisor:
                 or initial['robotmode']!='Robotmode: RUNNING' or initial['running']!='Program running: false'
                 or not initial['programState'].startswith('STOPPED')):
                 raise RuntimeError(f'initial Remote/stopped gate failed: {initial}')
-            if before_load is not None: before_load(self)
-            at=self.clock(); self.writer.write('load '+self.target)
-            self._wait(running=False,after=at)
-            play_attempted=True
-            at=self.clock(); self.writer.write('play')
-            self._wait(running=True,after=at)
-            until=self.clock()+1.
-            while self.clock()<until:
-                self.check(idle=True,identity=True); self.sleep(.002)
+            if execute_program:
+                if before_load is not None: before_load(self)
+                at=self.clock(); self.writer.write('load '+self.target)
+                self._wait(running=False,after=at)
+                play_attempted=True
+                at=self.clock(); self.writer.write('play')
+                self._wait(running=True,after=at)
+                until=self.clock()+1.
+                while self.clock()<until:
+                    self.check(idle=True,identity=True); self.sleep(.002)
             self.audit['body']=body(self)
             self.audit['success']=True
         except BaseException as exc:
@@ -337,17 +341,16 @@ def main(argv=None):
         writer=RemoteDashboardWriter(a.controller_host,load_target=target),target=target)
     def body(s):
         if a.action=='resident-check':
-            from contact_yield_transport import NativeYieldRTDETransport
-            transport=NativeYieldRTDETransport(a.controller_host)
-            frames=0
-            try:
-                transport.open()
-                deadline=time.monotonic()+10.
-                while time.monotonic()<deadline:
-                    s.check(idle=True,identity=True)
-                    if transport.poll_output(wait_s=.002) is not None: frames+=1
-                    time.sleep(.002)
-            finally: transport.close()
+            # The supervisor's ProcessObserver already owns the sole RTDE
+            # output recipe. Opening a second recipe here can starve the
+            # observer queue on a UR controller and create a false stale
+            # failure. Reuse that observer and count the frames it drains.
+            before_frames=observer.sample_count
+            deadline=time.monotonic()+10.
+            while time.monotonic()<deadline:
+                s.check(idle=True,identity=True)
+                time.sleep(.002)
+            frames=observer.sample_count-before_frames
             if frames < 100: raise RuntimeError('native resident check has insufficient RTDE frames')
             return {'idle_seconds':10.,'arm_dispatched':False,'input_packets_sent':0,
                     'native_recipe_frames':frames,'native_recipe_excludes_onrobot_input24':True,
@@ -360,7 +363,12 @@ def main(argv=None):
              '--control-cpu',str(a.control_cpu),'--attempt-id','r006-supervised-'+a.action]
         if a.action=='pilot':cli+=['--duration',a.duration]
         return run_live(_parse_args(cli),observer_guard=lambda:s.check(identity=True))
-    with WriterLock(INSTALLED_LOCK): result=supervisor.run(body,before_load=before_load)
+    with WriterLock(INSTALLED_LOCK):
+        result=supervisor.run(
+            body,
+            before_load=before_load if a.action != 'resident-check' else None,
+            execute_program=a.action != 'resident-check',
+        )
     if a.action in ('qualify','pilot') and not result.get('success'):
         try:
             from run_contact_recovery import recover_failed_contact_run
