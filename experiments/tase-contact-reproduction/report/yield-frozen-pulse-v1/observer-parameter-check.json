@@ -1,0 +1,8 @@
+{
+  "scope": "Repeat report with estimator_parameters explicitly included in nominal matching, in addition to mechanical invariants",
+  "passed": true,
+  "pairs": 4,
+  "results_byte_identical": true,
+  "results_sha256": "4faafb4c56af0a2a299393ba5500e6560912b6d97248ef278bf204f7db5113fc",
+  "script_sha256": "67820c17373554a8f080f3f4d993c6c8fea99ba260eeccea67028131d15c7549"
+}

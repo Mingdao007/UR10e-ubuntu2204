@@ -1,0 +1,52 @@
+{
+  "raw_hashes": [
+    {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-frozen-pulse-v1-check/MSFC/nominal.json.gz",
+      "sha256": "6db73f5f915fbcf6e435482763125c1438676c32d9935f9e218290f91efad7cd"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-frozen-pulse-v1-check/MSFC/short_pulse_oblique.json.gz",
+      "sha256": "c597127722ab32f0fe5e4fe0d6343afdfd19d9029703754ee3184b90fbaff1af"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-frozen-pulse-v1-check/MSFC-identity/nominal.json.gz",
+      "sha256": "b429de054c5544f015547c10a5e40e57ea84d23b16726c169ba6daccbde72a2e"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-frozen-pulse-v1-check/MSFC-identity/short_pulse_oblique.json.gz",
+      "sha256": "5769d72f25e07fbaba23e60fddfb7389b60bc6c433780a6feb6c8cb705e6339d"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-frozen-transfer-v1/MSFC-nominal.json.gz",
+      "sha256": "b953f4041fa44b6c325b638974d32486d2ff5856dfe9194d7d0dd9818839a2b3"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-frozen-pulse-v1/MSFC/MSFC-short_pulse_oblique.json.gz",
+      "sha256": "b5ff75ba1ba6baab2e198b7606ded211caefe367673c3df9017a48d8feb12ab9"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-frozen-memory-v1/MSFC-nominal.json.gz",
+      "sha256": "6d415aa1c394d3206b93c1fc80edd8750bc6db3efa5bd1a458c206863302cd13"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/yield-frozen-pulse-v1/MSFC-identity/MSFC-short_pulse_oblique.json.gz",
+      "sha256": "1f507fae4d44e463f23f6cbca36e45e860c0d1cbdbbd3f05135fc461f7865e57"
+    }
+  ],
+  "runtime_sources_unchanged": true,
+  "replays": [
+    {
+      "passed": true,
+      "samples": 31916,
+      "mismatches": [],
+      "claim_scope": "fresh-instance full-state forward replay; same implementation, not independent physics proof"
+    },
+    {
+      "passed": true,
+      "samples": 31916,
+      "mismatches": [],
+      "claim_scope": "fresh-instance full-state forward replay; same implementation, not independent physics proof"
+    }
+  ],
+  "same_implementation_replay_not_independent_physics": true
+}

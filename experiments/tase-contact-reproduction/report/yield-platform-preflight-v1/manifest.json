@@ -1,0 +1,39 @@
+{
+  "assembled_at": "2026-09-20T00:52:20.150569+00:00",
+  "claim_class": "read-only local readiness diagnostic",
+  "live_executed": false,
+  "robot_endpoints_queried": false,
+  "robot_icmp_ping": true,
+  "inputs": [
+    {
+      "source": "/tmp/yield-current-platform-state-20260920.json",
+      "output": "report/yield-platform-preflight-v1/yield-current-platform-state-20260920.json",
+      "sha256": "c9f0e72d42c5117e58557d34fbf11a1857933cab61c6e9ad384701b2f8b8026c",
+      "source_mtime_utc": "2026-09-20T00:42:55.915645+00:00"
+    },
+    {
+      "source": "/tmp/yield-platform-network-20260920.json",
+      "output": "report/yield-platform-preflight-v1/yield-platform-network-20260920.json",
+      "sha256": "cb7966eaaf51b7ab8f98b6853f092428a92ce44f2e64d2608fb0a99992f49bd9",
+      "source_mtime_utc": "2026-09-20T00:45:02.909309+00:00"
+    },
+    {
+      "source": "/tmp/yield-platform-processes-20260920.json",
+      "output": "report/yield-platform-preflight-v1/yield-platform-processes-20260920.json",
+      "sha256": "1dbb152ab5ee3452c3c75d0c67822d44052bebc3e5e43f9406df3426e51f2ec0",
+      "source_mtime_utc": "2026-09-20T00:45:01.901329+00:00"
+    },
+    {
+      "source": "/tmp/yield-platform-realtime-20260920.json",
+      "output": "report/yield-platform-preflight-v1/yield-platform-realtime-20260920.json",
+      "sha256": "fd9fa72fad87040e14a25521305ccabbef8db05a80e1e72cc9240a08d3d9d928",
+      "source_mtime_utc": "2026-09-20T00:45:01.861329+00:00"
+    },
+    {
+      "source": "/tmp/yield-platform-rt-permission-20260920.json",
+      "output": "report/yield-platform-preflight-v1/yield-platform-rt-permission-20260920.json",
+      "sha256": "0a2e48986333b8cce14569fac6ff42d55595616837276815dfb53908defa70fb",
+      "source_mtime_utc": "2026-09-20T00:45:48.988380+00:00"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "attended_operator_route_ready": false,
+  "authorization": {
+    "allowed_tokens": [
+      "\u5f00bridge",
+      "\u5f00 bridge",
+      "\u5f00",
+      "1"
+    ],
+    "attended_operator_route_ready": false,
+    "blocked_reason": null,
+    "bridge_has_started": false,
+    "live_motion_authorized": false,
+    "live_owner_authorized": false,
+    "zero_ftsensor_authorized": false
+  },
+  "blockers": [],
+  "current_stage_id": "step5d_strict_rnn_autotune_v3",
+  "current_step": "Step5d",
+  "dispatchable": false,
+  "evidence": {
+    "controller_readback_manifest": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/config/step5d_autotune_controller_readback_v3.json",
+    "controller_readback_signals": {
+      "row.package_delivery.controller_readback_verified": true
+    },
+    "controller_readback_verified": true,
+    "current_stage": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/config/current_stage.json",
+    "declared_liveprep_state": null,
+    "flow": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/STEP5_FLOW.md",
+    "flow_summary_matches": true,
+    "liveprep_contract_verified": true,
+    "liveprep_identity_verified": true,
+    "liveprep_readiness": null,
+    "liveprep_readiness_declared_ready": true,
+    "liveprep_readiness_verified": true,
+    "liveprep_schema": null,
+    "liveprep_source": "governed_v3_status",
+    "liveprep_subgates": {
+      "governed_v3_status_delegated": true
+    },
+    "manifest_sha_match": true,
+    "qualification_policy": null,
+    "stage_table": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/config/step5_stage_table.json"
+  },
+  "experiment_root": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction",
+  "inconsistencies": [],
+  "next_owner": "ur10e-live-bench",
+  "ok": true,
+  "owner_chain": {
+    "live_authorization": "ur10e-live-bench",
+    "package_readback": "ur10e-tp-package-delivery",
+    "step5a_step5b_ros2": "ur10e-remote-control",
+    "step5d_bridge_operator": "ur10e-bridge-ops",
+    "ubuntu_runtime": "ur10e-realsetup"
+  },
+  "package_ready": true,
+  "package_status": {
+    "controller_readback_verified": true,
+    "manifest_sha_match": true,
+    "state": "ready"
+  },
+  "program": "step5d_strict_rnn_autotune_v3",
+  "ready_for_explicit_live_authorization": true,
+  "route": "ur10e-bridge-ops",
+  "state": "awaiting_live_authorization",
+  "workflow_state": "awaiting_live_authorization"
+}

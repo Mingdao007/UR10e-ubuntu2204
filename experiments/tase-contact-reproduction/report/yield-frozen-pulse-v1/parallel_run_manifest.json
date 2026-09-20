@@ -1,0 +1,21 @@
+{
+  "contract_id": "ur10e_concurrency_contract_v1",
+  "task": "FP-v1 four frozen-observer pulse cells",
+  "dependencies": [
+    "FT-v1 matched nominals",
+    "FM-v1 identity-metric nominal"
+  ],
+  "resource_lane": "CPU throughput",
+  "claim_class": "offline development diagnostic",
+  "workers": 2,
+  "started_at": "2026-09-20T00:40:30.347933+00:00",
+  "finished_at": "2026-09-20T00:43:03.415072+00:00",
+  "exit_code": 0,
+  "output_paths": [
+    "runs/yield-frozen-pulse-v1",
+    "report/yield-frozen-pulse-v1"
+  ],
+  "receipt_assembled_at": "2026-09-20T00:52:20.150673+00:00",
+  "receipt_kind": "post-hoc completion metadata from original run manifest; no retrospective resource admission assertion",
+  "live_executed": false
+}

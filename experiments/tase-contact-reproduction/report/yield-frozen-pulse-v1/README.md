@@ -1,0 +1,17 @@
+# FP-v1: short oblique pulse does not support the active metric benefit
+
+Four new full-period development trials use the original 3 N raised-cosine disturbance over 20-20.5 s, stiff/low-friction model and frozen normal estimator. All parameters are inherited from FT-v1/FM-v1; no tuning or holdout data are used. The predeclared supplementary event window is [20,23) s. Complete metrics remain in results.json, including the rest of the 62.83 s PATH period.
+
+At the 2 ms controller period, SFC, DSFC and MSFC g50 have contact peaks of 8.021868, 8.230826 and 7.832292 N and paired recovery times of 4.526, 4.154 and 2.352 s. All remain above 1 N at sampled PATH times and complete without an execution failure. Path RMS is approximately 4.974-4.980 mm and measured progress ratio 0.8754-0.8771. These are fixed, differently parameterized candidates, not a fair-tuned ranking. DSFC's faster recovery accompanies a higher peak than SFC.
+
+The mechanically matched MSFC identity-metric ablation has a lower peak (7.684897 N), lower event force MAE (0.998860 versus 1.051973 N), smaller post-release maximum nominal-relative distance (3.078516 versus 3.170381 mm), and slightly shorter recovery (2.300 versus 2.352 s) than the active metric. The active metric reaches minimum eigenvalue 0.868648, so it is engaged; the identity variant remains exactly one. Force-history and filter states remain in both variants. This comparison does not disable every memory state and does not identify the source of MSFC's cross-method advantage.
+
+Together with the slow tangent-release result in FM-v1, this is a second development process that fails to support an advantage from this candidate's active deformation metric. It does not prove all memory designs or all gain ranges are inferior. The frozen estimator is a mechanism ablation and is not an unknown-surface solution; prior and stronger-curvature failures remain relevant.
+
+The recovery definition is unchanged: TCP difference from the same-method nominal stays within 2 mm and force error within 0.5 N for the remainder of the observation window. The maximum post-release distance is distinct from the maximum distance during disturbance support. Recoil uses the existing signed-projection definition. Sampled positive load does not certify unobserved continuous-time contact.
+
+Reproduce with study_yield_frozen_pulse_v1.py, report_yield_frozen_pulse_v1.py, check_yield_frozen_pulse_v1.py and plot_yield_frozen_pulse_v1.py. Original coarse completion timestamps are preserved; parallel_run_manifest.json explicitly labels its post-hoc completion bookkeeping. No retrospective resource admission is asserted. The refinement run has its own pre-run manifest and matched fine nominals. This work introduces no production controller or gate change, and no robot motion.
+
+The study harness now writes the full concurrency contract for future runs. This metadata-only improvement was made after the retained coarse campaign; its original start.json and manifest.json have not been rewritten.
+
+Matched 1 ms refinement and two complete-state replays are finished: see [refinement](refinement/README.md). The higher peak and slower recovery with the active metric persist, but the recovery gap grows from 0.052 to 0.316 s. Absolute recovery times are not numerically converged. Four explicit observer-parameter matches reproduce the coarse report byte-for-byte; see observer-parameter-check.json.

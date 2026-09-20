@@ -1,0 +1,63 @@
+{
+  "ok": false,
+  "status": "not_configured",
+  "user": "andy",
+  "account_groups": [
+    "adm",
+    "cdrom",
+    "dip",
+    "docker",
+    "input",
+    "lpadmin",
+    "lxd",
+    "ollama",
+    "plugdev",
+    "realtime",
+    "sambashare",
+    "sudo"
+  ],
+  "current_session_groups": [
+    "adm",
+    "andy",
+    "cdrom",
+    "dip",
+    "docker",
+    "input",
+    "lpadmin",
+    "lxd",
+    "ollama",
+    "plugdev",
+    "realtime",
+    "sambashare",
+    "sudo"
+  ],
+  "account_has_realtime": true,
+  "session_has_realtime": true,
+  "limits_file": "/etc/security/limits.d/99-realtime.conf",
+  "limits_file_exists": true,
+  "limits_file_ok": false,
+  "limits_file_lines": [
+    "@realtime soft rtprio 99",
+    "@realtime soft nice -20",
+    "@realtime soft memlock 102400",
+    "@realtime hard rtprio 99",
+    "@realtime hard nice -20",
+    "@realtime hard memlock 102400"
+  ],
+  "missing_limits": [
+    "@realtime soft priority 99",
+    "@realtime hard priority 99"
+  ],
+  "rtprio": {
+    "soft": 99,
+    "hard": 99
+  },
+  "memlock": {
+    "soft": 104857600,
+    "hard": 104857600
+  },
+  "issues": [
+    "limits_file_missing_or_incomplete"
+  ],
+  "next_step": ""
+}
