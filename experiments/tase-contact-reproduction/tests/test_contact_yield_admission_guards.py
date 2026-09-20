@@ -155,3 +155,16 @@ def test_first_rejected_frame_survives_open_failure(monkeypatch):
     assert writer.admission_robot_observations == [output]
     assert writer.rejected_robot_observations[0]['output'] is output
     assert writer.rejected_robot_observations[0]['host_monotonic_s'] == 12.
+
+
+def test_revoked_live_authority_rejects_before_receipts_or_devices(monkeypatch, tmp_path):
+    import contact_yield_live as entry
+    args=entry._parse_args(['qualify','--run-dir',str(tmp_path),
+        '--controller-host','192.0.2.1','--kunwei-host','192.0.2.2','--control-cpu','1'])
+    def forbidden(*a, **kw):
+        pytest.fail("revoked hardware request reached admission/device construction")
+    monkeypatch.setattr(entry,'load_run_dir_receipts',forbidden)
+    monkeypatch.setattr(entry,'build_native_yield_owner',forbidden)
+    assert entry.status_payload()['user_standing_live_authority'] is False
+    with pytest.raises(entry.YieldLiveError,match='discontinued by the user'):
+        entry.run_live(args)

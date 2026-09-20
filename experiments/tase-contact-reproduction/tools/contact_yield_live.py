@@ -71,7 +71,8 @@ def status_payload() -> dict[str, Any]:
         "task": dict(config["task"]),
         "durations": dict(config["durations"]),
         "guards": dict(config["guards"]),
-        "user_standing_live_authority": True,
+        "user_standing_live_authority": config["user_standing_live_authority"],
+        "live_discontinued_reason": config.get("live_discontinued_reason"),
         "machine_evidence_fresh": False,
         "physical_qualification": False,
         "current_stage_untouched": True,
@@ -175,6 +176,9 @@ def run_live(
 ) -> dict[str, Any]:
     if args.command not in {"qualify", "pilot"}:
         raise YieldLiveError(f"unknown live command {args.command!r}")
+    config = load_live_entry_config()
+    if (controller_transport is None or kunwei_transport is None) and not config["user_standing_live_authority"]:
+        raise YieldLiveError("further hardware execution was discontinued by the user; no endpoints opened")
     resolve_method(args.method)
     if args.command == "pilot":
         parse_live_duration(args.duration)

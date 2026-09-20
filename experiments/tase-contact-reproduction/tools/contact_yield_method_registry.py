@@ -82,8 +82,8 @@ def load_live_entry_config(path: Path | str | None = None) -> dict[str, Any]:
         raise MethodRegistryError("live-entry config cannot declare physical qualification")
     if payload.get("machine_evidence_fresh") is not False:
         raise MethodRegistryError("live-entry config cannot declare fresh machine evidence")
-    if payload.get("user_standing_live_authority") is not True:
-        raise MethodRegistryError("standing live authority was not retained")
+    if not isinstance(payload.get("user_standing_live_authority"), bool):
+        raise MethodRegistryError("standing live authority must be explicitly boolean")
     task = _require_mapping(payload.get("task"), "task")
     if float(task.get("normal_force_n")) != 5.0:
         raise MethodRegistryError("live-entry task force is not 5 N")
