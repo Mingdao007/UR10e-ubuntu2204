@@ -156,17 +156,35 @@
     "tests": [
       "test_contact_benchmark_provider.py::test_readiness_observer_uses_common_tau_once_without_pid_state",
       "test_contact_yield_provider.py::test_first_interval_cannot_be_silently_replaced"
-    ]
+    ],
+    "json_validation": {
+      "command_from_repo_root": "experiments/tase-contact-reproduction/.venv-contact-six/bin/python -m json.tool experiments/tase-contact-reproduction/report/contact-yield-recovery-20260920/first-qualification-timing-151241.json",
+      "result": "passed"
+    }
   },
   "offline_fixture_audit": {
     "fixture_path": "experiments/tase-contact-reproduction/tests/yield_full_writer_offline.py",
     "fixture_coverage": "Full LiveR004Writer.execute_attempt composition with CanonicalQualificationControl.step, YieldContactProvider/runtime, in-memory transport, writer packet history, and the existing _send_packet wrapper.",
-    "state21_stationary_pause": "The fixture produces the first state-21 stationary pause through the canonical qualification path; its pause uses the existing startup_two_increments_pending branch.",
+    "state21_stationary_pause": {
+      "static_branch_coverage": "The fixture exercises a state-21 stationary-observation setup through the canonical qualification composition.",
+      "fixture_setup": [
+        "baseline_runtime.step_baseline is monkeypatched to _successful_baseline",
+        "writer._baseline_successes is pre-set to 3"
+      ],
+      "live_first_startup_pause_reproduced": false,
+      "reason": "These are offline setup values; a synthetic state-21 row does not establish that the live first-pause startup branch or its pre-publication delay was reproduced."
+    },
     "provider_only_coverage": "tests/test_contact_yield_provider.py covers provider/runtime calls without the canonical qualification and writer loop.",
     "r006_send_boundary": {
       "covered": false,
       "reason": "The existing fixture instantiates LiveR004Writer and wraps its _send_packet; it does not instantiate NativeYieldLiveWriter/R006LiveWriter or measure the real socket send boundary.",
       "exact_socket_send_time_available": false
+    },
+    "existing_r004_send_return_hook": {
+      "path": "experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004_live_writer.py:741",
+      "field": "_last_writer_publish_mono_s",
+      "coverage": "R004 records the immediate send-return monotonic time before packet history/age accounting.",
+      "use": "This retained hook is the smallest available boundary for a future owner-side first-state21 trace; no new framework is required."
     },
     "measurement_tool": "experiments/tase-contact-reproduction/tools/measure_yield_full_writer.py",
     "measurement_output": "/tmp/yield-full-writer-measure-20260920T1542Z",
@@ -176,6 +194,8 @@
       "SFC": {
         "phase_coverage": {"entry": 500, "path": 2185, "other": 0, "n": 2685},
         "loop_wall_ms": {"n": 2688, "p50": 0.9000945, "p95": 1.10300085, "p99": 1.12193996, "max": 15.87476, "over_2ms": 1},
+        "active_loop_wall_ms": {"n": 2687, "p50": 0.900094, "p95": 1.1029287, "p99": 1.12185546, "max": 1.660177, "over_2ms": 0},
+        "terminal_with_finalization_wall_ms": {"n": 1, "max": 15.87476, "over_2ms": 1},
         "qualification_wall_ms": {"n": 2687, "p50": 0.779138, "p95": 0.974368, "p99": 0.9900628, "max": 1.58174, "over_2ms": 0},
         "native_wall_ms": {"n": 2687, "p50": 0.509884, "p95": 0.6963837, "p99": 0.7068828, "max": 0.894184, "over_2ms": 0},
         "error": "PATH soft CBF infeasible: outside_tube"
@@ -183,6 +203,8 @@
       "DSFC": {
         "phase_coverage": {"entry": 500, "path": 2185, "other": 0, "n": 2685},
         "loop_wall_ms": {"n": 2688, "p50": 0.890687, "p95": 1.09671015, "p99": 1.10778933, "max": 16.4089, "over_2ms": 1},
+        "active_loop_wall_ms": {"n": 2687, "p50": 0.890687, "p95": 1.096606, "p99": 1.1075468, "max": 1.234471, "over_2ms": 0},
+        "terminal_with_finalization_wall_ms": {"n": 1, "max": 16.4089, "over_2ms": 1},
         "qualification_wall_ms": {"n": 2687, "p50": 0.770742, "p95": 0.969022, "p99": 0.9800574, "max": 1.178525, "over_2ms": 0},
         "native_wall_ms": {"n": 2687, "p50": 0.503833, "p95": 0.692762, "p99": 0.70385694, "max": 0.761666, "over_2ms": 0},
         "error": "PATH soft CBF infeasible: outside_tube"
@@ -190,12 +212,19 @@
       "MSFC": {
         "phase_coverage": {"entry": 500, "path": 2185, "other": 0, "n": 2685},
         "loop_wall_ms": {"n": 2688, "p50": 0.890031, "p95": 1.094484, "p99": 1.10785159, "max": 19.535363, "over_2ms": 1},
+        "active_loop_wall_ms": {"n": 2687, "p50": 0.890016, "p95": 1.094449, "p99": 1.1075568, "max": 1.270949, "over_2ms": 0},
+        "terminal_with_finalization_wall_ms": {"n": 1, "max": 19.535363, "over_2ms": 1},
         "qualification_wall_ms": {"n": 2687, "p50": 0.770322, "p95": 0.966774, "p99": 0.97903426, "max": 1.215344, "over_2ms": 0},
         "native_wall_ms": {"n": 2687, "p50": 0.503633, "p95": 0.69112, "p99": 0.7030486, "max": 0.770713, "over_2ms": 0},
         "error": "PATH soft CBF infeasible: outside_tube"
       }
     },
-    "offline_conclusion": "The existing fixture reaches canonical qualification, entry, PATH publication, and inherited writer send invocation. It does not reproduce the live 11.224208 ms first-sample-to-send-wrapper delay and cannot localize socket send versus wrapper work. No deterministic hot spot or safe fix is demonstrated offline."
+    "offline_conclusion": "The existing fixture reaches canonical qualification, entry, PATH publication, and inherited writer send invocation, but it does not reproduce the live first startup pause or the 11.224208 ms first-sample-to-send-wrapper delay. The reported 15.874760/16.408900/19.535363 ms maxima are terminal_with_finalization intervals; active-loop maxima are 1.660177/1.234471/1.270949 ms with zero active samples over 2 ms, so the terminal values are not live-loop outliers. The fixture cannot localize socket send versus wrapper work and demonstrates no deterministic hot spot or safe timing fix offline.",
+    "minimal_replacement_estimate": {
+      "basis": "R004 already records _last_writer_publish_mono_s immediately after inherited send return and before history/age accounting.",
+      "estimate": "The smallest evidence-preserving replacement is to reuse that existing hook for one first-state21 pre/post boundary receipt and compare it with the accepted robot_frames sample; no new framework, socket timestamp claim, guard relaxation, deadline change, or timestamp reset is justified.",
+      "status": "Not implemented in this scope because the saved run lacks the failing call's exact actual_dt_s and the offline fixture cannot reproduce the live startup branch."
+    }
   },
   "blocker_and_next_live_prerequisites": {
     "blocker": "Unresolved first-qualification sample-to-publication delay; no demonstrated correction. Do not repeat contact merely to hope the timing passes.",
