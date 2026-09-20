@@ -33,9 +33,10 @@
     "search_initialization_interval_proven": false,
     "actual_delayed_receive_or_compute_gap_proven": true,
     "interpretation": "The first call hides any pre-call initialization duration behind a nominal 2 ms period. The recorded throw is on the following call, whose actual interval is proven above 4 ms.",
-    "first_sample_to_first_qualification_publish_s": 0.011224208006751724,
     "first_pause_runtime_wall_s": 0.00032731398823671043,
-    "delay_localization": "Delay is already present between first accepted qualification sample and its packet publication. Exact substage cost is unrecorded; do not attribute it solely to RTDE network loss or controller computation."
+    "delay_localization": "An 11.224208ms span is observed from first accepted control sample through completion of its send wrapper. Control, pre-send tracing, transport send, post-send tracing and scheduling may contribute; saved data cannot distinguish them.",
+    "first_sample_to_send_wrapper_return_s": 0.011224208006751724,
+    "packet_timestamp_semantics": "NativeYieldLiveWriter records command_observations after super()._send_packet returns; this includes inherited post-send lifecycle tracing. It is not the exact socket-send timestamp."
   },
   "live_stream_evidence": {
     "supervisor_rtde": {
@@ -100,7 +101,8 @@
           "reason": "sensor_stale"
         }
       ],
-      "use": "Corroborating live publication timing only; not substituted for the missing failed-call actual_dt_s."
+      "use": "Corroborating live publication timing only; not substituted for the missing failed-call actual_dt_s.",
+      "timestamp_semantics": "NativeYieldLiveWriter records command_observations after super()._send_packet returns; this includes inherited post-send lifecycle tracing. It is not the exact socket-send timestamp."
     },
     "dispatch_failure": {
       "path": "experiments/tase-contact-reproduction/runs/yield-sfc-full-20260920T151241Z/dispatch_receipt.json",
