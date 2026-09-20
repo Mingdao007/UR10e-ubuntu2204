@@ -26,8 +26,8 @@
     "first_sample_sensor_timestamp_s": 73785.150602492,
     "failed_tick_actual_dt_s": null,
     "failed_tick_actual_dt_recorded": false,
-    "failed_tick_actual_dt_lower_bound_s": 0.01145082300354261,
-    "failed_tick_actual_dt_lower_bound_ms": 11.45082300354261,
+    "failed_tick_actual_dt_lower_bound_s": 0.011450823,
+    "failed_tick_actual_dt_lower_bound_ms": 11.450823,
     "lower_bound_calculation": "Writer robot_frames second state21 receive 73785.162082369 minus prior accepted control sample 73785.150631546; the next control call takes now after polling this writer output. Supervisor timestamps are not used.",
     "four_ms_limit_s": 0.004,
     "search_initialization_interval_proven": false,
@@ -35,7 +35,7 @@
     "interpretation": "The first call hides any pre-call initialization duration behind a nominal 2 ms period. The recorded throw is on the following call, whose actual interval is proven above 4 ms.",
     "first_pause_runtime_wall_s": 0.00032731398823671043,
     "delay_localization": "An 11.224208ms span is observed from first accepted control sample through completion of its send wrapper. Control, pre-send tracing, transport send, post-send tracing and scheduling may contribute; saved data cannot distinguish them.",
-    "first_sample_to_send_wrapper_return_s": 0.011224208006751724,
+    "first_sample_to_send_wrapper_return_s": 0.011224208,
     "packet_timestamp_semantics": "NativeYieldLiveWriter records command_observations after super()._send_packet returns; this includes inherited post-send lifecycle tracing. It is not the exact socket-send timestamp."
   },
   "live_stream_evidence": {
@@ -157,6 +157,45 @@
       "test_contact_benchmark_provider.py::test_readiness_observer_uses_common_tau_once_without_pid_state",
       "test_contact_yield_provider.py::test_first_interval_cannot_be_silently_replaced"
     ]
+  },
+  "offline_fixture_audit": {
+    "fixture_path": "experiments/tase-contact-reproduction/tests/yield_full_writer_offline.py",
+    "fixture_coverage": "Full LiveR004Writer.execute_attempt composition with CanonicalQualificationControl.step, YieldContactProvider/runtime, in-memory transport, writer packet history, and the existing _send_packet wrapper.",
+    "state21_stationary_pause": "The fixture produces the first state-21 stationary pause through the canonical qualification path; its pause uses the existing startup_two_increments_pending branch.",
+    "provider_only_coverage": "tests/test_contact_yield_provider.py covers provider/runtime calls without the canonical qualification and writer loop.",
+    "r006_send_boundary": {
+      "covered": false,
+      "reason": "The existing fixture instantiates LiveR004Writer and wraps its _send_packet; it does not instantiate NativeYieldLiveWriter/R006LiveWriter or measure the real socket send boundary.",
+      "exact_socket_send_time_available": false
+    },
+    "measurement_tool": "experiments/tase-contact-reproduction/tools/measure_yield_full_writer.py",
+    "measurement_output": "/tmp/yield-full-writer-measure-20260920T1542Z",
+    "measurement_scope": "Existing offline unpaced fixture; synthetic receive clocks, in-memory transport, runtime deadline_s=None; not live timing qualification.",
+    "measurement_exit_code": 1,
+    "measurement": {
+      "SFC": {
+        "phase_coverage": {"entry": 500, "path": 2185, "other": 0, "n": 2685},
+        "loop_wall_ms": {"n": 2688, "p50": 0.9000945, "p95": 1.10300085, "p99": 1.12193996, "max": 15.87476, "over_2ms": 1},
+        "qualification_wall_ms": {"n": 2687, "p50": 0.779138, "p95": 0.974368, "p99": 0.9900628, "max": 1.58174, "over_2ms": 0},
+        "native_wall_ms": {"n": 2687, "p50": 0.509884, "p95": 0.6963837, "p99": 0.7068828, "max": 0.894184, "over_2ms": 0},
+        "error": "PATH soft CBF infeasible: outside_tube"
+      },
+      "DSFC": {
+        "phase_coverage": {"entry": 500, "path": 2185, "other": 0, "n": 2685},
+        "loop_wall_ms": {"n": 2688, "p50": 0.890687, "p95": 1.09671015, "p99": 1.10778933, "max": 16.4089, "over_2ms": 1},
+        "qualification_wall_ms": {"n": 2687, "p50": 0.770742, "p95": 0.969022, "p99": 0.9800574, "max": 1.178525, "over_2ms": 0},
+        "native_wall_ms": {"n": 2687, "p50": 0.503833, "p95": 0.692762, "p99": 0.70385694, "max": 0.761666, "over_2ms": 0},
+        "error": "PATH soft CBF infeasible: outside_tube"
+      },
+      "MSFC": {
+        "phase_coverage": {"entry": 500, "path": 2185, "other": 0, "n": 2685},
+        "loop_wall_ms": {"n": 2688, "p50": 0.890031, "p95": 1.094484, "p99": 1.10785159, "max": 19.535363, "over_2ms": 1},
+        "qualification_wall_ms": {"n": 2687, "p50": 0.770322, "p95": 0.966774, "p99": 0.97903426, "max": 1.215344, "over_2ms": 0},
+        "native_wall_ms": {"n": 2687, "p50": 0.503633, "p95": 0.69112, "p99": 0.7030486, "max": 0.770713, "over_2ms": 0},
+        "error": "PATH soft CBF infeasible: outside_tube"
+      }
+    },
+    "offline_conclusion": "The existing fixture reaches canonical qualification, entry, PATH publication, and inherited writer send invocation. It does not reproduce the live 11.224208 ms first-sample-to-send-wrapper delay and cannot localize socket send versus wrapper work. No deterministic hot spot or safe fix is demonstrated offline."
   },
   "blocker_and_next_live_prerequisites": {
     "blocker": "Unresolved first-qualification sample-to-publication delay; no demonstrated correction. Do not repeat contact merely to hope the timing passes.",
