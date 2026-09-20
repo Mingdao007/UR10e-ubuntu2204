@@ -1753,7 +1753,23 @@ class LiveR004Writer:
             if terminal is None or terminal.integer_echoes[26] == 90 or self._home is None:
                 raise LiveWriterError("r004 attempt terminated without a valid return")
             pose_error = math.dist(terminal.tcp_pose_m_rad[:3], self._home.pose[:3])
-            orientation_error = math.dist(terminal.tcp_pose_m_rad[3:], self._home.pose[3:])
+            # Native yield Home uses SO(3). Equivalent ±π rotation vectors are
+            # the same attitude; Euclidean rotvec distance is not. Legacy RNN
+            # routes keep the original coordinate comparison.
+            from yield_contact_provider import YieldContactProvider
+            if isinstance(contact_provider, YieldContactProvider):
+                from contact_yield_math import so3_exp, so3_log
+                import numpy as np
+                orientation_error = float(
+                    np.linalg.norm(
+                        so3_log(
+                            so3_exp(self._home.pose[3:])
+                            @ so3_exp(terminal.tcp_pose_m_rad[3:]).T
+                        )
+                    )
+                )
+            else:
+                orientation_error = math.dist(terminal.tcp_pose_m_rad[3:], self._home.pose[3:])
             q_error = max(abs(actual - expected) for actual, expected in zip(terminal.q_rad, self._home.q or (0.0,) * 6, strict=True))
             guard = terminal.integer_echoes[31]
             return_evidence = ReturnEvidence(

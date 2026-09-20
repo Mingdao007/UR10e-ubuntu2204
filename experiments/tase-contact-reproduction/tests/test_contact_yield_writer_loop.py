@@ -18,11 +18,19 @@ from test_step5d_autotune_v4_r004_live_boundary import _prerequisites
 from test_contact_qualification_provider import _output, _sensor
 
 
-def exercise_writer_loop(tmp_path,monkeypatch, *, entry_aware=True, cached_at_end=False):
+def exercise_writer_loop(tmp_path,monkeypatch, *, entry_aware=True, cached_at_end=False,
+                         home_rotation=(0., 0., 0.), terminal_rotation=None,
+                         native_provider=False):
     clock=SimpleNamespace(t=0.,ticks=0,ended=False,cache_injected=False,previous=None)
     transport=SimpleNamespace(send_packet=lambda *_args: None)
     provider=SimpleNamespace(execution_command=lambda **_kw:None,last_result=None,
         runtime=SimpleNamespace(anchor=np.zeros(3),basis=np.eye(3),controller=SimpleNamespace(task=Task())))
+    if native_provider:
+        # Preserve the route type while this fixture doubles command generation.
+        # Numerical provider behavior is covered by the full-writer tests.
+        native = object.__new__(YieldContactProvider)
+        native.__dict__.update(vars(provider))
+        provider = native
     if not entry_aware:
         del provider.execution_command
         def legacy_reference(_stage,_xy,t):
@@ -55,7 +63,7 @@ def exercise_writer_loop(tmp_path,monkeypatch, *, entry_aware=True, cached_at_en
     writer.session=SimpleNamespace(phase=SessionPhase.RUNNING,finish_attempt=lambda _d:None)
     writer._ordinal=attempt.ordinal;writer._kind=attempt.kind;writer._candidate_token=17
     writer._baseline_successes=3;writer._session_command=SessionCommand.HOLD
-    writer._home=SimpleNamespace(pose=(0.,)*6,q=(0.,)*6)
+    writer._home=SimpleNamespace(pose=(0., 0., 0., *home_rotation),q=(0.,)*6)
     writer._host_hard_tube=None
     writer._fail_closed=lambda _reason:None
     def end(_sequence):clock.ended=True;return True
@@ -75,6 +83,8 @@ def exercise_writer_loop(tmp_path,monkeypatch, *, entry_aware=True, cached_at_en
                 ref=Task().reference(t)
                 pose=(*ref['position_m'],0.,0.,0.);speed=(*ref['velocity_m_s'],0.,0.,0.)
         clock.ticks+=1
+        if state == 78 and terminal_rotation is not None:
+            pose = (*pose[:3], *terminal_rotation)
         writer._last_poll_was_fresh=True
         writer._last_rtde_frame_sequence=clock.t
         writer._last_rtde_frame_mono_s=clock.t
