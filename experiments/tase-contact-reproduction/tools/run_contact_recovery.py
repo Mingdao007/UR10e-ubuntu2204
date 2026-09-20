@@ -33,7 +33,7 @@ def _protective_safety(row):
     return 'PROTECTIVE_STOP' in str(row.get('safetymode','')).upper()
 
 
-def check_dashboard(host, *, allow_protective=False):
+def check_dashboard(host, *, allow_protective=False, stop_if_running=False):
     """Read the recovery gate without hiding a Protective Stop.
 
     ``allow_protective`` is only for the pre-unlock observation. It does not
@@ -48,9 +48,28 @@ def check_dashboard(host, *, allow_protective=False):
     if any(row.get(key) != value for key,value in common.items()):
         raise ValueError(f'recovery requires a stopped, powered Remote robot: {row}')
     if row.get('safetymode') == 'Safetymode: NORMAL':
-        if row.get('running') != 'Program running: false':
-            raise ValueError(f'recovery requires NORMAL but stopped Dashboard: {row}')
-        return row
+        if row.get('running') == 'Program running: false':
+            return row
+        if stop_if_running and row.get('running') == 'Program running: true':
+            # A failed writer can leave the Dashboard PLAYING for a short
+            # interval after its RTDE stop acknowledgement.  This is still a
+            # commandable recovery state: issue the idempotent STOP, wait for
+            # the controller's STOPPED echo, then let the normal observer/
+            # clearance gates decide whether Home is safe.  Do not classify
+            # this transient race as a terminal Home block.
+            stopper = RemoteDashboardWriter(
+                host, load_target=f'{DIRECTORY}/{BASENAME}.urp'
+            )
+            stop_outcome = stopper.write('stop')
+            stopped = _dashboard_until_stopped(host)
+            if stopped.get('safetymode') != 'Safetymode: NORMAL':
+                raise ValueError(f'recovery safety changed after STOP: {stopped}')
+            stopped['recovery_stop_command'] = {
+                'command': stop_outcome.command,
+                'response': stop_outcome.response,
+            }
+            return stopped
+        raise ValueError(f'recovery requires NORMAL but stopped Dashboard: {row}')
     if allow_protective and _protective_safety(row):
         return row
     raise ValueError(f'recovery safety gate is not NORMAL: {row}')
@@ -240,7 +259,13 @@ def run(args):
     source_protective=source_receipt.get('stop',{}).get('protective_stop') is True
     contract=load_identity_contract()
     if baseline.get('eoat_identity_sha256')!=contract.eoat_sha256:raise ValueError('baseline tool identity differs')
-    dashboard_before=check_dashboard(args.host,allow_protective=True)
+    # The source writer normally leaves a stopped Dashboard, but the UR
+    # controller can acknowledge the host stop before its PLAYING state has
+    # propagated.  Clear that commandable race here instead of turning it
+    # into ``BLOCKED`` and making the next retry responsible for Home.
+    dashboard_before=check_dashboard(
+        args.host, allow_protective=True, stop_if_running=True
+    )
     if not args.execute:return {'success':False,'motion':False,'state':'read-only preflight passed','dashboard':dashboard_before,'source_protective_stop':source_protective}
     out.mkdir(parents=True)
     result={'success':False,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_attempt':str(source),'trial_stays_failed':True,'recovery_policy':RECOVERY_POLICY,'source_receipt_present':bool(source_receipt.get('receipt_present',True)),'source_armed':source_receipt.get('armed'),'source_protective_stop':source_protective,'dashboard_before':dashboard_before,'home_required':True,'home_attempted':False,'home_blocked':False}

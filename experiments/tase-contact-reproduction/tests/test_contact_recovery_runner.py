@@ -201,3 +201,37 @@ def test_recovery_reuses_completed_home_receipt(tmp_path, monkeypatch):
     assert result['success'] is True
     assert result['state']=='HOME_RECOVERED'
     assert result['recovery_output']==str(prior)
+
+
+def test_commandable_playing_race_is_stopped_before_home_preflight(monkeypatch):
+    rows = [
+        {
+            'safetymode': 'Safetymode: NORMAL',
+            'running': 'Program running: true',
+            'robotmode': 'Robotmode: RUNNING',
+            'is in remote control': 'true',
+        },
+        {
+            'safetymode': 'Safetymode: NORMAL',
+            'running': 'Program running: false',
+            'robotmode': 'Robotmode: RUNNING',
+            'is in remote control': 'true',
+        },
+    ]
+    commands = []
+
+    monkeypatch.setattr(runner, 'dashboard_exchange', lambda *_: rows.pop(0))
+
+    class Writer:
+        def __init__(self, *_, **__):
+            pass
+
+        def write(self, command):
+            commands.append(command)
+            return SimpleNamespace(command=command, response='Stopping program')
+
+    monkeypatch.setattr(runner, 'RemoteDashboardWriter', Writer)
+    result = runner.check_dashboard('fake', stop_if_running=True)
+    assert commands == ['stop']
+    assert result['running'] == 'Program running: false'
+    assert result['recovery_stop_command']['command'] == 'stop'

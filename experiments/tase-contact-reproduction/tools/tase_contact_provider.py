@@ -54,7 +54,14 @@ TASE_PAPER_OUTER_BINDING = {
         'force target from internal setpoint',
         'delay T from actual dt',
         'shared live integral and normal-velocity safety limits',
+        'one-sided raw-normal rise envelope for live force protection',
     ],
+    'live_force_measurement_envelope': {
+        'schema': 'tase-live-force-rise-envelope-v1',
+        'formula': 'control_normal=max(canonical_filtered_normal, measured_normal_load)',
+        'purpose': 'prevent filter lag from commanding further inward motion while raw load is rising',
+        'evidence_field': 'control_normal_n',
+    },
 }
 
 
@@ -235,9 +242,21 @@ class TaseContactProvider(ContactCommandProvider):
             filtered = self.lifecycle_observer.filtered_normal_n
             if filtered is None:
                 filtered = sensor.filtered_normal_n
+            if not math.isfinite(float(filtered)) or not math.isfinite(
+                float(sensor.normal_load_n)
+            ):
+                raise ValueError('TASE force measurement is nonfinite')
+            # The canonical V4 filter remains the qualification/evidence
+            # signal.  The TASE force loop additionally gets a one-sided
+            # measured-load envelope: when the raw normal rises faster than
+            # the long readiness filter, it must not continue commanding
+            # into the contact until the filter catches up.  On release the
+            # low-pass value is retained, avoiding noisy outward/inward
+            # chatter and preserving the paper loop's filtered input.
+            control_normal = max(float(filtered), float(sensor.normal_load_n))
             twist = self.runtime.desired_twist(actual_tcp_pose=output.tcp_pose_m_rad,
                 actual_tcp_speed=output.tcp_speed_m_s_rad_s, force_tcp_n=sensor.wrench[:3],
-                filtered_normal_n=filtered, internal_setpoint_n=internal_setpoint_n,
+                filtered_normal_n=control_normal, internal_setpoint_n=internal_setpoint_n,
                 actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
             command = self.runtime.command(actual_q=output.q_rad, actual_qd=output.qd_rad_s,
                 actual_tcp_pose=output.tcp_pose_m_rad, desired_twist=twist,
@@ -245,7 +264,9 @@ class TaseContactProvider(ContactCommandProvider):
             self._commit_clock(obs)
             self.phase = phase
             self.last_result = {'phase': phase, 'sample_time_s': monotonic_s,
-                'qdot_rad_s': command.qdot, 'filtered_normal_n': filtered,
+                'qdot_rad_s': command.qdot,
+                'filtered_normal_n': float(filtered),
+                'control_normal_n': float(control_normal),
                 'entry_time_s': t if phase == 'entry' else None,
                 'formal_time_s': t if phase == 'path' else None,
                 'actual_dt_s': actual_dt_s, 'solver': copy.deepcopy(self.runtime.last_solver_diagnostics),

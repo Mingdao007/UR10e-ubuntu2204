@@ -72,6 +72,28 @@ def test_live_tase_binds_paper_outer_parameters(provider):
     assert provider.last_result['outer_loop_binding']['equations'] == ['Eq16', 'Eq17']
 
 
+def test_live_tase_uses_raw_normal_rise_envelope_without_replacing_evidence_filter(provider):
+    o, s = tick(provider, .002, force=8.)
+    # The writer's canonical readiness filter can still lag at 1 N while the
+    # measured load has already risen.  The controller must see the
+    # conservative live envelope, while the evidence field remains the
+    # canonical filtered value.
+    s = replace(s, filtered_normal_n=1., normal_load_n=8., force_norm_n=8.)
+    provider.command(
+        output=o,
+        sensor=s,
+        monotonic_s=.002,
+        actual_dt_s=.002,
+        mode='baseline',
+        internal_setpoint_n=1.,
+    )
+    assert provider.last_result['filtered_normal_n'] == pytest.approx(1.)
+    assert provider.last_result['control_normal_n'] == pytest.approx(8.)
+    assert provider.last_result['outer_loop_binding']['live_force_measurement_envelope']['schema'] == (
+        'tase-live-force-rise-envelope-v1'
+    )
+
+
 def test_stale_observation_does_not_advance_control_state(provider):
     before=provider.snapshot();o,s=tick(provider,.1)
     s=replace(s,observed_at_s=.001)
