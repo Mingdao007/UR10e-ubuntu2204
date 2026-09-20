@@ -1,0 +1,10 @@
+{
+  "scope": "offline constructor-only draft review; no command/endpoint access",
+  "source_sha256": "4b85bac41b9ca2a946171cdf24ba80ba75f00010dbfdba3af7b51861e3f3d5c2",
+  "source_stable": true,
+  "runtime_identities_differ": true,
+  "controller_identities_equal": true,
+  "anchor_changed_m": 0.001,
+  "binding_for_A_accepts_B": true,
+  "error": null
+}
