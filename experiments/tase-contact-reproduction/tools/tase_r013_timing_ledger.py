@@ -53,6 +53,7 @@ class TaseR013TimingLedger:
     failure_condition: str | None = None
     source_success: bool | None = None
     recovery: Mapping[str, Any] | None = None
+    missing_events: list[dict[str, Any]] = field(default_factory=list)
 
     def mark(self, stage: str, timestamp_s: float, *, event: str = "start") -> None:
         stage = str(stage)
@@ -162,6 +163,11 @@ class TaseR013TimingLedger:
             "attempt_id": self.attempt_id,
             "protocol_id": self.protocol_id,
             "events": list(self.events),
+            # A missing timestamp is evidence that the current owner did not
+            # expose that transition.  Keep the typed stage token instead of
+            # deriving a timestamp from a neighboring stage or a target
+            # duration.
+            "missing_events": list(self.missing_events),
             "durations_s": self.durations(),
             "failure_stage": self.failure_stage,
             "failure_condition": self.failure_condition,
@@ -180,9 +186,75 @@ def ledger_from_receipts(
     """Merge writer timing with supervisor/recovery receipts without promotion."""
     dispatch = dict(dispatch_receipt or {})
     supervisor = dict(supervisor_result or {})
+    missing_events: list[dict[str, Any]] = []
+
+    def collect(source: Mapping[str, Any], source_name: str) -> list[Mapping[str, Any]]:
+        raw = source.get("lifecycle_events", source.get("timing_events", ()))
+        if raw is None:
+            return []
+        if not isinstance(raw, Iterable) or isinstance(raw, (str, bytes, Mapping)):
+            missing_events.append({
+                "source": source_name,
+                "stage": None,
+                "event": "invalid_lifecycle_events",
+                "timestamp_s": None,
+            })
+            return []
+        rows: list[Mapping[str, Any]] = []
+        for row in raw:
+            if not isinstance(row, Mapping):
+                missing_events.append({
+                    "source": source_name,
+                    "stage": None,
+                    "event": "invalid_lifecycle_event",
+                    "timestamp_s": None,
+                })
+                continue
+            stage = str(row.get("stage", ""))
+            timestamp = row.get("timestamp_s")
+            if stage not in _STAGE_INDEX or timestamp is None:
+                missing_events.append({
+                    "source": source_name,
+                    "stage": stage or None,
+                    "event": str(row.get("event", "start")),
+                    "timestamp_s": None,
+                })
+                continue
+            try:
+                _finite(timestamp, f"{stage} timestamp")
+            except TimingLedgerError:
+                missing_events.append({
+                    "source": source_name,
+                    "stage": stage,
+                    "event": str(row.get("event", "start")),
+                    "timestamp_s": None,
+                })
+                continue
+            rows.append(row)
+        return rows
+
+    merged_events: list[Mapping[str, Any]] = []
+    # Caller-supplied events are retained first for backwards compatibility;
+    # receipt-attached events are then merged by exact identity.  The writer
+    # owns dispatch events and the supervisor owns recovery events, so neither
+    # side can silently replace the other.
+    argument_rows = list(lifecycle_events)
+    merged_events.extend(collect({"lifecycle_events": argument_rows}, "argument"))
+    merged_events.extend(collect(dispatch, "dispatch"))
+    merged_events.extend(collect(supervisor, "supervisor"))
+    recovery_candidate = dispatch.get("automatic_home_recovery") or supervisor.get("autonomous_home_recovery")
+    if isinstance(recovery_candidate, Mapping):
+        merged_events.extend(collect(recovery_candidate, "recovery"))
+    deduplicated: list[Mapping[str, Any]] = []
+    seen: set[tuple[str, str, float]] = set()
+    for row in merged_events:
+        key = (str(row.get("stage")), str(row.get("event", "start")), float(row["timestamp_s"]))
+        if key not in seen:
+            seen.add(key)
+            deduplicated.append(row)
     ledger = TaseR013TimingLedger.from_events(
         attempt_id,
-        lifecycle_events,
+        deduplicated,
         failure_stage=dispatch.get("failure_stage") or supervisor.get("failure_stage"),
         failure_condition=dispatch.get("failure_condition") or supervisor.get("error"),
         source_success=(
@@ -191,9 +263,86 @@ def ledger_from_receipts(
             else supervisor.get("success")
         ),
     )
+    ledger.missing_events.extend(missing_events)
     recovery = dispatch.get("automatic_home_recovery") or supervisor.get("autonomous_home_recovery")
     ledger.attach_recovery(recovery if isinstance(recovery, Mapping) else None)
     return ledger
+
+
+def lifecycle_events_from_writer(
+    writer: Any,
+    *,
+    home_check_s: float | None = None,
+    contact_search_s: float | None = None,
+    stop_s: float | None = None,
+    home_verified: bool = False,
+) -> list[dict[str, Any]]:
+    """Extract typed stage transitions already exposed by the sole writer.
+
+    This is a read-only reducer over writer observations.  It never calls a
+    clock and never fills a missing stage from a nominal duration.  TP state
+    20/21/25/40/78, the writer PATH-end handshake, and the evidence-backed
+    Home proof are the only accepted transition sources.
+    """
+    def finite_or_none(value: Any) -> float | None:
+        try:
+            number = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return number if math.isfinite(number) else None
+
+    def row_time(row: Any) -> float | None:
+        if isinstance(row, Mapping):
+            return finite_or_none(row.get("received_monotonic_s", row.get("monotonic_s")))
+        return finite_or_none(getattr(row, "received_monotonic_s", getattr(row, "monotonic_s", None)))
+
+    def row_state(row: Any) -> int | None:
+        echoes = row.get("integer_echoes") if isinstance(row, Mapping) else getattr(row, "integer_echoes", None)
+        if isinstance(echoes, Mapping):
+            return int(echoes[26]) if 26 in echoes else None
+        try:
+            return int(echoes[26])
+        except (TypeError, KeyError, IndexError, ValueError):
+            return None
+
+    first_state: dict[int, float] = {}
+    rows = list(getattr(writer, "robot_observations", ()) or ())
+    rows.extend(list(getattr(writer, "admission_robot_observations", ()) or ()))
+    for row in rows:
+        state = row_state(row)
+        timestamp = row_time(row)
+        if state in {20, 21, 25, 40, 78} and timestamp is not None and state not in first_state:
+            first_state[state] = timestamp
+
+    candidates: dict[str, tuple[float | None, str]] = {
+        "HOME_CHECK": (finite_or_none(home_check_s), "verified_preflight"),
+        "CONTACT_SEARCH": (
+            first_state.get(20, finite_or_none(contact_search_s)),
+            "tp_state_20" if 20 in first_state else "arm_complete",
+        ),
+        "CONTACT_LATCH": (first_state.get(21), "tp_state_20_to_21"),
+        "QUALIFICATION": (first_state.get(21), "tp_state_21"),
+        "READINESS_HOLD": (first_state.get(21), "tp_state_21_readiness"),
+        "ENTRY": (first_state.get(25), "tp_state_25"),
+        "PATH": (
+            finite_or_none(getattr(writer, "_path_command_started_mono_s", None)),
+            "first_consumed_path_command",
+        ),
+        "STOP": (
+            finite_or_none(getattr(writer, "_r013_path_end_request_mono_s", None))
+            or finite_or_none(stop_s),
+            "path_end_handshake" if getattr(writer, "_r013_path_end_request_mono_s", None) is not None else "stop_request",
+        ),
+        "UNLOAD_RELIEF": (first_state.get(40), "tp_state_40"),
+        "CLEARANCE": (first_state.get(78), "tp_state_78"),
+        "HOME": (first_state.get(78) if home_verified else None, "home_proof"),
+    }
+    return [
+        {"stage": stage, "event": event, "timestamp_s": timestamp}
+        for stage in STAGES
+        for timestamp, event in (candidates[stage],)
+        if timestamp is not None
+    ]
 
 
 def summarize_timing_ledgers(ledgers: Iterable[TaseR013TimingLedger]) -> dict[str, Any]:
@@ -238,5 +387,6 @@ __all__ = [
     "TaseR013TimingLedger",
     "TimingLedgerError",
     "ledger_from_receipts",
+    "lifecycle_events_from_writer",
     "summarize_timing_ledgers",
 ]

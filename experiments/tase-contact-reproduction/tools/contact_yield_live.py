@@ -38,6 +38,7 @@ from contact_yield_method_registry import (
 from step5d_autotune_v4_r004_live_writer import LiveWriterError
 from step5d_autotune_v4_r005.live_adapter import R005_LIVE_ACK
 from step5d_autotune_v4_r006.live_adapter import R006LiveAdapterError
+from tase_r013_timing_ledger import lifecycle_events_from_writer
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -327,6 +328,15 @@ def run_live(
         mono_clock=mono_clock,
         sleep=sleep,
     )
+    # All lifecycle marks use the writer's monotonic domain.  The preflight
+    # Home check has completed at this boundary; no nominal receipt timestamp
+    # is synthesized if construction fails before this point.
+    import time as _time
+    lifecycle_clock = getattr(mature.writer, "_mono_clock", None)
+    if not callable(lifecycle_clock):
+        lifecycle_clock = _time.monotonic
+    lifecycle_home_check_s = float(lifecycle_clock())
+    lifecycle_contact_search_s: float | None = None
     if observer_guard is not None:
         mature.writer._controller_transport = ObservedTransport(
             mature.writer._controller_transport, observer_guard,
@@ -414,6 +424,7 @@ def run_live(
                 mature.writer.install_timing_scheduler_lease(lease)
                 mature.writer.prepare_timing_scheduler_lease()
             mature.arm(attempt)
+            lifecycle_contact_search_s = float(lifecycle_clock())
             receipt["armed"] = True
             evidence = mature.run_60s(attempt)
             receipt["executed"] = True
@@ -446,6 +457,7 @@ def run_live(
         receipt["evidence_type"] = type(evidence).__name__
         receipt["evidence_eligible"] = bool(evidence.eligible)
         receipt["evidence_metrics"] = dict(evidence.metrics)
+        receipt["success"] = bool(evidence.eligible)
         return receipt
     except BaseException as exc:
         receipt["error"] = f"{type(exc).__name__}: {exc}"
@@ -453,11 +465,13 @@ def run_live(
         raise
     finally:
         errors = []
+        stop_requested_s: float | None = None
         if old_handlers:
             # A repeated request must not interrupt transport cleanup.
             for sig in old_handlers:
                 signal.signal(sig, signal.SIG_IGN)
         try:
+            stop_requested_s = float(lifecycle_clock())
             receipt["stop"] = stop_and_confirm(mature.writer)
         except Exception as exc:
             receipt["stop"] = {"stopped": False, "error": str(exc)}
@@ -521,6 +535,27 @@ def run_live(
             except Exception as exc:
                 errors.append(f"evidence {filename}: {exc}")
         receipt["cleanup_errors"] = errors
+        home_verified = False
+        for item in receipt.get("attempts", ()):
+            if not isinstance(item, dict):
+                continue
+            evidence_row = item.get("evidence") or {}
+            proof = evidence_row.get("home_proof") if isinstance(evidence_row, dict) else None
+            if isinstance(proof, dict) and proof.get("stationary") is True and proof.get("fixed_home_route") is True and evidence_row.get("return_gate_passed") is True:
+                home_verified = True
+        try:
+            receipt["lifecycle_events"] = lifecycle_events_from_writer(
+                mature.writer,
+                home_check_s=lifecycle_home_check_s,
+                contact_search_s=lifecycle_contact_search_s,
+                stop_s=stop_requested_s,
+                home_verified=home_verified,
+            )
+        except Exception as exc:
+            # Timing reduction is observation-only; preserve the original
+            # attempt outcome while making the missing reducer evidence clear.
+            receipt["lifecycle_events"] = []
+            receipt["lifecycle_event_error"] = f"{type(exc).__name__}: {exc}"
         # Preserve failed attempts as well as successful ones. Never overwrite
         # a prior attempt: the caller must supply a fresh run directory.
         with (Path(args.run_dir) / "dispatch_receipt.json").open("x") as handle:

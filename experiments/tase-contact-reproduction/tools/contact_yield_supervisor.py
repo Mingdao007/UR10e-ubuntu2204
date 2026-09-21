@@ -22,6 +22,7 @@ from contact_yield_live_contract import (
     RUNTIME_PROTOCOL, load_identity_contract, software_identity_limbs,
 )
 from step5d_autotune_v4_r004.transport import OUTPUT_FIELDS, R004OutputSnapshot
+from tase_r013_timing_ledger import ledger_from_receipts
 
 
 MAX_AGE_S = .080
@@ -173,7 +174,20 @@ class ResidentSupervisor:
         self.observer, self.video = observer, video
         self.read_dashboard, self.writer, self.target = read_dashboard, writer, target
         self.clock, self.sleep = clock, sleep
-        self.audit = {'success': False, 'events': [], 'motion_commands_from_supervisor': 0}
+        self.audit = {
+            'success': False,
+            'events': [],
+            'lifecycle_events': [],
+            'motion_commands_from_supervisor': 0,
+        }
+
+    def _mark_lifecycle(self, stage: str, event: str = 'start') -> None:
+        """Record only supervisor-owned transitions in its monotonic domain."""
+        self.audit['lifecycle_events'].append({
+            'stage': str(stage),
+            'event': str(event),
+            'timestamp_s': float(self.clock()),
+        })
 
     def check(self, *, idle=False, identity=False):
         row = self.observer.latest()
@@ -240,7 +254,17 @@ class ResidentSupervisor:
                 until=self.clock()+1.
                 while self.clock()<until:
                     self.check(idle=True,identity=True); self.sleep(.002)
-            self.audit['body']=body(self)
+            body_result = body(self)
+            self.audit['body'] = body_result
+            if isinstance(body_result, dict):
+                for event in body_result.get('lifecycle_events', ()):
+                    if isinstance(event, dict):
+                        self.audit['lifecycle_events'].append(dict(event))
+            if not any(
+                isinstance(row, dict) and row.get('stage') == 'HOME_CHECK'
+                for row in self.audit['lifecycle_events']
+            ):
+                self._mark_lifecycle('HOME_CHECK', 'verified')
             self.audit['success']=True
         except BaseException as exc:
             self.audit['error']=f'{type(exc).__name__}: {exc}'
@@ -248,6 +272,11 @@ class ResidentSupervisor:
             if play_attempted:
                 try:
                     prior = self.audit.get('last_sample',{}).get('timestamp')
+                    if not any(
+                        isinstance(row, dict) and row.get('stage') == 'STOP'
+                        for row in self.audit['lifecycle_events']
+                    ):
+                        self._mark_lifecycle('STOP', 'requested')
                     at=self.clock(); self.writer.write('stop')
                     self.audit['dashboard_stop']=self._wait(running=False,after=at,healthy=False,prior_timestamp=prior)
                 except BaseException as exc:
@@ -490,6 +519,26 @@ def main(argv=None):
             result['completion_status'] = 'COMPLETE_PATH_HOME_RECOVERED_AFTER_CLEANUP_FAILURE'
             result['attempt_failure_preserved'] = True
             result['success'] = True
+    dispatch_path = a.run_dir / 'dispatch_receipt.json'
+    dispatch_receipt = {}
+    if dispatch_path.is_file() and not dispatch_path.is_symlink():
+        try:
+            loaded = json.loads(dispatch_path.read_text(encoding='utf-8'))
+            if isinstance(loaded, dict):
+                dispatch_receipt = loaded
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            dispatch_receipt = {}
+    timing_ledger = ledger_from_receipts(
+        str(dispatch_receipt.get('attempt_id') or f'r006-supervised-{a.action}'),
+        dispatch_receipt=dispatch_receipt,
+        supervisor_result=result,
+    ).as_dict()
+    result['timing_ledger'] = timing_ledger
+    if dispatch_receipt:
+        dispatch_receipt['timing_ledger'] = timing_ledger
+        temporary = dispatch_path.with_suffix('.timing.tmp')
+        temporary.write_text(json.dumps(dispatch_receipt, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+        temporary.replace(dispatch_path)
     with (a.run_dir/'supervisor-result.json').open('x') as out: json.dump(result,out,indent=2)
     print(json.dumps(result,indent=2))
     return 0 if result['success'] else 1
