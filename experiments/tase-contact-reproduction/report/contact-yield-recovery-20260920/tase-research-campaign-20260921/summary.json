@@ -1,0 +1,189 @@
+{
+  "artifacts": {
+    "attempts_sha256": "7a6e093d83d54135fc35d045baf082e7592a29b259641a281eb4da2ee22fcfd4",
+    "holdout_sha256": "873dd1dc8d01ab1fee47ce174fb19e66095a627c5318ac9e9ea4da3c0616da3c"
+  },
+  "attempt_denominators": {
+    "failed_holdout": 60,
+    "failed_tuning": 72,
+    "holdout": 160,
+    "tuning": 192
+  },
+  "claim_scope": "offline proxy only; no robot, bridge, physical acceptance, or human-push claim",
+  "config": {
+    "bo_units": 12,
+    "holdout_rounds": 5,
+    "horizon_ticks": 256,
+    "initial_units": 8,
+    "repeat_units": 4,
+    "seed": 20260921
+  },
+  "frozen": {
+    "TASE_IMPROVED": {
+      "candidate": {
+        "force_contact_gate_n": 0.75,
+        "force_integral_leak_tau_s": 0.25,
+        "force_integral_limit_n_s": 1.25,
+        "normal_weight": 80.0
+      },
+      "eligible_training_attempts": 20,
+      "source": "min_training_normal_force_mae"
+    },
+    "TASE_QP": {
+      "candidate": {
+        "lambda_update_sign": "minus"
+      },
+      "eligible_training_attempts": 20,
+      "source": "min_training_normal_force_mae"
+    },
+    "TASE_RNN": {
+      "candidate": {
+        "epsilon": 0.02,
+        "lambda_update_sign": "plus",
+        "sigr_exponent_r": 0.2
+      },
+      "eligible_training_attempts": 20,
+      "source": "min_training_normal_force_mae"
+    },
+    "TASE_RNN_MATURE": {
+      "candidate": {
+        "epsilon": 0.014,
+        "lambda_update_sign": "minus",
+        "sigr_exponent_r": 0.2
+      },
+      "eligible_training_attempts": 20,
+      "source": "min_training_normal_force_mae"
+    },
+    "TASE_RNN_MATURE+LAC": {
+      "candidate": {
+        "normal_controller": "TASE_RNN_MATURE",
+        "tangential_controller": "LAC"
+      },
+      "eligible_training_attempts": 0,
+      "source": "no_eligible_training_attempt"
+    },
+    "TASE_RNN_MATURE+NAC": {
+      "candidate": {
+        "normal_controller": "TASE_RNN_MATURE",
+        "tangential_controller": "NAC"
+      },
+      "eligible_training_attempts": 0,
+      "source": "no_eligible_training_attempt"
+    },
+    "TASE_RNN_MATURE+SFC": {
+      "candidate": {
+        "normal_controller": "TASE_RNN_MATURE",
+        "tangential_controller": "SFC"
+      },
+      "eligible_training_attempts": 0,
+      "source": "no_eligible_training_attempt"
+    },
+    "TASE_RNN_MATURE_MINUS": {
+      "candidate": {
+        "epsilon": 0.014,
+        "lambda_update_sign": "minus",
+        "sigr_exponent_r": 0.2
+      },
+      "eligible_training_attempts": 20,
+      "source": "min_training_normal_force_mae"
+    }
+  },
+  "paired_vs_primary": {
+    "TASE_IMPROVED": {
+      "improvement_threshold_n": 0.1,
+      "lower": 0.0041971221723910695,
+      "mean": 0.006213716160563099,
+      "n": 20,
+      "supported_improvement": false,
+      "upper": 0.008230310148735128
+    },
+    "TASE_QP": {
+      "improvement_threshold_n": 0.1,
+      "lower": -0.0031581997943230787,
+      "mean": -0.002391125606885658,
+      "n": 20,
+      "supported_improvement": false,
+      "upper": -0.0016240514194482375
+    },
+    "TASE_RNN": {
+      "improvement_threshold_n": 0.1,
+      "lower": 0.695046686966369,
+      "mean": 1.0587953644043868,
+      "n": 20,
+      "supported_improvement": false,
+      "upper": 1.4225440418424047
+    },
+    "TASE_RNN_MATURE+LAC": {
+      "improvement_threshold_n": 0.1,
+      "lower": null,
+      "mean": null,
+      "n": 0,
+      "supported_improvement": false,
+      "upper": null
+    },
+    "TASE_RNN_MATURE+NAC": {
+      "improvement_threshold_n": 0.1,
+      "lower": null,
+      "mean": null,
+      "n": 0,
+      "supported_improvement": false,
+      "upper": null
+    },
+    "TASE_RNN_MATURE+SFC": {
+      "improvement_threshold_n": 0.1,
+      "lower": null,
+      "mean": null,
+      "n": 0,
+      "supported_improvement": false,
+      "upper": null
+    },
+    "TASE_RNN_MATURE_MINUS": {
+      "improvement_threshold_n": 0.1,
+      "lower": -2.4051552219590433e-05,
+      "mean": -1.1919506793900413e-05,
+      "n": 20,
+      "supported_improvement": false,
+      "upper": 2.1253863178960425e-07
+    }
+  },
+  "protocol": {
+    "budget": {
+      "bo": 12,
+      "holdout_rounds": 5,
+      "initial": 8,
+      "repeat": 4
+    },
+    "cases": [
+      "plane",
+      "incline",
+      "low_curvature",
+      "stiffness_change"
+    ],
+    "composition_methods": [
+      "TASE_RNN_MATURE+LAC",
+      "TASE_RNN_MATURE+NAC",
+      "TASE_RNN_MATURE+SFC"
+    ],
+    "dt_s": 0.002,
+    "executable_methods": [
+      "TASE_RNN",
+      "TASE_RNN_MATURE",
+      "TASE_RNN_MATURE_MINUS",
+      "TASE_QP",
+      "TASE_IMPROVED"
+    ],
+    "methods": [
+      "TASE_RNN",
+      "TASE_RNN_MATURE",
+      "TASE_RNN_MATURE_MINUS",
+      "TASE_QP",
+      "TASE_IMPROVED",
+      "TASE_RNN_MATURE+LAC",
+      "TASE_RNN_MATURE+NAC",
+      "TASE_RNN_MATURE+SFC"
+    ],
+    "normal_force_target_n": 5.0,
+    "raw_force_limit_n": 20.0
+  },
+  "schema": "ur10e.tase-research-campaign-v1"
+}
