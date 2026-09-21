@@ -26,6 +26,12 @@ from step5d_autotune_v4_r004.timing import MAX_FRESH_GAP_S
 from step5d_paper_outer_loop import Step5dOuterLoopConfig
 
 
+# A one-time live safety transition, not a change to the paper gains.  The
+# canonical task target is 5 N; a 1 N norm margin gives the RNN time to shed a
+# rising load before the shared 20 N raw-wrench guard is reached.
+TASE_FORCE_PREEMPT_THRESHOLD_N = 6.0
+
+
 # Parameters copied from config/step5c_tase_paper_truth.json (Eq. 16/17).
 # Runtime-only setpoint, actual dt, integral authority and normal-velocity
 # safety limits are applied by V4CalibratedRuntime on each live tick.
@@ -56,12 +62,20 @@ TASE_PAPER_OUTER_BINDING = {
         'delay T from actual dt',
         'shared live integral and normal-velocity safety limits',
         'one-sided raw-normal rise envelope for live force protection',
+        'one-time RNN warm-start when measured force norm exceeds 6 N',
     ],
     'live_force_measurement_envelope': {
         'schema': 'tase-live-force-rise-envelope-v1',
         'formula': 'control_normal=max(canonical_filtered_normal, measured_normal_load, measured_force_norm)',
         'purpose': 'prevent filter lag or tangential-load growth from commanding further inward motion near the shared force limit',
         'evidence_field': 'control_normal_n',
+    },
+    'force_preemptive_rnn_warm_start': {
+        'schema': 'tase-live-force-preempt-warm-start-v1',
+        'threshold_n': TASE_FORCE_PREEMPT_THRESHOLD_N,
+        'condition': 'measured_force_norm >= threshold_n; one trigger per provider lifecycle',
+        'purpose': 'remove strict-RNN state lag at a rising load without raising the raw guard',
+        'evidence_field': 'force_preempt_warm_start',
     },
 }
 
@@ -105,6 +119,7 @@ class TaseContactProvider(ContactCommandProvider):
         self.freshness = SensorFreshnessTracker()
         self.last_result = self.last_pause = None
         self.command_history = None
+        self.force_preempt_warm_started = False
         self.lifecycle_observer = ContactReadinessObserver(candidate.normal_filter_tau_s,
             max_dt_s=MAX_FRESH_GAP_S, strict_dt_upper=True)
         self.runtime = V4CalibratedRuntime(
@@ -152,6 +167,7 @@ class TaseContactProvider(ContactCommandProvider):
             'last_sensor_timestamp': self.last_sensor_timestamp,
             'last_result': self.last_result,
             'last_pause': self.last_pause, 'command_history': self.command_history,
+            'force_preempt_warm_started': self.force_preempt_warm_started,
             'filter': {'filtered_normal_n': self.lifecycle_observer.filtered_normal_n,
                 'last_log': None if self.lifecycle_observer.last_log is None else asdict(self.lifecycle_observer.last_log)}})
 
@@ -264,6 +280,18 @@ class TaseContactProvider(ContactCommandProvider):
                 actual_tcp_speed=output.tcp_speed_m_s_rad_s, force_tcp_n=sensor.wrench[:3],
                 filtered_normal_n=control_normal, internal_setpoint_n=internal_setpoint_n,
                 actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
+            force_preempt_warm_start = False
+            if (
+                not self.force_preempt_warm_started
+                and float(sensor.force_norm_n) >= TASE_FORCE_PREEMPT_THRESHOLD_N
+            ):
+                force_preempt_warm_start = bool(self.runtime.warm_start_for_twist(
+                    actual_q=output.q_rad,
+                    desired_twist=twist,
+                    mode=mode,
+                ))
+                if force_preempt_warm_start:
+                    self.force_preempt_warm_started = True
             command = self.runtime.command(actual_q=output.q_rad, actual_qd=output.qd_rad_s,
                 actual_tcp_pose=output.tcp_pose_m_rad, desired_twist=twist,
                 actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
@@ -296,6 +324,8 @@ class TaseContactProvider(ContactCommandProvider):
                 'control_normal_n': float(control_normal),
                 'measured_normal_n': float(sensor.normal_load_n),
                 'measured_force_norm_n': float(sensor.force_norm_n),
+                'force_preempt_warm_start': force_preempt_warm_start,
+                'force_preempt_warm_started': self.force_preempt_warm_started,
                 'entry_time_s': t if phase == 'entry' else None,
                 'formal_time_s': t if phase == 'path' else None,
                 'actual_dt_s': actual_dt_s, 'solver': copy.deepcopy(self.runtime.last_solver_diagnostics),

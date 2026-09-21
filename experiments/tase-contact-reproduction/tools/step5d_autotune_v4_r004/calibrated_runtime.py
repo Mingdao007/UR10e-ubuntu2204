@@ -453,6 +453,43 @@ class V4CalibratedRuntime:
             solver_status=status,
         )
 
+    def warm_start_for_twist(
+        self,
+        *,
+        actual_q: Sequence[float],
+        desired_twist: Sequence[float],
+        mode: str,
+    ) -> bool:
+        """Prime the live RNN at a safety transition without changing the law.
+
+        The mature RNN normally warm-starts only when its mode changes.  A
+        sudden force rise can otherwise leave its state carrying the prior
+        inward command for several 500 Hz ticks.  This explicit seam is
+        limited to the strict-RNN backend; QP providers return ``False``.
+        Callers must record why the transition was requested.
+        """
+        if isinstance(self.solver_profile, QpSolverProfile):
+            return False
+        if mode not in {"baseline", "path"}:
+            raise CalibratedRuntimeError("RNN warm-start mode is invalid")
+        q = _finite_vector(actual_q, 6, "actual_q")
+        twist = _finite_vector(desired_twist, 6, "desired_twist")
+        jacobian = tcp_jacobian_base(self.model, q)
+        motion_qdot_limit = 0.15 if self.motion_profile is None else self.motion_profile.qdot_cap_rad_s
+        qdot_limit = min(motion_qdot_limit, self.solver_profile.qdot_limit_rad_s)
+        lower = np.maximum(self.model.model.lowerPositionLimit - q, -qdot_limit)
+        upper = np.minimum(self.model.model.upperPositionLimit - q, qdot_limit)
+        if np.any(lower > upper):
+            raise CalibratedRuntimeError("joint velocity bounds are inverted")
+        self.solver.warm_start(
+            J=jacobian,
+            xdot_c=twist,
+            omega_minus=lower,
+            omega_plus=upper,
+        )
+        self._active_mode = mode
+        return True
+
     def desired_twist(
         self,
         *,

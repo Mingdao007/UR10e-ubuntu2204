@@ -111,6 +111,33 @@ def test_live_tase_force_norm_envelope_preempts_tangential_load_overshoot(provid
     assert provider.last_result['control_normal_n'] == pytest.approx(19.)
 
 
+def test_live_tase_force_preempt_warm_starts_rnn_once(provider):
+    o, s = tick(provider, .002, force=8.)
+    s = replace(s, normal_load_n=8., force_norm_n=8.)
+    provider.command(
+        output=o,
+        sensor=s,
+        monotonic_s=.002,
+        actual_dt_s=.002,
+        mode='baseline',
+        internal_setpoint_n=1.,
+    )
+    assert provider.last_result['force_preempt_warm_start'] is True
+    assert provider.last_result['force_preempt_warm_started'] is True
+    o, s = tick(provider, .004, force=8.)
+    s = replace(s, normal_load_n=8., force_norm_n=8.)
+    provider.command(
+        output=o,
+        sensor=s,
+        monotonic_s=.004,
+        actual_dt_s=.002,
+        mode='baseline',
+        internal_setpoint_n=1.,
+    )
+    assert provider.last_result['force_preempt_warm_start'] is False
+    assert provider.last_result['force_preempt_warm_started'] is True
+
+
 def test_stale_observation_does_not_advance_control_state(provider):
     before=provider.snapshot();o,s=tick(provider,.1)
     s=replace(s,observed_at_s=.001)
