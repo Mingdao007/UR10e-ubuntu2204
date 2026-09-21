@@ -1,0 +1,49 @@
+{
+  "schema": "ur10e-live-video-admission-probe-v1",
+  "observed_at_utc": "2026-09-21T21:55:04Z",
+  "claim_scope": "read_only_live_probe_not_motion_authorization",
+  "endpoint": "rtsp://127.0.0.1:8554/arm",
+  "ffprobe": {
+    "status": "FAIL",
+    "http_result": "404 Not Found",
+    "detail": "no stream is available on path arm"
+  },
+  "mediamtx": {
+    "service": "mediamtx-arm.service",
+    "pid": 1882,
+    "state": "active (running)",
+    "config": "/home/andy/.config/mediamtx/mediamtx-arm.yml",
+    "path_configured": [
+      "arm",
+      "arm/sfc"
+    ],
+    "publisher_present": false
+  },
+  "publisher_correlation": {
+    "tailscale_ip": "100.123.194.93",
+    "os": "iOS",
+    "hostname": "localhost",
+    "online": false,
+    "last_seen": "2026-09-21T20:40:00.1Z",
+    "last_media_log_event_hkt": "2026-09-22T04:39:13",
+    "last_media_log_event": "RTMP connection from 100.123.194.93 closed: EOF"
+  },
+  "process_guard": {
+    "tase_autotuner": false,
+    "contact_yield": false,
+    "figure8": false,
+    "rtde_bridge": false,
+    "live_writer": false
+  },
+  "resolver_effect": {
+    "dispatchable": false,
+    "live_motion_authorized": false,
+    "live_owner_authorized": false,
+    "required_next_action": "restore iOS publisher for /arm, re-run ffprobe and current-state resolver, then resume campaign"
+  },
+  "interpretation": [
+    "MediaMTX listener and path configuration are healthy at the process level.",
+    "The missing publisher is the blocking predicate; no synthetic or historical video is substituted.",
+    "This record does not authorize bridge start, motion, or controller dispatch."
+  ]
+}
