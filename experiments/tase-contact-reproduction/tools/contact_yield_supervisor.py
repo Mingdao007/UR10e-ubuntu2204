@@ -265,7 +265,20 @@ class ResidentSupervisor:
                 for row in self.audit['lifecycle_events']
             ):
                 self._mark_lifecycle('HOME_CHECK', 'verified')
-            self.audit['success']=True
+            body_failed = (
+                isinstance(body_result, dict)
+                and (
+                    bool(body_result.get('error'))
+                    or body_result.get('evidence_eligible') is False
+                )
+            )
+            if body_failed:
+                self.audit['success'] = False
+                self.audit['error'] = str(
+                    body_result.get('error') or 'body evidence was not eligible'
+                )
+            else:
+                self.audit['success'] = True
         except BaseException as exc:
             self.audit['error']=f'{type(exc).__name__}: {exc}'
         finally:
@@ -528,17 +541,23 @@ def main(argv=None):
                 dispatch_receipt = loaded
         except (OSError, UnicodeError, json.JSONDecodeError):
             dispatch_receipt = {}
-    timing_ledger = ledger_from_receipts(
-        str(dispatch_receipt.get('attempt_id') or f'r006-supervised-{a.action}'),
-        dispatch_receipt=dispatch_receipt,
-        supervisor_result=result,
-    ).as_dict()
-    result['timing_ledger'] = timing_ledger
-    if dispatch_receipt:
-        dispatch_receipt['timing_ledger'] = timing_ledger
-        temporary = dispatch_path.with_suffix('.timing.tmp')
-        temporary.write_text(json.dumps(dispatch_receipt, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-        temporary.replace(dispatch_path)
+    try:
+        timing_ledger = ledger_from_receipts(
+            str(dispatch_receipt.get('attempt_id') or f'r006-supervised-{a.action}'),
+            dispatch_receipt=dispatch_receipt,
+            supervisor_result=result,
+        ).as_dict()
+        result['timing_ledger'] = timing_ledger
+        if dispatch_receipt:
+            dispatch_receipt['timing_ledger'] = timing_ledger
+            temporary = dispatch_path.with_suffix('.timing.tmp')
+            temporary.write_text(json.dumps(dispatch_receipt, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+            temporary.replace(dispatch_path)
+    except Exception as exc:
+        # Timing reduction is diagnostic.  A malformed or late auxiliary
+        # event must never prevent the supervisor from sealing the original
+        # stop/recovery result.
+        result['timing_ledger_error'] = f'{type(exc).__name__}: {exc}'
     with (a.run_dir/'supervisor-result.json').open('x') as out: json.dump(result,out,indent=2)
     print(json.dumps(result,indent=2))
     return 0 if result['success'] else 1

@@ -391,6 +391,7 @@ def run_live(
             raise YieldLiveError(f"operator process stop signal {signum}")
         for sig in (signal.SIGINT, signal.SIGTERM):
             old_handlers[sig] = signal.signal(sig, interrupted)
+    active_attempt: tuple[int, str] | None = None
     try:
         mature.open(live_ack=R005_LIVE_ACK)
         receipt["opened"] = True
@@ -416,6 +417,7 @@ def run_live(
                                      sequence=sequence)
             mature.writer._r013_path_early_end_controller.arm(sequence)
             mature.dispatch(attempt, object())
+            active_attempt = (sequence, phase)
             if controller_transport is None:
                 from step5d_autotune_v4_r013.timing_scheduler import (
                     FormalTimingSchedulerLeaseV2, TimingSchedulerProfileV1)
@@ -432,6 +434,7 @@ def run_live(
             item = {"sequence": sequence, "phase": phase, "scheduler": scheduler,
                     "evidence": asdict(evidence), "state": provider.snapshot()}
             receipt["attempts"].append(item)
+            active_attempt = None
             if phase == "qualify":
                 if not evidence.eligible:
                     raise YieldLiveError("physical qualification failed; PATH not admitted")
@@ -462,6 +465,50 @@ def run_live(
     except BaseException as exc:
         receipt["error"] = f"{type(exc).__name__}: {exc}"
         receipt["failure_state"] = provider.snapshot()
+        if active_attempt is not None and not any(
+            isinstance(item, dict)
+            and item.get("sequence") == active_attempt[0]
+            for item in receipt.get("attempts", ())
+        ):
+            # Preserve a typed partial-attempt denominator when the writer
+            # fails before it can construct AttemptEvidence.  No MAE is
+            # invented; the raw buffers and failure string remain the only
+            # diagnostic evidence for this attempt.
+            partial_writer = getattr(mature.writer, "writer", mature.writer)
+            receipt.setdefault("attempts", []).append({
+                "sequence": active_attempt[0],
+                "phase": active_attempt[1],
+                "partial": True,
+                "evidence": {
+                    "eligible": False,
+                    "complete": False,
+                    "metrics": {
+                        "complete": False,
+                        "stage": active_attempt[1],
+                        "failure": str(exc),
+                        "raw_sensor_samples": len(getattr(partial_writer, "raw_observations", ())),
+                        "robot_frames": len(getattr(partial_writer, "robot_observations", ())),
+                    },
+                    "failure": str(exc),
+                },
+                "state": provider.snapshot(),
+            })
+        diagnostic_partial = bool(
+            request is not None
+            and request.kind == "diagnostic"
+            and "of 550 bins" in str(exc)
+        )
+        if diagnostic_partial:
+            # Short diagnostic rungs are allowed to seal an incomplete
+            # denominator.  They are never eligible BO observations, but the
+            # owner still returns a receipt so the caller can score coverage.
+            receipt["diagnostic_incomplete"] = True
+            receipt["evidence_eligible"] = False
+            receipt["evidence_type"] = "PartialAttemptEvidence"
+            receipt["evidence_metrics"] = (
+                receipt.get("attempts", [{}])[-1].get("evidence", {}).get("metrics", {})
+            )
+            return receipt
         raise
     finally:
         errors = []

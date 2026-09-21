@@ -80,6 +80,19 @@ def test_first_body_failure_survives_stop_timeout():
     assert events[-1]=='observer.close'
 
 
+def test_body_partial_receipt_is_not_promoted_to_supervisor_success():
+    s,body,t,events=rig()
+    def partial(_supervisor):
+        return {
+            'error': 'LiveWriterError: r004 path has 21 of 550 bins',
+            'evidence_eligible': False,
+        }
+    result=s.run(partial)
+    assert not result['success']
+    assert '21 of 550 bins' in result['error']
+    assert events.count('stop') == 1
+
+
 def test_safety_fault_is_recorded_and_stop_observation_keeps_actual_safety():
     s,body,t,events=rig(safety_fault_at=.3)
     result=s.run(body)

@@ -91,13 +91,18 @@ def test_receipt_merge_orders_events_across_owners_without_inventing_time() -> N
             "lifecycle_events": [
                 {"stage": "HOME_CHECK", "event": "verified", "timestamp_s": 1.0},
                 {"stage": "STOP", "event": "requested", "timestamp_s": 70.1},
+                {"stage": "UNLOAD_RELIEF", "event": "start", "timestamp_s": 71.0},
+                {"stage": "HOME", "event": "verified", "timestamp_s": 75.0},
             ]
         },
     )
     assert [row["stage"] for row in ledger.events] == [
-        "HOME_CHECK", "PATH", "STOP", "STOP"
+        "HOME_CHECK", "PATH", "STOP", "UNLOAD_RELIEF", "HOME"
     ]
-    assert ledger.events[-1]["timestamp_s"] == pytest.approx(70.1)
+    assert ledger.events[-1]["timestamp_s"] == pytest.approx(75.0)
+    assert ledger.supplemental_events == [
+        {"stage": "STOP", "event": "requested", "timestamp_s": 70.1}
+    ]
     assert ledger.missing_events == []
 
 

@@ -269,11 +269,52 @@ def _read_records(ledger: Path) -> tuple[list[dict[str, Any]], list[dict[str, An
                 "mae_n": None,
                 "complete_path": False,
                 "failure": "interrupted_attempt_recovered_as_failed",
+                "recovery_required": True,
+                "recovery_reason": "started_without_terminal_receipt_unknown_dispatch_state",
                 "finished_at": time.time(),
             }
             recovered.append(row)
             by_ordinal[ordinal] = row
     return [by_ordinal[key] for key in sorted(by_ordinal)], recovered
+
+
+def _assert_r013_records(records: list[dict[str, Any]]) -> None:
+    """Refuse to mix another duration or metric protocol into this campaign."""
+
+    for row in records:
+        if row.get("protocol_id") != R013_COMPAT60_PROTOCOL_ID:
+            raise ValueError(
+                "campaign ledger contains a non-R013 record; refusing to mix "
+                "full-period or legacy observations into the 60 s campaign"
+            )
+        if row.get("duration_token") not in {"r013_60", "compat60"}:
+            raise ValueError("campaign ledger duration token differs from r013_60")
+
+
+def _recovery_is_closed(row: Mapping[str, Any]) -> bool:
+    if row.get("home_verified") is True:
+        return True
+    recovery = row.get("recovery")
+    return isinstance(recovery, Mapping) and recovery.get("success") is True
+
+
+def _needs_recovery_pause(row: Mapping[str, Any]) -> bool:
+    """A dispatched failure may not advance the campaign without Home proof."""
+
+    if row.get("status") != "failed":
+        return False
+    dispatch = row.get("dispatch")
+    if isinstance(dispatch, Mapping) and dispatch.get("opened") is True:
+        return not _recovery_is_closed(row)
+    if str(row.get("failure", "")).startswith("receipt_parse:"):
+        return not _recovery_is_closed(row)
+    # A missing receipt without the typed neutral-hold proof is an unknown
+    # dispatch state. It may have died after motion began; keep the campaign
+    # at the recovery owner until Home is closed.
+    return (
+        row.get("failure") == "owner_failed_or_missing_receipt"
+        and not _is_preflight_only_failure(row)
+    )
 
 
 def _append(ledger: Path, row: Mapping[str, Any]) -> None:
@@ -287,12 +328,40 @@ def _append(ledger: Path, row: Mapping[str, Any]) -> None:
 def _is_preflight_only_failure(row: Mapping[str, Any]) -> bool:
     """Identify an owner failure that never dispatched a physical attempt."""
 
-    if row.get("status") != "failed" or row.get("failure") != "owner_failed_or_missing_receipt":
+    if (
+        row.get("status") != "failed"
+        or row.get("failure") != "owner_failed_or_missing_receipt"
+    ):
         return False
     run_dir = row.get("run_dir")
     if not isinstance(run_dir, str) or not run_dir:
         return False
-    return not (Path(run_dir) / "dispatch_receipt.json").is_file()
+    if (Path(run_dir) / "dispatch_receipt.json").is_file():
+        return False
+    neutral = Path(run_dir) / "terminal-no-dispatch-receipt.json"
+    if not neutral.is_file() or neutral.is_symlink():
+        return False
+    try:
+        payload = json.loads(neutral.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    if (
+        payload.get("attempt_dispatched") is not False
+        or payload.get("terminal_no_dispatch") is not True
+        or payload.get("writer_artifacts_absent") is not True
+    ):
+        return False
+    forbidden = {
+        "dispatch_receipt.json",
+        "owner.json",
+        "raw_sensor.jsonl",
+        "robot_frames.jsonl",
+        "published_packets.jsonl",
+        "admission_robot_frames.jsonl",
+        "rejected_robot_frames.jsonl",
+        "supervisor-result.json",
+    }
+    return not any((Path(run_dir) / name).exists() for name in forbidden)
 
 
 def _read_confirmation_records(ledger: Path) -> list[dict[str, Any]]:
@@ -328,6 +397,17 @@ def _read_confirmation_records(ledger: Path) -> list[dict[str, Any]]:
     for row in recovered:
         _append(ledger, row)
     return [by_key[key] for key in sorted(by_key)]
+
+
+def _confirmation_needs_recovery(row: Mapping[str, Any]) -> bool:
+    if row.get("status") not in {"started", "failed"}:
+        return False
+    if row.get("home_verified") is True:
+        return False
+    recovery = row.get("recovery")
+    if isinstance(recovery, Mapping) and recovery.get("success") is True:
+        return False
+    return True
 
 
 def _extract_mae(run_dir: Path) -> tuple[float | None, dict[str, Any]]:
@@ -496,6 +576,21 @@ def _extract_mae(run_dir: Path) -> tuple[float | None, dict[str, Any]]:
                   "reason": incomplete_reason}
 
 
+def _complete_r013_result(
+    evidence: Mapping[str, Any],
+    mae: float | None,
+    returncode: int,
+    home_verified: bool,
+) -> bool:
+    return bool(
+        mae is not None
+        and returncode == 0
+        and home_verified
+        and evidence.get("protocol_id") == R013_COMPAT60_PROTOCOL_ID
+        and evidence.get("complete_path") is True
+    )
+
+
 def _execute_preflight_recovery(
     config: Mapping[str, Any],
     campaign_dir: Path,
@@ -568,7 +663,7 @@ def _execute_preflight_recovery(
         home_verified = bool(evidence.get("home_verified"))
         status = (
             "complete"
-            if mae is not None and completed.returncode == 0 and home_verified
+            if _complete_r013_result(evidence, mae, completed.returncode, home_verified)
             else "failed"
         )
         result = {
@@ -634,6 +729,12 @@ def run_campaign(
     campaign_dir.mkdir(parents=True, exist_ok=True)
     ledger = campaign_dir / "ledger.jsonl"
     records, recovered = _read_records(ledger)
+    _assert_r013_records(records)
+    unresolved_recovery = any(
+        row.get("recovery_required") is True or _needs_recovery_pause(row)
+        for row in records
+    )
+    resume_paused = unresolved_recovery
     # A dry plan is a schedule, not a consumed physical budget.  Reusing its
     # directory for ``--execute`` must start those ordinals instead of treating
     # the planned rows as completed attempts.
@@ -647,7 +748,20 @@ def run_campaign(
     script = ROOT / "scripts" / "figure8.sh"
     if execute and not script.is_file():
         raise RuntimeError(f"figure8 owner is missing: {script}")
-    if resume:
+    if unresolved_recovery:
+        # A started row without a terminal receipt does not prove that motion
+        # never started.  Do not reinterpret it as a cheap preflight retry;
+        # the recovery owner must close Home before any new candidate.
+        records = [
+            {**row, "campaign_state": "PAUSED_RECOVERY_BLOCKED"}
+            if row.get("recovery_required") is True or _needs_recovery_pause(row)
+            else row
+            for row in records
+        ]
+        for row in records:
+            if row.get("campaign_state") == "PAUSED_RECOVERY_BLOCKED":
+                _append(ledger, row)
+    elif resume:
         if not execute:
             raise ValueError("preflight recovery requires execute mode")
         preflight_rows = [row for row in records if _is_preflight_only_failure(row)]
@@ -665,9 +779,20 @@ def run_campaign(
             if _is_preflight_only_failure(result):
                 # A shared prerequisite is still absent. Preserve the new
                 # failed row and stop before spending another candidate.
+                _append(
+                    ledger,
+                    {**result, "campaign_state": "PAUSED_PRECHECK_BLOCKED"},
+                )
+                resume_paused = True
+                break
+            if _needs_recovery_pause(result):
+                result = {**result, "campaign_state": "PAUSED_RECOVERY_BLOCKED"}
+                _append(ledger, result)
+                resume_paused = True
                 break
         records, _ = _read_records(ledger)
-    while len(records) < total:
+        _assert_r013_records(records)
+    while len(records) < total and not resume_paused:
         ordinal = len(records)
         candidate = _candidate_for(config, records, ordinal)
         candidate_file = campaign_dir / "candidates" / f"{ordinal:02d}-{candidate.candidate_id}.json"
@@ -716,7 +841,7 @@ def run_campaign(
             home_verified = bool(evidence.get("home_verified"))
             status = (
                 "complete"
-                if mae is not None and completed.returncode == 0 and home_verified
+                if _complete_r013_result(evidence, mae, completed.returncode, home_verified)
                 else "failed"
             )
             result = {**row, "status": status, "mae_n": mae,
@@ -744,14 +869,10 @@ def run_campaign(
         # A physical writer may not advance the campaign until its failed
         # attempt has reached verified Home. Preserve the failed denominator,
         # then pause for a recovery owner that did not close the route.
-        if status != "complete" and bool(result.get("dispatch", {}).get("opened")):
-            recovery = result.get("recovery")
-            if not result.get("home_verified") and not (
-                isinstance(recovery, dict) and recovery.get("success") is True
-            ):
-                result["campaign_state"] = "PAUSED_RECOVERY_BLOCKED"
-                _append(ledger, result)
-                break
+        if _needs_recovery_pause(result):
+            result["campaign_state"] = "PAUSED_RECOVERY_BLOCKED"
+            _append(ledger, result)
+            break
     complete = [row for row in records if row.get("status") == "complete" and row.get("mae_n") is not None]
     failed = [row for row in records if row.get("status") == "failed"]
     summary = {
@@ -770,7 +891,13 @@ def run_campaign(
             "PLANNED"
             if not execute
             else "PAUSED_PRECHECK_BLOCKED"
-            if any(_is_preflight_only_failure(row) for row in records)
+            if any(
+                _is_preflight_only_failure(row)
+                or row.get("campaign_state") == "PAUSED_PRECHECK_BLOCKED"
+                for row in records
+            )
+            else "PAUSED_RECOVERY_BLOCKED"
+            if any(row.get("campaign_state") == "PAUSED_RECOVERY_BLOCKED" for row in records)
             else "COMPLETE" if len(records) >= total else "PAUSED_RECOVERY_BLOCKED"
         ),
         "claim_scope": "complete-path receipts only; no controller promotion or manuscript claim",
@@ -789,6 +916,8 @@ def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) ->
     config = _load_config(config_path)
     campaign_dir = campaign_dir.expanduser().resolve()
     source_summary = json.loads((campaign_dir / "summary.json").read_text(encoding="utf-8"))
+    if source_summary.get("protocol_id") != R013_COMPAT60_PROTOCOL_ID:
+        raise RuntimeError("confirmation source summary belongs to another protocol")
     if source_summary.get("state") != "COMPLETE" or not source_summary.get("best"):
         raise RuntimeError("confirmation requires a complete 24-unit tuning campaign")
     incumbent = Candidate(
@@ -804,6 +933,15 @@ def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) ->
     confirmation_dir = campaign_dir / "confirmation"
     ledger = confirmation_dir / "ledger.jsonl"
     existing = _read_confirmation_records(ledger)
+    if any(_confirmation_needs_recovery(row) for row in existing):
+        return {
+            "schema": "tase.autotuner-confirmation-summary-v1",
+            "state": "PAUSED_RECOVERY_BLOCKED",
+            "rounds": 0,
+            "rows": len(existing),
+            "ledger": str(ledger),
+            "reason": "existing confirmation attempt lacks verified Home closure",
+        }
     rounds = int(config.get("confirmation_rounds", 5))
     rng = np.random.default_rng(int(config["seed"]) + 7001)
     order = [tuple(rng.permutation(["baseline", "incumbent"]).tolist()) for _ in range(rounds)]
@@ -848,7 +986,7 @@ def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) ->
                     home_verified = bool(evidence.get("home_verified"))
                     status = (
                         "complete"
-                        if mae is not None and completed.returncode == 0 and home_verified
+                        if _complete_r013_result(evidence, mae, completed.returncode, home_verified)
                         else "failed"
                     )
                     result = {**row, "status": status,
@@ -880,7 +1018,16 @@ def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) ->
     for round_index in range(rounds):
         pair = {row.get("arm"): row for row in existing if row.get("round") == round_index}
         if "baseline" in pair and "incumbent" in pair:
-            if pair["baseline"].get("mae_n") is not None and pair["incumbent"].get("mae_n") is not None:
+            def valid(row: Mapping[str, Any]) -> bool:
+                return bool(
+                    row.get("status") == "complete"
+                    and row.get("protocol_id") == R013_COMPAT60_PROTOCOL_ID
+                    and row.get("duration_token") in {"r013_60", "compat60"}
+                    and row.get("mae_n") is not None
+                    and row.get("complete_path") is True
+                    and row.get("home_verified") is True
+                )
+            if valid(pair["baseline"]) and valid(pair["incumbent"]):
                 pairs.append({"round": round_index,
                               "baseline_mae_n": pair["baseline"]["mae_n"],
                               "incumbent_mae_n": pair["incumbent"]["mae_n"],

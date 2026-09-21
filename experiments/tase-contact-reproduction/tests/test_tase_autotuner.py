@@ -1,13 +1,18 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from tase_autotuner import (
     DEFAULT_CONFIG,
     _extract_mae,
     _expected_improvement,
     _gp_posterior,
+    _is_preflight_only_failure,
+    _needs_recovery_pause,
     _next_bo_candidate,
     run_campaign,
+    run_confirmation,
 )
 
 
@@ -192,3 +197,115 @@ def test_extract_mae_accepts_only_explicit_r013_60_receipt(tmp_path: Path):
     assert mae == 0.8
     assert evidence["complete_path"] is True
     assert evidence["protocol_id"] == "figure8_window60_r013_compat_v1"
+
+
+def test_campaign_rejects_full_period_rows_in_r013_ledger(tmp_path: Path) -> None:
+    campaign = tmp_path / "campaign"
+    campaign.mkdir()
+    (campaign / "ledger.jsonl").write_text(json.dumps({
+        "ordinal": 0,
+        "status": "complete",
+        "protocol_id": "contact_yield_full_period_v1",
+        "duration_token": "full",
+        "candidate_id": "old",
+        "stage": "initial",
+        "index": 0,
+        "Md_scalar": 12.0,
+        "Bd_scalar": 550.0,
+        "mae_n": 0.2,
+    }) + "\n")
+    with pytest.raises(ValueError, match="non-R013"):
+        run_campaign(DEFAULT_CONFIG, campaign, execute=False)
+
+
+def test_interrupted_started_row_pauses_resume_before_new_candidate(tmp_path: Path) -> None:
+    campaign = tmp_path / "campaign"
+    campaign.mkdir()
+    (campaign / "ledger.jsonl").write_text(json.dumps({
+        "ordinal": 0,
+        "status": "started",
+        "protocol_id": "figure8_window60_r013_compat_v1",
+        "duration_token": "r013_60",
+        "candidate_id": "initial-00",
+        "stage": "initial",
+        "index": 0,
+        "Md_scalar": 12.0,
+        "Bd_scalar": 550.0,
+        "run_dir": str(campaign / "run-00"),
+    }) + "\n")
+    summary = run_campaign(DEFAULT_CONFIG, campaign, execute=True, resume=True)
+    assert summary["state"] == "PAUSED_RECOVERY_BLOCKED"
+    assert summary["attempts"] == 1
+
+
+def test_confirmation_does_not_count_failed_rows_with_mae(tmp_path: Path) -> None:
+    campaign = tmp_path / "campaign"
+    confirmation = campaign / "confirmation"
+    confirmation.mkdir(parents=True)
+    (campaign / "summary.json").write_text(json.dumps({
+        "state": "COMPLETE",
+        "protocol_id": "figure8_window60_r013_compat_v1",
+        "best": {"Md_scalar": 12.0, "Bd_scalar": 550.0, "mae_n": 1.0},
+    }))
+    rows = []
+    for round_index in range(5):
+        for arm in ("baseline", "incumbent"):
+            rows.append({
+                "round": round_index,
+                "arm": arm,
+                "status": "failed",
+                "protocol_id": "figure8_window60_r013_compat_v1",
+                "duration_token": "r013_60",
+                "mae_n": 0.5 if arm == "incumbent" else 1.0,
+                "complete_path": True,
+                "home_verified": True,
+            })
+    (confirmation / "ledger.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in rows)
+    )
+    summary = run_confirmation(DEFAULT_CONFIG, campaign, execute=False)
+    assert summary["state"] == "INCOMPLETE"
+    assert summary["paired_complete"] == 0
+    assert summary["improvement_supported"] is False
+
+
+def test_confirmation_restart_pauses_failed_row_without_home(tmp_path: Path) -> None:
+    campaign = tmp_path / "campaign"
+    confirmation = campaign / "confirmation"
+    confirmation.mkdir(parents=True)
+    (campaign / "summary.json").write_text(json.dumps({
+        "state": "COMPLETE",
+        "protocol_id": "figure8_window60_r013_compat_v1",
+        "best": {"Md_scalar": 12.0, "Bd_scalar": 550.0, "mae_n": 1.0},
+    }))
+    (confirmation / "ledger.jsonl").write_text(json.dumps({
+        "round": 0,
+        "arm": "baseline",
+        "status": "failed",
+        "protocol_id": "figure8_window60_r013_compat_v1",
+        "duration_token": "r013_60",
+        "home_verified": False,
+        "failure": "interrupted_confirmation_recovered_as_failed",
+    }) + "\n")
+    summary = run_confirmation(DEFAULT_CONFIG, campaign, execute=False)
+    assert summary["state"] == "PAUSED_RECOVERY_BLOCKED"
+
+
+def test_missing_terminal_preflight_proof_is_unknown_recovery_state(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "neutral-hold-receipt.json").write_text(
+        json.dumps({"attempt_dispatched": False})
+    )
+    row = {
+        "status": "failed",
+        "failure": "owner_failed_or_missing_receipt",
+        "preflight_failed": True,
+        "run_dir": str(run_dir),
+    }
+    assert not _is_preflight_only_failure(row)
+    assert _needs_recovery_pause(row)
+    assert _needs_recovery_pause({
+        "status": "failed",
+        "failure": "receipt_parse:ValueError",
+    })

@@ -54,6 +54,7 @@ class TaseR013TimingLedger:
     source_success: bool | None = None
     recovery: Mapping[str, Any] | None = None
     missing_events: list[dict[str, Any]] = field(default_factory=list)
+    supplemental_events: list[dict[str, Any]] = field(default_factory=list)
 
     def mark(self, stage: str, timestamp_s: float, *, event: str = "start") -> None:
         stage = str(stage)
@@ -128,9 +129,16 @@ class TaseR013TimingLedger:
                 None if start is None or end is None else end - start
             )
         path_start = pick(self._first("PATH", "start"), self._first("PATH"))
-        path_end = pick(self._first("PATH", "end"), self._last("PATH", "stop"))
+        path_end = pick(
+            self._first("PATH", "end"),
+            self._last("PATH", "stop"),
+            self._first("STOP"),
+        )
         result["formal_path_s"] = None if path_start is None or path_end is None else path_end - path_start
-        home_start = pick(self._first("HOME", "start"), self._first("HOME"))
+        home_start = pick(
+            self._first("HOME", "start"),
+            self._first("UNLOAD_RELIEF"),
+        )
         home_end = pick(self._last("HOME", "verified"), self._last("HOME", "end"))
         result["home_duration_s"] = None if home_start is None or home_end is None else home_end - home_start
         first_home = pick(self._first("HOME_CHECK", "start"), self._first("HOME_CHECK"))
@@ -177,6 +185,7 @@ class TaseR013TimingLedger:
             # deriving a timestamp from a neighboring stage or a target
             # duration.
             "missing_events": list(self.missing_events),
+            "supplemental_events": list(self.supplemental_events),
             "durations_s": self.durations(),
             "failure_stage": self.failure_stage,
             "failure_condition": self.failure_condition,
@@ -273,9 +282,54 @@ def ledger_from_receipts(
             str(row.get("event", "start")),
         )
     )
+    # A cleanup owner may report a late STOP after the writer already emitted
+    # the PATH-end STOP and the recovery route has emitted UNLOAD/CLEARANCE.
+    # Keep that raw boundary for audit, but model only one canonical STOP in
+    # the ordered lifecycle.  PATH and HOME retain their legal start/end
+    # pairs; repeated single-boundary stages are supplemental evidence.
+    canonical: list[Mapping[str, Any]] = []
+    supplemental: list[dict[str, Any]] = []
+    seen_stage_events: set[tuple[str, str]] = set()
+    for row in deduplicated:
+        stage = str(row["stage"])
+        event = str(row.get("event", "start"))
+        legal_pair = stage in {"PATH", "HOME"} and event in {
+            "start", "end", "stop", "verified"
+        }
+        identity = (stage, event)
+        if not legal_pair and identity in seen_stage_events:
+            supplemental.append(dict(row))
+            continue
+        if stage == "STOP" and any(str(item["stage"]) == "STOP" for item in canonical):
+            supplemental.append(dict(row))
+            continue
+        if identity in seen_stage_events:
+            supplemental.append(dict(row))
+            continue
+        seen_stage_events.add(identity)
+        canonical.append(row)
+    ordered_events: list[Mapping[str, Any]] = []
+    last_timestamp = -math.inf
+    for row in canonical:
+        timestamp = float(row["timestamp_s"])
+        if timestamp < last_timestamp:
+            supplemental.append({
+                **dict(row),
+                "reason": "timestamp_regressed_across_owner_boundaries",
+            })
+            missing_events.append({
+                "source": "merge",
+                "stage": str(row["stage"]),
+                "event": str(row.get("event", "start")),
+                "timestamp_s": None,
+                "reason": "timestamp_regressed_across_owner_boundaries",
+            })
+            continue
+        ordered_events.append(row)
+        last_timestamp = timestamp
     ledger = TaseR013TimingLedger.from_events(
         attempt_id,
-        deduplicated,
+        ordered_events,
         failure_stage=dispatch.get("failure_stage") or supervisor.get("failure_stage"),
         failure_condition=dispatch.get("failure_condition") or supervisor.get("error"),
         source_success=(
@@ -285,6 +339,7 @@ def ledger_from_receipts(
         ),
     )
     ledger.missing_events.extend(missing_events)
+    ledger.supplemental_events.extend(supplemental)
     recovery = dispatch.get("automatic_home_recovery") or supervisor.get("autonomous_home_recovery")
     ledger.attach_recovery(recovery if isinstance(recovery, Mapping) else None)
     return ledger
@@ -305,6 +360,11 @@ def lifecycle_events_from_writer(
     20/21/25/40/78, the writer PATH-end handshake, and the evidence-backed
     Home proof are the only accepted transition sources.
     """
+    # R006/R005 adapters keep the actual R004 writer in ``.writer``.  Reduce
+    # the physical writer's buffers and boundary markers; the adapter itself
+    # is only a compatibility shell and does not own those observations.
+    base_writer = getattr(writer, "writer", writer)
+
     def finite_or_none(value: Any) -> float | None:
         try:
             number = float(value)
@@ -331,8 +391,8 @@ def lifecycle_events_from_writer(
             return None
 
     first_state: dict[int, float] = {}
-    rows = list(getattr(writer, "robot_observations", ()) or ())
-    rows.extend(list(getattr(writer, "admission_robot_observations", ()) or ()))
+    rows = list(getattr(base_writer, "robot_observations", ()) or ())
+    rows.extend(list(getattr(base_writer, "admission_robot_observations", ()) or ()))
     for row in rows:
         state = row_state(row)
         timestamp = row_time(row)
@@ -347,16 +407,19 @@ def lifecycle_events_from_writer(
         ),
         "CONTACT_LATCH": (first_state.get(21), "tp_state_20_to_21"),
         "QUALIFICATION": (first_state.get(21), "tp_state_21"),
-        "READINESS_HOLD": (first_state.get(21), "tp_state_21_readiness"),
+        # The raw writer receipt does not expose the end of the 10 s readiness
+        # dwell as a typed transition.  Keep it missing instead of duplicating
+        # the CONTACT_LATCH time and claiming a false duration.
+        "READINESS_HOLD": (None, "missing_readiness_boundary"),
         "ENTRY": (first_state.get(25), "tp_state_25"),
         "PATH": (
-            finite_or_none(getattr(writer, "_path_command_started_mono_s", None)),
+            finite_or_none(getattr(base_writer, "_path_command_started_mono_s", None)),
             "first_consumed_path_command",
         ),
         "STOP": (
-            finite_or_none(getattr(writer, "_r013_path_end_request_mono_s", None))
+            finite_or_none(getattr(base_writer, "_r013_path_end_request_mono_s", None))
             or finite_or_none(stop_s),
-            "path_end_handshake" if getattr(writer, "_r013_path_end_request_mono_s", None) is not None else "stop_request",
+            "path_end_handshake" if getattr(base_writer, "_r013_path_end_request_mono_s", None) is not None else "stop_request",
         ),
         "UNLOAD_RELIEF": (first_state.get(40), "tp_state_40"),
         "CLEARANCE": (first_state.get(78), "tp_state_78"),
@@ -366,7 +429,6 @@ def lifecycle_events_from_writer(
         {"stage": stage, "event": event, "timestamp_s": timestamp}
         for stage in STAGES
         for timestamp, event in (candidates[stage],)
-        if timestamp is not None
     ]
 
 
