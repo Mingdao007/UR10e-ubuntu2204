@@ -44,6 +44,14 @@
       "state_reset_policy": "projection_only_below_main_threshold",
       "focused_regression": "122 passed, 1 warning",
       "physical_claim": "no improvement claim; force norm still crossed unchanged readiness ceiling"
+    },
+    "offline_two_stage_force_preempt_candidate": {
+      "report": "report/tase-force-preempt525-two-stage-replay-20260921.json",
+      "warm_start_threshold_n": 5.25,
+      "warm_start_rearm_threshold_n": 4.5,
+      "direction_retry_threshold_n": 5.75,
+      "status": "READY_FOR_SINGLE_QUALIFICATION_AFTER_FRESH_ADMISSION",
+      "physical_claim": "none"
     }
   },
   "qualification_attempts": {
@@ -110,5 +118,5 @@
     "existing_prepare_directory": "fail_closed_before_device_access",
     "live_motion_or_force_gate_changed": false
   },
-  "next_gate": "offline replay/source review of force-rise transition and workflow path normalization; no unchanged live qualification"
+  "next_gate": "fresh package/read-back admission for the two-stage candidate, then at most one single qualification with automatic Home; no unchanged live qualification"
 }

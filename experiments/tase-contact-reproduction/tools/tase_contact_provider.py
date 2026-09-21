@@ -27,16 +27,20 @@ from step5d_paper_outer_loop import Step5dOuterLoopConfig
 
 
 # A live safety transition, not a change to the paper gains.  The canonical
-# task target is 5 N; a 1 N norm margin gives the RNN time to shed a rising
-# load before the shared 20 N raw-wrench guard is reached.  The transition is
-# re-armed after the measured load falls below the lower hysteresis threshold,
-# so a later force-rise episode cannot inherit stale RNN state from an earlier
-# episode.
-# Trigger the bounded unload transition before the 7 N readiness ceiling.  The
-# 0.25 N earlier margin is a live safety adaptation; it does not change any
+# The task target is 5 N.  The two-stage transition gives the RNN an early
+# bounded warm-start before the unchanged 7 N readiness ceiling, then retains
+# the later direction retry/unload transition.  It is re-armed after the
+# measured load falls below the lower hysteresis threshold, so a later
+# force-rise episode cannot inherit stale RNN state from an earlier episode.
+# Trigger the RNN state warm-start before the 7 N readiness ceiling.  The
+# 0.25 N margin above the 5 N target is a live safety adaptation; it does not change any
 # hard force, timing, qdot, slew, or readiness envelope.
-TASE_FORCE_PREEMPT_THRESHOLD_N = 5.75
-TASE_FORCE_PREEMPT_REARM_N = 5.0
+TASE_FORCE_PREEMPT_THRESHOLD_N = 5.25
+TASE_FORCE_PREEMPT_REARM_N = 4.5
+# Keep the stronger direction retry and baseline unload boost at the later
+# transition.  This makes the early warm-start a single state correction,
+# rather than turning every 5.25 N tick into a repeated solver intervention.
+TASE_FORCE_DIRECTION_RETRY_THRESHOLD_N = 5.75
 # An earlier, rate-triggered guard limits only additional inward baseline
 # realization while a measured force rise is already underway.
 TASE_FORCE_RISE_GUARD_THRESHOLD_N = 4.0
@@ -94,7 +98,8 @@ TASE_PAPER_OUTER_BINDING = {
         'schema': 'tase-live-force-preempt-warm-start-v2',
         'threshold_n': TASE_FORCE_PREEMPT_THRESHOLD_N,
         'rearm_threshold_n': TASE_FORCE_PREEMPT_REARM_N,
-        'condition': 'measured_force_norm crosses threshold_n after falling below rearm_threshold_n; one trigger per force-rise episode',
+        'direction_retry_threshold_n': TASE_FORCE_DIRECTION_RETRY_THRESHOLD_N,
+        'condition': 'measured_force_norm crosses threshold_n after falling below rearm_threshold_n; one warm-start per force-rise episode; direction retry at direction_retry_threshold_n',
         'purpose': 'remove strict-RNN state lag at each rising-load episode and retry a pressing Jqdot once per high-force tick without raising the raw guard',
         'evidence_field': 'force_preempt_warm_start,force_preempt_direction_retry',
     },
@@ -390,7 +395,7 @@ class TaseContactProvider(ContactCommandProvider):
             # is a bounded safety retry, not a gain or envelope change.
             force_preempt_direction_retry = False
             force_preempt_approach_before_retry = None
-            if measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N:
+            if measured_force_norm >= TASE_FORCE_DIRECTION_RETRY_THRESHOLD_N:
                 preliminary_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
                     command.qdot, dtype=float
                 )
@@ -440,7 +445,7 @@ class TaseContactProvider(ContactCommandProvider):
                 baseline_residual_tangential_m_s = float(np.linalg.norm(baseline_twist[:2]))
                 baseline_residual_angular_rad_s = float(np.linalg.norm(baseline_twist[3:]))
                 force_rise_unload_needed = bool(
-                    measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N
+                    measured_force_norm >= TASE_FORCE_DIRECTION_RETRY_THRESHOLD_N
                     and float(twist[2]) > 0.0
                     and abs(float(twist[2])) > abs(float(baseline_twist[2])) + 1e-12
                 )
@@ -480,7 +485,7 @@ class TaseContactProvider(ContactCommandProvider):
                         # outer-loop normal direction; otherwise a baseline
                         # acquisition can repeatedly unload after contact.
                         target_magnitude = abs(original_normal)
-                        if measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N:
+                        if measured_force_norm >= TASE_FORCE_DIRECTION_RETRY_THRESHOLD_N:
                             # The existing force-preempt threshold already
                             # marks a rising-load episode.  If the mature RNN
                             # has lagged to a tiny outward realization, use

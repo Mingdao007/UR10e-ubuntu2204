@@ -1,0 +1,29 @@
+{
+  "schema": "tase.force-preempt-two-stage-replay-v1",
+  "claim_scope": "open-loop replay of the latest failed qualification; no physical improvement or PATH claim",
+  "source_run": "experiments/tase-contact-reproduction/experiments/tase-contact-reproduction/runs/tase-qualification-guard-projection-only-20260921T083437-r1",
+  "candidate": {
+    "warm_start_threshold_n": 5.25,
+    "warm_start_rearm_threshold_n": 4.5,
+    "direction_retry_threshold_n": 5.75,
+    "early_guard_threshold_n": 4.0,
+    "early_guard_delta_n": 0.5,
+    "early_guard_inward_cap_m_s": 0.0005
+  },
+  "replay": {
+    "ticks": 15001,
+    "force_norm_input_peak_n": 7.284989880006606,
+    "force_rise_guard_ticks": 580,
+    "force_rise_inward_cap_ticks": 8,
+    "warm_start_ticks": 456,
+    "direction_retry_ticks": 228,
+    "baseline_projection_ticks": 12855,
+    "transition_sequence": 39625,
+    "transition_replayed_predicted_approach_m_s": 9.268738692131961e-05,
+    "next_sequence_predicted_approach_m_s": -0.00011737553893382149,
+    "guard_cap_local_bound_m_s": 0.0005
+  },
+  "interpretation": "The two-stage policy begins the state transition at 5.25 N while retaining the stronger direction retry and unload boost at 5.75 N. It reduces the replayed inward command at the transition and avoids the early-threshold retry chatter of the single-threshold variant. The recorded force response is held fixed, so this is a bounded offline candidate only; no physical benefit is inferred.",
+  "focused_regression": "provider 18 passed; full TASE suite 122 passed, 1 warning",
+  "status": "READY_FOR_SINGLE_QUALIFICATION_AFTER_FRESH_ADMISSION"
+}
