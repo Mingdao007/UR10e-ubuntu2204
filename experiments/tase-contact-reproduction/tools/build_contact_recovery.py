@@ -20,6 +20,7 @@ RELIEF_ACCEL_M_S2 = HOME_VERTICAL_ACCEL_M_S2
 
 def build_recovery(receipt,output):
     home=json.loads(Path(receipt).read_text())
+    staged_recovery = home.get('bounded_recovery') is True
     home.pop('bounded_recovery',None);home.pop('bounded_withdrawal',None)
     home['clearance_entry']=True
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
@@ -44,7 +45,7 @@ def {RELIEF_PROGRAM}():
   local distance = sqrt(dx*dx + dy*dy + dz*dz)
   local turn = pose_trans(pose_inv(target_pose), current_pose)
   local angle = sqrt(turn[3]*turn[3] + turn[4]*turn[4] + turn[5]*turn[5])
-  if distance > 0.080 or angle > 0.010 or current_pose[2] < 0.018 or current_pose[2] > 0.034:
+  if distance > 0.080 or angle > {0.020 if staged_recovery else 0.010:.3f} or current_pose[2] < 0.018 or current_pose[2] > 0.034:
     textmsg("contact_relief: initial geometry rejected")
     halt
   end
@@ -69,6 +70,7 @@ end
         'vertical_acceleration_m_s2':RELIEF_ACCEL_M_S2,
         'speed_basis':HISTORICAL_PROFILE_ID,
         'max_rise_m':.015,'xy_or_attitude_motion':False,
+        'staged_recovery':staged_recovery,
     }
     (output/f'{RELIEF_PROGRAM}.binding.json').write_text(json.dumps(relief,indent=2)+'\n')
     return {'home':result,'relief':relief}

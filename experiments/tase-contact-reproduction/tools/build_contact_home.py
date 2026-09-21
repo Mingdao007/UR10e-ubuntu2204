@@ -53,6 +53,8 @@ def build(receipt,output):
     target=np.asarray(home['home_pose']);observed=np.asarray(home['rtde']['actual_TCP_pose'])
     recovery=recovery_geometry(home)
     withdrawal=withdrawal_geometry(home)
+    if recovery is not None and home.get('clearance_entry') is not True:
+        raise ValueError('bounded Home recovery requires clearance_entry')
     if not np.allclose(target[:3],FIGURE8_CONTACT_HOME_XYZ_M,atol=1e-12):raise ValueError('Figure-eight Home XYZ differs')
     if np.linalg.norm(target[:3]-observed[:3])>.08:raise ValueError('Home transfer exceeds 80mm bound')
     text=HOME_SOURCE.read_text().replace('step5d_autotune_start_hover_r001',BASENAME)
@@ -95,11 +97,12 @@ def build(receipt,output):
         # Recovery owns the observed vertical lift. This reusable Home phase
         # starts only at clearance, so a new lateral start does not require
         # rewriting a hard-coded initial pose after every contact failure.
-        guard='''  # Home transfer is admitted only after the separate monitored lift.
+        clearance_angle_limit = 0.020 if recovery is not None else 0.010
+        guard=f'''  # Home transfer is admitted only after the separate monitored lift.
   local home_delta = pose_trans(pose_inv(target_pose), current_pose)
   local home_distance = sqrt(home_delta[0]*home_delta[0] + home_delta[1]*home_delta[1] + home_delta[2]*home_delta[2])
   local home_angle = sqrt(home_delta[3]*home_delta[3] + home_delta[4]*home_delta[4] + home_delta[5]*home_delta[5])
-  if current_pose[2] < 0.032 or home_distance > 0.080 or home_angle > 0.010:
+  if current_pose[2] < 0.032 or home_distance > 0.080 or home_angle > {clearance_angle_limit:.3f}:
     textmsg("contact_home: clearance entry rejected; no motion")
     halt
   end

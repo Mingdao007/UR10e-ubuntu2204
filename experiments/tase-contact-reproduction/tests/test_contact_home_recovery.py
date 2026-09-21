@@ -12,6 +12,7 @@ from contact_yield_task_frame import FIGURE8_CONTACT_HOME_XYZ_M
 
 def recovery():
     h=receipt();h['bounded_recovery']=True
+    h['clearance_entry']=True
     h['home_pose'][:3]=list(FIGURE8_CONTACT_HOME_XYZ_M)
     target=np.array(h['home_pose'])
     start=target.copy();start[:3]+=[-.001,-.0005,-.0008]
@@ -51,6 +52,8 @@ def test_recovery_reuses_historical_generated_motion(tmp_path):
     assert result['numeric_sanity']['speed_basis'].startswith('step5d_autotune_start_hover_r001')
     assert 'v=0.0005' not in text and 'v=0.002' not in text
     assert result['home_pose']==h['home_pose']
+    assert 'home_angle > 0.020' in text
+    assert 'BOUNDED_RECOVERY:' in text
     h['rtde']['actual_TCP_pose'][0]-=.004
     with pytest.raises(ValueError,match='3mm or 20mrad'):recovery_geometry(h)
 
@@ -65,6 +68,8 @@ def test_relief_reuses_historical_vertical_motion(tmp_path):
     assert binding['vertical_speed_m_s']==.04
     assert binding['vertical_acceleration_m_s2']==.06
     assert binding['speed_basis'].startswith('step5d_autotune_start_hover_r001')
+    assert binding['staged_recovery'] is True
+    assert 'angle > 0.020' in text
 
 
 def test_withdrawal_only_allows_reversing_the_existing_vertical_search():

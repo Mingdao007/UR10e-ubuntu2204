@@ -23,7 +23,12 @@ from contact_home_motion_profile import (
 from contact_yield_live_contract import load_identity_contract,PACKAGE_DIR
 from contact_yield_supervisor import VideoRecorder
 from contact_yield_math import so3_exp,so3_log
-from contact_home_recovery_policy import plan_home_recovery,ReliefForceGuard,validate_lift_sample
+from contact_home_recovery_policy import (
+    plan_home_recovery,
+    plan_staged_home_recovery,
+    ReliefForceGuard,
+    validate_lift_sample,
+)
 from run_contact_home import Observer,validate_robot_sample,run as run_home,INSTALLED_LOCK,BASENAME
 from step5d_remote_startup import RemoteDashboardWriter,_ExactLoadAdapter,dashboard_exchange
 from step5d_autotune_v4_r014.dispatcher import WriterLock
@@ -405,6 +410,27 @@ def check_geometry(sample,plan):
     return {'pass':True,'max_residual':max_residual,'max_joint_speed_rad_s':max_qd,'home_q':q.tolist(),'joint_delta':(q-initial).tolist(),'scope':'calibrated sampled geometry, not collision or force proof'}
 
 
+def _plan_recovery_with_staged_fallback(start_pose, home_pose):
+    """Use direct Home first, then the approved staged clearance route.
+
+    Only the known direct SO(3) corridor rejection may enter the staged
+    fallback.  Position, Home identity, rise, and numeric failures remain
+    hard failures and are never hidden by a broader exception catch.
+    """
+    try:
+        plan = plan_home_recovery(start_pose, home_pose)
+        plan['route'] = 'direct'
+        plan['direct_home_rejected'] = False
+        return plan
+    except ValueError as direct_error:
+        if 'Home SO3 angle exceeds 10mrad' not in str(direct_error):
+            raise
+        plan = plan_staged_home_recovery(start_pose, home_pose)
+        plan['direct_home_rejected'] = True
+        plan['direct_home_rejection'] = str(direct_error)
+        return plan
+
+
 def stationary(row):
     return np.linalg.norm(row['actual_TCP_speed'])<.0005 and max(map(abs,row['actual_qd']))<.001
 
@@ -505,7 +531,16 @@ def run(args):
         result['home_commandable'] = True
         home=json.loads((Path(__file__).resolve().parents[1]/'report/contact-six-qp-20260917/preserved-home.json').read_text())
         home.pop('bounded_recovery',None);home.pop('bounded_withdrawal',None)
-        home.update(rtde=current,home_pose=list(contract.home_pose),home_q=geometry['home_q'],clearance_entry=True)
+        home.update(
+            rtde=current,
+            home_pose=list(contract.home_pose),
+            home_q=geometry['home_q'],
+            clearance_entry=True,
+            bounded_recovery=bool(plan.get('staged_recovery', False)),
+            recovery_route=plan.get('route', 'direct'),
+            direct_home_rejected=bool(plan.get('direct_home_rejected', False)),
+            direct_home_rejection=plan.get('direct_home_rejection'),
+        )
         home_receipt=out/'clearance-home.json';home_receipt.write_text(json.dumps(home,indent=2)+'\n')
         # Never overlap the monitored relief writer and the independent Home
         # writer, even when this helper is entered from an exception path.
@@ -561,7 +596,12 @@ def run(args):
         else:
             check_dashboard(args.host)
         result['home_commandability_checked'] = True
-        plan=plan_home_recovery(row['actual_TCP_pose'],contract.home_pose);result['plan']=plan
+        plan=_plan_recovery_with_staged_fallback(row['actual_TCP_pose'],contract.home_pose)
+        result['plan']=plan
+        result['recovery_route']=plan.get('route')
+        result['direct_home_rejected']=bool(plan.get('direct_home_rejected', False))
+        if plan.get('direct_home_rejection'):
+            result['direct_home_rejection']=plan['direct_home_rejection']
         geometry=check_geometry(row,plan);result['geometry']=geometry
         result['lift_guard']={
             'speed_limit_m_s': RECOVERY_LIFT_SPEED_LIMIT_M_S,

@@ -18,8 +18,17 @@ from contact_yield_task_frame import FIGURE8_CONTACT_HOME_XYZ_M
 
 ORIGINAL_HOME_XYZ_M = FIGURE8_CONTACT_HOME_XYZ_M
 MAX_SO3_ANGLE_RAD = 0.01
+# A direct Home remains limited to the historical 10 mrad orientation
+# corridor.  This larger bound is only for the explicitly staged route:
+# vertical clearance is established first, force release is proved, and the
+# attitude turn is then performed at clearance by the monitored Home owner.
+STAGED_MAX_SO3_ANGLE_RAD = 0.020
 MAX_TRANSFER_M = 0.08
 MAX_RISE_M = 0.015
+# The clearance-entry Home package has a separate, tighter 3 mm observed
+# start-to-target bound.  Keep the initial staged plan compatible with that
+# package after the vertical lift removes the rise component.
+STAGED_MAX_LATERAL_M = 0.003
 LIFT_LATERAL_M = 0.0005
 LIFT_ANGULAR_RAD = 0.003
 LIFT_SPEED_M_S = HOME_VERTICAL_SPEED_M_S
@@ -79,6 +88,50 @@ def plan_home_recovery(start_pose, home_pose):
         "lift_pose": lift.tolist(),
         "home_pose": home.tolist(),
         "start_pose": start.tolist(),
+    }
+
+
+def plan_staged_home_recovery(start_pose, home_pose):
+    """Plan the approved clearance-first route for a direct Home rejection.
+
+    This is deliberately not a relaxed direct Home.  The start remains
+    vertical-only until ``lift_pose`` reaches the existing Home Z; only then
+    may the monitored Home program turn toward the approved attitude.  The
+    initial lateral displacement is bounded to the clearance package's 3 mm
+    corridor and the staged attitude bound is capped at 20 mrad.
+    """
+    start = _copy6(start_pose, "start_pose")
+    home = _copy6(home_pose, "home_pose")
+    if not np.allclose(home[:3], ORIGINAL_HOME_XYZ_M, rtol=0.0, atol=1e-12):
+        raise ValueError("original Home XYZ changed")
+    transfer = float(np.linalg.norm(start[:3] - home[:3]))
+    if transfer > MAX_TRANSFER_M:
+        raise ValueError("Home transfer exceeds 80mm bound")
+    lateral = float(np.linalg.norm(start[:2] - home[:2]))
+    if lateral > STAGED_MAX_LATERAL_M:
+        raise ValueError("staged Home lateral transfer exceeds 3mm bound")
+    angle = _so3_angle(home[3:], start[3:])
+    if angle > STAGED_MAX_SO3_ANGLE_RAD:
+        raise ValueError("staged Home SO3 angle exceeds 20mrad")
+    # This route is used after the direct 10 mrad planner rejected the pose;
+    # admitting an already-direct pose here would obscure which route ran.
+    if angle <= MAX_SO3_ANGLE_RAD:
+        raise ValueError("staged Home route is only for a direct SO3 rejection")
+    rise = float(home[2] - start[2])
+    if rise > MAX_RISE_M:
+        raise ValueError("staged Home rise exceeds 15mm bound")
+    lift = start.copy()
+    lift[2] = max(float(start[2]), float(home[2]))
+    return {
+        "needs_lift": bool(rise > 0.0),
+        "lift_pose": lift.tolist(),
+        "home_pose": home.tolist(),
+        "start_pose": start.tolist(),
+        "staged_recovery": True,
+        "route": "staged_clearance_orientation",
+        "direct_home_max_so3_angle_rad": MAX_SO3_ANGLE_RAD,
+        "staged_max_so3_angle_rad": STAGED_MAX_SO3_ANGLE_RAD,
+        "staged_max_lateral_m": STAGED_MAX_LATERAL_M,
     }
 
 

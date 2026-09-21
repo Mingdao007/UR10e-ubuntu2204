@@ -7,6 +7,7 @@ import pytest
 from contact_home_recovery_policy import (
     ReliefForceGuard,
     plan_home_recovery,
+    plan_staged_home_recovery,
     validate_lift_sample,
 )
 from contact_yield_math import so3_exp, so3_log
@@ -91,6 +92,29 @@ def test_rise_above_15mm_is_invalid_geometry():
     wrong_home[0] += 1e-6
     with pytest.raises(ValueError, match="original Home XYZ"):
         plan_home_recovery(start_below(), wrong_home)
+
+
+def test_staged_route_turns_only_after_clearance_and_preserves_direct_gate():
+    start = start_below(rise_m=0.012, rotvec=(0.012, 0.0, 0.0), xy_m=(0.00034, 0.0))
+    with pytest.raises(ValueError, match="10mrad"):
+        plan_home_recovery(start, HOME)
+    plan = plan_staged_home_recovery(start, HOME)
+    assert plan["staged_recovery"] is True
+    assert plan["route"] == "staged_clearance_orientation"
+    assert plan["needs_lift"] is True
+    np.testing.assert_allclose(plan["lift_pose"][:2], start[:2])
+    np.testing.assert_allclose(plan["lift_pose"][2], HOME[2])
+    np.testing.assert_allclose(plan["lift_pose"][3:], start[3:])
+    assert plan["staged_max_so3_angle_rad"] == pytest.approx(0.020)
+    with pytest.raises(ValueError, match="3mm"):
+        plan_staged_home_recovery(
+            start_below(xy_m=(0.003001, 0.0), rotvec=(0.012, 0.0, 0.0)),
+            HOME,
+        )
+    with pytest.raises(ValueError, match="20mrad"):
+        plan_staged_home_recovery(
+            start_below(rotvec=(0.020001, 0.0, 0.0)), HOME
+        )
 
 
 def test_overload_cannot_enter_if_wrong_direction():
