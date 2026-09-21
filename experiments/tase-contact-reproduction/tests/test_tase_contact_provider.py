@@ -13,6 +13,7 @@ from tase_contact_provider import (
     TaseContactProvider,
     current_model_binding,
 )
+from tase_figure8_protocol import PROTOCOL_ID as R013_COMPAT60_PROTOCOL_ID
 from step5d_autotune_v4.contracts import V4Candidate
 from step5d_autotune_v4_r014.solver_profile import LEGACY_R1
 from contact_yield_live_writer import native_motion_profile, _prewarm_observation
@@ -116,6 +117,40 @@ def test_live_path_keeps_confirmed_home_orientation_velocity_zero(provider):
     }
     predicted = provider.last_result['predicted_twist_m_s_rad_s']
     assert predicted[3:] == pytest.approx((0.0, 0.0, 0.0), abs=1e-12)
+
+
+def test_r013_compat_accepts_bounded_returning_handshake_but_caps_reference_seam():
+    contract = load_identity_contract()
+    provider = TaseContactProvider(
+        contract=current_model_binding(),
+        candidate=V4Candidate(),
+        motion_profile=native_motion_profile(),
+        home_pose=contract.home_pose,
+        solver_profile=LEGACY_R1,
+        protocol_id=R013_COMPAT60_PROTOCOL_ID,
+    )
+    try:
+        # The host may consume a bounded RETURNING tick after the 4 ms task
+        # seam; the task reference itself must remain capped at that seam.
+        ref = provider.reference(
+            'step5d_strict_rnn_autotune_v1',
+            contract.home_pose[:2],
+            60.04,
+        )
+        seam_ref = provider.reference(
+            'step5d_strict_rnn_autotune_v1',
+            contract.home_pose[:2],
+            60.004,
+        )
+        assert ref['desired_xy'] == pytest.approx(seam_ref['desired_xy'])
+        with pytest.raises(ValueError, match='clock outside selected protocol'):
+            provider.reference(
+                'step5d_strict_rnn_autotune_v1',
+                contract.home_pose[:2],
+                60.081,
+            )
+    finally:
+        provider.close()
 
 
 def test_live_tase_uses_raw_normal_rise_envelope_without_replacing_evidence_filter(provider):

@@ -50,6 +50,10 @@ TASE_FORCE_RISE_INWARD_CAP_M_S = 0.0005
 # provider's scalar rescale, turning a valid emergency transition into a
 # false interface failure.
 TASE_HOST_SLEW_NUMERIC_MARGIN = 1e-9
+# Host/TP end-of-path handshake grace.  The selected task reference remains
+# capped to its protocol seam below; this grace only lets the host consume a
+# bounded RETURNING transition before the writer closes the stream.
+TASE_REFERENCE_HANDSHAKE_GRACE_S = 0.08
 TASE_BASELINE_TANGENTIAL_TOLERANCE_M_S = 2e-6
 TASE_BASELINE_ANGULAR_TOLERANCE_RAD_S = 2e-6
 # Fixed contact-acquisition primitive.  This is deliberately outside the
@@ -260,7 +264,11 @@ class TaseContactProvider(ContactCommandProvider):
             self.protocol_id = R013_COMPAT60_PROTOCOL_ID
             self.path_duration_s = R013_COMPAT60_DURATION_S
             self.path_seam_continuation_s = R013_COMPAT60_SEAM_CONTINUATION_S
-            self.reference_acceptance_s = R013_COMPAT60_SEAM_CONTINUATION_S
+            # Keep the protocol's 4 ms reference seam, but accept the same
+            # bounded host handshake grace used by the full-period writer.
+            # The previous 4 ms admission rejected a normal RETURNING tick
+            # before the writer could publish the end-of-path transition.
+            self.reference_acceptance_s = TASE_REFERENCE_HANDSHAKE_GRACE_S
         elif selected_protocol == "contact_yield_full_period_v1":
             self.task = Task()
             self.protocol_id = selected_protocol
@@ -269,7 +277,7 @@ class TaseContactProvider(ContactCommandProvider):
             # Preserve the mature full-period writer's bounded host grace;
             # the task reference itself is still capped to the stricter seam
             # continuation and formal evidence excludes all grace samples.
-            self.reference_acceptance_s = 0.08
+            self.reference_acceptance_s = TASE_REFERENCE_HANDSHAKE_GRACE_S
         else:
             raise ValueError(f"unsupported TASE Figure-eight protocol {selected_protocol!r}")
         self.phase = None
