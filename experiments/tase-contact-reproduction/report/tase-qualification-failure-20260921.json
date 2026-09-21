@@ -1,0 +1,48 @@
+{
+  "schema": "tase.qualification-failure-v1",
+  "claim_scope": "physical qualification failure diagnosis; no PATH acceptance, no controller promotion, no winner claim",
+  "run": "runs/tase-figure8-full-20260921T1501-staged-home",
+  "method": "TASE_RNN_MATURE",
+  "phase": "qualification-1 of pilot entry",
+  "failure": "TP resident reason 48 (post-latch baseline watchdog), no formal PATH",
+  "evidence": {
+    "baseline_mode_packets": 14626,
+    "baseline_mode_duration_s": 30.006132405003882,
+    "command_mode_counts": {
+      "HOLD": 31258,
+      "BASELINE": 14626,
+      "STOP": 1,
+      "PATH": 0,
+      "RETRACT": 0
+    },
+    "max_contiguous_readiness_s": 9.198543199003325,
+    "readiness_required_s": 10.0,
+    "readiness_definition": "sensor fresh; filtered normal 4..6 N; raw normal 3..7 N; force norm <=7 N",
+    "readiness_window_start_s": 130639.714107491,
+    "readiness_window_end_s": 130648.91265069,
+    "baseline_diag": {
+      "filtered_max_n": 12.841062034996323,
+      "filtered_min_n": -0.004921516230964453,
+      "force_norm_max_n": 14.868161011715102,
+      "last": {
+        "filtered_normal_n": 5.119126326292632,
+        "force_norm_n": 5.237968982597165,
+        "mode": 1,
+        "raw_normal_n": 5.231418211452096,
+        "setpoint_n": 5.0,
+        "torque_norm_nm": 0.022243162456617723
+      },
+      "raw_max_n": 14.834181715632408,
+      "raw_min_n": -0.9104803234821257,
+      "readiness_samples": 6583,
+      "samples": 14626,
+      "torque_norm_max_nm": 0.1640346690095457
+    },
+    "protective_stop": false,
+    "path_started": false,
+    "automatic_home_success": true
+  },
+  "interpretation": "The TP 30 s post-latch watchdog expired because no RETRACT/PATH command was accepted. The longest continuous readiness interval was 9.1985 s, below the unchanged 10 s qualification hold. This is a qualification stability failure, not evidence to relax raw force, torque, timing, or hold gates.",
+  "fresh_after_failure_preflight": "runs/preflight_20260921_after_qualification_fail/preflight_readonly.json",
+  "next_action": "fresh baseline and one single qualification retry; retain this failed denominator; if the same watchdog recurs, stop and add a different diagnostic before another live attempt"
+}
