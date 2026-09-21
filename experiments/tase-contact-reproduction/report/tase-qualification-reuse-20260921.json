@@ -1,0 +1,74 @@
+{
+  "schema": "tase.qualification-reuse-decision-v1",
+  "claim_scope": "offline/read-only qualification accounting; no qualification execution, ARM, Play, Home command, motion, or physical acceptance",
+  "created_at": "2026-09-21T12:20:09.767",
+  "source_commit": "5300e79152f36153bed239ab43775159a63847dd",
+  "fresh_preflight": {
+    "path": "runs/preflight_20260921_tase_continuation/preflight_readonly.json",
+    "sha256": "81ddce5f0f1036c27508ec8f7f7ce3e5c6b5063adc87dbb8779adc99e82bd8ab",
+    "ok": true,
+    "writer_process": {
+      "active_writers": [],
+      "ok": true
+    }
+  },
+  "machine_admission": {
+    "decision": "CONDITIONAL_REUSE_AFTER_HOME",
+    "current_package_binding_verified": true,
+    "readback_selection": "report/yield-live-transition-v1/contact-readback-selection-20260921T063352+0800.json",
+    "readback_selection_sha256": "da91a1b50ca776ed80bc985a99a7806c9d852f2ca08da7377d1666bad00b901c",
+    "triplet": {
+      "local": {
+        ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
+        ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
+        ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+      },
+      "controller": {
+        ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
+        ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
+        ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+      },
+      "readback": {
+        ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
+        ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
+        ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+      }
+    },
+    "eoat_payload_tcp_binding": "fresh preflight matches payload 0.413 kg, COG [0.0011, 0.0031, 0.0163], TCP offset z 87.4 mm",
+    "home_gate": "BLOCKED",
+    "home_reason": "current stopped pose is outside the existing 10 mrad SO(3) Home admission corridor"
+  },
+  "controller_qualification": {
+    "decision": "REQUIRED_AFTER_HOME",
+    "method": "TASE_RNN_MATURE",
+    "prior_receipts": [
+      "runs/tase-figure8-full-20260921T0646/qualification-1.json",
+      "runs/tase-figure8-full-20260921T0646/qualification-2.json",
+      "runs/tase-figure8-full-20260921T0646/qualification-3.json"
+    ],
+    "prior_receipts_status": "three qualification receipts passed their historical gates, but they predate the current provider repair",
+    "prior_provider_sha256": "226c482893e716a3eb16a11aa5a67ed33c418707d27b3d428ee87069ad5b87a2",
+    "current_provider_sha256": "77e81b7408cf5ff095d8b258d732df9757e8248c9ff6e28c074b2671c70fca7e",
+    "provider_identity_changed": true,
+    "changed_contract": "baseline realized-Jqdot residual hold and native raw-wrench guard routing are current source behavior",
+    "rerun_scope": [
+      "provider/source identity",
+      "baseline behavior",
+      "qdot/Jacobian/Cartesian output envelope",
+      "fresh force readiness and timing"
+    ]
+  },
+  "formal_path": {
+    "decision": "NOT_AVAILABLE",
+    "accepted_complete_path": false,
+    "reason": "latest attempt failed before formal PATH and did not produce a verified final Home; qualification receipts and offline replay cannot substitute for a complete physical Figure-eight",
+    "configured_period_s": 62.83185307179586
+  },
+  "next_action_order": [
+    "obtain approved recovery geometry or external physical-state change that returns the robot to an admissible Home corridor",
+    "fresh read-only Home verification",
+    "rerun only the affected TASE controller qualification using current source",
+    "then run the single-writer complete Figure-eight and automatic Home path"
+  ],
+  "hardware_or_endpoint_action": false
+}
