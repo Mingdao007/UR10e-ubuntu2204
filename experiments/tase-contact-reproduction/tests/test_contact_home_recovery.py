@@ -44,11 +44,11 @@ def test_recovery_reuses_historical_generated_motion(tmp_path):
     result=build(p,out);text=(out/f'{BASENAME}.script').read_text()
     assert text.startswith('# VERSION:')
     assert 'movel(rise_pose, a=0.060, v=0.040, r=0.0)' in text
-    assert 'movel(transfer_pose, a=0.135, v=0.090, r=0.0)' in text
+    assert 'movel(transfer_pose, a=0.060, v=0.040, r=0.0)' in text
     assert 'movel(descent_pose, a=0.060, v=0.040, r=0.0)' in text
-    assert result['numeric_sanity']['speed_m_s']==.09
+    assert result['numeric_sanity']['speed_m_s']==.04
     assert result['numeric_sanity']['segment_1_speed_m_s']==.04
-    assert result['numeric_sanity']['segment_2_speed_m_s']==.09
+    assert result['numeric_sanity']['segment_2_speed_m_s']==.04
     assert result['numeric_sanity']['speed_basis'].startswith('step5d_autotune_start_hover_r001')
     assert 'v=0.0005' not in text and 'v=0.002' not in text
     assert result['home_pose']==h['home_pose']
@@ -56,6 +56,16 @@ def test_recovery_reuses_historical_generated_motion(tmp_path):
     assert 'BOUNDED_RECOVERY:' in text
     h['rtde']['actual_TCP_pose'][0]-=.004
     with pytest.raises(ValueError,match='3mm or 20mrad'):recovery_geometry(h)
+
+
+def test_direct_clearance_home_retains_historical_transfer_speed(tmp_path):
+    h=receipt();h['clearance_entry']=True
+    h['home_pose'][:3]=list(FIGURE8_CONTACT_HOME_XYZ_M)
+    h['rtde'].update(actual_TCP_pose=list(h['home_pose']),actual_qd=[0]*6,safety_status_bits=1)
+    p=tmp_path/'home.json';p.write_text(json.dumps(h));out=tmp_path/'package'
+    result=build(p,out);text=(out/f'{BASENAME}.script').read_text()
+    assert 'movel(transfer_pose, a=0.135, v=0.090, r=0.0)' in text
+    assert result['numeric_sanity']['segment_2_speed_m_s']==.09
 
 
 def test_relief_reuses_historical_vertical_motion(tmp_path):

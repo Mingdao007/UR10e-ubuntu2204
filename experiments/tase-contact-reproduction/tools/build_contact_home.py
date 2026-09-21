@@ -17,6 +17,14 @@ from contact_home_motion_profile import (
 
 BASENAME='step5d_contact_home_v1'
 HOME_SOURCE=ROOT/'programs/step5/step5d/step5d_autotune_start_hover_r001.script'
+# The historical clearance transfer uses 90 mm/s.  A staged orientation turn
+# is a different measured case: the first live attempt reached 57.7 mrad/s
+# angular TCP speed at that command, above the 40 mrad/s admission guard.
+# Keep the guard unchanged and lower only the staged transfer command so the
+# observed motion stays inside the existing envelope. Direct Home retains the
+# historical transfer speed.
+STAGED_TRANSFER_SPEED_M_S = 0.040
+STAGED_TRANSFER_ACCEL_M_S2 = 0.060
 
 
 def recovery_geometry(home):
@@ -62,20 +70,23 @@ def build(receipt,output):
     pose='p['+', '.join(f'{x:.12f}' for x in target)+']'
     text=re.sub(r'local target_pose = p\[[^\]]+\]',f'local target_pose = {pose}',text)
     text=re.sub(r'^# TARGET_POSE: .*$',f'# TARGET_POSE: {pose}',text,flags=re.M)
-    # Preserve the historical three-segment helper profile. Bounded recovery
-    # changes admission geometry, not the already-used motion parameters.
+    transfer_speed = STAGED_TRANSFER_SPEED_M_S if recovery is not None else HOME_TRANSFER_SPEED_M_S
+    transfer_accel = STAGED_TRANSFER_ACCEL_M_S2 if recovery is not None else HOME_TRANSFER_ACCEL_M_S2
+    # Preserve the historical three-segment helper profile for direct Home.
+    # Staged orientation correction uses a narrower transfer command after
+    # the measured first attempt exceeded the unchanged angular guard.
     text=text.replace(
         'a=0.060, v=0.040',
         f'a={HOME_VERTICAL_ACCEL_M_S2:.3f}, v={HOME_VERTICAL_SPEED_M_S:.3f}',
     ).replace(
         'a=0.135, v=0.090',
-        f'a={HOME_TRANSFER_ACCEL_M_S2:.3f}, v={HOME_TRANSFER_SPEED_M_S:.3f}',
+        f'a={transfer_accel:.3f}, v={transfer_speed:.3f}',
     )
     for a,b in [
         ('= 0.060',f'= {HOME_VERTICAL_ACCEL_M_S2:.3f}'),
-        ('= 0.135',f'= {HOME_TRANSFER_ACCEL_M_S2:.3f}'),
+        ('= 0.135',f'= {transfer_accel:.3f}'),
         ('= 0.040',f'= {HOME_VERTICAL_SPEED_M_S:.3f}'),
-        ('= 0.090',f'= {HOME_TRANSFER_SPEED_M_S:.3f}'),
+        ('= 0.090',f'= {transfer_speed:.3f}'),
     ]:text=text.replace(a,b)
     if recovery is not None or withdrawal is not None:
         first,rest=text.split('\n',1)
@@ -113,7 +124,8 @@ def build(receipt,output):
     text=text.replace(
         '# BLEND_RADIUS_M:',
         '# MOTION: historical vertical a=0.060m/s2 v=0.040m/s; '
-        'clearance transfer a=0.135m/s2 v=0.090m/s\n# BLEND_RADIUS_M:',
+        f'clearance transfer a={transfer_accel:.3f}m/s2 v={transfer_speed:.3f}m/s; '
+        'staged transfer speed is reduced only for the measured angular guard\n# BLEND_RADIUS_M:',
     )
     validate_urscript_block_balance(text)
     for forbidden in ('zero_ftsensor(', 'set_tcp(', 'set_payload(', 'speedj(', 'read_input_'):
@@ -127,12 +139,12 @@ def build(receipt,output):
           'clearance_entry':home.get('clearance_entry') is True,
           'numeric_sanity':{
               'max_transfer_distance_m':float(np.linalg.norm(target[:3]-observed[:3])),
-              'speed_m_s':HOME_TRANSFER_SPEED_M_S,
-              'acceleration_m_s2':HOME_TRANSFER_ACCEL_M_S2,
+              'speed_m_s':transfer_speed,
+              'acceleration_m_s2':transfer_accel,
               'segment_1_speed_m_s':HOME_VERTICAL_SPEED_M_S,
               'segment_1_acceleration_m_s2':HOME_VERTICAL_ACCEL_M_S2,
-              'segment_2_speed_m_s':HOME_TRANSFER_SPEED_M_S,
-              'segment_2_acceleration_m_s2':HOME_TRANSFER_ACCEL_M_S2,
+              'segment_2_speed_m_s':transfer_speed,
+              'segment_2_acceleration_m_s2':transfer_accel,
               'speed_basis':HISTORICAL_PROFILE_ID,
               'initial_position_tolerance_m':.002,
               'contact':withdrawal is not None,'force_control':False,
