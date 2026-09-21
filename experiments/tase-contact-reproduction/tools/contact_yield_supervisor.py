@@ -380,7 +380,6 @@ def main(argv=None):
             # geometry denial may leave the robot without a verified Home.
             try:
                 from run_contact_recovery import _emergency_home_when_commandable
-                from contact_yield_live_contract import PACKAGE_DIR
                 result['autonomous_home_recovery'] = _emergency_home_when_commandable(
                     a.run_dir,
                     a.run_dir.with_name(a.run_dir.name + '-autonomous-home-fallback'),
