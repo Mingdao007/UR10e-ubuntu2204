@@ -1,13 +1,13 @@
 {
   "artifacts": {
-    "attempts_sha256": "7a6e093d83d54135fc35d045baf082e7592a29b259641a281eb4da2ee22fcfd4",
-    "holdout_sha256": "873dd1dc8d01ab1fee47ce174fb19e66095a627c5318ac9e9ea4da3c0616da3c"
+    "attempts_sha256": "32793868d0475a0e42bdc7a170b43c5e449876a0dc58db91ae271b7c79546a9c",
+    "holdout_sha256": "a7783ffa93f259c8ec5b5276469e50108cfa710f67b553401035ae8b9eaa2b69"
   },
   "attempt_denominators": {
-    "failed_holdout": 60,
-    "failed_tuning": 72,
+    "failed_holdout": 70,
+    "failed_tuning": 336,
     "holdout": 160,
-    "tuning": 192
+    "tuning": 768
   },
   "claim_scope": "offline proxy only; no robot, bridge, physical acceptance, or human-push claim",
   "config": {
@@ -21,38 +21,46 @@
   "frozen": {
     "TASE_IMPROVED": {
       "candidate": {
-        "force_contact_gate_n": 0.75,
-        "force_integral_leak_tau_s": 0.25,
-        "force_integral_limit_n_s": 1.25,
+        "force_contact_gate_n": 0.25,
+        "force_integral_leak_tau_s": 0.625,
+        "force_integral_limit_n_s": 0.5,
         "normal_weight": 80.0
       },
-      "eligible_training_attempts": 20,
-      "source": "min_training_normal_force_mae"
+      "eligible_training_attempts": 80,
+      "eligible_training_candidates": 20,
+      "search_space_cardinality": 240,
+      "source": "history_lcb_bo_case_balanced_mean"
     },
     "TASE_QP": {
       "candidate": {
         "lambda_update_sign": "minus"
       },
-      "eligible_training_attempts": 20,
-      "source": "min_training_normal_force_mae"
+      "eligible_training_attempts": 40,
+      "eligible_training_candidates": 1,
+      "search_space_cardinality": 1,
+      "source": "history_lcb_bo_case_balanced_mean"
     },
     "TASE_RNN": {
       "candidate": {
-        "epsilon": 0.02,
+        "epsilon": 0.018500000000000003,
         "lambda_update_sign": "plus",
-        "sigr_exponent_r": 0.2
+        "sigr_exponent_r": 0.30000000000000004
       },
-      "eligible_training_attempts": 20,
-      "source": "min_training_normal_force_mae"
+      "eligible_training_attempts": 80,
+      "eligible_training_candidates": 20,
+      "search_space_cardinality": 32,
+      "source": "history_lcb_bo_case_balanced_mean"
     },
     "TASE_RNN_MATURE": {
       "candidate": {
         "epsilon": 0.014,
         "lambda_update_sign": "minus",
-        "sigr_exponent_r": 0.2
+        "sigr_exponent_r": 0.30000000000000004
       },
-      "eligible_training_attempts": 20,
-      "source": "min_training_normal_force_mae"
+      "eligible_training_attempts": 80,
+      "eligible_training_candidates": 20,
+      "search_space_cardinality": 32,
+      "source": "history_lcb_bo_case_balanced_mean"
     },
     "TASE_RNN_MATURE+LAC": {
       "candidate": {
@@ -60,6 +68,8 @@
         "tangential_controller": "LAC"
       },
       "eligible_training_attempts": 0,
+      "eligible_training_candidates": 0,
+      "search_space_cardinality": 1,
       "source": "no_eligible_training_attempt"
     },
     "TASE_RNN_MATURE+NAC": {
@@ -68,6 +78,8 @@
         "tangential_controller": "NAC"
       },
       "eligible_training_attempts": 0,
+      "eligible_training_candidates": 0,
+      "search_space_cardinality": 1,
       "source": "no_eligible_training_attempt"
     },
     "TASE_RNN_MATURE+SFC": {
@@ -76,42 +88,46 @@
         "tangential_controller": "SFC"
       },
       "eligible_training_attempts": 0,
+      "eligible_training_candidates": 0,
+      "search_space_cardinality": 1,
       "source": "no_eligible_training_attempt"
     },
     "TASE_RNN_MATURE_MINUS": {
       "candidate": {
         "epsilon": 0.014,
         "lambda_update_sign": "minus",
-        "sigr_exponent_r": 0.2
+        "sigr_exponent_r": 0.30000000000000004
       },
-      "eligible_training_attempts": 20,
-      "source": "min_training_normal_force_mae"
+      "eligible_training_attempts": 80,
+      "eligible_training_candidates": 20,
+      "search_space_cardinality": 32,
+      "source": "history_lcb_bo_case_balanced_mean"
     }
   },
   "paired_vs_primary": {
     "TASE_IMPROVED": {
       "improvement_threshold_n": 0.1,
-      "lower": 0.0041971221723910695,
-      "mean": 0.006213716160563099,
+      "lower": 0.0036939595603712847,
+      "mean": 0.0050263773211680005,
       "n": 20,
       "supported_improvement": false,
-      "upper": 0.008230310148735128
+      "upper": 0.006358795081964717
     },
     "TASE_QP": {
       "improvement_threshold_n": 0.1,
-      "lower": -0.0031581997943230787,
-      "mean": -0.002391125606885658,
-      "n": 20,
+      "lower": -0.0028291950504700275,
+      "mean": -0.0017107432848885637,
+      "n": 10,
       "supported_improvement": false,
-      "upper": -0.0016240514194482375
+      "upper": -0.0005922915193070999
     },
     "TASE_RNN": {
       "improvement_threshold_n": 0.1,
-      "lower": 0.695046686966369,
-      "mean": 1.0587953644043868,
+      "lower": 0.4967255820838397,
+      "mean": 0.759123374006877,
       "n": 20,
       "supported_improvement": false,
-      "upper": 1.4225440418424047
+      "upper": 1.0215211659299144
     },
     "TASE_RNN_MATURE+LAC": {
       "improvement_threshold_n": 0.1,
@@ -139,14 +155,15 @@
     },
     "TASE_RNN_MATURE_MINUS": {
       "improvement_threshold_n": 0.1,
-      "lower": -2.4051552219590433e-05,
-      "mean": -1.1919506793900413e-05,
+      "lower": 0.0,
+      "mean": 0.0,
       "n": 20,
       "supported_improvement": false,
-      "upper": 2.1253863178960425e-07
+      "upper": 0.0
     }
   },
   "protocol": {
+    "bo_acquisition": "history-dependent Gaussian-kernel lower-confidence bound on case-balanced mean MAE",
     "budget": {
       "bo": 12,
       "holdout_rounds": 5,
@@ -159,6 +176,7 @@
       "low_curvature",
       "stiffness_change"
     ],
+    "cases_per_tuning_unit": 4,
     "composition_methods": [
       "TASE_RNN_MATURE+LAC",
       "TASE_RNN_MATURE+NAC",
@@ -183,6 +201,8 @@
       "TASE_RNN_MATURE+SFC"
     ],
     "normal_force_target_n": 5.0,
+    "paired_holdout_seed_contract": "holdout:block:case shared across methods",
+    "paired_holdout_units": 20,
     "raw_force_limit_n": 20.0
   },
   "schema": "ur10e.tase-research-campaign-v1"

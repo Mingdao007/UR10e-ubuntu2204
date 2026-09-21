@@ -36,9 +36,9 @@ def test_equal_budget_campaign_preserves_failures_and_paired_ci(tmp_path, qp_lib
         "repeat": 1,
         "holdout_rounds": 1,
     }
-    assert summary["attempt_denominators"]["tuning"] == len(campaign.METHODS) * 3
+    assert summary["attempt_denominators"]["tuning"] == len(campaign.METHODS) * 3 * len(campaign.CASES)
     assert summary["attempt_denominators"]["holdout"] == len(campaign.METHODS) * 4
-    assert summary["attempt_denominators"]["failed_tuning"] >= len(campaign.COMPOSITION_METHODS) * 3
+    assert summary["attempt_denominators"]["failed_tuning"] >= len(campaign.COMPOSITION_METHODS) * 3 * len(campaign.CASES)
     assert summary["attempt_denominators"]["failed_holdout"] >= len(campaign.COMPOSITION_METHODS) * 4
     assert (tmp_path / "campaign" / "attempts.jsonl").is_file()
     assert (tmp_path / "campaign" / "holdout.jsonl").is_file()
@@ -49,6 +49,8 @@ def test_equal_budget_campaign_preserves_failures_and_paired_ci(tmp_path, qp_lib
     for method, ci in summary["paired_vs_primary"].items():
         assert ci["improvement_threshold_n"] == pytest.approx(0.10)
         assert ci["supported_improvement"] is False or ci["upper"] <= -0.10
+    assert summary["protocol"]["bo_acquisition"].startswith("history-dependent")
+    assert summary["protocol"]["paired_holdout_seed_contract"] == "holdout:block:case shared across methods"
 
 
 def test_qp_and_improved_have_same_input_contract(qp_library):
@@ -57,7 +59,7 @@ def test_qp_and_improved_have_same_input_contract(qp_library):
         result = campaign.run_attempt(
             method=method,
             candidate=campaign._candidate(method, 0),
-            case_name="incline",
+            case_name="plane",
             attempt_id=f"contract-{method}",
             config=config,
             qp_library=qp_library,

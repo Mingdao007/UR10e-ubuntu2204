@@ -45,6 +45,7 @@ DT_S = 0.002
 FORCE_TARGET_N = 5.0
 RAW_FORCE_LIMIT_N = 20.0
 QDOT_LIMIT_RAD_S = 0.05
+FIXED_PROXY_ROTATION = np.diag((1.0, -1.0, -1.0))
 
 
 @dataclass(frozen=True)
@@ -86,14 +87,15 @@ class SurfaceCase:
     name: str
     description: str
     nominal_normal: tuple[float, float, float]
-    stiffness_n_per_m: float
+    stiffness_initial_n_per_m: float
+    stiffness_final_n_per_m: float | None = None
 
 
 SURFACE_CASES = {
     "plane": SurfaceCase("plane", "fixed plane; measured-wrench normal only", (0.0, 0.0, 1.0), 120.0),
     "incline": SurfaceCase("incline", "10 degree nominal incline; no geometry input", (0.173648, 0.0, 0.984808), 120.0),
     "low_curvature": SurfaceCase("low_curvature", "slowly varying low-curvature normal proxy", (0.0, 0.0, 1.0), 120.0),
-    "stiffness_change": SurfaceCase("stiffness_change", "piecewise stiffness change; no curvature input", (0.0, 0.0, 1.0), 260.0),
+    "stiffness_change": SurfaceCase("stiffness_change", "piecewise stiffness change; no curvature input", (0.0, 0.0, 1.0), 120.0, 260.0),
 }
 
 
@@ -121,17 +123,6 @@ def _normal_for(case: SurfaceCase, index: int, horizon: int) -> np.ndarray:
         phase = 2.0 * math.pi * index / max(1, horizon - 1)
         return _unit(np.asarray((0.05 * math.sin(phase), 0.035 * math.cos(phase), 1.0)))
     return _unit(np.asarray(case.nominal_normal, dtype=float))
-
-
-def _rotation_for_reaction(normal: np.ndarray) -> np.ndarray:
-    """Construct a fixed-roll TCP frame whose tool axis is the approach axis."""
-    approach = -_unit(np.asarray(normal, dtype=float))
-    reference = np.asarray((1.0, 0.0, 0.0))
-    if abs(float(np.dot(reference, approach))) > 0.9:
-        reference = np.asarray((0.0, 1.0, 0.0))
-    x_axis = _unit(reference - float(np.dot(reference, approach)) * approach)
-    y_axis = np.cross(approach, x_axis)
-    return np.column_stack((x_axis, y_axis, approach))
 
 
 def _disturbance(case: SurfaceCase, index: int, horizon: int, rng: random.Random) -> np.ndarray:
@@ -185,26 +176,91 @@ def _metrics(rows: list[dict[str, Any]], *, failed: bool, error: str | None) -> 
 
 
 def _candidate(method: str, index: int) -> dict[str, Any]:
-    """Deterministic initial/BO proposal; the ledger still freezes the winner."""
+    """Return a deterministic point in the method's offline search space."""
     if method == "TASE_RNN":
-        return {"epsilon": 0.014 + 0.0015 * (index % 8), "sigr_exponent_r": 0.2 + 0.05 * (index % 4), "lambda_update_sign": "plus"}
+        return {"epsilon": 0.014 + 0.0015 * (index % 8), "sigr_exponent_r": 0.2 + 0.05 * ((index // 8) % 4), "lambda_update_sign": "plus"}
     if method in {"TASE_RNN_MATURE", "TASE_RNN_MATURE_MINUS"}:
-        return {"epsilon": 0.014 + 0.0015 * (index % 8), "sigr_exponent_r": 0.2 + 0.05 * (index % 4), "lambda_update_sign": "minus"}
+        return {"epsilon": 0.014 + 0.0015 * (index % 8), "sigr_exponent_r": 0.2 + 0.05 * ((index // 8) % 4), "lambda_update_sign": "minus"}
     if method == "TASE_QP":
         return {"lambda_update_sign": "minus"}
     if method == "TASE_IMPROVED":
-        return {"force_integral_limit_n_s": 0.5 + 0.25 * (index % 5), "force_contact_gate_n": 0.25 + 0.25 * (index % 3), "force_integral_leak_tau_s": 0.25 + 0.125 * (index % 4), "normal_weight": 80.0 + 20.0 * (index % 4)}
+        return {"force_integral_limit_n_s": 0.5 + 0.25 * (index % 5), "force_contact_gate_n": 0.25 + 0.25 * ((index // 5) % 3), "force_integral_leak_tau_s": 0.25 + 0.125 * ((index // 15) % 4), "normal_weight": 80.0 + 20.0 * ((index // 60) % 4)}
     return {"normal_controller": "TASE_RNN_MATURE", "tangential_controller": method.split("+", 1)[1]}
 
 
-def _make_observation(*, position: np.ndarray, normal: np.ndarray, force_n: float, index: int, horizon: int, dt_s: float, stiffness: float, rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]]:
+def _candidate_pool(method: str) -> list[dict[str, Any]]:
+    if method == "TASE_QP":
+        # The matched native QP has no tunable solver parameter in this
+        # transport-free build; BO therefore has one admissible point and
+        # records repeated acquisition of that fixed identity explicitly.
+        return [_candidate(method, 0)]
+    if method in COMPOSITION_METHODS:
+        return [_candidate(method, 0)]
+    return [_candidate(method, index) for index in range(32 if method != "TASE_IMPROVED" else 240)]
+
+
+def _candidate_key(candidate: Mapping[str, Any]) -> str:
+    return json.dumps(dict(candidate), sort_keys=True, separators=(",", ":"))
+
+
+def _candidate_distance(left: Mapping[str, Any], right: Mapping[str, Any]) -> float:
+    scales = {
+        "epsilon": 0.01, "sigr_exponent_r": 0.2,
+        "force_integral_limit_n_s": 1.0, "force_contact_gate_n": 1.0,
+        "force_integral_leak_tau_s": 0.5, "normal_weight": 100.0,
+    }
+    distance = 0.0
+    for key in set(left) | set(right):
+        a, b = left.get(key), right.get(key)
+        if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+            distance += ((float(a) - float(b)) / scales.get(key, 1.0)) ** 2
+        elif a != b:
+            distance += 1.0
+    return math.sqrt(distance)
+
+
+def _propose_bo(method: str, observed: list[dict[str, Any]], proposal_index: int) -> dict[str, Any]:
+    """Deterministic history-dependent lower-confidence-bound proposal."""
+    pool = _candidate_pool(method)
+    used = {_candidate_key(item["candidate"]) for item in observed if item.get("budget_stage") in {"initial", "bo"}}
+    available = [candidate for candidate in pool if _candidate_key(candidate) not in used]
+    if not available:
+        return dict(pool[proposal_index % len(pool)])
+    grouped: dict[str, list[float]] = {}
+    candidates_by_key: dict[str, Mapping[str, Any]] = {}
+    for item in observed:
+        if item.get("metrics", {}).get("failed") or item.get("metrics", {}).get("normal_force_mae_n") is None:
+            continue
+        key = _candidate_key(item["candidate"])
+        grouped.setdefault(key, []).append(float(item["metrics"]["normal_force_mae_n"]))
+        candidates_by_key[key] = item["candidate"]
+    if not grouped:
+        return dict(available[proposal_index % len(available)])
+    observations = [(candidates_by_key[key], float(np.mean(values))) for key, values in grouped.items()]
+    def acquisition(candidate: Mapping[str, Any]) -> tuple[float, str]:
+        weights = np.asarray([math.exp(-(_candidate_distance(candidate, point) ** 2) / (2.0 * 0.45 ** 2)) for point, _ in observations])
+        scores = np.asarray([score for _, score in observations])
+        total = float(np.sum(weights))
+        prediction = float(np.dot(weights, scores) / total) if total > 1e-12 else float(np.mean(scores))
+        uncertainty = 1.0 / math.sqrt(max(total, 1e-12))
+        return prediction - 0.05 * uncertainty, _candidate_key(candidate)
+    return dict(min(available, key=acquisition))
+
+
+def _make_observation(*, case: SurfaceCase, position: np.ndarray, normal: np.ndarray, force_n: float, index: int, horizon: int, dt_s: float, stiffness: float, rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]]:
     task = Task()
     t = index * dt_s
     reference = task.reference(min(t, task.duration_s))
-    measured_force = normal * force_n + _disturbance(SURFACE_CASES["stiffness_change"], index, horizon, rng) * (0.0 if stiffness < 200.0 else 1.0)
+    sensor_noise = np.asarray(tuple(0.015 * rng.uniform(-1.0, 1.0) for _ in range(3)))
+    disturbance = _disturbance(case, index, horizon, rng)
+    if case.name == "stiffness_change" and stiffness < 200.0:
+        disturbance = np.zeros(3)
+    measured_force = normal * force_n + disturbance + sensor_noise
     observation = {
         "time_s": float(t), "state_age_s": 0.010 if index % 5 else 0.018,
-        "position_m": tuple(float(x) for x in position), "rotation": _rotation_for_reaction(normal),
+        # Fixed identity pose is an external proxy assumption; it does not
+        # encode the evaluator's nominal normal in the controller input.
+        "position_m": tuple(float(x) for x in position), "rotation": FIXED_PROXY_ROTATION,
         "joint_position_rad": (0.0,) * 6, "jacobian": np.eye(6),
         "raw_force_base_n": tuple(float(x) for x in measured_force),
         "raw_torque_base_nm": (0.0, 0.0, 0.0), "joint_velocity_lower": (-QDOT_LIMIT_RAD_S,) * 6,
@@ -218,13 +274,13 @@ def _make_observation(*, position: np.ndarray, normal: np.ndarray, force_n: floa
     return observation, ref
 
 
-def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, attempt_id: str, config: CampaignConfig, qp_library: Path) -> dict[str, Any]:
+def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, attempt_id: str, config: CampaignConfig, qp_library: Path, trial_key: str | None = None) -> dict[str, Any]:
     case = SURFACE_CASES[case_name]
     registry = default_registry()
     rows: list[dict[str, Any]] = []
     position = np.zeros(3, dtype=float)
     force_n = FORCE_TARGET_N
-    rng = random.Random(config.seed ^ int(_sha({"attempt": attempt_id})[:8], 16))
+    rng = random.Random(config.seed ^ int(_sha({"trial": trial_key or attempt_id})[:8], 16))
     handle = None
     error: str | None = None
     try:
@@ -238,10 +294,10 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
         handle = registry.initialize(method, **options)
         for index in range(config.horizon_ticks):
             normal = _normal_for(case, index, config.horizon_ticks)
-            stiffness = case.stiffness_n_per_m
+            stiffness = case.stiffness_initial_n_per_m
             if case_name == "stiffness_change" and index >= config.horizon_ticks // 2:
-                stiffness = 260.0
-            observation, reference = _make_observation(position=position, normal=normal, force_n=force_n, index=index, horizon=config.horizon_ticks, dt_s=DT_S, stiffness=stiffness, rng=rng)
+                stiffness = case.stiffness_final_n_per_m or stiffness
+            observation, reference = _make_observation(case=case, position=position, normal=normal, force_n=force_n, index=index, horizon=config.horizon_ticks, dt_s=DT_S, stiffness=stiffness, rng=rng)
             result = handle.step(observation, reference, DT_S)
             qdot = np.asarray(result["qdot_rad_s"], dtype=float)
             # The plant receives the final realized command J qdot.  The
@@ -261,7 +317,7 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
             force_n += DT_S * (-stiffness * normal_velocity - 0.7 * (force_n - FORCE_TARGET_N))
             force_n += 0.15 * math.sin(index * 0.11) if case_name != "plane" else 0.0
             force_n = float(np.clip(force_n, 0.0, RAW_FORCE_LIMIT_N - 1e-6))
-            rows.append({"time_s": index * DT_S, "dt_s": DT_S, "age_s": observation["state_age_s"], "normal_force_n": force_n, "normal_error_n": force_n - FORCE_TARGET_N, "force_norm_n": float(np.linalg.norm(observation["raw_force_base_n"])), "path_error_m": path_error, "qdot_norm_rad_s": float(np.linalg.norm(qdot)), "saturated": bool(np.any(np.isclose(qdot, QDOT_LIMIT_RAD_S, atol=1e-8))), "normal_velocity_m_s": normal_velocity, "realization_residual_norm": realization_residual})
+            rows.append({"time_s": index * DT_S, "dt_s": DT_S, "age_s": observation["state_age_s"], "normal_force_n": force_n, "normal_error_n": force_n - FORCE_TARGET_N, "force_norm_n": float(np.linalg.norm(observation["raw_force_base_n"])), "path_error_m": path_error, "qdot_norm_rad_s": float(np.linalg.norm(qdot)), "saturated": bool(np.any(np.isclose(qdot, QDOT_LIMIT_RAD_S, atol=1e-8))), "normal_velocity_m_s": normal_velocity, "realization_residual_norm": realization_residual, "stiffness_n_per_m": stiffness})
             position = position + DT_S * actual_twist[:3]
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
@@ -269,7 +325,7 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
         if handle is not None:
             handle.close()
     metrics = _metrics(rows, failed=error is not None or len(rows) < config.horizon_ticks, error=error)
-    return {"schema": ATTEMPT_SCHEMA, "attempt_id": attempt_id, "method": method, "candidate": dict(candidate), "case": case_name, "proxy_only": True, "surface_geometry_provided_to_controller": False, "metrics": metrics}
+    return {"schema": ATTEMPT_SCHEMA, "attempt_id": attempt_id, "method": method, "candidate": dict(candidate), "case": case_name, "trial_key": trial_key or attempt_id, "proxy_only": True, "surface_geometry_provided_to_controller": False, "metrics": metrics}
 
 
 def _ci95(values: list[float]) -> dict[str, Any]:
@@ -290,32 +346,80 @@ def run_campaign(*, output_dir: Path, qp_library: Path, config: CampaignConfig =
     out.mkdir(parents=True, exist_ok=True)
     attempts: list[dict[str, Any]] = []
     frozen: dict[str, dict[str, Any]] = {}
+
+    def run_tuning_unit(method: str, candidate: Mapping[str, Any], stage: str, unit: int) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for case_name in CASES:
+            attempt = run_attempt(
+                method=method,
+                candidate=candidate,
+                case_name=case_name,
+                attempt_id=f"{method}-{stage}-{unit:02d}-{case_name}",
+                trial_key=f"tuning:{method}:{stage}:{unit}:{case_name}",
+                config=config,
+                qp_library=Path(qp_library),
+            )
+            attempt["budget_stage"] = stage
+            attempt["candidate_unit"] = unit
+            rows.append(attempt)
+        return rows
+
     for method in METHODS:
         training: list[dict[str, Any]] = []
-        for unit in range(config.tuning_units):
-            strategy = "initial" if unit < config.initial_units else "bo"
+        for unit in range(config.initial_units):
             candidate = _candidate(method, unit)
-            case_name = CASES[unit % len(CASES)]
-            attempt = run_attempt(method=method, candidate=candidate, case_name=case_name, attempt_id=f"{method}-{strategy}-{unit:02d}", config=config, qp_library=Path(qp_library))
-            attempt["budget_stage"] = strategy
-            attempts.append(attempt); training.append(attempt)
-        usable = [a for a in training if not a["metrics"]["failed"] and a["metrics"]["normal_force_mae_n"] is not None]
-        if usable:
-            selected = min(usable, key=lambda a: (float(a["metrics"]["normal_force_mae_n"]), a["attempt_id"]))["candidate"]
+            unit_rows = run_tuning_unit(method, candidate, "initial", unit)
+            attempts.extend(unit_rows)
+            training.extend(unit_rows)
+        for bo_index in range(config.bo_units):
+            candidate = _propose_bo(method, training, bo_index)
+            unit = config.initial_units + bo_index
+            unit_rows = run_tuning_unit(method, candidate, "bo", unit)
+            attempts.extend(unit_rows)
+            training.extend(unit_rows)
+        grouped: dict[str, list[float]] = {}
+        candidate_by_key: dict[str, Mapping[str, Any]] = {}
+        for item in training:
+            metrics = item["metrics"]
+            if metrics["failed"] or metrics["normal_force_mae_n"] is None:
+                continue
+            key = _candidate_key(item["candidate"])
+            grouped.setdefault(key, []).append(float(metrics["normal_force_mae_n"]))
+            candidate_by_key[key] = item["candidate"]
+        if grouped:
+            selected_key = min(grouped, key=lambda key: (float(np.mean(grouped[key])), key))
+            selected = dict(candidate_by_key[selected_key])
+            source = "history_lcb_bo_case_balanced_mean"
         else:
             selected = _candidate(method, 0)
-        frozen[method] = {"candidate": dict(selected), "source": "min_training_normal_force_mae" if usable else "no_eligible_training_attempt", "eligible_training_attempts": len(usable)}
+            source = "no_eligible_training_attempt"
+        frozen[method] = {
+            "candidate": dict(selected),
+            "source": source,
+            "eligible_training_attempts": sum(len(values) for values in grouped.values()),
+            "eligible_training_candidates": len(grouped),
+            "search_space_cardinality": len(_candidate_pool(method)),
+        }
         for repeat in range(config.repeat_units):
-            attempt = run_attempt(method=method, candidate=selected, case_name=CASES[(config.tuning_units + repeat) % len(CASES)], attempt_id=f"{method}-repeat-{repeat:02d}", config=config, qp_library=Path(qp_library))
-            attempt["budget_stage"] = "repeat"
-            attempts.append(attempt)
+            unit_rows = run_tuning_unit(method, selected, "repeat", repeat)
+            attempts.extend(unit_rows)
     holdout: list[dict[str, Any]] = []
     for block in range(config.holdout_rounds):
         order = list(METHODS); random.Random(config.seed + block).shuffle(order)
         for method in order:
             for case_name in CASES:
-                attempt = run_attempt(method=method, candidate=frozen[method]["candidate"], case_name=case_name, attempt_id=f"holdout-{block:02d}-{method}-{case_name}", config=config, qp_library=Path(qp_library))
-                attempt["budget_stage"] = "frozen_holdout"; attempt["block"] = block; holdout.append(attempt)
+                attempt = run_attempt(
+                    method=method,
+                    candidate=frozen[method]["candidate"],
+                    case_name=case_name,
+                    attempt_id=f"holdout-{block:02d}-{method}-{case_name}",
+                    trial_key=f"holdout:{block}:{case_name}",
+                    config=config,
+                    qp_library=Path(qp_library),
+                )
+                attempt["budget_stage"] = "frozen_holdout"
+                attempt["block"] = block
+                holdout.append(attempt)
     paired: dict[str, Any] = {}
     baseline = [a for a in holdout if a["method"] == PRIMARY_METHOD]
     base_map = {(a["block"], a["case"]): a for a in baseline}
@@ -333,7 +437,29 @@ def run_campaign(*, output_dir: Path, qp_library: Path, config: CampaignConfig =
     holdout_path = out / "holdout.jsonl"
     attempts_path.write_text("".join(json.dumps(a, sort_keys=True) + "\n" for a in attempts), encoding="ascii")
     holdout_path.write_text("".join(json.dumps(a, sort_keys=True) + "\n" for a in holdout), encoding="ascii")
-    summary = {"schema": SCHEMA, "claim_scope": "offline proxy only; no robot, bridge, physical acceptance, or human-push claim", "protocol": {"methods": list(METHODS), "executable_methods": list(EXECUTABLE_METHODS), "composition_methods": list(COMPOSITION_METHODS), "cases": list(CASES), "budget": {"initial": config.initial_units, "bo": config.bo_units, "repeat": config.repeat_units, "holdout_rounds": config.holdout_rounds}, "normal_force_target_n": FORCE_TARGET_N, "raw_force_limit_n": RAW_FORCE_LIMIT_N, "dt_s": DT_S}, "config": config.__dict__, "attempt_denominators": {"tuning": len(attempts), "holdout": len(holdout), "failed_tuning": sum(a["metrics"]["failed"] for a in attempts), "failed_holdout": sum(a["metrics"]["failed"] for a in holdout)}, "frozen": frozen, "paired_vs_primary": paired, "artifacts": {"attempts_sha256": _sha(attempts), "holdout_sha256": _sha(holdout)}}
+    summary = {
+        "schema": SCHEMA,
+        "claim_scope": "offline proxy only; no robot, bridge, physical acceptance, or human-push claim",
+        "protocol": {
+            "methods": list(METHODS),
+            "executable_methods": list(EXECUTABLE_METHODS),
+            "composition_methods": list(COMPOSITION_METHODS),
+            "cases": list(CASES),
+            "budget": {"initial": config.initial_units, "bo": config.bo_units, "repeat": config.repeat_units, "holdout_rounds": config.holdout_rounds},
+            "cases_per_tuning_unit": len(CASES),
+            "bo_acquisition": "history-dependent Gaussian-kernel lower-confidence bound on case-balanced mean MAE",
+            "paired_holdout_seed_contract": "holdout:block:case shared across methods",
+            "paired_holdout_units": config.holdout_rounds * len(CASES),
+            "normal_force_target_n": FORCE_TARGET_N,
+            "raw_force_limit_n": RAW_FORCE_LIMIT_N,
+            "dt_s": DT_S,
+        },
+        "config": config.__dict__,
+        "attempt_denominators": {"tuning": len(attempts), "holdout": len(holdout), "failed_tuning": sum(a["metrics"]["failed"] for a in attempts), "failed_holdout": sum(a["metrics"]["failed"] for a in holdout)},
+        "frozen": frozen,
+        "paired_vs_primary": paired,
+        "artifacts": {"attempts_sha256": _sha(attempts), "holdout_sha256": _sha(holdout)},
+    }
     summary["artifacts"] = {
         "attempts_sha256": _file_sha256(attempts_path),
         "holdout_sha256": _file_sha256(holdout_path),
