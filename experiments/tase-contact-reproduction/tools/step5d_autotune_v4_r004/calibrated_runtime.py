@@ -453,6 +453,63 @@ class V4CalibratedRuntime:
             solver_status=status,
         )
 
+    def pure_normal_command(
+        self,
+        *,
+        actual_q: Sequence[float],
+        normal_speed_m_s: float,
+        actual_dt_s: float,
+        path_time_s: float = 0.0,
+    ) -> CalibratedCommand:
+        """Realize the fixed baseline normal primitive without RNN state.
+
+        Qualification contact acquisition deliberately has a smaller contract
+        than PATH: it publishes only the calibrated base-Z normal velocity and
+        never advances the mature RNN or paper outer-loop state.  The final
+        host slew/Jacobian gates still validate this typed command downstream.
+        """
+        q = _finite_vector(actual_q, 6, "actual_q")
+        speed = float(normal_speed_m_s)
+        if not math.isfinite(speed) or abs(speed) > 0.0005 + 1e-12:
+            raise CalibratedRuntimeError("baseline normal speed exceeds fixed 0.5 mm/s cap")
+        if not math.isfinite(actual_dt_s) or actual_dt_s <= 0.0 or actual_dt_s >= 0.08:
+            raise CalibratedRuntimeError("actual_dt_s is outside (0,80ms)")
+        jacobian = tcp_jacobian_base(self.model, q)
+        motion_qdot_limit = 0.15 if self.motion_profile is None else self.motion_profile.qdot_cap_rad_s
+        qdot_limit = min(motion_qdot_limit, self.solver_profile.qdot_limit_rad_s)
+        lower = np.maximum(self.model.model.lowerPositionLimit - q, -qdot_limit)
+        upper = np.minimum(self.model.model.upperPositionLimit - q, qdot_limit)
+        if np.any(lower > upper):
+            raise CalibratedRuntimeError("joint velocity bounds are inverted")
+        twist = np.asarray((0.0, 0.0, -speed, 0.0, 0.0, 0.0), dtype=float)
+        try:
+            qdot = np.linalg.solve(jacobian, twist)
+        except np.linalg.LinAlgError as exc:
+            raise CalibratedRuntimeError("fixed baseline normal Jacobian is singular") from exc
+        if not np.all(np.isfinite(qdot)):
+            raise CalibratedRuntimeError("fixed baseline normal qdot is nonfinite")
+        if np.any(qdot < lower - 1e-12) or np.any(qdot > upper + 1e-12):
+            raise CalibratedRuntimeError("fixed baseline normal qdot exceeds joint bounds")
+        achieved = jacobian @ qdot
+        if not np.allclose(achieved, twist, rtol=0.0, atol=1e-9):
+            raise CalibratedRuntimeError("fixed baseline normal realization residual is nonzero")
+        self._active_mode = None
+        self.last_solver_diagnostics = {
+            "backend": "fixed-normal-jacobian",
+            "state": "rnn-and-outer-loop-frozen",
+            "requested_twist": tuple(float(value) for value in twist),
+            "achieved_twist": tuple(float(value) for value in achieved),
+        }
+        return CalibratedCommand(
+            qdot=tuple(float(value) for value in qdot),
+            jacobian_6x6=tuple(tuple(float(value) for value in row) for row in jacobian),
+            observed_model_hashes=dict(self.model_hashes),
+            tangential_error_m=(0.0, 0.0),
+            orientation_error_rad=(0.0, 0.0, 0.0),
+            path_time_s=float(path_time_s),
+            solver_status=41.0,
+        )
+
     def warm_start_for_twist(
         self,
         *,

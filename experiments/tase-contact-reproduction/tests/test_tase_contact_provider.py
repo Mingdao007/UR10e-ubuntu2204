@@ -136,21 +136,13 @@ def test_live_tase_raw_guard_uses_native_wrench_before_baseline_subtraction(prov
         provider._observe(o, replace(s, raw_wrench=None), .002, .002)
 
 
-def test_live_tase_baseline_holds_non_normal_realization(provider, monkeypatch):
+def test_live_tase_baseline_uses_fixed_normal_primitive(provider, monkeypatch):
     o, s = tick(provider, .002)
-    original_command = provider.runtime.command
+    s = replace(s, normal_load_n=0.0, force_norm_n=0.0, filtered_normal_n=0.0)
+    def forbidden_rnn_command(**kwargs):
+        raise AssertionError('baseline contact acquisition must not call the RNN command path')
 
-    def inward_desired_twist(**kwargs):
-        del kwargs
-        return (0.0, 0.0, -0.002, 0.0, 0.0, 0.0)
-
-    monkeypatch.setattr(provider.runtime, 'desired_twist', inward_desired_twist)
-
-    def residual_command(**kwargs):
-        command = original_command(**kwargs)
-        return replace(command, qdot=(0.01, 0.0, -0.01, 0.0, 0.0, 0.0))
-
-    monkeypatch.setattr(provider.runtime, 'command', residual_command)
+    monkeypatch.setattr(provider.runtime, 'command', forbidden_rnn_command)
     command = provider.command(
         output=o,
         sensor=s,
@@ -164,12 +156,12 @@ def test_live_tase_baseline_holds_non_normal_realization(provider, monkeypatch):
     assert np.linalg.norm(realized[:2]) <= 2e-6
     assert np.linalg.norm(realized[3:]) <= 2e-6
     assert realized[2] < 0.0
-    assert provider.last_result['baseline_residual_hold'] is True
-    assert provider.last_result['baseline_normal_projection_applied'] is True
-    assert provider.last_result['baseline_normal_projection_original_m_s'] > 0.0
-    assert provider.last_result['baseline_normal_projection_target_m_s'] < 0.0
-    assert provider.last_result['baseline_normal_direction_correction'] is True
-    assert provider.last_result['baseline_residual_tangential_m_s'] > 2e-6
+    assert abs(float(realized[2])) <= 0.0005 + 1e-12
+    assert provider.last_result['baseline_primitive_speed_m_s'] == pytest.approx(
+        0.0003535533906, abs=1e-12
+    )
+    assert provider.last_result['baseline_normal_projection_applied'] is False
+    assert provider.last_result['force_preempt_warm_start'] is False
 
 
 def test_live_tase_force_preempt_warm_starts_rnn_once(provider):
@@ -183,7 +175,8 @@ def test_live_tase_force_preempt_warm_starts_rnn_once(provider):
         sensor=s,
         monotonic_s=.002,
         actual_dt_s=.002,
-        mode='baseline',
+        mode='path',
+        path_time_s=0.0,
         internal_setpoint_n=1.,
     )
     assert provider.last_result['force_preempt_warm_start'] is True
@@ -195,28 +188,17 @@ def test_live_tase_force_preempt_warm_starts_rnn_once(provider):
         sensor=s,
         monotonic_s=.004,
         actual_dt_s=.002,
-        mode='baseline',
+        mode='path',
+        path_time_s=0.0,
         internal_setpoint_n=1.,
     )
     assert provider.last_result['force_preempt_warm_start'] is False
     assert provider.last_result['force_preempt_warm_started'] is True
 
 
-def test_live_tase_baseline_boosts_bounded_outward_unload_on_force_rise(provider, monkeypatch):
+def test_live_tase_baseline_uses_measured_envelope_for_bounded_outward_speed(provider):
     o, s = tick(provider, .002, force=8.)
     s = replace(s, normal_load_n=8., force_norm_n=8., filtered_normal_n=1.)
-    original_command = provider.runtime.command
-
-    def outward_desired_twist(**kwargs):
-        del kwargs
-        return (0.0, 0.0, 0.002, 0.0, 0.0, 0.0)
-
-    def lagged_command(**kwargs):
-        command = original_command(**kwargs)
-        return replace(command, qdot=(0.01, 0.0, -0.001, 0.0, 0.0, 0.0))
-
-    monkeypatch.setattr(provider.runtime, 'desired_twist', outward_desired_twist)
-    monkeypatch.setattr(provider.runtime, 'command', lagged_command)
     provider.command(
         output=o,
         sensor=s,
@@ -225,8 +207,9 @@ def test_live_tase_baseline_boosts_bounded_outward_unload_on_force_rise(provider
         mode='baseline',
         internal_setpoint_n=1.,
     )
-    assert provider.last_result['baseline_normal_unload_boost'] is True
-    assert provider.last_result['baseline_normal_projection_target_m_s'] == pytest.approx(.002)
+    assert provider.last_result['baseline_normal_unload_boost'] is False
+    assert provider.last_result['baseline_primitive_speed_m_s'] == pytest.approx(-.0005)
+    assert provider.last_result['predicted_approach_normal_velocity_m_s'] == pytest.approx(-.0005)
 
 
 def test_live_tase_force_preempt_rearms_after_low_force_episode(provider):
@@ -238,7 +221,8 @@ def test_live_tase_force_preempt_rearms_after_low_force_episode(provider):
             sensor=s,
             monotonic_s=now,
             actual_dt_s=.002,
-            mode='baseline',
+            mode='path',
+            path_time_s=0.0,
             internal_setpoint_n=1.,
         )
         return provider.last_result
@@ -259,7 +243,7 @@ def test_live_tase_force_preempt_rearms_after_low_force_episode(provider):
     )
 
 
-def test_live_tase_force_rise_guard_caps_inward_baseline_realization(provider, monkeypatch):
+def test_live_tase_force_rise_guard_keeps_fixed_baseline_primitive_bounded(provider):
     def run(now, force, filtered=None, setpoint=1.0):
         o, s = tick(provider, now, force=force)
         s = replace(
@@ -278,26 +262,13 @@ def test_live_tase_force_rise_guard_caps_inward_baseline_realization(provider, m
         )
 
     run(.002, 3.0)
-    original_command = provider.runtime.command
-
-    def forced_inward_command(**kwargs):
-        command = original_command(**kwargs)
-        target = np.array((0., 0., -.003, 0., 0., 0.), dtype=float)
-        qdot = np.linalg.solve(np.asarray(command.jacobian_6x6, dtype=float), target)
-        return replace(command, qdot=tuple(float(value) for value in qdot))
-
-    monkeypatch.setattr(provider.runtime, 'command', forced_inward_command)
     run(.004, 4.8, filtered=1.0, setpoint=5.0)
     assert provider.last_result['force_rise_guard'] is True
     assert provider.last_result['force_preempt_warm_start'] is False
     assert provider.last_result['force_preempt_direction_retry'] is False
-    assert provider.last_result['force_rise_inward_cap_applied'] is True
-    assert abs(provider.last_result['force_rise_inward_target_m_s']) == pytest.approx(
-        TASE_FORCE_RISE_INWARD_CAP_M_S
-    )
-    assert provider.last_result['predicted_approach_normal_velocity_m_s'] <= (
-        TASE_FORCE_RISE_INWARD_CAP_M_S + 1e-12
-    )
+    assert provider.last_result['force_rise_inward_cap_applied'] is False
+    assert abs(provider.last_result['baseline_primitive_speed_m_s']) <= 0.0005 + 1e-12
+    assert abs(provider.last_result['predicted_approach_normal_velocity_m_s']) <= 0.0005 + 1e-12
 
 
 def test_stale_observation_does_not_advance_control_state(provider):

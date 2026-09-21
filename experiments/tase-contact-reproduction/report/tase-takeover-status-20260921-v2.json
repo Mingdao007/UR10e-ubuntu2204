@@ -1,0 +1,32 @@
+{
+  "schema": "tase.takeover-status-v2",
+  "as_of": "2026-09-21",
+  "worktree": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920",
+  "head": "6b10d8a6",
+  "software": {
+    "single_qualification_chain": "implemented",
+    "cpp_replay_core": "ctest 2/2",
+    "focused_python_tests": "49 passed",
+    "tp_readback": "revision 21, local/controller/fetched-back SHA equal",
+    "autotuner": "implemented but not started because no complete PATH observation exists"
+  },
+  "live_state": {
+    "latest_attempt": "runs/tase-figure8-single-qualification-20260921T100918Z",
+    "first_failure": "reason 48 baseline acquisition timeout",
+    "full_path_accepted": false,
+    "autotuner_campaign_complete": false,
+    "home_recovery": "runs/tase-figure8-single-qualification-20260921T100918Z-autonomous-home-retry-20260921T101323Z/result.json",
+    "dashboard": "STOPPED step5d_contact_home_v1.urp",
+    "safety": "NORMAL",
+    "live_writer_or_bridge_active": false
+  },
+  "metrics": {
+    "filtered_max_n": 4.96127505321121,
+    "force_norm_max_n": 11.568260007211787,
+    "raw_max_n": 11.511800328009139,
+    "readiness_samples": 9865,
+    "sample_count": 13200
+  },
+  "next_gate": "offline replay and diagnosis of the complete failed baseline stream; do not repeat unchanged qualification or start autotuner",
+  "claim_boundary": "no full PATH, no autotuner result, no controller comparison, and no physical precision claim"
+}

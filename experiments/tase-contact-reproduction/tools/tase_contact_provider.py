@@ -46,6 +46,12 @@ TASE_FORCE_RISE_INWARD_CAP_M_S = 0.0005
 TASE_HOST_SLEW_NUMERIC_MARGIN = 1e-9
 TASE_BASELINE_TANGENTIAL_TOLERANCE_M_S = 2e-6
 TASE_BASELINE_ANGULAR_TOLERANCE_RAD_S = 2e-6
+# Fixed contact-acquisition primitive.  This is deliberately outside the
+# tunable TASE outer loop: the qualification ramp owns only a 1-to-5 N
+# setpoint, while the primitive realizes a pure normal velocity capped at
+# 0.5 mm/s and leaves the RNN/outer-loop state frozen until PATH.
+TASE_BASELINE_FORCE_P_GAIN_M_S_PER_N = 0.0003535533906
+TASE_BASELINE_NORMAL_SPEED_CAP_M_S = 0.0005
 
 TASE_PARAMETER_SCHEMA = 'tase.outer-parameters-v1'
 TASE_OUTER_SEARCH_BOUNDS = {
@@ -91,6 +97,15 @@ TASE_PAPER_OUTER_BINDING = {
         'formula': 'control_normal=max(canonical_filtered_normal, measured_normal_load, measured_force_norm)',
         'purpose': 'prevent filter lag or tangential-load growth from commanding further inward motion near the shared force limit',
         'evidence_field': 'control_normal_n',
+    },
+    'fixed_baseline_contact_primitive': {
+        'schema': 'tase-fixed-baseline-normal-v1',
+        'force_error_gain_m_s_per_n': TASE_BASELINE_FORCE_P_GAIN_M_S_PER_N,
+        'normal_speed_cap_m_s': TASE_BASELINE_NORMAL_SPEED_CAP_M_S,
+        'xy_velocity_m_s': [0.0, 0.0],
+        'angular_velocity_rad_s': [0.0, 0.0, 0.0],
+        'rnn_state': 'frozen_until_path',
+        'outer_loop_state': 'frozen_until_path',
     },
     'force_preemptive_rnn_warm_start': {
         'schema': 'tase-live-force-preempt-warm-start-v2',
@@ -393,11 +408,6 @@ class TaseContactProvider(ContactCommandProvider):
                 float(sensor.normal_load_n),
                 float(sensor.force_norm_n),
             )
-            twist = self.runtime.desired_twist(actual_tcp_pose=output.tcp_pose_m_rad,
-                actual_tcp_speed=output.tcp_speed_m_s_rad_s, force_tcp_n=sensor.wrench[:3],
-                filtered_normal_n=control_normal, internal_setpoint_n=internal_setpoint_n,
-                actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
-            force_preempt_warm_start = False
             measured_force_norm = float(sensor.force_norm_n)
             previous_measured_force_norm = self.last_measured_force_norm
             force_rise_guard = bool(
@@ -406,6 +416,10 @@ class TaseContactProvider(ContactCommandProvider):
                 and measured_force_norm - float(previous_measured_force_norm)
                 >= TASE_FORCE_RISE_GUARD_DELTA_N
             )
+            force_preempt_warm_start = False
+            force_preempt_direction_retry = False
+            force_preempt_approach_before_retry = None
+            baseline_primitive_speed_m_s = 0.0
             # Hysteresis is deliberately based on the measured full-force
             # channel.  The canonical filtered channel remains the evidence
             # signal, while this conservative transition prevents an already
@@ -418,54 +432,75 @@ class TaseContactProvider(ContactCommandProvider):
             # the hysteretic main threshold remains the sole warm-start/retry
             # transition.  This keeps the safety response bounded without
             # turning a force transient into controller-state chatter.
-            if (
-                self.force_preempt_armed
-                and measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N
-            ):
-                force_preempt_warm_start = bool(self.runtime.warm_start_for_twist(
-                    actual_q=output.q_rad,
-                    desired_twist=twist,
-                    mode=mode,
+            if mode == 'baseline':
+                # The qualification contact stage is intentionally independent
+                # of the tuned TASE law.  A one-dimensional fixed primitive
+                # follows the canonical 1-to-5 N ramp and uses the conservative
+                # measured envelope, then realizes pure base-Z motion through
+                # the calibrated Jacobian without touching RNN state.
+                baseline_error = float(internal_setpoint_n) - control_normal
+                baseline_primitive_speed_m_s = float(np.clip(
+                    TASE_BASELINE_FORCE_P_GAIN_M_S_PER_N * baseline_error,
+                    -TASE_BASELINE_NORMAL_SPEED_CAP_M_S,
+                    TASE_BASELINE_NORMAL_SPEED_CAP_M_S,
                 ))
-                if force_preempt_warm_start:
-                    self.force_preempt_warm_started = True
-                    self.force_preempt_armed = False
-                    self.force_preempt_episode += 1
-            command = self.runtime.command(actual_q=output.q_rad, actual_qd=output.qd_rad_s,
-                actual_tcp_pose=output.tcp_pose_m_rad, desired_twist=twist,
-                actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
-            # A warm-start at the force threshold fixes the initial RNN
-            # transient, but the recurrent state can drift back into contact
-            # while a high load persists.  Inspect the actual solved J*qdot;
-            # if it is still pressing during a high-force observation, reset
-            # once for this tick and solve the same desired twist again.  This
-            # is a bounded safety retry, not a gain or envelope change.
-            force_preempt_direction_retry = False
-            force_preempt_approach_before_retry = None
-            if measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N:
-                preliminary_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
-                    command.qdot, dtype=float
+                twist = (0.0, 0.0, -baseline_primitive_speed_m_s, 0.0, 0.0, 0.0)
+                command = self.runtime.pure_normal_command(
+                    actual_q=output.q_rad,
+                    normal_speed_m_s=baseline_primitive_speed_m_s,
+                    actual_dt_s=actual_dt_s,
+                    path_time_s=t,
                 )
-                force_preempt_approach_before_retry = float(-preliminary_twist[2])
-                if force_preempt_approach_before_retry > 0.0:
-                    direction_warm_start = bool(self.runtime.warm_start_for_twist(
+            else:
+                twist = self.runtime.desired_twist(actual_tcp_pose=output.tcp_pose_m_rad,
+                    actual_tcp_speed=output.tcp_speed_m_s_rad_s, force_tcp_n=sensor.wrench[:3],
+                    filtered_normal_n=control_normal, internal_setpoint_n=internal_setpoint_n,
+                    actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
+                if (
+                    self.force_preempt_armed
+                    and measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N
+                ):
+                    force_preempt_warm_start = bool(self.runtime.warm_start_for_twist(
                         actual_q=output.q_rad,
                         desired_twist=twist,
                         mode=mode,
                     ))
-                    if direction_warm_start:
-                        command = self.runtime.command(
-                            actual_q=output.q_rad,
-                            actual_qd=output.qd_rad_s,
-                            actual_tcp_pose=output.tcp_pose_m_rad,
-                            desired_twist=twist,
-                            actual_dt_s=actual_dt_s,
-                            mode=mode,
-                            path_time_s=t,
-                        )
-                        force_preempt_direction_retry = True
-                        self.force_preempt_direction_retry_count += 1
+                    if force_preempt_warm_start:
                         self.force_preempt_warm_started = True
+                        self.force_preempt_armed = False
+                        self.force_preempt_episode += 1
+                command = self.runtime.command(actual_q=output.q_rad, actual_qd=output.qd_rad_s,
+                    actual_tcp_pose=output.tcp_pose_m_rad, desired_twist=twist,
+                    actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
+                # A warm-start at the force threshold fixes the initial RNN
+                # transient, but the recurrent state can drift back into contact
+                # while a high load persists.  Inspect the actual solved J*qdot;
+                # if it is still pressing during a high-force observation, reset
+                # once for this tick and solve the same desired twist again.
+                if measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N:
+                    preliminary_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
+                        command.qdot, dtype=float
+                    )
+                    force_preempt_approach_before_retry = float(-preliminary_twist[2])
+                    if force_preempt_approach_before_retry > 0.0:
+                        direction_warm_start = bool(self.runtime.warm_start_for_twist(
+                            actual_q=output.q_rad,
+                            desired_twist=twist,
+                            mode=mode,
+                        ))
+                        if direction_warm_start:
+                            command = self.runtime.command(
+                                actual_q=output.q_rad,
+                                actual_qd=output.qd_rad_s,
+                                actual_tcp_pose=output.tcp_pose_m_rad,
+                                desired_twist=twist,
+                                actual_dt_s=actual_dt_s,
+                                mode=mode,
+                                path_time_s=t,
+                            )
+                            force_preempt_direction_retry = True
+                            self.force_preempt_direction_retry_count += 1
+                            self.force_preempt_warm_started = True
             # Baseline is a one-dimensional normal-force primitive.  The
             # strict RNN can carry a small tangential/angular residual even
             # when the requested baseline twist has those components set to
@@ -639,6 +674,7 @@ class TaseContactProvider(ContactCommandProvider):
                 'baseline_normal_projection_original_m_s': baseline_normal_projection_original_m_s,
                 'baseline_normal_direction_correction': baseline_normal_direction_correction,
                 'baseline_normal_unload_boost': baseline_normal_unload_boost,
+                'baseline_primitive_speed_m_s': baseline_primitive_speed_m_s,
                 'predicted_twist_m_s_rad_s': tuple(float(value) for value in predicted_twist),
                 'predicted_approach_normal_velocity_m_s': approach_normal_velocity,
                 'entry_time_s': t if phase == 'entry' else None,

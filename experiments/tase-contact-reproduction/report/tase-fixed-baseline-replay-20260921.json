@@ -1,0 +1,26 @@
+{
+  "schema": "tase.fixed-baseline-open-loop-replay-v1",
+  "source_run": "runs/tase-figure8-single-qualification-20260921T100918Z",
+  "source_claim": "recorded-input provider replay only; it does not predict a new plant force response",
+  "diagnosis": {
+    "observed_failure": "the mature RNN baseline command reached about 0.00905 rad/s on the recorded force-rise window while the filtered force lagged the raw force",
+    "architectural_gap": "the planned fixed 0.5 mm/s normal contact primitive was not yet used by TASE baseline; baseline still called the RNN and paper outer loop",
+    "repair": "baseline now uses fixed setpoint-error normal velocity, calibrated pure-normal Jacobian realization, and leaves RNN/outer-loop state frozen until PATH"
+  },
+  "replay": {
+    "ticks": 13200,
+    "max_abs_qdot_rad_s": 0.0015089037433598184,
+    "max_abs_normal_speed_m_s": 0.0005000000000000004,
+    "min_normal_speed_m_s": -0.0005000000000000004,
+    "max_normal_speed_m_s": 0.0005000000000000003,
+    "fixed_speed_cap_m_s": 0.0005,
+    "rnn_warm_start_ticks": 0,
+    "direction_retry_ticks": 0,
+    "projection_ticks": 0,
+    "provider_exceptions": 0,
+    "recorded_force_peak_n": 11.568260007211787,
+    "recorded_filtered_peak_n": 4.96127505321121
+  },
+  "claim_boundary": "the recorded force values are held inputs; unchanged force/readiness gates remain unproven on hardware after this software repair",
+  "next_gate": "focused regression, commit, fresh package/machine admission, then at most one new live qualification attempt"
+}

@@ -1,0 +1,62 @@
+{
+  "schema": "tase.qualification-failure-v2",
+  "attempt": "tase-figure8-single-qualification-20260921T100918Z",
+  "commit": "6b10d8a6",
+  "method": "TASE_RNN_MATURE",
+  "workflow": {
+    "qualification_policy": "one continuous ten-second qualification, then one full PATH if admitted",
+    "qualification_count": 1,
+    "path_started": false,
+    "autotuner_started": false,
+    "parameter_binding": {
+      "source": "paper-default",
+      "Md_scalar": 12.0,
+      "Bd_scalar": 550.0
+    }
+  },
+  "run": "runs/tase-figure8-single-qualification-20260921T100918Z",
+  "first_failure": {
+    "condition": "resident TP stopped with reason 48 during baseline contact acquisition before PATH admission",
+    "reason": 48,
+    "stage": "baseline_contact_acquisition",
+    "filtered_max_n": 4.96127505321121,
+    "filtered_min_n": 0.09372586802818411,
+    "force_norm_max_n": 11.568260007211787,
+    "raw_max_n": 11.511800328009139,
+    "torque_norm_max_nm": 0.09330510487022703,
+    "readiness_samples": 9865,
+    "sample_count": 13200,
+    "last_filtered_normal_n": 4.863490883685682,
+    "last_force_norm_n": 4.350725348294816,
+    "last_raw_normal_n": 4.327771598347584,
+    "last_projected_approach_normal_velocity_m_s": 0.00019097567919580446,
+    "force_preempt_episode": 156
+  },
+  "path_accepted": false,
+  "home_recovery": {
+    "initial_supervisor_recovery": "BLOCKED before a fresh stationary sample; relief geometry proof was missing",
+    "retry_startup_race": "relief attempt observed a downward startup velocity and stopped",
+    "retry_clearance": "a subsequent correctly bound recovery owner completed relief and Home",
+    "successful_recovery_receipt": "runs/tase-figure8-single-qualification-20260921T100918Z-autonomous-home-retry-20260921T101323Z/result.json",
+    "success": true,
+    "final_position_error_m": 3.8081505960447404e-05,
+    "final_orientation_error_rad": 9.019361387980622e-05,
+    "dashboard": "STOPPED step5d_contact_home_v1.urp",
+    "safety": "NORMAL",
+    "stationary": true
+  },
+  "interpretation": {
+    "observed": "the unified single-qualification chain reached the unchanged force/readiness stop before a formal PATH",
+    "not_claimed": "no full PATH, no autotuner observation, and no precision improvement claim",
+    "next_action": "offline replay of the complete baseline stream and the first force-rise windows; no unchanged live qualification retry"
+  },
+  "evidence": [
+    "runs/tase-figure8-single-qualification-20260921T100918Z/dispatch_receipt.json",
+    "runs/tase-figure8-single-qualification-20260921T100918Z/supervisor-result.json",
+    "runs/tase-figure8-single-qualification-20260921T100918Z/baseline-frames.json",
+    "runs/tase-figure8-single-qualification-20260921T100918Z/raw_sensor.jsonl",
+    "runs/tase-figure8-single-qualification-20260921T100918Z/published_packets.jsonl",
+    "runs/tase-figure8-single-qualification-20260921T100918Z/video.mkv",
+    "runs/tase-figure8-single-qualification-20260921T100918Z-autonomous-home-retry-20260921T101323Z/result.json"
+  ]
+}

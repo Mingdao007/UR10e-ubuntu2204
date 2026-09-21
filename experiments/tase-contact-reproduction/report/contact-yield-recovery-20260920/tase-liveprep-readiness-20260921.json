@@ -12,7 +12,7 @@
   "evidence": {
     "baseline_no_contact": true,
     "contact_six_status": "runs/tase-liveprep-refresh-20260920T234325Z/contact-six-status.json",
-    "current_provider_sha256": "7ea229331166080db6d040f882d2e1fb9945859fff52b641f4edd8ee5f12b004",
+    "current_provider_sha256": "17c17bf394ab0e3720554fef4d5b345a7c61cdf891f687dc636dd79c4f60dd70",
     "current_recovery_sha256": "52e6eabc5cc3b8f86da0da91f013422668e32563e0ac0d45c0206243dca7f1d2",
     "fresh_no_contact_baseline": "runs/tase-liveprep-refresh-20260920T234325Z/software_baseline_receipt.json",
     "fresh_resident_check": "runs/tase-liveprep-refresh-20260920T234325Z/supervisor-result.json",
