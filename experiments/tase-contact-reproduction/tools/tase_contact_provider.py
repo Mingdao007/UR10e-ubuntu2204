@@ -398,6 +398,8 @@ class TaseContactProvider(ContactCommandProvider):
             baseline_residual_angular_rad_s = 0.0
             baseline_normal_projection_applied = False
             baseline_normal_projection_target_m_s = 0.0
+            baseline_normal_projection_original_m_s = 0.0
+            baseline_normal_direction_correction = False
             if mode == 'baseline':
                 baseline_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
                     command.qdot, dtype=float
@@ -412,9 +414,10 @@ class TaseContactProvider(ContactCommandProvider):
                     # zero-vector hold removed the residual motion but also
                     # discarded the normal component that maintains contact;
                     # on the bench that made the qualification alternate
-                    # between over-load and contact loss.  Keep the exact
-                    # normal component of the solved J*qdot and realize it
-                    # with the same calibrated Jacobian.  This is a
+                    # between over-load and contact loss.  Keep the bounded
+                    # normal magnitude of the solved J*qdot, align its sign
+                    # with the already-authorized outer-loop normal command,
+                    # and realize it with the same calibrated Jacobian.  This is a
                     # projection at the provider boundary, not a gain or
                     # envelope change.  If the calibrated Jacobian cannot
                     # realize that bounded normal-only command, fail closed.
@@ -422,7 +425,19 @@ class TaseContactProvider(ContactCommandProvider):
                     if jacobian.shape != (6, 6) or not np.all(np.isfinite(jacobian)):
                         raise ValueError('baseline normal projection Jacobian is invalid')
                     normal_target = np.zeros(6, dtype=float)
-                    normal_target[2] = float(baseline_twist[2])
+                    original_normal = float(baseline_twist[2])
+                    desired_normal = float(twist[2])
+                    if abs(desired_normal) <= 1e-12:
+                        normal_target[2] = 0.0
+                    else:
+                        # The mature RNN can carry a one-tick normal sign
+                        # reversal while its state catches up.  Preserve its
+                        # bounded magnitude but follow the already-authorized
+                        # outer-loop normal direction; otherwise a baseline
+                        # acquisition can repeatedly unload after contact.
+                        normal_target[2] = math.copysign(
+                            abs(original_normal), desired_normal
+                        )
                     try:
                         projected_qdot = np.linalg.solve(jacobian, normal_target)
                     except np.linalg.LinAlgError as exc:
@@ -447,7 +462,14 @@ class TaseContactProvider(ContactCommandProvider):
                     command = replace(command, qdot=tuple(float(value) for value in projected_qdot))
                     baseline_residual_hold = True
                     baseline_normal_projection_applied = True
-                    baseline_normal_projection_target_m_s = float(baseline_twist[2])
+                    baseline_normal_projection_target_m_s = float(normal_target[2])
+                    baseline_normal_projection_original_m_s = original_normal
+                    baseline_normal_direction_correction = bool(
+                        abs(original_normal) > 1e-12
+                        and abs(desired_normal) > 1e-12
+                        and math.copysign(1.0, original_normal)
+                        != math.copysign(1.0, desired_normal)
+                    )
             # The mature writer intentionally rejects provider output that
             # exceeds its typed host-slew envelope.  TASE owns the complete
             # outer loop, so apply the same-direction scalar ramp at this
@@ -496,6 +518,8 @@ class TaseContactProvider(ContactCommandProvider):
                 'baseline_residual_angular_rad_s': baseline_residual_angular_rad_s,
                 'baseline_normal_projection_applied': baseline_normal_projection_applied,
                 'baseline_normal_projection_target_m_s': baseline_normal_projection_target_m_s,
+                'baseline_normal_projection_original_m_s': baseline_normal_projection_original_m_s,
+                'baseline_normal_direction_correction': baseline_normal_direction_correction,
                 'predicted_twist_m_s_rad_s': tuple(float(value) for value in predicted_twist),
                 'predicted_approach_normal_velocity_m_s': approach_normal_velocity,
                 'entry_time_s': t if phase == 'entry' else None,

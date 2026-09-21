@@ -137,9 +137,15 @@ def test_live_tase_baseline_holds_non_normal_realization(provider, monkeypatch):
     o, s = tick(provider, .002)
     original_command = provider.runtime.command
 
+    def inward_desired_twist(**kwargs):
+        del kwargs
+        return (0.0, 0.0, -0.002, 0.0, 0.0, 0.0)
+
+    monkeypatch.setattr(provider.runtime, 'desired_twist', inward_desired_twist)
+
     def residual_command(**kwargs):
         command = original_command(**kwargs)
-        return replace(command, qdot=(0.01, 0.0, 0.01, 0.0, 0.0, 0.0))
+        return replace(command, qdot=(0.01, 0.0, -0.01, 0.0, 0.0, 0.0))
 
     monkeypatch.setattr(provider.runtime, 'command', residual_command)
     command = provider.command(
@@ -154,8 +160,12 @@ def test_live_tase_baseline_holds_non_normal_realization(provider, monkeypatch):
     assert command.qdot != (0.0,) * 6
     assert np.linalg.norm(realized[:2]) <= 2e-6
     assert np.linalg.norm(realized[3:]) <= 2e-6
+    assert realized[2] < 0.0
     assert provider.last_result['baseline_residual_hold'] is True
     assert provider.last_result['baseline_normal_projection_applied'] is True
+    assert provider.last_result['baseline_normal_projection_original_m_s'] > 0.0
+    assert provider.last_result['baseline_normal_projection_target_m_s'] < 0.0
+    assert provider.last_result['baseline_normal_direction_correction'] is True
     assert provider.last_result['baseline_residual_tangential_m_s'] > 2e-6
 
 

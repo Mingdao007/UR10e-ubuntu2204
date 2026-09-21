@@ -1,9 +1,9 @@
 {
   "schema": "tase.baseline-normal-projection-replay-v1",
   "claim_scope": "offline provider replay and interface verification only; no physical qualification or PATH acceptance",
-  "created_from_commit": "b7f7cd26",
+  "created_from_commit": "d6672d86",
   "repair_source": "tools/tase_contact_provider.py",
-  "repair_source_sha256": "b233673e10fbcf1ece45590ce2307426727b76fe4a3bf15dc03ccaa928d5c119",
+  "repair_source_sha256": "81d31ea43cbe6fc2b19a1a42314af37c90f790f8563d976db15c26f3a9dc978c",
   "trigger": {
     "first_qualification": "runs/tase-figure8-full-20260921T1501-staged-home",
     "retry_qualification": "runs/tase-qualification-retry-20260921T1515",
@@ -61,6 +61,33 @@
       "home_route": "direct",
       "home_position_error_m": 3.0213843761224752e-05,
       "home_orientation_error_rad": 9.31496560128467e-05
+    },
+    "third_qualification": {
+      "run": "runs/tase-qualification-normal-projection-20260921T1520",
+      "success": false,
+      "error": "LiveWriterError: five_newton_acquisition_timeout",
+      "baseline_diag": {
+        "filtered_max_n": 4.969021176739552,
+        "filtered_min_n": 0.08634274107715935,
+        "force_norm_max_n": 12.59334368081514,
+        "last": {
+          "filtered_normal_n": 4.106905711635319,
+          "force_norm_n": 1.7153277944438776,
+          "mode": 1,
+          "raw_normal_n": 1.6912379307866932,
+          "setpoint_n": 5.0,
+          "torque_norm_nm": 0.014292498865775743
+        },
+        "raw_max_n": 12.361180986483292,
+        "raw_min_n": -0.5865499479607772,
+        "readiness_samples": 2051,
+        "samples": 15000,
+        "torque_norm_max_nm": 0.13577453881756726
+      },
+      "motion_commands_from_supervisor": 0,
+      "automatic_home_success": true,
+      "home_position_error_m": 3.448389683897302e-05,
+      "home_orientation_error_rad": 5.643676630688897e-05
     }
   },
   "prior_policy": {
@@ -70,7 +97,7 @@
   },
   "new_policy": {
     "name": "baseline_normal_only_jacobian_projection",
-    "behavior": "retain the solved Jqdot z component and solve the same calibrated 6x6 Jacobian for [0,0,vz,0,0,0]",
+    "behavior": "retain the bounded magnitude of the solved Jqdot normal component, align its sign with the already-authorized outer-loop twist[2], and solve the same calibrated Jacobian for [0,0,vz,0,0,0]",
     "tangential_tolerance_m_s": 2e-06,
     "angular_tolerance_rad_s": 2e-06,
     "joint_velocity_envelope_unchanged": true,
@@ -79,7 +106,9 @@
       "nonfinite or nonzero projection residual",
       "projected qdot beyond existing joint envelope"
     ],
-    "solver_state": "continues from the original RNN command; only provider boundary realization is replaced"
+    "solver_state": "continues from the original RNN command; only provider boundary realization is replaced",
+    "direction_policy": "normal_target_z=sign(outer_loop_twist_z)*abs(original_Jqdot_z); zero when outer_loop_twist_z is numerically zero",
+    "normal_direction_correction_is_safety_adapter": true
   },
   "recorded_replay": {
     "source_runs": [
@@ -126,7 +155,7 @@
   },
   "offline_validation": {
     "focused_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONNOUSERSITE=1 .venv-contact-six/bin/python -m pytest -q tests/test_tase_offline_baselines.py tests/test_step5d_paper_outer_loop.py tests/test_tase_method_registry.py tests/test_contact_method_registry.py tests/test_contact_yield_method_registry.py tests/test_tase_improved_offline.py tests/test_tase_contact_provider.py tests/test_contact_qualification_provider.py tests/test_contact_benchmark_provider.py tests/test_contact_benchmark_runtime.py tests/test_contact_benchmark_outer.py tests/test_contact_benchmark_timing.py tests/test_tase_figure8_reference_binding.py",
-    "result": "97 passed, 1 warning"
+    "result": "97 passed, 1 warning; recorded-stream replay completed without errors"
   },
-  "live_decision": "Do not repeat live qualification until this provider patch is package-validated, uploaded/read back, and a fresh single qualification is authorized by the unchanged gates."
+  "live_decision": "Do not repeat live qualification until this direction-aware provider patch is committed, package/read-back admission is fresh, and the unchanged acquisition/readiness gates are re-evaluated."
 }

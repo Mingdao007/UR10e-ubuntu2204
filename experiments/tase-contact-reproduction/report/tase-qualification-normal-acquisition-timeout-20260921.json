@@ -1,0 +1,38 @@
+{
+  "schema": "tase.qualification-normal-acquisition-timeout-v1",
+  "claim_scope": "physical qualification failure and automatic recovery evidence; no PATH acceptance or controller promotion",
+  "method": "TASE_RNN_MATURE",
+  "run": "runs/tase-qualification-normal-projection-20260921T1520",
+  "failure": "LiveWriterError: five_newton_acquisition_timeout",
+  "baseline_diag": {
+    "filtered_max_n": 4.969021176739552,
+    "filtered_min_n": 0.08634274107715935,
+    "force_norm_max_n": 12.59334368081514,
+    "last": {
+      "filtered_normal_n": 4.106905711635319,
+      "force_norm_n": 1.7153277944438776,
+      "mode": 1,
+      "raw_normal_n": 1.6912379307866932,
+      "setpoint_n": 5.0,
+      "torque_norm_nm": 0.014292498865775743
+    },
+    "raw_max_n": 12.361180986483292,
+    "raw_min_n": -0.5865499479607772,
+    "readiness_samples": 2051,
+    "samples": 15000,
+    "torque_norm_max_nm": 0.13577453881756726
+  },
+  "interpretation": "The normal-only projection removed the previous reason-48 post-latch watchdog path, but the physical force still oscillated and never sustained the unchanged readiness band. The TP stopped at its five_newton acquisition timeout; no gate was widened.",
+  "automatic_home": {
+    "success": true,
+    "position_error_m": 3.448389683897302e-05,
+    "orientation_error_rad": 5.643676630688897e-05,
+    "trial_stays_failed": true
+  },
+  "fresh_after_failure_preflight": "runs/preflight_20260921_after_normal_projection_timeout/preflight_readonly.json",
+  "next_action": "offline replay of the direction-aware projection, inspect outer-loop normal sign and actual Jqdot, then require a fresh package/read-back admission before any new physical attempt",
+  "source_hashes": {
+    "provider": "81d31ea43cbe6fc2b19a1a42314af37c90f790f8563d976db15c26f3a9dc978c",
+    "test": "775b6c646876e9fe04400af21e763c4b7e646199f1fd2f31230698b6bff52161"
+  }
+}
