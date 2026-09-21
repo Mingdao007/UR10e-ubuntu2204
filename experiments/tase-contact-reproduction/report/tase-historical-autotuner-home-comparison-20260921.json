@@ -7,6 +7,21 @@
     "orientation_distance": "SO(3) geodesic angle between rotvec orientations",
     "claim_boundary": "Historical package and receipt identity are checked read-only; this report does not authorize deployment or motion."
   },
+  "confirmed_historical_orientation": {
+    "rotvec_rad": [
+      3.120752062,
+      0.0,
+      0.068626833
+    ],
+    "status": "CONFIRMED_REUSE_INVARIANT",
+    "evidence": [
+      "July Step5 autotuner start-hover target and HOME_VERIFIED receipt",
+      "August R013 Step6 fixed-home Figure-eight fingerprint and live Home receipts",
+      "August R013 Step6 contact-derived Home binding and live autotuner_v5/Home receipts",
+      "August calibration-only Figure-eight Home target"
+    ],
+    "rule": "Every new Figure-eight/autotuner Home package must retain this exact historical orientation unless a separately authorized calibration changes the experiment definition."
+  },
   "historical": {
     "2026-07": {
       "classification": "Step5 autotuner start-hover Home; not a separate Step6 Figure-eight autotuner Home receipt",
@@ -43,7 +58,32 @@
       "reuse_decision": "not_the_target_for_the_August_R013_Step6_figure8_autotuner"
     },
     "2026-08": {
-      "classification": "Step6/R013 Figure-eight autotuner Home",
+      "classification": "Step6/R013 Figure-eight autotuner Homes; two live Home profiles were used",
+      "fixed_home_live_profile": {
+        "classification": "R013 direct campaign fixed-home profile; real Home phase executed",
+        "target_pose": [
+          0.4620551816,
+          0.1778825964,
+          0.033,
+          3.120752062,
+          0.0,
+          0.068626833
+        ],
+        "home_profile_id": "step6.autotune/figure8-fixed-home-v1",
+        "fingerprint": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/r013_figure8_direct_campaign_v1_20260816_0824/handoff-resident-001/figure8_fingerprint.json",
+        "home_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/r013_figure8_direct_campaign_v1_20260816_0824/handoff-resident-001/home_start_receipt.json",
+        "home_receipt_sha256": "2939314580938b2e28da5936fbfeb240d54453ae4ec5f6e061ecb13285a3efac",
+        "observed_final_pose": [
+          0.46206100459127486,
+          0.17791341478294817,
+          0.03301537575062263,
+          3.120814398672372,
+          -9.997901966404598e-06,
+          0.06864695718737064
+        ],
+        "stationary": true,
+        "safety_mode": "NORMAL"
+      },
       "target_pose": [
         0.4620551816,
         0.1778825964,
@@ -122,6 +162,12 @@
   },
   "reuse_decision": {
     "current_home_is_historic_r013_figure8_home": false,
+    "historical_orientation_is_confirmed": true,
+    "orientation_to_reuse": [
+      3.120752062,
+      0.0,
+      0.068626833
+    ],
     "recommended_reuse_pose": [
       0.4620551816,
       0.1778825964,
@@ -136,6 +182,6 @@
       "September current Home package as if its orientation matched R013",
       "The August calibration-only z=0.0345 m target as if it were the final contact-derived campaign Home"
     ],
-    "next_gate": "Prepare a new R013-compatible Home/relief package offline, validate it, upload and fresh-read-back it, then perform a separately recorded supervised motion to that pose before launching any contact or autotuner run."
+    "next_gate": "Prepare a new package with the confirmed historical orientation. Select z=0.033 m only for the fixed-home lineage or z=0.03408876139925415 m for the contact-derived lineage; validate, upload and fresh-read-back it, then perform a separately recorded supervised motion before launching any contact or autotuner run."
   }
 }
