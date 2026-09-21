@@ -12,6 +12,7 @@
   "budget": {"initial": 8, "bo": 12, "repeats": 4},
   "holdout_rounds": 5,
   "confirmation_rounds": 5,
+  "control_cpu": 3,
   "seed": 20260921,
   "bo_pool_size": 512,
   "gp_length_scale": 0.25,

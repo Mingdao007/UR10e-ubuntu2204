@@ -87,6 +87,10 @@ def _load_config(path: Path) -> dict[str, Any]:
     budget = payload.get("budget", {})
     if budget != {"initial": 8, "bo": 12, "repeats": 4}:
         raise ValueError("autotuner budget must remain 8+12+4")
+    control_cpu = payload.get("control_cpu", 3)
+    if isinstance(control_cpu, bool) or not isinstance(control_cpu, int) or control_cpu < 0:
+        raise ValueError("control_cpu must be a nonnegative CPU index")
+    payload["control_cpu"] = control_cpu
     if payload.get("protection_parameters_frozen") is not True or payload.get("integral_policy_frozen") is not True:
         raise ValueError("autotuner protection/integral freeze is missing")
     noise = float(payload.get("observation_noise_n", 0.05))
@@ -545,7 +549,8 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, execute: bool, dry_ru
             records.append(planned)
             continue
         _append(ledger, {**row, "status": "started"})
-        command = [str(script), "--method", "TASE_RNN_MATURE", "--duration", "r013_60", "--control-cpu", "2",
+        command = [str(script), "--method", "TASE_RNN_MATURE", "--duration", "r013_60",
+                   "--control-cpu", str(config["control_cpu"]),
                    "--run-dir", str(run_dir), "--parameter-file", str(candidate_file)]
         completed = subprocess.run(command, cwd=str(ROOT), check=False)
         receipt_path = run_dir / "dispatch_receipt.json"
@@ -678,7 +683,8 @@ def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) ->
                 result = {**row, "status": "planned", "mae_n": None}
             else:
                 completed = subprocess.run(
-                    [str(script), "--method", "TASE_RNN_MATURE", "--duration", "r013_60", "--control-cpu", "2",
+                    [str(script), "--method", "TASE_RNN_MATURE", "--duration", "r013_60",
+                     "--control-cpu", str(config["control_cpu"]),
                      "--run-dir", str(run_dir), "--parameter-file", str(candidate_file)],
                     cwd=str(ROOT), check=False,
                 )
