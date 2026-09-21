@@ -1764,6 +1764,16 @@ class LiveR004Writer:
                     path_end_fence = path_elapsed_s >= path_fence_duration_s
                 if state == 25 and self._path_rtde_origin_s is not None:
                     path_clock_time_s = max(0.0, output.timestamp - self._path_rtde_origin_s)
+                    if (
+                        entry_aware
+                        and path_clock_time_s >= formal_duration_s + PATH_SEAM_CONTINUATION_S
+                    ):
+                        # Do not ask the controller to generate another law
+                        # step after the bounded consumed-reference seam. The
+                        # TP still owns the RETURNING handshake; this host
+                        # fence is only the fail-closed fallback if that
+                        # handshake has not arrived yet.
+                        path_end_fence = True
                 if state in {21, 25}:
                     if path_end_fence:
                         self._request_r013_path_end(attempt.ordinal)
@@ -1962,6 +1972,24 @@ class LiveR004Writer:
                     consumed_entry = self._packet_history.consumed(consumed_sequence)
                     source_sequences["tp"] = consumed_sequence
                     source_ages["tp"] = max(0.0, now - consumed_entry.published_at_s)
+                elif state == 40 and path_collector is not None and entry_aware:
+                    # The TP announces RETURNING before it starts the
+                    # bounded return motion. Its consumed echo is therefore
+                    # the final place where a PATH seam reference can be
+                    # proved when the last state-25 RTDE frame was one tick
+                    # early. It never contributes a metric sample.
+                    consumed_entry = self._packet_history.consumed(consumed_sequence)
+                    terminal_reference = getattr(
+                        path_collector, "observe_terminal_reference", None
+                    )
+                    if (
+                        callable(terminal_reference)
+                        and consumed_entry.reference_phase == "path"
+                        and formal_duration_s <= float(consumed_entry.reference_time_s)
+                        and float(consumed_entry.reference_time_s)
+                        < formal_duration_s + PATH_SEAM_CONTINUATION_S
+                    ):
+                        terminal_reference(sequence=consumed_sequence)
 
                 if qualification_collector is not None:
                     qualification_collector.observe(

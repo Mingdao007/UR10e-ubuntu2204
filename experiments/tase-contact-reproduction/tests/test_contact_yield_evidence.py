@@ -4,7 +4,10 @@ import math
 import pytest
 from contact_yield_protocol import PERIOD_S
 from yield_contact_evidence import REFERENCE_CLOCK_ROUNDING_TOLERANCE_S
-from yield_contact_evidence import YieldPathEvidenceCollector
+from yield_contact_evidence import (
+    TaseR013Compat60PathEvidenceCollector,
+    YieldPathEvidenceCollector,
+)
 from step5d_autotune_v4_r004_live_writer import BoundedPacketHistory, LiveWriterError
 from step5d_autotune_v4_r004.evidence import EvidenceError
 from test_step5d_autotune_v4_r004_evidence_ledger import _motion_sample
@@ -92,6 +95,27 @@ def test_terminal_seam_reference_closes_endpoint_without_metric_sample():
     assert clock == pytest.approx(PERIOD_S + 0.004)
     assert c._last_reference_time_s == pytest.approx(PERIOD_S + 0.004)
     assert c.path_samples == ()
+
+
+def test_r013_terminal_seam_closes_one_missing_rtde_frame():
+    history = BoundedPacketHistory()
+    history.record(0, published_at_s=100.0, qdot=(0.0,) * 6,
+                   reference_phase="path", reference_time_s=0.0)
+    c = TaseR013Compat60PathEvidenceCollector(
+        require_path_boundary=True,
+        published_reference_lookup=history.consumed,
+    )
+    c.mark_path_start(observed_at_s=100.0, rtde_timestamp_s=0.0, tp_sequence=0)
+    history.record(1, published_at_s=160.0, qdot=(0.0,) * 6,
+                   reference_phase="path", reference_time_s=60.004)
+    c._path_start_rtde_timestamp_s = 0.0
+    c._last_common_clock = (59.996, 1)
+    c._rtde_intervals_s.append(0.002)
+    c.observe_terminal_reference(sequence=1)
+
+    assert c._validated_path_coverage_interval_s() == pytest.approx(0.004)
+    assert c._endpoint_closure_applied is True
+    assert c._endpoint_closure_deficit_s == pytest.approx(0.002)
 
 
 def test_reference_endpoint_tolerance_is_sub_frame_and_explicit():

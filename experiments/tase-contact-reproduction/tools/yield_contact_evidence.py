@@ -185,6 +185,54 @@ class TaseR013Compat60PathEvidenceCollector(PathEvidenceCollector):
         super().__init__(*args, **kwargs)
         self.protocol_id = self.PROTOCOL_ID
         self._published_reference_lookup = published_reference_lookup
+        self._first_reference_time_s = None
+        self._last_reference_time_s = None
+        self._endpoint_closure_applied = False
+        self._endpoint_closure_deficit_s = 0.0
+
+    def _reference(self, sequence):
+        reference = self._published_reference_lookup(sequence)
+        if reference.reference_phase != "path" or reference.reference_time_s is None:
+            raise EvidenceError("R013 coverage requires a consumed published PATH command")
+        clock = float(reference.reference_time_s)
+        if not math.isfinite(clock) or clock < 0.0 or clock > self.REQUIRED_DURATION_S + PATH_SEAM_CONTINUATION_S + 1e-9:
+            raise EvidenceError("R013 consumed reference clock is outside the bounded task seam")
+        return clock
+
+    def mark_path_start(self, *, observed_at_s, rtde_timestamp_s, tp_sequence):
+        clock = self._reference(tp_sequence)
+        if clock > PATH_SEAM_CONTINUATION_S:
+            raise EvidenceError("R013 PATH boundary skipped initial commands")
+        self._first_reference_time_s = clock
+        super().mark_path_start(
+            observed_at_s=observed_at_s,
+            rtde_timestamp_s=rtde_timestamp_s,
+            tp_sequence=tp_sequence,
+        )
+
+    def observe_terminal_reference(self, *, sequence):
+        """Record a consumed bounded seam packet without adding a metric sample."""
+
+        clock = self._reference(sequence)
+        if self._last_reference_time_s is not None and clock < self._last_reference_time_s:
+            raise EvidenceError("R013 consumed reference clock regressed")
+        self._last_reference_time_s = clock
+        if clock >= self.REQUIRED_DURATION_S:
+            self._endpoint_closure_applied = True
+        return clock
+
+    def _validated_path_coverage_interval_s(self):
+        interval = super()._validated_path_coverage_interval_s()
+        if not self._endpoint_closure_applied:
+            return interval
+        if self._path_start_rtde_timestamp_s is None or self._last_common_clock is None:
+            return interval
+        physical_span = self._last_common_clock[0] - self._path_start_rtde_timestamp_s
+        deficit = self.REQUIRED_DURATION_S - (physical_span + interval)
+        if 0.0 < deficit <= PATH_SEAM_CONTINUATION_S:
+            self._endpoint_closure_deficit_s = deficit
+            return interval + deficit
+        return interval
 
     def observe(self, sample):
         """Join the mature clocks while binning only the formal ``[5,60)`` window."""
@@ -201,6 +249,12 @@ class TaseR013Compat60PathEvidenceCollector(PathEvidenceCollector):
             self._bins = original_bins
         if not accepted:
             return False
+        common_clock = self._common_clock(sample)
+        if common_clock is not None:
+            reference_time = self._reference(common_clock[1])
+            if self._last_reference_time_s is not None and reference_time < self._last_reference_time_s:
+                raise EvidenceError("R013 consumed reference clock regressed")
+            self._last_reference_time_s = reference_time
         time_s = sample.path_time_s
         if time_s is not None and 5.0 <= time_s < self.REQUIRED_DURATION_S:
             index = int((time_s - 5.0) / self.BIN_WIDTH_S + 1e-9)
@@ -218,6 +272,10 @@ class TaseR013Compat60PathEvidenceCollector(PathEvidenceCollector):
             "formal_window_s": [5.0, 60.0],
             "full_period_protocol": False,
             "historical_compatibility": "R013",
+            "endpoint_closure_applied": self._endpoint_closure_applied,
+            "endpoint_closure_deficit_s": self._endpoint_closure_deficit_s,
+            "path_seam_first_reference_s": self._first_reference_time_s,
+            "path_seam_continuation_s": PATH_SEAM_CONTINUATION_S,
         }
 
     def finalize(self, **kwargs):
