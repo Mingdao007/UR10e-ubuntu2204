@@ -1,0 +1,35 @@
+{
+  "schema": "tase.unload-boost-qualification-failure-v1",
+  "claim_scope": "physical qualification failure and automatic recovery evidence; no PATH acceptance or controller promotion",
+  "method": "TASE_RNN_MATURE",
+  "attempt": {
+    "run": "runs/tase-qualification-unload-boost-20260921T1600",
+    "phase": "single qualification after force-rise unload boost",
+    "success": false,
+    "error": "LiveWriterError: five_newton_acquisition_timeout",
+    "baseline_diag": {
+      "filtered_max_n": 4.956629042587411,
+      "filtered_min_n": 0.15691071351255897,
+      "force_norm_max_n": 7.380109599166696,
+      "last": {
+        "filtered_normal_n": 4.799088634646924,
+        "force_norm_n": 4.243383686875018,
+        "mode": 1,
+        "raw_normal_n": 4.176901579421959,
+        "setpoint_n": 5.0,
+        "torque_norm_nm": 0.0391578897350897
+      },
+      "raw_max_n": 7.26227889295315,
+      "raw_min_n": -0.5244797293891983,
+      "readiness_samples": 11697,
+      "samples": 15000,
+      "torque_norm_max_nm": 0.0834741851075075
+    },
+    "automatic_home_success": true,
+    "home_position_error_m": 1.7695544510013212e-05,
+    "home_orientation_error_rad": 5.4505312055258086e-05
+  },
+  "interpretation": "The force-rise unload boost did not make this fresh qualification reach the unchanged five-newton acquisition requirement. The attempt is preserved; no gate or timeout was widened. This closes the current live retry sequence pending offline diagnosis of bench variability and baseline-state dynamics.",
+  "fresh_after_failure_preflight": "runs/preflight_20260921_after_unload_boost_fail/preflight_readonly.json",
+  "next_action": "offline replay and source review only; no further live writer"
+}

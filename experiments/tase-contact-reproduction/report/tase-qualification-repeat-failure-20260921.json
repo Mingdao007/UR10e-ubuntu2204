@@ -142,6 +142,33 @@
       "automatic_home_success": true,
       "home_position_error_m": 3.439805408450112e-05,
       "home_orientation_error_rad": 4.5901855319792924e-05
+    },
+    {
+      "run": "runs/tase-qualification-unload-boost-20260921T1600",
+      "phase": "single qualification after force-rise unload boost",
+      "success": false,
+      "error": "LiveWriterError: five_newton_acquisition_timeout",
+      "baseline_diag": {
+        "filtered_max_n": 4.956629042587411,
+        "filtered_min_n": 0.15691071351255897,
+        "force_norm_max_n": 7.380109599166696,
+        "last": {
+          "filtered_normal_n": 4.799088634646924,
+          "force_norm_n": 4.243383686875018,
+          "mode": 1,
+          "raw_normal_n": 4.176901579421959,
+          "setpoint_n": 5.0,
+          "torque_norm_nm": 0.0391578897350897
+        },
+        "raw_max_n": 7.26227889295315,
+        "raw_min_n": -0.5244797293891983,
+        "readiness_samples": 11697,
+        "samples": 15000,
+        "torque_norm_max_nm": 0.0834741851075075
+      },
+      "automatic_home_success": true,
+      "home_position_error_m": 1.7695544510013212e-05,
+      "home_orientation_error_rad": 5.4505312055258086e-05
     }
   ],
   "same_root_cause": "The first two attempts shared reason 48 baseline-watchdog failure. The repaired provider changed the failure to five_newton_acquisition_timeout: force never stayed in the unchanged 4..6 N/3..7 N readiness band long enough to enter HOLD.",
@@ -149,7 +176,7 @@
   "automatic_home_policy": "AUTO_HOME_WHEN_COMMANDABLE",
   "fresh_after_retry_preflight": "runs/preflight_20260921_after_qualification_retry/preflight_readonly.json",
   "fresh_after_retry_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer",
-  "stop_condition": "Two consecutive formal pilot first-phase reason-48 failures are now preserved. Live repetition is stopped pending offline review of the outward-unload boost.",
+  "stop_condition": "The direction-aware and force-rise unload diagnostics each have preserved failures after the formal pilot failures. Live hardware repetition is stopped; remaining work is offline diagnosis, data/statistics, and manuscript evidence boundaries.",
   "source_hashes": {
     "provider": "81d31ea43cbe6fc2b19a1a42314af37c90f790f8563d976db15c26f3a9dc978c",
     "tests": "775b6c646876e9fe04400af21e763c4b7e646199f1fd2f31230698b6bff52161"
@@ -159,5 +186,7 @@
   "fresh_after_pilot_preflight": "runs/preflight_20260921_after_pilot_qualification_fail/preflight_readonly.json",
   "fresh_after_pilot_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer",
   "fresh_after_pilot_retry_preflight": "runs/preflight_20260921_after_pilot_retry_fail/preflight_readonly.json",
-  "fresh_after_pilot_retry_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer"
+  "fresh_after_pilot_retry_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer",
+  "fresh_after_unload_boost_preflight": "runs/preflight_20260921_after_unload_boost_fail/preflight_readonly.json",
+  "fresh_after_unload_boost_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer"
 }
