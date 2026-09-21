@@ -133,6 +133,28 @@ def test_live_tase_raw_guard_uses_native_wrench_before_baseline_subtraction(prov
         provider._observe(o, replace(s, raw_wrench=None), .002, .002)
 
 
+def test_live_tase_baseline_holds_non_normal_realization(provider, monkeypatch):
+    o, s = tick(provider, .002)
+    original_command = provider.runtime.command
+
+    def residual_command(**kwargs):
+        command = original_command(**kwargs)
+        return replace(command, qdot=(0.01, 0.0, 0.0, 0.0, 0.0, 0.0))
+
+    monkeypatch.setattr(provider.runtime, 'command', residual_command)
+    command = provider.command(
+        output=o,
+        sensor=s,
+        monotonic_s=.002,
+        actual_dt_s=.002,
+        mode='baseline',
+        internal_setpoint_n=1.,
+    )
+    assert command.qdot == (0.0,) * 6
+    assert provider.last_result['baseline_residual_hold'] is True
+    assert provider.last_result['baseline_residual_tangential_m_s'] > 2e-6
+
+
 def test_live_tase_force_preempt_warm_starts_rnn_once(provider):
     o, s = tick(provider, .002, force=8.)
     s = replace(s, normal_load_n=8., force_norm_n=8.)

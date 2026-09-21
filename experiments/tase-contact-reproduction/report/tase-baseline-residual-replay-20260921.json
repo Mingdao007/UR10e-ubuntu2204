@@ -1,0 +1,81 @@
+{
+  "schema": "tase.baseline-residual-replay-v1",
+  "source_run": "runs/figure8-20260921T020723-450698",
+  "claim_scope": "offline recorded-packet diagnostic; does not predict new plant motion or accept a physical path",
+  "source_files": {
+    "robot_frames.jsonl": "5be8cc565aade35ae7ee654bc1fca756ee51019742f9b07a908ce17b316175fd",
+    "published_packets.jsonl": "cc84609b6deeb328ab25e4b6b9dc3514e430724a065509ec258f01248775d341"
+  },
+  "state": "BASELINE",
+  "ticks": 14918,
+  "ticks_exceeding_baseline_residual_tolerance": 14226,
+  "fraction_exceeding": 0.9536130848639228,
+  "tolerance": {
+    "tangential_m_s": 2e-06,
+    "angular_rad_s": 2e-06
+  },
+  "first_exceeding": {
+    "seq": 29446,
+    "t": 112975.046573083,
+    "tangential_m_s": 5.1876788180009135e-06,
+    "angular_rad_s": 1.4360486524223708e-05,
+    "qdot": [
+      8.659107633904351e-07,
+      0.0009836856931031875,
+      8.097006342761543e-05,
+      -0.0010502956770151435,
+      4.431794994288213e-06,
+      -1.1910382960974904e-06
+    ],
+    "twist": [
+      3.88039694955779e-06,
+      3.4430409571479044e-06,
+      0.0003539054553020967,
+      9.527945728482404e-06,
+      -1.0744375921331437e-05,
+      -1.4473030708557913e-08
+    ]
+  },
+  "max_tangential_m_s": 0.0005661820713372106,
+  "max_angular_rad_s": 0.001795806115930273,
+  "last_exceeding": {
+    "seq": 44353,
+    "t": 113005.036611014,
+    "tangential_m_s": 9.171046659729154e-05,
+    "angular_rad_s": 0.0006599687929464188,
+    "qdot": [
+      3.960033964868881e-05,
+      -0.002445438667785526,
+      0.000202427915549246,
+      0.0015831611392271453,
+      -1.137221278718461e-05,
+      5.5518623660471125e-05
+    ],
+    "twist": [
+      5.480286903099092e-05,
+      7.353540119877626e-05,
+      -0.0008877025910599696,
+      -0.0004416643015063848,
+      0.0004902475995257733,
+      -1.2196048427558882e-05
+    ]
+  },
+  "interpretation": "The recorded BASELINE packets repeatedly realize non-normal Cartesian motion. The new provider residual hold would publish zero qdot on those ticks; this is a safety diagnostic only and requires a fresh physical qualification/path attempt.",
+  "implementation_sources": {
+    "tools/tase_contact_provider.py": "77e81b7408cf5ff095d8b258d732df9757e8248c9ff6e28c074b2671c70fca7e",
+    "tests/test_tase_contact_provider.py": "e8e26fb697f29de1f75a742d633fc76377695cd3927d2fbf2ba4f2d8ad09eff4",
+    "tools/step5c_calibrated_kinematics_audit.py": "25f1640c796511efcc1097b27aa10b802eeb8dfee3bc3083b7cf0d3edf67186a",
+    "tools/step5d_autotune_v4_r004/calibrated_runtime.py": "6d60cca3830ef33d6473ca333329053b3d8f3c3433d824b91747d615b4f32f5a"
+  },
+  "repair": {
+    "mode": "baseline",
+    "action": "replace provider qdot with a zero six-vector when realized Jqdot tangential or angular residual exceeds tolerance",
+    "tolerance": {
+      "tangential_m_s": 2e-06,
+      "angular_rad_s": 2e-06
+    },
+    "solver_state": "continues; residual is retained in telemetry; no envelope or safety threshold is widened",
+    "physical_status": "requires fresh qualification and a fresh physical path attempt"
+  },
+  "attempt_status": "original attempt remains failed; this report is offline replay only"
+}

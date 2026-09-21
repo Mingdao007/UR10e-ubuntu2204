@@ -40,6 +40,8 @@ TASE_FORCE_PREEMPT_REARM_N = 5.0
 # provider's scalar rescale, turning a valid emergency transition into a
 # false interface failure.
 TASE_HOST_SLEW_NUMERIC_MARGIN = 1e-9
+TASE_BASELINE_TANGENTIAL_TOLERANCE_M_S = 2e-6
+TASE_BASELINE_ANGULAR_TOLERANCE_RAD_S = 2e-6
 
 
 # Parameters copied from config/step5c_tase_paper_truth.json (Eq. 16/17).
@@ -383,6 +385,29 @@ class TaseContactProvider(ContactCommandProvider):
                         force_preempt_direction_retry = True
                         self.force_preempt_direction_retry_count += 1
                         self.force_preempt_warm_started = True
+            # Baseline is a one-dimensional normal-force primitive.  The
+            # strict RNN can carry a small tangential/angular residual even
+            # when the requested baseline twist has those components set to
+            # zero.  The canonical qualification path already holds a zero
+            # packet in that case; apply the same state-preserving physical
+            # hold here for the provider-owned TASE path.  The solver state
+            # continues to advance and the residual is retained in evidence,
+            # so this does not hide a controller failure or widen an envelope.
+            baseline_residual_hold = False
+            baseline_residual_tangential_m_s = 0.0
+            baseline_residual_angular_rad_s = 0.0
+            if mode == 'baseline':
+                baseline_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
+                    command.qdot, dtype=float
+                )
+                baseline_residual_tangential_m_s = float(np.linalg.norm(baseline_twist[:2]))
+                baseline_residual_angular_rad_s = float(np.linalg.norm(baseline_twist[3:]))
+                if (
+                    baseline_residual_tangential_m_s > TASE_BASELINE_TANGENTIAL_TOLERANCE_M_S
+                    or baseline_residual_angular_rad_s > TASE_BASELINE_ANGULAR_TOLERANCE_RAD_S
+                ):
+                    command = replace(command, qdot=(0.0,) * 6)
+                    baseline_residual_hold = True
             # The mature writer intentionally rejects provider output that
             # exceeds its typed host-slew envelope.  TASE owns the complete
             # outer loop, so apply the same-direction scalar ramp at this
@@ -426,6 +451,9 @@ class TaseContactProvider(ContactCommandProvider):
                 'force_preempt_direction_retry': force_preempt_direction_retry,
                 'force_preempt_direction_retry_count': self.force_preempt_direction_retry_count,
                 'force_preempt_approach_before_retry_m_s': force_preempt_approach_before_retry,
+                'baseline_residual_hold': baseline_residual_hold,
+                'baseline_residual_tangential_m_s': baseline_residual_tangential_m_s,
+                'baseline_residual_angular_rad_s': baseline_residual_angular_rad_s,
                 'predicted_twist_m_s_rad_s': tuple(float(value) for value in predicted_twist),
                 'predicted_approach_normal_velocity_m_s': approach_normal_velocity,
                 'entry_time_s': t if phase == 'entry' else None,
