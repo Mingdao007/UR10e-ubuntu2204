@@ -6,7 +6,7 @@
   "head": "0931c524",
   "live_state": {
     "current_state": "HOME_RECOVERED_AND_STOPPED",
-    "latest_preflight": "runs/preflight_20260921_after_pilot_fail/preflight_readonly.json",
+    "latest_preflight": "runs/preflight_20260921_after_guard_candidate/preflight_readonly.json",
     "preflight_passed": true,
     "dashboard": "STOPPED step5d_contact_home_v1.urp",
     "safety": "NORMAL",
