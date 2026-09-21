@@ -1,0 +1,41 @@
+{
+  "schema": "tase.minimal-offline-gate-v1",
+  "claim_scope": "current-branch offline safety gate only; no hardware, endpoint, motion, Home, or physical acceptance",
+  "created_at": "2026-09-21T12:18:52.508",
+  "source_commit": "97b65bd75af5199175cb93a0e4cdd267b3e4ce02",
+  "test_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONNOUSERSITE=1 pytest -q tests/test_tase_offline_baselines.py tests/test_step5d_paper_outer_loop.py tests/test_tase_method_registry.py tests/test_contact_method_registry.py tests/test_contact_yield_method_registry.py tests/test_tase_improved_offline.py tests/test_tase_contact_provider.py tests/test_contact_qualification_provider.py tests/test_contact_benchmark_provider.py tests/test_contact_benchmark_runtime.py tests/test_contact_benchmark_outer.py tests/test_contact_benchmark_timing.py tests/test_tase_figure8_reference_binding.py",
+  "tests": [
+    "tests/test_tase_offline_baselines.py",
+    "tests/test_step5d_paper_outer_loop.py",
+    "tests/test_tase_method_registry.py",
+    "tests/test_contact_method_registry.py",
+    "tests/test_contact_yield_method_registry.py",
+    "tests/test_tase_improved_offline.py",
+    "tests/test_tase_contact_provider.py",
+    "tests/test_contact_qualification_provider.py",
+    "tests/test_contact_benchmark_provider.py",
+    "tests/test_contact_benchmark_runtime.py",
+    "tests/test_contact_benchmark_outer.py",
+    "tests/test_contact_benchmark_timing.py",
+    "tests/test_tase_figure8_reference_binding.py"
+  ],
+  "result": {
+    "passed": 97,
+    "failed": 0,
+    "warnings": 1,
+    "duration_s": 5.09
+  },
+  "output_artifact": "runs/tase-minimal-offline-gate-20260921/pytest.txt",
+  "output_sha256": "d456c9c2803c63bd0bc5e3ff484fd5a710ac9183f11dbb74d73a8e83afdc3397",
+  "covered_invariants": [
+    "TASE printed/mature RNN and matched QP share the existing outer loop inputs",
+    "joint bounds and infeasible/invalid handling remain fail-closed",
+    "snapshot/restore and rollback preserve outer and solver state",
+    "normal-force and tangential/Cartesian components remain separately represented",
+    "provider raw-force guard, baseline residual hold, qualification and benchmark runtime seams pass",
+    "figure-eight reference binding remains unchanged"
+  ],
+  "hardware_or_endpoint_action": false,
+  "live_eligibility": "unchanged; TASE_QP and printed TASE_RNN remain offline-only",
+  "next_gate": "existing Home corridor remains a separate physical admission gate"
+}
