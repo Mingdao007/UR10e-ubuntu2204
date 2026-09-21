@@ -284,6 +284,17 @@ def _append(ledger: Path, row: Mapping[str, Any]) -> None:
         os.fsync(stream.fileno())
 
 
+def _is_preflight_only_failure(row: Mapping[str, Any]) -> bool:
+    """Identify an owner failure that never dispatched a physical attempt."""
+
+    if row.get("status") != "failed" or row.get("failure") != "owner_failed_or_missing_receipt":
+        return False
+    run_dir = row.get("run_dir")
+    if not isinstance(run_dir, str) or not run_dir:
+        return False
+    return not (Path(run_dir) / "dispatch_receipt.json").is_file()
+
+
 def _read_confirmation_records(ledger: Path) -> list[dict[str, Any]]:
     """Read confirmation rows by their (round, arm) identity.
 
@@ -485,6 +496,113 @@ def _extract_mae(run_dir: Path) -> tuple[float | None, dict[str, Any]]:
                   "reason": incomplete_reason}
 
 
+def _execute_preflight_recovery(
+    config: Mapping[str, Any],
+    campaign_dir: Path,
+    script: Path,
+    source_row: Mapping[str, Any],
+    recovery_index: int,
+) -> dict[str, Any]:
+    """Retry only a candidate that failed before owner dispatch.
+
+    The original row and run directory stay immutable.  A recovery directory
+    carries the same candidate identity and parameter values, so a restored
+    prerequisite can be re-tested without overwriting the first failure.
+    """
+
+    ordinal = int(source_row["ordinal"])
+    candidate = Candidate(
+        str(source_row["candidate_id"]),
+        str(source_row["stage"]),
+        int(source_row["index"]),
+        float(source_row["Md_scalar"]),
+        float(source_row["Bd_scalar"]),
+    )
+    stem = f"{ordinal:02d}-{candidate.candidate_id}-recovery-{recovery_index:02d}"
+    candidate_file = campaign_dir / "candidates" / f"{stem}.json"
+    run_dir = campaign_dir / "runs" / stem
+    _write_candidate(candidate_file, candidate)
+    row = {
+        "schema": "tase.autotuner-attempt-v1",
+        "protocol_id": R013_COMPAT60_PROTOCOL_ID,
+        "duration_token": "r013_60",
+        "ordinal": ordinal,
+        "candidate_id": candidate.candidate_id,
+        "stage": candidate.stage,
+        "index": candidate.index,
+        "Md_scalar": candidate.Md_scalar,
+        "Bd_scalar": candidate.Bd_scalar,
+        "parameter_file": str(candidate_file),
+        "run_dir": str(run_dir),
+        "recovery_of": source_row.get("run_dir"),
+        "recovery_index": recovery_index,
+        "started_at": time.time(),
+    }
+    ledger = campaign_dir / "ledger.jsonl"
+    _append(ledger, {**row, "status": "started"})
+    command = [
+        str(script),
+        "--method", "TASE_RNN_MATURE",
+        "--duration", "r013_60",
+        "--control-cpu", str(config["control_cpu"]),
+        "--run-dir", str(run_dir),
+        "--parameter-file", str(candidate_file),
+    ]
+    completed = subprocess.run(command, cwd=str(ROOT), check=False)
+    receipt_path = run_dir / "dispatch_receipt.json"
+    if not receipt_path.is_file():
+        result = {
+            **row,
+            "status": "failed",
+            "mae_n": None,
+            "complete_path": False,
+            "returncode": completed.returncode,
+            "failure": "owner_failed_or_missing_receipt",
+            "preflight_failed": True,
+            "finished_at": time.time(),
+        }
+        _append(ledger, result)
+        return result
+    try:
+        mae, evidence = _extract_mae(run_dir)
+        home_verified = bool(evidence.get("home_verified"))
+        status = (
+            "complete"
+            if mae is not None and completed.returncode == 0 and home_verified
+            else "failed"
+        )
+        result = {
+            **row,
+            "status": status,
+            "mae_n": mae,
+            "complete_path": bool(evidence.get("complete_path")),
+            "dispatch": evidence.get("dispatch"),
+            "home_verified": home_verified,
+            "recovery": evidence.get("recovery"),
+            "metrics": evidence.get("metrics"),
+            "failure": (
+                None
+                if status == "complete"
+                else evidence.get("reason") or (
+                    "owner_returncode_nonzero" if completed.returncode != 0
+                    else "home_not_verified"
+                )
+            ),
+            "returncode": completed.returncode,
+            "finished_at": time.time(),
+        }
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        result = {
+            **row,
+            "status": "failed",
+            "mae_n": None,
+            "failure": f"receipt_parse:{type(exc).__name__}:{exc}",
+            "finished_at": time.time(),
+        }
+    _append(ledger, result)
+    return result
+
+
 def _write_candidate(path: Path, candidate: Candidate) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(candidate.parameters(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -503,7 +621,14 @@ def _candidate_for(config: Mapping[str, Any], records: list[dict[str, Any]], ord
                      best.Md_scalar, best.Bd_scalar)
 
 
-def run_campaign(config_path: Path, campaign_dir: Path, *, execute: bool, dry_run: bool = False) -> dict[str, Any]:
+def run_campaign(
+    config_path: Path,
+    campaign_dir: Path,
+    *,
+    execute: bool,
+    dry_run: bool = False,
+    resume: bool = False,
+) -> dict[str, Any]:
     config = _load_config(config_path)
     campaign_dir = campaign_dir.expanduser().resolve()
     campaign_dir.mkdir(parents=True, exist_ok=True)
@@ -522,6 +647,26 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, execute: bool, dry_ru
     script = ROOT / "scripts" / "figure8.sh"
     if execute and not script.is_file():
         raise RuntimeError(f"figure8 owner is missing: {script}")
+    if resume:
+        if not execute:
+            raise ValueError("preflight recovery requires execute mode")
+        preflight_rows = [row for row in records if _is_preflight_only_failure(row)]
+        for source_row in preflight_rows:
+            recovery_root = campaign_dir / "runs"
+            prefix = f"{int(source_row['ordinal']):02d}-{source_row['candidate_id']}-recovery-"
+            recovery_index = sum(1 for path in recovery_root.glob(prefix + "*"))
+            result = _execute_preflight_recovery(
+                config,
+                campaign_dir,
+                script,
+                source_row,
+                recovery_index,
+            )
+            if _is_preflight_only_failure(result):
+                # A shared prerequisite is still absent. Preserve the new
+                # failed row and stop before spending another candidate.
+                break
+        records, _ = _read_records(ledger)
     while len(records) < total:
         ordinal = len(records)
         candidate = _candidate_for(config, records, ordinal)
@@ -558,9 +703,13 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, execute: bool, dry_ru
             failure = {**row, "status": "failed", "mae_n": None,
                        "returncode": completed.returncode,
                        "failure": "owner_failed_or_missing_receipt",
+                       "preflight_failed": True,
                        "finished_at": time.time()}
             _append(ledger, failure)
             records.append(failure)
+            failure["campaign_state"] = "PAUSED_PRECHECK_BLOCKED"
+            _append(ledger, failure)
+            break
             continue
         try:
             mae, evidence = _extract_mae(run_dir)
@@ -620,6 +769,8 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, execute: bool, dry_ru
         "state": (
             "PLANNED"
             if not execute
+            else "PAUSED_PRECHECK_BLOCKED"
+            if any(_is_preflight_only_failure(row) for row in records)
             else "COMPLETE" if len(records) >= total else "PAUSED_RECOVERY_BLOCKED"
         ),
         "claim_scope": "complete-path receipts only; no controller promotion or manuscript claim",
@@ -785,14 +936,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--campaign-dir", type=Path, required=True)
     parser.add_argument("--plan", action="store_true", help="write the schedule without touching hardware")
     parser.add_argument("--execute", action="store_true", help="run the complete sequential campaign")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="retry only prior preflight failures that never dispatched motion",
+    )
     parser.add_argument("--confirm", action="store_true", help="run the frozen five-round paired confirmation")
     args = parser.parse_args(argv)
-    if args.confirm and (args.plan or args.execute):
+    if args.confirm and (args.plan or args.execute or args.resume):
         parser.error("--confirm is a separate post-tuning action")
-    if not args.confirm and args.plan == args.execute:
-        parser.error("choose exactly one of --plan or --execute")
+    if not args.confirm and sum(bool(value) for value in (args.plan, args.execute, args.resume)) != 1:
+        parser.error("choose exactly one of --plan, --execute, or --resume")
     summary = (run_confirmation(args.config, args.campaign_dir, execute=True)
-               if args.confirm else run_campaign(args.config, args.campaign_dir, execute=args.execute))
+               if args.confirm else run_campaign(
+                   args.config,
+                   args.campaign_dir,
+                   execute=args.execute or args.resume,
+                   resume=args.resume,
+               ))
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0
 
