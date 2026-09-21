@@ -1,0 +1,479 @@
+{
+  "schema": "tase-r013-state-timing-reconstruction-v1",
+  "generated_from": "ledger.jsonl plus robot_frames.jsonl",
+  "generated_at_utc": "2026-09-22",
+  "claim_scope": "diagnostic_reconstruction_not_live_acceptance",
+  "protocol_id": "figure8_window60_r013_compat_v1",
+  "selection": {
+    "campaign_attempts": 24,
+    "valid_complete_logical_units": 7,
+    "valid_ordinals": [
+      0,
+      2,
+      8,
+      9,
+      12,
+      14,
+      15
+    ],
+    "failed_or_incomplete_denominator": 17
+  },
+  "formal_metric_context": {
+    "path_duration_s": 60.0,
+    "formal_window_s": [
+      5.0,
+      60.0
+    ],
+    "required_bins": 550,
+    "metric_is_normal_force_feedback_diagnostic": true
+  },
+  "diagnostic_method": {
+    "timestamp_field": "received_monotonic_s",
+    "source_state_echo_key": "integer_echoes[26]",
+    "home_state_code": 78,
+    "contact_search_start_code": 78,
+    "contact_latch_start_code": 20,
+    "contact_latch_end_code": 21,
+    "path_like_start_code": 25,
+    "stop_like_state_code": 40,
+    "note": "State 25 is a TP state marker, not a formally sealed PATH-start marker. Spans are reconstructed from first/last robot-frame timestamps."
+  },
+  "missing_boundaries": [
+    "readiness_hold_start/end",
+    "exact first consumed formal PATH packet",
+    "formal PATH end handshake",
+    "stop confirmation",
+    "unload start/end",
+    "Home command start/end",
+    "video synchronization marker"
+  ],
+  "aggregate": {
+    "home_to_home_from_state78": {
+      "n": 7,
+      "median_s": 76.65386207299889,
+      "p90_s": 76.70426478640293,
+      "min_s": 76.56820852000965,
+      "max_s": 76.70801899000071
+    },
+    "search_78_to_20_first": {
+      "n": 7,
+      "median_s": 0.013699253991944715,
+      "p90_s": 0.014005098812049255,
+      "min_s": 0.011761272005969658,
+      "max_s": 0.014213612012099475
+    },
+    "latch_20_to_21_first": {
+      "n": 7,
+      "median_s": 3.9079963749973103,
+      "p90_s": 4.0087882970168724,
+      "min_s": 3.813995584001532,
+      "max_s": 4.051997963018948
+    },
+    "state25_span": {
+      "n": 7,
+      "median_s": 61.006007732008584,
+      "p90_s": 61.008743884786966,
+      "min_s": 61.00400680399616,
+      "max_s": 61.00993913700222
+    },
+    "state25_to_40_first": {
+      "n": 7,
+      "median_s": 61.00800646399148,
+      "p90_s": 61.010743882792305,
+      "min_s": 61.006007491989294,
+      "max_s": 61.01193946501007
+    },
+    "return_40_to_last78": {
+      "n": 7,
+      "median_s": 2.8280019910016563,
+      "p90_s": 2.904029993194854,
+      "min_s": 2.7660561469965614,
+      "max_s": 2.9579912229964975
+    }
+  },
+  "units": [
+    {
+      "frame_count": 38275,
+      "states": {
+        "11": {
+          "count": 2,
+          "first_s": 177522.6705685,
+          "last_s": 177522.673313452
+        },
+        "20": {
+          "count": 1944,
+          "first_s": 177522.67530248,
+          "last_s": 177526.563293864
+        },
+        "21": {
+          "count": 4433,
+          "first_s": 177526.565290767,
+          "last_s": 177535.435296165
+        },
+        "25": {
+          "count": 30460,
+          "first_s": 177535.437293068,
+          "last_s": 177596.443304337
+        },
+        "40": {
+          "count": 1432,
+          "first_s": 177596.445302332,
+          "last_s": 177599.31129181
+        },
+        "78": {
+          "count": 4,
+          "first_s": 177522.66331986,
+          "last_s": 177599.313358172
+        }
+      },
+      "diagnostic_spans_s": {
+        "home_to_home_from_state78": 76.65003831198555,
+        "search_78_to_20_first": 0.011982619995251298,
+        "latch_20_to_21_first": 3.8899882870027795,
+        "state25_span": 61.0060112689971,
+        "state25_to_40_first": 61.008009263983695,
+        "return_40_to_last78": 2.868055839993758
+      },
+      "ordinal": 0,
+      "candidate_id": "initial-00",
+      "stage": "initial",
+      "Md": 12.0,
+      "Bd": 550.0,
+      "mae_n": 1.5282886460286518,
+      "run_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r013-baseline-20260922T0405Z",
+      "status": "complete",
+      "complete_path": true,
+      "home_verified": true,
+      "protocol_id": "figure8_window60_r013_compat_v1"
+    },
+    {
+      "frame_count": 38348,
+      "states": {
+        "11": {
+          "count": 3,
+          "first_s": 178093.324878453,
+          "last_s": 178093.327415385
+        },
+        "20": {
+          "count": 1986,
+          "first_s": 178093.329411206,
+          "last_s": 178097.299409161
+        },
+        "21": {
+          "count": 4431,
+          "first_s": 178097.301410042,
+          "last_s": 178106.16141293
+        },
+        "25": {
+          "count": 30498,
+          "first_s": 178106.163472089,
+          "last_s": 178167.171419139
+        },
+        "40": {
+          "count": 1426,
+          "first_s": 178167.173418917,
+          "last_s": 178170.023413635
+        },
+        "78": {
+          "count": 4,
+          "first_s": 178093.317394092,
+          "last_s": 178170.025413082
+        }
+      },
+      "diagnostic_spans_s": {
+        "home_to_home_from_state78": 76.70801899000071,
+        "search_78_to_20_first": 0.012017114000627771,
+        "latch_20_to_21_first": 3.9719988360011484,
+        "state25_span": 61.00794704997679,
+        "state25_to_40_first": 61.00994682798046,
+        "return_40_to_last78": 2.8519941650156397
+      },
+      "ordinal": 2,
+      "candidate_id": "initial-02",
+      "stage": "initial",
+      "Md": 8.801015249272634,
+      "Bd": 700.3698274740833,
+      "mae_n": 0.9692486402740916,
+      "run_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r013-autotuner-20260922T0410Z/runs/02-initial-02",
+      "status": "complete",
+      "complete_path": true,
+      "home_verified": true,
+      "protocol_id": "figure8_window60_r013_compat_v1"
+    },
+    {
+      "frame_count": 37566,
+      "states": {
+        "11": {
+          "count": 3,
+          "first_s": 178745.838944651,
+          "last_s": 178745.843377103
+        },
+        "20": {
+          "count": 1990,
+          "first_s": 178745.845365102,
+          "last_s": 178749.82335007
+        },
+        "21": {
+          "count": 4433,
+          "first_s": 178749.825346955,
+          "last_s": 178758.693349576
+        },
+        "25": {
+          "count": 29743,
+          "first_s": 178758.695419509,
+          "last_s": 178819.705358646
+        },
+        "40": {
+          "count": 1392,
+          "first_s": 178819.707358974,
+          "last_s": 178822.52748604
+        },
+        "78": {
+          "count": 5,
+          "first_s": 178745.831552283,
+          "last_s": 178822.529374597
+        }
+      },
+      "diagnostic_spans_s": {
+        "home_to_home_from_state78": 76.69782231401769,
+        "search_78_to_20_first": 0.01381281900103204,
+        "latch_20_to_21_first": 3.979981853015488,
+        "state25_span": 61.00993913700222,
+        "state25_to_40_first": 61.01193946501007,
+        "return_40_to_last78": 2.822015623009065
+      },
+      "ordinal": 8,
+      "candidate_id": "bo-00",
+      "stage": "bo",
+      "Md": 9.709961054038612,
+      "Bd": 777.584003797893,
+      "mae_n": 0.9392276344577354,
+      "run_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r013-autotuner-20260922T0410Z/runs/08-bo-00",
+      "status": "complete",
+      "complete_path": true,
+      "home_verified": true,
+      "protocol_id": "figure8_window60_r013_compat_v1"
+    },
+    {
+      "frame_count": 38275,
+      "states": {
+        "11": {
+          "count": 3,
+          "first_s": 178855.739687763,
+          "last_s": 178855.744116364
+        },
+        "20": {
+          "count": 1951,
+          "first_s": 178855.746115258,
+          "last_s": 178859.796117573
+        },
+        "21": {
+          "count": 4431,
+          "first_s": 178859.798113221,
+          "last_s": 178868.658116256
+        },
+        "25": {
+          "count": 30503,
+          "first_s": 178868.660116762,
+          "last_s": 178929.666121067
+        },
+        "40": {
+          "count": 1383,
+          "first_s": 178929.668121841,
+          "last_s": 178932.432114926
+        },
+        "78": {
+          "count": 4,
+          "first_s": 178855.732416004,
+          "last_s": 178932.434177988
+        }
+      },
+      "diagnostic_spans_s": {
+        "home_to_home_from_state78": 76.7017619840044,
+        "search_78_to_20_first": 0.013699253991944715,
+        "latch_20_to_21_first": 4.051997963018948,
+        "state25_span": 61.006004305003444,
+        "state25_to_40_first": 61.008005078998394,
+        "return_40_to_last78": 2.7660561469965614
+      },
+      "ordinal": 9,
+      "candidate_id": "bo-01",
+      "stage": "bo",
+      "Md": 8.727734439034645,
+      "Bd": 776.9945436644888,
+      "mae_n": 0.9416859083025162,
+      "run_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r013-autotuner-20260922T0410Z/runs/09-bo-01",
+      "status": "complete",
+      "complete_path": true,
+      "home_verified": true,
+      "protocol_id": "figure8_window60_r013_compat_v1"
+    },
+    {
+      "frame_count": 38326,
+      "states": {
+        "11": {
+          "count": 3,
+          "first_s": 179176.444420953,
+          "last_s": 179176.448838078
+        },
+        "20": {
+          "count": 1907,
+          "first_s": 179176.450834776,
+          "last_s": 179180.262830335
+        },
+        "21": {
+          "count": 4430,
+          "first_s": 179180.26483036,
+          "last_s": 179189.122831194
+        },
+        "25": {
+          "count": 30502,
+          "first_s": 179189.124833072,
+          "last_s": 179250.130839473
+        },
+        "40": {
+          "count": 1479,
+          "first_s": 179250.132839536,
+          "last_s": 179253.088829453
+        },
+        "78": {
+          "count": 5,
+          "first_s": 179176.436968686,
+          "last_s": 179253.090830759
+        }
+      },
+      "diagnostic_spans_s": {
+        "home_to_home_from_state78": 76.65386207299889,
+        "search_78_to_20_first": 0.013866090012015775,
+        "latch_20_to_21_first": 3.813995584001532,
+        "state25_span": 61.006006400974,
+        "state25_to_40_first": 61.00800646399148,
+        "return_40_to_last78": 2.9579912229964975
+      },
+      "ordinal": 12,
+      "candidate_id": "bo-04",
+      "stage": "bo",
+      "Md": 16.72600065259814,
+      "Bd": 773.3931791100532,
+      "mae_n": 1.4931404264722206,
+      "run_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r013-autotuner-20260922T0410Z/runs/12-bo-04",
+      "status": "complete",
+      "complete_path": true,
+      "home_verified": true,
+      "protocol_id": "figure8_window60_r013_compat_v1"
+    },
+    {
+      "frame_count": 38258,
+      "states": {
+        "11": {
+          "count": 3,
+          "first_s": 179395.913537804,
+          "last_s": 179395.917936864
+        },
+        "20": {
+          "count": 1916,
+          "first_s": 179395.919935993,
+          "last_s": 179399.79994191
+        },
+        "21": {
+          "count": 4430,
+          "first_s": 179399.801934656,
+          "last_s": 179408.659963918
+        },
+        "25": {
+          "count": 30502,
+          "first_s": 179408.661937248,
+          "last_s": 179469.66794498
+        },
+        "40": {
+          "count": 1402,
+          "first_s": 179469.669943045,
+          "last_s": 179472.471930462
+        },
+        "78": {
+          "count": 5,
+          "first_s": 179395.905722381,
+          "last_s": 179472.473930901
+        }
+      },
+      "diagnostic_spans_s": {
+        "home_to_home_from_state78": 76.56820852000965,
+        "search_78_to_20_first": 0.014213612012099475,
+        "latch_20_to_21_first": 3.881998662982369,
+        "state25_span": 61.006007732008584,
+        "state25_to_40_first": 61.008005797018996,
+        "return_40_to_last78": 2.8039878559939098
+      },
+      "ordinal": 14,
+      "candidate_id": "bo-06",
+      "stage": "bo",
+      "Md": 16.5816419847907,
+      "Bd": 391.289333098447,
+      "mae_n": 2.4191103578881528,
+      "run_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r013-autotuner-20260922T0410Z/runs/14-bo-06",
+      "status": "complete",
+      "complete_path": true,
+      "home_verified": true,
+      "protocol_id": "figure8_window60_r013_compat_v1"
+    },
+    {
+      "frame_count": 38069,
+      "states": {
+        "11": {
+          "count": 2,
+          "first_s": 179505.797679919,
+          "last_s": 179505.800086482
+        },
+        "20": {
+          "count": 1954,
+          "first_s": 179505.802082613,
+          "last_s": 179509.70807958
+        },
+        "21": {
+          "count": 4430,
+          "first_s": 179509.710078988,
+          "last_s": 179518.568147859
+        },
+        "25": {
+          "count": 30369,
+          "first_s": 179518.570083897,
+          "last_s": 179579.574090701
+        },
+        "40": {
+          "count": 1310,
+          "first_s": 179579.576091389,
+          "last_s": 179582.400083486
+        },
+        "78": {
+          "count": 4,
+          "first_s": 179505.790321341,
+          "last_s": 179582.40409338
+        }
+      },
+      "diagnostic_spans_s": {
+        "home_to_home_from_state78": 76.61377203901066,
+        "search_78_to_20_first": 0.011761272005969658,
+        "latch_20_to_21_first": 3.9079963749973103,
+        "state25_span": 61.00400680399616,
+        "state25_to_40_first": 61.006007491989294,
+        "return_40_to_last78": 2.8280019910016563
+      },
+      "ordinal": 15,
+      "candidate_id": "bo-07",
+      "stage": "bo",
+      "Md": 8.511299453964943,
+      "Bd": 499.37758286482415,
+      "mae_n": 1.343138036096274,
+      "run_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r013-autotuner-20260922T0410Z/runs/15-bo-07",
+      "status": "complete",
+      "complete_path": true,
+      "home_verified": true,
+      "protocol_id": "figure8_window60_r013_compat_v1"
+    }
+  ],
+  "interpretation": [
+    "This artifact preserves raw failure denominator and only includes seven logical complete ledger rows in the aggregate.",
+    "It is not a substitute for lifecycle_events/timing_ledger and cannot promote a candidate to live acceptance.",
+    "The old complete receipts predate current lifecycle instrumentation; state-derived spans are diagnostic only."
+  ]
+}
