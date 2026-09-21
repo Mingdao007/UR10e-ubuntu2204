@@ -27,6 +27,7 @@ TASE_MATURE_METHOD = "TASE_RNN_MATURE"
 REGISTERED_UNAVAILABLE = ("TASE_RNN", "TASE_QP")
 OFFLINE_TASE_METHODS = (
     "TASE_RNN",
+    "TASE_RNN_MATURE",
     "TASE_RNN_MATURE_MINUS",
     "TASE_QP",
     "TASE_IMPROVED",
@@ -84,6 +85,30 @@ class OfflineMethodRecord:
             "provider": self.provider,
             "variant": self.variant,
             "offline_only": self.offline_only,
+            "live_eligible": self.live_eligible,
+        }
+
+
+@dataclass(frozen=True)
+class OfflineCompositionRecord:
+    """Identity of a TASE plus tangential-law composition.
+
+    This is a software-study contract only.  It deliberately does not make a
+    composed controller live-eligible: the shared outer loop supplies normal
+    force/attitude, the named law supplies tangential path motion, and a later
+    adapter must perform the single joint-velocity realization.
+    """
+
+    name: str
+    normal_controller: str
+    tangential_controller: str
+    live_eligible: bool = False
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "normal_controller": self.normal_controller,
+            "tangential_controller": self.tangential_controller,
             "live_eligible": self.live_eligible,
         }
 
@@ -220,6 +245,12 @@ def load_offline_method_records() -> dict[str, OfflineMethodRecord]:
             provider="TaseOfflineMethodAdapter",
             variant="printed_eq23_plus",
         ),
+        "TASE_RNN_MATURE": OfflineMethodRecord(
+            name="TASE_RNN_MATURE",
+            family="tase_rnn",
+            provider="TaseOfflineMethodAdapter",
+            variant="mature_minus",
+        ),
         "TASE_RNN_MATURE_MINUS": OfflineMethodRecord(
             name="TASE_RNN_MATURE_MINUS",
             family="tase_rnn",
@@ -238,6 +269,19 @@ def load_offline_method_records() -> dict[str, OfflineMethodRecord]:
             provider="TaseImprovedOfflineMethodAdapter",
             variant="local-normal-gated-leaky-normal-priority-slack-qp",
         ),
+    }
+
+
+def load_offline_composition_records() -> dict[str, OfflineCompositionRecord]:
+    """Return explicit TASE/tangential-law identities for offline studies."""
+
+    return {
+        f"TASE_RNN_MATURE+{law}": OfflineCompositionRecord(
+            name=f"TASE_RNN_MATURE+{law}",
+            normal_controller="TASE_RNN_MATURE",
+            tangential_controller=law,
+        )
+        for law in ("LAC", "NAC", "SFC")
     }
 
 

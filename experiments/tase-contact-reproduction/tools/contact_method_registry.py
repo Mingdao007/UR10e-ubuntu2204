@@ -169,7 +169,7 @@ def _tase_factory(solver, variant):
         from tase_method_adapters import create_tase_offline_adapter
 
         method_name = 'TASE_RNN' if solver == 'rnn' and variant == 'printed_eq23_plus' else (
-            'TASE_RNN_MATURE_MINUS' if solver == 'rnn' else 'TASE_QP'
+            'TASE_RNN_MATURE' if solver == 'rnn' else 'TASE_QP'
         )
         try:
             resolve_offline_method(method_name)
@@ -212,6 +212,7 @@ def default_registry():
         registry.register(MethodSpec(name,role,'YieldController'),_yield_factory(name))
     for name,solver,variant,role in [
         ('TASE_RNN','rnn','printed_eq23_plus','printed_sign_eq23_plus_offline_baseline_with_explicit_outer_adaptation'),
+        ('TASE_RNN_MATURE','rnn','mature_minus','historical_mature_implementation_reference'),
         ('TASE_RNN_MATURE_MINUS','rnn','mature_minus','explicit_lambda_minus_adaptation_reference'),
         ('TASE_QP','qp','matched_outer_qp','matched_outer_solver_ablation')]:
         registry.register(MethodSpec(name,role,'TaseOfflineMethodAdapter'),_tase_factory(solver,variant))

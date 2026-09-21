@@ -17,6 +17,7 @@ from contact_method_registry import RegistryError, default_registry  # noqa: E40
 from contact_yield_kinematics import load_kinematics  # noqa: E402
 from contact_yield_method_registry import (  # noqa: E402
     MethodUnavailableError,
+    load_offline_composition_records,
     load_method_records,
     load_offline_method_records,
     resolve_method,
@@ -77,6 +78,7 @@ def test_live_registry_stays_unavailable_while_offline_discovery_is_explicit() -
     offline = load_offline_method_records()
     assert set(offline) == {
         "TASE_RNN",
+        "TASE_RNN_MATURE",
         "TASE_RNN_MATURE_MINUS",
         "TASE_QP",
         "TASE_IMPROVED",
@@ -111,6 +113,25 @@ def test_default_registry_initializes_each_advertised_offline_name(qp_library: P
     assert improved.spec.qualification == "software_only"
     assert improved.backend.variant == "local-normal-gated-leaky-normal-priority-slack-qp"
     assert improved.backend.live_eligible is False
+
+
+def test_mature_alias_and_tangential_compositions_are_explicitly_offline(
+    qp_library: Path,
+) -> None:
+    registry = default_registry()
+    mature = registry.initialize("TASE_RNN_MATURE", qp_library=qp_library)
+    mature_minus = registry.initialize("TASE_RNN_MATURE_MINUS", qp_library=qp_library)
+    assert mature.backend.variant == mature_minus.backend.variant == "mature_minus"
+    compositions = load_offline_composition_records()
+    assert set(compositions) == {
+        "TASE_RNN_MATURE+LAC",
+        "TASE_RNN_MATURE+NAC",
+        "TASE_RNN_MATURE+SFC",
+    }
+    for record in compositions.values():
+        assert record.normal_controller == "TASE_RNN_MATURE"
+        assert record.tangential_controller in {"LAC", "NAC", "SFC"}
+        assert record.live_eligible is False
 
 
 def test_rnn_sign_metadata_matches_the_selected_equation_variant(
