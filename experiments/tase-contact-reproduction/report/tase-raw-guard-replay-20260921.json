@@ -1,0 +1,64 @@
+{
+  "schema": "tase.corrected-vs-native-raw-guard-replay-v1",
+  "source_run": "runs/tase-figure8-full-20260921T0646",
+  "claim_scope": "offline replay of recorded inputs; no new physical or closed-loop acceptance",
+  "source_files": {
+    "raw_sensor.jsonl": "c36c7252adc9ded2500ba85dd1572a0fa295510f68696922d6b2e24e550d1001",
+    "published_packets.jsonl": "7e05c856f9f0d6c5c1c0662b05107fba3aea1716d22922441c181f73cb072c39",
+    "robot_frames.jsonl": "bca69fd106f8284df0e30edbfde0bacc8636f4cbd1415ecbeb24cb760d1cba72"
+  },
+  "implementation_sources": {
+    "tools/step5d_autotune_v4_r004/wire.py": "188c75fd4bd8536bbab2ee9d62b216b9850d42b4f5affcf0e4b951207359d8c4",
+    "tools/step5d_autotune_v4_r004_live_writer.py": "7dad2ed1727c0ff578c5ca320a02ac854a4e775c25191f9d29d1bf2adcf4535d",
+    "tools/contact_benchmark_runtime.py": "46a02b1dec84d60185cc29a03cf1d976031a9c750c472f9964528515d2b69641",
+    "tools/tase_contact_provider.py": "1c161dd0743fa6397a6b06c18795dd4af7fe25125cc79fd51e45d64e2b8afaa1",
+    "tools/yield_contact_runtime.py": "ee290709f5a202340c08ad24b5c5ae8024c1fb42056b4377f638934a01cb4ab7",
+    "tools/yield_contact_provider.py": "278bbc8a6d94a908bc83d6ee098f5909a39d840e9a7b3c222ab6ab0ee9e0212c"
+  },
+  "sample_count": 188322,
+  "native_raw_force_norm_max_n": 18.26031776208388,
+  "corrected_control_force_norm_max_n": 20.30019677543366,
+  "native_raw_torque_norm_max_nm": 0.5199822976963346,
+  "corrected_control_torque_norm_max_nm": 0.17996837497686524,
+  "corrected_force_ge_20_native_force_lt_20_count": 1,
+  "first_corrected_force_ge_20_native_force_lt_20": {
+    "packet_sequence": 188318,
+    "host_use_monotonic_s": 101421.583506571,
+    "raw_force_norm_n": 18.26031776208388,
+    "corrected_force_norm_n": 20.30019677543366,
+    "raw_wrench_n_nm": [
+      3.374364789661765,
+      2.589376149471104,
+      -17.758040381616354,
+      0.28595462950700895,
+      -0.42052707660924643,
+      0.10619112374582328
+    ],
+    "corrected_wrench_n_nm": [
+      -3.8078142266622037,
+      -1.6947470045512696,
+      -19.867721875623296,
+      0.0460577241286122,
+      -0.1704001463110062,
+      0.022459670513789443
+    ]
+  },
+  "preceding_packet": {
+    "packet_sequence": 188317,
+    "command_mode": 2,
+    "stop_dominant": false,
+    "reason": "",
+    "qdot_rad_s": [
+      0.006079769898092899,
+      -0.0003014821076559608,
+      0.0008796120405644908,
+      -0.0005599211302058382,
+      0.00001459552903987626,
+      0.006053550448246948
+    ],
+    "latest_robot_echo_sequence": 188313,
+    "replayed_Jqdot_linear_norm_m_s": 0.003226014297212113,
+    "replayed_Jqdot_approach_m_s": -0.00004808407047767401
+  },
+  "replay_conclusion": "The recorded rejection is reproduced as a corrected-signal false trip of the raw guard. The native raw wrench remains below the unchanged 20 N / 2 Nm envelope; the repair routes native raw_wrench to the guard while retaining baseline-corrected wrench for control and diagnostics."
+}

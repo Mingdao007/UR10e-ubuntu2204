@@ -183,6 +183,7 @@ class YieldContactProvider:
         self.last_pause = self.runtime.pause(
             robot=robot,
             wrench_tcp=sensor.wrench,
+            guard_wrench_tcp=sensor.raw_wrench,
             sensor_observed_at_s=sensor.observed_at_s,
             sample_time_s=monotonic_s,
             reason=reason,
@@ -202,6 +203,7 @@ class YieldContactProvider:
         self.last_pause = self.runtime.hold_pre_path_late_cycle(
             robot=robot,
             wrench_tcp=sensor.wrench,
+            guard_wrench_tcp=sensor.raw_wrench,
             sensor_observed_at_s=sensor.observed_at_s,
             sample_time_s=monotonic_s,
             reason=reason,
@@ -246,6 +248,7 @@ class YieldContactProvider:
         result = self.runtime.step(
             robot=robot,
             wrench_tcp=sensor.wrench,
+            guard_wrench_tcp=sensor.raw_wrench,
             sensor_observed_at_s=sensor.observed_at_s,
             sample_time_s=monotonic_s,
             phase=mode,

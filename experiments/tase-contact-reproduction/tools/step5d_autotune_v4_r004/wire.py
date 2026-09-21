@@ -138,6 +138,11 @@ class SensorPacket:
     wrench: tuple[float, float, float, float, float, float]
     filtered_normal_n: float
     observed_at_s: float | None = None
+    # The native Kunwei sample before software-baseline subtraction.  ``wrench``
+    # remains the baseline-corrected signal used by the controller; the raw
+    # value is kept separately so a raw-sensor safety guard cannot accidentally
+    # be applied to the corrected control signal.
+    raw_wrench: tuple[float, float, float, float, float, float] | None = None
 
     def __post_init__(self) -> None:
         if self.observed_at_s is not None and not math.isfinite(float(self.observed_at_s)):
@@ -146,6 +151,11 @@ class SensorPacket:
             raise TypeError("sensor flags must be bool")
         if len(self.wrench) != 6 or not all(math.isfinite(float(value)) for value in self.wrench):
             raise ValueError("wrench must be six finite values")
+        if self.raw_wrench is not None and (
+            len(self.raw_wrench) != 6
+            or not all(math.isfinite(float(value)) for value in self.raw_wrench)
+        ):
+            raise ValueError("raw_wrench must be six finite values when present")
         values = (
             self.normal_load_n,
             self.force_norm_n,

@@ -28,6 +28,7 @@ def validate_measured_observation(
     *,
     robot,
     wrench_tcp,
+    guard_wrench_tcp=None,
     sensor_observed_at_s,
     sample_time_s,
     last_sample_s,
@@ -85,7 +86,12 @@ def validate_measured_observation(
     q = finite(robot['actual_q'], (6,), 'joint position')
     qd = finite(robot['actual_qd'], (6,), 'joint velocity')
     pose = finite(robot['actual_TCP_pose'], (6,), 'TCP pose')
-    wrench = finite(wrench_tcp, (6,), 'raw TCP wrench')
+    wrench = finite(wrench_tcp, (6,), 'baseline-corrected TCP wrench')
+    guard_wrench = finite(
+        wrench_tcp if guard_wrench_tcp is None else guard_wrench_tcp,
+        (6,),
+        'raw TCP wrench',
+    )
     if np.max(np.abs(qd)) > .06:
         raise ValueError('observed joint speed exceeds envelope')
     # Limit all possible commands for a maximum 4ms hold at joint limits.
@@ -93,7 +99,7 @@ def validate_measured_observation(
     upper = np.minimum((model.model.upperPositionLimit - q) / .004, .05)
     if np.any(q < model.model.lowerPositionLimit) or np.any(q > model.model.upperPositionLimit):
         raise ValueError('observed joint position exceeds limit')
-    if np.linalg.norm(wrench[:3]) >= RAW_FORCE_LIMIT_N or np.linalg.norm(wrench[3:]) >= RAW_TORQUE_LIMIT_NM:
+    if np.linalg.norm(guard_wrench[:3]) >= RAW_FORCE_LIMIT_N or np.linalg.norm(guard_wrench[3:]) >= RAW_TORQUE_LIMIT_NM:
         raise ValueError('raw sensor guard rejected observation')
     return dict(now=now, sensor_t=sensor_t, controller_t=controller_t, age=age, age_band=age_band, dt=dt,
                 tcp=tcp, q=q, qd=qd, pose=pose, wrench=wrench, lower=lower, upper=upper)

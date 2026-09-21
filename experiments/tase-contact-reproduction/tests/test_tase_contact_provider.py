@@ -111,6 +111,28 @@ def test_live_tase_force_norm_envelope_preempts_tangential_load_overshoot(provid
     assert provider.last_result['control_normal_n'] == pytest.approx(19.)
 
 
+def test_live_tase_raw_guard_uses_native_wrench_before_baseline_subtraction(provider):
+    o, s = tick(provider, .002)
+    corrected = ( -3.8078142267, -1.6947470046, -19.8677218756, 0.0460577241, -0.1704001463, 0.0224596705 )
+    native = (3.3743647897, 2.5893761495, -17.7580403816, 0.2859546295, -0.4205270766, 0.1061911237)
+    s = replace(
+        s,
+        wrench=corrected,
+        raw_wrench=native,
+        normal_load_n=-corrected[2],
+        force_norm_n=float(np.linalg.norm(corrected[:3])),
+        torque_norm_nm=float(np.linalg.norm(corrected[3:])),
+        filtered_normal_n=-corrected[2],
+    )
+    # The recorded failure crossed 20 N only after baseline subtraction.  The
+    # native sample remains below the unchanged 20 N / 2 Nm hard envelope.
+    assert np.linalg.norm(native[:3]) < 20.0
+    assert np.linalg.norm(corrected[:3]) > 20.0
+    provider._observe(o, s, .002, .002)
+    with pytest.raises(ValueError, match='raw sensor'):
+        provider._observe(o, replace(s, raw_wrench=None), .002, .002)
+
+
 def test_live_tase_force_preempt_warm_starts_rnn_once(provider):
     o, s = tick(provider, .002, force=8.)
     s = replace(s, normal_load_n=8., force_norm_n=8.)

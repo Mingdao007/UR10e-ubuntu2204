@@ -217,7 +217,14 @@ class TaseContactProvider(ContactCommandProvider):
             'payload': output.payload_kg, 'payload_cog': output.payload_cog_m,
             'actual_q': output.q_rad, 'actual_qd': output.qd_rad_s,
             'actual_TCP_pose': output.tcp_pose_m_rad, 'actual_TCP_speed': output.tcp_speed_m_s_rad_s}
-        obs = validate_measured_observation(robot=robot, wrench_tcp=sensor.wrench,
+        obs = validate_measured_observation(
+            robot=robot,
+            wrench_tcp=sensor.wrench,
+            # ``sensor.wrench`` is baseline-corrected and remains the control
+            # signal.  The hard raw-sensor envelope must inspect the native
+            # Kunwei sample when available; manually constructed seam fixtures
+            # without that field retain the fail-closed legacy fallback.
+            guard_wrench_tcp=sensor.raw_wrench,
             sensor_observed_at_s=sensor.observed_at_s, sample_time_s=now,
             last_sample_s=self.last_sample_s, last_controller_timestamp=self.last_controller_timestamp,
             last_sensor_timestamp=self.last_sensor_timestamp, freshness=self.freshness,

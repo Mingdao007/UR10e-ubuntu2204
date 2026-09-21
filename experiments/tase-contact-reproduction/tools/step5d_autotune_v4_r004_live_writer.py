@@ -817,9 +817,11 @@ class LiveR004Writer:
     def _sensor_packet(self, *, raw: Sequence[float] | None, observed_at_s: float | None) -> SensorPacket:
         if raw is None:
             wrench = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            raw_wrench = None
             fresh = False
         else:
-            values = tuple(float(value) - baseline for value, baseline in zip(raw, self.software_baseline_n, strict=True))
+            raw_wrench = tuple(float(value) for value in raw)
+            values = tuple(value - baseline for value, baseline in zip(raw_wrench, self.software_baseline_n, strict=True))
             wrench = values  # type: ignore[assignment]
             fresh = observed_at_s is not None and math.isfinite(float(observed_at_s))
             if fresh and observed_at_s is not None and observed_at_s > 0.0:
@@ -839,6 +841,7 @@ class LiveR004Writer:
             wrench=wrench,
             filtered_normal_n=normal,
             observed_at_s=observed_at_s,
+            raw_wrench=raw_wrench,
         )
 
     def _session_input(self, command_mode: CommandMode) -> SessionInput:
@@ -967,6 +970,7 @@ class LiveR004Writer:
             wrench=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
             filtered_normal_n=0.0,
             observed_at_s=None,
+            raw_wrench=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         )
 
     def _swallow_safe_stop_send_errors(self) -> bool:

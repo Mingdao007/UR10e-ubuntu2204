@@ -170,12 +170,14 @@ class YieldContactRuntime:
         sensor_observed_at_s,
         sample_time_s,
         *,
+        guard_wrench_tcp=None,
         max_dt_s=.004,
         strict_dt_upper=False,
     ):
         return validate_measured_observation(
             robot=robot,
             wrench_tcp=wrench_tcp,
+            guard_wrench_tcp=guard_wrench_tcp,
             sensor_observed_at_s=sensor_observed_at_s,
             sample_time_s=sample_time_s,
             last_sample_s=self.last_sample_s,
@@ -206,10 +208,25 @@ class YieldContactRuntime:
         ref = np.asarray(self.controller.task.reference(path_time_s)["position_m"], dtype=float)
         return local - ref
 
-    def pause(self, *, robot, wrench_tcp, sensor_observed_at_s, sample_time_s, reason):
+    def pause(
+        self,
+        *,
+        robot,
+        wrench_tcp,
+        guard_wrench_tcp=None,
+        sensor_observed_at_s,
+        sample_time_s,
+        reason,
+    ):
         """Freeze complete controller memory only during the observed pre-PATH seam."""
         started = time.perf_counter()
-        obs = self._validate_observation(robot, wrench_tcp, sensor_observed_at_s, sample_time_s)
+        obs = self._validate_observation(
+            robot,
+            wrench_tcp,
+            sensor_observed_at_s,
+            sample_time_s,
+            guard_wrench_tcp=guard_wrench_tcp,
+        )
         if self.phase == "path" or self.controller.last_path_time_s is not None:
             raise ValueError("cannot pause an active PATH controller")
         speed = finite(robot["actual_TCP_speed"], (6,), "TCP speed")
@@ -243,7 +260,14 @@ class YieldContactRuntime:
             raise
 
     def hold_pre_path_late_cycle(
-        self, *, robot, wrench_tcp, sensor_observed_at_s, sample_time_s, reason
+        self,
+        *,
+        robot,
+        wrench_tcp,
+        guard_wrench_tcp=None,
+        sensor_observed_at_s,
+        sample_time_s,
+        reason,
     ):
         """Commit one bounded pre-PATH late receive as evidence-only hold.
 
@@ -258,6 +282,7 @@ class YieldContactRuntime:
             wrench_tcp,
             sensor_observed_at_s,
             sample_time_s,
+            guard_wrench_tcp=guard_wrench_tcp,
             max_dt_s=PRE_PATH_LATE_CYCLE_MAX_S,
             strict_dt_upper=True,
         )
@@ -369,6 +394,7 @@ class YieldContactRuntime:
         *,
         robot,
         wrench_tcp,
+        guard_wrench_tcp=None,
         sensor_observed_at_s,
         sample_time_s,
         phase,
@@ -384,7 +410,13 @@ class YieldContactRuntime:
         time). wrench_tcp is environment-on-tool, before filtering/injection.
         """
         started = time.perf_counter()
-        obs = self._validate_observation(robot, wrench_tcp, sensor_observed_at_s, sample_time_s)
+        obs = self._validate_observation(
+            robot,
+            wrench_tcp,
+            sensor_observed_at_s,
+            sample_time_s,
+            guard_wrench_tcp=guard_wrench_tcp,
+        )
         now, age, dt, tcp, q, pose, wrench, lower, upper = (
             obs[key] for key in ("now", "age", "dt", "tcp", "q", "pose", "wrench", "lower", "upper")
         )
