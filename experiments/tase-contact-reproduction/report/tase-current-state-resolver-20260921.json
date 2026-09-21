@@ -1,0 +1,21 @@
+{
+  "schema": "tase.current-state-resolver-receipt-v1",
+  "claim_scope": "read-only resolver state; no endpoint, controller, Home, or motion action",
+  "created_at": "2026-09-21T12:21:35.300",
+  "source_commit": "54a7407bbe6975d7067d65ed4d62c43f6f12d558",
+  "resolver_script": "/home/andy/codex-private-skills-shared-main/skills/ur10e/scripts/resolve_current_state.py",
+  "resolver_script_sha256": "fdb1d0614904df79bd11f0c98dc4f2027f11f1240699f235283467f4b5392690",
+  "resolver_output": "runs/tase-current-state-resolver-20260921/resolver.json",
+  "resolver_output_sha256": "071f1181f1cecd3af4b71a97fca4dc146d9bb31c24b41d8c4a5f9e90391b381a",
+  "ok": true,
+  "state": "awaiting_live_authorization",
+  "current_stage_id": "step5d_contact_six_qp_v1",
+  "package_ready": true,
+  "controller_readback_verified": true,
+  "dispatchable": false,
+  "live_motion_authorized": false,
+  "live_owner_authorized": false,
+  "inconsistencies": [],
+  "next_owner": "ur10e-live-bench",
+  "interpretation": "Resolver is internally consistent and package-ready, but it does not authorize dispatch; current physical Home admission and controller qualification remain separate gates."
+}
