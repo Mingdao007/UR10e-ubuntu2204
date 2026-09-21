@@ -35,8 +35,13 @@ def recovery_geometry(home):
     from contact_yield_math import so3_exp,so3_log
     start=np.asarray(home['rtde']['actual_TCP_pose'],dtype=float)
     target=np.asarray(home['home_pose'],dtype=float)
+    final_target=np.asarray(home.get('final_home_pose', target),dtype=float)
     if start.shape!=(6,) or target.shape!=(6,) or not np.isfinite(start).all() or not np.isfinite(target).all():
         raise ValueError('recovery poses are invalid')
+    if final_target.shape!=(6,) or not np.isfinite(final_target).all():
+        raise ValueError('final recovery Home pose is invalid')
+    if not np.allclose(final_target[:3], FIGURE8_CONTACT_HOME_XYZ_M, atol=1e-12):
+        raise ValueError('final recovery Home XYZ differs')
     turn=so3_log(so3_exp(target[3:])@so3_exp(start[3:]).T)
     if np.linalg.norm(target[:3]-start[:3])>.003 or np.linalg.norm(turn)>.020:
         raise ValueError('bounded Home recovery exceeds 3mm or 20mrad')
@@ -61,11 +66,13 @@ def build(receipt,output):
     # Reuse the same tool/Home validation as the paired resident.
     transform(SOURCE.read_text(),home,stamp)
     target=np.asarray(home['home_pose']);observed=np.asarray(home['rtde']['actual_TCP_pose'])
+    final_target=np.asarray(home.get('final_home_pose', target))
+    segmented=bool(home.get('segmented_recovery', False))
     recovery=recovery_geometry(home)
     withdrawal=withdrawal_geometry(home)
     if recovery is not None and home.get('clearance_entry') is not True:
         raise ValueError('bounded Home recovery requires clearance_entry')
-    if not np.allclose(target[:3],FIGURE8_CONTACT_HOME_XYZ_M,atol=1e-12):raise ValueError('Figure-eight Home XYZ differs')
+    if not np.allclose(final_target[:3],FIGURE8_CONTACT_HOME_XYZ_M,atol=1e-12):raise ValueError('Figure-eight Home XYZ differs')
     if np.linalg.norm(target[:3]-observed[:3])>.08:raise ValueError('Home transfer exceeds 80mm bound')
     text=HOME_SOURCE.read_text().replace('step5d_autotune_start_hover_r001',BASENAME)
     text=re.sub(r'^# VERSION: .*$',f'# VERSION: {stamp}',text,flags=re.M)
@@ -144,6 +151,7 @@ def build(receipt,output):
     for suffix,data in [('script',text.encode()),('txt',f'Contact Home\n{stamp}\n{BASENAME}\n'.encode()),('urp',build_urp(text,BASENAME,CONTROLLER_DIR))]:
         (output/f'{BASENAME}.{suffix}').write_bytes(data)
     info={'basename':BASENAME,'stamp':stamp,'controller_directory':CONTROLLER_DIR,'home_pose':target.tolist(),
+          'final_home_pose':final_target.tolist(),'segmented_recovery':segmented,
           'bounded_recovery':recovery is not None,
           'bounded_withdrawal':withdrawal is not None,
           'clearance_entry':home.get('clearance_entry') is True,

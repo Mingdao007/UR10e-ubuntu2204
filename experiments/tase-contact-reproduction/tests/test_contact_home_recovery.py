@@ -68,6 +68,34 @@ def test_direct_clearance_home_retains_historical_transfer_speed(tmp_path):
     assert result['numeric_sanity']['segment_2_speed_m_s']==.09
 
 
+def test_segmented_clearance_home_binds_intermediate_target_to_final_home(tmp_path):
+    h = recovery()
+    final_home = [0.4620551816, 0.1778825964, 0.03408876139925415,
+                  3.120752062, 0.0, 0.068626833]
+    h['home_pose'] = list(final_home)
+    start_pose = np.asarray(h['rtde']['actual_TCP_pose'], dtype=float)
+    start_pose[:3] = np.asarray(final_home[:3], dtype=float) + [-.001, -.0005, 0.0]
+    start_pose[3:] = so3_log(
+        so3_exp(np.array([.012, 0.0, 0.0])) @ so3_exp(np.asarray(final_home[3:]))
+    )
+    h['rtde']['actual_TCP_pose'] = start_pose.tolist()
+    intermediate = np.asarray(final_home, dtype=float)
+    intermediate[:2] += [.0015, .0010]
+    intermediate[3:] = so3_log(
+        so3_exp(np.array([.004, 0.0, 0.0])) @ so3_exp(intermediate[3:])
+    )
+    h['home_pose'] = intermediate.tolist()
+    h['final_home_pose'] = final_home
+    h['segmented_recovery'] = True
+    p = tmp_path / 'segmented-home.json'
+    p.write_text(json.dumps(h))
+    result = build(p, tmp_path / 'package')
+    binding = json.loads((tmp_path / 'package' / f'{BASENAME}.binding.json').read_text())
+    assert binding['segmented_recovery'] is True
+    assert binding['final_home_pose'] == pytest.approx(final_home)
+    assert result['home_pose'] == pytest.approx(intermediate.tolist())
+
+
 def test_relief_reuses_historical_vertical_motion(tmp_path):
     h=recovery();p=tmp_path/'home.json';p.write_text(json.dumps(h));out=tmp_path/'recovery-package'
     build_recovery(p,out)

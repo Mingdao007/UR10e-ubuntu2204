@@ -1,4 +1,4 @@
-# VERSION: 2026-09-21T1151Z_CONTACT_RELIEF_V1
+# VERSION: 2026-09-21T1227Z_CONTACT_RELIEF_V1
 # ROLE: monitored Base +Z relief only; no XY or attitude transfer
 # No force-control restart; host owns fresh Kunwei unloading guard and Stop.
 def codex_start_hover_finite_value(value, absolute_limit):
@@ -115,7 +115,7 @@ def step5d_contact_relief_v1():
   local turn = pose_trans(pose_inv(target_pose), current_pose)
   local angle = sqrt(turn[3]*turn[3] + turn[4]*turn[4] + turn[5]*turn[5])
   local target_z = target_pose[2]
-  if distance > 0.080 or angle > 0.010 or current_pose[2] < 0.018 or current_pose[2] > target_z + 0.001:
+  if distance > 0.080 or angle > 0.020 or current_pose[2] < 0.018 or current_pose[2] > target_z + 0.001:
     textmsg("contact_relief: initial geometry rejected")
     halt
   end
