@@ -169,6 +169,132 @@ def test_fault_recovery_dispatch_exception_attempts_direct_home_fallback(
     assert calls[0][2] == "192.0.2.18"
 
 
+def test_supervisor_owned_writer_lock_defers_home_until_lock_release(tmp_path, monkeypatch):
+    """A failed supervised attempt must not race its own recovery lock."""
+    import contact_yield_live as entry
+    from types import SimpleNamespace
+    from contact_yield_live_writer import native_motion_profile
+
+    args = entry._parse_args(
+        [
+            "qualify",
+            "--method",
+            "TASE_RNN_MATURE",
+            "--run-dir",
+            str(tmp_path),
+            "--controller-host",
+            "192.0.2.18",
+            "--kunwei-host",
+            "192.0.2.25",
+            "--control-cpu",
+            "1",
+        ]
+    )
+    monkeypatch.setattr(
+        entry,
+        "load_live_entry_config",
+        lambda: {"user_standing_live_authority": True},
+    )
+    monkeypatch.setattr(entry, "resolve_method", lambda _method: None)
+    monkeypatch.setattr(
+        entry,
+        "load_identity_contract",
+        lambda: SimpleNamespace(triplet={}),
+    )
+    monkeypatch.setattr(
+        entry,
+        "load_run_dir_receipts",
+        lambda *args, **kwargs: (SimpleNamespace(session_epoch=1), None),
+    )
+
+    class Provider:
+        class SolverProfile:
+            def as_dict(self):
+                return {"backend": "test"}
+
+        solver_profile = SolverProfile()
+
+        def snapshot(self):
+            return {"state": "failed"}
+
+        def restore(self, _state):
+            return None
+
+    class EarlyEnd:
+        def arm(self, _sequence):
+            return None
+
+    class Writer:
+        _r013_path_early_end_controller = EarlyEnd()
+
+        def __init__(self):
+            self._controller_transport = object()
+            self.raw_observations = []
+            self.robot_observations = []
+            self.admission_robot_observations = []
+            self.rejected_robot_observations = []
+            self.command_observations = []
+
+        def install_timing_scheduler_lease(self, _lease):
+            return None
+
+        def prepare_timing_scheduler_lease(self):
+            return None
+
+    writer = Writer()
+
+    class Mature:
+        injection = SimpleNamespace(motion_profile=native_motion_profile())
+
+        def __init__(self):
+            self.writer = writer
+
+        def open(self, **_kwargs):
+            return None
+
+        def dispatch(self, *_args):
+            return None
+
+        def arm(self, *_args):
+            return None
+
+        def run_60s(self, _attempt):
+            raise RuntimeError("forced qualification fault")
+
+        def close(self):
+            return None
+
+    class Runtime:
+        def close(self):
+            return None
+
+    monkeypatch.setattr(
+        entry,
+        "build_native_yield_owner",
+        lambda **_kwargs: (Mature(), Runtime(), Provider(), None),
+    )
+    monkeypatch.setattr(
+        entry,
+        "stop_and_confirm",
+        lambda _writer: {"stopped": True},
+    )
+    recover_calls = []
+    monkeypatch.setattr(
+        entry,
+        "automatic_home_after_fault",
+        lambda **kwargs: recover_calls.append(kwargs),
+    )
+
+    with pytest.raises(RuntimeError, match="forced qualification fault"):
+        entry.run_live(args, kunwei_transport=object(), defer_recovery=True)
+
+    assert recover_calls == []
+    receipt = json.loads((tmp_path / "dispatch_receipt.json").read_text())
+    assert receipt["automatic_home_recovery_deferred"]["state"] == (
+        "DEFERRED_UNTIL_SINGLE_WRITER_RELEASE"
+    )
+
+
 def test_status_fresh_process_lists_native_identity_without_devices():
     interpreter = str(PYTHON if PYTHON.is_file() else sys.executable)
     env = dict(os.environ)

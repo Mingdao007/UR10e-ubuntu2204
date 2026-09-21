@@ -269,6 +269,7 @@ def run_live(
     now_s: float | None = None,
     owner_holder: list[Any] | None = None,
     observer_guard=None,
+    defer_recovery: bool = False,
 ) -> dict[str, Any]:
     if args.command not in {"qualify", "pilot"}:
         raise YieldLiveError(f"unknown live command {args.command!r}")
@@ -452,17 +453,29 @@ def run_live(
         # action after a physical fault; it never retries the failed attempt.
         physical_fault = bool(receipt.get("error")) or bool(errors) or not receipt.get("stop", {}).get("stopped")
         if physical_fault and controller_transport is None:
-            recovery = automatic_home_after_fault(
-                run_dir=Path(args.run_dir),
-                controller_host=args.controller_host,
-                video_url=video_url,
-            )
-            receipt["automatic_home_recovery"] = recovery
-            if recovery.get("success") is not True:
-                errors.append(
-                    "automatic_home: "
-                    + str(recovery.get("home_blocked_reason") or recovery.get("error") or recovery.get("state"))
+            if defer_recovery:
+                # The resident supervisor holds the process-wide writer lock
+                # around this call.  Its caller must release that lock before
+                # the independent monitored Home owner can acquire the same
+                # resource; otherwise recovery races its own lock and is
+                # reported BLOCKED even though the robot is commandable.
+                receipt["automatic_home_recovery_deferred"] = {
+                    "state": "DEFERRED_UNTIL_SINGLE_WRITER_RELEASE",
+                    "policy": "AUTO_HOME_WHEN_COMMANDABLE",
+                    "reason": "resident supervisor still owns the single-writer lock",
+                }
+            else:
+                recovery = automatic_home_after_fault(
+                    run_dir=Path(args.run_dir),
+                    controller_host=args.controller_host,
+                    video_url=video_url,
                 )
+                receipt["automatic_home_recovery"] = recovery
+                if recovery.get("success") is not True:
+                    errors.append(
+                        "automatic_home: "
+                        + str(recovery.get("home_blocked_reason") or recovery.get("error") or recovery.get("state"))
+                    )
         from dataclasses import asdict, is_dataclass
         def encode(value):
             if is_dataclass(value):

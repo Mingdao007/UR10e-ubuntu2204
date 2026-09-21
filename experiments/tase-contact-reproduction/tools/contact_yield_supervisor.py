@@ -362,7 +362,14 @@ def main(argv=None):
              '--controller-host',a.controller_host,'--kunwei-host',a.kunwei_host,
              '--control-cpu',str(a.control_cpu),'--attempt-id','r006-supervised-'+a.action]
         if a.action=='pilot':cli+=['--duration',a.duration]
-        return run_live(_parse_args(cli),observer_guard=lambda:s.check(identity=True))
+        return run_live(
+            _parse_args(cli),
+            observer_guard=lambda:s.check(identity=True),
+            # This function is called while the supervisor owns the global
+            # writer lock.  Defer monitored Home until the context below has
+            # released it; otherwise recovery collides with its own lock.
+            defer_recovery=True,
+        )
     with WriterLock(INSTALLED_LOCK):
         result=supervisor.run(
             body,

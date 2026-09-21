@@ -1,0 +1,23 @@
+{
+  "schema": "tase.recovery-workflow-lock-race-v1",
+  "claim_scope": "offline workflow repair bound to the supervised live entry; no new physical acceptance",
+  "observed_failure": {
+    "run": "runs/tase-qualification-unload-boost-20260921T1600",
+    "receipt_field": "automatic_home_recovery",
+    "state": "BLOCKED",
+    "reason": "another autotuner live writer holds the single-writer lock",
+    "later_evidence": "the same source attempt received a successful monitored Home on the bounded recovery retry"
+  },
+  "root_cause": "contact_yield_supervisor held the process-wide writer lock while run_live finally invoked the independent Home recovery owner",
+  "repair": {
+    "live_entry": "defer_recovery=True records a deferred handoff and does not acquire the recovery lock",
+    "supervisor": "invokes the existing monitored Home owner after the WriterLock context exits",
+    "safety_boundary": "single writer, STOP confirmation, Home geometry, fresh RTDE, force release, package/read-back, and Home verification are unchanged"
+  },
+  "verification": {
+    "test": "tests/test_contact_yield_live.py::test_supervisor_owned_writer_lock_defers_home_until_lock_release",
+    "result": "PASS",
+    "focused_suite": "22 passed, 1 deselected, 1 warning"
+  },
+  "physical_status": "no new live attempt; latest hardware state remains verified Home and stopped"
+}
