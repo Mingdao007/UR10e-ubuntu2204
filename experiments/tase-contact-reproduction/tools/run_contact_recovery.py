@@ -578,7 +578,7 @@ def run(args):
     if not args.execute:return {'success':False,'motion':False,'state':'read-only preflight passed','dashboard':dashboard_before,'source_protective_stop':source_protective}
     out.mkdir(parents=True)
     result={'success':False,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_attempt':str(source),'trial_stays_failed':True,'recovery_policy':RECOVERY_POLICY,'source_receipt_present':bool(source_receipt.get('receipt_present',True)),'source_armed':source_receipt.get('armed'),'source_protective_stop':source_protective,'dashboard_before':dashboard_before,'home_required':True,'recovery_owner_invoked':True,'home_commandability_checked':False,'home_attempted':False,'home_commandable':False,'home_motion_dispatched':False,'home_blocked':False}
-    obs=Observer(args.host);sensor=LiveR004KunweiTransport('192.168.50.25',port=5152);video=None;adapter=None;wrench_rows=[];last_sensor=None;last_force=None;plan=None;geometry=None;home_invoked=False
+    obs=Observer(args.host);sensor=LiveR004KunweiTransport('192.168.50.25',port=5152);video=None;adapter=None;wrench_rows=[];last_sensor=None;last_force=None;plan=None;geometry=None;geometry_scope=None;home_invoked=False
     lease=WriterLock(INSTALLED_LOCK);lease_held=False
     protective_unlock_attempted=False
 
@@ -604,6 +604,66 @@ def run(args):
             raise ValueError('Home is not commandable: contact force is not released')
         check_dashboard(args.host)
         result['home_commandable'] = True
+        if geometry_scope == 'vertical_relief_only':
+            # The initial pose can be too far laterally from Home for one
+            # calibrated Home package, even though the pure vertical relief
+            # is valid.  Release the relief owner first, then reuse the
+            # bounded segmented Home owner from the fresh clearance pose.
+            obs.close(); sensor.close()
+            if video is not None:
+                video.close(); video = None
+            if lease_held:
+                lease.__exit__(None, None, None); lease_held = False
+            from run_segmented_home_recovery import run as run_segmented_home
+            segmented_output = out / 'segmented-home'
+            segmented = run_segmented_home(SimpleNamespace(
+                output=segmented_output,
+                host=args.host,
+                video_url=args.video_url,
+                execute=True,
+            ))
+            result['segmented_home_recovery'] = segmented
+            result['home'] = segmented
+            result['home_attempted'] = True
+            result['home_motion_dispatched'] = bool(segmented.get('segments'))
+            if segmented.get('success') is not True:
+                result['success'] = False
+                result['state'] = 'BLOCKED'
+                result['home_blocked'] = True
+                result['home_blocked_reason'] = str(
+                    segmented.get('failure') or 'segmented Home recovery failed'
+                )
+                return segmented
+            # Segmented recovery binds a fresh package to each start pose.
+            # Restore the canonical Figure-eight Home triplet before the next
+            # experiment so package admission cannot see a dynamic recovery
+            # SHA. This is delivery/read-back only; it does not Load or Play.
+            restore_dir = out / 'canonical-home-restore'
+            restore_dir.mkdir(parents=False, exist_ok=False)
+            owner = Path('/home/andy/codex-private-skills-shared-main/skills')
+            restore_cmd = [
+                '/usr/bin/python3',
+                str(owner / 'ur10e-controller-access/scripts/ur10e_controller_ssh.py'),
+                'deploy-readback-triplet',
+                '--local-directory', str(PACKAGE_DIR),
+                '--basename', BASENAME,
+                '--controller-directory', DIRECTORY,
+                '--readback-directory', str(restore_dir),
+                '--confirm-deploy',
+            ]
+            restored = subprocess.run(
+                restore_cmd, check=True, capture_output=True, text=True, timeout=60
+            )
+            result['canonical_home_restore'] = {
+                'command': restore_cmd,
+                'stdout': restored.stdout,
+                'stderr': restored.stderr,
+                'readback_dir': str(restore_dir),
+            }
+            result['success'] = True
+            result['state'] = 'HOME_RECOVERED'
+            result['home_blocked'] = False
+            return segmented
         home=json.loads((Path(__file__).resolve().parents[1]/'report/contact-six-qp-20260917/preserved-home.json').read_text())
         home.pop('bounded_recovery',None);home.pop('bounded_withdrawal',None)
         home.update(
@@ -696,7 +756,22 @@ def run(args):
         result['direct_home_rejected']=bool(plan.get('direct_home_rejected', False))
         if plan.get('direct_home_rejection'):
             result['direct_home_rejection']=plan['direct_home_rejection']
-        geometry=check_geometry(row,plan);result['geometry']=geometry
+        try:
+            geometry=check_geometry(row,plan);result['geometry']=geometry
+        except ValueError as geometry_error:
+            # A low-Z pose can satisfy the vertical relief geometry while the
+            # full lateral Home transfer exceeds the calibrated joint-speed
+            # envelope. Keep that proof separate and defer the lateral move to
+            # the bounded segmented Home owner after force release.
+            if not plan.get('needs_lift') or 'recovery IK/speed check failed' not in str(geometry_error):
+                raise
+            relief_plan=dict(plan)
+            relief_plan['home_pose']=list(plan['lift_pose'])
+            geometry=check_geometry(row,relief_plan)
+            geometry_scope='vertical_relief_only'
+            result['geometry']=geometry
+            result['geometry_scope']=geometry_scope
+            result['deferred_full_home_geometry_error']=str(geometry_error)
         result['lift_guard']={
             'speed_limit_m_s': RECOVERY_LIFT_SPEED_LIMIT_M_S,
             'pure_policy_speed_limit_m_s': HOME_VERTICAL_SPEED_M_S,
