@@ -1,0 +1,37 @@
+{
+  "schema": "tase.figure8/canonical-home-v1",
+  "version": 1,
+  "status": "canonical_for_figure8_and_autotuner",
+  "home_profile_id": "step6.autotune/figure8-contact-derived-home-v1",
+  "pose_m_rad": [
+    0.4620551816,
+    0.1778825964,
+    0.03408876139925415,
+    3.120752062,
+    0.0,
+    0.068626833
+  ],
+  "orientation_rotvec_rad": [
+    3.120752062,
+    0.0,
+    0.068626833
+  ],
+  "source": {
+    "historical_worktree": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813",
+    "receipt": "experiments/tase-contact-reproduction/runs/step6_figure8_home_calibration_v1_20260816_201400/home_calibration_receipt.json",
+    "receipt_sha256": "1c34c27d33aae2e6d93e0dc3017e7c95099cbc15dea32c3faf0d9951b78028c9",
+    "live_home_profile": "step6.autotune/figure8-contact-derived-home-v1"
+  },
+  "reuse_policy": {
+    "applies_to": [
+      "Figure-eight path",
+      "Figure-eight autotuner",
+      "future Figure-eight recovery Home"
+    ],
+    "orientation_is_fixed": true,
+    "calibration_only_z_m": 0.0345,
+    "fixed_home_lineage_z_m": 0.033,
+    "canonical_contact_derived_z_m": 0.03408876139925415,
+    "do_not_silently_substitute": true
+  }
+}

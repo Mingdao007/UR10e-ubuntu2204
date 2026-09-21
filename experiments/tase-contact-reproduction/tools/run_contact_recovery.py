@@ -8,7 +8,7 @@ Dashboard unlock, followed by a fresh Safety NORMAL check. The only terminal
 alternative is ``BLOCKED`` when a Home command cannot safely be established or
 the Home owner itself fails; there is no revoke-only terminal disposition.
 """
-import argparse,copy,datetime,json,time
+import argparse,copy,datetime,json,subprocess,time
 from pathlib import Path
 from types import SimpleNamespace
 import numpy as np
@@ -464,6 +464,81 @@ def _wait_relief_stop_and_stationary(adapter, observer, host, *, timeout_s=5.0):
     )
 
 
+def _prepare_staged_home_package(output, current, geometry, contract, packages):
+    """Build and install the staged Home triplet after vertical relief.
+
+    The normal Home triplet intentionally keeps the direct 10 mrad corridor.
+    A staged recovery needs a fresh start pose and the separate 20 mrad
+    clearance corridor, so it must never reuse that direct package by name.
+    This operation runs while the recovery writer lease is still held and the
+    robot is stationary; it only uploads/read-backs a TP package and does not
+    Load or Play it.
+    """
+    from build_contact_home import build as build_contact_home
+    from contact_recovery_readback import fetch_recovery_readback
+
+    root = Path(output) / 'staged-home-package'
+    package_dir = root / 'package'
+    receipt_path = root / 'home-receipt.json'
+    package_dir.mkdir(parents=True, exist_ok=False)
+    preserved = json.loads(
+        (Path(__file__).resolve().parents[1]
+         / 'report/contact-six-qp-20260917/preserved-home.json').read_text()
+    )
+    preserved.pop('bounded_recovery', None)
+    preserved.pop('bounded_withdrawal', None)
+    preserved.update(
+        rtde=current,
+        home_pose=list(contract.home_pose),
+        home_q=geometry['home_q'],
+        clearance_entry=True,
+        bounded_recovery=True,
+        bounded_withdrawal=False,
+        recovery_route='staged_clearance_orientation',
+        direct_home_rejected=True,
+        direct_home_rejection='Home SO3 angle exceeds 10mrad',
+        recovery_source_attempt=str(output.parent),
+        actual_motion_performed=False,
+    )
+    receipt_path.write_text(json.dumps(preserved, indent=2) + '\n')
+    build_contact_home(receipt_path, package_dir)
+
+    deploy_readback = root / 'deploy-readback'
+    deploy_readback.mkdir()
+    owner = Path('/home/andy/codex-private-skills-shared-main/skills')
+    deploy_cmd = [
+        '/usr/bin/python3',
+        str(owner / 'ur10e-controller-access/scripts/ur10e_controller_ssh.py'),
+        'deploy-readback-triplet',
+        '--local-directory', str(package_dir),
+        '--basename', BASENAME,
+        '--controller-directory', DIRECTORY,
+        '--readback-directory', str(deploy_readback),
+        '--confirm-deploy',
+    ]
+    completed = subprocess.run(
+        deploy_cmd,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    (root / 'deploy-readback.json').write_text(
+        json.dumps({'command': deploy_cmd, 'stdout': completed.stdout, 'stderr': completed.stderr}, indent=2)
+        + '\n'
+    )
+    proof = fetch_recovery_readback(
+        root / 'proof', package_dir, basenames=(BASENAME,)
+    )
+    return {
+        'package_dir': package_dir,
+        'readback_dir': Path(proof) / 'readback' / BASENAME,
+        'validation': Path(proof) / f'{BASENAME}-validation.json',
+        'receipt': receipt_path,
+        'proof': Path(proof),
+    }
+
+
 def _retryable_relief_startup_fault(error, row, plan):
     """Recognize only the known one-frame downward startup transient."""
     if str(error) != RELIEF_STARTUP_RETRYABLE_ERROR:
@@ -542,6 +617,25 @@ def run(args):
             direct_home_rejection=plan.get('direct_home_rejection'),
         )
         home_receipt=out/'clearance-home.json';home_receipt.write_text(json.dumps(home,indent=2)+'\n')
+        home_package_dir=packages
+        home_readback_dir=Path(args.readback_dir)/BASENAME
+        home_validation=Path(args.readback_proof_dir)/f'{BASENAME}-validation.json'
+        if plan.get('staged_recovery'):
+            # The installed direct package has a deliberate 10 mrad guard.
+            # Bind and install a fresh staged triplet only after relief has
+            # produced a stationary clearance pose, then use its own proof.
+            staged_package=_prepare_staged_home_package(
+                out, current, geometry, contract, packages
+            )
+            home_package_dir=staged_package['package_dir']
+            home_readback_dir=staged_package['readback_dir']
+            home_validation=staged_package['validation']
+            result['staged_home_package']={
+                'package_dir':str(staged_package['package_dir']),
+                'readback_dir':str(staged_package['readback_dir']),
+                'validation':str(staged_package['validation']),
+                'receipt':str(staged_package['receipt']),
+            }
         # Never overlap the monitored relief writer and the independent Home
         # writer, even when this helper is entered from an exception path.
         obs.close();sensor.close()
@@ -552,7 +646,7 @@ def run(args):
         home_invoked=True
         result['home_attempted']=True
         result['home_motion_dispatched']=True
-        home_args=SimpleNamespace(host=args.host,home_receipt=home_receipt,validation=Path(args.readback_proof_dir)/f'{BASENAME}-validation.json',package_dir=packages,readback_dir=Path(args.readback_dir)/BASENAME,output=out/'home',execute=True)
+        home_args=SimpleNamespace(host=args.host,home_receipt=home_receipt,validation=home_validation,package_dir=home_package_dir,readback_dir=home_readback_dir,output=out/'home',execute=True)
         try:
             home_result=run_home(home_args)
         except BaseException as exc:
@@ -746,7 +840,11 @@ def recover_failed_contact_run(source_run, host, video_url):
     :func:`run` by the one-shot quiescence/unlock gate; a missing or pre-ARM
     dispatch receipt is also recoverable. A failure to establish the required
     physical proof is returned as ``success=False``/``BLOCKED`` and never
-    silently relabeled as a successful trial.
+    silently relabeled as a successful trial. The first action after the
+    writer has stopped is a direct Home-owner probe. Only a fresh geometry
+    proof that the robot is below the clearance floor or outside the direct
+    attitude corridor may fall through to the monitored staged-relief route;
+    readback/replay diagnostics stay after that recovery decision.
     """
     source=Path(source_run)
     output,previous_output,prior_success=_select_recovery_output(source)
@@ -758,6 +856,40 @@ def recover_failed_contact_run(source_run, host, video_url):
         prior_success.setdefault('recovery_output',str(output))
         return prior_success
     try:
+        # Home has priority over post-fault analysis. This probe is deliberately
+        # Home-only: it does not open Kunwei, start video, or run relief
+        # diagnostics. When the robot is already in the clearance corridor it
+        # can dispatch the sole Home owner immediately after the writer releases
+        # the lock.
+        if (PACKAGE_DIR/f'{BASENAME}.script').exists():
+            home_first_output=output.with_name(output.name+'-home-first')
+            home_first=_emergency_home_when_commandable(
+                source,
+                home_first_output,
+                host,
+                PACKAGE_DIR,
+                reason=ValueError('home-first recovery priority'),
+                previous_output=previous_output,
+            )
+            if home_first.get('success') is True:
+                home_first['recovery_phase']='HOME_FIRST_DIRECT'
+                home_first['diagnostics_deferred']=True
+                home_first['recovery_output']=str(home_first_output)
+                return home_first
+            # A low/contact pose or a direct attitude mismatch is the only
+            # expected reason to continue into staged relief. Any command,
+            # readback, or safety failure remains terminal; repeating it through
+            # a second owner would only delay the Home decision.
+            reason_text=str(home_first.get('home_blocked_reason',''))
+            staged_geometry_failure=(
+                'below the clearance-entry Home floor' in reason_text
+                or 'outside the clearance corridor' in reason_text
+            )
+            if not staged_geometry_failure:
+                home_first['recovery_phase']='HOME_FIRST_BLOCKED'
+                home_first['diagnostics_deferred']=True
+                home_first['recovery_output']=str(home_first_output)
+                return home_first
         if not (PACKAGE_DIR/f'{RELIEF_PROGRAM}.script').exists():
             return _emergency_home_when_commandable(
                 source,
@@ -768,6 +900,10 @@ def recover_failed_contact_run(source_run, host, video_url):
                 previous_output=previous_output,
             )
         result=run(SimpleNamespace(source_run=source,output=output,readback_proof_dir=None,readback_dir=None,package_dir=PACKAGE_DIR,host=host,video_url=video_url,execute=True))
+        if 'home_first' in locals():
+            result['home_first_probe']=home_first
+            result['recovery_phase']='STAGED_RELIEF_THEN_HOME'
+            result['diagnostics_deferred']=True
         if previous_output is not None:
             result['previous_recovery_output']=str(previous_output)
             result['recovery_output']=str(output)

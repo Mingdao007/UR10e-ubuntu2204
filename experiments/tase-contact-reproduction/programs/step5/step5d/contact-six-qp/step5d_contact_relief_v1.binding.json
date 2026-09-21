@@ -1,11 +1,11 @@
 {
   "basename": "step5d_contact_relief_v1",
-  "stamp": "2026-09-21T0654Z_CONTACT_RELIEF_V1",
+  "stamp": "2026-09-21T1151Z_CONTACT_RELIEF_V1",
   "controller_directory": "/programs/andyl/kunwei/step5",
   "vertical_speed_m_s": 0.04,
   "vertical_acceleration_m_s2": 0.06,
   "speed_basis": "step5d_autotune_start_hover_r001:segment-1/2/3",
   "max_rise_m": 0.015,
   "xy_or_attitude_motion": false,
-  "staged_recovery": true
+  "staged_recovery": false
 }

@@ -1,0 +1,50 @@
+{
+  "schema": "tase.figure8/canonical-home-receipt-v1",
+  "status": "PHYSICAL_HOME_RECOVERED_AND_CANONICALIZED",
+  "canonical_home_pose_m_rad": [
+    0.4620551816,
+    0.1778825964,
+    0.03408876139925415,
+    3.120752062,
+    0.0,
+    0.068626833
+  ],
+  "orientation_rotvec_rad": [3.120752062, 0.0, 0.068626833],
+  "profile_id": "step6.autotune/figure8-contact-derived-home-v1",
+  "historical_source": {
+    "campaign": "August R013 Step6 Figure-eight autotuner",
+    "receipt_sha256": "1c34c27d33aae2e6d93e0dc3017e7c95099cbc15dea32c3faf0d9951b78028c9"
+  },
+  "physical_move": {
+    "program": "step6_figure8_final_home_v1",
+    "package_readback": "runs/figure8-home-migration-20260921T113225Z/final-descent-readback/controller_readback_step6_figure8_final_home_v1_20260921_193715",
+    "result": "runs/figure8-home-migration-20260921T113225Z/live-final-descent-20260921T114200Z/result.json",
+    "final_position_error_m": 4.584612262930876e-05,
+    "final_orientation_error_rad": 5.284609916377011e-05,
+    "dashboard_after": {
+      "safetymode": "Safetymode: NORMAL",
+      "running": "Program running: false",
+      "programState": "STOPPED step6_figure8_final_home_v1.urp",
+      "is in remote control": "true"
+    },
+    "kunwei_connected": false,
+    "force_or_contact_claim": false
+  },
+  "post_upload_stationarity": "runs/figure8-home-migration-20260921T113225Z/post-upload-stationarity.json",
+  "formal_home_package": {
+    "local_dir": "programs/step5/step5d/contact-six-qp",
+    "controller_dir": "/programs/andyl/kunwei/step5",
+    "program": "step5d_contact_home_v1",
+    "script_sha256": "7750d45629c007ffa4eaeb79105ecfd8e51f86c4f3a92cabc468836557e9e008",
+    "txt_sha256": "e4f6cba1a0f77f3c75d669f73868ff2fc8b71194072980ae2f6da380fd651280",
+    "urp_sha256": "483d30b5a16f917226c46a5a01e10b3700a283c3dec25786ba3fbf86c93d6b76",
+    "readback_dir": "runs/figure8-home-migration-20260921T113225Z/formal-step5d-contact-home-readback/controller_readback_step5d_contact_home_v1_20260921_194023",
+    "loaded_and_stopped": "runs/figure8-home-migration-20260921T113225Z/canonical-home-package-loaded.json"
+  },
+  "scope": {
+    "applies_to": ["Figure-eight path", "Figure-eight autotuner", "future Figure-eight recovery Home"],
+    "calibration_only_z_m": 0.0345,
+    "fixed_home_lineage_z_m": 0.033,
+    "do_not_silently_substitute": true
+  }
+}

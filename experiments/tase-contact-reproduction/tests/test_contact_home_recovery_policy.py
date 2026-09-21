@@ -13,7 +13,9 @@ from contact_home_recovery_policy import (
 from contact_yield_math import so3_exp, so3_log
 
 
-HOME = np.array([0.4620551816, 0.1778825964, 0.033, 2.033134243, 2.394988424, 0.0])
+HOME = np.array(
+    [0.4620551816, 0.1778825964, 0.03408876139925415, 3.120752062, 0.0, 0.068626833]
+)
 IDENTITY = np.eye(3)
 NO_LOAD = np.zeros(6)
 QUIET_STD = np.array([0.02, 0.02, 0.02, 0.0, 0.0, 0.0])
@@ -272,8 +274,11 @@ def test_unloading_can_restore_raw_gravity_baseline_without_reload():
 
 def test_live_pressed_pose_is_admissible():
     start = HOME.copy()
-    start[:3] = (0.4857402899635676, 0.12817258727940375, 0.01899252813107509)
-    start[3:] = (-2.032044523779682, -2.3937358907701096, 0.0074394719065892425)
+    start[:3] = HOME[:3] + np.array((0.0236851083635676, -0.04971000912059625, -0.01400000000000000))
+    start[3:] = so3_log(
+        so3_exp(np.array((0.0074394719065892425, 0.0, 0.0)))
+        @ so3_exp(HOME[3:])
+    )
     home = HOME.copy()
     plan = plan_home_recovery(start, home)
     assert plan["needs_lift"] is True

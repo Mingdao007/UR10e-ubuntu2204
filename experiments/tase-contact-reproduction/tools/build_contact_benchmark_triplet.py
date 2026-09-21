@@ -42,6 +42,21 @@ def transform(source,home,stamp):
     body=body.replace('read_input_integer_register(24)', 'read_input_integer_register(36)')
     if 'read_input_integer_register(24)' in body or body.count('read_input_integer_register(36)') != 7:
         raise ValueError('native physical register allocation differs')
+    # Native Figure-eight uses one continuous ten-second qualification for
+    # each public run.  The inherited R012 template still carries the old
+    # three-qualification PATH admission in the post-baseline gate and in the
+    # PATH loop.  Keep the same command-mode and all force/velocity guards;
+    # change only the admission count to the already completed single gate.
+    single_admission_gate = 'read_input_integer_register(36) < 3 or read_input_integer_register(25) != 2'
+    single_admission_loop = 'read_input_integer_register(25) != 2 or read_input_integer_register(36) < 3'
+    if body.count(single_admission_gate) != 1 or body.count(single_admission_loop) != 1:
+        raise ValueError('single-admission PATH gate source differs')
+    body=body.replace(single_admission_gate,
+                      'read_input_integer_register(36) < 1 or read_input_integer_register(25) != 2',
+                      1)
+    body=body.replace(single_admission_loop,
+                      'read_input_integer_register(25) != 2 or read_input_integer_register(36) < 1',
+                      1)
     # A stop-only packet has no sensor measurement. Explicit STOP still means
     # external_stop in active loops; preserve any earlier terminal fault.
     guard='  if packet_reason != 0:\n    return packet_reason\n  elif read_input_float_register(27) < 0.5'

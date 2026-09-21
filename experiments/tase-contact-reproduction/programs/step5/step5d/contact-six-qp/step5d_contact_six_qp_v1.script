@@ -1,4 +1,4 @@
-# VERSION: 2026-09-21T0948Z_CONTACT_SIX_QP_V1_618001
+# VERSION: 2026-09-21T1213Z_CONTACT_SIX_QP_V1_618001
 # ROLE: six-law shared-QP preparation; requires matching host owner 618001
 # CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm
 # CONTACT_SEARCH: constant 0.0002m/s; travel<=0.015m; timeout=90s; original Home XYZ with current aligned attitude
@@ -26,7 +26,7 @@
 # FRESHNESS_FAILURE: equal changed payload, regression, or held age >= 0.080s => reason 43
 # LATCH_TIMING: pre-latch <= 20.0s, separate post-latch <= 30.0s
 # FIXED_HOME_PROFILE: step5d.autotune-v4/r006-fixed-home-v1
-# FIXED_HOME_POSE: p[0.462055181600, 0.177882596400, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
+# FIXED_HOME_POSE: p[0.462055181600, 0.177882596400, 0.034088761399, 3.120752062000, 0.000000000000, 0.068626833000]
 # HOME_ENTRY: position <= 0.001m, orientation <= 0.010rad, q <= 0.020rad
 # HOME_ENTRY_FAILURE: 69 ATTEMPT_ENTRY_NOT_CAPTURED_HOME; attempt bounded Home recovery
 # RETURN: B3 Wave2b two-segment adaptive to home_z a=0.060 v=0.040; XY a=0.135 v=0.090; no +5mm third descend
@@ -772,7 +772,7 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
   if kind == 1 or baseline_mode == 3:
     return codex_r006_return_home(home_pose, home_q, epoch, ordinal, token, kind, consumed, runtime_revision, runtime_extension, 0)
   end
-  if read_input_integer_register(36) < 3 or read_input_integer_register(25) != 2:
+  if read_input_integer_register(36) < 1 or read_input_integer_register(25) != 2:
     return codex_r006_fault(epoch, ordinal, token, kind, consumed, 50, runtime_revision, runtime_extension)
   end
 
@@ -795,7 +795,7 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       guard = codex_r006_packet_guard(packet_reason, 20.0, 20.0, 2.0)
       if guard != 0:
         return codex_r006_fault(epoch, ordinal, token, kind, consumed, guard, runtime_revision, runtime_extension)
-      elif read_input_integer_register(25) != 2 or read_input_integer_register(36) < 3:
+      elif read_input_integer_register(25) != 2 or read_input_integer_register(36) < 1:
         return codex_r006_fault(epoch, ordinal, token, kind, consumed, 50, runtime_revision, runtime_extension)
       end
       local path_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
@@ -814,7 +814,7 @@ end
 def step5d_contact_six_qp_v1():
   # Script1 owns the verified V4 EOAT setup.  This resident Script2 performs no EOAT writes.
   # Cartesian Home is fixed by the EOAT-bound profile; it is never captured at Play.
-  local fixed_home_pose = p[0.462055181600, 0.177882596400, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
+  local fixed_home_pose = p[0.462055181600, 0.177882596400, 0.034088761399, 3.120752062000, 0.000000000000, 0.068626833000]
   local locked_home_q = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local locked_home_q_valid = False
   local runtime_revision = 21

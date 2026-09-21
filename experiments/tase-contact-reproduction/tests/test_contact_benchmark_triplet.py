@@ -21,6 +21,10 @@ def test_triplet_preserves_home_xyz_and_has_narrow_common_caps(tmp_path):
     assert 'travel >= 0.015000000' in s
     assert 'local v_far_m_s = 0.000200000' in s
     assert 'local v_near_m_s = 0.000200000' in s
+    assert 'read_input_integer_register(36) < 1 or read_input_integer_register(25) != 2' in s
+    assert 'read_input_integer_register(25) != 2 or read_input_integer_register(36) < 1' in s
+    assert 'read_input_integer_register(36) < 3 or read_input_integer_register(25) != 2' not in s
+    assert 'read_input_integer_register(25) != 2 or read_input_integer_register(36) < 3' not in s
     assert 'p[0.487834547000, 0.129337053000, 0.033000000000' in s
     assert 'pose_trans(pose_inv(expected), actual)' in s
     xml=ET.fromstring(gzip.decompress((out/f'{BASENAME}.urp').read_bytes()))

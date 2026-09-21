@@ -45,12 +45,13 @@ def {RELIEF_PROGRAM}():
   local distance = sqrt(dx*dx + dy*dy + dz*dz)
   local turn = pose_trans(pose_inv(target_pose), current_pose)
   local angle = sqrt(turn[3]*turn[3] + turn[4]*turn[4] + turn[5]*turn[5])
-  if distance > 0.080 or angle > {0.020 if staged_recovery else 0.010:.3f} or current_pose[2] < 0.018 or current_pose[2] > 0.034:
+  local target_z = target_pose[2]
+  if distance > 0.080 or angle > {0.020 if staged_recovery else 0.010:.3f} or current_pose[2] < 0.018 or current_pose[2] > target_z + 0.001:
     textmsg("contact_relief: initial geometry rejected")
     halt
   end
-  if current_pose[2] < 0.033:
-    local rise_pose = p[current_pose[0], current_pose[1], 0.033, current_pose[3], current_pose[4], current_pose[5]]
+  if current_pose[2] < target_z:
+    local rise_pose = p[current_pose[0], current_pose[1], target_z, current_pose[3], current_pose[4], current_pose[5]]
     movel(rise_pose, a={RELIEF_ACCEL_M_S2:.3f}, v={RELIEF_SPEED_M_S:.3f}, r=0.0)
     stopl(0.1)
   end

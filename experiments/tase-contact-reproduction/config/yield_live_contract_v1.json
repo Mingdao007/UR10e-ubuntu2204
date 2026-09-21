@@ -19,12 +19,12 @@
   "home_pose_m_rad": [
     0.4620551816,
     0.1778825964,
-    0.033,
-    2.0331342431227566,
-    2.3949884238824652,
-    -2.2711768777011217e-22
+    0.03408876139925415,
+    3.120752062,
+    0.0,
+    0.068626833
   ],
-  "home_profile_id": "yield-live-entry/figure8-home-v1",
+  "home_profile_id": "step6.autotune/figure8-contact-derived-home-v1",
   "guards": {
     "raw_force_n": 20.0,
     "raw_torque_nm": 2.0,

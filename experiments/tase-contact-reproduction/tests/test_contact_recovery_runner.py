@@ -273,6 +273,107 @@ def test_recovery_reuses_completed_home_receipt(tmp_path, monkeypatch):
     assert result['recovery_output']==str(prior)
 
 
+def test_recovery_dispatches_direct_home_before_staged_diagnostics(tmp_path, monkeypatch):
+    packages = tmp_path / 'packages'
+    packages.mkdir()
+    (packages / f'{runner.BASENAME}.script').write_text('home')
+    source = tmp_path / 'source'
+    source.mkdir()
+    monkeypatch.setattr(runner, 'PACKAGE_DIR', packages)
+    events = []
+
+    def home_first(*args, **kwargs):
+        events.append('home-first')
+        return {'success': True, 'state': 'HOME_RECOVERED', 'home_attempted': True}
+
+    monkeypatch.setattr(runner, '_emergency_home_when_commandable', home_first)
+    monkeypatch.setattr(runner, 'run', lambda *_: pytest.fail('staged diagnostics must wait'))
+
+    result = runner.recover_failed_contact_run(source, 'fake', 'fake')
+
+    assert events == ['home-first']
+    assert result['success'] is True
+    assert result['recovery_phase'] == 'HOME_FIRST_DIRECT'
+    assert result['diagnostics_deferred'] is True
+
+
+def test_recovery_enters_staged_route_only_after_direct_geometry_rejection(tmp_path, monkeypatch):
+    packages = tmp_path / 'packages'
+    packages.mkdir()
+    (packages / f'{runner.BASENAME}.script').write_text('home')
+    (packages / f'{runner.RELIEF_PROGRAM}.script').write_text('relief')
+    source = tmp_path / 'source'
+    source.mkdir()
+    monkeypatch.setattr(runner, 'PACKAGE_DIR', packages)
+    events = []
+
+    def home_first(*args, **kwargs):
+        events.append('home-first')
+        return {
+            'success': False,
+            'state': 'BLOCKED',
+            'home_blocked_reason': 'current TCP is below the clearance-entry Home floor',
+        }
+
+    def staged(*args, **kwargs):
+        events.append('staged')
+        return {'success': True, 'state': 'HOME_RECOVERED', 'home_attempted': True}
+
+    monkeypatch.setattr(runner, '_emergency_home_when_commandable', home_first)
+    monkeypatch.setattr(runner, 'run', staged)
+
+    result = runner.recover_failed_contact_run(source, 'fake', 'fake')
+
+    assert events == ['home-first', 'staged']
+    assert result['success'] is True
+    assert result['recovery_phase'] == 'STAGED_RELIEF_THEN_HOME'
+    assert result['diagnostics_deferred'] is True
+    assert result['home_first_probe']['home_blocked_reason'].startswith('current TCP')
+
+
+def test_staged_home_package_is_pose_bound_and_readback_gated(tmp_path, monkeypatch):
+    current = {
+        'actual_TCP_pose': list(HOME),
+        'actual_TCP_speed': [0.] * 6,
+        'actual_q': [0.] * 6,
+        'actual_qd': [0.] * 6,
+        'tcp_offset': [0., 0., .0874, 0., 0., 0.],
+        'payload': .413,
+        'payload_cog': [.0011, .0031, .0163],
+        'safety_status_bits': 1,
+        'timestamp': 1.,
+    }
+    contract = SimpleNamespace(home_pose=HOME)
+    geometry = {'home_q': [0.] * 6}
+    calls = []
+
+    def fake_fetch(proof, package, *, basenames):
+        proof = Path(proof)
+        (proof / 'readback' / runner.BASENAME).mkdir(parents=True)
+        (proof / f'{runner.BASENAME}-validation.json').write_text(json.dumps({
+            'pass': True,
+            'state': 'controller read-back verified',
+            'basename': runner.BASENAME,
+        }))
+        return proof
+
+    monkeypatch.setattr('contact_recovery_readback.fetch_recovery_readback', fake_fetch)
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(stdout='deploy ok', stderr='')
+
+    monkeypatch.setattr(runner.subprocess, 'run', fake_run)
+    result = runner._prepare_staged_home_package(
+        tmp_path / 'recovery', current, geometry, contract, tmp_path / 'packages'
+    )
+    script = (result['package_dir'] / f'{runner.BASENAME}.script').read_text()
+    assert 'home_angle > 0.020' in script
+    assert 'movel(transfer_pose, a=0.030, v=0.020' in script
+    assert calls[0][2] == 'deploy-readback-triplet'
+    assert result['validation'].exists()
+
+
 def test_commandable_playing_race_is_stopped_before_home_preflight(monkeypatch):
     rows = [
         {

@@ -1,0 +1,54 @@
+{
+  "claim_scope": "open-loop provider replay of recorded baseline inputs; no prediction of new physical force, qualification, or PATH acceptance",
+  "created_at": "2026-09-21T20:25:00+08:00",
+  "interpretation": "The candidate halves the provider-side baseline command and its realized joint speed on the fixed recorded input stream. The recorded force and readiness are intentionally unchanged in this open-loop replay, so no physical improvement is inferred. This is a new bounded diagnostic change for at most one fresh live qualification; all gates remain unchanged.",
+  "next_gate": "fresh package/read-back and machine admission, then one full owner attempt with automatic Home; failure remains in the denominator",
+  "profiles": {
+    "candidate": {
+      "force_error_gain_m_s_per_n": 0.0001767766953,
+      "normal_speed_cap_m_s": 0.00025,
+      "profile_id": "tase-fixed-baseline-normal-damped-v1"
+    },
+    "previous": {
+      "force_error_gain_m_s_per_n": 0.0003535533906,
+      "normal_speed_cap_m_s": 0.0005,
+      "profile_id": "tase-fixed-baseline-normal-v1"
+    }
+  },
+  "replay": {
+    "candidate": {
+      "longest_ready_s": 0.128,
+      "qdot_max_rad_s": 0.0007696273179954,
+      "ready_fraction": 0.6275478260869565,
+      "ready_ticks": 9021,
+      "recorded_force_norm_peak_n": 7.936645588085994,
+      "speed_abs_max_m_s": 0.00025
+    },
+    "dt_policy": "recorded baseline ordering with fixed 2 ms controller dt for the offline provider seam; no device I/O",
+    "previous": {
+      "longest_ready_s": 0.128,
+      "qdot_max_rad_s": 0.0015392546359908,
+      "ready_fraction": 0.6275478260869565,
+      "ready_ticks": 9021,
+      "recorded_force_norm_peak_n": 7.936645588085994,
+      "speed_abs_max_m_s": 0.0005
+    },
+    "ticks": 14375
+  },
+  "schema": "tase.baseline-speed-damping-replay-v1",
+  "source_hashes": {
+    "provider": "efd83fe317c4723edf32efd83ca88db4b6457ad375c7854016f4817a4cc40d95",
+    "published_packets": "41e40db4d38d69bbd3c35e758c7d3618d80419cec259b516813f76a2564c748a",
+    "raw_sensor": "23378606c314d1dffe9959381a2791217d6e24ddc842f0ea5437ffa7d8ac76a8",
+    "robot_frames": "841788d4ca1fae0818a30430a3e40fb87bb7a6d096226e561dc5b55455028372"
+  },
+  "source_run": "runs/figure8-canonical-20260921T194800Z",
+  "trigger": {
+    "baseline_samples": 14955,
+    "failure": "resident TP reason 48 after 30 s baseline acquisition",
+    "filtered_peak_n": 4.621332314436757,
+    "force_norm_peak_n": 7.936645588085994,
+    "readiness_force_norm_ceiling_n": 7.0,
+    "readiness_samples": 9376
+  }
+}

@@ -18,6 +18,20 @@ from contact_yield_live_writer import native_motion_profile, _prewarm_observatio
 from contact_yield_live_contract import load_identity_contract
 
 
+# A calibrated IK solution at the canonical Figure-eight Home.  The prior
+# synthetic all-zero joint vector placed the RNN at a UR10e singular
+# configuration and made the path warm-start assertion depend on an
+# impossible bench state.
+CANONICAL_HOME_Q = (
+    0.7452071915341404,
+    -1.8180657673475784,
+    -2.5627204525097316,
+    -0.3123084932568952,
+    1.527618967738308,
+    5.459402166676702,
+)
+
+
 @pytest.fixture
 def provider():
     p = TaseContactProvider(contract=current_model_binding(), candidate=V4Candidate(),
@@ -28,7 +42,11 @@ def provider():
 
 
 def tick(p, now, *, elapsed=None, force=1.):
-    o,s = _prewarm_observation(pose=load_identity_contract().home_pose, q=(0.,)*6, monotonic_s=now)
+    o,s = _prewarm_observation(
+        pose=load_identity_contract().home_pose,
+        q=CANONICAL_HOME_Q,
+        monotonic_s=now,
+    )
     o.stationary = True
     s = replace(s, wrench=(0.,0.,-force,0.,0.,0.), filtered_normal_n=force)
     return o,s
@@ -158,7 +176,7 @@ def test_live_tase_baseline_uses_fixed_normal_primitive(provider, monkeypatch):
     assert realized[2] < 0.0
     assert abs(float(realized[2])) <= 0.0005 + 1e-12
     assert provider.last_result['baseline_primitive_speed_m_s'] == pytest.approx(
-        0.0003535533906, abs=1e-12
+        0.0001767766953, abs=1e-12
     )
     assert provider.last_result['baseline_normal_projection_applied'] is False
     assert provider.last_result['force_preempt_warm_start'] is False
@@ -208,8 +226,8 @@ def test_live_tase_baseline_uses_measured_envelope_for_bounded_outward_speed(pro
         internal_setpoint_n=1.,
     )
     assert provider.last_result['baseline_normal_unload_boost'] is False
-    assert provider.last_result['baseline_primitive_speed_m_s'] == pytest.approx(-.0005)
-    assert provider.last_result['predicted_approach_normal_velocity_m_s'] == pytest.approx(-.0005)
+    assert provider.last_result['baseline_primitive_speed_m_s'] == pytest.approx(-.00025)
+    assert provider.last_result['predicted_approach_normal_velocity_m_s'] == pytest.approx(-.00025)
 
 
 def test_live_tase_force_preempt_rearms_after_low_force_episode(provider):
@@ -243,6 +261,19 @@ def test_live_tase_force_preempt_rearms_after_low_force_episode(provider):
     )
 
 
+def test_tase_projection_binds_final_qdot_and_preserves_provider_qdot(provider):
+    provider.last_result = {
+        'qdot_rad_s': (0.1, 0.2, 0.3, 0.4, 0.5, 0.6),
+    }
+    provider.record_final_qdot((0.01, 0.02, 0.03, 0.04, 0.05, 0.06))
+    assert provider.last_result['provider_qdot_rad_s'] == (
+        0.1, 0.2, 0.3, 0.4, 0.5, 0.6
+    )
+    assert provider.last_result['qdot_rad_s'] == (
+        0.01, 0.02, 0.03, 0.04, 0.05, 0.06
+    )
+
+
 def test_live_tase_force_rise_guard_keeps_fixed_baseline_primitive_bounded(provider):
     def run(now, force, filtered=None, setpoint=1.0):
         o, s = tick(provider, now, force=force)
@@ -267,8 +298,8 @@ def test_live_tase_force_rise_guard_keeps_fixed_baseline_primitive_bounded(provi
     assert provider.last_result['force_preempt_warm_start'] is False
     assert provider.last_result['force_preempt_direction_retry'] is False
     assert provider.last_result['force_rise_inward_cap_applied'] is False
-    assert abs(provider.last_result['baseline_primitive_speed_m_s']) <= 0.0005 + 1e-12
-    assert abs(provider.last_result['predicted_approach_normal_velocity_m_s']) <= 0.0005 + 1e-12
+    assert abs(provider.last_result['baseline_primitive_speed_m_s']) <= 0.00025 + 1e-12
+    assert abs(provider.last_result['predicted_approach_normal_velocity_m_s']) <= 0.00025 + 1e-12
 
 
 def test_stale_observation_does_not_advance_control_state(provider):

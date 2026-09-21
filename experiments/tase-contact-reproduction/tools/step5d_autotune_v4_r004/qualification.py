@@ -771,6 +771,11 @@ class CanonicalQualificationControl:
                             scale=projection_scale,
                             original_gate=original_gate,
                         )
+                    record_final_qdot = getattr(
+                        self.contact_command_provider, "record_final_qdot", None
+                    )
+                    if callable(record_final_qdot):
+                        record_final_qdot(tuple(float(value) for value in pre_gate.qdot))
             else:
                 desired_twist = self._runtime.desired_twist(
                     actual_tcp_pose=output.tcp_pose_m_rad,

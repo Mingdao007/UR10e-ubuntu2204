@@ -21,10 +21,12 @@ HOME_SOURCE=ROOT/'programs/step5/step5d/step5d_autotune_start_hover_r001.script'
 # is a different measured case: the first live attempt reached 57.7 mrad/s
 # angular TCP speed at that command, above the 40 mrad/s admission guard.
 # Keep the guard unchanged and lower only the staged transfer command so the
-# observed motion stays inside the existing envelope. Direct Home retains the
-# historical transfer speed.
-STAGED_TRANSFER_SPEED_M_S = 0.040
-STAGED_TRANSFER_ACCEL_M_S2 = 0.060
+# observed motion stays inside the existing envelope. The first staged retry
+# at 40 mm/s reached 0.04487 rad/s TCP angular speed against the unchanged
+# 0.040 rad/s guard; 20 mm/s adds margin without changing the guard. Direct
+# Home retains the historical transfer speed.
+STAGED_TRANSFER_SPEED_M_S = 0.020
+STAGED_TRANSFER_ACCEL_M_S2 = 0.030
 
 
 def recovery_geometry(home):
@@ -70,6 +72,14 @@ def build(receipt,output):
     pose='p['+', '.join(f'{x:.12f}' for x in target)+']'
     text=re.sub(r'local target_pose = p\[[^\]]+\]',f'local target_pose = {pose}',text)
     text=re.sub(r'^# TARGET_POSE: .*$',f'# TARGET_POSE: {pose}',text,flags=re.M)
+    # The historical helper used a literal 0.033 m clearance floor for the
+    # final descent.  Bind that segment to the requested target so the
+    # contact-derived Figure-eight Home (0.034088761399 m) is actually the
+    # final verified pose rather than being pulled below its contract.
+    text=text.replace(
+        'local descent_pose = p[target_pose[0], target_pose[1], 0.033000000, target_pose[3], target_pose[4], target_pose[5]]',
+        'local descent_pose = p[target_pose[0], target_pose[1], target_pose[2], target_pose[3], target_pose[4], target_pose[5]]',
+    )
     transfer_speed = STAGED_TRANSFER_SPEED_M_S if recovery is not None else HOME_TRANSFER_SPEED_M_S
     transfer_accel = STAGED_TRANSFER_ACCEL_M_S2 if recovery is not None else HOME_TRANSFER_ACCEL_M_S2
     # Preserve the historical three-segment helper profile for direct Home.
@@ -91,7 +101,7 @@ def build(receipt,output):
     if recovery is not None or withdrawal is not None:
         first,rest=text.split('\n',1)
         description='vertical withdrawal within the 15mm search envelope' if withdrawal is not None else 'translation<=3mm turn<=20mrad'
-        text=first+'\n# BOUNDED_RECOVERY: observed start to approved Home; '+description+'; historical v=0.040/0.090 m/s\n'+rest
+        text=first+'\n# BOUNDED_RECOVERY: observed start to approved Home; '+description+'; staged v=0.020 m/s, historical direct v=0.090 m/s\n'+rest
     marker='  local safe_transfer_z = 0.033000000\n'
     initial='p['+', '.join(f'{x:.12f}' for x in observed)+']'
     guard=f'''  # Bind the initial pose to the fresh stationary read; reject an intervening move.

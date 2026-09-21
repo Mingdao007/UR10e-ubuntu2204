@@ -1,12 +1,13 @@
 """Reuse the existing Figure-eight planar geometry independently of tool attitude."""
 import numpy as np
 from contact_yield_math import require_rotation
+from figure8_home_config import CANONICAL_FIGURE8_HOME_POSE
 from step6_figure8_autotune_v1.live_composition import (
     FIGURE8_ALONG_BASE, FIGURE8_LATERAL_BASE, FIGURE8_CALIBRATION_HOME_POSE,
 )
 
 
-FIGURE8_CONTACT_HOME_XYZ_M = (*FIGURE8_CALIBRATION_HOME_POSE[:2], 0.033)
+FIGURE8_CONTACT_HOME_XYZ_M = tuple(CANONICAL_FIGURE8_HOME_POSE[:3])
 
 def figure8_task_basis():
     along = np.asarray(FIGURE8_ALONG_BASE, dtype=float)

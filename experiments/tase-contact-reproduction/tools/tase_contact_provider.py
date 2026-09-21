@@ -50,8 +50,14 @@ TASE_BASELINE_ANGULAR_TOLERANCE_RAD_S = 2e-6
 # tunable TASE outer loop: the qualification ramp owns only a 1-to-5 N
 # setpoint, while the primitive realizes a pure normal velocity capped at
 # 0.5 mm/s and leaves the RNN/outer-loop state frozen until PATH.
-TASE_BASELINE_FORCE_P_GAIN_M_S_PER_N = 0.0003535533906
-TASE_BASELINE_NORMAL_SPEED_CAP_M_S = 0.0005
+# The contact-acquisition primitive is deliberately slower than the shared
+# Cartesian safety ceiling.  The previous 0.5 mm/s realization repeatedly
+# reached the ceiling before the readiness window could settle on the current
+# canonical Figure-eight Home.  This bounded profile changes only the approach
+# command; all force, timing, joint, slew, and readiness gates remain owned by
+# their existing layers.
+TASE_BASELINE_FORCE_P_GAIN_M_S_PER_N = 0.0001767766953
+TASE_BASELINE_NORMAL_SPEED_CAP_M_S = 0.00025
 
 TASE_PARAMETER_SCHEMA = 'tase.outer-parameters-v1'
 TASE_OUTER_SEARCH_BOUNDS = {
@@ -102,6 +108,11 @@ TASE_PAPER_OUTER_BINDING = {
         'schema': 'tase-fixed-baseline-normal-v1',
         'force_error_gain_m_s_per_n': TASE_BASELINE_FORCE_P_GAIN_M_S_PER_N,
         'normal_speed_cap_m_s': TASE_BASELINE_NORMAL_SPEED_CAP_M_S,
+        'profile_id': 'tase-fixed-baseline-normal-damped-v1',
+        'previous_profile': {
+            'force_error_gain_m_s_per_n': 0.0003535533906,
+            'normal_speed_cap_m_s': 0.0005,
+        },
         'xy_velocity_m_s': [0.0, 0.0],
         'angular_velocity_rad_s': [0.0, 0.0, 0.0],
         'rnn_state': 'frozen_until_path',
@@ -339,6 +350,19 @@ class TaseContactProvider(ContactCommandProvider):
             'tangential_m_s': float(original_gate.tangential_m_s),
             'angular_rad_s': float(original_gate.angular_rad_s),
         }
+
+    def record_final_qdot(self, qdot):
+        """Bind the final projected Jqdot to the applied provider command."""
+
+        if not isinstance(self.last_result, dict):
+            raise ValueError('TASE final qdot requires a committed command result')
+        values = tuple(float(value) for value in qdot)
+        if len(values) != 6 or not all(math.isfinite(value) for value in values):
+            raise ValueError('TASE final qdot is invalid')
+        self.last_result.setdefault(
+            'provider_qdot_rad_s', tuple(self.last_result.get('qdot_rad_s', ()))
+        )
+        self.last_result['qdot_rad_s'] = values
 
     def pause(self, *, output, sensor, monotonic_s, actual_dt_s, reason):
         obs = self._observe(output, sensor, monotonic_s, actual_dt_s)

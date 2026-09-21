@@ -44,11 +44,11 @@ def test_recovery_reuses_historical_generated_motion(tmp_path):
     result=build(p,out);text=(out/f'{BASENAME}.script').read_text()
     assert text.startswith('# VERSION:')
     assert 'movel(rise_pose, a=0.060, v=0.040, r=0.0)' in text
-    assert 'movel(transfer_pose, a=0.060, v=0.040, r=0.0)' in text
+    assert 'movel(transfer_pose, a=0.030, v=0.020, r=0.0)' in text
     assert 'movel(descent_pose, a=0.060, v=0.040, r=0.0)' in text
-    assert result['numeric_sanity']['speed_m_s']==.04
+    assert result['numeric_sanity']['speed_m_s']==.02
     assert result['numeric_sanity']['segment_1_speed_m_s']==.04
-    assert result['numeric_sanity']['segment_2_speed_m_s']==.04
+    assert result['numeric_sanity']['segment_2_speed_m_s']==.02
     assert result['numeric_sanity']['speed_basis'].startswith('step5d_autotune_start_hover_r001')
     assert 'v=0.0005' not in text and 'v=0.002' not in text
     assert result['home_pose']==h['home_pose']
