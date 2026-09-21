@@ -35,6 +35,8 @@ class ReplayRecord:
     qp_feasible: bool
     slew_ok: bool
     safety_ok: bool
+    first_sample_latency_ms: float | None = None
+    send_wrapper_latency_ms: float | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,100 @@ class ProfileReplayResult:
         if not values:
             return float("nan")
         return values[max(0, math.ceil(0.99 * len(values)) - 1)]
+
+    @staticmethod
+    def _distribution(values: Sequence[float], total: int) -> dict[str, Any]:
+        present = sorted(float(value) for value in values)
+        missing = int(total) - len(present)
+        if not present:
+            return {
+                "status": "missing",
+                "count": 0,
+                "missing_count": missing,
+                "min": None,
+                "max": None,
+                "mean": None,
+                "p99": None,
+            }
+        return {
+            "status": "complete" if missing == 0 else "partial",
+            "count": len(present),
+            "missing_count": missing,
+            "min": present[0],
+            "max": present[-1],
+            "mean": statistics.fmean(present),
+            "p99": present[max(0, math.ceil(0.99 * len(present)) - 1)],
+        }
+
+    def latency_stats(self, field: str) -> dict[str, Any]:
+        if field not in {"first_sample_latency_ms", "send_wrapper_latency_ms"}:
+            raise ProfileReplayError(f"unknown optional latency field {field!r}")
+        values = [
+            float(getattr(record, field))
+            for record in self.records
+            if getattr(record, field) is not None
+        ]
+        return self._distribution(values, len(self.records))
+
+    @property
+    def first_sample_latency_stats(self) -> dict[str, Any]:
+        return self.latency_stats("first_sample_latency_ms")
+
+    @property
+    def send_wrapper_latency_stats(self) -> dict[str, Any]:
+        return self.latency_stats("send_wrapper_latency_ms")
+
+    @property
+    def control_interval_stats(self) -> dict[str, Any]:
+        return self._distribution(
+            [record.control_interval_s for record in self.records], len(self.records)
+        )
+
+    @property
+    def residual_stats(self) -> dict[str, Any]:
+        return self._distribution([record.residual for record in self.records], len(self.records))
+
+    def constraint_stats(self) -> dict[str, Any]:
+        total = len(self.records)
+        def boolean(name: str) -> dict[str, Any]:
+            true_count = sum(bool(getattr(record, name)) for record in self.records)
+            return {
+                "status": "complete" if true_count == total else "failed",
+                "true_count": true_count,
+                "false_count": total - true_count,
+                "all_true": true_count == total,
+            }
+        qdot_bound_violations = sum(
+            any(abs(value) > self.profile.qdot_limit_rad_s + 1e-12 for value in record.qdot)
+            for record in self.records
+        )
+        return {
+            "qdot": {
+                "max_abs_rad_s": max(
+                    (abs(value) for record in self.records for value in record.qdot),
+                    default=None,
+                ),
+                "bound_limit_rad_s": self.profile.qdot_limit_rad_s,
+                "bound_violation_count": qdot_bound_violations,
+                "finite": all(
+                    math.isfinite(value) for record in self.records for value in record.qdot
+                ),
+            },
+            "qp": boolean("qp_feasible"),
+            "slew": boolean("slew_ok"),
+            "safety": boolean("safety_ok"),
+        }
+
+    def convergence_stats(self) -> dict[str, Any]:
+        converged = sum(record.converged for record in self.records)
+        return {
+            "status": "complete" if converged == len(self.records) else "partial",
+            "converged_count": converged,
+            "nonconverged_count": len(self.records) - converged,
+            "convergence_fraction": (
+                converged / len(self.records) if self.records else None
+            ),
+        }
 
     @property
     def safety_ok(self) -> bool:
@@ -65,6 +161,12 @@ class ProfileReplayResult:
             "input_digest": self.input_digest,
             "samples": len(self.records),
             "p99_compute_ms": self.p99_compute_ms,
+            "first_sample_latency_ms": self.first_sample_latency_stats,
+            "send_wrapper_latency_ms": self.send_wrapper_latency_stats,
+            "control_interval_stats": self.control_interval_stats,
+            "residual_stats": self.residual_stats,
+            "convergence": self.convergence_stats(),
+            "constraints": self.constraint_stats(),
             "safety_ok": self.safety_ok,
             "records": [record.__dict__ for record in self.records],
         }
@@ -88,6 +190,15 @@ def _record_from_mapping(value: Mapping[str, Any]) -> ReplayRecord:
             raise ProfileReplayError(f"replay field {name} is not finite")
         return result
 
+    def optional_latency(name: str) -> float | None:
+        raw = value.get(name)
+        if raw is None:
+            return None
+        result = float(raw)
+        if not math.isfinite(result) or result < 0.0:
+            raise ProfileReplayError(f"replay field {name} is not a finite nonnegative latency")
+        return result
+
     return ReplayRecord(
         output=vector("output"),
         state=vector("state"),
@@ -99,6 +210,8 @@ def _record_from_mapping(value: Mapping[str, Any]) -> ReplayRecord:
         qp_feasible=value.get("qp_feasible") is True,
         slew_ok=value.get("slew_ok") is True,
         safety_ok=value.get("safety_ok") is True,
+        first_sample_latency_ms=optional_latency("first_sample_latency_ms"),
+        send_wrapper_latency_ms=optional_latency("send_wrapper_latency_ms"),
     )
 
 
@@ -146,6 +259,10 @@ def compare_profile_replays(
     residual_delta = [abs(l.residual - r.residual) for l, r in zip(left.records, right.records, strict=True)]
     convergence_delta = sum(l.converged != r.converged for l, r in zip(left.records, right.records, strict=True))
     control_intervals = [record.control_interval_s for record in (*left.records, *right.records)]
+    per_profile = {
+        left.profile.profile_id: _comparison_metrics(left),
+        right.profile.profile_id: _comparison_metrics(right),
+    }
     return {
         "schema": "tase.rnn-profile-replay-comparison-v1",
         "input_digest": left.input_digest,
@@ -159,13 +276,60 @@ def compare_profile_replays(
             left.profile.profile_id: left.p99_compute_ms,
             right.profile.profile_id: right.p99_compute_ms,
         },
+        "per_profile": per_profile,
+        "first_sample_latency_ms": {
+            left.profile.profile_id: left.first_sample_latency_stats,
+            right.profile.profile_id: right.first_sample_latency_stats,
+        },
+        "send_wrapper_latency_ms": {
+            left.profile.profile_id: left.send_wrapper_latency_stats,
+            right.profile.profile_id: right.send_wrapper_latency_stats,
+        },
         "control_interval_s": {
             "min": min(control_intervals, default=float("nan")),
             "max": max(control_intervals, default=float("nan")),
             "mean": statistics.fmean(control_intervals) if control_intervals else float("nan"),
         },
+        "control_interval_stats": {
+            left.profile.profile_id: left.control_interval_stats,
+            right.profile.profile_id: right.control_interval_stats,
+        },
+        "residual": {
+            left.profile.profile_id: left.residual_stats,
+            right.profile.profile_id: right.residual_stats,
+        },
+        "convergence": {
+            left.profile.profile_id: left.convergence_stats(),
+            right.profile.profile_id: right.convergence_stats(),
+        },
+        "constraint_evidence": {
+            left.profile.profile_id: left.constraint_stats(),
+            right.profile.profile_id: right.constraint_stats(),
+        },
+        "deterministic_shared_input": {
+            "status": "pass",
+            "same_input_digest": True,
+            "input_digest": left.input_digest,
+            "sample_count_equal": True,
+            "offline_only": True,
+        },
         "qdot_bounds_ok": left.safety_ok and right.safety_ok,
         "promotion": "offline_comparison_only",
+    }
+
+
+def _comparison_metrics(result: ProfileReplayResult) -> dict[str, Any]:
+    """JSON-safe metrics retained independently for each solver profile."""
+    return {
+        "samples": len(result.records),
+        "p99_compute_ms": result.p99_compute_ms,
+        "first_sample_latency_ms": result.first_sample_latency_stats,
+        "send_wrapper_latency_ms": result.send_wrapper_latency_stats,
+        "control_interval_s": result.control_interval_stats,
+        "residual": result.residual_stats,
+        "convergence": result.convergence_stats(),
+        "constraints": result.constraint_stats(),
+        "safety_ok": result.safety_ok,
     }
 
 
