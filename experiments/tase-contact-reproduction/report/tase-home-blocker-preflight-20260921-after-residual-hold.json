@@ -1,0 +1,46 @@
+{
+  "schema": "tase.home-blocker-preflight-v2",
+  "claim_scope": "fresh read-only current-state admission evidence after baseline residual-hold patch; no Home command, ARM, Play, or motion",
+  "created_at": "2026-09-21T12:15:37.652",
+  "source_commit": "960f9103b28da40e6ae0aa0ceffa5b74c8e5bfe4",
+  "preflight": "runs/preflight_20260921_tase_after_residual_hold/preflight_readonly.json",
+  "preflight_sha256": "452671c639c70b39d19f5d30cb6ab0777197fc3339759cb31ca9684a47378cc3",
+  "preflight_ok": true,
+  "dashboard": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "true",
+    "programState": "STOPPED step5d_contact_six_qp_v1.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: false",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "writer_process": {
+    "active_writers": [],
+    "ok": true
+  },
+  "current_tcp_pose_m_rad": [
+    0.46172958038529727,
+    0.17784739745857414,
+    0.02060735585287371,
+    -2.0321824271770876,
+    -2.3938191958859707,
+    0.016609880335127825
+  ],
+  "approved_home_pose_m_rad": [
+    0.4620551816,
+    0.1778825964,
+    0.033,
+    2.0331342431227566,
+    2.3949884238824652,
+    -2.2711768777011217e-22
+  ],
+  "position_error_m": 0.012396970761996534,
+  "orientation_error_rad": 0.010679910136182325,
+  "orientation_error_mrad": 10.679910136182325,
+  "home_policy": {
+    "existing_max_so3_angle_rad": 0.01,
+    "decision": "BLOCKED",
+    "error": "ValueError: Home SO3 angle exceeds 10mrad"
+  },
+  "next_action": "Require a new approved recovery geometry or external physical-state change; do not widen the existing Home corridor or retry unchanged."
+}
