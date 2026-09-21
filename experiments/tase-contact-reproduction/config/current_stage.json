@@ -9,11 +9,11 @@
   "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
   "controller_script": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script",
   "local_triplet": "programs/step5/step5d/contact-six-qp/step5d_contact_six_qp_v1",
-  "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T211745+0800.json",
+  "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T214929+0800.json",
   "sha256": {
-    ".script": "e78ae2adae73e1d8c1886297f10930061d543338ef340f06fa982adfd3ec4653",
-    ".txt": "a9f7ca29f5da1c727b9e1a266412f63b46b1cd1f8256a1f1e8ef60ce8d439815",
-    ".urp": "57cfba24771f4a0c35ea67178be8b4aec2f333ea2f59cb7248e26f2a8929a531"
+    ".script": "1e1b754c53efd77efcf3b483f1df434e5b83b3b3edc60872d6b85ee16c46898c",
+    ".txt": "afa5d05680aa1ce6a7dcb9cb74b480da01ad387ca31f3c1dfdc161adfffa0fcf",
+    ".urp": "458acefb7d001f20f38ce091c51647700624a6af82d682920972734d81838bc6"
   },
   "status": "fresh_controller_readback_verified_pending_liveprep_admission",
   "liveprep_status": "awaiting_live_authorization",
@@ -38,8 +38,13 @@
       "force_norm_n": 20.0,
       "torque_norm_nm": 2.0
     },
-    "search_speed_m_s": 0.0002,
+    "search_speed_m_s": 0.0005,
+    "search_far_speed_m_s": 0.005,
+    "search_near_speed_m_s": 0.0005,
+    "search_near_start_travel_m": 0.011029311,
     "search_travel_max_m": 0.015,
+    "contact_search_strategy_id": "STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1",
+    "contact_search_admittance_enabled": false,
     "stage25_control_mode": "native_provider_same_mature_writer",
     "entrypoint": "scripts/contact-yield-live.sh",
     "entrypoint_status": "integrated_software_verified_not_physically_qualified",
@@ -83,16 +88,16 @@
     "latest_home_recovery": "runs/yield-home-recovery-20260920/live-1/result.json",
     "latest_contact_withdrawal": "runs/yield-sfc-qualification-20260920T113129Z/withdrawal/result.json",
     "native_writer_previously_armed": true,
-    "v1_controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T211745+0800.json",
-    "fresh_contact_controller_delivery_manifest": "runs/tase-package-v22-20260921T1320Z/manifest.json",
-    "fresh_contact_controller_delivery_manifest_sha256": "c9aec83e9603c1f7e304d224f700d7fc63eb43ca6de68faf66199b007c98f2ba",
-    "fresh_contact_controller_checked_at": "2026-09-21T21:17:45+08:00",
+    "v1_controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T214929+0800.json",
+    "fresh_contact_controller_delivery_manifest": "runs/tase-package-v23-20260921T1350Z/controller_readback_step5d_contact_six_qp_v1_20260921_214924/manifest.json",
+    "fresh_contact_controller_delivery_manifest_sha256": "2ab7233a996eb958fdbcb57cde6b45dec72e38e67094705bf0609dc445f9744f",
+    "fresh_contact_controller_checked_at": "2026-09-21T21:49:29+08:00",
     "previous_contact_readback_selection": {
-      "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T174912+0800.json",
+      "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T211745+0800.json",
       "sha256": {
-        ".script": "3426050bb3b5ee7d47b11947e93a4cbdc7183c46f7cd7acd276a7e71a03a065f",
-        ".txt": "c59e654499ee7904ce656b4a741b926e20791183fe3b7f61dab2e592bb2588b9",
-        ".urp": "5562973257f238a67716aab233b3482a4266d45e716db2c81212d13445425489"
+        ".script": "e78ae2adae73e1d8c1886297f10930061d543338ef340f06fa982adfd3ec4653",
+        ".txt": "a9f7ca29f5da1c727b9e1a266412f63b46b1cd1f8256a1f1e8ef60ce8d439815",
+        ".urp": "57cfba24771f4a0c35ea67178be8b4aec2f333ea2f59cb7248e26f2a8929a531"
       }
     },
     "liveprep_readiness": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260921.json",
@@ -107,5 +112,5 @@
     "The generic resolver live_authorized field represents accepted machine admission, not the standing user instruction above.",
     "Legacy governed release and frozen offline protocols are retained separately and are not this native execution route."
   ],
-  "runtime_revision": 22
+  "runtime_revision": 23
 }

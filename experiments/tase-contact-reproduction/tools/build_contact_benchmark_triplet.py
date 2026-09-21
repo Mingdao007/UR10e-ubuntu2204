@@ -15,7 +15,22 @@ PROTOCOL=618001
 # Single-admission contact package: one continuous ten-second qualification
 # feeds the following PATH attempt. This wire-semantic change gets a fresh
 # readable runtime revision and a fresh controller read-back.
-REVISION=22
+REVISION=23
+
+# Historical Step5d/R008 Wave-4 final contact-search schedule. This is a
+# bounded open-loop FAR/NEAR velocity schedule; it deliberately has no scalar
+# admittance or force-to-velocity law. The current native package keeps its
+# tighter 20 N / 15 mm envelope while reusing the validated speed schedule.
+CONTACT_SEARCH_STRATEGY_ID='STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1'
+CONTACT_SEARCH_SOURCE='config/step5d/autotune_v4_r008_contact_search_schedule.json'
+SEARCH_FAR_SPEED_M_S=0.005
+SEARCH_NEAR_SPEED_M_S=0.0005
+SEARCH_NEAR_START_TRAVEL_M=0.011029311
+SEARCH_FAR_ACCELERATION_M_S2=0.01
+SEARCH_NEAR_ACCELERATION_M_S2=0.005
+SEARCH_MAX_TRAVEL_M=0.015
+SEARCH_TIMEOUT_S=90.0
+SEARCH_FORCE_FUSE_N=20.0
 
 
 def transform(source,home,stamp):
@@ -66,10 +81,10 @@ def transform(source,home,stamp):
     body=body.replace('codex_r006_finite(qdot, 5.000000000)','codex_r006_finite(qdot, 0.050000000)')
     body=body.replace('speedj(baseline_qdot, 40.000000000,','speedj(baseline_qdot, 5.000000000,')
     body=body.replace('speedj(path_qdot, 40.000000000,','speedj(path_qdot, 5.000000000,')
-    body=body.replace('local d_near_start_travel_m = 0.011029311','local d_near_start_travel_m = 0.000000000')
-    body=body.replace('local v_far_m_s = 0.005000000','local v_far_m_s = 0.000200000')
-    body=body.replace('local v_near_m_s = 0.000500000','local v_near_m_s = 0.000200000')
-    body=body.replace('local force_fuse_n = 50.000000000','local force_fuse_n = 20.000000000')
+    body=body.replace('local d_near_start_travel_m = 0.011029311',f'local d_near_start_travel_m = {SEARCH_NEAR_START_TRAVEL_M:.9f}')
+    body=body.replace('local v_far_m_s = 0.005000000',f'local v_far_m_s = {SEARCH_FAR_SPEED_M_S:.9f}')
+    body=body.replace('local v_near_m_s = 0.000500000',f'local v_near_m_s = {SEARCH_NEAR_SPEED_M_S:.9f}')
+    body=body.replace('local force_fuse_n = 50.000000000',f'local force_fuse_n = {SEARCH_FORCE_FUSE_N:.9f}')
     body=body.replace('travel >= 0.025000000','travel >= 0.015000000')
     body=body.replace('packet_reason, 60.0, 100.0, 3.0','packet_reason, 20.0, 20.0, 2.0')
     body=body.replace('packet_reason, 100.0, 100.0, 3.0','packet_reason, 20.0, 20.0, 2.0')
@@ -306,7 +321,7 @@ end
     lines=[line for line in body.splitlines() if not line.startswith(('# R006_ACTIVE_CAPS:','# ROLE:','# CONTACT_SEARCH:'))]
     lines[1:1]=[f'# ROLE: six-law shared-QP preparation; requires matching host owner {PROTOCOL}',
         '# CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm',
-        '# CONTACT_SEARCH: constant 0.0002m/s; travel<=0.015m; timeout=90s; original Home XYZ with current aligned attitude',
+        f'# CONTACT_SEARCH: {CONTACT_SEARCH_STRATEGY_ID}; FAR={SEARCH_FAR_SPEED_M_S:.6f}m/s until {SEARCH_NEAR_START_TRAVEL_M:.9f}m, NEAR={SEARCH_NEAR_SPEED_M_S:.6f}m/s; travel<={SEARCH_MAX_TRAVEL_M:.3f}m; timeout={SEARCH_TIMEOUT_S:.1f}s; no scalar admittance',
         '# EOAT: payload=0.413kg CoG=[0.0011,0.0031,0.0163]m TCP=[0,0,0.0874,0,0,0]',
         '# HOST_BACKEND: native-six-law + osqp-codegen-c; legacy RNN qualification is not reusable',
         '# FAULT_RECOVERY: every terminal fault attempts bounded Home; host monitored Home is the fallback']
@@ -327,13 +342,33 @@ def build(home_path,output):
     manifest={'schema':'contact-qp-package-preparation-v1','basename':BASENAME,'stamp':stamp,'controller_directory':CONTROLLER_DIR,
               'revision':REVISION,'protocol':PROTOCOL,'home_receipt_sha256':hashlib.sha256(home_path.read_bytes()).hexdigest(),
               'source_sha256':hashlib.sha256(SOURCE.read_bytes()).hexdigest(),'live_qualified':False,
-              'geometry':Task().sanity(),'source_owner':'R012 lifecycle; narrowed common caps, automatic Home-on-fault, and new Home/identity/full-period duration'}
+              'geometry':Task().sanity(),'source_owner':'R012 lifecycle; narrowed common caps, automatic Home-on-fault, Wave-4 no-admittance FAR/NEAR search, and new Home/identity/full-period duration',
+              'contact_search':{
+                  'strategy_id':CONTACT_SEARCH_STRATEGY_ID,
+                  'source':CONTACT_SEARCH_SOURCE,
+                  'admittance_enabled':False,
+                  'far_speed_m_s':SEARCH_FAR_SPEED_M_S,
+                  'near_speed_m_s':SEARCH_NEAR_SPEED_M_S,
+                  'near_start_travel_m':SEARCH_NEAR_START_TRAVEL_M,
+                  'max_travel_m':SEARCH_MAX_TRAVEL_M,
+                  'timeout_s':SEARCH_TIMEOUT_S,
+                  'far_acceleration_m_s2':SEARCH_FAR_ACCELERATION_M_S2,
+                  'near_acceleration_m_s2':SEARCH_NEAR_ACCELERATION_M_S2,
+                  'force_fuse_n':SEARCH_FORCE_FUSE_N,
+                  'current_native_adaptation':'20 N force/torque envelope and 15 mm travel cap are retained; only the bounded speed schedule is reused',
+              }}
     manifest['numeric_sanity']={'duration_s':Task().duration_s,'span_m':[.08,.02],
         'peak_nominal_linear_speed_bound_m_s':Task().sanity()['speed_upper_bound_m_s'],
         'host_tangent_speed_cap_m_s':.01,'tp_joint_speed_limit_rad_s':.05,
         'tp_actual_joint_speed_guard_rad_s':.06,
-        'tp_speedj_acceleration_rad_s2':5.,'search_speed_m_s':.0002,
-        'search_travel_limit_m':.015,'search_timeout_s':90.,'full_search_travel_time_s':75.,
+        'tp_speedj_acceleration_rad_s2':5.,'search_speed_m_s':SEARCH_NEAR_SPEED_M_S,
+        'search_far_speed_m_s':SEARCH_FAR_SPEED_M_S,
+        'search_near_speed_m_s':SEARCH_NEAR_SPEED_M_S,
+        'search_near_start_travel_m':SEARCH_NEAR_START_TRAVEL_M,
+        'search_travel_limit_m':SEARCH_MAX_TRAVEL_M,'search_timeout_s':SEARCH_TIMEOUT_S,
+        'full_search_travel_time_s':SEARCH_NEAR_START_TRAVEL_M/SEARCH_FAR_SPEED_M_S + (SEARCH_MAX_TRAVEL_M-SEARCH_NEAR_START_TRAVEL_M)/SEARCH_NEAR_SPEED_M_S,
+        'contact_search_strategy_id':CONTACT_SEARCH_STRATEGY_ID,
+        'contact_search_admittance_enabled':False,
         'raw_force_limit_n':20.,'raw_torque_limit_nm':2.,'fixed_orientation_approach_axis':[0,0,-1],
         'home_xyz_m':home['home_pose'][:3],
         'scope':'local package arithmetic; workspace clearance and owner dispatch pending'}

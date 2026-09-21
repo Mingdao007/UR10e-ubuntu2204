@@ -11560,31 +11560,43 @@
       "blocked": false,
       "block_reason": "fresh TASE machine-admission readiness verified; physical contact qualification pending",
       "duration_s": 62.83185307179586,
+      "contact_search": {
+        "strategy_id": "STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1",
+        "source": "config/step5d/autotune_v4_r008_contact_search_schedule.json",
+        "admittance_enabled": false,
+        "far_speed_m_s": 0.005,
+        "near_speed_m_s": 0.0005,
+        "near_start_travel_m": 0.011029311,
+        "max_travel_m": 0.015,
+        "timeout_s": 90.0,
+        "force_fuse_n": 20.0,
+        "current_native_adaptation": "20 N force/torque envelope and 15 mm travel cap are retained; only the bounded speed schedule is reused"
+      },
       "current_binding": {
         "is_current": true,
         "stage_id": "step5d_contact_six_qp_v1",
         "program": "step5d_contact_six_qp_v1",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
-        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T211745+0800.json",
+        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T214929+0800.json",
         "controller_readback_status": "verified_current"
       },
       "package_delivery": {
         "controller_readback_verified": true,
         "controller_readback_status": "verified_current",
-        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T211745+0800.json",
-        "controller_readback_manifest_sha256": "89490a21c9b5d63811e3870f0cb92ac3fdb05193feea585de4ae5567942ba68a",
+        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T214929+0800.json",
+        "controller_readback_manifest_sha256": "d56f4c9ed6d5a45f6af8a3d8942bff3fdf22fa2acbdde01c036a0796525c5088",
         "delivery_mode": "full_upload_readback",
         "fresh_controller_sha_verified": true,
-        "fresh_controller_checked_at": "2026-09-21T21:17:45+08:00",
+        "fresh_controller_checked_at": "2026-09-21T21:49:29+08:00",
         "sha256": {
-          ".script": "e78ae2adae73e1d8c1886297f10930061d543338ef340f06fa982adfd3ec4653",
-          ".txt": "a9f7ca29f5da1c727b9e1a266412f63b46b1cd1f8256a1f1e8ef60ce8d439815",
-          ".urp": "57cfba24771f4a0c35ea67178be8b4aec2f333ea2f59cb7248e26f2a8929a531"
+          ".script": "1e1b754c53efd77efcf3b483f1df434e5b83b3b3edc60872d6b85ee16c46898c",
+          ".txt": "afa5d05680aa1ce6a7dcb9cb74b480da01ad387ca31f3c1dfdc161adfffa0fcf",
+          ".urp": "458acefb7d001f20f38ce091c51647700624a6af82d682920972734d81838bc6"
         }
       },
       "entrypoint": "scripts/contact-yield-live.sh",
       "entrypoint_status": "lifecycle_repaired_software_verified",
-      "runtime_revision": 22,
+      "runtime_revision": 23,
       "task": [
         "constant_force",
         "unknown_surface",
@@ -11613,11 +11625,11 @@
         "controller_readback_verified": true,
         "controller_readback_status": "verified_current",
         "sha256": {
-          ".script": "e78ae2adae73e1d8c1886297f10930061d543338ef340f06fa982adfd3ec4653",
-          ".txt": "a9f7ca29f5da1c727b9e1a266412f63b46b1cd1f8256a1f1e8ef60ce8d439815",
-          ".urp": "57cfba24771f4a0c35ea67178be8b4aec2f333ea2f59cb7248e26f2a8929a531"
+          ".script": "1e1b754c53efd77efcf3b483f1df434e5b83b3b3edc60872d6b85ee16c46898c",
+          ".txt": "afa5d05680aa1ce6a7dcb9cb74b480da01ad387ca31f3c1dfdc161adfffa0fcf",
+          ".urp": "458acefb7d001f20f38ce091c51647700624a6af82d682920972734d81838bc6"
         },
-        "source_delivery_manifest": "runs/tase-package-v22-20260921T1320Z/manifest.json"
+        "source_delivery_manifest": "runs/tase-package-v23-20260921T1350Z/controller_readback_step5d_contact_six_qp_v1_20260921_214924/manifest.json"
       },
       "liveprep_status": {
         "state": "awaiting_live_authorization",

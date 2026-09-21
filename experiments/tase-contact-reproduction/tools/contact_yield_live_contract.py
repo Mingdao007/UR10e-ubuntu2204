@@ -4,7 +4,7 @@ This is not the R004 RNN contract with the program name rewritten.  Identity
 is step5d_contact_six_qp_v1 / step5d_contact_home_v1: protocol 618001, output
 32=606006, 33=20, 34=618001, qdot 0.05, raw 20 N / 2 Nm, and the corrected
 Home attitude.  SHA-derived receipt limbs remain the software contract;
-physical wire echoes use the readable (22, 618001) pair.
+physical wire echoes use the readable (23, 618001) pair.
 """
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ DEFAULT_CONTRACT_PATH = EXPERIMENT_ROOT / "config" / "yield_live_contract_v1.jso
 PACKAGE_DIR = EXPERIMENT_ROOT / "programs" / "step5" / "step5d" / "contact-six-qp"
 SCHEMA = "yield-live-contract-v1"
 RUNTIME_PROTOCOL = 606006
-RUNTIME_REVISION = 22
+RUNTIME_REVISION = 23
 RUNTIME_EXTENSION = 618001
 READABLE_RUNTIME_IDENTITY = (RUNTIME_REVISION, RUNTIME_EXTENSION)
 HOME_PROFILE_ID = "yield-live-entry/contact-home-v1"
@@ -92,12 +92,12 @@ def load_live_contract_document(path: Path | str | None = None) -> dict[str, Any
     if int(payload.get("runtime_protocol")) != RUNTIME_PROTOCOL:
         raise YieldLiveContractError("native live contract runtime protocol is not 606006")
     if int(payload.get("runtime_revision")) != RUNTIME_REVISION:
-        raise YieldLiveContractError("native live contract revision is not 22")
+        raise YieldLiveContractError("native live contract revision is not 23")
     if int(payload.get("runtime_extension_protocol")) != RUNTIME_EXTENSION:
         raise YieldLiveContractError("native live contract extension protocol is not 618001")
     identity = tuple(int(item) for item in payload.get("readable_runtime_identity") or ())
     if identity != READABLE_RUNTIME_IDENTITY:
-        raise YieldLiveContractError("native readable runtime identity is not (22, 618001)")
+        raise YieldLiveContractError("native readable runtime identity is not (23, 618001)")
     task = _require_mapping(payload.get("task"), "task")
     if not math.isclose(float(task.get("period_s")), PERIOD_S, rel_tol=0.0, abs_tol=1e-12):
         raise YieldLiveContractError("native live contract period is not the formal PATH period")
@@ -109,10 +109,26 @@ def load_live_contract_document(path: Path | str | None = None) -> dict[str, Any
         or float(guards.get("raw_torque_nm")) != 2.0
         or float(guards.get("qdot_cap_rad_s")) != 0.05
         or float(guards.get("actual_joint_speed_guard_rad_s")) != 0.06
-        or float(guards.get("search_speed_m_s")) != 0.0002
+        or float(guards.get("search_speed_m_s")) != 0.0005
+        or float(guards.get("search_far_speed_m_s")) != 0.005
+        or float(guards.get("search_near_speed_m_s")) != 0.0005
+        or float(guards.get("search_near_start_travel_m")) != 0.011029311
         or float(guards.get("search_travel_max_m")) != 0.015
     ):
         raise YieldLiveContractError("native live contract guards differ")
+    search = _require_mapping(payload.get("contact_search"), "contact_search")
+    if (
+        search.get("strategy_id") != "STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1"
+        or search.get("source") != "config/step5d/autotune_v4_r008_contact_search_schedule.json"
+        or search.get("admittance_enabled") is not False
+        or float(search.get("far_speed_m_s")) != 0.005
+        or float(search.get("near_speed_m_s")) != 0.0005
+        or float(search.get("near_start_travel_m")) != 0.011029311
+        or float(search.get("max_travel_m")) != 0.015
+        or float(search.get("timeout_s")) != 90.0
+        or float(search.get("force_fuse_n")) != 20.0
+    ):
+        raise YieldLiveContractError("native contact-search strategy differs")
     return payload
 
 

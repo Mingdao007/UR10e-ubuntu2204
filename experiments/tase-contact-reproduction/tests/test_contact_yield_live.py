@@ -320,7 +320,7 @@ def test_status_fresh_process_lists_native_identity_without_devices():
     assert completed.returncode == 0, completed.stderr
     payload = json.loads(completed.stdout)
     assert payload["program"] == "step5d_contact_six_qp_v1"
-    assert payload["readable_runtime_identity"] == [22, 618001]
+    assert payload["readable_runtime_identity"] == [23, 618001]
     assert payload["physical_qualification"] is False
     assert payload["machine_evidence_fresh"] is False
 

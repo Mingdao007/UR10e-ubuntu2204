@@ -6,13 +6,13 @@
   "controller_directory": "/programs/andyl/kunwei/step5",
   "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
   "package_dir": "programs/step5/step5d/contact-six-qp",
-  "revision": 22,
+  "revision": 23,
   "protocol": 618001,
   "runtime_protocol": 606006,
-  "runtime_revision": 22,
+  "runtime_revision": 23,
   "runtime_extension_protocol": 618001,
   "readable_runtime_identity": [
-    22,
+    23,
     618001
   ],
   "identity_projection": "contact_six_legacy_wire_abi",
@@ -30,8 +30,25 @@
     "raw_torque_nm": 2.0,
     "qdot_cap_rad_s": 0.05,
     "actual_joint_speed_guard_rad_s": 0.06,
-    "search_speed_m_s": 0.0002,
+    "search_speed_m_s": 0.0005,
+    "search_far_speed_m_s": 0.005,
+    "search_near_speed_m_s": 0.0005,
+    "search_near_start_travel_m": 0.011029311,
     "search_travel_max_m": 0.015
+  },
+  "contact_search": {
+    "strategy_id": "STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1",
+    "source": "config/step5d/autotune_v4_r008_contact_search_schedule.json",
+    "admittance_enabled": false,
+    "far_speed_m_s": 0.005,
+    "near_speed_m_s": 0.0005,
+    "near_start_travel_m": 0.011029311,
+    "max_travel_m": 0.015,
+    "timeout_s": 90.0,
+    "far_acceleration_m_s2": 0.01,
+    "near_acceleration_m_s2": 0.005,
+    "force_fuse_n": 20.0,
+    "current_native_adaptation": "20 N force/torque envelope and 15 mm travel cap are retained; only the bounded speed schedule is reused"
   },
   "task": {
     "normal_force_n": 5.0,

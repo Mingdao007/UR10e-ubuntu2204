@@ -158,6 +158,33 @@ def load_live_entry_config(path: Path | str | None = None) -> dict[str, Any]:
     methods = _require_mapping(payload.get("methods"), "methods")
     if tuple(methods) != NATIVE_METHODS + (TASE_MATURE_METHOD,) + REGISTERED_UNAVAILABLE:
         raise MethodRegistryError("live-entry method set differs")
+    guards = _require_mapping(payload.get("guards"), "guards")
+    if (
+        float(guards.get("search_speed_m_s")) != 0.0005
+        or float(guards.get("search_far_speed_m_s")) != 0.005
+        or float(guards.get("search_near_speed_m_s")) != 0.0005
+        or float(guards.get("search_near_start_travel_m")) != 0.011029311
+        or float(guards.get("search_travel_max_m")) != 0.015
+        or guards.get("contact_search_strategy_id")
+        != "STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1"
+        or guards.get("contact_search_admittance_enabled") is not False
+    ):
+        raise MethodRegistryError("live-entry contact-search strategy differs")
+    search = _require_mapping(payload.get("contact_search"), "contact_search")
+    if (
+        search.get("strategy_id")
+        != "STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1"
+        or search.get("source")
+        != "config/step5d/autotune_v4_r008_contact_search_schedule.json"
+        or search.get("admittance_enabled") is not False
+        or float(search.get("far_speed_m_s")) != 0.005
+        or float(search.get("near_speed_m_s")) != 0.0005
+        or float(search.get("near_start_travel_m")) != 0.011029311
+        or float(search.get("max_travel_m")) != 0.015
+        or float(search.get("timeout_s")) != 90.0
+        or float(search.get("force_fuse_n")) != 20.0
+    ):
+        raise MethodRegistryError("live-entry contact-search contract differs")
     return payload
 
 

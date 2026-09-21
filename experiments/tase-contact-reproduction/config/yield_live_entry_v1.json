@@ -79,8 +79,13 @@
     "raw_force_n": 20.0,
     "raw_torque_nm": 2.0,
     "qdot_cap_rad_s": 0.05,
-    "search_speed_m_s": 0.0002,
+    "search_speed_m_s": 0.0005,
+    "search_far_speed_m_s": 0.005,
+    "search_near_speed_m_s": 0.0005,
+    "search_near_start_travel_m": 0.011029311,
     "search_travel_max_m": 0.015,
+    "contact_search_strategy_id": "STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1",
+    "contact_search_admittance_enabled": false,
     "path_soft_axes_m": [
       0.022,
       0.012
@@ -91,6 +96,18 @@
     ],
     "path_constraint_frame": "native_task_basis",
     "path_constraint_binding": "pre_joint_qp_projection_and_actual_solution_validation"
+  },
+  "contact_search": {
+    "strategy_id": "STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1",
+    "source": "config/step5d/autotune_v4_r008_contact_search_schedule.json",
+    "admittance_enabled": false,
+    "far_speed_m_s": 0.005,
+    "near_speed_m_s": 0.0005,
+    "near_start_travel_m": 0.011029311,
+    "max_travel_m": 0.015,
+    "timeout_s": 90.0,
+    "force_fuse_n": 20.0,
+    "current_native_adaptation": "20 N force/torque envelope and 15 mm travel cap are retained; only the bounded speed schedule is reused"
   },
   "user_standing_live_authority": true,
   "machine_evidence_fresh": false,

@@ -1,11 +1,11 @@
 {
   "schema": "contact-qp-package-preparation-v1",
   "basename": "step5d_contact_six_qp_v1",
-  "stamp": "2026-09-21T1314Z_CONTACT_SIX_QP_V1_618001",
+  "stamp": "2026-09-21T1348Z_CONTACT_SIX_QP_V1_618001",
   "controller_directory": "/programs/andyl/kunwei/step5",
-  "revision": 22,
+  "revision": 23,
   "protocol": 618001,
-  "home_receipt_sha256": "6bdb3f39e6f6b6288a5c1c88a59fc8d0ad9c7b39072a18ed1779bbd7ae72e84e",
+  "home_receipt_sha256": "2c64a45ca018c9601778e8d1adb4bd503c8166ebd6cc71ca69a25cab79c3277d",
   "source_sha256": "87f929a1437cc831a5d3a7b3f95c45801e41f8f04df310d28036703be520ae8e",
   "live_qualified": false,
   "geometry": {
@@ -19,7 +19,21 @@
     "force_setpoint_n": 5.0,
     "qualification": "geometry only; actual joint trajectory, frame, limits and package require separate checks"
   },
-  "source_owner": "R012 lifecycle; narrowed common caps, automatic Home-on-fault, and new Home/identity/full-period duration",
+  "source_owner": "R012 lifecycle; narrowed common caps, automatic Home-on-fault, Wave-4 no-admittance FAR/NEAR search, and new Home/identity/full-period duration",
+  "contact_search": {
+    "strategy_id": "STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1",
+    "source": "config/step5d/autotune_v4_r008_contact_search_schedule.json",
+    "admittance_enabled": false,
+    "far_speed_m_s": 0.005,
+    "near_speed_m_s": 0.0005,
+    "near_start_travel_m": 0.011029311,
+    "max_travel_m": 0.015,
+    "timeout_s": 90.0,
+    "far_acceleration_m_s2": 0.01,
+    "near_acceleration_m_s2": 0.005,
+    "force_fuse_n": 20.0,
+    "current_native_adaptation": "20 N force/torque envelope and 15 mm travel cap are retained; only the bounded speed schedule is reused"
+  },
   "numeric_sanity": {
     "duration_s": 62.83185307179586,
     "span_m": [
@@ -31,10 +45,15 @@
     "tp_joint_speed_limit_rad_s": 0.05,
     "tp_actual_joint_speed_guard_rad_s": 0.06,
     "tp_speedj_acceleration_rad_s2": 5.0,
-    "search_speed_m_s": 0.0002,
+    "search_speed_m_s": 0.0005,
+    "search_far_speed_m_s": 0.005,
+    "search_near_speed_m_s": 0.0005,
+    "search_near_start_travel_m": 0.011029311,
     "search_travel_limit_m": 0.015,
     "search_timeout_s": 90.0,
-    "full_search_travel_time_s": 75.0,
+    "full_search_travel_time_s": 10.147240199999999,
+    "contact_search_strategy_id": "STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1",
+    "contact_search_admittance_enabled": false,
     "raw_force_limit_n": 20.0,
     "raw_torque_limit_nm": 2.0,
     "fixed_orientation_approach_axis": [

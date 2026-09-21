@@ -1,7 +1,7 @@
-# VERSION: 2026-09-21T1314Z_CONTACT_SIX_QP_V1_618001
+# VERSION: 2026-09-21T1348Z_CONTACT_SIX_QP_V1_618001
 # ROLE: six-law shared-QP preparation; requires matching host owner 618001
 # CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm
-# CONTACT_SEARCH: constant 0.0002m/s; travel<=0.015m; timeout=90s; original Home XYZ with current aligned attitude
+# CONTACT_SEARCH: STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1; FAR=0.005000m/s until 0.011029311m, NEAR=0.000500m/s; travel<=0.015m; timeout=90.0s; no scalar admittance
 # EOAT: payload=0.413kg CoG=[0.0011,0.0031,0.0163]m TCP=[0,0,0.0874,0,0,0]
 # HOST_BACKEND: native-six-law + osqp-codegen-c; legacy RNN qualification is not reusable
 # NATIVE_INTEGER_INPUTS: logical24->physical36; 25..32 and 35 unchanged; OnRobot owns input24
@@ -543,7 +543,7 @@ def codex_r006_echo(epoch, ordinal, state, token, reason, consumed, kind, return
   write_output_integer_register(30, kind)
   write_output_integer_register(31, return_guard)
   write_output_integer_register(32, 606006)
-  write_output_integer_register(33, 22)
+  write_output_integer_register(33, 23)
   write_output_integer_register(34, 618001)
 end
 
@@ -640,11 +640,11 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
   local contact_elapsed_s = 0.0
   local contact_confirm_s = 0.0
   local contact_done = False
-  local d_near_start_travel_m = 0.000000000
+  local d_near_start_travel_m = 0.011029311
   local f_far_n = 0.300000000
   local force_fuse_n = 20.000000000
-  local v_far_m_s = 0.000200000
-  local v_near_m_s = 0.000200000
+  local v_far_m_s = 0.005000000
+  local v_near_m_s = 0.000500000
   local far_accel_m_s2 = 0.010000000
   local near_accel_m_s2 = 0.005000000
   while not contact_done:
@@ -848,7 +848,7 @@ def step5d_contact_six_qp_v1():
   local fixed_home_pose = p[0.462055181600, 0.177882596400, 0.034088761399, 3.120752062000, 0.000000000000, 0.068626833000]
   local locked_home_q = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local locked_home_q_valid = False
-  local runtime_revision = 22
+  local runtime_revision = 23
   local runtime_extension = 618001
   local active_epoch = 0
   local last_failed_epoch = 0
