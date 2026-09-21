@@ -300,6 +300,17 @@ def test_contact_provider_guard_rejects_command_without_rescaling(monkeypatch) -
     assert control._previous_qdot == (0.0,) * 6
 
 
+def test_opted_in_provider_uses_bounded_task_space_projection(monkeypatch) -> None:
+    provider = _Provider(qdot=(0.01, 0.0, 0.0, 0.0, 0.0, 0.0))
+    provider.allow_bounded_gate_projection = True
+    control = _control(provider)
+
+    result = _run(control, monkeypatch)
+
+    assert 0.0 < result.qdot[0] < 0.01
+    assert control._previous_qdot == result.qdot
+
+
 def test_contact_provider_preserves_mandatory_host_slew_without_scaling(monkeypatch) -> None:
     delta_limit = R004_MOTION_PROFILE.host_slew_rad_s2 * min(0.002, 0.02)
     provider = _Provider(qdot=(2.0 * delta_limit, 0.0, 0.0, 0.0, 0.0, 0.0))

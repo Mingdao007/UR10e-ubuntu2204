@@ -108,6 +108,13 @@ def current_model_binding():
 
 class TaseContactProvider(ContactCommandProvider):
     """Complete baseline/entry/figure-eight provider over one calibrated RNN."""
+
+    # The provider owns the complete TASE outer loop, but its final command
+    # still passes through the canonical V4 J*qdot envelope. The qualification
+    # seam applies a same-direction bounded projection for this explicit opt-in;
+    # it never raises a safety cap or changes the RNN state law.
+    allow_bounded_gate_projection = True
+
     def __init__(self, *, contract, candidate, motion_profile, home_pose, solver_profile):
         pose = np.asarray(home_pose, dtype=float)
         self.basis = require_figure8_home(pose)
@@ -207,6 +214,21 @@ class TaseContactProvider(ContactCommandProvider):
 
     def bind_command_history(self, previous_qdot, slew_rad_s2):
         self.command_history = {'previous_qdot': tuple(previous_qdot), 'slew_rad_s2': float(slew_rad_s2)}
+
+    def record_gate_projection(self, *, scale, original_gate):
+        """Attach final-envelope projection evidence to the accepted tick."""
+
+        if not isinstance(self.last_result, dict):
+            raise ValueError('TASE gate projection requires a committed command result')
+        self.last_result['gate_projection_scale'] = float(scale)
+        self.last_result['gate_projection_applied'] = bool(float(scale) < 1.0)
+        self.last_result['gate_projection_reason'] = str(original_gate.reason)
+        self.last_result['gate_projection_original_metrics'] = {
+            'total_linear_m_s': float(original_gate.total_linear_m_s),
+            'normal_m_s': float(original_gate.normal_m_s),
+            'tangential_m_s': float(original_gate.tangential_m_s),
+            'angular_rad_s': float(original_gate.angular_rad_s),
+        }
 
     def pause(self, *, output, sensor, monotonic_s, actual_dt_s, reason):
         obs = self._observe(output, sensor, monotonic_s, actual_dt_s)

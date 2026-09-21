@@ -80,16 +80,22 @@ class V4InvariantEnvelope:
         total_linear, normal, tangential, angular = values[12:]
         if any(value < 0.0 for value in (total_linear, normal, tangential, angular)):
             raise RuntimeGuardError("provider returned a negative speed norm")
-        if any(
-            (
-                max(abs(value) for value in qdot) > self.qdot_cap_rad_s,
-                total_linear > self.cartesian_total_cap_m_s,
-                normal > self.normal_cap_m_s,
-                tangential > self.tangential_cap_m_s,
-                angular > self.angular_cap_rad_s,
+        violations = []
+        if max(abs(value) for value in qdot) > self.qdot_cap_rad_s:
+            violations.append("qdot_cap")
+        if total_linear > self.cartesian_total_cap_m_s:
+            violations.append("cartesian_total_cap")
+        if normal > self.normal_cap_m_s:
+            violations.append("normal_cap")
+        if tangential > self.tangential_cap_m_s:
+            violations.append("tangential_cap")
+        if angular > self.angular_cap_rad_s:
+            violations.append("angular_cap")
+        if violations:
+            raise RuntimeGuardError(
+                "provider output exceeds invariant envelope: "
+                + ",".join(violations)
             )
-        ):
-            raise RuntimeGuardError("provider output exceeds invariant envelope")
         if not result.allowed and any(abs(value) > 0.0 for value in qdot):
             raise RuntimeGuardError("blocked provider output must be zero qdot")
         return KinematicGateResult(

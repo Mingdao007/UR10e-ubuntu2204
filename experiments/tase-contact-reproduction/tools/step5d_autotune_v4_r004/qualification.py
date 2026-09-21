@@ -737,6 +737,40 @@ class CanonicalQualificationControl:
                     observed_model_hashes=calibrated.observed_model_hashes,
                     motion_profile=self.motion_profile,
                 )
+                # A provider that owns its complete outer loop may explicitly
+                # opt into the same-direction task-space projection already
+                # used by the canonical V4 path. This keeps the provider's
+                # force law and RNN/QP state transactional while making the
+                # final J*qdot envelope authoritative. Providers without this
+                # capability remain fail-closed on any envelope miss.
+                if getattr(
+                    self.contact_command_provider,
+                    "allow_bounded_gate_projection",
+                    False,
+                ):
+                    original_gate = pre_gate
+                    pre_gate, projection_scale = project_qdot_to_gate(
+                        self._contract,
+                        qdot=calibrated.qdot,
+                        jacobian_6x6=calibrated.jacobian_6x6,
+                        normal_base=getattr(
+                            self.contact_command_provider,
+                            "command_normal_base",
+                            (0.0, 0.0, 1.0),
+                        ),
+                        observed_model_hashes=calibrated.observed_model_hashes,
+                        motion_profile=self.motion_profile,
+                    )
+                    record_projection = getattr(
+                        self.contact_command_provider,
+                        "record_gate_projection",
+                        None,
+                    )
+                    if callable(record_projection):
+                        record_projection(
+                            scale=projection_scale,
+                            original_gate=original_gate,
+                        )
             else:
                 desired_twist = self._runtime.desired_twist(
                     actual_tcp_pose=output.tcp_pose_m_rad,
