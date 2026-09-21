@@ -110,6 +110,14 @@ def build(receipt,output):
         description='vertical withdrawal within the 15mm search envelope' if withdrawal is not None else 'translation<=3mm turn<=20mrad'
         text=first+'\n# BOUNDED_RECOVERY: observed start to approved Home; '+description+'; staged v=0.020 m/s, historical direct v=0.090 m/s\n'+rest
     marker='  local safe_transfer_z = 0.033000000\n'
+    # The approved Figure-eight Home Z (34.0888 mm) is above the historical
+    # 33 mm clearance floor. Make that final vertical rise explicit before
+    # any XY/orientation transfer; the old floor remains the lower bound.
+    target_clearance = (
+        '  if target_pose[2] > safe_transfer_z:\n'
+        '    safe_transfer_z = target_pose[2]\n'
+        '  end\n'
+    )
     initial='p['+', '.join(f'{x:.12f}' for x in observed)+']'
     guard=f'''  # Bind the initial pose to the fresh stationary read; reject an intervening move.
   local expected_initial = {initial}
@@ -136,7 +144,7 @@ def build(receipt,output):
   end
 '''
     if text.count(marker)!=1:raise ValueError('Home helper source differs')
-    text=text.replace(marker,guard+marker)
+    text=text.replace(marker,guard+marker+target_clearance)
     text='\n'.join(l for l in text.splitlines() if not l.startswith(('# MOTION_SEGMENT_', '# GEOMETRY_BASIS_')))+'\n'
     text=text.replace(
         '# BLEND_RADIUS_M:',

@@ -187,6 +187,31 @@ def analyze(args: argparse.Namespace) -> dict[str, Any]:
         for row in rows
         if (value := as_float(row, "ur_output_double_register_30")) is not None
     )
+    circle_summary = circle_errors(selected, circle)
+    path_length_m = float(circle["arc_length_m"])
+    progress_end_m = circle_summary.get("arc_progress_end_m")
+    if progress_end_m is None or not math.isfinite(float(progress_end_m)):
+        coverage_fraction = 0.0
+    else:
+        coverage_fraction = max(0.0, min(1.0, float(progress_end_m) / path_length_m))
+    full_path = bool(
+        progress_end_m is not None
+        and math.isfinite(float(progress_end_m))
+        and float(progress_end_m) >= path_length_m * 0.995
+    )
+    if not selected:
+        coverage_class = "no_path"
+    elif full_path:
+        coverage_class = "full_path"
+    else:
+        coverage_class = "partial_path"
+    metric_scope = "formal_full_path" if full_path else "available_stage25_segment"
+    normal_force_rmse = (
+        math.sqrt(statistics.fmean(value * value for value in signed_target_error))
+        if signed_target_error
+        else None
+    )
+    normal_force_tail_p95 = stats(abs_target_error).get("p95") if abs_target_error else None
     return {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "bridge_csv": str(args.bridge_csv),
@@ -198,13 +223,28 @@ def analyze(args: argparse.Namespace) -> dict[str, Any]:
             "runtime_state": 2,
             "min_tcp_speed_m_s": args.min_tcp_speed_m_s,
         },
-        "circle": circle_errors(selected, circle),
+        "circle": circle_summary,
+        "coverage": {
+            "class": coverage_class,
+            "fraction": coverage_fraction,
+            "expected_arc_length_m": path_length_m,
+            "observed_progress_end_m": progress_end_m,
+            "formal_full_path": full_path,
+            "metric_scope": metric_scope,
+            "partial_metrics_are_computed": bool(selected) and not full_path,
+            "partial_metrics_are_not_full_path_evidence": not full_path,
+        },
         "target_force_n": target,
         "normal_force_n": stats(normal),
         "force_norm_n": stats(force_norm),
         "torque_norm_nm": stats(torque_norm),
         "abs_normal_target_error_n": stats(abs_target_error),
         "signed_normal_target_error_n": stats(signed_target_error),
+        "normal_force_mae_n": (stats(abs_target_error).get("mean") if abs_target_error else None),
+        "normal_force_rmse_n": normal_force_rmse,
+        "normal_force_tail_p95_n": normal_force_tail_p95,
+        "normal_force_bias_n": (stats(signed_target_error).get("mean") if signed_target_error else None),
+        "normal_force_mae_scope": metric_scope,
         "lateral_force_n": stats(lateral_force),
         "mx_nm_zeroed": stats(mx),
         "my_nm_zeroed": stats(my),
