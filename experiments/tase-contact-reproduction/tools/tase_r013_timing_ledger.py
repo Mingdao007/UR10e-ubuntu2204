@@ -143,10 +143,19 @@ class TaseR013TimingLedger:
         home_proof = recovery.get("home_proof")
         if not isinstance(home_proof, Mapping):
             home_proof = {}
+        nested_home = recovery.get("home")
+        if not isinstance(nested_home, Mapping):
+            nested_home = {}
+        recovered_state = str(recovery.get("state", "")).upper()
         home_verified = bool(
             recovery.get("home_verified") is True
             or home_proof.get("verified") is True
-            or recovery.get("state") == "HOME"
+            or recovered_state in {"HOME", "HOME_VERIFIED", "HOME_RECOVERED"}
+            or (
+                nested_home.get("success") is True
+                and str(nested_home.get("state", "")).upper()
+                in {"HOME", "HOME_VERIFIED", "HOME_RECOVERED"}
+            )
         )
         return {
             "invoked": bool(recovery),
@@ -252,6 +261,18 @@ def ledger_from_receipts(
         if key not in seen:
             seen.add(key)
             deduplicated.append(row)
+    # Dispatch, supervisor, and recovery run in the same host monotonic clock
+    # but report different ownership boundaries.  Merge by the protocol stage
+    # before validation so a later source cannot append HOME_CHECK after PATH
+    # and create a false lifecycle regression.  Timestamps are never filled
+    # or shifted; they are only ordered within their typed stage.
+    deduplicated.sort(
+        key=lambda row: (
+            _STAGE_INDEX[str(row["stage"])],
+            float(row["timestamp_s"]),
+            str(row.get("event", "start")),
+        )
+    )
     ledger = TaseR013TimingLedger.from_events(
         attempt_id,
         deduplicated,
@@ -299,7 +320,11 @@ def lifecycle_events_from_writer(
     def row_state(row: Any) -> int | None:
         echoes = row.get("integer_echoes") if isinstance(row, Mapping) else getattr(row, "integer_echoes", None)
         if isinstance(echoes, Mapping):
-            return int(echoes[26]) if 26 in echoes else None
+            value = echoes.get(26, echoes.get("26"))
+            try:
+                return None if value is None else int(value)
+            except (TypeError, ValueError):
+                return None
         try:
             return int(echoes[26])
         except (TypeError, KeyError, IndexError, ValueError):

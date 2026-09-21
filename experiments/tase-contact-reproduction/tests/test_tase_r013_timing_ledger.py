@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from tase_r013_timing_ledger import (
     STAGES,
     TaseR013TimingLedger,
     TimingLedgerError,
+    lifecycle_events_from_writer,
     ledger_from_receipts,
     summarize_timing_ledgers,
 )
@@ -57,6 +60,65 @@ def test_recovery_merge_preserves_failed_attempt_and_records_home_outcome() -> N
     assert outcome["success"] is True
     assert outcome["home_verified"] is True
     assert outcome["source_attempt_stays_failed"] is True
+
+
+def test_recovery_outcome_accepts_governed_home_recovered_state() -> None:
+    ledger = TaseR013TimingLedger(
+        "recovered",
+        source_success=False,
+        recovery={
+            "success": True,
+            "state": "HOME_RECOVERED",
+            "home": {"success": True},
+        },
+    )
+    outcome = ledger.recovery_outcome()
+    assert outcome["success"] is True
+    assert outcome["home_verified"] is True
+    assert outcome["source_attempt_stays_failed"] is True
+
+
+def test_receipt_merge_orders_events_across_owners_without_inventing_time() -> None:
+    ledger = ledger_from_receipts(
+        "mixed",
+        dispatch_receipt={
+            "lifecycle_events": [
+                {"stage": "PATH", "event": "start", "timestamp_s": 10.0},
+                {"stage": "STOP", "event": "requested", "timestamp_s": 70.0},
+            ]
+        },
+        supervisor_result={
+            "lifecycle_events": [
+                {"stage": "HOME_CHECK", "event": "verified", "timestamp_s": 1.0},
+                {"stage": "STOP", "event": "requested", "timestamp_s": 70.1},
+            ]
+        },
+    )
+    assert [row["stage"] for row in ledger.events] == [
+        "HOME_CHECK", "PATH", "STOP", "STOP"
+    ]
+    assert ledger.events[-1]["timestamp_s"] == pytest.approx(70.1)
+    assert ledger.missing_events == []
+
+
+def test_writer_reducer_accepts_serialized_integer_echo_keys() -> None:
+    writer = SimpleNamespace(
+        robot_observations=[
+            {"integer_echoes": {"26": 20}, "received_monotonic_s": 1.0},
+            {"integer_echoes": {"26": 21}, "received_monotonic_s": 2.0},
+            {"integer_echoes": {"26": 25}, "received_monotonic_s": 3.0},
+            {"integer_echoes": {"26": 40}, "received_monotonic_s": 4.0},
+            {"integer_echoes": {"26": 78}, "received_monotonic_s": 5.0},
+        ],
+        admission_robot_observations=[],
+        _path_command_started_mono_s=3.1,
+        _r013_path_end_request_mono_s=3.9,
+    )
+    events = lifecycle_events_from_writer(
+        writer, home_check_s=0.0, stop_s=4.1, home_verified=True
+    )
+    assert {row["stage"] for row in events} == set(STAGES)
+    assert next(row for row in events if row["stage"] == "PATH")["timestamp_s"] == pytest.approx(3.1)
 
 
 def test_summary_reports_median_p90_and_failure_stages() -> None:
