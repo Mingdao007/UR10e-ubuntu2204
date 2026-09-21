@@ -126,6 +126,33 @@ def test_writer_reducer_accepts_serialized_integer_echo_keys() -> None:
     assert next(row for row in events if row["stage"] == "PATH")["timestamp_s"] == pytest.approx(3.1)
 
 
+def test_writer_reducer_preserves_readiness_hold_boundaries() -> None:
+    writer = SimpleNamespace(
+        robot_observations=[
+            {"integer_echoes": {26: 20}, "received_monotonic_s": 1.0},
+            {"integer_echoes": {26: 21}, "received_monotonic_s": 2.0},
+            {"integer_echoes": {26: 25}, "received_monotonic_s": 13.0},
+            {"integer_echoes": {26: 40}, "received_monotonic_s": 74.0},
+            {"integer_echoes": {26: 78}, "received_monotonic_s": 75.0},
+        ],
+        admission_robot_observations=[],
+        _qualification_control=SimpleNamespace(
+            readiness_hold_start_monotonic_s=3.0,
+            readiness_hold_end_monotonic_s=13.0,
+        ),
+        _path_command_started_mono_s=13.1,
+        _r013_path_end_request_mono_s=73.1,
+    )
+    events = lifecycle_events_from_writer(writer, home_check_s=0.0, home_verified=True)
+    readiness = [row for row in events if row["stage"] == "READINESS_HOLD"]
+    assert readiness == [
+        {"stage": "READINESS_HOLD", "event": "start", "timestamp_s": 3.0},
+        {"stage": "READINESS_HOLD", "event": "end", "timestamp_s": 13.0},
+    ]
+    ledger = ledger_from_receipts("readiness", lifecycle_events=events)
+    assert ledger.durations()["readiness_hold_s"] == pytest.approx(10.0)
+
+
 def test_summary_reports_median_p90_and_failure_stages() -> None:
     first = TaseR013TimingLedger.from_events("a", _events())
     second = TaseR013TimingLedger.from_events(

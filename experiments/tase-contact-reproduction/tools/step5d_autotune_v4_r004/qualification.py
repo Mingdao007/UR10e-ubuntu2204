@@ -78,6 +78,12 @@ class CanonicalQualificationControl:
     _previous_qdot: tuple[float, float, float, float, float, float] = field(
         default=(0.0,) * 6, init=False, repr=False
     )
+    _readiness_hold_start_monotonic_s: float | None = field(
+        default=None, init=False, repr=False
+    )
+    _readiness_hold_end_monotonic_s: float | None = field(
+        default=None, init=False, repr=False
+    )
     _tube_cbf: Any = field(default=None, init=False, repr=False)
     last_tube_cbf: dict[str, Any] | None = field(default=None, init=False, repr=False)
     _path_entry_rate_limit: Any = field(default=None, init=False, repr=False)
@@ -203,6 +209,16 @@ class CanonicalQualificationControl:
     def sticky_one_newton_latched(self) -> int:
         return self._sticky_latched
 
+    @property
+    def readiness_hold_start_monotonic_s(self) -> float | None:
+        """First fresh sample admitted to the continuous readiness dwell."""
+        return self._readiness_hold_start_monotonic_s
+
+    @property
+    def readiness_hold_end_monotonic_s(self) -> float | None:
+        """Fresh sample that completed the configured readiness dwell."""
+        return self._readiness_hold_end_monotonic_s
+
     def _pause_contact_provider(
         self,
         *,
@@ -248,6 +264,8 @@ class CanonicalQualificationControl:
         previous_path_origin_monotonic_s = self._path_origin_monotonic_s
         previous_qualification_retract_issued = self._qualification_retract_issued
         previous_previous_qdot = self._previous_qdot
+        previous_readiness_hold_start = self._readiness_hold_start_monotonic_s
+        previous_readiness_hold_end = self._readiness_hold_end_monotonic_s
         previous_baseline_state = getattr(self, "_baseline_state", None)
         previous_path_entry_release_state = getattr(
             self, "_path_entry_release_state", None
@@ -284,6 +302,8 @@ class CanonicalQualificationControl:
             self._path_origin_monotonic_s = previous_path_origin_monotonic_s
             self._qualification_retract_issued = previous_qualification_retract_issued
             self._previous_qdot = previous_previous_qdot
+            self._readiness_hold_start_monotonic_s = previous_readiness_hold_start
+            self._readiness_hold_end_monotonic_s = previous_readiness_hold_end
             self._baseline_state = previous_baseline_state
             self._path_entry_release_state = previous_path_entry_release_state
             self.last_pre_path_late_cycle = previous_last_pre_path_late_cycle
@@ -500,6 +520,20 @@ class CanonicalQualificationControl:
                     max_torque_norm_nm=3.0,
                 ),
             )
+            if self._baseline_state.readiness_dwell_s <= 0.0:
+                # A failed readiness sample restarts the hold clock.  Never
+                # retain a stale timestamp across a broken dwell.
+                self._readiness_hold_start_monotonic_s = None
+                self._readiness_hold_end_monotonic_s = None
+            else:
+                if self._readiness_hold_start_monotonic_s is None:
+                    self._readiness_hold_start_monotonic_s = now
+                if (
+                    self._readiness_hold_end_monotonic_s is None
+                    and self._baseline_state.readiness_dwell_s
+                    >= self._required_hold_s - 1e-9
+                ):
+                    self._readiness_hold_end_monotonic_s = now
             self.last_baseline_transition = None
             if self.r013_baseline_transition_profile is not None:
                 transition = self.r013_baseline_transition_profile.evaluate(

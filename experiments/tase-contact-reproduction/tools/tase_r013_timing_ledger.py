@@ -135,6 +135,13 @@ class TaseR013TimingLedger:
             self._first("STOP"),
         )
         result["formal_path_s"] = None if path_start is None or path_end is None else path_end - path_start
+        readiness_start = self._first("READINESS_HOLD", "start")
+        readiness_end = self._first("READINESS_HOLD", "end")
+        result["readiness_hold_s"] = (
+            None
+            if readiness_start is None or readiness_end is None
+            else readiness_end - readiness_start
+        )
         home_start = pick(
             self._first("HOME", "start"),
             self._first("UNLOAD_RELIEF"),
@@ -364,6 +371,7 @@ def lifecycle_events_from_writer(
     # the physical writer's buffers and boundary markers; the adapter itself
     # is only a compatibility shell and does not own those observations.
     base_writer = getattr(writer, "writer", writer)
+    qualification_control = getattr(base_writer, "_qualification_control", None)
 
     def finite_or_none(value: Any) -> float | None:
         try:
@@ -407,10 +415,12 @@ def lifecycle_events_from_writer(
         ),
         "CONTACT_LATCH": (first_state.get(21), "tp_state_20_to_21"),
         "QUALIFICATION": (first_state.get(21), "tp_state_21"),
-        # The raw writer receipt does not expose the end of the 10 s readiness
-        # dwell as a typed transition.  Keep it missing instead of duplicating
-        # the CONTACT_LATCH time and claiming a false duration.
-        "READINESS_HOLD": (None, "missing_readiness_boundary"),
+        "READINESS_HOLD": (
+            finite_or_none(
+                getattr(qualification_control, "readiness_hold_start_monotonic_s", None)
+            ),
+            "qualification_readiness_start",
+        ),
         "ENTRY": (first_state.get(25), "tp_state_25"),
         "PATH": (
             finite_or_none(getattr(base_writer, "_path_command_started_mono_s", None)),
@@ -425,11 +435,20 @@ def lifecycle_events_from_writer(
         "CLEARANCE": (first_state.get(78), "tp_state_78"),
         "HOME": (first_state.get(78) if home_verified else None, "home_proof"),
     }
-    return [
-        {"stage": stage, "event": event, "timestamp_s": timestamp}
-        for stage in STAGES
-        for timestamp, event in (candidates[stage],)
-    ]
+    events: list[dict[str, Any]] = []
+    for stage in STAGES:
+        if stage == "READINESS_HOLD":
+            start, source = candidates[stage]
+            end = finite_or_none(
+                getattr(qualification_control, "readiness_hold_end_monotonic_s", None)
+            )
+            events.append({"stage": stage, "event": "start", "timestamp_s": start})
+            if end is not None:
+                events.append({"stage": stage, "event": "end", "timestamp_s": end})
+            continue
+        timestamp, source = candidates[stage]
+        events.append({"stage": stage, "event": source, "timestamp_s": timestamp})
+    return events
 
 
 def summarize_timing_ledgers(ledgers: Iterable[TaseR013TimingLedger]) -> dict[str, Any]:

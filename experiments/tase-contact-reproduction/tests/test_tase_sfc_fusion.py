@@ -153,3 +153,59 @@ def test_fusion_and_clamp_snapshot_replay_is_deterministic() -> None:
     assert replay_clamp.state_n_s == pytest.approx(clamp.state_n_s)
     assert replay_clamp.diagnostics == clamp._last.diagnostics  # noqa: SLF001
     assert COMPOSITION_ID == "TASE_RNN_MATURE+SFC_TANGENTIAL"
+
+
+def test_normal_jump_freezes_sfc_until_explicit_mode_reset() -> None:
+    fusion = TaseSfcFusion((0.0, 0.0, 1.0))
+    fusion.fuse(
+        (0.0, 0.0, 0.05, 0.0, 0.0, 0.0),
+        (0.01, 0.0, 0.0, 0.0, 0.0, 0.0),
+        (0.0, 0.0, 1.0),
+        phase="PATH",
+    )
+    jumped = fusion.fuse(
+        (0.0, 0.0, 0.05, 0.0, 0.0, 0.0),
+        (0.01, 0.0, 0.0, 0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        phase="PATH",
+    )
+    assert jumped.sfc_enabled is False
+    assert jumped.diagnostics["normal_jump"] is True
+    assert "normal_jump" in fusion.reset_events
+    np.testing.assert_allclose(fusion.sfc_state, np.zeros(2))
+
+    # A mode transition is the explicit reset boundary that permits a fresh
+    # tangent basis/control state to be admitted.
+    fusion.set_phase("qualification")
+    resumed = fusion.fuse(
+        (0.0, 0.0, 0.05, 0.0, 0.0, 0.0),
+        (0.01, 0.0, 0.0, 0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        phase="PATH",
+    )
+    assert resumed.sfc_enabled is True
+
+
+def test_invalid_fusion_frame_resets_sfc_state() -> None:
+    fusion = TaseSfcFusion((0.0, 0.0, 1.0))
+    fusion.fuse((0.0, 0.0, 0.05, 0.0, 0.0, 0.0), (0.01, 0.0, 0.0, 0.0, 0.0, 0.0), (0.0, 0.0, 1.0), phase="PATH")
+    with pytest.raises(FusionError, match="finite"):
+        fusion.fuse((0.0, 0.0, float("nan"), 0.0, 0.0, 0.0), (0.0,) * 6, (0.0, 0.0, 1.0), phase="PATH")
+    assert fusion.sfc_enabled is False
+    assert "invalid_state" in fusion.reset_events
+    np.testing.assert_allclose(fusion.sfc_state, np.zeros(2))
+
+
+def test_final_qp_fails_closed_when_normal_is_unrealizable() -> None:
+    qp = FinalBoundedJointVelocityQP()
+    with pytest.raises(FusionError, match="preserve the TASE normal"):
+        qp.realize(
+            np.zeros((6, 1)),
+            normal=(0.0, 0.0, 1.0),
+            normal_twist=(0.0, 0.0, 0.04, 0.0, 0.0, 0.0),
+            tangent_twist=(0.0,) * 6,
+            previous_qdot=np.zeros(1),
+            qdot_lower=np.zeros(1),
+            qdot_upper=np.zeros(1),
+            slew_limit=0.04,
+        )

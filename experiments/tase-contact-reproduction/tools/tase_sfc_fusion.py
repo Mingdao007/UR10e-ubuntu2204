@@ -26,6 +26,7 @@ COMPOSITION_ID = "TASE_RNN_MATURE+SFC_TANGENTIAL"
 CLAMP_POLICY_ID = "conditional-double-clamp-v1"
 CLAMP_STATE_LIMIT_N_S = 1.0
 CLAMP_AUTHORITY_LIMIT_N = 0.5
+NORMAL_JUMP_THRESHOLD_RAD = math.radians(30.0)
 RESET_BOUNDARIES = (
     "candidate_dispatch",
     "contact_latch",
@@ -33,6 +34,7 @@ RESET_BOUNDARIES = (
     "contact_loss",
     "abort",
     "invalid_state",
+    "normal_jump",
     "mode_exit",
     "unload",
     "home",
@@ -235,10 +237,20 @@ class FusionResult:
 class TaseSfcFusion:
     """Compose TASE normal/orientation with an optional tangent SFC output."""
 
-    def __init__(self, normal: Any):
+    def __init__(
+        self,
+        normal: Any,
+        *,
+        normal_jump_threshold_rad: float = NORMAL_JUMP_THRESHOLD_RAD,
+    ):
+        threshold = float(normal_jump_threshold_rad)
+        if not math.isfinite(threshold) or not 0.0 < threshold <= math.pi:
+            raise FusionError("normal_jump_threshold_rad must be in (0, pi]")
         self._basis = TransportedTangentBasis(normal)
+        self._normal_jump_threshold_rad = threshold
         self._phase = "idle"
         self._sfc_enabled = False
+        self._sfc_frozen = False
         self._sfc_state = np.zeros(2, dtype=float)
         self._reset_events: list[str] = []
 
@@ -280,6 +292,7 @@ class TaseSfcFusion:
         elif not was_path:
             self._sfc_enabled = True
             self._sfc_state.fill(0.0)
+            self._sfc_frozen = False
             self._reset_events.append("path_entry")
         self._phase = phase
 
@@ -287,6 +300,7 @@ class TaseSfcFusion:
         if boundary not in RESET_BOUNDARIES:
             raise FusionError(f"unknown fusion reset boundary {boundary!r}")
         self._sfc_enabled = False
+        self._sfc_frozen = False
         self._sfc_state.fill(0.0)
         self._reset_events.append(boundary)
         self._phase = "reset"
@@ -308,10 +322,30 @@ class TaseSfcFusion:
     ) -> FusionResult:
         if phase is not None:
             self.set_phase(phase)
-        projectors = normal_tangent_projectors(normal)
+        try:
+            projectors = normal_tangent_projectors(normal)
+            tase = _finite_vector(tase_twist, 6, "tase_twist")
+            sfc = _finite_vector(sfc_twist, 6, "sfc_twist")
+        except FusionError:
+            self._sfc_enabled = False
+            self._sfc_frozen = True
+            self._sfc_state.fill(0.0)
+            self._reset_events.append("invalid_state")
+            raise
+        previous_normal = self._basis.normal
+        normal_jump_angle = math.acos(
+            float(np.clip(np.dot(previous_normal, np.asarray(projectors.normal)), -1.0, 1.0))
+        )
+        normal_jump = normal_jump_angle > self._normal_jump_threshold_rad
+        if normal_jump:
+            # Keep the TASE normal/orientation command available, but freeze
+            # SFC until an explicit mode transition or reset.  This prevents
+            # a discontinuous online normal from injecting a tangent command.
+            self._sfc_enabled = False
+            self._sfc_frozen = True
+            self._sfc_state.fill(0.0)
+            self._reset_events.append("normal_jump")
         self._basis.update(np.asarray(projectors.normal, dtype=float))
-        tase = _finite_vector(tase_twist, 6, "tase_twist")
-        sfc = _finite_vector(sfc_twist, 6, "sfc_twist")
         tase_normal_linear = projectors.Pn @ tase[:3]
         tase_tangent_linear = projectors.Pt @ tase[:3]
         sfc_tangent_linear = projectors.Pt @ sfc[:3] if self._sfc_enabled else np.zeros(3)
@@ -337,6 +371,9 @@ class TaseSfcFusion:
                 "sfc_angular_component_zeroed": True,
                 "normal_priority": "TASE",
                 "sfc_enabled": self._sfc_enabled,
+                "normal_jump": normal_jump,
+                "normal_jump_threshold_rad": self._normal_jump_threshold_rad,
+                "sfc_frozen": self._sfc_frozen,
             },
         )
 
@@ -346,6 +383,8 @@ class TaseSfcFusion:
             "composition_id": COMPOSITION_ID,
             "phase": self._phase,
             "sfc_enabled": self._sfc_enabled,
+            "sfc_frozen": self._sfc_frozen,
+            "normal_jump_threshold_rad": self._normal_jump_threshold_rad,
             "sfc_state": self._sfc_state.tolist(),
             "basis": self._basis.snapshot(),
             "reset_events": list(self._reset_events),
@@ -361,11 +400,18 @@ class TaseSfcFusion:
         if type(enabled) is not bool:
             raise FusionError("fusion snapshot SFC enable flag is invalid")
         sfc_state = _finite_vector(state.get("sfc_state"), 2, "snapshot sfc_state")
+        frozen = state.get("sfc_frozen", False)
+        if type(frozen) is not bool:
+            raise FusionError("fusion snapshot SFC frozen flag is invalid")
+        threshold = float(state.get("normal_jump_threshold_rad", self._normal_jump_threshold_rad))
+        if not math.isclose(threshold, self._normal_jump_threshold_rad, rel_tol=0.0, abs_tol=1e-12):
+            raise FusionError("fusion snapshot normal jump threshold differs")
         events = state.get("reset_events")
         if not isinstance(events, list) or not all(isinstance(item, str) for item in events):
             raise FusionError("fusion snapshot reset events are invalid")
         self._basis.restore(state.get("basis"))
         self._phase, self._sfc_enabled, self._sfc_state = phase, enabled, sfc_state
+        self._sfc_frozen = frozen
         self._reset_events = list(events)
 
 
@@ -700,6 +746,10 @@ class FinalBoundedJointVelocityQP:
         normal_request_norm = float(np.linalg.norm(normal_target))
         normal_preserved = normal_residual <= max(1e-9, 1e-6 * max(1.0, normal_request_norm))
         tangent_degraded = tangent_residual > max(1e-9, 1e-6 * max(1.0, float(np.linalg.norm(tangent_target))))
+        if not normal_preserved:
+            raise FusionError(
+                "final QP cannot preserve the TASE normal command within qdot/slew bounds"
+            )
         diagnostics = {
             "schema": "final-bounded-joint-velocity-qp-v1",
             "composition_id": COMPOSITION_ID,
@@ -731,6 +781,7 @@ __all__ = [
     "CLAMP_POLICY_ID",
     "CLAMP_STATE_LIMIT_N_S",
     "CLAMP_AUTHORITY_LIMIT_N",
+    "NORMAL_JUMP_THRESHOLD_RAD",
     "RESET_BOUNDARIES",
     "SATURATION_SOURCES",
     "FusionError",
