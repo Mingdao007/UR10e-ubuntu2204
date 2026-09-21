@@ -1,0 +1,119 @@
+{
+  "schema": "tase.home-recovery-candidate-geometry-v1",
+  "claim_scope": "offline candidate geometry only; UNAPPROVED, no package change, no endpoint action, no Home command, no motion authorization",
+  "created_at": "2026-09-21T12:22:54.954",
+  "status": "UNAPPROVED",
+  "source_commit": "eded4b129ab2f1430d70f9dc36bf8995b4dad5eb",
+  "source_preflight": "runs/preflight_20260921_tase_continuation2/preflight_readonly.json",
+  "source_preflight_sha256": "8ab2dd9b9f07bbb0fcf9b5c0be3777ac351fbcf68ed3c62fdc1755bd0430dfe2",
+  "start_pose_m_rad": [
+    0.461715278620354,
+    0.1778699430966365,
+    0.020574017526489477,
+    -2.0320870273004545,
+    -2.3938222886577765,
+    0.0167159251249639
+  ],
+  "approved_home_pose_m_rad": [
+    0.4620551816,
+    0.1778825964,
+    0.033,
+    2.0331342431227566,
+    2.3949884238824652,
+    -2.2711768777011217e-22
+  ],
+  "geometry": {
+    "position_delta_m": [
+      0.0003399029796459785,
+      1.2653303363502344e-05,
+      0.012425982473510525
+    ],
+    "lateral_transfer_m": 0.0003401384154402782,
+    "total_transfer_m": 0.012430636933546445,
+    "vertical_rise_m": 0.012425982473510525,
+    "orientation_error_rad": 0.010755201846043493,
+    "orientation_error_mrad": 10.755201846043493,
+    "orientation_error_vector_rad": [
+      0.00713150278787398,
+      -0.008050792597363658,
+      -2.7808090864304066e-05
+    ],
+    "existing_limits": {
+      "max_transfer_m": 0.08,
+      "max_rise_m": 0.015,
+      "max_so3_angle_rad": 0.01,
+      "lift_lateral_m": 0.0005,
+      "lift_angular_rad": 0.003
+    }
+  },
+  "candidate_segments": [
+    {
+      "id": "A_vertical_clearance_lift",
+      "description": "lift from the observed pose to Home Z with XY and orientation held at the observed values",
+      "target_pose_m_rad": [
+        0.461715278620354,
+        0.1778699430966365,
+        0.033,
+        -2.0320870273004545,
+        -2.3938222886577765,
+        0.0167159251249639
+      ],
+      "command_profile": "existing historical vertical profile: 0.040 m/s, 0.060 m/s^2",
+      "required_guards": [
+        "fresh stationary RTDE",
+        "Safety NORMAL",
+        "raw force <20 N and torque <2 Nm",
+        "vertical-only twist",
+        "lateral <=0.5 mm",
+        "orientation drift <=3 mrad",
+        "video and single-writer ownership"
+      ]
+    },
+    {
+      "id": "B_release_and_orientation_correction",
+      "description": "at clearance only, prove corrected force release and rotate along the shortest SO(3) path to approved Home orientation while holding position",
+      "target_orientation_m_rad": [
+        2.0331342431227566,
+        2.3949884238824652,
+        -2.2711768777011217e-22
+      ],
+      "angular_path_rad": 0.010755201846043493,
+      "angular_speed_guard_rad_s": 0.04,
+      "required_guards": [
+        "corrected force <1 N for 0.2 s",
+        "fresh sensor and video evidence",
+        "Safety NORMAL",
+        "joint speed <=0.15 rad/s",
+        "angular speed <=0.04 rad/s",
+        "explicit recovery-owner approval"
+      ]
+    },
+    {
+      "id": "C_clearance_home_transfer",
+      "description": "after orientation correction, move the 0.325 mm lateral/XY residual to the approved Home pose at clearance",
+      "target_pose_m_rad": [
+        0.4620551816,
+        0.1778825964,
+        0.033,
+        2.0331342431227566,
+        2.3949884238824652,
+        -2.2711768777011217e-22
+      ],
+      "command_profile": "existing historical clearance transfer: 0.090 m/s, 0.135 m/s^2",
+      "required_guards": [
+        "fresh stationary sample",
+        "all existing Home package/read-back checks",
+        "no force rise",
+        "final verified Home"
+      ]
+    }
+  ],
+  "why_not_approved": [
+    "existing plan_home_recovery rejects the observed 10.755 mrad start attitude before any commandability check",
+    "the installed owner has no staged orientation-correction segment and no approved proof for this stopped pose",
+    "current read-only preflight does not provide corrected Kunwei force-release evidence for segment B",
+    "this candidate must be reviewed and explicitly approved before any implementation or live use"
+  ],
+  "next_safe_action": "obtain explicit recovery-owner approval or an external physical-state change; do not widen MAX_SO3_ANGLE_RAD and do not execute this candidate",
+  "hardware_or_endpoint_action": false
+}
