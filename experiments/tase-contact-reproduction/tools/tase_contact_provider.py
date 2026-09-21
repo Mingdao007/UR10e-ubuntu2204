@@ -59,8 +59,8 @@ TASE_PAPER_OUTER_BINDING = {
     ],
     'live_force_measurement_envelope': {
         'schema': 'tase-live-force-rise-envelope-v1',
-        'formula': 'control_normal=max(canonical_filtered_normal, measured_normal_load)',
-        'purpose': 'prevent filter lag from commanding further inward motion while raw load is rising',
+        'formula': 'control_normal=max(canonical_filtered_normal, measured_normal_load, measured_force_norm)',
+        'purpose': 'prevent filter lag or tangential-load growth from commanding further inward motion near the shared force limit',
         'evidence_field': 'control_normal_n',
     },
 }
@@ -249,12 +249,17 @@ class TaseContactProvider(ContactCommandProvider):
                 raise ValueError('TASE force measurement is nonfinite')
             # The canonical V4 filter remains the qualification/evidence
             # signal.  The TASE force loop additionally gets a one-sided
-            # measured-load envelope: when the raw normal rises faster than
-            # the long readiness filter, it must not continue commanding
-            # into the contact until the filter catches up.  On release the
-            # low-pass value is retained, avoiding noisy outward/inward
-            # chatter and preserving the paper loop's filtered input.
-            control_normal = max(float(filtered), float(sensor.normal_load_n))
+            # measured-load envelope: when either the normal load or the full
+            # corrected force norm rises faster than the readiness filter, it
+            # must not continue commanding into the contact until the filter
+            # catches up.  Using the norm here is a conservative live safety
+            # adaptation; the raw wrench and canonical filtered channels are
+            # still retained separately for evidence and hard stopping.
+            control_normal = max(
+                float(filtered),
+                float(sensor.normal_load_n),
+                float(sensor.force_norm_n),
+            )
             twist = self.runtime.desired_twist(actual_tcp_pose=output.tcp_pose_m_rad,
                 actual_tcp_speed=output.tcp_speed_m_s_rad_s, force_tcp_n=sensor.wrench[:3],
                 filtered_normal_n=control_normal, internal_setpoint_n=internal_setpoint_n,
@@ -289,6 +294,8 @@ class TaseContactProvider(ContactCommandProvider):
                 'host_slew_limit_rad_s': host_slew_limit,
                 'filtered_normal_n': float(filtered),
                 'control_normal_n': float(control_normal),
+                'measured_normal_n': float(sensor.normal_load_n),
+                'measured_force_norm_n': float(sensor.force_norm_n),
                 'entry_time_s': t if phase == 'entry' else None,
                 'formal_time_s': t if phase == 'path' else None,
                 'actual_dt_s': actual_dt_s, 'solver': copy.deepcopy(self.runtime.last_solver_diagnostics),

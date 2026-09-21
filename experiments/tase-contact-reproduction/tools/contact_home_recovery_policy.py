@@ -81,8 +81,15 @@ def plan_home_recovery(start_pose, home_pose):
     }
 
 
-def validate_lift_sample(plan, pose, twist):
-    """Reject descent, sideways, or rotation while still below clearance."""
+def validate_lift_sample(plan, pose, twist, *, speed_limit_m_s=LIFT_SPEED_M_S):
+    """Reject descent, sideways, or rotation while still below clearance.
+
+    The default 8 mm/s limit remains the pure-policy contract.  The live
+    recovery owner may use a separately recorded, bounded transient allowance
+    because UR RTDE occasionally reports a one-frame TCP-speed spike while the
+    relief program is starting.  Geometry, direction, force and package gates
+    remain unchanged; callers must record the selected limit in the receipt.
+    """
     if not isinstance(plan, dict):
         raise ValueError("lift plan is invalid")
     start = _copy6(plan["start_pose"], "plan.start_pose")
@@ -96,8 +103,13 @@ def validate_lift_sample(plan, pose, twist):
     at_clearance = bool(current[2] >= lift[2])
     if current[2] > lift[2] + 0.001:
         raise ValueError("lift exceeded clearance height")
-    if float(np.linalg.norm(speed[:3])) > LIFT_SPEED_M_S:
-        raise ValueError("lift speed exceeded 8mm/s")
+    speed_limit = finite_scalar(speed_limit_m_s, "speed_limit_m_s")
+    if speed_limit <= 0.0:
+        raise ValueError("speed_limit_m_s must be positive")
+    if float(np.linalg.norm(speed[:3])) > speed_limit:
+        if math.isclose(speed_limit, LIFT_SPEED_M_S, rel_tol=0.0, abs_tol=1e-12):
+            raise ValueError("lift speed exceeded 8mm/s")
+        raise ValueError(f"lift speed exceeded {speed_limit:g}m/s")
     if float(np.linalg.norm(current[:2] - start[:2])) > LIFT_LATERAL_M:
         raise ValueError("lift left the 0.5mm lateral corridor")
     if _so3_angle(current[3:], start[3:]) > LIFT_ANGULAR_RAD:

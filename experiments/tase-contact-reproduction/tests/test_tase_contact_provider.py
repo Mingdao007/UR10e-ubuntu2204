@@ -94,6 +94,23 @@ def test_live_tase_uses_raw_normal_rise_envelope_without_replacing_evidence_filt
     )
 
 
+def test_live_tase_force_norm_envelope_preempts_tangential_load_overshoot(provider):
+    o, s = tick(provider, .002, force=8.)
+    s = replace(s, filtered_normal_n=1., normal_load_n=8., force_norm_n=19.)
+    provider.command(
+        output=o,
+        sensor=s,
+        monotonic_s=.002,
+        actual_dt_s=.002,
+        mode='baseline',
+        internal_setpoint_n=1.,
+    )
+    assert provider.last_result['filtered_normal_n'] == pytest.approx(1.)
+    assert provider.last_result['measured_normal_n'] == pytest.approx(8.)
+    assert provider.last_result['measured_force_norm_n'] == pytest.approx(19.)
+    assert provider.last_result['control_normal_n'] == pytest.approx(19.)
+
+
 def test_stale_observation_does_not_advance_control_state(provider):
     before=provider.snapshot();o,s=tick(provider,.1)
     s=replace(s,observed_at_s=.001)

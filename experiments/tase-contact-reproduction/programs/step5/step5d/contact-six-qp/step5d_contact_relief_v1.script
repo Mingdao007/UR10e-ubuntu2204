@@ -1,4 +1,4 @@
-# VERSION: 2026-09-20T1530Z_CONTACT_RELIEF_V1
+# VERSION: 2026-09-21T0008Z_CONTACT_RELIEF_V1
 # ROLE: monitored Base +Z relief only; no XY or attitude transfer
 # No force-control restart; host owns fresh Kunwei unloading guard and Stop.
 def codex_start_hover_finite_value(value, absolute_limit):
