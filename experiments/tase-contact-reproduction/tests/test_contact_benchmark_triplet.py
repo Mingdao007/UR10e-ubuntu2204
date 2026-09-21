@@ -3,6 +3,7 @@ import sys,json,gzip,xml.etree.ElementTree as ET
 import pytest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 from build_contact_benchmark_triplet import transform,SOURCE,BASENAME,build
+from contact_yield_task_frame import FIGURE8_CONTACT_HOME_XYZ_M
 
 
 def receipt():
@@ -37,11 +38,13 @@ def test_tool_change_or_unconfirmed_home_fails_closed():
 
 def test_home_package_preserves_xyz_and_bounds_initial_pose(tmp_path):
     from build_contact_home import build as build_home, BASENAME as home_name
-    p=tmp_path/'home.json';p.write_text(json.dumps(receipt()));out=tmp_path/'home-package'
+    h=receipt();h['home_pose'][:3]=list(FIGURE8_CONTACT_HOME_XYZ_M)
+    p=tmp_path/'home.json';p.write_text(json.dumps(h));out=tmp_path/'home-package'
     result=build_home(p,out);s=(out/f'{home_name}.script').read_text()
-    assert result['home_pose'][:3]==[.487834547,.129337053,.033]
+    assert result['home_pose'][:3]==list(FIGURE8_CONTACT_HOME_XYZ_M)
     assert 'initial_xyz_error > 0.002' in s
-    assert 'a=0.050, v=0.010' in s
+    assert 'movel(rise_pose, a=0.060, v=0.040, r=0.0)' in s
+    assert 'movel(transfer_pose, a=0.135, v=0.090, r=0.0)' in s
     assert 'set_tcp(' not in s and 'zero_ftsensor(' not in s
     assert 'local delta_pose = pose_trans(pose_inv(target_pose), actual_pose)' in s
 

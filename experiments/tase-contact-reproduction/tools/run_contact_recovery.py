@@ -14,6 +14,12 @@ from types import SimpleNamespace
 import numpy as np
 import pinocchio as pin
 from build_contact_recovery import RELIEF_PROGRAM
+from contact_home_motion_profile import (
+    HOME_ANGULAR_SPEED_GUARD_RAD_S,
+    HOME_JOINT_SPEED_GUARD_RAD_S,
+    HOME_TRANSFER_SPEED_M_S,
+    HOME_VERTICAL_SPEED_M_S,
+)
 from contact_yield_live_contract import load_identity_contract,PACKAGE_DIR
 from contact_yield_supervisor import VideoRecorder
 from contact_yield_math import so3_exp,so3_log
@@ -27,11 +33,11 @@ from step5d_autotune_v4_r004.calibrated_runtime import tcp_jacobian_base
 
 DIRECTORY='/programs/andyl/kunwei/step5'
 RECOVERY_POLICY='AUTO_HOME_WHEN_COMMANDABLE'
-# The pure policy keeps an 8 mm/s bound.  The live relief observer permits a
-# bounded 20 mm/s one-frame RTDE transient while retaining vertical-only
-# geometry and the independent force guard; this prevents telemetry spikes
-# from suppressing the existing Home owner.
-RECOVERY_LIFT_SPEED_LIMIT_M_S = 0.020
+# Use the historical 40 mm/s vertical command, with a small observer margin
+# for the controller's first RTDE sample. This is still a vertical-only
+# relief and does not relax force, lateral, attitude, freshness, or safety
+# checks.
+RECOVERY_LIFT_SPEED_LIMIT_M_S = HOME_VERTICAL_SPEED_M_S + 0.010
 # A UR controller can report one short downward TCP-speed sample while a
 # vertical relief program is entering RUNNING.  Treat that sample as a
 # commandable startup race: stop, wait for a fresh stationary observation, and
@@ -372,9 +378,9 @@ def check_geometry(sample,plan):
     if np.linalg.norm(residual[:3])>.0005 or np.linalg.norm(residual[3:])>.003:
         raise ValueError('measured TCP and calibrated geometry disagree')
     max_residual=0.;max_qd=0.
-    for a,b,speed in ((start,lift,.0005),(lift,home,.002)):
+    for a,b,speed in ((start,lift,HOME_VERTICAL_SPEED_M_S),(lift,home,HOME_TRANSFER_SPEED_M_S)):
         ra=so3_exp(a[3:]);turn=so3_log(so3_exp(b[3:])@ra.T)
-        duration=max(np.linalg.norm(b[:3]-a[:3])/speed,np.linalg.norm(turn)/.020,.1)
+        duration=max(np.linalg.norm(b[:3]-a[:3])/speed,np.linalg.norm(turn)/HOME_ANGULAR_SPEED_GUARD_RAD_S,.1)
         for fraction in np.linspace(0.,1.,51):
             pos=a[:3]+fraction*(b[:3]-a[:3]);rot=so3_exp(fraction*turn)@ra
             for _ in range(15):
@@ -386,7 +392,7 @@ def check_geometry(sample,plan):
             max_qd=max(max_qd,float(np.max(np.abs(qd))))
             if not (np.all(q>model.model.lowerPositionLimit) and np.all(q<model.model.upperPositionLimit)):
                 raise ValueError('recovery IK joint bounds exceeded')
-    if max_residual>1e-7 or max_qd>.04:raise ValueError('recovery IK/speed check failed')
+    if max_residual>1e-7 or max_qd>HOME_JOINT_SPEED_GUARD_RAD_S:raise ValueError('recovery IK/speed check failed')
     return {'pass':True,'max_residual':max_residual,'max_joint_speed_rad_s':max_qd,'home_q':q.tolist(),'joint_delta':(q-initial).tolist(),'scope':'calibrated sampled geometry, not collision or force proof'}
 
 
@@ -546,8 +552,8 @@ def run(args):
         geometry=check_geometry(row,plan);result['geometry']=geometry
         result['lift_guard']={
             'speed_limit_m_s': RECOVERY_LIFT_SPEED_LIMIT_M_S,
-            'pure_policy_speed_limit_m_s': 0.008,
-            'reason': 'bounded RTDE startup transient allowance; vertical/lateral/attitude/force guards unchanged',
+            'pure_policy_speed_limit_m_s': HOME_VERTICAL_SPEED_M_S,
+            'reason': 'historical 40mm/s vertical command plus 10mm/s RTDE startup margin; other guards unchanged',
         }
         guard=ReliefForceGuard(initial_raw_wrench=raw,no_load_wrench=baseline['mean_wrench_n_nm'],baseline_std_wrench=baseline['std_wrench_n_nm'],rotation=so3_exp(row['actual_TCP_pose'][3:]))
         def check():

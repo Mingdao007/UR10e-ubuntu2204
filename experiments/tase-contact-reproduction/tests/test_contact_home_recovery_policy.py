@@ -73,8 +73,8 @@ def test_sideways_or_rotation_while_below_home_is_rejected():
     with pytest.raises(ValueError, match="lateral"):
         validate_lift_sample(plan, at_clearance, still)
     validate_lift_sample(plan, start, np.array([0.0, 0.0, 0.006, 0.0, 0.0, 0.0]))
-    with pytest.raises(ValueError, match="8mm/s"):
-        validate_lift_sample(plan, start, np.array([0.0, 0.0, 0.009, 0.0, 0.0, 0.0]))
+    with pytest.raises(ValueError, match="historical 40mm/s"):
+        validate_lift_sample(plan, start, np.array([0.0, 0.0, 0.041, 0.0, 0.0, 0.0]))
 
 
 def test_rise_above_15mm_is_invalid_geometry():

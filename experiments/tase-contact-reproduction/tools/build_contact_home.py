@@ -7,6 +7,13 @@ from build_step4e_p0p1_programs import build_urp
 from step5d_autotune_v4_r012.controller_triplet import validate_urscript_block_balance
 from build_contact_benchmark_triplet import ROOT,CONTROLLER_DIR,transform,SOURCE
 from contact_yield_task_frame import FIGURE8_CONTACT_HOME_XYZ_M
+from contact_home_motion_profile import (
+    HISTORICAL_PROFILE_ID,
+    HOME_TRANSFER_ACCEL_M_S2,
+    HOME_TRANSFER_SPEED_M_S,
+    HOME_VERTICAL_ACCEL_M_S2,
+    HOME_VERTICAL_SPEED_M_S,
+)
 
 BASENAME='step5d_contact_home_v1'
 HOME_SOURCE=ROOT/'programs/step5/step5d/step5d_autotune_start_hover_r001.script'
@@ -53,14 +60,25 @@ def build(receipt,output):
     pose='p['+', '.join(f'{x:.12f}' for x in target)+']'
     text=re.sub(r'local target_pose = p\[[^\]]+\]',f'local target_pose = {pose}',text)
     text=re.sub(r'^# TARGET_POSE: .*$',f'# TARGET_POSE: {pose}',text,flags=re.M)
-    # Slower than inherited helper, identical geometric three-segment route.
-    text=text.replace('a=0.060, v=0.040','a=0.050, v=0.010').replace('a=0.135, v=0.090','a=0.050, v=0.010')
-    for a,b in [('= 0.060','= 0.050'),('= 0.135','= 0.050'),('= 0.040','= 0.010'),('= 0.090','= 0.010')]:text=text.replace(a,b)
+    # Preserve the historical three-segment helper profile. Bounded recovery
+    # changes admission geometry, not the already-used motion parameters.
+    text=text.replace(
+        'a=0.060, v=0.040',
+        f'a={HOME_VERTICAL_ACCEL_M_S2:.3f}, v={HOME_VERTICAL_SPEED_M_S:.3f}',
+    ).replace(
+        'a=0.135, v=0.090',
+        f'a={HOME_TRANSFER_ACCEL_M_S2:.3f}, v={HOME_TRANSFER_SPEED_M_S:.3f}',
+    )
+    for a,b in [
+        ('= 0.060',f'= {HOME_VERTICAL_ACCEL_M_S2:.3f}'),
+        ('= 0.135',f'= {HOME_TRANSFER_ACCEL_M_S2:.3f}'),
+        ('= 0.040',f'= {HOME_VERTICAL_SPEED_M_S:.3f}'),
+        ('= 0.090',f'= {HOME_TRANSFER_SPEED_M_S:.3f}'),
+    ]:text=text.replace(a,b)
     if recovery is not None or withdrawal is not None:
-        text=text.replace('a=0.050, v=0.010','a=0.010, v=0.002')
         first,rest=text.split('\n',1)
         description='vertical withdrawal within the 15mm search envelope' if withdrawal is not None else 'translation<=3mm turn<=20mrad'
-        text=first+'\n# BOUNDED_RECOVERY: observed start to approved Home; '+description+'; a=0.01 v=0.002\n'+rest
+        text=first+'\n# BOUNDED_RECOVERY: observed start to approved Home; '+description+'; historical v=0.040/0.090 m/s\n'+rest
     marker='  local safe_transfer_z = 0.033000000\n'
     initial='p['+', '.join(f'{x:.12f}' for x in observed)+']'
     guard=f'''  # Bind the initial pose to the fresh stationary read; reject an intervening move.
@@ -86,12 +104,14 @@ def build(receipt,output):
     halt
   end
 '''
-        text=text.replace('a=0.050, v=0.010','a=0.010, v=0.002')
     if text.count(marker)!=1:raise ValueError('Home helper source differs')
     text=text.replace(marker,guard+marker)
     text='\n'.join(l for l in text.splitlines() if not l.startswith(('# MOTION_SEGMENT_', '# GEOMETRY_BASIS_')))+'\n'
-    text=text.replace('# BLEND_RADIUS_M:', '# MOTION: preserve height for XY transfer, then descend to original Home; a=0.05m/s2 v=0.01m/s\n# BLEND_RADIUS_M:')
-    if recovery is not None or withdrawal is not None or home.get('clearance_entry') is True:text=text.replace('a=0.05m/s2 v=0.01m/s','a=0.01m/s2 v=0.002m/s')
+    text=text.replace(
+        '# BLEND_RADIUS_M:',
+        '# MOTION: historical vertical a=0.060m/s2 v=0.040m/s; '
+        'clearance transfer a=0.135m/s2 v=0.090m/s\n# BLEND_RADIUS_M:',
+    )
     validate_urscript_block_balance(text)
     for forbidden in ('zero_ftsensor(', 'set_tcp(', 'set_payload(', 'speedj(', 'read_input_'):
         if forbidden in text:raise ValueError('forbidden Home helper side effect')
@@ -102,9 +122,19 @@ def build(receipt,output):
           'bounded_recovery':recovery is not None,
           'bounded_withdrawal':withdrawal is not None,
           'clearance_entry':home.get('clearance_entry') is True,
-          'numeric_sanity':{'max_transfer_distance_m':float(np.linalg.norm(target[:3]-observed[:3])),
-                            'speed_m_s':.002 if recovery is not None or withdrawal is not None or home.get('clearance_entry') is True else .01,'acceleration_m_s2':.01 if recovery is not None or withdrawal is not None or home.get('clearance_entry') is True else .05,'initial_position_tolerance_m':.002,
-                            'contact':withdrawal is not None,'force_control':False,'joint_path_check':'required separately'},'live_executed':False}
+          'numeric_sanity':{
+              'max_transfer_distance_m':float(np.linalg.norm(target[:3]-observed[:3])),
+              'speed_m_s':HOME_TRANSFER_SPEED_M_S,
+              'acceleration_m_s2':HOME_TRANSFER_ACCEL_M_S2,
+              'segment_1_speed_m_s':HOME_VERTICAL_SPEED_M_S,
+              'segment_1_acceleration_m_s2':HOME_VERTICAL_ACCEL_M_S2,
+              'segment_2_speed_m_s':HOME_TRANSFER_SPEED_M_S,
+              'segment_2_acceleration_m_s2':HOME_TRANSFER_ACCEL_M_S2,
+              'speed_basis':HISTORICAL_PROFILE_ID,
+              'initial_position_tolerance_m':.002,
+              'contact':withdrawal is not None,'force_control':False,
+              'joint_path_check':'required separately',
+          },'live_executed':False}
     (output/f'{BASENAME}.binding.json').write_text(json.dumps(info,indent=2)+'\n');return info
 
 if __name__=='__main__':

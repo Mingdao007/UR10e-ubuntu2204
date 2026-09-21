@@ -14,6 +14,13 @@ from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 from build_contact_home import BASENAME,recovery_geometry,withdrawal_geometry
 from build_contact_benchmark_triplet import CONTROLLER_DIR
 from contact_yield_supervisor import VideoRecorder
+from contact_home_motion_profile import (
+    HOME_ANGULAR_SPEED_GUARD_RAD_S,
+    HOME_JOINT_SPEED_GUARD_RAD_S,
+    HOME_TCP_SPEED_GUARD_M_S,
+    HOME_TRANSFER_SPEED_M_S,
+    HOME_VERTICAL_SPEED_M_S,
+)
 
 FIELDS=('timestamp','actual_TCP_pose','actual_TCP_speed','actual_q','actual_qd','tcp_offset','payload','payload_cog','safety_status_bits')
 TARGET=f'{CONTROLLER_DIR}/{BASENAME}.urp'
@@ -29,11 +36,11 @@ def home_motion_timeout_s(home):
         raise ValueError('invalid Home geometry')
     if np.linalg.norm(start[:3]-target[:3])>.08:
         raise ValueError('Home transfer exceeds 80mm bound')
-    slow=any(home.get(k) for k in ('bounded_recovery','bounded_withdrawal','clearance_entry'))
-    speed=.002 if slow else .01
     clearance=max(start[2],target[2])
-    length=(clearance-start[2])+np.linalg.norm(target[:2]-start[:2])+(clearance-target[2])
-    return max(20.,float(length/speed)+10.)
+    vertical=(clearance-start[2])+(clearance-target[2])
+    horizontal=float(np.linalg.norm(target[:2]-start[:2]))
+    length_s=vertical/HOME_VERTICAL_SPEED_M_S+horizontal/HOME_TRANSFER_SPEED_M_S
+    return max(20.,float(length_s)+10.)
 
 
 def validate_robot_sample(sample):
@@ -44,7 +51,7 @@ def validate_robot_sample(sample):
     # https://docs.universal-robots.com/tutorials/communication-protocol-tutorials/rtde-guide.html
     if sample['safety_status_bits'] not in (1, 2049):raise ValueError('RTDE safety is not NORMAL')
     if not np.isclose(sample['payload'],.413,atol=1e-6) or not np.allclose(sample['payload_cog'],[.0011,.0031,.0163],atol=1e-6) or not np.allclose(sample['tcp_offset'],[0,0,.0874,0,0,0],atol=1e-9):raise ValueError('active tool binding changed')
-    if np.linalg.norm(sample['actual_TCP_speed'][:3])>.02 or max(abs(x) for x in sample['actual_qd'])>.06:raise ValueError('Home speed envelope violated')
+    if np.linalg.norm(sample['actual_TCP_speed'][:3])>HOME_TCP_SPEED_GUARD_M_S or max(abs(x) for x in sample['actual_qd'])>HOME_JOINT_SPEED_GUARD_RAD_S:raise ValueError('Home speed envelope violated')
 
 
 def admit_sample(sample,home, *, initial):
@@ -74,7 +81,7 @@ def admit_sample(sample,home, *, initial):
         if np.linalg.norm(so3_log(ra@closest.T))>.003:raise ValueError('outside planned Home attitude corridor')
         if current[2]<max(start[2],target[2])-.0002 and np.linalg.norm(travelled)>.003:
             raise ValueError('Home rotation began before vertical clearance')
-        if np.linalg.norm(sample['actual_TCP_speed'][3:])>.03 or max(abs(x) for x in sample['actual_qd'])>.05:
+        if np.linalg.norm(sample['actual_TCP_speed'][3:])>HOME_ANGULAR_SPEED_GUARD_RAD_S or max(abs(x) for x in sample['actual_qd'])>HOME_JOINT_SPEED_GUARD_RAD_S:
             raise ValueError('bounded recovery angular/joint speed exceeded')
         if initial and (np.linalg.norm(current[:3]-start[:3])>.0005 or np.linalg.norm(travelled)>.003):
             raise ValueError('bounded recovery initial observation changed')

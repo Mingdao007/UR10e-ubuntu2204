@@ -6,9 +6,16 @@ import numpy as np
 import pytest
 import run_contact_recovery as runner
 from contact_yield_math import so3_exp
+from contact_home_motion_profile import HOME_TRANSFER_SPEED_M_S, HOME_VERTICAL_SPEED_M_S
 
 from contact_yield_task_frame import FIGURE8_CONTACT_HOME_XYZ_M
 HOME=[*FIGURE8_CONTACT_HOME_XYZ_M,2.033134243,2.394988424,0.]
+
+
+def test_recovery_motion_profile_is_historical_not_half_mm_per_second():
+    assert HOME_VERTICAL_SPEED_M_S == pytest.approx(0.040)
+    assert HOME_TRANSFER_SPEED_M_S == pytest.approx(0.090)
+    assert runner.RECOVERY_LIFT_SPEED_LIMIT_M_S == pytest.approx(0.050)
 
 @pytest.mark.parametrize('failure',[None,'reload','no_release','stale','user_interrupt','post_clearance','home_failure','startup_downward'])
 def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure):

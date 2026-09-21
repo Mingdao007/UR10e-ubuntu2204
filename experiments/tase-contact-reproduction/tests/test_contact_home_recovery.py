@@ -4,12 +4,15 @@ import numpy as np
 import pytest
 from contact_yield_math import so3_exp,so3_log
 from build_contact_home import build,BASENAME,recovery_geometry
+from build_contact_recovery import build_recovery,RELIEF_PROGRAM
 from run_contact_home import admit_sample
 from test_contact_benchmark_triplet import receipt
+from contact_yield_task_frame import FIGURE8_CONTACT_HOME_XYZ_M
 
 
 def recovery():
     h=receipt();h['bounded_recovery']=True
+    h['home_pose'][:3]=list(FIGURE8_CONTACT_HOME_XYZ_M)
     target=np.array(h['home_pose'])
     start=target.copy();start[:3]+=[-.001,-.0005,-.0008]
     start[3:]=so3_log(so3_exp(np.array([.012,0,0]))@so3_exp(target[3:]))
@@ -35,15 +38,33 @@ def test_off_path_attitude_and_changed_start_are_rejected():
     with pytest.raises(ValueError,match='attitude corridor'):admit_sample(s,h,initial=False)
 
 
-def test_recovery_limits_and_slower_generated_motion(tmp_path):
+def test_recovery_reuses_historical_generated_motion(tmp_path):
     h=recovery();p=tmp_path/'home.json';p.write_text(json.dumps(h));out=tmp_path/'package'
     result=build(p,out);text=(out/f'{BASENAME}.script').read_text()
     assert text.startswith('# VERSION:')
-    assert 'movel(rise_pose, a=0.010, v=0.002, r=0.0)' in text
-    assert result['numeric_sanity']['speed_m_s']==.002
+    assert 'movel(rise_pose, a=0.060, v=0.040, r=0.0)' in text
+    assert 'movel(transfer_pose, a=0.135, v=0.090, r=0.0)' in text
+    assert 'movel(descent_pose, a=0.060, v=0.040, r=0.0)' in text
+    assert result['numeric_sanity']['speed_m_s']==.09
+    assert result['numeric_sanity']['segment_1_speed_m_s']==.04
+    assert result['numeric_sanity']['segment_2_speed_m_s']==.09
+    assert result['numeric_sanity']['speed_basis'].startswith('step5d_autotune_start_hover_r001')
+    assert 'v=0.0005' not in text and 'v=0.002' not in text
     assert result['home_pose']==h['home_pose']
     h['rtde']['actual_TCP_pose'][0]-=.004
     with pytest.raises(ValueError,match='3mm or 20mrad'):recovery_geometry(h)
+
+
+def test_relief_reuses_historical_vertical_motion(tmp_path):
+    h=recovery();p=tmp_path/'home.json';p.write_text(json.dumps(h));out=tmp_path/'recovery-package'
+    build_recovery(p,out)
+    text=(out/f'{RELIEF_PROGRAM}.script').read_text()
+    binding=json.loads((out/f'{RELIEF_PROGRAM}.binding.json').read_text())
+    assert 'movel(rise_pose, a=0.060, v=0.040, r=0.0)' in text
+    assert 'v=0.0005' not in text and 'v=0.002' not in text
+    assert binding['vertical_speed_m_s']==.04
+    assert binding['vertical_acceleration_m_s2']==.06
+    assert binding['speed_basis'].startswith('step5d_autotune_start_hover_r001')
 
 
 def test_withdrawal_only_allows_reversing_the_existing_vertical_search():

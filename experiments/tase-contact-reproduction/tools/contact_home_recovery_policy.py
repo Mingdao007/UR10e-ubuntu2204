@@ -11,6 +11,7 @@ import numpy as np
 
 from contact_semantics import finite_vector6
 from contact_yield_math import finite_scalar, require_rotation, so3_exp, so3_log
+from contact_home_motion_profile import HOME_VERTICAL_SPEED_M_S
 
 
 from contact_yield_task_frame import FIGURE8_CONTACT_HOME_XYZ_M
@@ -21,7 +22,7 @@ MAX_TRANSFER_M = 0.08
 MAX_RISE_M = 0.015
 LIFT_LATERAL_M = 0.0005
 LIFT_ANGULAR_RAD = 0.003
-LIFT_SPEED_M_S = 0.008
+LIFT_SPEED_M_S = HOME_VERTICAL_SPEED_M_S
 Z_BELOW_START_M = 0.0001
 DOWNWARD_VZ_M_S = -0.0005
 TASK_FORCE_LIMIT_N = 20.0
@@ -84,11 +85,11 @@ def plan_home_recovery(start_pose, home_pose):
 def validate_lift_sample(plan, pose, twist, *, speed_limit_m_s=LIFT_SPEED_M_S):
     """Reject descent, sideways, or rotation while still below clearance.
 
-    The default 8 mm/s limit remains the pure-policy contract.  The live
+    The default limit is the historical 40 mm/s vertical command. The live
     recovery owner may use a separately recorded, bounded transient allowance
-    because UR RTDE occasionally reports a one-frame TCP-speed spike while the
-    relief program is starting.  Geometry, direction, force and package gates
-    remain unchanged; callers must record the selected limit in the receipt.
+    because UR RTDE can report a one-frame TCP-speed spike while the relief
+    program is starting. Geometry, direction, force and package gates remain
+    unchanged; callers must record the selected limit in the receipt.
     """
     if not isinstance(plan, dict):
         raise ValueError("lift plan is invalid")
@@ -108,7 +109,7 @@ def validate_lift_sample(plan, pose, twist, *, speed_limit_m_s=LIFT_SPEED_M_S):
         raise ValueError("speed_limit_m_s must be positive")
     if float(np.linalg.norm(speed[:3])) > speed_limit:
         if math.isclose(speed_limit, LIFT_SPEED_M_S, rel_tol=0.0, abs_tol=1e-12):
-            raise ValueError("lift speed exceeded 8mm/s")
+            raise ValueError("lift speed exceeded historical 40mm/s")
         raise ValueError(f"lift speed exceeded {speed_limit:g}m/s")
     if float(np.linalg.norm(current[:2] - start[:2])) > LIFT_LATERAL_M:
         raise ValueError("lift left the 0.5mm lateral corridor")

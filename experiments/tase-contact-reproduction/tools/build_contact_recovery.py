@@ -5,10 +5,18 @@ from build_contact_home import build,HOME_SOURCE
 from build_contact_benchmark_triplet import CONTROLLER_DIR
 from build_step4e_p0p1_programs import build_urp
 from step5d_autotune_v4_r012.controller_triplet import validate_urscript_block_balance
+from contact_home_motion_profile import (
+    HISTORICAL_PROFILE_ID,
+    HOME_VERTICAL_ACCEL_M_S2,
+    HOME_VERTICAL_SPEED_M_S,
+)
 
 RELIEF_PROGRAM='step5d_contact_relief_v1'
-RELIEF_SPEED_M_S = 0.0005
-RELIEF_ACCEL_M_S2 = 0.005
+# Relief is the original Home segment 1: Base +Z only, with no lateral or
+# attitude transfer. The 0.5 mm/s value was introduced by the new recovery
+# path and was never part of the historical platform implementation.
+RELIEF_SPEED_M_S = HOME_VERTICAL_SPEED_M_S
+RELIEF_ACCEL_M_S2 = HOME_VERTICAL_ACCEL_M_S2
 
 def build_recovery(receipt,output):
     home=json.loads(Path(receipt).read_text())
@@ -42,7 +50,7 @@ def {RELIEF_PROGRAM}():
   end
   if current_pose[2] < 0.033:
     local rise_pose = p[current_pose[0], current_pose[1], 0.033, current_pose[3], current_pose[4], current_pose[5]]
-    movel(rise_pose, a={RELIEF_ACCEL_M_S2}, v={RELIEF_SPEED_M_S}, r=0.0)
+    movel(rise_pose, a={RELIEF_ACCEL_M_S2:.3f}, v={RELIEF_SPEED_M_S:.3f}, r=0.0)
     stopl(0.1)
   end
   sleep(0.20)
@@ -55,7 +63,13 @@ end
     validate_urscript_block_balance(text)
     for ext,data in [('script',text.encode()),('txt',f'{RELIEF_PROGRAM}\n{stamp}\n'.encode()),('urp',build_urp(text,RELIEF_PROGRAM,CONTROLLER_DIR))]:
         (output/f'{RELIEF_PROGRAM}.{ext}').write_bytes(data)
-    relief={'basename':RELIEF_PROGRAM,'stamp':stamp,'controller_directory':CONTROLLER_DIR,'vertical_speed_m_s':RELIEF_SPEED_M_S,'vertical_acceleration_m_s2':RELIEF_ACCEL_M_S2,'max_rise_m':.015,'xy_or_attitude_motion':False}
+    relief={
+        'basename':RELIEF_PROGRAM,'stamp':stamp,'controller_directory':CONTROLLER_DIR,
+        'vertical_speed_m_s':RELIEF_SPEED_M_S,
+        'vertical_acceleration_m_s2':RELIEF_ACCEL_M_S2,
+        'speed_basis':HISTORICAL_PROFILE_ID,
+        'max_rise_m':.015,'xy_or_attitude_motion':False,
+    }
     (output/f'{RELIEF_PROGRAM}.binding.json').write_text(json.dumps(relief,indent=2)+'\n')
     return {'home':result,'relief':relief}
 

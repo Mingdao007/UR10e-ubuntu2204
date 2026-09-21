@@ -1,4 +1,4 @@
-# VERSION: 2026-09-21T0008Z_CONTACT_RELIEF_V1
+# VERSION: 2026-09-21T0058Z_CONTACT_RELIEF_V1
 # ROLE: monitored Base +Z relief only; no XY or attitude transfer
 # No force-control restart; host owns fresh Kunwei unloading guard and Stop.
 def codex_start_hover_finite_value(value, absolute_limit):
@@ -120,7 +120,7 @@ def step5d_contact_relief_v1():
   end
   if current_pose[2] < 0.033:
     local rise_pose = p[current_pose[0], current_pose[1], 0.033, current_pose[3], current_pose[4], current_pose[5]]
-    movel(rise_pose, a=0.005, v=0.0005, r=0.0)
+    movel(rise_pose, a=0.060, v=0.040, r=0.0)
     stopl(0.1)
   end
   sleep(0.20)

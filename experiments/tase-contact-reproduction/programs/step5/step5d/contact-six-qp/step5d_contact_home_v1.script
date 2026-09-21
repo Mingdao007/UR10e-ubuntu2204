@@ -1,9 +1,9 @@
-# VERSION: 2026-09-20T1530Z_CONTACT_HOME_V1
+# VERSION: 2026-09-21T0058Z_CONTACT_HOME_V1
 # ROLE: standalone immutable one-shot campaign Home positioning helper
 # TP_PROGRAM_ID: step5d_contact_home_v1
 # TARGET_POSE: p[0.462055181600, 0.177882596400, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
 # SAFE_TRANSFER_Z_POLICY: max(current_z, 0.033000000)
-# MOTION: preserve height for XY transfer, then descend to original Home; a=0.01m/s2 v=0.002m/s
+# MOTION: historical vertical a=0.060m/s2 v=0.040m/s; clearance transfer a=0.135m/s2 v=0.090m/s
 # BLEND_RADIUS_M: 0.0
 
 def codex_start_hover_finite_value(value, absolute_limit):
@@ -28,10 +28,10 @@ def codex_start_hover_finite_pose(pose_value):
 end
 
 def codex_start_hover_motion_limits_ok():
-  local segment_1_accel_m_s2 = 0.050
-  local segment_1_speed_m_s = 0.010
-  local segment_2_accel_m_s2 = 0.050
-  local segment_2_speed_m_s = 0.010
+  local segment_1_accel_m_s2 = 0.060
+  local segment_1_speed_m_s = 0.040
+  local segment_2_accel_m_s2 = 0.135
+  local segment_2_speed_m_s = 0.090
   if segment_1_accel_m_s2 <= 0.0 or segment_1_accel_m_s2 > 0.150000000:
     return False
   end
@@ -131,13 +131,13 @@ def step5d_contact_home_v1():
   end
   local rise_pose = p[current_pose[0], current_pose[1], safe_transfer_z, current_pose[3], current_pose[4], current_pose[5]]
   local transfer_pose = p[target_pose[0], target_pose[1], safe_transfer_z, target_pose[3], target_pose[4], target_pose[5]]
-  movel(rise_pose, a=0.010, v=0.002, r=0.0)
+  movel(rise_pose, a=0.060, v=0.040, r=0.0)
   stopl(0.1)
-  movel(transfer_pose, a=0.010, v=0.002, r=0.0)
+  movel(transfer_pose, a=0.135, v=0.090, r=0.0)
   stopl(0.1)
   if safe_transfer_z > target_pose[2] + 0.000001:
     local descent_pose = p[target_pose[0], target_pose[1], 0.033000000, target_pose[3], target_pose[4], target_pose[5]]
-    movel(descent_pose, a=0.010, v=0.002, r=0.0)
+    movel(descent_pose, a=0.060, v=0.040, r=0.0)
     stopl(0.1)
   end
   sleep(0.20)
