@@ -1,0 +1,44 @@
+{
+  "schema": "tase.pilot-qualification-failure-v1",
+  "claim_scope": "physical pilot qualification failure; no PATH acceptance, no full-cycle acceptance",
+  "method": "TASE_RNN_MATURE",
+  "attempt": {
+    "run": "runs/tase-figure8-pilot-direction-aware-20260921T1535",
+    "phase": "pilot qualification-1 of 3",
+    "success": false,
+    "error": "LiveWriterError: resident TP is STOPPED: reason=48 return_guard=0",
+    "baseline_diag": {
+      "filtered_max_n": 4.965615351983516,
+      "filtered_min_n": 0.1012662477774635,
+      "force_norm_max_n": 13.474359923363574,
+      "last": {
+        "filtered_normal_n": 4.859678946444188,
+        "force_norm_n": 5.030819186637579,
+        "mode": 1,
+        "raw_normal_n": 4.99720472691854,
+        "setpoint_n": 5.0,
+        "torque_norm_nm": 0.03310389258537176
+      },
+      "raw_max_n": 13.020857211669288,
+      "raw_min_n": -0.63496470898489,
+      "readiness_samples": 11676,
+      "samples": 15001,
+      "torque_norm_max_nm": 0.16159791299311532
+    },
+    "automatic_home_success": true,
+    "home_position_error_m": 1.4456785699568249e-05,
+    "home_orientation_error_rad": 5.9422222307608894e-05
+  },
+  "readiness_segments": {
+    "max_contiguous_s": 8.367658465984277,
+    "required_hold_s": 10.0,
+    "segments_seconds": [
+      8.367658465984277,
+      4.596286287996918,
+      2.4181151219818275
+    ]
+  },
+  "interpretation": "The direction-aware adapter passed an independent single qualification, but this fresh formal pilot qualification lost the unchanged readiness band before 10 s. The first pilot phase therefore stopped at reason 48; no PATH was admitted. This is preserved as a separate denominator and does not invalidate the independent qualification receipt.",
+  "fresh_after_failure_preflight": "runs/preflight_20260921_after_pilot_qualification_fail/preflight_readonly.json",
+  "next_action": "one fresh pilot retry after the new evidence; if reason 48 recurs, stop live repetition and diagnose qualification variability offline before any further pilot"
+}

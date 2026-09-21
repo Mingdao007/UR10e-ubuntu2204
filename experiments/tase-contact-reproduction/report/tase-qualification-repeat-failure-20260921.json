@@ -88,6 +88,33 @@
       "automatic_home_success": true,
       "home_position_error_m": 3.448389683897302e-05,
       "home_orientation_error_rad": 5.643676630688897e-05
+    },
+    {
+      "run": "runs/tase-figure8-pilot-direction-aware-20260921T1535",
+      "phase": "pilot qualification-1 of 3",
+      "success": false,
+      "error": "LiveWriterError: resident TP is STOPPED: reason=48 return_guard=0",
+      "baseline_diag": {
+        "filtered_max_n": 4.965615351983516,
+        "filtered_min_n": 0.1012662477774635,
+        "force_norm_max_n": 13.474359923363574,
+        "last": {
+          "filtered_normal_n": 4.859678946444188,
+          "force_norm_n": 5.030819186637579,
+          "mode": 1,
+          "raw_normal_n": 4.99720472691854,
+          "setpoint_n": 5.0,
+          "torque_norm_nm": 0.03310389258537176
+        },
+        "raw_max_n": 13.020857211669288,
+        "raw_min_n": -0.63496470898489,
+        "readiness_samples": 11676,
+        "samples": 15001,
+        "torque_norm_max_nm": 0.16159791299311532
+      },
+      "automatic_home_success": true,
+      "home_position_error_m": 1.4456785699568249e-05,
+      "home_orientation_error_rad": 5.9422222307608894e-05
     }
   ],
   "same_root_cause": "The first two attempts shared reason 48 baseline-watchdog failure. The repaired provider changed the failure to five_newton_acquisition_timeout: force never stayed in the unchanged 4..6 N/3..7 N readiness band long enough to enter HOLD.",
@@ -95,11 +122,13 @@
   "automatic_home_policy": "AUTO_HOME_WHEN_COMMANDABLE",
   "fresh_after_retry_preflight": "runs/preflight_20260921_after_qualification_retry/preflight_readonly.json",
   "fresh_after_retry_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer",
-  "stop_condition": "The old reason-48 failure is not repeated; the new acquisition-timeout failure is preserved. No unchanged third attempt of either diagnostic is allowed.",
+  "stop_condition": "A single qualification succeeded with this code, while the first formal pilot phase failed on readiness variability. One fresh pilot retry is permitted as additional evidence; a second consecutive pilot reason-48 failure will stop live repetition.",
   "source_hashes": {
     "provider": "81d31ea43cbe6fc2b19a1a42314af37c90f790f8563d976db15c26f3a9dc978c",
     "tests": "775b6c646876e9fe04400af21e763c4b7e646199f1fd2f31230698b6bff52161"
   },
   "fresh_after_timeout_preflight": "runs/preflight_20260921_after_normal_projection_timeout/preflight_readonly.json",
-  "fresh_after_timeout_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer"
+  "fresh_after_timeout_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer",
+  "fresh_after_pilot_preflight": "runs/preflight_20260921_after_pilot_qualification_fail/preflight_readonly.json",
+  "fresh_after_pilot_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer"
 }
