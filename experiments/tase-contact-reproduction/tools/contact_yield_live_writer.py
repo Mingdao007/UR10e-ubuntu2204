@@ -697,6 +697,13 @@ class NativeYieldLiveWriter(R006LiveWriter):
             and phase_time >= request.path_duration_s and not end.requested):
             if not end.request_early_end(self._ordinal):
                 raise YieldLiveWriterError("diagnostic PATH-end request rejected")
+            # This is the writer-owned normal end fence, not an active
+            # censor request. Keep the base writer's lifecycle flag in sync
+            # with the shared register handshake so finalization uses the
+            # strict complete-path collector when all 550 bins are present.
+            self._r013_path_end_requested = True
+            self._r013_path_end_request_sequence = int(self._ordinal)
+            self._r013_path_end_request_mono_s = self._mono_clock()
         return packet
 
     def _validate_output(self, output, **kwargs):

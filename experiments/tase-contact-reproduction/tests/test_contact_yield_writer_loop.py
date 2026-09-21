@@ -8,6 +8,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 import step5d_autotune_v4_r004_live_writer as writer_module
+import contact_yield_live_writer as native_writer_module
 from step5d_autotune_v4_r004.campaign import build_campaign_plan
 from step5d_autotune_v4_r004.qualification import QualificationCommand
 from step5d_autotune_v4_r004.wire import CommandMode, SessionCommand
@@ -129,6 +130,42 @@ def test_real_writer_excludes_entry_echoes_and_keeps_complete_formal_period(tmp_
     assert samples[0].observed_at_s>=1.
     assert samples[-1].path_time_s>62.82
     assert 63.83<clock.t<63.85
+
+
+def test_native_r013_normal_end_is_not_misclassified_as_active_censor(monkeypatch):
+    class End:
+        requested = False
+
+        def request_early_end(self, _sequence):
+            self.requested = True
+            return True
+
+    writer = object.__new__(native_writer_module.NativeYieldLiveWriter)
+    writer._r013_path_early_end_controller = End()
+    writer._r013_path_end_requested = False
+    writer._r013_path_end_request_sequence = None
+    writer._r013_path_end_request_mono_s = None
+    writer._ordinal = 1
+    writer._mono_clock = lambda: 12.5
+    writer.command_observations = []
+    writer.live_path_request = native_writer_module.parse_live_duration("r013_60")
+    monkeypatch.setattr(
+        native_writer_module.R006LiveWriter,
+        "_send_packet",
+        lambda self, *_args, **_kwargs: object(),
+    )
+
+    native_writer_module.NativeYieldLiveWriter._send_packet(
+        writer,
+        None,
+        proposed_qdot=(0.0,) * 6,
+        reference_phase="path",
+        reference_time_s=60.0,
+    )
+
+    assert writer._r013_path_end_requested is True
+    assert writer._r013_path_end_request_sequence == 1
+    assert writer._r013_path_end_request_mono_s == pytest.approx(12.5)
 
 
 def test_writer_sends_the_late_cycle_zero_baseline_packet(tmp_path, monkeypatch):
