@@ -37,6 +37,11 @@ from step5d_paper_outer_loop import Step5dOuterLoopConfig
 # hard force, timing, qdot, slew, or readiness envelope.
 TASE_FORCE_PREEMPT_THRESHOLD_N = 5.75
 TASE_FORCE_PREEMPT_REARM_N = 5.0
+# An earlier, rate-triggered guard limits only additional inward baseline
+# realization while a measured force rise is already underway.
+TASE_FORCE_RISE_GUARD_THRESHOLD_N = 4.0
+TASE_FORCE_RISE_GUARD_DELTA_N = 0.5
+TASE_FORCE_RISE_INWARD_CAP_M_S = 0.0005
 # Keep a strict numerical margin below the shared host slew envelope.  The
 # qualification layer checks the same limit with a strict ``>`` comparison;
 # using the exact boundary can differ by one floating-point ulp after the
@@ -93,6 +98,13 @@ TASE_PAPER_OUTER_BINDING = {
         'purpose': 'remove strict-RNN state lag at each rising-load episode and retry a pressing Jqdot once per high-force tick without raising the raw guard',
         'evidence_field': 'force_preempt_warm_start,force_preempt_direction_retry',
     },
+    'force_rise_inward_cap': {
+        'threshold_n': TASE_FORCE_RISE_GUARD_THRESHOLD_N,
+        'delta_n': TASE_FORCE_RISE_GUARD_DELTA_N,
+        'inward_cap_m_s': TASE_FORCE_RISE_INWARD_CAP_M_S,
+        'purpose': 'limit additional inward baseline realization during a sharp measured force rise before the main preempt threshold',
+        'evidence_field': 'force_rise_guard,force_rise_inward_cap_applied',
+    },
 }
 
 
@@ -146,6 +158,7 @@ class TaseContactProvider(ContactCommandProvider):
         self.force_preempt_armed = True
         self.force_preempt_episode = 0
         self.force_preempt_direction_retry_count = 0
+        self.last_measured_force_norm = None
         self.lifecycle_observer = ContactReadinessObserver(candidate.normal_filter_tau_s,
             max_dt_s=MAX_FRESH_GAP_S, strict_dt_upper=True)
         self.runtime = V4CalibratedRuntime(
@@ -197,6 +210,7 @@ class TaseContactProvider(ContactCommandProvider):
             'force_preempt_armed': self.force_preempt_armed,
             'force_preempt_episode': self.force_preempt_episode,
             'force_preempt_direction_retry_count': self.force_preempt_direction_retry_count,
+            'last_measured_force_norm': self.last_measured_force_norm,
             'filter': {'filtered_normal_n': self.lifecycle_observer.filtered_normal_n,
                 'last_log': None if self.lifecycle_observer.last_log is None else asdict(self.lifecycle_observer.last_log)}})
 
@@ -333,6 +347,13 @@ class TaseContactProvider(ContactCommandProvider):
                 actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
             force_preempt_warm_start = False
             measured_force_norm = float(sensor.force_norm_n)
+            previous_measured_force_norm = self.last_measured_force_norm
+            force_rise_guard = bool(
+                previous_measured_force_norm is not None
+                and measured_force_norm >= TASE_FORCE_RISE_GUARD_THRESHOLD_N
+                and measured_force_norm - float(previous_measured_force_norm)
+                >= TASE_FORCE_RISE_GUARD_DELTA_N
+            )
             # Hysteresis is deliberately based on the measured full-force
             # channel.  The canonical filtered channel remains the evidence
             # signal, while this conservative transition prevents an already
@@ -342,7 +363,10 @@ class TaseContactProvider(ContactCommandProvider):
                 self.force_preempt_armed = True
             if (
                 self.force_preempt_armed
-                and measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N
+                and (
+                    measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N
+                    or force_rise_guard
+                )
             ):
                 force_preempt_warm_start = bool(self.runtime.warm_start_for_twist(
                     actual_q=output.q_rad,
@@ -364,7 +388,7 @@ class TaseContactProvider(ContactCommandProvider):
             # is a bounded safety retry, not a gain or envelope change.
             force_preempt_direction_retry = False
             force_preempt_approach_before_retry = None
-            if measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N:
+            if measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N or force_rise_guard:
                 preliminary_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
                     command.qdot, dtype=float
                 )
@@ -404,6 +428,9 @@ class TaseContactProvider(ContactCommandProvider):
             baseline_normal_projection_original_m_s = 0.0
             baseline_normal_direction_correction = False
             baseline_normal_unload_boost = False
+            force_rise_inward_cap_applied = False
+            force_rise_inward_original_m_s = 0.0
+            force_rise_inward_target_m_s = 0.0
             if mode == 'baseline':
                 baseline_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
                     command.qdot, dtype=float
@@ -415,10 +442,15 @@ class TaseContactProvider(ContactCommandProvider):
                     and float(twist[2]) > 0.0
                     and abs(float(twist[2])) > abs(float(baseline_twist[2])) + 1e-12
                 )
+                force_rise_inward_cap_needed = bool(
+                    force_rise_guard
+                    and -float(baseline_twist[2]) > TASE_FORCE_RISE_INWARD_CAP_M_S
+                )
                 if (
                     baseline_residual_tangential_m_s > TASE_BASELINE_TANGENTIAL_TOLERANCE_M_S
                     or baseline_residual_angular_rad_s > TASE_BASELINE_ANGULAR_TOLERANCE_RAD_S
                     or force_rise_unload_needed
+                    or force_rise_inward_cap_needed
                 ):
                     # The baseline contract permits only normal motion.  A
                     # zero-vector hold removed the residual motion but also
@@ -457,6 +489,14 @@ class TaseContactProvider(ContactCommandProvider):
                             if desired_magnitude > target_magnitude + 1e-12:
                                 target_magnitude = desired_magnitude
                                 baseline_normal_unload_boost = True
+                        if force_rise_inward_cap_needed:
+                            target_magnitude = min(
+                                target_magnitude,
+                                TASE_FORCE_RISE_INWARD_CAP_M_S,
+                            )
+                            force_rise_inward_cap_applied = True
+                            force_rise_inward_original_m_s = original_normal
+                            force_rise_inward_target_m_s = -target_magnitude
                         normal_target[2] = math.copysign(target_magnitude, desired_normal)
                     try:
                         projected_qdot = np.linalg.solve(jacobian, normal_target)
@@ -532,6 +572,10 @@ class TaseContactProvider(ContactCommandProvider):
                 'force_preempt_episode': self.force_preempt_episode,
                 'force_preempt_direction_retry': force_preempt_direction_retry,
                 'force_preempt_direction_retry_count': self.force_preempt_direction_retry_count,
+                'force_rise_guard': force_rise_guard,
+                'force_rise_inward_cap_applied': force_rise_inward_cap_applied,
+                'force_rise_inward_original_m_s': force_rise_inward_original_m_s,
+                'force_rise_inward_target_m_s': force_rise_inward_target_m_s,
                 'force_preempt_approach_before_retry_m_s': force_preempt_approach_before_retry,
                 'baseline_residual_hold': baseline_residual_hold,
                 'baseline_residual_tangential_m_s': baseline_residual_tangential_m_s,
@@ -548,6 +592,7 @@ class TaseContactProvider(ContactCommandProvider):
                 'actual_dt_s': actual_dt_s, 'solver': copy.deepcopy(self.runtime.last_solver_diagnostics),
                 'implementation': 'mature_local_tase_rnn',
                 'outer_loop_binding': copy.deepcopy(TASE_PAPER_OUTER_BINDING)}
+            self.last_measured_force_norm = measured_force_norm
             return command
         except BaseException:
             self.restore(checkpoint)

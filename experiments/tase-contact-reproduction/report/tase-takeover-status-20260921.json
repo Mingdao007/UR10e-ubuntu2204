@@ -3,7 +3,7 @@
   "as_of": "2026-09-21",
   "claim_scope": "integrated status; physical PATH is not accepted",
   "worktree": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920",
-  "head": "0e93fc3a",
+  "head": "PENDING_COMMIT",
   "live_state": {
     "current_state": "HOME_RECOVERED_AND_STOPPED",
     "latest_preflight": "runs/preflight_20260921_after_pilot_fail/preflight_readonly.json",
@@ -34,6 +34,14 @@
       "focused_regression": "121 passed, 1 warning",
       "fresh_preflight": "runs/preflight_20260921_preempt575/preflight_readonly.json",
       "latest_pilot_outcome": "FAIL_FIRST_QUALIFICATION_AUTO_HOME_SUCCESS"
+    },
+    "offline_force_rise_guard_candidate": {
+      "report": "report/tase-force-rise-guard-replay-20260921.json",
+      "threshold_n": 4.0,
+      "delta_n": 0.5,
+      "inward_cap_m_s": 0.0005,
+      "status": "UNPROMOTED",
+      "focused_regression": "122 passed, 1 warning"
     }
   },
   "qualification_attempts": {

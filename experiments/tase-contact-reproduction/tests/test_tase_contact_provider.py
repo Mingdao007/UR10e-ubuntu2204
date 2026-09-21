@@ -8,6 +8,7 @@ from tase_contact_provider import (
     TASE_PAPER_OUTER_CONFIG,
     TASE_FORCE_PREEMPT_REARM_N,
     TASE_FORCE_PREEMPT_THRESHOLD_N,
+    TASE_FORCE_RISE_INWARD_CAP_M_S,
     TaseContactProvider,
     current_model_binding,
 )
@@ -255,6 +256,45 @@ def test_live_tase_force_preempt_rearms_after_low_force_episode(provider):
     assert second['force_preempt_episode'] == 2
     assert second['predicted_approach_normal_velocity_m_s'] == pytest.approx(
         -0.002, abs=2e-3
+    )
+
+
+def test_live_tase_force_rise_guard_caps_inward_baseline_realization(provider, monkeypatch):
+    def run(now, force, filtered=None, setpoint=1.0):
+        o, s = tick(provider, now, force=force)
+        s = replace(
+            s,
+            normal_load_n=force,
+            force_norm_n=force,
+            filtered_normal_n=force if filtered is None else filtered,
+        )
+        provider.command(
+            output=o,
+            sensor=s,
+            monotonic_s=now,
+            actual_dt_s=.002,
+            mode='baseline',
+            internal_setpoint_n=setpoint,
+        )
+
+    run(.002, 3.0)
+    original_command = provider.runtime.command
+
+    def forced_inward_command(**kwargs):
+        command = original_command(**kwargs)
+        target = np.array((0., 0., -.003, 0., 0., 0.), dtype=float)
+        qdot = np.linalg.solve(np.asarray(command.jacobian_6x6, dtype=float), target)
+        return replace(command, qdot=tuple(float(value) for value in qdot))
+
+    monkeypatch.setattr(provider.runtime, 'command', forced_inward_command)
+    run(.004, 4.8, filtered=1.0, setpoint=5.0)
+    assert provider.last_result['force_rise_guard'] is True
+    assert provider.last_result['force_rise_inward_cap_applied'] is True
+    assert abs(provider.last_result['force_rise_inward_target_m_s']) == pytest.approx(
+        TASE_FORCE_RISE_INWARD_CAP_M_S
+    )
+    assert provider.last_result['predicted_approach_normal_velocity_m_s'] <= (
+        TASE_FORCE_RISE_INWARD_CAP_M_S + 1e-12
     )
 
 
