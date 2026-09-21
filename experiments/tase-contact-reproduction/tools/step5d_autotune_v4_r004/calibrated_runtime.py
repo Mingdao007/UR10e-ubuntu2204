@@ -570,7 +570,12 @@ class V4CalibratedRuntime:
             + (float(filtered_normal_n) - raw_normal) * reaction_normal_base
         )
         filtered_force_tcp = rotation_base_from_tcp.T @ filtered_force_base
-        if self.outer_loop_config is None:
+        # A few offline binding probes intentionally construct a minimal
+        # runtime with ``object.__new__`` to isolate the path reference.  Treat
+        # the absent optional field like the constructor's historical None
+        # default instead of turning that probe into a runtime failure.
+        outer_loop_config = getattr(self, "outer_loop_config", None)
+        if outer_loop_config is None:
             terms = derive_force_terms(self.candidate)
             outer_config = Step5dOuterLoopConfig(
                 kp=self.candidate.motion_kp,
@@ -592,7 +597,7 @@ class V4CalibratedRuntime:
             # are adapted: the requested setpoint, actual sample interval and
             # the shared integral/safety limits.
             outer_config = replace(
-                self.outer_loop_config,
+                outer_loop_config,
                 force_target_n=float(internal_setpoint_n),
                 force_integral_limit_n_s=float(self.force_integral_limit_n_s),
                 force_integral_policy=self.force_integral_policy,

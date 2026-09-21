@@ -133,6 +133,42 @@ def test_fault_recovery_without_host_is_explicitly_blocked(tmp_path):
     assert "controller host" in result["home_blocked_reason"]
 
 
+def test_fault_recovery_dispatch_exception_attempts_direct_home_fallback(
+    tmp_path, monkeypatch
+):
+    import run_contact_recovery
+
+    monkeypatch.setattr(
+        run_contact_recovery,
+        "recover_failed_contact_run",
+        lambda *_: (_ for _ in ()).throw(RuntimeError("dispatcher crashed")),
+    )
+    calls = []
+
+    def direct_fallback(source, output, host, packages, *, reason):
+        calls.append((Path(source), Path(output), host, packages, str(reason)))
+        return {
+            "success": True,
+            "state": "HOME_RECOVERED",
+            "home_required": True,
+            "home_attempted": True,
+        }
+
+    monkeypatch.setattr(
+        run_contact_recovery, "_emergency_home_when_commandable", direct_fallback
+    )
+    result = automatic_home_after_fault(
+        run_dir=tmp_path,
+        controller_host="192.0.2.18",
+        video_url="rtsp://127.0.0.1:8554/arm",
+    )
+
+    assert result["state"] == "HOME_RECOVERED"
+    assert result["primary_recovery_error"] == "RuntimeError: dispatcher crashed"
+    assert calls and calls[0][0] == tmp_path
+    assert calls[0][2] == "192.0.2.18"
+
+
 def test_status_fresh_process_lists_native_identity_without_devices():
     interpreter = str(PYTHON if PYTHON.is_file() else sys.executable)
     env = dict(os.environ)

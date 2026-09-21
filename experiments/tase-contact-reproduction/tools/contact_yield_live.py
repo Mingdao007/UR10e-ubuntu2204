@@ -98,10 +98,41 @@ def automatic_home_after_fault(
     try:
         result = recover_failed_contact_run(Path(run_dir), controller_host, video_url)
     except BaseException as exc:
-        return _blocked_home_recovery(
-            run_dir=run_dir,
-            reason=f"Home recovery dispatch failed: {type(exc).__name__}: {exc}",
-        )
+        # The normal owner already escalates its own failures.  Keep one
+        # direct, monitored fallback here as well so an unexpected exception
+        # in the dispatcher cannot silently become a revoke-only outcome while
+        # the controller is still commandable.
+        try:
+            from run_contact_recovery import (
+                PACKAGE_DIR,
+                _emergency_home_when_commandable,
+            )
+
+            fallback = _emergency_home_when_commandable(
+                Path(run_dir),
+                Path(run_dir).with_name(Path(run_dir).name + "-home-fallback"),
+                controller_host,
+                PACKAGE_DIR,
+                reason=exc,
+            )
+            if isinstance(fallback, dict):
+                fallback.setdefault(
+                    "primary_recovery_error",
+                    f"{type(exc).__name__}: {exc}",
+                )
+                return fallback
+            raise TypeError(
+                f"direct Home fallback returned {type(fallback).__name__}"
+            )
+        except BaseException as fallback_exc:
+            return _blocked_home_recovery(
+                run_dir=run_dir,
+                reason=(
+                    "Home recovery dispatch and direct monitored fallback failed: "
+                    f"primary={type(exc).__name__}: {exc}; "
+                    f"fallback={type(fallback_exc).__name__}: {fallback_exc}"
+                ),
+            )
     if not isinstance(result, dict):
         return _blocked_home_recovery(
             run_dir=run_dir,

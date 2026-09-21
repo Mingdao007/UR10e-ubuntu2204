@@ -10,7 +10,7 @@ from contact_yield_math import so3_exp
 from contact_yield_task_frame import FIGURE8_CONTACT_HOME_XYZ_M
 HOME=[*FIGURE8_CONTACT_HOME_XYZ_M,2.033134243,2.394988424,0.]
 
-@pytest.mark.parametrize('failure',[None,'reload','no_release','stale','user_interrupt','post_clearance','home_failure'])
+@pytest.mark.parametrize('failure',[None,'reload','no_release','stale','user_interrupt','post_clearance','home_failure','startup_downward'])
 def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure):
     clock=SimpleNamespace(t=100.,played=None)
     events=[]
@@ -43,6 +43,7 @@ def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure)
         def __exit__(self,*_):events.append('unlock')
     monkeypatch.setattr(runner,'WriterLock',Lock)
     start=np.array(HOME);start[0]-=.0024;start[2]-=.001
+    startup_fault_pending=[failure == 'startup_downward']
     def elapsed():return 0. if clock.played is None else clock.t-clock.played
     class Obs:
         def __init__(self,*_):self.rows=[];self.thread=True
@@ -50,7 +51,11 @@ def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure)
         def latest(self):
             pose=start.copy()
             if clock.played is not None:pose[2]=min(HOME[2],start[2]+elapsed()*.0005)
-            row={'actual_TCP_pose':pose.tolist(),'actual_TCP_speed':[0.]*6,'actual_q':[0.]*6,'actual_qd':[0.]*6,'tcp_offset':[0.,0.,.0874,0.,0.,0.],'payload':.413,'payload_cog':[.0011,.0031,.0163],'safety_status_bits':1,'monotonic_s':clock.t}
+            speed=[0.]*6
+            if startup_fault_pending[0] and clock.played is not None:
+                speed[2] = -.001
+                startup_fault_pending[0] = False
+            row={'actual_TCP_pose':pose.tolist(),'actual_TCP_speed':speed,'actual_q':[0.]*6,'actual_qd':[0.]*6,'tcp_offset':[0.,0.,.0874,0.,0.,0.],'payload':.413,'payload_cog':[.0011,.0031,.0163],'safety_status_bits':1,'monotonic_s':clock.t}
             self.rows.append(row);return row
         def close(self):pass
     monkeypatch.setattr(runner,'Observer',Obs)
@@ -92,9 +97,9 @@ def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure)
     (source/'dispatch_receipt.json').write_text(json.dumps({'armed':True,'stop':{'protective_stop':False}}))
     args=SimpleNamespace(source_run=source,output=tmp_path/'recovery',readback_proof_dir=tmp_path,readback_dir=tmp_path,host='fake',video_url='fake',execute=True)
     result=runner.run(args)
-    assert result['success'] is (failure in (None, 'post_clearance')),result
-    assert ('home' in events) is (failure in (None, 'post_clearance', 'home_failure'))
-    if failure and failure not in ('home_failure', 'post_clearance'):
+    assert result['success'] is (failure in (None, 'post_clearance', 'startup_downward')),result
+    assert ('home' in events) is (failure in (None, 'post_clearance', 'home_failure', 'startup_downward'))
+    if failure and failure not in ('home_failure', 'post_clearance', 'startup_downward'):
         assert 'lift_stop' in events
         assert events.index('lift_stop')<events.index('unlock')
         assert result['home_required'] is True
@@ -108,6 +113,13 @@ def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure)
         assert result['home_attempted'] is True
         assert result['home']['success'] is True
         assert result['state']=='HOME_RECOVERED'
+    if failure == 'startup_downward':
+        assert result['home_attempted'] is True
+        assert result['home']['success'] is True
+        assert result['state']=='HOME_RECOVERED'
+        assert len(result['relief_attempts']) == 2
+        assert result['relief_attempts'][0]['retryable'] is True
+        assert result['relief_attempts'][0]['retry_reason'] == 'lift downward velocity'
     assert (args.output/'result.json').exists()
 
 

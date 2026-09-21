@@ -32,6 +32,15 @@ RECOVERY_POLICY='AUTO_HOME_WHEN_COMMANDABLE'
 # geometry and the independent force guard; this prevents telemetry spikes
 # from suppressing the existing Home owner.
 RECOVERY_LIFT_SPEED_LIMIT_M_S = 0.020
+# A UR controller can report one short downward TCP-speed sample while a
+# vertical relief program is entering RUNNING.  Treat that sample as a
+# commandable startup race: stop, wait for a fresh stationary observation, and
+# retry the exact installed relief triplet a bounded number of times.  This is
+# deliberately narrow; force, lateral, attitude, stale-sensor, and safety
+# violations remain terminal recovery faults.
+RELIEF_STARTUP_RETRY_LIMIT = 3
+RELIEF_STARTUP_SETTLE_S = 0.20
+RELIEF_STARTUP_RETRYABLE_ERROR = 'lift downward velocity'
 
 
 def _protective_safety(row):
@@ -385,6 +394,42 @@ def stationary(row):
     return np.linalg.norm(row['actual_TCP_speed'])<.0005 and max(map(abs,row['actual_qd']))<.001
 
 
+def _wait_relief_stop_and_stationary(adapter, observer, host, *, timeout_s=5.0):
+    """Stop one relief attempt and prove a stable commandable retry point."""
+    stop_response = adapter.stop()
+    stopped_dashboard = _dashboard_until_stopped(host, timeout_s=timeout_s)
+    deadline = time.monotonic() + timeout_s
+    stable_since = None
+    last = None
+    while time.monotonic() < deadline:
+        last = observer.latest()
+        validate_robot_sample(last)
+        if stationary(last):
+            if stable_since is None:
+                stable_since = time.monotonic()
+            if time.monotonic() - stable_since >= RELIEF_STARTUP_SETTLE_S:
+                dashboard = check_dashboard(host)
+                return {
+                    'stop_response': stop_response,
+                    'dashboard': dashboard,
+                    'stopped_dashboard': stopped_dashboard,
+                    'stationary_sample': last,
+                }
+        else:
+            stable_since = None
+        time.sleep(.02)
+    raise ValueError(
+        f'relief retry could not confirm stationary RTDE after STOP: {last}'
+    )
+
+
+def _retryable_relief_startup_fault(error, row, plan):
+    """Recognize only the known one-frame downward startup transient."""
+    if str(error) != RELIEF_STARTUP_RETRYABLE_ERROR:
+        return False
+    return float(row['actual_TCP_pose'][2]) < float(plan['lift_pose'][2]) - .0001
+
+
 def run(args):
     source=Path(args.source_run);out=Path(args.output)
     if out.exists():raise ValueError('recovery output already exists')
@@ -521,31 +566,64 @@ def run(args):
         if plan['needs_lift']:
             target=f'{DIRECTORY}/{RELIEF_PROGRAM}.urp';writer=RemoteDashboardWriter(args.host,load_target=target)
             adapter=_ExactLoadAdapter(host=args.host,target=target,program_id=RELIEF_PROGRAM,dashboard_observer=dashboard_exchange,writer=writer,dashboard_port=29999,dashboard_timeout_s=2.,observe_timeout_s=5.,poll_interval_s=.05,monotonic=time.monotonic,sleeper=time.sleep)
-            result['relief_load']=adapter.load();check();result['relief_play']=adapter.play()
-            deadline=time.monotonic()+60.;stopped_since=None
-            while time.monotonic()<deadline:
-                row,force=check();validate_lift_sample(
-                    plan, row['actual_TCP_pose'], row['actual_TCP_speed'],
-                    speed_limit_m_s=RECOVERY_LIFT_SPEED_LIMIT_M_S,
-                )
-                if row['actual_TCP_pose'][2]>=plan['lift_pose'][2]-.0001 and stationary(row):
-                    if stopped_since is None:stopped_since=time.monotonic()
-                    if time.monotonic()-stopped_since>=.3:
-                        # TP can still be completing its terminal bookkeeping
-                        # after physical motion has stopped. Keep observing force,
-                        # pose and video while awaiting program termination.
-                        terminal = dashboard_exchange(args.host, ['safetymode', 'running'])
-                        if terminal.get('safetymode') != 'Safetymode: NORMAL':
-                            raise ValueError(f'relief safety changed: {terminal}')
-                        if terminal.get('running') == 'Program running: true':
-                            time.sleep(.01)
-                            continue
-                        check_dashboard(args.host)
-                        if not force or not force['released']:raise ValueError('lift complete but force release not confirmed; no XY return')
-                        result['relief_complete']=True;break
-                else:stopped_since=None
-                time.sleep(.01)
-            else:raise ValueError('vertical relief timed out')
+            result['relief_attempts']=[]
+            relief_deadline=time.monotonic()+60.
+            relief_attempt=0
+            while True:
+                relief_attempt += 1
+                attempt_record={'attempt':relief_attempt}
+                should_retry=False
+                try:
+                    attempt_record['load']=adapter.load()
+                    result.setdefault('relief_load', attempt_record['load'])
+                    check()
+                    attempt_record['play']=adapter.play()
+                    result.setdefault('relief_play', attempt_record['play'])
+                    stopped_since=None
+                    while time.monotonic()<relief_deadline:
+                        row,force=check()
+                        try:
+                            validate_lift_sample(
+                                plan, row['actual_TCP_pose'], row['actual_TCP_speed'],
+                                speed_limit_m_s=RECOVERY_LIFT_SPEED_LIMIT_M_S,
+                            )
+                        except ValueError as lift_error:
+                            if (
+                                relief_attempt < RELIEF_STARTUP_RETRY_LIMIT
+                                and time.monotonic() < relief_deadline
+                                and _retryable_relief_startup_fault(lift_error, row, plan)
+                            ):
+                                attempt_record['retry_reason']=str(lift_error)
+                                attempt_record['retryable']=True
+                                attempt_record['retry']=_wait_relief_stop_and_stationary(
+                                    adapter, obs, args.host
+                                )
+                                result['relief_retry_count']=relief_attempt
+                                should_retry=True
+                                break
+                            raise
+                        if row['actual_TCP_pose'][2]>=plan['lift_pose'][2]-.0001 and stationary(row):
+                            if stopped_since is None:stopped_since=time.monotonic()
+                            if time.monotonic()-stopped_since>=.3:
+                                # TP can still be completing its terminal bookkeeping
+                                # after physical motion has stopped. Keep observing force,
+                                # pose and video while awaiting program termination.
+                                terminal = dashboard_exchange(args.host, ['safetymode', 'running'])
+                                if terminal.get('safetymode') != 'Safetymode: NORMAL':
+                                    raise ValueError(f'relief safety changed: {terminal}')
+                                if terminal.get('running') == 'Program running: true':
+                                    time.sleep(.01)
+                                    continue
+                                check_dashboard(args.host)
+                                if not force or not force['released']:raise ValueError('lift complete but force release not confirmed; no XY return')
+                                result['relief_complete']=True;break
+                        else:stopped_since=None
+                        time.sleep(.01)
+                    else:raise ValueError('vertical relief timed out')
+                finally:
+                    result['relief_attempts'].append(attempt_record)
+                if result.get('relief_complete') or not should_retry:
+                    break
         else:
             until=time.monotonic()+.5
             while time.monotonic()<until:row,force=check();time.sleep(.01)
