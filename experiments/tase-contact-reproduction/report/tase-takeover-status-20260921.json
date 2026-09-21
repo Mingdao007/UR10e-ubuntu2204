@@ -3,7 +3,7 @@
   "as_of": "2026-09-21",
   "claim_scope": "integrated status; physical PATH is not accepted",
   "worktree": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920",
-  "head": "e1edbc9d",
+  "head": "WORKTREE_PENDING_COMMIT",
   "live_state": {
     "current_state": "HOME_RECOVERED_AND_STOPPED",
     "latest_preflight": "runs/preflight_20260921_after_guard_candidate/preflight_readonly.json",
@@ -40,8 +40,10 @@
       "threshold_n": 4.0,
       "delta_n": 0.5,
       "inward_cap_m_s": 0.0005,
-      "status": "UNPROMOTED",
-      "focused_regression": "122 passed, 1 warning"
+      "status": "READY_FOR_SINGLE_QUALIFICATION_AFTER_FRESH_ADMISSION",
+      "state_reset_policy": "projection_only_below_main_threshold",
+      "focused_regression": "122 passed, 1 warning",
+      "physical_claim": "none"
     }
   },
   "qualification_attempts": {
@@ -96,5 +98,5 @@
     "physical_results_present": false,
     "reason": "manuscript preserves physical evidence boundary until a complete PATH is accepted"
   },
-  "next_gate": "offline diagnosis of baseline force acquisition variability; no further live writer until a new bounded, tested change and fresh package/read-back admission exist"
+  "next_gate": "fresh package/read-back admission, then at most one single qualification with automatic Home; keep this attempt denominator separate"
 }

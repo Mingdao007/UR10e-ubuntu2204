@@ -12,7 +12,7 @@
     "unload_boost": "runs/tase-qualification-unload-boost-20260921T1600",
     "pilot_retry": "runs/tase-figure8-pilot-direction-aware-retry-20260921T1545"
   },
-  "replay": {
+  "replay_before_state_policy_change": {
     "unload_boost": {
       "ticks": 15000,
       "guard_ticks": 426,
@@ -28,6 +28,9 @@
       "direction_retries": 391
     }
   },
-  "interpretation": "The cap enforces its local invariant, but replay does not model plant response; increased intervention counts are a material tradeoff. Treat this as an offline candidate requiring review, not a live promotion.",
-  "status": "UNPROMOTED"
+  "interpretation": "The original replay also coupled the early cap to recurrent-state warm-start/retry, producing hundreds of extra state interventions. The implementation now keeps the early guard projection-only and reserves warm-start/retry for the hysteretic 5.75 N main threshold. The cap still enforces its local invariant; replay does not model plant response, so no physical improvement is claimed.",
+  "status": "READY_FOR_SINGLE_QUALIFICATION_AFTER_FRESH_ADMISSION",
+  "state_reset_policy": "projection_only_below_main_threshold",
+  "focused_regression": "122 passed, 1 warning",
+  "physical_claim": "none"
 }

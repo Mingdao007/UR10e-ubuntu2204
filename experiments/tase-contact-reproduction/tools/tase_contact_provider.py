@@ -361,12 +361,14 @@ class TaseContactProvider(ContactCommandProvider):
             # observation re-arms exactly one warm-start for the next episode.
             if measured_force_norm < TASE_FORCE_PREEMPT_REARM_N:
                 self.force_preempt_armed = True
+            # The early rate guard is deliberately projection-only.  It must
+            # not repeatedly reset the recurrent state on noisy rise ticks;
+            # the hysteretic main threshold remains the sole warm-start/retry
+            # transition.  This keeps the safety response bounded without
+            # turning a force transient into controller-state chatter.
             if (
                 self.force_preempt_armed
-                and (
-                    measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N
-                    or force_rise_guard
-                )
+                and measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N
             ):
                 force_preempt_warm_start = bool(self.runtime.warm_start_for_twist(
                     actual_q=output.q_rad,
@@ -388,7 +390,7 @@ class TaseContactProvider(ContactCommandProvider):
             # is a bounded safety retry, not a gain or envelope change.
             force_preempt_direction_retry = False
             force_preempt_approach_before_retry = None
-            if measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N or force_rise_guard:
+            if measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N:
                 preliminary_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
                     command.qdot, dtype=float
                 )

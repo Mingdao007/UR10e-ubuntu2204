@@ -289,6 +289,8 @@ def test_live_tase_force_rise_guard_caps_inward_baseline_realization(provider, m
     monkeypatch.setattr(provider.runtime, 'command', forced_inward_command)
     run(.004, 4.8, filtered=1.0, setpoint=5.0)
     assert provider.last_result['force_rise_guard'] is True
+    assert provider.last_result['force_preempt_warm_start'] is False
+    assert provider.last_result['force_preempt_direction_retry'] is False
     assert provider.last_result['force_rise_inward_cap_applied'] is True
     assert abs(provider.last_result['force_rise_inward_target_m_s']) == pytest.approx(
         TASE_FORCE_RISE_INWARD_CAP_M_S
