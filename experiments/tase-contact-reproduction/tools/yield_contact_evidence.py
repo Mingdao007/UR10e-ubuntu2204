@@ -9,6 +9,10 @@ import math
 from dataclasses import replace
 from step5d_autotune_v4_r004.evidence import PathEvidenceCollector, EvidenceError
 from contact_yield_protocol import PATH_SEAM_CONTINUATION_S, PERIOD_S
+from tase_figure8_protocol import (
+    DURATION_S as R013_COMPAT60_DURATION_S,
+    PROTOCOL_ID as R013_COMPAT60_PROTOCOL_ID,
+)
 
 
 # RTDE/TP reference clocks are joined from independently sampled 500 Hz
@@ -165,3 +169,76 @@ class YieldPathEvidenceCollector(PathEvidenceCollector):
                 'full_force_rmse_n':full_rmse,
                 'full_force_metric_duration_s':total,
                 'force_metric_basis':'measured filtered normal load, time weighted over formal samples'})
+
+
+class TaseR013Compat60PathEvidenceCollector(PathEvidenceCollector):
+    """550-bin collector for the explicitly separate 60 s R013 window."""
+
+    REQUIRED_DURATION_S = R013_COMPAT60_DURATION_S
+    REQUIRED_BINS = 550
+    PROTOCOL_ID = R013_COMPAT60_PROTOCOL_ID
+
+    def __init__(self, *args, **kwargs):
+        published_reference_lookup = kwargs.pop("published_reference_lookup", None)
+        if not callable(published_reference_lookup):
+            raise EvidenceError("R013-compatible evidence requires published packet lookup")
+        super().__init__(*args, **kwargs)
+        self.protocol_id = self.PROTOCOL_ID
+        self._published_reference_lookup = published_reference_lookup
+
+    def observe(self, sample):
+        """Join the mature clocks while binning only the formal ``[5,60)`` window."""
+        # The parent collector bins relative to the first PATH sample.  For
+        # this protocol PATH starts at t=0, while the metric deliberately
+        # starts at t=5.  Suppress its bin write and retain all other timing,
+        # safety, and motion checks unchanged.
+        original_bins = self._bins
+        self._bins = {}
+        try:
+            accepted = super().observe(sample)
+        finally:
+            parent_bins = self._bins
+            self._bins = original_bins
+        if not accepted:
+            return False
+        time_s = sample.path_time_s
+        if time_s is not None and 5.0 <= time_s < self.REQUIRED_DURATION_S:
+            index = int((time_s - 5.0) / self.BIN_WIDTH_S + 1e-9)
+            if 0 <= index < self.REQUIRED_BINS:
+                self._bins.setdefault(index, []).append(sample.filtered_normal_n)
+        # ``parent_bins`` is intentionally discarded; it is relative to the
+        # wrong origin and must never enter the formal denominator.
+        del parent_bins
+        return True
+
+    def _motion_metrics(self):
+        return {
+            **super()._motion_metrics(),
+            "protocol_id": self.PROTOCOL_ID,
+            "formal_window_s": [5.0, 60.0],
+            "full_period_protocol": False,
+            "historical_compatibility": "R013",
+        }
+
+    def finalize(self, **kwargs):
+        evidence = super().finalize(**kwargs)
+        metrics = {
+            **evidence.metrics,
+            "protocol_id": self.PROTOCOL_ID,
+            "formal_window_s": [5.0, 60.0],
+            "full_period_protocol": False,
+            "historical_compatibility": "R013",
+            "complete": True,
+            "objective_eligible": True,
+            "coverage_complete": True,
+            "interrupted": False,
+            "complete_bins": self.REQUIRED_BINS,
+            "required_bins": self.REQUIRED_BINS,
+            "formal_metric_duration_s": 55.0,
+            "normal_force_mae_n": float(evidence.mae_n),
+            "mae_n": float(evidence.mae_n),
+        }
+        return replace(
+            evidence,
+            metrics=metrics,
+        )

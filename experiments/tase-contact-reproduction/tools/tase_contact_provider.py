@@ -18,6 +18,12 @@ from contact_benchmark_provider import ContactCommandProvider, ContactReadinessO
 from contact_benchmark_protocol import SensorFreshnessTracker
 from contact_benchmark_runtime import validate_measured_observation
 from contact_yield_protocol import PATH_SEAM_CONTINUATION_S, Task, PERIOD_S
+from tase_figure8_protocol import (
+    DURATION_S as R013_COMPAT60_DURATION_S,
+    Figure8Window60Task,
+    PROTOCOL_ID as R013_COMPAT60_PROTOCOL_ID,
+    SEAM_CONTINUATION_S as R013_COMPAT60_SEAM_CONTINUATION_S,
+)
 from contact_yield_task_frame import require_figure8_home
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime
@@ -175,6 +181,12 @@ def load_tase_outer_config(path=None):
         raise ValueError(f'TASE parameter file is unreadable: {candidate_path}') from exc
     if not isinstance(payload, dict) or payload.get('schema') != TASE_PARAMETER_SCHEMA:
         raise ValueError('TASE parameter schema differs')
+    unknown = set(payload) - {
+        'schema', 'candidate_id', 'stage', 'index', 'Md_scalar', 'Bd_scalar',
+        'frozen', 'protocol_id', 'duration_token', 'path_duration_s',
+    }
+    if unknown:
+        raise ValueError(f'TASE parameter file has unknown fields: {sorted(unknown)}')
     try:
         md = float(payload['Md_scalar'])
         bd = float(payload['Bd_scalar'])
@@ -237,11 +249,29 @@ class TaseContactProvider(ContactCommandProvider):
     allow_bounded_gate_projection = True
 
     def __init__(self, *, contract, candidate, motion_profile, home_pose,
-                 solver_profile, outer_loop_config=None, parameter_binding=None):
+                 solver_profile, outer_loop_config=None, parameter_binding=None,
+                 protocol_id: str | None = None):
         pose = np.asarray(home_pose, dtype=float)
         self.basis = require_figure8_home(pose)
         self.anchor = pose[:3].copy()
-        self.task = Task()
+        selected_protocol = "contact_yield_full_period_v1" if protocol_id is None else str(protocol_id)
+        if selected_protocol == R013_COMPAT60_PROTOCOL_ID:
+            self.task = Figure8Window60Task()
+            self.protocol_id = R013_COMPAT60_PROTOCOL_ID
+            self.path_duration_s = R013_COMPAT60_DURATION_S
+            self.path_seam_continuation_s = R013_COMPAT60_SEAM_CONTINUATION_S
+            self.reference_acceptance_s = R013_COMPAT60_SEAM_CONTINUATION_S
+        elif selected_protocol == "contact_yield_full_period_v1":
+            self.task = Task()
+            self.protocol_id = selected_protocol
+            self.path_duration_s = PERIOD_S
+            self.path_seam_continuation_s = PATH_SEAM_CONTINUATION_S
+            # Preserve the mature full-period writer's bounded host grace;
+            # the task reference itself is still capped to the stricter seam
+            # continuation and formal evidence excludes all grace samples.
+            self.reference_acceptance_s = 0.08
+        else:
+            raise ValueError(f"unsupported TASE Figure-eight protocol {selected_protocol!r}")
         self.phase = None
         self.reference_phase = 'baseline'
         self.last_sample_s = self.last_controller_timestamp = self.last_sensor_timestamp = None
@@ -270,6 +300,11 @@ class TaseContactProvider(ContactCommandProvider):
                                         'source': 'paper-default',
                                         'Md_scalar': self.runtime.outer_loop_config.Md_scalar,
                                         'Bd_scalar': self.runtime.outer_loop_config.Bd_scalar})
+        declared_protocol = self.parameter_binding.get("protocol_id")
+        if declared_protocol is not None and str(declared_protocol) != self.protocol_id:
+            raise ValueError("TASE parameter protocol identity differs from live request")
+        self.parameter_binding.setdefault("protocol_id", self.protocol_id)
+        self.parameter_binding.setdefault("path_duration_s", self.path_duration_s)
 
     def reference(self, stage_id, pose_xy, elapsed_s):
         if stage_id != 'step5d_strict_rnn_autotune_v1':
@@ -278,13 +313,16 @@ class TaseContactProvider(ContactCommandProvider):
         if self.reference_phase == 'entry':
             ref = self.task.entry_reference(t)
         else:
-            if not 0 <= t <= PERIOD_S + .08:
-                raise ValueError('TASE figure-eight clock outside full period')
+            if not 0 <= t <= self.path_duration_s + self.reference_acceptance_s:
+                raise ValueError('TASE figure-eight clock outside selected protocol')
             # During the bounded TP RETURNING handshake the host can receive
-            # one or more ticks after the nominal period.  Keep that seam on
-            # the existing periodic continuation endpoint; formal evidence
-            # still accepts only consumed references strictly before PERIOD_S.
-            ref = self.task.reference(min(t, PERIOD_S + PATH_SEAM_CONTINUATION_S))
+            # one or more ticks after the selected protocol endpoint. Keep
+            # that seam bounded; formal evidence still accepts only samples
+            # strictly inside the selected metric window.
+            ref = self.task.reference(
+                min(t, self.path_duration_s + self.path_seam_continuation_s),
+                **({"allow_seam": True} if self.protocol_id == R013_COMPAT60_PROTOCOL_ID else {}),
+            )
         position = self.anchor + self.basis @ np.asarray(ref['position_m'])
         velocity = self.basis @ np.asarray(ref['velocity_m_s'])
         return {'desired_xy': tuple(position[:2]),

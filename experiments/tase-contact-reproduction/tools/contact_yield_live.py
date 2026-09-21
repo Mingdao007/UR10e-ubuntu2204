@@ -200,7 +200,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     qualify.add_argument("--authority-root", type=Path)
     qualify.add_argument("--control-cpu", type=int)
     qualify.add_argument("--video-url", default="rtsp://127.0.0.1:8554/arm")
-    pilot = sub.add_parser("pilot", help="Open, ARM, PATH 2s/10s/full, stop/Home")
+    pilot = sub.add_parser("pilot", help="Open, ARM, PATH 2s/10s/r013_60/full, stop/Home")
     pilot.add_argument("--method", required=True)
     pilot.add_argument("--duration", required=True)
     pilot.add_argument("--run-dir", type=Path, required=True)

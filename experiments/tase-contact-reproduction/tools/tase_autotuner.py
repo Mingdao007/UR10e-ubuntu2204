@@ -1,10 +1,11 @@
 """Automatic TASE outer-loop campaign runner.
 
 The tuner owns only candidate state and scheduling. Each candidate is executed
-through the single ``figure8.sh`` owner, which performs one ten-second joint
-qualification, one complete 62.831853 s PATH, automatic Home, and immutable
-run receipts. A failed physical attempt consumes its ordinal and never becomes
-a successful BO observation.
+through the single ``figure8.sh`` owner, which performs the no-admittance
+contact lifecycle, one explicit 60 s R013-compatible PATH, automatic Home,
+and immutable run receipts. A failed physical attempt consumes its ordinal and
+never becomes a successful BO observation. The 62.831853 s full-period route
+remains a separate protocol and is never mixed into this campaign.
 """
 from __future__ import annotations
 
@@ -23,6 +24,14 @@ from typing import Any, Mapping
 import numpy as np
 from scipy.special import ndtr
 from scipy.stats import qmc, t as student_t
+from tase_figure8_protocol import (
+    DURATION_S as R013_COMPAT60_DURATION_S,
+    FORMAL_END_S as R013_COMPAT60_FORMAL_END_S,
+    FORMAL_START_S as R013_COMPAT60_FORMAL_START_S,
+    PROTOCOL_ID as R013_COMPAT60_PROTOCOL_ID,
+    REQUIRED_BINS as R013_COMPAT60_REQUIRED_BINS,
+)
+from tase_r013_timing_ledger import ledger_from_receipts
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,6 +51,8 @@ class Candidate:
     def parameters(self) -> dict[str, Any]:
         return {
             "schema": PARAMETER_SCHEMA,
+            "protocol_id": R013_COMPAT60_PROTOCOL_ID,
+            "duration_token": "r013_60",
             "candidate_id": self.candidate_id,
             "stage": self.stage,
             "index": self.index,
@@ -64,6 +75,15 @@ def _load_config(path: Path) -> dict[str, Any]:
         raise ValueError("autotuner config schema differs")
     if payload.get("method") != "TASE_RNN_MATURE":
         raise ValueError("this runner only executes TASE_RNN_MATURE")
+    if payload.get("protocol_id") != R013_COMPAT60_PROTOCOL_ID:
+        raise ValueError("autotuner must use the explicit R013-compatible 60 s protocol")
+    if payload.get("duration_token") not in {"r013_60", "compat60"}:
+        raise ValueError("autotuner duration token must be r013_60")
+    if tuple(float(value) for value in payload.get("formal_window_s", ())) != (
+        R013_COMPAT60_FORMAL_START_S,
+        R013_COMPAT60_FORMAL_END_S,
+    ):
+        raise ValueError("autotuner formal window must be [5,60)")
     budget = payload.get("budget", {})
     if budget != {"initial": 8, "bo": 12, "repeats": 4}:
         raise ValueError("autotuner budget must remain 8+12+4")
@@ -131,29 +151,61 @@ def _rbf_kernel(left: np.ndarray, right: np.ndarray, *, length_scale: float,
 
 def _gp_posterior(config: Mapping[str, Any], observed_x: np.ndarray,
                   observed_y: np.ndarray, query_x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Return a deterministic noisy-GP posterior in log2 parameter space."""
+    """Return a deterministic noisy-GP posterior in log2 parameter space.
+
+    The objective has a non-zero force-error baseline, so the constant mean is
+    fit from the observations and restored after conditioning.  ``noise_n``
+    is a standard deviation in the config; only its square enters the
+    covariance diagonal.  The returned variance is the latent posterior
+    variance (observation noise is kept in the fit, not double-counted in EI).
+    """
     if len(observed_y) == 0:
         return np.zeros(len(query_x)), np.ones(len(query_x))
+    if observed_x.ndim != 2 or observed_x.shape[0] != len(observed_y) or observed_x.shape[1] != 2:
+        raise ValueError("GP observations must have shape (n,2) matching y")
+    if query_x.ndim != 2 or query_x.shape[1] != 2:
+        raise ValueError("GP query points must have shape (m,2)")
     train = np.asarray([_normalized(config, row) for row in observed_x], dtype=float)
     query = np.asarray(query_x, dtype=float)
-    signal = max(float(np.var(observed_y)), float(config["observation_noise_n"]) ** 2, 1e-6)
+    prior_mean = float(np.mean(observed_y))
+    centered_y = np.asarray(observed_y, dtype=float) - prior_mean
+    noise_std = float(config["observation_noise_n"])
+    noise_variance = noise_std * noise_std
+    signal = max(float(np.var(centered_y)), noise_variance, 1e-6)
     length = float(config.get("gp_length_scale", 0.25))
-    noise = float(config["observation_noise_n"])
     kernel = _rbf_kernel(train, train, length_scale=length, signal_variance=signal)
-    kernel.flat[:: len(kernel) + 1] += noise * noise + 1e-9
+    kernel.flat[:: len(kernel) + 1] += noise_variance + max(1e-9, signal * 1e-9)
     cross = _rbf_kernel(train, query, length_scale=length, signal_variance=signal)
     prior = np.full(len(query), signal, dtype=float)
     try:
         chol = np.linalg.cholesky(kernel)
-        alpha = np.linalg.solve(chol.T, np.linalg.solve(chol, observed_y))
-        mean = cross.T @ alpha
+        alpha = np.linalg.solve(chol.T, np.linalg.solve(chol, centered_y))
+        mean = prior_mean + cross.T @ alpha
         projected = np.linalg.solve(chol, cross)
         variance = prior - np.sum(projected * projected, axis=0)
     except np.linalg.LinAlgError:
         inverse = np.linalg.pinv(kernel)
-        mean = cross.T @ inverse @ observed_y
+        mean = prior_mean + cross.T @ inverse @ centered_y
         variance = prior - np.einsum("ij,ji->i", cross.T @ inverse, cross)
     return np.asarray(mean, dtype=float), np.maximum(np.asarray(variance, dtype=float), 1e-12)
+
+
+def _expected_improvement(
+    mean: np.ndarray,
+    variance: np.ndarray,
+    incumbent: float,
+    *,
+    exploration_n: float = 0.0,
+) -> np.ndarray:
+    """Expected improvement for minimization, with stable zero-variance handling."""
+    if not math.isfinite(float(incumbent)) or exploration_n < 0.0:
+        raise ValueError("EI incumbent/exploration values are invalid")
+    sigma = np.sqrt(np.maximum(np.asarray(variance, dtype=float), 1e-12))
+    improvement = float(incumbent) - np.asarray(mean, dtype=float) - float(exploration_n)
+    z = np.divide(improvement, sigma, out=np.zeros_like(improvement), where=sigma > 0.0)
+    phi = np.exp(-0.5 * z * z) / math.sqrt(2.0 * math.pi)
+    cdf = ndtr(z)
+    return np.maximum(improvement * cdf + sigma * phi, 0.0)
 
 
 def _next_bo_candidate(config: Mapping[str, Any], records: list[dict[str, Any]], index: int) -> Candidate:
@@ -171,11 +223,8 @@ def _next_bo_candidate(config: Mapping[str, Any], records: list[dict[str, Any]],
         order = np.roll(np.arange(len(pool), dtype=int), -index)
     else:
         mean, variance = _gp_posterior(config, observed_x, observed_y, normalized_pool)
-        sigma = np.sqrt(variance)
         incumbent = float(np.min(observed_y))
-        improvement = incumbent - mean
-        z = np.divide(improvement, sigma, out=np.zeros_like(improvement), where=sigma > 0.0)
-        ei = improvement * ndtr(z) + sigma * np.exp(-0.5 * z * z) / math.sqrt(2.0 * math.pi)
+        ei = _expected_improvement(mean, variance, incumbent)
         order = np.argsort(-ei)
     for pool_index in order:
         point = pool[int(pool_index)]
@@ -295,26 +344,60 @@ def _extract_mae(run_dir: Path) -> tuple[float | None, dict[str, Any]]:
     )
     if isinstance(recovery, dict) and recovery.get("success") is True:
         home_verified = True
+    lifecycle_events = dispatch.get("lifecycle_events") or dispatch.get("timing_events") or []
+    if not isinstance(lifecycle_events, list):
+        lifecycle_events = []
+    try:
+        timing_ledger = ledger_from_receipts(
+            str(dispatch.get("attempt_id") or run_dir.name),
+            lifecycle_events=lifecycle_events,
+            dispatch_receipt=dispatch,
+            supervisor_result=supervisor,
+        )
+        timing_ledger_payload = timing_ledger.as_dict()
+        home_verified = home_verified or bool(
+            timing_ledger.recovery_outcome().get("home_verified")
+        )
+    except (TypeError, ValueError):
+        timing_ledger_payload = None
+    path_kind = path.get("kind")
+    if path_kind == "full_period":
+        requested_duration_s = 62.83185307179586
+        required_bins = 629
+        protocol_id = "contact_yield_full_period_v1"
+        incomplete_reason = "full_period_metrics_incomplete"
+    elif path_kind == "r013_compat_60" and path.get("protocol_id") == R013_COMPAT60_PROTOCOL_ID:
+        requested_duration_s = R013_COMPAT60_DURATION_S
+        required_bins = R013_COMPAT60_REQUIRED_BINS
+        protocol_id = R013_COMPAT60_PROTOCOL_ID
+        incomplete_reason = "r013_compat_60_metrics_incomplete"
+    else:
+        requested_duration_s = None
+        required_bins = None
+        protocol_id = None
+        incomplete_reason = "unknown_path_protocol"
     common = {
         "dispatch": dispatch,
         "recovery": recovery,
         "home_verified": home_verified,
+        "protocol_id": protocol_id,
+        "timing_ledger": timing_ledger_payload,
     }
     if (
         dispatch.get("command") != "pilot"
-        or path.get("kind") != "full_period"
+        or requested_duration_s is None
         or dispatch.get("evidence_eligible") is not True
         or dispatch.get("error")
     ):
         return None, {**common, "complete_path": False,
-                      "reason": "not_a_clean_full_period_receipt"}
+                      "reason": incomplete_reason}
     metric_sources = [dispatch.get("evidence_metrics", {})]
     if isinstance(pilot, dict):
         evidence = pilot.get("evidence", {})
         if isinstance(evidence, dict):
             metric_sources.append(evidence.get("metrics", {}))
-    def _legacy_full_path_closure(metrics: Mapping[str, Any]) -> bool:
-        """Recognize the live owner's sealed full-PATH metric envelope.
+    def _legacy_path_closure(metrics: Mapping[str, Any]) -> bool:
+        """Recognize one sealed PATH metric envelope for the selected protocol.
 
         Older live receipts predate the generic ``ContactMetrics`` flags and
         therefore expose the same closure proof as the timing/bin fields.  A
@@ -325,10 +408,17 @@ def _extract_mae(run_dir: Path) -> tuple[float | None, dict[str, Any]]:
         and censored/short PATHs remain failed denominators.
         """
         try:
-            full_bins = int(metrics["full_path_bin_count"])
-            required_bins = int(metrics["required_full_path_bin_count"])
+            full_bins = int(metrics.get("full_path_bin_count", metrics.get("complete_bins")))
+            metric_required_bins = int(
+                metrics.get("required_full_path_bin_count", metrics.get("required_bins"))
+            )
             path_duration = float(metrics["path_duration_s"])
-            metric_duration = float(metrics["full_force_metric_duration_s"])
+            metric_duration = float(
+                metrics.get(
+                    "full_force_metric_duration_s",
+                    metrics.get("formal_metric_duration_s", path_duration),
+                )
+            )
         except (KeyError, TypeError, ValueError):
             return False
         timing = metrics.get("timing_evidence")
@@ -337,16 +427,21 @@ def _extract_mae(run_dir: Path) -> tuple[float | None, dict[str, Any]]:
             and isinstance(timing, Mapping)
             and timing.get("successful") is True
         )
-        # Keep this constant local to the scorer so it does not import the
-        # controller protocol and accidentally couple campaign planning to a
-        # live transport module.
-        requested_period_s = 62.83185307179586
+        metric_required_duration = (
+            requested_duration_s
+            if protocol_id == "contact_yield_full_period_v1"
+            else R013_COMPAT60_FORMAL_END_S - R013_COMPAT60_FORMAL_START_S
+        )
         return bool(
             full_bins > 0
-            and full_bins == required_bins
-            and path_duration >= requested_period_s
-            and metric_duration >= requested_period_s
+            and full_bins == metric_required_bins == required_bins
+            and path_duration >= requested_duration_s
+            and metric_duration >= metric_required_duration
             and timing_ok
+            and (
+                protocol_id == "contact_yield_full_period_v1"
+                or metrics.get("protocol_id") == R013_COMPAT60_PROTOCOL_ID
+            )
             and metrics.get("interrupted") is not True
         )
 
@@ -362,7 +457,13 @@ def _extract_mae(run_dir: Path) -> tuple[float | None, dict[str, Any]]:
             and metrics.get("coverage_complete") is True
             and metrics.get("interrupted") is False
         )
-        if not generic_complete and not _legacy_full_path_closure(metrics):
+        generic_protocol_ok = (
+            protocol_id == "contact_yield_full_period_v1"
+            or metrics.get("protocol_id") == R013_COMPAT60_PROTOCOL_ID
+        )
+        if not generic_complete and not _legacy_path_closure(metrics):
+            continue
+        if protocol_id == R013_COMPAT60_PROTOCOL_ID and not generic_protocol_ok:
             continue
         for key in (
             "normal_force_mae_n",
@@ -377,7 +478,7 @@ def _extract_mae(run_dir: Path) -> tuple[float | None, dict[str, Any]]:
                     return mae, {**common, "complete_path": True,
                                   "metrics": metrics}
     return None, {**common, "complete_path": False,
-                  "reason": "full_period_metrics_incomplete"}
+                  "reason": incomplete_reason}
 
 
 def _write_candidate(path: Path, candidate: Candidate) -> None:
@@ -425,6 +526,8 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, execute: bool, dry_ru
         run_dir = campaign_dir / "runs" / f"{ordinal:02d}-{candidate.candidate_id}"
         row = {
             "schema": "tase.autotuner-attempt-v1",
+            "protocol_id": R013_COMPAT60_PROTOCOL_ID,
+            "duration_token": "r013_60",
             "ordinal": ordinal,
             "candidate_id": candidate.candidate_id,
             "stage": candidate.stage,
@@ -442,7 +545,7 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, execute: bool, dry_ru
             records.append(planned)
             continue
         _append(ledger, {**row, "status": "started"})
-        command = [str(script), "--method", "TASE_RNN_MATURE", "--control-cpu", "2",
+        command = [str(script), "--method", "TASE_RNN_MATURE", "--duration", "r013_60", "--control-cpu", "2",
                    "--run-dir", str(run_dir), "--parameter-file", str(candidate_file)]
         completed = subprocess.run(command, cwd=str(ROOT), check=False)
         receipt_path = run_dir / "dispatch_receipt.json"
@@ -499,6 +602,8 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, execute: bool, dry_ru
     failed = [row for row in records if row.get("status") == "failed"]
     summary = {
         "schema": "tase.autotuner-summary-v1",
+        "protocol_id": R013_COMPAT60_PROTOCOL_ID,
+        "duration_token": "r013_60",
         "config": str(config_path),
         "campaign_dir": str(campaign_dir),
         "budget": config["budget"],
@@ -555,6 +660,8 @@ def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) ->
             candidate = baseline if arm == "baseline" else incumbent
             row = {
                 "schema": "tase.autotuner-confirmation-v1",
+                "protocol_id": R013_COMPAT60_PROTOCOL_ID,
+                "duration_token": "r013_60",
                 "round": ordinal,
                 "arm": arm,
                 "candidate_id": candidate.candidate_id,
@@ -571,7 +678,7 @@ def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) ->
                 result = {**row, "status": "planned", "mae_n": None}
             else:
                 completed = subprocess.run(
-                    [str(script), "--method", "TASE_RNN_MATURE", "--control-cpu", "2",
+                    [str(script), "--method", "TASE_RNN_MATURE", "--duration", "r013_60", "--control-cpu", "2",
                      "--run-dir", str(run_dir), "--parameter-file", str(candidate_file)],
                     cwd=str(ROOT), check=False,
                 )
@@ -645,6 +752,7 @@ def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) ->
         improvement_supported = False
     summary = {
         "schema": "tase.autotuner-confirmation-summary-v1",
+        "protocol_id": R013_COMPAT60_PROTOCOL_ID,
         "state": "COMPLETE" if len(pairs) == rounds else "INCOMPLETE",
         "rounds": rounds,
         "paired_complete": len(pairs),

@@ -545,7 +545,8 @@ def build_native_yield_owner(
         outer_config, parameter_binding = load_tase_outer_config(parameter_file)
         provider = TaseContactProvider(contract=current_model_binding(), candidate=R006Candidate(),
             motion_profile=native_motion_profile(), home_pose=pose, solver_profile=LEGACY_R1,
-            outer_loop_config=outer_config, parameter_binding=parameter_binding)
+            outer_loop_config=outer_config, parameter_binding=parameter_binding,
+            protocol_id=(None if request is None else request.protocol_id))
         runtime = provider
     else:
         runtime, binding = create_native_yield_runtime(
@@ -691,7 +692,7 @@ class NativeYieldLiveWriter(R006LiveWriter):
         phase = kwargs.get("reference_phase")
         phase_time = kwargs.get("reference_time_s")
         end = self._r013_path_early_end_controller
-        if (request is not None and request.kind == "diagnostic"
+        if (request is not None and request.kind in {"diagnostic", "r013_compat_60"}
             and phase == "path" and phase_time is not None
             and phase_time >= request.path_duration_s and not end.requested):
             if not end.request_early_end(self._ordinal):

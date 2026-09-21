@@ -1672,15 +1672,24 @@ class LiveR004Writer:
         formal_duration_s = self._path_duration_s
         path_fence_duration_s = formal_duration_s
         if entry_aware and path_requested:
-            from yield_contact_evidence import YieldPathEvidenceCollector
+            from yield_contact_evidence import (
+                TaseR013Compat60PathEvidenceCollector,
+                YieldPathEvidenceCollector,
+            )
             from contact_yield_protocol import PERIOD_S
-            formal_duration_s = PERIOD_S
+            selected_protocol = str(getattr(contact_provider, "protocol_id", ""))
+            if selected_protocol == "figure8_window60_r013_compat_v1":
+                formal_duration_s = float(getattr(contact_provider, "path_duration_s", 60.0))
+                path_collector_type = TaseR013Compat60PathEvidenceCollector
+            else:
+                formal_duration_s = PERIOD_S
+                path_collector_type = YieldPathEvidenceCollector
             # Keep the formal metric clock exact, but leave a bounded
             # resident grace for the final PATH packet to be consumed before
             # the TP emits RETURNING.  The grace is never included in the
             # collector's formal samples.
-            path_fence_duration_s = PERIOD_S + PATH_END_HANDSHAKE_MARGIN_S
-            path_collector = YieldPathEvidenceCollector(
+            path_fence_duration_s = formal_duration_s + PATH_END_HANDSHAKE_MARGIN_S
+            path_collector = path_collector_type(
                 require_path_boundary=True,
                 published_reference_lookup=self._packet_history.consumed)
         else:

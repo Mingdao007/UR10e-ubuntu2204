@@ -1,0 +1,16 @@
+{
+  "schema": "tase.figure8-window60-r013-compat-v1",
+  "protocol_id": "figure8_window60_r013_compat_v1",
+  "historical_compatibility": "R013",
+  "full_period_protocol": false,
+  "duration_s": 60.0,
+  "entry_duration_s": 1.0,
+  "formal_window_s": [5.0, 60.0],
+  "bin_width_s": 0.1,
+  "required_bins": 550,
+  "target_force_n": 5.0,
+  "omega_rad_s": 0.1,
+  "x_amplitude_m": 0.04,
+  "y_amplitude_m": 0.01,
+  "metric_basis": "normal-force samples in [5,60), with qualification and incomplete PATH retained as diagnostic-only records"
+}

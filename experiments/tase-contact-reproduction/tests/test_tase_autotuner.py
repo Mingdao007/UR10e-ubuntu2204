@@ -4,6 +4,7 @@ from pathlib import Path
 from tase_autotuner import (
     DEFAULT_CONFIG,
     _extract_mae,
+    _expected_improvement,
     _gp_posterior,
     _next_bo_candidate,
     run_campaign,
@@ -40,6 +41,19 @@ def test_gp_posterior_uses_observation_noise_and_returns_finite_variance():
     assert variance.shape == (2,)
     assert np.isfinite(mean).all()
     assert (np.isfinite(variance) & (variance > 0.0)).all()
+
+
+def test_gp_posterior_restores_observation_mean_and_ei_is_nonnegative():
+    config = json.loads(DEFAULT_CONFIG.read_text())
+    import numpy as np
+    x = np.array([[12.0, 550.0], [12.0, 550.0]], dtype=float)
+    y = np.array([1.0, 1.2], dtype=float)
+    q = np.array([[0.0, 0.0]], dtype=float)
+    mean, variance = _gp_posterior(config, x, y, q)
+    assert 1.0 <= mean[0] <= 1.2
+    ei = _expected_improvement(mean, variance, incumbent=1.0)
+    assert ei.shape == (1,)
+    assert ei[0] >= 0.0
 
 
 def test_bo_proposal_deduplicates_complete_and_failed_records():
@@ -135,3 +149,46 @@ def test_extract_mae_reads_home_recovery_from_supervisor_receipt(tmp_path: Path)
 
     assert evidence["home_verified"] is True
     assert evidence["recovery"]["state"] == "HOME_RECOVERED"
+
+
+def test_extract_mae_accepts_only_explicit_r013_60_receipt(tmp_path: Path):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    metrics = {
+        "protocol_id": "figure8_window60_r013_compat_v1",
+        "complete_bins": 550,
+        "required_bins": 550,
+        "path_duration_s": 60.0,
+        "formal_metric_duration_s": 55.0,
+        "normal_force_mae_n": 0.8,
+        "complete": True,
+        "objective_eligible": True,
+        "coverage_complete": True,
+        "interrupted": False,
+        "timing_gate_passed": True,
+        "timing_evidence": {"successful": True},
+    }
+    receipt = {
+        "command": "pilot",
+        "evidence_eligible": True,
+        "live_path": {
+            "kind": "r013_compat_60",
+            "path_duration_s": 60.0,
+            "protocol_id": "figure8_window60_r013_compat_v1",
+        },
+        "evidence_metrics": metrics,
+        "stop": {"observed_stationary": True},
+        "attempts": [{
+            "phase": "pilot",
+            "evidence": {
+                "return_gate_passed": True,
+                "home_proof": {"fixed_home_route": True, "stationary": True},
+                "metrics": metrics,
+            },
+        }],
+    }
+    (run_dir / "dispatch_receipt.json").write_text(json.dumps(receipt))
+    mae, evidence = _extract_mae(run_dir)
+    assert mae == 0.8
+    assert evidence["complete_path"] is True
+    assert evidence["protocol_id"] == "figure8_window60_r013_compat_v1"
