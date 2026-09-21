@@ -1,0 +1,48 @@
+{
+  "schema": "tase.manual-recovery-no-kunwei-v1",
+  "attempt": "runs/manual-recovery-no-kunwei-20260921T111431Z",
+  "user_directed_action": "vertical relief to clearance, then existing Figure-eight Home",
+  "sensor": {
+    "kunwei_connected": false,
+    "opened_or_read": false,
+    "zero_or_tare": false,
+    "claim_boundary": "no force-release evidence and no contact qualification"
+  },
+  "preflight": {
+    "dashboard": "STOPPED",
+    "safety": "NORMAL",
+    "remote_control": true,
+    "stationary": true,
+    "relief_package_readback": "verified",
+    "home_package_readback": "verified"
+  },
+  "relief": {
+    "program": "step5d_contact_relief_v1",
+    "start_z_m": 0.022837008055429292,
+    "end_z_m": 0.03297637026978324,
+    "motion": "vertical-only",
+    "success": true,
+    "safety": "NORMAL",
+    "dashboard": "STOPPED"
+  },
+  "home": {
+    "program": "step5d_contact_home_v1",
+    "success": true,
+    "final_position_error_m": 2.5514317035305377e-05,
+    "final_orientation_error_rad": 3.7163919394966846e-05,
+    "safety": "NORMAL",
+    "dashboard": "STOPPED"
+  },
+  "post_home": {
+    "max_tcp_speed_m_s": 3.1901443435344845e-05,
+    "max_qd_rad_s": 3.1901443435344845e-05,
+    "stationary": true
+  },
+  "claim_boundary": "approved Home and RTDE/Safety stationarity verified; this receipt does not claim force release or a successful qualification",
+  "evidence": [
+    "runs/manual-recovery-no-kunwei-20260921T111431Z/summary-final.json",
+    "runs/manual-recovery-no-kunwei-20260921T111431Z/relief/result.json",
+    "runs/manual-recovery-no-kunwei-20260921T111431Z/home-retry-20260921T111454Z/result.json",
+    "runs/manual-recovery-no-kunwei-20260921T111431Z/post-home-stationarity.json"
+  ]
+}

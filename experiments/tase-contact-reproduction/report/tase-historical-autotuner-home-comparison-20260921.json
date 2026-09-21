@@ -1,0 +1,141 @@
+{
+  "schema": "tase.historical-autotuner-home-comparison-v1",
+  "checked_at": "2026-09-21",
+  "question": "Which July/August Home pose belongs to the reusable Figure-eight autotuner frame?",
+  "comparison_method": {
+    "pose_order": "[x_m, y_m, z_m, rx_rad, ry_rad, rz_rad]",
+    "orientation_distance": "SO(3) geodesic angle between rotvec orientations",
+    "claim_boundary": "Historical package and receipt identity are checked read-only; this report does not authorize deployment or motion."
+  },
+  "historical": {
+    "2026-07": {
+      "classification": "Step5 autotuner start-hover Home; not a separate Step6 Figure-eight autotuner Home receipt",
+      "target_pose": [
+        0.487834547,
+        0.129337053,
+        0.033,
+        3.120752062,
+        0.0,
+        0.068626833
+      ],
+      "package_stamp": "2026-07-28T1353HKT_STEP5D_AUTOTUNE_START_HOVER_R001",
+      "verified_live_home": {
+        "status": "HOME_VERIFIED",
+        "program_id": "step5d_autotune_start_hover_r001",
+        "receipt": "/home/andy/.codex-worktrees/step5d-r034-live-20260730/experiments/tase-contact-reproduction/runs/new_eoat_script1_r001_home_20260730T1611HKT/home-verified-receipt.json",
+        "receipt_sha256": "3b20af77eba0b3f69ec9ee2110e8f805e28123961e7207d473b7ab70ac573626",
+        "observed_pose": [
+          0.48781390194893465,
+          0.12935153845293904,
+          0.033003524248614996,
+          3.1207704392577087,
+          7.53275013790986e-05,
+          0.06854454419908952
+        ]
+      },
+      "figure8_relation": {
+        "step6_safe_frame_origin_xy_m": [
+          0.4620551816200707,
+          0.17788259636165896
+        ],
+        "meaning": "The July Step6 contact-eight package uses this XY path frame, but its runtime Home is captured from the current pose; the July live receipt above is the Step5 autotuner Home. Do not merge these identities."
+      },
+      "reuse_decision": "not_the_target_for_the_August_R013_Step6_figure8_autotuner"
+    },
+    "2026-08": {
+      "classification": "Step6/R013 Figure-eight autotuner Home",
+      "target_pose": [
+        0.4620551816,
+        0.1778825964,
+        0.03408876139925415,
+        3.120752062,
+        0.0,
+        0.068626833
+      ],
+      "home_profile_id": "step6.autotune/figure8-contact-derived-home-v1",
+      "calibration_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/step6_figure8_home_calibration_v1_20260816_201400/home_calibration_receipt.json",
+      "calibration_receipt_sha256": "1c34c27d33aae2e6d93e0dc3017e7c95099cbc15dea32c3faf0d9951b78028c9",
+      "campaign_binding": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/config/step6/r013_figure8_direct_campaign_v1.json",
+      "campaign_binding_home_sha256": "1c34c27d33aae2e6d93e0dc3017e7c95099cbc15dea32c3faf0d9951b78028c9",
+      "live_home_receipts": {
+        "passed_receipt_count_found": 12,
+        "representative_receipt": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813/experiments/tase-contact-reproduction/runs/step6_figure8_autotune_v1_live_60s_20260816_2102/handoff-resident-001/home_start_receipt.json",
+        "representative_receipt_sha256": "5e56eed46b41045c290eb3809469a7431d0e1dcb9ae37171d0676625b883f046",
+        "representative_home_pose": [
+          0.4620551816,
+          0.1778825964,
+          0.03408876139925415,
+          3.120752062,
+          0.0,
+          0.068626833
+        ],
+        "representative_stationary": true,
+        "representative_safety_mode": "NORMAL"
+      },
+      "calibration_only_variant": {
+        "target_pose": [
+          0.4620551816,
+          0.1778825964,
+          0.0345,
+          3.120752062,
+          0.0,
+          0.068626833
+        ],
+        "meaning": "The 0.0345 m value belongs to the calibration-only start package. The reusable Figure-eight campaign binding and live Home receipts use the contact-derived final z=0.03408876139925415 m."
+      },
+      "campaign_status_boundary": "The historical Home receipts passed, but the archived R013 config remains launch_ready=false; this is Home identity evidence, not proof of a complete historical campaign."
+    }
+  },
+  "current_2026_09": {
+    "target_pose": [
+      0.4620551816,
+      0.1778825964,
+      0.033,
+      2.0331342431227566,
+      2.3949884238824652,
+      -2.2711768777011217e-22
+    ],
+    "physical_home_receipt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/manual-recovery-no-kunwei-20260921T111431Z/home-retry-20260921T111454Z/result.json",
+    "physical_home_status": "HOME_VERIFIED",
+    "physical_home_errors": {
+      "position_m": 2.5514317035305377e-05,
+      "orientation_rad": 3.7163919394966846e-05
+    },
+    "post_home_stationary": {
+      "dashboard": "STOPPED",
+      "safety": "NORMAL",
+      "max_tcp_speed_m_s": 3.1901443435344845e-05,
+      "max_qd_rad_s": 3.1901443435344845e-05
+    },
+    "sensor_boundary": "Kunwei was disconnected for this recovery; no sensor read, tare, force-release, qualification, or Figure-eight claim was made."
+  },
+  "deltas_against_august_r013": {
+    "current_target_minus_historical_target": {
+      "x_m": 0.0,
+      "y_m": 0.0,
+      "z_m": -0.00108876139925415,
+      "z_mm": -1.08876139925415,
+      "orientation_geodesic_rad": 1.734364485252842,
+      "orientation_geodesic_mrad": 1734.364485252842
+    },
+    "interpretation": "The XY origin is reused, but current z is 1.089 mm lower and the current tool orientation is a genuinely different SO(3) orientation. The difference is not a rotvec sign or representation duplicate."
+  },
+  "reuse_decision": {
+    "current_home_is_historic_r013_figure8_home": false,
+    "recommended_reuse_pose": [
+      0.4620551816,
+      0.1778825964,
+      0.03408876139925415,
+      3.120752062,
+      0.0,
+      0.068626833
+    ],
+    "recommended_identity": "step6.autotune/figure8-contact-derived-home-v1",
+    "do_not_use_for_this_reuse": [
+      "July Step5 start-hover Home as if it were the R013 Step6 Home",
+      "September current Home package as if its orientation matched R013",
+      "The August calibration-only z=0.0345 m target as if it were the final contact-derived campaign Home"
+    ],
+    "next_gate": "Prepare a new R013-compatible Home/relief package offline, validate it, upload and fresh-read-back it, then perform a separately recorded supervised motion to that pose before launching any contact or autotuner run."
+  }
+}
