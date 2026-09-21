@@ -1,0 +1,120 @@
+{
+  "schema": "figure8/joint-speed-mismatch-v1",
+  "source_run": "runs/figure8-final-live-20260921T1225Z",
+  "observed_at_utc": "2026-09-21",
+  "guard": {
+    "name": "validate_measured_observation.actual_qd",
+    "limit_rad_s": 0.06,
+    "action": "stop and preserve attempt"
+  },
+  "first_violation": {
+    "frame_index": 43282,
+    "controller_timestamp_s": 340181.381,
+    "received_monotonic_s": 149804.437807905,
+    "consumed_packet_sequence": 42877,
+    "actual_qd_rad_s": [
+      -5.0263904995517805e-05,
+      0.04953065142035484,
+      0.006664535030722618,
+      -0.06096295639872551,
+      0.0,
+      0.0
+    ],
+    "max_abs_actual_qd_rad_s": 0.06096295639872551,
+    "tcp_speed_m_s_rad_s": [
+      0.00046439445585582,
+      0.0003004873154077003,
+      0.017203708501769756,
+      -0.0034199438384003022,
+      0.003330877969469445,
+      -0.00016650150710243795
+    ],
+    "tcp_pose_m_rad": [
+      0.4619395363616415,
+      0.17776733505279987,
+      0.023237313171130383,
+      3.1206027900673288,
+      -5.9025951611791054e-05,
+      0.06837373652820779
+    ],
+    "runtime_state": 2,
+    "integer_echoes": {
+      "24": 1,
+      "25": 1,
+      "26": 21,
+      "27": 1875903151,
+      "28": 0,
+      "29": 1,
+      "30": 1,
+      "31": 0,
+      "32": 606006,
+      "33": 21,
+      "34": 618001
+    },
+    "consumed_packet_command_mode": 1,
+    "consumed_packet_qdot_rad_s": [
+      1.7698304935049717e-08,
+      2.0523282744558628e-05,
+      1.5041258331291413e-06,
+      -2.202638713525629e-05,
+      9.427687063396952e-08,
+      -2.297271181925904e-08
+    ],
+    "consumed_packet_max_abs_qdot_rad_s": 2.202638713525629e-05
+  },
+  "peak": {
+    "controller_timestamp_s": 340181.559,
+    "received_monotonic_s": 149804.615809581,
+    "consumed_packet_sequence": 42877,
+    "actual_qd_rad_s": [
+      -4.1186140186105e-20,
+      0.08057291805744171,
+      0.007365542929619551,
+      -0.08935220539569855,
+      0.0,
+      -6.198405536201893e-39
+    ],
+    "max_abs_actual_qd_rad_s": 0.08935220539569855,
+    "tcp_speed_m_s_rad_s": [
+      1.6611971243115156e-05,
+      -0.00013274988647955614,
+      0.02824174522546628,
+      -0.0012336419698335613,
+      0.0007841466022980442,
+      -0.0001789773104044424
+    ],
+    "tcp_pose_m_rad": [
+      0.46202381648646074,
+      0.17782327856997998,
+      0.0274398933935721,
+      3.120686341576554,
+      -6.686753341889112e-05,
+      0.06855440318273057
+    ],
+    "consumed_packet_qdot_rad_s": [
+      1.7698304935049717e-08,
+      2.0523282744558628e-05,
+      1.5041258331291413e-06,
+      -2.202638713525629e-05,
+      9.427687063396952e-08,
+      -2.297271181925904e-08
+    ],
+    "consumed_packet_max_abs_qdot_rad_s": 2.202638713525629e-05
+  },
+  "evidence": {
+    "robot_frames": "robot_frames.jsonl",
+    "published_packets": "published_packets.jsonl",
+    "raw_sensor": "raw_sensor.jsonl",
+    "video": "video.mkv",
+    "video_frame_samples": [
+      "/tmp/tase-failure-frames/frame-84.jpg",
+      "/tmp/tase-failure-frames/frame-86.jpg",
+      "/tmp/tase-failure-frames/frame-88.jpg",
+      "/tmp/tase-failure-frames/frame-90.jpg",
+      "/tmp/tase-failure-frames/frame-92.jpg"
+    ]
+  },
+  "interpretation": "Observed actual joint/TCP motion is materially larger than the qdot carried by the consumed packet. This is a command/actual pairing discrepancy; current evidence does not identify whether the cause is TP execution/latency, controller state, or physical contact compliance.",
+  "stop_condition": "Do not repeat live Figure-eight unchanged. First reconcile consumed packet, TP speedj execution, RTDE actual_qd/tcp_speed, and synchronized video; preserve all gates.",
+  "claim_boundary": "No full PATH acceptance, autotuner observation, or controller superiority claim."
+}
