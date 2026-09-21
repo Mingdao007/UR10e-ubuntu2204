@@ -302,6 +302,11 @@ def main(argv=None):
     p.add_argument('--control-cpu',type=int,required=True)
     p.add_argument('--video-url',default='rtsp://127.0.0.1:8554/arm')
     a=p.parse_args(argv)
+    # Resolve once at the process boundary so every receipt, observer and
+    # recovery owner shares the same directory even when the caller starts
+    # from the worktree root or the experiment root.
+    a.run_dir = a.run_dir.expanduser().resolve()
+    a.readback_dir = a.readback_dir.expanduser().resolve()
     from contact_yield_method_registry import load_live_entry_config,resolve_method
     if not load_live_entry_config()['user_standing_live_authority']:
         raise RuntimeError('live authority is revoked; no endpoint opened')

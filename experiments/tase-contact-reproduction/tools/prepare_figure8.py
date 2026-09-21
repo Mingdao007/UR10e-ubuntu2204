@@ -47,7 +47,11 @@ def validate_sample(output, wrench, received, now, contract, profile):
 
 def prepare(run_dir, method):
     resolve_method(method)  # Reject unsupported methods before any device access.
-    out = Path(run_dir)
+    out = Path(run_dir).expanduser().resolve()
+    if out.exists():
+        raise FileExistsError(
+            f"run directory already exists; choose a new path: {out}"
+        )
     contract = load_identity_contract()
     profile = load_new_eoat_profile()
     rows = []

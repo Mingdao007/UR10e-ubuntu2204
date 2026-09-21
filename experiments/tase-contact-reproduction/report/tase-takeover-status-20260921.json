@@ -105,5 +105,10 @@
     "physical_results_present": false,
     "reason": "manuscript preserves physical evidence boundary until a complete PATH is accepted"
   },
+  "workflow_repairs": {
+    "run_path_canonicalization": "focused_live_supervisor_regression_pass",
+    "existing_prepare_directory": "fail_closed_before_device_access",
+    "live_motion_or_force_gate_changed": false
+  },
   "next_gate": "offline replay/source review of force-rise transition and workflow path normalization; no unchanged live qualification"
 }

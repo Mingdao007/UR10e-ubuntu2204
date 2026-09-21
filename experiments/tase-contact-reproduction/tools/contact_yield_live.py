@@ -273,6 +273,12 @@ def run_live(
 ) -> dict[str, Any]:
     if args.command not in {"qualify", "pilot"}:
         raise YieldLiveError(f"unknown live command {args.command!r}")
+    # The live entry owns all artifacts below one canonical run directory.
+    # Relative paths otherwise depend on the caller's current directory and
+    # can split the attempt receipt from its read-back and recovery evidence.
+    args.run_dir = Path(args.run_dir).expanduser().resolve()
+    if getattr(args, "authority_root", None) is not None:
+        args.authority_root = Path(args.authority_root).expanduser().resolve()
     config = load_live_entry_config()
     if (controller_transport is None or kunwei_transport is None) and not config["user_standing_live_authority"]:
         raise YieldLiveError("further hardware execution was discontinued by the user; no endpoints opened")
@@ -283,7 +289,7 @@ def run_live(
         raise YieldLiveError("explicit controller host or injected endpoint is required")
     if kunwei_transport is None and not args.kunwei_host:
         raise YieldLiveError("explicit Kunwei host or injected endpoint is required")
-    if (Path(args.run_dir) / "dispatch_receipt.json").exists():
+    if (args.run_dir / "dispatch_receipt.json").exists():
         raise YieldLiveError("run directory already contains an attempt receipt")
     if controller_transport is None and getattr(args, "control_cpu", None) is None:
         raise YieldLiveError("hardware execution requires the selected --control-cpu")
