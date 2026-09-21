@@ -196,6 +196,33 @@ def test_live_tase_force_preempt_warm_starts_rnn_once(provider):
     assert provider.last_result['force_preempt_warm_started'] is True
 
 
+def test_live_tase_baseline_boosts_bounded_outward_unload_on_force_rise(provider, monkeypatch):
+    o, s = tick(provider, .002, force=8.)
+    s = replace(s, normal_load_n=8., force_norm_n=8., filtered_normal_n=1.)
+    original_command = provider.runtime.command
+
+    def outward_desired_twist(**kwargs):
+        del kwargs
+        return (0.0, 0.0, 0.002, 0.0, 0.0, 0.0)
+
+    def lagged_command(**kwargs):
+        command = original_command(**kwargs)
+        return replace(command, qdot=(0.01, 0.0, -0.001, 0.0, 0.0, 0.0))
+
+    monkeypatch.setattr(provider.runtime, 'desired_twist', outward_desired_twist)
+    monkeypatch.setattr(provider.runtime, 'command', lagged_command)
+    provider.command(
+        output=o,
+        sensor=s,
+        monotonic_s=.002,
+        actual_dt_s=.002,
+        mode='baseline',
+        internal_setpoint_n=1.,
+    )
+    assert provider.last_result['baseline_normal_unload_boost'] is True
+    assert provider.last_result['baseline_normal_projection_target_m_s'] == pytest.approx(.002)
+
+
 def test_live_tase_force_preempt_rearms_after_low_force_episode(provider):
     def run(now, force):
         o, s = tick(provider, now, force=force)

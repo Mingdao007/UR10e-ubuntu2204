@@ -400,15 +400,22 @@ class TaseContactProvider(ContactCommandProvider):
             baseline_normal_projection_target_m_s = 0.0
             baseline_normal_projection_original_m_s = 0.0
             baseline_normal_direction_correction = False
+            baseline_normal_unload_boost = False
             if mode == 'baseline':
                 baseline_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
                     command.qdot, dtype=float
                 )
                 baseline_residual_tangential_m_s = float(np.linalg.norm(baseline_twist[:2]))
                 baseline_residual_angular_rad_s = float(np.linalg.norm(baseline_twist[3:]))
+                force_rise_unload_needed = bool(
+                    measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N
+                    and float(twist[2]) > 0.0
+                    and abs(float(twist[2])) > abs(float(baseline_twist[2])) + 1e-12
+                )
                 if (
                     baseline_residual_tangential_m_s > TASE_BASELINE_TANGENTIAL_TOLERANCE_M_S
                     or baseline_residual_angular_rad_s > TASE_BASELINE_ANGULAR_TOLERANCE_RAD_S
+                    or force_rise_unload_needed
                 ):
                     # The baseline contract permits only normal motion.  A
                     # zero-vector hold removed the residual motion but also
@@ -435,9 +442,19 @@ class TaseContactProvider(ContactCommandProvider):
                         # bounded magnitude but follow the already-authorized
                         # outer-loop normal direction; otherwise a baseline
                         # acquisition can repeatedly unload after contact.
-                        normal_target[2] = math.copysign(
-                            abs(original_normal), desired_normal
-                        )
+                        target_magnitude = abs(original_normal)
+                        if measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N:
+                            # The existing force-preempt threshold already
+                            # marks a rising-load episode.  If the mature RNN
+                            # has lagged to a tiny outward realization, use
+                            # the outer-loop's bounded outward magnitude for
+                            # this baseline safety transition; do not raise
+                            # any task, joint, slew, or wrench envelope.
+                            desired_magnitude = abs(desired_normal)
+                            if desired_magnitude > target_magnitude + 1e-12:
+                                target_magnitude = desired_magnitude
+                                baseline_normal_unload_boost = True
+                        normal_target[2] = math.copysign(target_magnitude, desired_normal)
                     try:
                         projected_qdot = np.linalg.solve(jacobian, normal_target)
                     except np.linalg.LinAlgError as exc:
@@ -520,6 +537,7 @@ class TaseContactProvider(ContactCommandProvider):
                 'baseline_normal_projection_target_m_s': baseline_normal_projection_target_m_s,
                 'baseline_normal_projection_original_m_s': baseline_normal_projection_original_m_s,
                 'baseline_normal_direction_correction': baseline_normal_direction_correction,
+                'baseline_normal_unload_boost': baseline_normal_unload_boost,
                 'predicted_twist_m_s_rad_s': tuple(float(value) for value in predicted_twist),
                 'predicted_approach_normal_velocity_m_s': approach_normal_velocity,
                 'entry_time_s': t if phase == 'entry' else None,

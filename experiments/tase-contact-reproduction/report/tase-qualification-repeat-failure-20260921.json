@@ -115,6 +115,33 @@
       "automatic_home_success": true,
       "home_position_error_m": 1.4456785699568249e-05,
       "home_orientation_error_rad": 5.9422222307608894e-05
+    },
+    {
+      "run": "runs/tase-figure8-pilot-direction-aware-retry-20260921T1545",
+      "phase": "pilot qualification-1 of 3",
+      "success": false,
+      "error": "LiveWriterError: resident TP is STOPPED: reason=48 return_guard=0",
+      "baseline_diag": {
+        "filtered_max_n": 4.948130579280728,
+        "filtered_min_n": 0.12770588288514448,
+        "force_norm_max_n": 7.278885487726076,
+        "last": {
+          "filtered_normal_n": 4.6593015456635385,
+          "force_norm_n": 4.327945553880357,
+          "mode": 1,
+          "raw_normal_n": 4.288649247488202,
+          "setpoint_n": 5.0,
+          "torque_norm_nm": 0.029950960244224705
+        },
+        "raw_max_n": 7.182313025813372,
+        "raw_min_n": -0.5476645556429314,
+        "readiness_samples": 11641,
+        "samples": 14987,
+        "torque_norm_max_nm": 0.0837930557732705
+      },
+      "automatic_home_success": true,
+      "home_position_error_m": 3.439805408450112e-05,
+      "home_orientation_error_rad": 4.5901855319792924e-05
     }
   ],
   "same_root_cause": "The first two attempts shared reason 48 baseline-watchdog failure. The repaired provider changed the failure to five_newton_acquisition_timeout: force never stayed in the unchanged 4..6 N/3..7 N readiness band long enough to enter HOLD.",
@@ -122,7 +149,7 @@
   "automatic_home_policy": "AUTO_HOME_WHEN_COMMANDABLE",
   "fresh_after_retry_preflight": "runs/preflight_20260921_after_qualification_retry/preflight_readonly.json",
   "fresh_after_retry_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer",
-  "stop_condition": "A single qualification succeeded with this code, while the first formal pilot phase failed on readiness variability. One fresh pilot retry is permitted as additional evidence; a second consecutive pilot reason-48 failure will stop live repetition.",
+  "stop_condition": "Two consecutive formal pilot first-phase reason-48 failures are now preserved. Live repetition is stopped pending offline review of the outward-unload boost.",
   "source_hashes": {
     "provider": "81d31ea43cbe6fc2b19a1a42314af37c90f790f8563d976db15c26f3a9dc978c",
     "tests": "775b6c646876e9fe04400af21e763c4b7e646199f1fd2f31230698b6bff52161"
@@ -130,5 +157,7 @@
   "fresh_after_timeout_preflight": "runs/preflight_20260921_after_normal_projection_timeout/preflight_readonly.json",
   "fresh_after_timeout_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer",
   "fresh_after_pilot_preflight": "runs/preflight_20260921_after_pilot_qualification_fail/preflight_readonly.json",
-  "fresh_after_pilot_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer"
+  "fresh_after_pilot_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer",
+  "fresh_after_pilot_retry_preflight": "runs/preflight_20260921_after_pilot_retry_fail/preflight_readonly.json",
+  "fresh_after_pilot_retry_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer"
 }

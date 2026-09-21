@@ -1,0 +1,40 @@
+{
+  "schema": "tase.pilot-retry-qualification-failure-v1",
+  "claim_scope": "physical pilot retry qualification failure; no PATH acceptance, no full-cycle acceptance",
+  "method": "TASE_RNN_MATURE",
+  "attempt": {
+    "run": "runs/tase-figure8-pilot-direction-aware-retry-20260921T1545",
+    "phase": "pilot qualification-1 of 3",
+    "success": false,
+    "error": "LiveWriterError: resident TP is STOPPED: reason=48 return_guard=0",
+    "baseline_diag": {
+      "filtered_max_n": 4.948130579280728,
+      "filtered_min_n": 0.12770588288514448,
+      "force_norm_max_n": 7.278885487726076,
+      "last": {
+        "filtered_normal_n": 4.6593015456635385,
+        "force_norm_n": 4.327945553880357,
+        "mode": 1,
+        "raw_normal_n": 4.288649247488202,
+        "setpoint_n": 5.0,
+        "torque_norm_nm": 0.029950960244224705
+      },
+      "raw_max_n": 7.182313025813372,
+      "raw_min_n": -0.5476645556429314,
+      "readiness_samples": 11641,
+      "samples": 14987,
+      "torque_norm_max_nm": 0.0837930557732705
+    },
+    "automatic_home_success": true,
+    "home_position_error_m": 3.439805408450112e-05,
+    "home_orientation_error_rad": 4.5901855319792924e-05
+  },
+  "readiness_segments": {
+    "required_hold_s": 10.0,
+    "max_contiguous_s": null,
+    "note": "same reason48 watchdog; full segment audit retained in raw traces"
+  },
+  "interpretation": "The second formal pilot first phase again expired the unchanged reason 48 baseline watchdog after the independent single qualification had passed. Automatic Home and fresh preflight passed. This closes the live retry budget for the current diagnostic; no PATH was admitted.",
+  "fresh_after_failure_preflight": "runs/preflight_20260921_after_pilot_retry_fail/preflight_readonly.json",
+  "next_action": "offline replay and review of the outward-unload boost; no further unchanged formal pilot"
+}

@@ -1,9 +1,9 @@
 {
   "schema": "tase.baseline-normal-projection-replay-v1",
   "claim_scope": "offline provider replay and interface verification only; no physical qualification or PATH acceptance",
-  "created_from_commit": "d6672d86",
+  "created_from_commit": "e565588b",
   "repair_source": "tools/tase_contact_provider.py",
-  "repair_source_sha256": "81d31ea43cbe6fc2b19a1a42314af37c90f790f8563d976db15c26f3a9dc978c",
+  "repair_source_sha256": "feddfb2452c8195e951293527d8ea62477519611ab9957150186424faed898a5",
   "trigger": {
     "first_qualification": "runs/tase-figure8-full-20260921T1501-staged-home",
     "retry_qualification": "runs/tase-qualification-retry-20260921T1515",
@@ -108,7 +108,8 @@
     ],
     "solver_state": "continues from the original RNN command; only provider boundary realization is replaced",
     "direction_policy": "normal_target_z=sign(outer_loop_twist_z)*abs(original_Jqdot_z); zero when outer_loop_twist_z is numerically zero",
-    "normal_direction_correction_is_safety_adapter": true
+    "normal_direction_correction_is_safety_adapter": true,
+    "force_rise_unload_boost": "when measured force norm >= 6 N and outer-loop twist[2] is outward with larger magnitude than the lagged RNN normal realization, project to that bounded outward magnitude; all existing caps/gates unchanged"
   },
   "recorded_replay": {
     "source_runs": [
@@ -151,11 +152,13 @@
         "projected_max_abs_qdot_rad_s": 0.009059385087930244
       }
     ],
-    "replay_method": "reconstructed R004 output/SensorPacket streams from raw_sensor.jsonl and robot_frames.jsonl; current provider executed sequentially with the recorded setpoints and actual dt; no device writes"
+    "replay_method": "reconstructed R004 output/SensorPacket streams from raw_sensor.jsonl and robot_frames.jsonl; current provider executed sequentially with the recorded setpoints and actual dt; no device writes",
+    "pilot_retry_replay_unload_boosts": 197,
+    "pilot_retry_replay_unload_boost_fraction": 0.013144725428704878
   },
   "offline_validation": {
     "focused_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONNOUSERSITE=1 .venv-contact-six/bin/python -m pytest -q tests/test_tase_offline_baselines.py tests/test_step5d_paper_outer_loop.py tests/test_tase_method_registry.py tests/test_contact_method_registry.py tests/test_contact_yield_method_registry.py tests/test_tase_improved_offline.py tests/test_tase_contact_provider.py tests/test_contact_qualification_provider.py tests/test_contact_benchmark_provider.py tests/test_contact_benchmark_runtime.py tests/test_contact_benchmark_outer.py tests/test_contact_benchmark_timing.py tests/test_tase_figure8_reference_binding.py",
     "result": "97 passed, 1 warning; recorded-stream replay completed without errors"
   },
-  "live_decision": "Do not repeat live qualification until this direction-aware provider patch is committed, package/read-back admission is fresh, and the unchanged acquisition/readiness gates are re-evaluated."
+  "live_decision": "Live formal pilot repetition is stopped after two consecutive reason-48 first-phase failures. Resume only after offline review of this boost and a fresh package/read-back admission."
 }
