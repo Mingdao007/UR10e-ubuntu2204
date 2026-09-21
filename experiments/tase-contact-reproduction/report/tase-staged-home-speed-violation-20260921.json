@@ -1,0 +1,251 @@
+{
+  "schema": "tase.staged-home-speed-violation-v1",
+  "claim_scope": "physical staged Home attempt failure diagnosis and narrow package repair; original attempt remains failed; no claim of Home success",
+  "source_attempt": "runs/figure8-20260921T020723-450698",
+  "recovery_output": "runs/figure8-20260921T020723-450698-autonomous-home-staged-20260921T1455",
+  "trigger": "run_contact_home admission rejected bounded recovery angular/joint speed",
+  "evidence": {
+    "home_rtde_rows": 493,
+    "max_tcp_angular_speed_rad_s": 0.0577295327957412,
+    "max_tcp_angular_speed_row": 459,
+    "max_tcp_angular_speed_sample": {
+      "timestamp": 320603.208,
+      "actual_TCP_pose": [
+        0.46185793975510725,
+        0.17786184446071082,
+        0.033036116255179965,
+        -2.032530893253108,
+        -2.394155912983669,
+        0.011437181272318893
+      ],
+      "actual_TCP_speed": [
+        0.0027585821599721383,
+        0.0010910503513991393,
+        0.0005492265433271121,
+        0.03850659025675392,
+        -0.04299063646981417,
+        -0.0013216049081727563
+      ],
+      "actual_q": [
+        0.7258771061897278,
+        -1.8200961552061976,
+        -2.5470573902130127,
+        -0.3519076865962525,
+        1.5723165273666382,
+        3.706634521484375
+      ],
+      "actual_qd": [
+        -0.0023160346318036318,
+        -0.008715198375284672,
+        -0.016862913966178894,
+        0.08329261094331741,
+        -7.204239955171943e-05,
+        -0.0008547201287001371
+      ],
+      "tcp_offset": [
+        0.0,
+        0.0,
+        0.0874,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "payload": 0.413,
+      "payload_cog": [
+        0.0011,
+        0.0031,
+        0.0163
+      ],
+      "safety_status_bits": 2049,
+      "monotonic_s": 130226.215709053
+    },
+    "max_tcp_linear_speed_m_s": 0.0031672438636583273,
+    "max_joint_speed_rad_s": 0.08329261094331741,
+    "max_joint_speed_row": 459,
+    "home_failure": {
+      "requested_action": "noncontact Home only",
+      "started_at": "2026-09-21T06:56:13.946544+00:00",
+      "load": {
+        "action": "LOAD",
+        "accepted": true,
+        "program_id": "step5d_contact_home_v1",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_home_v1.urp",
+        "safety_mode": "NORMAL",
+        "program_running": false,
+        "remote_control": true,
+        "robot_mode": "RUNNING",
+        "dashboard_before": {
+          "remote_control": true,
+          "safety_mode": "NORMAL",
+          "robot_mode": "RUNNING",
+          "program_running": false,
+          "program_state": "STOPPED step5d_contact_relief_v1.urp",
+          "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_relief_v1.urp",
+          "dashboard": {
+            "is in remote control": "true",
+            "safetymode": "Safetymode: NORMAL",
+            "robotmode": "Robotmode: RUNNING",
+            "running": "Program running: false",
+            "programState": "STOPPED step5d_contact_relief_v1.urp",
+            "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_relief_v1.urp"
+          }
+        },
+        "dashboard_write_response": "Loading program: /programs/andyl/kunwei/step5/step5d_contact_home_v1.urp, /programs/default.installation",
+        "dashboard_after": {
+          "remote_control": true,
+          "safety_mode": "NORMAL",
+          "robot_mode": "RUNNING",
+          "program_running": false,
+          "program_state": "STOPPED step5d_contact_home_v1.urp",
+          "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_home_v1.urp",
+          "dashboard": {
+            "is in remote control": "true",
+            "safetymode": "Safetymode: NORMAL",
+            "robotmode": "Robotmode: RUNNING",
+            "running": "Program running: false",
+            "programState": "STOPPED step5d_contact_home_v1.urp",
+            "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_home_v1.urp"
+          }
+        }
+      },
+      "play": {
+        "action": "PLAY",
+        "accepted": true,
+        "program_id": "step5d_contact_home_v1",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_home_v1.urp",
+        "safety_mode": "NORMAL",
+        "program_running": true,
+        "remote_control": true,
+        "robot_mode": "RUNNING",
+        "dashboard_before": {
+          "is in remote control": "true",
+          "safetymode": "Safetymode: NORMAL",
+          "robotmode": "Robotmode: RUNNING",
+          "running": "Program running: false",
+          "programState": "STOPPED step5d_contact_home_v1.urp",
+          "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_home_v1.urp"
+        },
+        "dashboard_write_response": "Starting program",
+        "dashboard_after": {
+          "remote_control": true,
+          "safety_mode": "NORMAL",
+          "robot_mode": "RUNNING",
+          "program_running": true,
+          "program_state": "PLAYING step5d_contact_home_v1.urp",
+          "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_home_v1.urp",
+          "dashboard": {
+            "is in remote control": "true",
+            "safetymode": "Safetymode: NORMAL",
+            "robotmode": "Robotmode: RUNNING",
+            "running": "Program running: true",
+            "programState": "PLAYING step5d_contact_home_v1.urp",
+            "get loaded program": "Loaded program: /programs/andyl/kunwei/step5/step5d_contact_home_v1.urp"
+          }
+        }
+      },
+      "success": false,
+      "motion_timeout_s": 20.0,
+      "failure": "ValueError: bounded recovery angular/joint speed exceeded",
+      "compensating_stop": "Stopped",
+      "observed_stop": {
+        "dashboard": {
+          "running": "Program running: false",
+          "programState": "STOPPED step5d_contact_home_v1.urp",
+          "safetymode": "Safetymode: NORMAL"
+        },
+        "sample": {
+          "timestamp": 320603.528,
+          "actual_TCP_pose": [
+            0.46194400697593085,
+            0.17788009717336173,
+            0.032995031190474367,
+            -2.0328557323708365,
+            -2.394649499130477,
+            0.0045616997969552
+          ],
+          "actual_TCP_speed": [
+            -4.8168463171666436e-05,
+            -6.329260176064558e-05,
+            -5.8826896560318176e-05,
+            5.7327523845676555e-05,
+            -6.220936379987038e-05,
+            7.494375593325981e-05
+          ],
+          "actual_q": [
+            0.7257598042488098,
+            -1.8208557567992152,
+            -2.5486278533935547,
+            -0.34516199052844243,
+            1.572342038154602,
+            3.7064828872680664
+          ],
+          "actual_qd": [
+            -3.3664211514405906e-05,
+            -0.00010128878057003021,
+            -0.00017665760242380202,
+            0.00036252825520932674,
+            0.0,
+            -0.00010792013199534267
+          ],
+          "tcp_offset": [
+            0.0,
+            0.0,
+            0.0874,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "payload": 0.413,
+          "payload_cog": [
+            0.0011,
+            0.0031,
+            0.0163
+          ],
+          "safety_status_bits": 2049,
+          "monotonic_s": 130226.535816869
+        }
+      },
+      "ended_at": "2026-09-21T06:56:18.899943+00:00"
+    },
+    "final_stop_confirmed": true,
+    "safety_normal_after_stop": true,
+    "final_pose_after_stop": [
+      0.4619420421719067,
+      0.17782687061030883,
+      0.032989172546590104,
+      -2.0329356151468603,
+      -2.394613306521524,
+      0.004614688965604703
+    ]
+  },
+  "existing_guards": {
+    "tcp_angular_speed_rad_s": 0.04,
+    "joint_speed_rad_s": 0.15,
+    "tcp_linear_speed_m_s": 0.1
+  },
+  "root_cause": "staged orientation correction reused v=0.090 m/s clearance transfer; controller actual TCP angular speed reached 0.0577295 rad/s while joint and linear guards remained below their limits",
+  "repair": {
+    "scope": "staged clearance Home package only",
+    "transfer_speed_m_s": 0.04,
+    "transfer_acceleration_m_s2": 0.06,
+    "direct_home_transfer_unchanged": true,
+    "guards_unchanged": true,
+    "force_release_unchanged": true,
+    "final_home_verification_unchanged": true
+  },
+  "repair_package": "runs/staged-home-speed-repair-20260921T145635",
+  "repair_package_source_preflight": "runs/preflight_20260921_after_staged_home_fail/preflight_readonly.json",
+  "repair_package_local_validation": true,
+  "repair_package_fetched_validation": true,
+  "fresh_pair_readback": {
+    "pass": true,
+    "observed_at_s": 1789973940.7434514,
+    "scope": "fresh GET of installed packages",
+    "basenames": [
+      "step5d_contact_relief_v1",
+      "step5d_contact_home_v1"
+    ]
+  },
+  "next_action": "one evidence-bound recovery retry from current stationary clearance state; if it fails, stop and diagnose the new receipt",
+  "motion_performed_during_repair": false
+}
