@@ -85,8 +85,8 @@ TASE_PAPER_OUTER_BINDING = {
         'threshold_n': TASE_FORCE_PREEMPT_THRESHOLD_N,
         'rearm_threshold_n': TASE_FORCE_PREEMPT_REARM_N,
         'condition': 'measured_force_norm crosses threshold_n after falling below rearm_threshold_n; one trigger per force-rise episode',
-        'purpose': 'remove strict-RNN state lag at each rising-load episode without raising the raw guard',
-        'evidence_field': 'force_preempt_warm_start',
+        'purpose': 'remove strict-RNN state lag at each rising-load episode and retry a pressing Jqdot once per high-force tick without raising the raw guard',
+        'evidence_field': 'force_preempt_warm_start,force_preempt_direction_retry',
     },
 }
 
@@ -140,6 +140,7 @@ class TaseContactProvider(ContactCommandProvider):
         self.force_preempt_warm_started = False
         self.force_preempt_armed = True
         self.force_preempt_episode = 0
+        self.force_preempt_direction_retry_count = 0
         self.lifecycle_observer = ContactReadinessObserver(candidate.normal_filter_tau_s,
             max_dt_s=MAX_FRESH_GAP_S, strict_dt_upper=True)
         self.runtime = V4CalibratedRuntime(
@@ -190,6 +191,7 @@ class TaseContactProvider(ContactCommandProvider):
             'force_preempt_warm_started': self.force_preempt_warm_started,
             'force_preempt_armed': self.force_preempt_armed,
             'force_preempt_episode': self.force_preempt_episode,
+            'force_preempt_direction_retry_count': self.force_preempt_direction_retry_count,
             'filter': {'filtered_normal_n': self.lifecycle_observer.filtered_normal_n,
                 'last_log': None if self.lifecycle_observer.last_log is None else asdict(self.lifecycle_observer.last_log)}})
 
@@ -342,6 +344,38 @@ class TaseContactProvider(ContactCommandProvider):
             command = self.runtime.command(actual_q=output.q_rad, actual_qd=output.qd_rad_s,
                 actual_tcp_pose=output.tcp_pose_m_rad, desired_twist=twist,
                 actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
+            # A warm-start at the force threshold fixes the initial RNN
+            # transient, but the recurrent state can drift back into contact
+            # while a high load persists.  Inspect the actual solved J*qdot;
+            # if it is still pressing during a high-force observation, reset
+            # once for this tick and solve the same desired twist again.  This
+            # is a bounded safety retry, not a gain or envelope change.
+            force_preempt_direction_retry = False
+            force_preempt_approach_before_retry = None
+            if measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N:
+                preliminary_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
+                    command.qdot, dtype=float
+                )
+                force_preempt_approach_before_retry = float(-preliminary_twist[2])
+                if force_preempt_approach_before_retry > 0.0:
+                    direction_warm_start = bool(self.runtime.warm_start_for_twist(
+                        actual_q=output.q_rad,
+                        desired_twist=twist,
+                        mode=mode,
+                    ))
+                    if direction_warm_start:
+                        command = self.runtime.command(
+                            actual_q=output.q_rad,
+                            actual_qd=output.qd_rad_s,
+                            actual_tcp_pose=output.tcp_pose_m_rad,
+                            desired_twist=twist,
+                            actual_dt_s=actual_dt_s,
+                            mode=mode,
+                            path_time_s=t,
+                        )
+                        force_preempt_direction_retry = True
+                        self.force_preempt_direction_retry_count += 1
+                        self.force_preempt_warm_started = True
             # The mature writer intentionally rejects provider output that
             # exceeds its typed host-slew envelope.  TASE owns the complete
             # outer loop, so apply the same-direction scalar ramp at this
@@ -382,6 +416,9 @@ class TaseContactProvider(ContactCommandProvider):
                 'force_preempt_warm_started': self.force_preempt_warm_started,
                 'force_preempt_armed': self.force_preempt_armed,
                 'force_preempt_episode': self.force_preempt_episode,
+                'force_preempt_direction_retry': force_preempt_direction_retry,
+                'force_preempt_direction_retry_count': self.force_preempt_direction_retry_count,
+                'force_preempt_approach_before_retry_m_s': force_preempt_approach_before_retry,
                 'predicted_twist_m_s_rad_s': tuple(float(value) for value in predicted_twist),
                 'predicted_approach_normal_velocity_m_s': approach_normal_velocity,
                 'entry_time_s': t if phase == 'entry' else None,
