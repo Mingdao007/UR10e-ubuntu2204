@@ -3,7 +3,7 @@
   "as_of": "2026-09-21",
   "claim_scope": "integrated status; physical PATH is not accepted",
   "worktree": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920",
-  "head": "b8620929",
+  "head": "c15942c2",
   "live_state": {
     "current_state": "HOME_RECOVERED_AND_STOPPED",
     "latest_preflight": "runs/preflight_20260921_after_unload_boost_fail/preflight_readonly.json",
@@ -19,7 +19,13 @@
     "successful_home_report": "report/tase-staged-home-recovery-20260921.json",
     "latest_failed_attempt": "runs/tase-qualification-unload-boost-20260921T1600",
     "automatic_home_success": true,
-    "failed_attempts_remain_failed": true
+    "failed_attempts_remain_failed": true,
+    "supervised_lock_handoff_repair": {
+      "commit": "c15942c2",
+      "report": "report/tase-recovery-workflow-lock-race-20260921.json",
+      "offline_regression": "PASS",
+      "behavior": "seal and STOP under the supervisor lock, release it, then invoke the monitored Home owner once"
+    }
   },
   "qualification_attempts": {
     "independent_direction_aware_success": "runs/tase-qualification-direction-aware-20260921T1528",
