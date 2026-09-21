@@ -1,4 +1,4 @@
-# VERSION: 2026-09-21T1439Z_CONTACT_SIX_QP_V1_618001
+# VERSION: 2026-09-21T1756Z_CONTACT_SIX_QP_V1_618001
 # ROLE: six-law shared-QP preparation; requires matching host owner 618001
 # CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm
 # CONTACT_SEARCH: STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1; FAR=0.005000m/s until 0.011029311m, NEAR=0.000500m/s; travel<=0.015m; timeout=90.0s; no scalar admittance
@@ -564,7 +564,7 @@ def codex_r006_echo(epoch, ordinal, state, token, reason, consumed, kind, return
   write_output_integer_register(30, kind)
   write_output_integer_register(31, return_guard)
   write_output_integer_register(32, 606006)
-  write_output_integer_register(33, 23)
+  write_output_integer_register(33, 25)
   write_output_integer_register(34, 618001)
 end
 
@@ -831,7 +831,7 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
   write_output_integer_register(36, 0)
   local path_elapsed_s = 0.0
   local r012_path_early_end = False
-  while path_elapsed_s < 62.831853071796 and not r012_path_early_end:
+  while path_elapsed_s < 63.881853071796 and not r012_path_early_end:
     if read_input_integer_register(35) == ordinal:
       write_output_integer_register(35, 0)
       write_output_integer_register(36, ordinal)
@@ -857,6 +857,7 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       codex_r006_echo(epoch, ordinal, 25, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)
     end
   end
+  codex_r006_echo(epoch, ordinal, 40, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)
   stopj(20.000000000)
   if not codex_r006_stationary(0.250000000):
     return codex_r006_fault(epoch, ordinal, token, kind, consumed, 58, runtime_revision, runtime_extension)
@@ -870,7 +871,7 @@ def step5d_contact_six_qp_v1():
   local fixed_home_pose = p[0.462055181600, 0.177882596400, 0.034088761399, 3.120752062000, 0.000000000000, 0.068626833000]
   local locked_home_q = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local locked_home_q_valid = False
-  local runtime_revision = 23
+  local runtime_revision = 25
   local runtime_extension = 618001
   local active_epoch = 0
   local last_failed_epoch = 0

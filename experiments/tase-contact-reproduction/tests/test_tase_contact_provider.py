@@ -78,7 +78,7 @@ def test_live_tase_binds_paper_outer_parameters(provider):
     assert (config.kp, config.ko, config.kf, config.Md_scalar, config.Bd_scalar) == (
         4.0, 5.0, 1.0, 12.0, 550.0
     )
-    assert config.orientation_gain_scale == 0.0
+    assert config.orientation_gain_scale == 1.0
     assert TASE_PAPER_OUTER_CONFIG.orientation_gain_scale == 1.0
     # The R006 candidate has a different derived force mapping; checking the
     # runtime binding prevents candidate tuning from silently replacing the
@@ -108,7 +108,8 @@ def test_live_path_keeps_confirmed_home_orientation_velocity_zero(provider):
         internal_setpoint_n=1.0,
     )
     assert provider.last_result['outer_loop_binding']['live_orientation_policy'] == {
-        'orientation_gain_scale': 0.0,
+        'orientation_gain_scale': 1.0,
+        'orientation_target_policy': 'fixed_approved_home_rotvec',
         'target': 'confirmed Figure-eight Home orientation',
         'paper_comparison_orientation_gain_scale': 1.0,
         'reason': 'avoid world +Z posture step at PATH admission',
@@ -139,7 +140,7 @@ def test_live_tase_uses_raw_normal_rise_envelope_without_replacing_evidence_filt
     )
 
 
-def test_live_tase_force_norm_envelope_preempts_tangential_load_overshoot(provider):
+def test_live_tase_force_norm_remains_guard_only(provider):
     o, s = tick(provider, .002, force=8.)
     s = replace(s, filtered_normal_n=1., normal_load_n=8., force_norm_n=19.)
     provider.command(
@@ -153,7 +154,7 @@ def test_live_tase_force_norm_envelope_preempts_tangential_load_overshoot(provid
     assert provider.last_result['filtered_normal_n'] == pytest.approx(1.)
     assert provider.last_result['measured_normal_n'] == pytest.approx(8.)
     assert provider.last_result['measured_force_norm_n'] == pytest.approx(19.)
-    assert provider.last_result['control_normal_n'] == pytest.approx(19.)
+    assert provider.last_result['control_normal_n'] == pytest.approx(8.)
 
 
 def test_live_tase_raw_guard_uses_native_wrench_before_baseline_subtraction(provider):

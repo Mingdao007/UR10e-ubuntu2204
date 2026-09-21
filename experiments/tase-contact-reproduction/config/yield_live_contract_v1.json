@@ -6,13 +6,13 @@
   "controller_directory": "/programs/andyl/kunwei/step5",
   "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
   "package_dir": "programs/step5/step5d/contact-six-qp",
-  "revision": 23,
+  "revision": 25,
   "protocol": 618001,
   "runtime_protocol": 606006,
-  "runtime_revision": 23,
+  "runtime_revision": 25,
   "runtime_extension_protocol": 618001,
   "readable_runtime_identity": [
-    23,
+    25,
     618001
   ],
   "identity_projection": "contact_six_legacy_wire_abi",

@@ -320,7 +320,7 @@ def test_status_fresh_process_lists_native_identity_without_devices():
     assert completed.returncode == 0, completed.stderr
     payload = json.loads(completed.stdout)
     assert payload["program"] == "step5d_contact_six_qp_v1"
-    assert payload["readable_runtime_identity"] == [23, 618001]
+    assert payload["readable_runtime_identity"] == [25, 618001]
     assert payload["physical_qualification"] is False
     assert payload["machine_evidence_fresh"] is False
 
@@ -406,7 +406,9 @@ def test_endpoint_qualify_uses_real_open_arm_execute(tmp_path: Path, lib, method
         home_pose=contract.home_pose,
         home_q=PRESERVED["home_q"],
         events=events,
-        flip_rotvec=True,
+        # The approved Figure-eight Home is an exact rotation-vector
+        # contract; negating this non-pi vector is a different SO(3) pose.
+        flip_rotvec=False,
         clock=clock.now,
     )
     kunwei = FakeLiveKunweiTransport(observed_clock=clock.now)
@@ -447,9 +449,10 @@ def test_pilot_diagnostic_is_not_full_period_acceptance(tmp_path: Path, lib):
     assert receipt['formally_qualified'] is False
     assert receipt['full_cycle_acceptance'] is False
     assert receipt['stop']['stopped'] is True
-    assert len([row for row in receipt['attempts'] if row['phase'] == 'qualify']) == 1
+    assert len([row for row in receipt['attempts'] if row['phase'] == 'pilot']) == 1
+    assert receipt['continuous_contact_path'] is True
     assert rtde.closed
-    assert rtde._early_end_sequence == 2, receipt.get('error')
+    assert rtde._early_end_sequence == 1, receipt.get('error')
     assert code == 0, receipt.get('error')
 
 
@@ -496,7 +499,7 @@ def test_mature_full_figure8_with_trajectory_endpoint_double(tmp_path, lib):
                 self.path_origin = None
             return row
     rtde = FollowingEndpoint(contract, home_pose=contract.home_pose,
-                             home_q=PRESERVED['home_q'], clock=clock.now, flip_rotvec=True)
+                             home_q=PRESERVED['home_q'], clock=clock.now, flip_rotvec=False)
     sensor = FakeLiveKunweiTransport(observed_clock=clock.now,
                                     wrench_n_nm=(0.,0.,-5.,0.,0.,0.))
     code = main(_argv('pilot',tmp_path,qp_library=str(lib),method='TASE_RNN_MATURE',duration='full'),
@@ -504,6 +507,7 @@ def test_mature_full_figure8_with_trajectory_endpoint_double(tmp_path, lib):
                 wall_clock=lambda:100.,mono_clock=clock.now,sleep=clock.sleep,now_s=100.)
     receipt = json.loads((tmp_path/'dispatch_receipt.json').read_text())
     assert code == 0, receipt.get('error')
-    assert len(receipt['attempts']) == 2
-    assert receipt['attempts'][-1]['phase'] == 'pilot'
+    assert len(receipt['attempts']) == 1
+    assert receipt['attempts'][0]['phase'] == 'pilot'
+    assert receipt['continuous_contact_path'] is True
     assert receipt['stop']['stopped'] is True

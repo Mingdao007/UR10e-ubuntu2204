@@ -3,6 +3,7 @@ from dataclasses import replace
 import math
 import pytest
 from contact_yield_protocol import PERIOD_S
+from yield_contact_evidence import REFERENCE_CLOCK_ROUNDING_TOLERANCE_S
 from yield_contact_evidence import YieldPathEvidenceCollector
 from step5d_autotune_v4_r004_live_writer import BoundedPacketHistory, LiveWriterError
 from step5d_autotune_v4_r004.evidence import EvidenceError
@@ -74,6 +75,27 @@ def test_entry_echo_cannot_be_relabelled_as_formal_start():
     with pytest.raises(EvidenceError,match='published PATH command'):
         c.mark_path_start(observed_at_s=100.002,rtde_timestamp_s=20.,tp_sequence=1)
     assert not c.path_samples
+
+
+def test_terminal_seam_reference_closes_endpoint_without_metric_sample():
+    history=BoundedPacketHistory()
+    history.record(0,published_at_s=100.,qdot=(0.,)*6,
+                   reference_phase='path',reference_time_s=0.)
+    c=YieldPathEvidenceCollector(require_path_boundary=True,
+        published_reference_lookup=history.consumed)
+    c.mark_path_start(observed_at_s=100.,rtde_timestamp_s=0.,tp_sequence=0)
+    history.record(1,published_at_s=100.002,qdot=(0.,)*6,
+                   reference_phase='path',reference_time_s=PERIOD_S + 0.004)
+
+    clock=c.observe_terminal_reference(sequence=1)
+
+    assert clock == pytest.approx(PERIOD_S + 0.004)
+    assert c._last_reference_time_s == pytest.approx(PERIOD_S + 0.004)
+    assert c.path_samples == ()
+
+
+def test_reference_endpoint_tolerance_is_sub_frame_and_explicit():
+    assert 0.0 < REFERENCE_CLOCK_ROUNDING_TOLERANCE_S < 0.0001
 
 
 def test_packet_reference_is_validated_before_history_changes():

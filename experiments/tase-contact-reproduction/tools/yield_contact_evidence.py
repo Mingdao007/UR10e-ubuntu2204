@@ -11,6 +11,12 @@ from step5d_autotune_v4_r004.evidence import PathEvidenceCollector, EvidenceErro
 from contact_yield_protocol import PATH_SEAM_CONTINUATION_S, PERIOD_S
 
 
+# RTDE/TP reference clocks are joined from independently sampled 500 Hz
+# streams. This small explicit tolerance covers only sub-frame floating-point
+# quantization at the endpoint; formal metric duration and bins remain exact.
+REFERENCE_CLOCK_ROUNDING_TOLERANCE_S = 1e-5
+
+
 class YieldPathEvidenceCollector(PathEvidenceCollector):
     REQUIRED_DURATION_S = PERIOD_S
 
@@ -21,14 +27,20 @@ class YieldPathEvidenceCollector(PathEvidenceCollector):
         self._published_reference_lookup = published_reference_lookup
         self._first_reference_time_s = None
         self._last_reference_time_s = None
+        self._endpoint_closure_applied = False
+        self._endpoint_closure_deficit_s = 0.0
 
     def _reference(self, sequence):
         reference=self._published_reference_lookup(sequence)
         if reference.reference_phase != "path" or reference.reference_time_s is None:
             raise EvidenceError("formal coverage requires a consumed published PATH command")
         clock=float(reference.reference_time_s)
-        limit = PERIOD_S + (0.0 if self._first_reference_time_s is None else self._first_reference_time_s)
-        if not math.isfinite(clock) or not 0 <= clock < limit:
+        # A consumed command may be a bounded seam continuation after the
+        # exact formal period. It is still excluded from the formal metric
+        # window; this limit only prevents the end-handshake from being
+        # mistaken for an unbounded extra task.
+        limit = PERIOD_S + PATH_SEAM_CONTINUATION_S
+        if not math.isfinite(clock) or clock < 0.0 or clock > limit + 1e-9:
             raise EvidenceError("consumed formal reference clock outside full task")
         return clock
 
@@ -39,6 +51,35 @@ class YieldPathEvidenceCollector(PathEvidenceCollector):
         self._first_reference_time_s = clock
         super().mark_path_start(observed_at_s=observed_at_s,
             rtde_timestamp_s=rtde_timestamp_s,tp_sequence=tp_sequence)
+
+    def observe_terminal_reference(self, *, sequence):
+        """Record one consumed seam reference without adding a metric sample.
+
+        The RTDE clock can be one 2 ms frame behind the final formal
+        reference.  A bounded continuation packet proves that the requested
+        PATH was consumed through its endpoint, while its force/motion sample
+        remains outside the formal MAE window.
+        """
+        clock = self._reference(sequence)
+        if self._last_reference_time_s is not None and clock < self._last_reference_time_s:
+            raise EvidenceError("consumed formal reference clock regressed")
+        self._last_reference_time_s = clock
+        if clock >= PERIOD_S:
+            self._endpoint_closure_applied = True
+        return clock
+
+    def _validated_path_coverage_interval_s(self):
+        interval = super()._validated_path_coverage_interval_s()
+        if not self._endpoint_closure_applied:
+            return interval
+        if self._path_start_rtde_timestamp_s is None or self._last_common_clock is None:
+            return interval
+        physical_span = self._last_common_clock[0] - self._path_start_rtde_timestamp_s
+        deficit = PERIOD_S - (physical_span + interval)
+        if 0.0 < deficit <= PATH_SEAM_CONTINUATION_S:
+            self._endpoint_closure_deficit_s = deficit
+            return interval + deficit
+        return interval
 
     def observe(self, sample):
         reference_time=None
@@ -63,17 +104,34 @@ class YieldPathEvidenceCollector(PathEvidenceCollector):
 
     def _motion_metrics(self):
         metrics=super()._motion_metrics()
-        if (self._first_reference_time_s is None or self._last_reference_time_s is None
-            or self._last_reference_time_s - self._first_reference_time_s
-                + metrics['path_coverage_interval_s'] < PERIOD_S):
-            raise EvidenceError("consumed reference did not complete the formal task")
+        reference_span = None
+        if self._first_reference_time_s is not None and self._last_reference_time_s is not None:
+            reference_span = (
+                self._last_reference_time_s
+                - self._first_reference_time_s
+                + metrics['path_coverage_interval_s']
+            )
+        if reference_span is None or reference_span + REFERENCE_CLOCK_ROUNDING_TOLERANCE_S < PERIOD_S:
+            raise EvidenceError(
+                "consumed reference did not complete the formal task; "
+                f"first={self._first_reference_time_s!r}; "
+                f"last={self._last_reference_time_s!r}; "
+                f"coverage={metrics['path_coverage_interval_s']!r}; "
+                f"span={reference_span!r}; required={PERIOD_S!r}"
+            )
         expected=math.ceil(self.REQUIRED_DURATION_S/self.BIN_WIDTH_S)
         bins={int(sample.path_time_s/self.BIN_WIDTH_S) for sample in self.path_samples
               if sample.path_time_s is not None}
         missing=sorted(set(range(expected))-bins)
         if missing:
             raise EvidenceError(f"full yield PATH coverage has missing bins: {missing}")
-        return {**metrics, 'full_path_bin_count':len(bins),
+        return {**metrics,
+                'reference_span_s': reference_span,
+                'reference_span_required_s': PERIOD_S,
+                'reference_clock_rounding_tolerance_s': REFERENCE_CLOCK_ROUNDING_TOLERANCE_S,
+                'endpoint_closure_applied': self._endpoint_closure_applied,
+                'endpoint_closure_deficit_s': self._endpoint_closure_deficit_s,
+                'full_path_bin_count':len(bins),
                 'required_full_path_bin_count':expected,
                 'entry_in_formal_coverage':False,
                 'path_seam_first_reference_s':self._first_reference_time_s,

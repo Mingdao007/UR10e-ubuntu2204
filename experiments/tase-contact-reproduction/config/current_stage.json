@@ -9,18 +9,18 @@
   "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
   "controller_script": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script",
   "local_triplet": "programs/step5/step5d/contact-six-qp/step5d_contact_six_qp_v1",
-  "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T221725+0800.json",
+  "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260922T015748+0800.json",
   "sha256": {
-    ".script": "69ac200624ab78a7f7f33f71df592be9dd2ddc6945be8f830de88f019386d06d",
-    ".txt": "d11888f3d72c5e3563a2372084c9a044a392147dc471b425c4eda39859aff8cb",
-    ".urp": "367130651e572212c9c9d705263af8eda9e0a9e338b9f30036f401a04135a573"
+    ".script": "026b9ce1c5d6e4e2cb788d4811789d6a58e259191312ea212e67141efe833192",
+    ".txt": "3f2ccfc6798f3cc9bda3c2ee43e8ac781e9dc675194d90e1390a13f5e7cd96a6",
+    ".urp": "c42dfd9a62d71ddfa6b4b87d05d2cffbc1f5b002af5f3e8361a75307fb804ef5"
   },
   "status": "fresh_controller_readback_verified_pending_liveprep_admission",
   "liveprep_status": "awaiting_live_authorization",
-  "liveprep_readiness_path": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260921.json",
+  "liveprep_readiness_path": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260922-v25.json",
   "reproduction_status": "incomplete",
   "standing_task_authority": {
-    "source": "User: \u53eflive\u4e86, 2026-09-20",
+    "source": "User: 可live了, 2026-09-20",
     "scope": "lifecycle repair, supervised resident check, and existing bounded live task after fresh gates",
     "requires_fresh_machine_admission": true,
     "live_revoked_by_user": false
@@ -88,23 +88,23 @@
     "latest_home_recovery": "runs/yield-home-recovery-20260920/live-1/result.json",
     "latest_contact_withdrawal": "runs/yield-sfc-qualification-20260920T113129Z/withdrawal/result.json",
     "native_writer_previously_armed": true,
-    "v1_controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T221725+0800.json",
-    "fresh_contact_controller_delivery_manifest": "runs/tase-package-v24-20260921T1415Z/controller-readback/controller_readback_step5d_contact_six_qp_v1_20260921_221725/manifest.json",
-    "fresh_contact_controller_delivery_manifest_sha256": "e68160a00a671bf6a9d188b2e3862a83e201557b8eef9577372821622991e0c0",
-    "fresh_contact_controller_checked_at": "2026-09-21T22:17:30+08:00",
+    "v1_controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260922T015748+0800.json",
+    "fresh_contact_controller_delivery_manifest": "runs/tase-package-v27-20260922T/delivery-manifest.json",
+    "fresh_contact_controller_delivery_manifest_sha256": "977be6fdb5b745a33cbc93b9d33d034fc56f78d01a927bd3c2f3e8ff41dbd96c",
+    "fresh_contact_controller_checked_at": "2026-09-22T01:57:48+08:00",
     "previous_contact_readback_selection": {
-      "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T211745+0800.json",
+      "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260922T013833+0800.json",
       "sha256": {
-        ".script": "e78ae2adae73e1d8c1886297f10930061d543338ef340f06fa982adfd3ec4653",
-        ".txt": "a9f7ca29f5da1c727b9e1a266412f63b46b1cd1f8256a1f1e8ef60ce8d439815",
-        ".urp": "57cfba24771f4a0c35ea67178be8b4aec2f333ea2f59cb7248e26f2a8929a531"
+        ".script": "067be4b0b918e76c2e7664e82de668ae530257d85de4eee8c57012721d2e3de8",
+        ".txt": "52aa6c7a823ea93d764721734703d830be07ddeb136606348620db1a3ebb2d2d",
+        ".urp": "8d6e080e4ebf654eb2821823dee83ff509f8bb5e3605889f55f2a46144845522"
       }
     },
-    "liveprep_readiness": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260921.json",
+    "liveprep_readiness": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260922-v25.json",
     "liveprep_readiness_schema": "ur10e_liveprep_readiness_v2",
-    "fresh_liveprep_refresh": "runs/tase-liveprep-refresh-20260920T234325Z",
+    "fresh_liveprep_refresh": "runs/tase-package-v26-20260922T",
     "fresh_no_contact_baseline": "runs/tase-liveprep-refresh-20260920T234325Z/software_baseline_receipt.json",
-    "fresh_resident_check": "runs/tase-liveprep-refresh-20260920T234325Z/supervisor-result.json",
+    "fresh_resident_check": "runs/tase-package-v26-20260922T/resident-check/supervisor-result.json",
     "contact_qualification_current": false
   },
   "notes": [
@@ -112,5 +112,7 @@
     "The generic resolver live_authorized field represents accepted machine admission, not the standing user instruction above.",
     "Legacy governed release and frozen offline protocols are retained separately and are not this native execution route."
   ],
-  "runtime_revision": 23
+  "runtime_revision": 25,
+  "liveprep_readiness_schema": "ur10e_liveprep_readiness_v2",
+  "fresh_liveprep_refresh": "runs/tase-package-v26-20260922T"
 }

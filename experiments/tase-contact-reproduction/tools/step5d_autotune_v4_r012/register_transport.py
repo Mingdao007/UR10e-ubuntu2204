@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import replace
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from step5d_autotune_v4_r004.transport import (
     INPUT_DOUBLE_FIELDS,
@@ -52,6 +52,7 @@ class R012LiveRTDETransport(LiveR004RTDETransport):
         super().__init__(host, port=port, timeout_s=timeout_s)
         self._r012_request_sequence = 0
         self._r012_outputs = {R012_REASON_SUBTYPE_REGISTER: 0, R012_ACK_REGISTER: 0}
+        self.last_raw: Mapping[str, Any] | None = None
 
     def open(self) -> None:
         if self.client is not None:
@@ -135,6 +136,7 @@ class R012LiveRTDETransport(LiveR004RTDETransport):
                 }
                 return None
             raw = client.recv_latest_sample(self.output_recipe, self.output_types, fields)
+            self.last_raw = None if raw is None else dict(raw)
             self.last_recv_telemetry = {
                 "schema": "step5d.autotune-v4/r012-rtde-poll-telemetry-v1",
                 "ready": True,

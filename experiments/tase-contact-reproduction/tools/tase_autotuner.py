@@ -22,7 +22,7 @@ from typing import Any, Mapping
 
 import numpy as np
 from scipy.special import ndtr
-from scipy.stats import qmc
+from scipy.stats import qmc, t as student_t
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,7 +52,7 @@ class Candidate:
                 "ko": 5.0,
                 "kf": 1.0,
                 "force_target_n": 5.0,
-                "force_integral_limit_n_s": 5.0,
+                "force_integral_limit_n_s": 1.0,
                 "force_sign_convention": "step5_step6_positive_normal_load",
             },
         }
@@ -69,6 +69,10 @@ def _load_config(path: Path) -> dict[str, Any]:
         raise ValueError("autotuner budget must remain 8+12+4")
     if payload.get("protection_parameters_frozen") is not True or payload.get("integral_policy_frozen") is not True:
         raise ValueError("autotuner protection/integral freeze is missing")
+    noise = float(payload.get("observation_noise_n", 0.05))
+    if not math.isfinite(noise) or noise <= 0.0:
+        raise ValueError("observation_noise_n must be finite and positive")
+    payload["observation_noise_n"] = noise
     return payload
 
 
@@ -119,46 +123,66 @@ def _normalized(config: Mapping[str, Any], values: np.ndarray) -> np.ndarray:
     ], dtype=float)
 
 
+def _rbf_kernel(left: np.ndarray, right: np.ndarray, *, length_scale: float,
+                signal_variance: float) -> np.ndarray:
+    delta = left[:, None, :] - right[None, :, :]
+    return signal_variance * np.exp(-0.5 * np.sum((delta / length_scale) ** 2, axis=2))
+
+
+def _gp_posterior(config: Mapping[str, Any], observed_x: np.ndarray,
+                  observed_y: np.ndarray, query_x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return a deterministic noisy-GP posterior in log2 parameter space."""
+    if len(observed_y) == 0:
+        return np.zeros(len(query_x)), np.ones(len(query_x))
+    train = np.asarray([_normalized(config, row) for row in observed_x], dtype=float)
+    query = np.asarray(query_x, dtype=float)
+    signal = max(float(np.var(observed_y)), float(config["observation_noise_n"]) ** 2, 1e-6)
+    length = float(config.get("gp_length_scale", 0.25))
+    noise = float(config["observation_noise_n"])
+    kernel = _rbf_kernel(train, train, length_scale=length, signal_variance=signal)
+    kernel.flat[:: len(kernel) + 1] += noise * noise + 1e-9
+    cross = _rbf_kernel(train, query, length_scale=length, signal_variance=signal)
+    prior = np.full(len(query), signal, dtype=float)
+    try:
+        chol = np.linalg.cholesky(kernel)
+        alpha = np.linalg.solve(chol.T, np.linalg.solve(chol, observed_y))
+        mean = cross.T @ alpha
+        projected = np.linalg.solve(chol, cross)
+        variance = prior - np.sum(projected * projected, axis=0)
+    except np.linalg.LinAlgError:
+        inverse = np.linalg.pinv(kernel)
+        mean = cross.T @ inverse @ observed_y
+        variance = prior - np.einsum("ij,ji->i", cross.T @ inverse, cross)
+    return np.asarray(mean, dtype=float), np.maximum(np.asarray(variance, dtype=float), 1e-12)
+
+
 def _next_bo_candidate(config: Mapping[str, Any], records: list[dict[str, Any]], index: int) -> Candidate:
     observed_x, observed_y = _observations(records)
     sampler = qmc.Sobol(d=2, scramble=True, seed=int(config["seed"]) + 1009 + index)
     pool = sampler.random(int(config["bo_pool_size"]))
     tried = {_key(float(row["Md_scalar"]), float(row["Bd_scalar"])) for row in records}
+    normalized_pool = np.asarray([
+        [float(config["log2_bounds"][name][0]) + point[j] *
+         (float(config["log2_bounds"][name][1]) - float(config["log2_bounds"][name][0]))
+         for j, name in enumerate(("Md_scalar", "Bd_scalar"))]
+        for point in pool
+    ])
     if len(observed_y) < 2:
-        choice = pool[index % len(pool)]
+        order = np.roll(np.arange(len(pool), dtype=int), -index)
     else:
-        normalized_observed = np.asarray([_normalized(config, row) for row in observed_x])
-        length = 0.22
-        distances = normalized_observed[:, None, :] - normalized_observed[None, :, :]
-        kernel = np.exp(-0.5 * np.sum((distances / length) ** 2, axis=2))
-        kernel += 1e-8 * np.eye(len(kernel))
-        try:
-            weights = np.linalg.solve(kernel, observed_y)
-        except np.linalg.LinAlgError:
-            weights = np.linalg.lstsq(kernel, observed_y, rcond=None)[0]
-        normalized_pool = np.asarray([
-            [float(config["log2_bounds"][name][0]) + point[j] *
-             (float(config["log2_bounds"][name][1]) - float(config["log2_bounds"][name][0]))
-             for j, name in enumerate(("Md_scalar", "Bd_scalar"))]
-            for point in pool
-        ])
-        delta = normalized_pool[:, None, :] - normalized_observed[None, :, :]
-        pool_kernel = np.exp(-0.5 * np.sum((delta / length) ** 2, axis=2))
-        mean = pool_kernel @ weights
-        variance = np.maximum(1e-12, 1.0 - np.sum(pool_kernel * pool_kernel, axis=1))
+        mean, variance = _gp_posterior(config, observed_x, observed_y, normalized_pool)
         sigma = np.sqrt(variance)
         incumbent = float(np.min(observed_y))
         improvement = incumbent - mean
-        z = improvement / sigma
+        z = np.divide(improvement, sigma, out=np.zeros_like(improvement), where=sigma > 0.0)
         ei = improvement * ndtr(z) + sigma * np.exp(-0.5 * z * z) / math.sqrt(2.0 * math.pi)
-        choice = pool[int(np.argmax(ei))]
-    for offset in range(len(pool)):
-        point = pool[(int(np.argmax(pool, axis=0)[0]) + index + offset) % len(pool)] if len(observed_y) < 2 else pool[(int(np.argmax(ei)) + offset) % len(pool)]
+        order = np.argsort(-ei)
+    for pool_index in order:
+        point = pool[int(pool_index)]
         md, bd = _scale_unit(config, point)
         if _key(md, bd) not in tried:
             return Candidate(f"bo-{index:02d}", "bo", index, md, bd)
-    md, bd = _scale_unit(config, choice)
-    return Candidate(f"bo-{index:02d}", "bo", index, md, bd)
+    raise RuntimeError("bounded GP proposal pool was exhausted without a new candidate")
 
 
 def _best_candidate(config: Mapping[str, Any], records: list[dict[str, Any]]) -> Candidate:
@@ -207,44 +231,152 @@ def _append(ledger: Path, row: Mapping[str, Any]) -> None:
         os.fsync(stream.fileno())
 
 
+def _read_confirmation_records(ledger: Path) -> list[dict[str, Any]]:
+    """Read confirmation rows by their (round, arm) identity.
+
+    The tuning ledger uses integer ordinals; confirmation deliberately uses a
+    two-arm paired key, so it cannot be parsed by ``_read_records`` without
+    losing the randomised order or collapsing the pair.
+    """
+    if not ledger.exists():
+        return []
+    by_key: dict[tuple[int, str], dict[str, Any]] = {}
+    for line in ledger.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        key = (int(row["round"]), str(row["arm"]))
+        if key not in by_key or row.get("status") != "started":
+            by_key[key] = row
+    recovered: list[dict[str, Any]] = []
+    for key, row in sorted(by_key.items()):
+        if row.get("status") == "started":
+            row = {
+                **row,
+                "status": "failed",
+                "mae_n": None,
+                "complete_path": False,
+                "failure": "interrupted_confirmation_recovered_as_failed",
+                "finished_at": time.time(),
+            }
+            recovered.append(row)
+            by_key[key] = row
+    for row in recovered:
+        _append(ledger, row)
+    return [by_key[key] for key in sorted(by_key)]
+
+
 def _extract_mae(run_dir: Path) -> tuple[float | None, dict[str, Any]]:
     dispatch = json.loads((run_dir / "dispatch_receipt.json").read_text(encoding="utf-8"))
+    supervisor = {}
+    supervisor_path = run_dir / "supervisor-result.json"
+    if supervisor_path.is_file():
+        try:
+            supervisor = json.loads(supervisor_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, json.JSONDecodeError):
+            supervisor = {}
     path = dispatch.get("live_path") or {}
+    recovery = (
+        dispatch.get("autonomous_home_recovery")
+        or dispatch.get("recovery")
+        or supervisor.get("autonomous_home_recovery")
+        or supervisor.get("recovery")
+    )
+    attempts = dispatch.get("attempts", [])
+    pilot = next((item for item in attempts if item.get("phase") == "pilot"), None)
+    pilot_evidence = pilot.get("evidence", {}) if isinstance(pilot, dict) else {}
+    home_proof = pilot_evidence.get("home_proof", {}) if isinstance(pilot_evidence, dict) else {}
+    home_verified = bool(
+        isinstance(home_proof, dict)
+        and home_proof.get("fixed_home_route") is True
+        and home_proof.get("stationary") is True
+        and pilot_evidence.get("return_gate_passed") is True
+        and dispatch.get("stop", {}).get("observed_stationary") is True
+    )
+    if isinstance(recovery, dict) and recovery.get("success") is True:
+        home_verified = True
+    common = {
+        "dispatch": dispatch,
+        "recovery": recovery,
+        "home_verified": home_verified,
+    }
     if (
         dispatch.get("command") != "pilot"
         or path.get("kind") != "full_period"
         or dispatch.get("evidence_eligible") is not True
         or dispatch.get("error")
     ):
-        return None, {"dispatch": dispatch, "complete_path": False,
+        return None, {**common, "complete_path": False,
                       "reason": "not_a_clean_full_period_receipt"}
-    attempts = dispatch.get("attempts", [])
-    pilot = next((item for item in attempts if item.get("phase") == "pilot"), None)
     metric_sources = [dispatch.get("evidence_metrics", {})]
     if isinstance(pilot, dict):
         evidence = pilot.get("evidence", {})
         if isinstance(evidence, dict):
             metric_sources.append(evidence.get("metrics", {}))
+    def _legacy_full_path_closure(metrics: Mapping[str, Any]) -> bool:
+        """Recognize the live owner's sealed full-PATH metric envelope.
+
+        Older live receipts predate the generic ``ContactMetrics`` flags and
+        therefore expose the same closure proof as the timing/bin fields.  A
+        metric is accepted through this compatibility path only when every
+        formal bin is present, the owner reports a successful timing gate, and
+        the measured metric interval is the complete requested PATH.  This is
+        deliberately narrower than accepting a non-null MAE, so qualification
+        and censored/short PATHs remain failed denominators.
+        """
+        try:
+            full_bins = int(metrics["full_path_bin_count"])
+            required_bins = int(metrics["required_full_path_bin_count"])
+            path_duration = float(metrics["path_duration_s"])
+            metric_duration = float(metrics["full_force_metric_duration_s"])
+        except (KeyError, TypeError, ValueError):
+            return False
+        timing = metrics.get("timing_evidence")
+        timing_ok = bool(
+            metrics.get("timing_gate_passed") is True
+            and isinstance(timing, Mapping)
+            and timing.get("successful") is True
+        )
+        # Keep this constant local to the scorer so it does not import the
+        # controller protocol and accidentally couple campaign planning to a
+        # live transport module.
+        requested_period_s = 62.83185307179586
+        return bool(
+            full_bins > 0
+            and full_bins == required_bins
+            and path_duration >= requested_period_s
+            and metric_duration >= requested_period_s
+            and timing_ok
+            and metrics.get("interrupted") is not True
+        )
+
     for metrics in metric_sources:
         if not isinstance(metrics, dict):
             continue
         # ContactMetrics is the only live source accepted here.  Requiring all
         # three flags prevents a short qualification or censored path from
         # becoming a successful BO observation.
-        if not (
+        generic_complete = (
             metrics.get("complete") is True
             and metrics.get("objective_eligible") is True
             and metrics.get("coverage_complete") is True
             and metrics.get("interrupted") is False
-        ):
+        )
+        if not generic_complete and not _legacy_full_path_closure(metrics):
             continue
-        for key in ("normal_force_mae_n", "force_mae_n", "mae_n", "mae"):
+        for key in (
+            "normal_force_mae_n",
+            "force_mae_n",
+            "full_force_mae_n",
+            "mae_n",
+            "mae",
+        ):
             if key in metrics and metrics[key] is not None:
                 mae = float(metrics[key])
                 if math.isfinite(mae):
-                    return mae, {"dispatch": dispatch, "complete_path": True,
+                    return mae, {**common, "complete_path": True,
                                   "metrics": metrics}
-    return None, {"dispatch": dispatch, "complete_path": False,
+    return None, {**common, "complete_path": False,
                   "reason": "full_period_metrics_incomplete"}
 
 
@@ -272,6 +404,11 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, execute: bool, dry_ru
     campaign_dir.mkdir(parents=True, exist_ok=True)
     ledger = campaign_dir / "ledger.jsonl"
     records, recovered = _read_records(ledger)
+    # A dry plan is a schedule, not a consumed physical budget.  Reusing its
+    # directory for ``--execute`` must start those ordinals instead of treating
+    # the planned rows as completed attempts.
+    if execute:
+        records = [row for row in records if row.get("status") != "planned"]
     for row in recovered:
         # Preserve the original attempt identity while making an interrupted
         # attempt an explicit failed denominator entry before scheduling more.
@@ -298,25 +435,48 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, execute: bool, dry_ru
             "run_dir": str(run_dir),
             "started_at": time.time(),
         }
-        _append(ledger, {**row, "status": "started"})
         if not execute:
-            records.append({**row, "status": "planned", "mae_n": None})
+            planned = {**row, "status": "planned", "mae_n": None,
+                       "complete_path": False, "failure": None}
+            _append(ledger, planned)
+            records.append(planned)
             continue
+        _append(ledger, {**row, "status": "started"})
         command = [str(script), "--method", "TASE_RNN_MATURE", "--control-cpu", "2",
                    "--run-dir", str(run_dir), "--parameter-file", str(candidate_file)]
         completed = subprocess.run(command, cwd=str(ROOT), check=False)
-        if completed.returncode != 0 or not (run_dir / "dispatch_receipt.json").is_file():
+        receipt_path = run_dir / "dispatch_receipt.json"
+        if not receipt_path.is_file():
             failure = {**row, "status": "failed", "mae_n": None,
-                       "returncode": completed.returncode, "failure": "owner_failed_or_missing_receipt",
+                       "returncode": completed.returncode,
+                       "failure": "owner_failed_or_missing_receipt",
                        "finished_at": time.time()}
             _append(ledger, failure)
             records.append(failure)
             continue
         try:
             mae, evidence = _extract_mae(run_dir)
-            status = "complete" if mae is not None else "failed"
+            home_verified = bool(evidence.get("home_verified"))
+            status = (
+                "complete"
+                if mae is not None and completed.returncode == 0 and home_verified
+                else "failed"
+            )
             result = {**row, "status": status, "mae_n": mae,
                       "complete_path": bool(evidence.get("complete_path")),
+                      "dispatch": evidence.get("dispatch"),
+                      "home_verified": home_verified,
+                      "recovery": evidence.get("recovery"),
+                      "metrics": evidence.get("metrics"),
+                      "failure": (
+                          None
+                          if status == "complete"
+                          else evidence.get("reason") or (
+                              "owner_returncode_nonzero" if completed.returncode != 0
+                              else "home_not_verified"
+                          )
+                      ),
+                      "returncode": completed.returncode,
                       "finished_at": time.time()}
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             result = {**row, "status": "failed", "mae_n": None,
@@ -324,7 +484,19 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, execute: bool, dry_ru
                       "finished_at": time.time()}
         _append(ledger, result)
         records.append(result)
+        # A physical writer may not advance the campaign until its failed
+        # attempt has reached verified Home. Preserve the failed denominator,
+        # then pause for a recovery owner that did not close the route.
+        if status != "complete" and bool(result.get("dispatch", {}).get("opened")):
+            recovery = result.get("recovery")
+            if not result.get("home_verified") and not (
+                isinstance(recovery, dict) and recovery.get("success") is True
+            ):
+                result["campaign_state"] = "PAUSED_RECOVERY_BLOCKED"
+                _append(ledger, result)
+                break
     complete = [row for row in records if row.get("status") == "complete" and row.get("mae_n") is not None]
+    failed = [row for row in records if row.get("status") == "failed"]
     summary = {
         "schema": "tase.autotuner-summary-v1",
         "config": str(config_path),
@@ -332,11 +504,164 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, execute: bool, dry_ru
         "budget": config["budget"],
         "attempts": len(records),
         "complete_paths": len(complete),
-        "failed_attempts": len(records) - len(complete),
+        "failed_attempts": len(failed),
+        "planned_attempts": sum(row.get("status") == "planned" for row in records),
         "best": None if not complete else min(complete, key=lambda row: float(row["mae_n"])),
+        "state": (
+            "PLANNED"
+            if not execute
+            else "COMPLETE" if len(records) >= total else "PAUSED_RECOVERY_BLOCKED"
+        ),
         "claim_scope": "complete-path receipts only; no controller promotion or manuscript claim",
     }
     (campaign_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+    return summary
+
+
+def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) -> dict[str, Any]:
+    """Run the frozen five-round randomized baseline/incumbent confirmation.
+
+    Confirmation rows live in a separate ledger and never become BO
+    observations. A physical failure still consumes its confirmation cell; a
+    recovery that does not close at Home pauses the paired sequence.
+    """
+    config = _load_config(config_path)
+    campaign_dir = campaign_dir.expanduser().resolve()
+    source_summary = json.loads((campaign_dir / "summary.json").read_text(encoding="utf-8"))
+    if source_summary.get("state") != "COMPLETE" or not source_summary.get("best"):
+        raise RuntimeError("confirmation requires a complete 24-unit tuning campaign")
+    incumbent = Candidate(
+        "frozen-incumbent", "confirmation", 0,
+        float(source_summary["best"]["Md_scalar"]),
+        float(source_summary["best"]["Bd_scalar"]),
+    )
+    baseline = Candidate(
+        "frozen-baseline", "confirmation", 0,
+        float(config["center"]["Md_scalar"]),
+        float(config["center"]["Bd_scalar"]),
+    )
+    confirmation_dir = campaign_dir / "confirmation"
+    ledger = confirmation_dir / "ledger.jsonl"
+    existing = _read_confirmation_records(ledger)
+    rounds = int(config.get("confirmation_rounds", 5))
+    rng = np.random.default_rng(int(config["seed"]) + 7001)
+    order = [tuple(rng.permutation(["baseline", "incumbent"]).tolist()) for _ in range(rounds)]
+    script = ROOT / "scripts" / "figure8.sh"
+    existing_keys = {(int(row["round"]), str(row["arm"])) for row in existing}
+    for ordinal in range(rounds):
+        for arm in order[ordinal]:
+            if (ordinal, arm) in existing_keys:
+                continue
+            candidate = baseline if arm == "baseline" else incumbent
+            row = {
+                "schema": "tase.autotuner-confirmation-v1",
+                "round": ordinal,
+                "arm": arm,
+                "candidate_id": candidate.candidate_id,
+                "Md_scalar": candidate.Md_scalar,
+                "Bd_scalar": candidate.Bd_scalar,
+                "started_at": time.time(),
+            }
+            candidate_file = confirmation_dir / "candidates" / f"round-{ordinal:02d}-{arm}.json"
+            run_dir = confirmation_dir / "runs" / f"round-{ordinal:02d}-{arm}"
+            _write_candidate(candidate_file, candidate)
+            row.update({"parameter_file": str(candidate_file), "run_dir": str(run_dir)})
+            _append(ledger, {**row, "status": "started"})
+            if not execute:
+                result = {**row, "status": "planned", "mae_n": None}
+            else:
+                completed = subprocess.run(
+                    [str(script), "--method", "TASE_RNN_MATURE", "--control-cpu", "2",
+                     "--run-dir", str(run_dir), "--parameter-file", str(candidate_file)],
+                    cwd=str(ROOT), check=False,
+                )
+                if not (run_dir / "dispatch_receipt.json").is_file():
+                    result = {**row, "status": "failed", "mae_n": None,
+                              "returncode": completed.returncode,
+                              "failure": "owner_failed_or_missing_receipt"}
+                else:
+                    mae, evidence = _extract_mae(run_dir)
+                    home_verified = bool(evidence.get("home_verified"))
+                    status = (
+                        "complete"
+                        if mae is not None and completed.returncode == 0 and home_verified
+                        else "failed"
+                    )
+                    result = {**row, "status": status,
+                              "mae_n": mae, "complete_path": bool(evidence.get("complete_path")),
+                              "home_verified": home_verified,
+                              "recovery": evidence.get("recovery"),
+                              "returncode": completed.returncode,
+                              "failure": (
+                                  None
+                                  if status == "complete"
+                                  else evidence.get("reason") or (
+                                      "owner_returncode_nonzero" if completed.returncode != 0
+                                      else "home_not_verified"
+                                  )
+                              )}
+            result["finished_at"] = time.time()
+            _append(ledger, result)
+            existing.append(result)
+            existing_keys.add((ordinal, arm))
+            if execute and result.get("status") != "complete":
+                recovery = result.get("recovery")
+                if not result.get("home_verified") and not (
+                    isinstance(recovery, dict) and recovery.get("success") is True
+                ):
+                    return {"schema": "tase.autotuner-confirmation-summary-v1",
+                            "state": "PAUSED_RECOVERY_BLOCKED", "rounds": ordinal,
+                            "rows": len(existing), "ledger": str(ledger)}
+    pairs: list[dict[str, Any]] = []
+    for round_index in range(rounds):
+        pair = {row.get("arm"): row for row in existing if row.get("round") == round_index}
+        if "baseline" in pair and "incumbent" in pair:
+            if pair["baseline"].get("mae_n") is not None and pair["incumbent"].get("mae_n") is not None:
+                pairs.append({"round": round_index,
+                              "baseline_mae_n": pair["baseline"]["mae_n"],
+                              "incumbent_mae_n": pair["incumbent"]["mae_n"],
+                              "delta_incumbent_minus_baseline_n": pair["incumbent"]["mae_n"] - pair["baseline"]["mae_n"]})
+    deltas = np.asarray([row["delta_incumbent_minus_baseline_n"] for row in pairs], dtype=float)
+    if len(deltas):
+        mean_delta = float(np.mean(deltas))
+        if len(deltas) > 1:
+            standard_error = float(np.std(deltas, ddof=1) / math.sqrt(len(deltas)))
+            margin = float(student_t.ppf(0.975, len(deltas) - 1) * standard_error)
+        else:
+            margin = None
+        delta_ci95 = None if margin is None else [mean_delta - margin, mean_delta + margin]
+        improvement_ci95 = None if delta_ci95 is None else [-delta_ci95[1], -delta_ci95[0]]
+        partial_improvement_supported = bool(
+            improvement_ci95 is not None
+            and -mean_delta >= float(config["claim_threshold_n"])
+            and improvement_ci95[0] >= float(config["claim_threshold_n"])
+        )
+        improvement_supported = bool(partial_improvement_supported and len(pairs) == rounds)
+    else:
+        mean_delta = None
+        delta_ci95 = None
+        improvement_ci95 = None
+        partial_improvement_supported = False
+        improvement_supported = False
+    summary = {
+        "schema": "tase.autotuner-confirmation-summary-v1",
+        "state": "COMPLETE" if len(pairs) == rounds else "INCOMPLETE",
+        "rounds": rounds,
+        "paired_complete": len(pairs),
+        "pairs": pairs,
+        "mean_delta_n": mean_delta,
+        "mean_improvement_n": None if mean_delta is None else -mean_delta,
+        "paired_delta_ci95_n": delta_ci95,
+        "improvement_ci95_n": improvement_ci95,
+        "partial_improvement_supported": partial_improvement_supported,
+        "improvement_supported": improvement_supported,
+        "claim_threshold_n": float(config["claim_threshold_n"]),
+        "claim_confidence": float(config["claim_confidence"]),
+        "holdout_excluded_from_tuning": True,
+        "ledger": str(ledger),
+    }
+    confirmation_dir.mkdir(parents=True, exist_ok=True)
+    (confirmation_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
     return summary
 
 
@@ -346,10 +671,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--campaign-dir", type=Path, required=True)
     parser.add_argument("--plan", action="store_true", help="write the schedule without touching hardware")
     parser.add_argument("--execute", action="store_true", help="run the complete sequential campaign")
+    parser.add_argument("--confirm", action="store_true", help="run the frozen five-round paired confirmation")
     args = parser.parse_args(argv)
-    if args.plan == args.execute:
+    if args.confirm and (args.plan or args.execute):
+        parser.error("--confirm is a separate post-tuning action")
+    if not args.confirm and args.plan == args.execute:
         parser.error("choose exactly one of --plan or --execute")
-    summary = run_campaign(args.config, args.campaign_dir, execute=args.execute)
+    summary = (run_confirmation(args.config, args.campaign_dir, execute=True)
+               if args.confirm else run_campaign(args.config, args.campaign_dir, execute=args.execute))
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0
 

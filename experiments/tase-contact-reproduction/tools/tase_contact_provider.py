@@ -17,7 +17,7 @@ import numpy as np
 from contact_benchmark_provider import ContactCommandProvider, ContactReadinessObserver, ContactForceObservation
 from contact_benchmark_protocol import SensorFreshnessTracker
 from contact_benchmark_runtime import validate_measured_observation
-from contact_yield_protocol import Task, PERIOD_S
+from contact_yield_protocol import PATH_SEAM_CONTINUATION_S, Task, PERIOD_S
 from contact_yield_task_frame import require_figure8_home
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime
@@ -82,17 +82,16 @@ TASE_PAPER_OUTER_CONFIG = Step5dOuterLoopConfig(
     Md_scalar=12.0,
     Bd_scalar=550.0,
     force_target_n=5.0,
-    force_integral_limit_n_s=5.0,
+    # Keep the declared live limit aligned with the effective runtime limit.
+    force_integral_limit_n_s=1.0,
     delay_T_s=None,
     force_sign_convention='step5_step6_positive_normal_load',
 )
 
-# Live Figure-eight posture is the user-confirmed Home orientation.  The
-# normal-force and XY path components remain active; only the orientation
-# compliance velocity is disabled so PATH cannot introduce a several-degree
-# orientation step at the phase seam.  Keep the paper configuration above
-# intact for the explicitly named offline comparison.
-TASE_LIVE_OUTER_CONFIG = replace(TASE_PAPER_OUTER_CONFIG, orientation_gain_scale=0.0)
+# Live Figure-eight posture is the user-confirmed Home orientation. The
+# provider binds angular motion to that fixed attitude with bounded feedback;
+# zero gain hid the dynamic world+Z target but did not preserve Home.
+TASE_LIVE_OUTER_CONFIG = replace(TASE_PAPER_OUTER_CONFIG, orientation_gain_scale=1.0)
 
 TASE_PAPER_OUTER_BINDING = {
     'source': 'config/step5c_tase_paper_truth.json',
@@ -113,15 +112,16 @@ TASE_PAPER_OUTER_BINDING = {
         'fixed confirmed Figure-eight Home orientation during live PATH',
     ],
     'live_orientation_policy': {
-        'orientation_gain_scale': 0.0,
+        'orientation_gain_scale': 1.0,
+        'orientation_target_policy': 'fixed_approved_home_rotvec',
         'target': 'confirmed Figure-eight Home orientation',
         'paper_comparison_orientation_gain_scale': 1.0,
         'reason': 'avoid world +Z posture step at PATH admission',
     },
     'live_force_measurement_envelope': {
         'schema': 'tase-live-force-rise-envelope-v1',
-        'formula': 'control_normal=max(canonical_filtered_normal, measured_normal_load, measured_force_norm)',
-        'purpose': 'prevent filter lag or tangential-load growth from commanding further inward motion near the shared force limit',
+        'formula': 'control_normal=max(canonical_filtered_normal, measured_normal_load)',
+        'purpose': 'keep force norm as protection/diagnostics while the outer loop uses only signed normal load',
         'evidence_field': 'control_normal_n',
     },
     'fixed_baseline_contact_primitive': {
@@ -189,14 +189,15 @@ def load_tase_outer_config(path=None):
     frozen = payload.get('frozen')
     if frozen is not None and frozen != {
         'kp': 4.0, 'ko': 5.0, 'kf': 1.0, 'force_target_n': 5.0,
-        'force_integral_limit_n_s': 5.0,
+        'force_integral_limit_n_s': 1.0,
         'force_sign_convention': 'step5_step6_positive_normal_load',
     }:
         raise ValueError('TASE frozen outer-loop fields differ')
     binding = dict(payload)
     binding.update({'schema': TASE_PARAMETER_SCHEMA, 'source': str(candidate_path),
                     'Md_scalar': md, 'Bd_scalar': bd,
-                    'orientation_gain_scale': TASE_LIVE_OUTER_CONFIG.orientation_gain_scale})
+                    'orientation_gain_scale': TASE_LIVE_OUTER_CONFIG.orientation_gain_scale,
+                    'orientation_target_policy': 'fixed_approved_home_rotvec'})
     return replace(TASE_LIVE_OUTER_CONFIG, Md_scalar=md, Bd_scalar=bd), binding
 
 
@@ -279,7 +280,11 @@ class TaseContactProvider(ContactCommandProvider):
         else:
             if not 0 <= t <= PERIOD_S + .08:
                 raise ValueError('TASE figure-eight clock outside full period')
-            ref = self.task.reference(t)
+            # During the bounded TP RETURNING handshake the host can receive
+            # one or more ticks after the nominal period.  Keep that seam on
+            # the existing periodic continuation endpoint; formal evidence
+            # still accepts only consumed references strictly before PERIOD_S.
+            ref = self.task.reference(min(t, PERIOD_S + PATH_SEAM_CONTINUATION_S))
         position = self.anchor + self.basis @ np.asarray(ref['position_m'])
         velocity = self.basis @ np.asarray(ref['velocity_m_s'])
         return {'desired_xy': tuple(position[:2]),
@@ -455,15 +460,9 @@ class TaseContactProvider(ContactCommandProvider):
             # signal.  The TASE force loop additionally gets a one-sided
             # measured-load envelope: when either the normal load or the full
             # corrected force norm rises faster than the readiness filter, it
-            # must not continue commanding into the contact until the filter
-            # catches up.  Using the norm here is a conservative live safety
-            # adaptation; the raw wrench and canonical filtered channels are
-            # still retained separately for evidence and hard stopping.
-            control_normal = max(
-                float(filtered),
-                float(sensor.normal_load_n),
-                float(sensor.force_norm_n),
-            )
+            # The outer force loop receives only the signed reaction-normal
+            # channel. Full force norm remains in independent guards and logs.
+            control_normal = max(float(filtered), float(sensor.normal_load_n))
             measured_force_norm = float(sensor.force_norm_n)
             previous_measured_force_norm = self.last_measured_force_norm
             force_rise_guard = bool(
@@ -512,6 +511,21 @@ class TaseContactProvider(ContactCommandProvider):
                     actual_tcp_speed=output.tcp_speed_m_s_rad_s, force_tcp_n=sensor.wrench[:3],
                     filtered_normal_n=control_normal, internal_setpoint_n=internal_setpoint_n,
                     actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
+                # The paper outer loop keeps a normal-preserving-roll target
+                # for offline comparison. Live TASE binds angular motion to
+                # the approved Home rotvec so the PATH seam cannot command a
+                # world+Z posture step.
+                _, home_orientation_error = self.runtime.path_errors(
+                    actual_tcp_pose=output.tcp_pose_m_rad,
+                    path_time_s=t,
+                    motion_kp=self.runtime.candidate.motion_kp,
+                )
+                twist = tuple(twist[:3]) + tuple(
+                    float(self.runtime.outer_loop_config.ko
+                          * self.runtime.outer_loop_config.orientation_gain_scale
+                          * value)
+                    for value in home_orientation_error
+                )
                 if (
                     self.force_preempt_armed
                     and measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N
@@ -734,7 +748,12 @@ class TaseContactProvider(ContactCommandProvider):
                 'predicted_twist_m_s_rad_s': tuple(float(value) for value in predicted_twist),
                 'predicted_approach_normal_velocity_m_s': approach_normal_velocity,
                 'entry_time_s': t if phase == 'entry' else None,
-                'formal_time_s': t if phase == 'path' else None,
+                # Keep handshake-only ticks on the bounded periodic seam. The
+                # formal metric collector still clips observations at PERIOD_S.
+                'formal_time_s': (
+                    min(t, PERIOD_S + PATH_SEAM_CONTINUATION_S)
+                    if phase == 'path' else None
+                ),
                 'actual_dt_s': actual_dt_s, 'solver': copy.deepcopy(self.runtime.last_solver_diagnostics),
                 'implementation': 'mature_local_tase_rnn',
                 'parameter_binding': copy.deepcopy(self.parameter_binding),

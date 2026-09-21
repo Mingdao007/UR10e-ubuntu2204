@@ -1,0 +1,60 @@
+{
+  "schema": "contact-readback-selection-v2",
+  "status": "controller read-back verified",
+  "program": "step5d_contact_six_qp_v1",
+  "source_delivery_manifest": "runs/tase-package-v26-20260922T/delivery-manifest.json",
+  "source_delivery_manifest_sha256": "b15f95cbcc965f6c3754b5e37cf594f8688585004cfab3760dc54fbaa91a3b05",
+  "readback_directory": "runs/tase-package-v26-20260922T",
+  "readback_time_policy": "fresh controller GET captured at the recorded check time; this selection does not assert runtime freshness or task qualification",
+  "sha256": {
+    "local": {
+      ".script": "067be4b0b918e76c2e7664e82de668ae530257d85de4eee8c57012721d2e3de8",
+      ".txt": "52aa6c7a823ea93d764721734703d830be07ddeb136606348620db1a3ebb2d2d",
+      ".urp": "8d6e080e4ebf654eb2821823dee83ff509f8bb5e3605889f55f2a46144845522"
+    },
+    "controller": {
+      ".script": "067be4b0b918e76c2e7664e82de668ae530257d85de4eee8c57012721d2e3de8",
+      ".txt": "52aa6c7a823ea93d764721734703d830be07ddeb136606348620db1a3ebb2d2d",
+      ".urp": "8d6e080e4ebf654eb2821823dee83ff509f8bb5e3605889f55f2a46144845522"
+    },
+    "readback": {
+      ".script": "067be4b0b918e76c2e7664e82de668ae530257d85de4eee8c57012721d2e3de8",
+      ".txt": "52aa6c7a823ea93d764721734703d830be07ddeb136606348620db1a3ebb2d2d",
+      ".urp": "8d6e080e4ebf654eb2821823dee83ff509f8bb5e3605889f55f2a46144845522"
+    }
+  },
+  "delivery_mode": "full_upload_readback",
+  "fresh_controller_sha_verified": true,
+  "fresh_controller_checked_at": "2026-09-22T01:38:33+08:00",
+  "readback_source": "fresh_controller_get",
+  "safety_boundary": [
+    "ssh/scp file deploy only",
+    "no URScript send",
+    "no program load",
+    "no program start",
+    "no live bridge",
+    "no robot motion command"
+  ],
+  "supersedes": {
+    "path": "report/yield-live-transition-v1/contact-readback-selection-20260921T221725+0800.json",
+    "sha256": "6211ff219a543a813efc65672be7c638121c65c5e2af169d2d0304a5cb83c80c",
+    "prior_schema": "contact-readback-selection-v2",
+    "prior_sha256": {
+      "local": {
+        ".script": "69ac200624ab78a7f7f33f71df592be9dd2ddc6945be8f830de88f019386d06d",
+        ".txt": "d11888f3d72c5e3563a2372084c9a044a392147dc471b425c4eda39859aff8cb",
+        ".urp": "367130651e572212c9c9d705263af8eda9e0a9e338b9f30036f401a04135a573"
+      },
+      "controller": {
+        ".script": "69ac200624ab78a7f7f33f71df592be9dd2ddc6945be8f830de88f019386d06d",
+        ".txt": "d11888f3d72c5e3563a2372084c9a044a392147dc471b425c4eda39859aff8cb",
+        ".urp": "367130651e572212c9c9d705263af8eda9e0a9e338b9f30036f401a04135a573"
+      },
+      "readback": {
+        ".script": "69ac200624ab78a7f7f33f71df592be9dd2ddc6945be8f830de88f019386d06d",
+        ".txt": "d11888f3d72c5e3563a2372084c9a044a392147dc471b425c4eda39859aff8cb",
+        ".urp": "367130651e572212c9c9d705263af8eda9e0a9e338b9f30036f401a04135a573"
+      }
+    }
+  }
+}

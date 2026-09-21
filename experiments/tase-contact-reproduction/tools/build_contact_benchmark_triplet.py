@@ -5,7 +5,8 @@ import argparse,datetime,hashlib,json,re
 import numpy as np
 from build_step4e_p0p1_programs import build_urp
 from step5d_autotune_v4_r012.controller_triplet import validate_urscript_block_balance
-from contact_benchmark_protocol import Task
+from contact_benchmark_protocol import ENTRY_DURATION_S, Task
+from contact_yield_protocol import PATH_END_HANDSHAKE_MARGIN_S
 
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/'programs/step5/step5d/step5d_strict_rnn_autotune_v4_r012.script'
@@ -15,7 +16,7 @@ PROTOCOL=618001
 # Single-admission contact package: one continuous ten-second qualification
 # feeds the following PATH attempt. This wire-semantic change gets a fresh
 # readable runtime revision and a fresh controller read-back.
-REVISION=23
+REVISION=25
 
 # Historical Step5d/R008 Wave-4 final contact-search schedule. This is a
 # bounded open-loop FAR/NEAR velocity schedule; it deliberately has no scalar
@@ -129,7 +130,30 @@ def transform(source,home,stamp):
     home_text='p['+', '.join(f'{v:.12f}' for v in pose)+']'
     body=re.sub(r'local fixed_home_pose = p\[[^\]]+\]',f'local fixed_home_pose = {home_text}',body)
     body=re.sub(r'^# FIXED_HOME_POSE: .*$',f'# FIXED_HOME_POSE: {home_text}',body,flags=re.M)
-    body=body.replace('while path_elapsed_s < 60.000000000 and',f'while path_elapsed_s < {Task().duration_s:.12f} and')
+    # The resident clock starts before the one-second entry seam. Keep the
+    # entry explicit, then provide one complete formal period after it.
+    resident_duration_s = Task().duration_s + ENTRY_DURATION_S + PATH_END_HANDSHAKE_MARGIN_S
+    body=body.replace(
+        'while path_elapsed_s < 60.000000000 and',
+        f'while path_elapsed_s < {resident_duration_s:.12f} and',
+    )
+    # Publish RETURNING before braking or any Home motion so the host stops
+    # applying PATH control and PATH speed checks at this state edge.
+    path_end = (
+        '  stopj(20.000000000)\n'
+        '  if not codex_r006_stationary(0.250000000):\n'
+        '    return codex_r006_fault(epoch, ordinal, token, kind, consumed, 58, runtime_revision, runtime_extension)\n'
+        '  end\n'
+        '  return codex_r006_return_home('
+    )
+    if body.count(path_end) != 1:
+        raise ValueError('PATH return transition source differs')
+    body = body.replace(
+        path_end,
+        '  codex_r006_echo(epoch, ordinal, 40, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)\n'
+        + path_end,
+        1,
+    )
     # The active installation owns integer input24 for OnRobot's RTDE watchdog.
     # Remap only the native logical slot; float24 and output24 are different banks.
     if body.count('read_input_integer_register(24)') != 7:
@@ -437,7 +461,8 @@ def build(home_path,output):
                   'force_fuse_n':SEARCH_FORCE_FUSE_N,
                   'current_native_adaptation':'20 N force/torque envelope and 15 mm travel cap are retained; only the bounded speed schedule is reused',
               }}
-    manifest['numeric_sanity']={'duration_s':Task().duration_s,'span_m':[.08,.02],
+    manifest['numeric_sanity']={'duration_s':Task().duration_s,'resident_entry_s':ENTRY_DURATION_S,
+        'path_end_handshake_margin_s':PATH_END_HANDSHAKE_MARGIN_S,'span_m':[.08,.02],
         'peak_nominal_linear_speed_bound_m_s':Task().sanity()['speed_upper_bound_m_s'],
         'host_tangent_speed_cap_m_s':.01,'tp_joint_speed_limit_rad_s':.05,
         'tp_actual_joint_speed_guard_rad_s':.06,

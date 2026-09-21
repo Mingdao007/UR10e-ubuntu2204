@@ -58,6 +58,10 @@ PERIOD_S = 2.0 * math.pi / 0.1
 # endpoint when the sample grid misses the exact entry/PATH seam. Equal to
 # the existing skipped-initial PATH bound (one 2 ms sample plus consume lag).
 PATH_SEAM_CONTINUATION_S = 0.004
+# Host/TP end-handshake grace.  It is resident time after the formal period,
+# never part of the formal metric window, and exists only to let the last
+# published PATH reference be consumed before RETURNING is acknowledged.
+PATH_END_HANDSHAKE_MARGIN_S = 0.050
 PATH_SEAM_CONTINUATION_POLICY = "unwrapped_periodic_v1"
 DIAGNOSTIC_DURATION_S = 0.60
 DEFAULT_DT_S = 0.002
@@ -404,6 +408,7 @@ __all__ = [
     "METHOD_ROLES",
     "PATH_SEAM_CONTINUATION_POLICY",
     "PATH_SEAM_CONTINUATION_S",
+    "PATH_END_HANDSHAKE_MARGIN_S",
     "PERIOD_S",
     "QP_LIBRARY_PATH",
     "REFINEMENT_DT_S",

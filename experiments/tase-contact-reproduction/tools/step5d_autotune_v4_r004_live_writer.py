@@ -74,6 +74,10 @@ from step5d_autotune_v4_r004.wire import (  # noqa: E402
 )
 from step5d_autotune_v3.governance import read_proc_starttime_ticks  # noqa: E402
 from step5d_autotune_v4_r004.path_reference import step5_path_reference  # noqa: E402
+from contact_yield_protocol import (  # noqa: E402
+    PATH_END_HANDSHAKE_MARGIN_S,
+    PATH_SEAM_CONTINUATION_S,
+)
 
 
 WRITER_SCHEMA = "step5d.autotune-v4/r004-offline-writer-v1"
@@ -1666,10 +1670,16 @@ class LiveR004Writer:
         contact_provider = getattr(self._qualification_control, "contact_command_provider", None)
         entry_aware = callable(getattr(contact_provider, "execution_command", None))
         formal_duration_s = self._path_duration_s
+        path_fence_duration_s = formal_duration_s
         if entry_aware and path_requested:
             from yield_contact_evidence import YieldPathEvidenceCollector
             from contact_yield_protocol import PERIOD_S
             formal_duration_s = PERIOD_S
+            # Keep the formal metric clock exact, but leave a bounded
+            # resident grace for the final PATH packet to be consumed before
+            # the TP emits RETURNING.  The grace is never included in the
+            # collector's formal samples.
+            path_fence_duration_s = PERIOD_S + PATH_END_HANDSHAKE_MARGIN_S
             path_collector = YieldPathEvidenceCollector(
                 require_path_boundary=True,
                 published_reference_lookup=self._packet_history.consumed)
@@ -1742,7 +1752,7 @@ class LiveR004Writer:
                 command = None
                 if state == 25 and self._path_command_started_mono_s is not None:
                     path_elapsed_s = max(0.0, now - self._path_command_started_mono_s)
-                    path_end_fence = path_elapsed_s >= formal_duration_s
+                    path_end_fence = path_elapsed_s >= path_fence_duration_s
                 if state == 25 and self._path_rtde_origin_s is not None:
                     path_clock_time_s = max(0.0, output.timestamp - self._path_rtde_origin_s)
                 if state in {21, 25}:
@@ -1781,6 +1791,20 @@ class LiveR004Writer:
                             command_mode=int(command.command_mode),
                         )
                         self._sticky_latched = command.sticky_one_newton_latched
+                        # A continuous pilot owns its single qualification
+                        # window.  Once the controller has entered the
+                        # success/path hand-off, publish the baseline success
+                        # on the same live state instead of forcing a second
+                        # contact attempt (and a Home round-trip).
+                        if (
+                            path_requested
+                            and getattr(command, "canonical_phase", "")
+                            in {"success_path_release", "path"}
+                        ):
+                            self.set_baseline_state(
+                                consecutive_successes=1,
+                                sticky_one_newton_latched=self._sticky_latched,
+                            )
                         sensor = replace(sensor, filtered_normal_n=command.filtered_normal_n)
                         mode = command.command_mode
                         setpoint = command.internal_setpoint_n
@@ -2038,6 +2062,24 @@ class LiveR004Writer:
                             and observed_path_sample.path_time_s < formal_duration_s
                         ):
                             self._path_sample_sink(observed_path_sample)
+                    # Keep the formal metric window strict while allowing a
+                    # single consumed seam packet to close a sub-tick
+                    # reference gap at the end of the PATH. The collector
+                    # records this reference only for endpoint proof.
+                    terminal_reference = getattr(
+                        path_collector, "observe_terminal_reference", None
+                    )
+                    if (
+                        callable(terminal_reference)
+                        and entry_aware
+                        and state == 25
+                        and path_clock_time_s is not None
+                        and formal_duration_s <= path_clock_time_s
+                        and path_clock_time_s < formal_duration_s + PATH_SEAM_CONTINUATION_S
+                        and consumed_entry is not None
+                        and consumed_entry.reference_phase == "path"
+                    ):
+                        terminal_reference(sequence=consumed_sequence)
                 self._hot_path_mark("packet_evidence_exit")
                 if state in {78, 80, 90}:
                     terminal = output

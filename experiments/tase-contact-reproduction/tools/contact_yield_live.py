@@ -355,6 +355,7 @@ def run_live(
         "formally_qualified": False,
         "full_cycle_acceptance": False,
         "physical_qualification": False,
+        "continuous_contact_path": bool(args.command == "pilot"),
         "rnn_hash_or_profile": provider.solver_profile.as_dict() if args.method == "TASE_RNN_MATURE" else False,
         "tase_parameter_binding": getattr(provider, "parameter_binding", None),
         "prewarmed_before_endpoints": True,
@@ -391,10 +392,11 @@ def run_live(
         import copy
         import os
         seed_state = provider.snapshot()
-        # Native yield qualification is one continuous ten-second admission.
-        # The TP package and host enforce the same single success; the PATH
-        # attempt reuses that contact state.
-        phases = ["qualify"] if args.command == "qualify" else ["qualify", "pilot"]
+        # A pilot is one physical attempt: the TP-owned contact search and the
+        # host's ten-second readiness gate feed entry and the complete PATH
+        # without returning Home or reacquiring contact. ``qualify`` remains
+        # an explicitly qualification-only diagnostic command.
+        phases = ["qualify"] if args.command == "qualify" else ["pilot"]
         receipt["attempts"] = []
         for sequence, phase in enumerate(phases, start=1):
             # Separate physical attempts start from the documented seed; state

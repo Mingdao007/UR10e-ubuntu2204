@@ -1,0 +1,60 @@
+{
+  "schema": "contact-readback-selection-v2",
+  "status": "controller read-back verified",
+  "program": "step5d_contact_six_qp_v1",
+  "source_delivery_manifest": "runs/tase-package-v27-20260922T/delivery-manifest.json",
+  "source_delivery_manifest_sha256": "977be6fdb5b745a33cbc93b9d33d034fc56f78d01a927bd3c2f3e8ff41dbd96c",
+  "readback_directory": "runs/tase-package-v27-20260922T",
+  "readback_time_policy": "fresh controller GET captured at the recorded check time; this selection does not assert runtime freshness or task qualification",
+  "sha256": {
+    "local": {
+      ".script": "026b9ce1c5d6e4e2cb788d4811789d6a58e259191312ea212e67141efe833192",
+      ".txt": "3f2ccfc6798f3cc9bda3c2ee43e8ac781e9dc675194d90e1390a13f5e7cd96a6",
+      ".urp": "c42dfd9a62d71ddfa6b4b87d05d2cffbc1f5b002af5f3e8361a75307fb804ef5"
+    },
+    "controller": {
+      ".script": "026b9ce1c5d6e4e2cb788d4811789d6a58e259191312ea212e67141efe833192",
+      ".txt": "3f2ccfc6798f3cc9bda3c2ee43e8ac781e9dc675194d90e1390a13f5e7cd96a6",
+      ".urp": "c42dfd9a62d71ddfa6b4b87d05d2cffbc1f5b002af5f3e8361a75307fb804ef5"
+    },
+    "readback": {
+      ".script": "026b9ce1c5d6e4e2cb788d4811789d6a58e259191312ea212e67141efe833192",
+      ".txt": "3f2ccfc6798f3cc9bda3c2ee43e8ac781e9dc675194d90e1390a13f5e7cd96a6",
+      ".urp": "c42dfd9a62d71ddfa6b4b87d05d2cffbc1f5b002af5f3e8361a75307fb804ef5"
+    }
+  },
+  "delivery_mode": "full_upload_readback",
+  "fresh_controller_sha_verified": true,
+  "fresh_controller_checked_at": "2026-09-22T01:57:48+08:00",
+  "readback_source": "fresh_controller_get",
+  "safety_boundary": [
+    "ssh/scp file deploy only",
+    "no URScript send",
+    "no program load",
+    "no program start",
+    "no live bridge",
+    "no robot motion command"
+  ],
+  "supersedes": {
+    "path": "report/yield-live-transition-v1/contact-readback-selection-20260922T013833+0800.json",
+    "sha256": "0abc69f01d07c472133c736ccb5a53880a7100187b3e62336990d7c40d6a11eb",
+    "prior_schema": "contact-readback-selection-v2",
+    "prior_sha256": {
+      "local": {
+        ".script": "067be4b0b918e76c2e7664e82de668ae530257d85de4eee8c57012721d2e3de8",
+        ".txt": "52aa6c7a823ea93d764721734703d830be07ddeb136606348620db1a3ebb2d2d",
+        ".urp": "8d6e080e4ebf654eb2821823dee83ff509f8bb5e3605889f55f2a46144845522"
+      },
+      "controller": {
+        ".script": "067be4b0b918e76c2e7664e82de668ae530257d85de4eee8c57012721d2e3de8",
+        ".txt": "52aa6c7a823ea93d764721734703d830be07ddeb136606348620db1a3ebb2d2d",
+        ".urp": "8d6e080e4ebf654eb2821823dee83ff509f8bb5e3605889f55f2a46144845522"
+      },
+      "readback": {
+        ".script": "067be4b0b918e76c2e7664e82de668ae530257d85de4eee8c57012721d2e3de8",
+        ".txt": "52aa6c7a823ea93d764721734703d830be07ddeb136606348620db1a3ebb2d2d",
+        ".urp": "8d6e080e4ebf654eb2821823dee83ff509f8bb5e3605889f55f2a46144845522"
+      }
+    }
+  }
+}
