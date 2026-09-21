@@ -1,4 +1,4 @@
-# VERSION: 2026-09-21T1348Z_CONTACT_SIX_QP_V1_618001
+# VERSION: 2026-09-21T1439Z_CONTACT_SIX_QP_V1_618001
 # ROLE: six-law shared-QP preparation; requires matching host owner 618001
 # CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm
 # CONTACT_SEARCH: STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1; FAR=0.005000m/s until 0.011029311m, NEAR=0.000500m/s; travel<=0.015m; timeout=90.0s; no scalar admittance
@@ -227,6 +227,27 @@ def codex_r006_copy_packet():
   codex_r006_cache_valid = True
 end
 
+
+# The packet observer validates and snapshots one complete RTDE image. Active
+# control reads use this image; re-reading live registers can tear a 500 Hz
+# update across joint components.
+def codex_r006_cached_qdot(index):
+  if index == 0:
+    return codex_r006_cache_d37
+  elif index == 1:
+    return codex_r006_cache_d38
+  elif index == 2:
+    return codex_r006_cache_d39
+  elif index == 3:
+    return codex_r006_cache_d40
+  elif index == 4:
+    return codex_r006_cache_d41
+  elif index == 5:
+    return codex_r006_cache_d42
+  end
+  return 0.0
+end
+
 def codex_r006_packet_observe():
   if not codex_r006_finite(read_input_float_register(24), 1000000.0):
     return 41
@@ -354,7 +375,7 @@ end
 def codex_r006_qdot_ok():
   local index = 0
   while index < 6:
-    local qdot = read_input_float_register(37 + index)
+    local qdot = codex_r006_cached_qdot(index)
     if not codex_r006_finite(qdot, 0.050000000):
       return False
     end
@@ -386,21 +407,21 @@ def codex_r006_packet_guard(packet_reason, abs_normal_limit, force_norm_limit, t
     return packet_reason
   elif read_input_integer_register(27) == 3:
     return 4
-  elif read_input_float_register(27) < 0.5 or read_input_float_register(29) < 0.5:
+  elif codex_r006_cache_d27 < 0.5 or codex_r006_cache_d29 < 0.5:
     return 3
-  elif read_input_float_register(28) > 0.5:
+  elif codex_r006_cache_d28 > 0.5:
     return 4
   elif read_input_integer_register(27) == 3:
     return 4
   elif read_input_integer_register(27) != 0 and read_input_integer_register(27) != 1:
     return 66
-  elif codex_r006_abs(read_input_float_register(24)) >= abs_normal_limit:
+  elif codex_r006_abs(codex_r006_cache_d24) >= abs_normal_limit:
     return 5
-  elif read_input_float_register(25) >= force_norm_limit:
+  elif codex_r006_cache_d25 >= force_norm_limit:
     return 6
-  elif read_input_float_register(30) >= torque_limit:
+  elif codex_r006_cache_d30 >= torque_limit:
     return 7
-  elif read_input_float_register(44) < 1.0 or read_input_float_register(44) > 5.0:
+  elif codex_r006_cache_d44 < 1.0 or codex_r006_cache_d44 > 5.0:
     return 49
   elif not codex_r006_qdot_ok():
     return 45
@@ -441,17 +462,17 @@ def codex_r006_recovery_packet_guard(packet_reason, abs_normal_limit, force_norm
   # bounded Home route runs. All sensor, qdot, tool and force guards remain.
   if packet_reason != 0:
     return packet_reason
-  elif read_input_float_register(27) < 0.5 or read_input_float_register(29) < 0.5:
+  elif codex_r006_cache_d27 < 0.5 or codex_r006_cache_d29 < 0.5:
     return 3
-  elif read_input_integer_register(27) != 0 and read_input_integer_register(27) != 1 and read_input_integer_register(27) != 3:
+  elif codex_r006_cache_i27 != 0 and codex_r006_cache_i27 != 1 and codex_r006_cache_i27 != 3:
     return 66
-  elif codex_r006_abs(read_input_float_register(24)) >= abs_normal_limit:
+  elif codex_r006_abs(codex_r006_cache_d24) >= abs_normal_limit:
     return 5
-  elif read_input_float_register(25) >= force_norm_limit:
+  elif codex_r006_cache_d25 >= force_norm_limit:
     return 6
-  elif read_input_float_register(30) >= torque_limit:
+  elif codex_r006_cache_d30 >= torque_limit:
     return 7
-  elif read_input_float_register(44) < 1.0 or read_input_float_register(44) > 5.0:
+  elif codex_r006_cache_d44 < 1.0 or codex_r006_cache_d44 > 5.0:
     return 49
   elif not codex_r006_qdot_ok():
     return 45
@@ -660,8 +681,8 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       contact_first_iteration = False
     end
     local travel = contact_start[2] - contact_pose[2]
-    local normal_force = read_input_float_register(24)
-    local force_norm = read_input_float_register(25)
+    local normal_force = codex_r006_cache_d24
+    local force_norm = codex_r006_cache_d25
     if guard != 0:
       stopl(0.010000000)
       return codex_r006_fault(epoch, ordinal, token, kind, consumed, guard, runtime_revision, runtime_extension)
@@ -692,6 +713,7 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
     end
   end
   stopl(0.010000000)
+  stopj(20.000000000)
   if not codex_r006_stationary(0.250000000):
     return codex_r006_fault(epoch, ordinal, token, kind, consumed, 11, runtime_revision, runtime_extension)
   end
@@ -724,7 +746,7 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
     local latch = read_input_integer_register(26)
     local baseline_successes = read_input_integer_register(36)
     baseline_mode = read_input_integer_register(25)
-    local setpoint = read_input_float_register(44)
+    local setpoint = codex_r006_cache_d44
     if guard != 0:
       return codex_r006_fault(epoch, ordinal, token, kind, consumed, guard, runtime_revision, runtime_extension)
     elif integer_reason != 0:
@@ -741,7 +763,7 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       latch_seen = True
       post_latch_elapsed_s = 0.0
     end
-    local baseline_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
+    local baseline_qdot = [codex_r006_cache_d37, codex_r006_cache_d38, codex_r006_cache_d39, codex_r006_cache_d40, codex_r006_cache_d41, codex_r006_cache_d42]
     if not latch_seen:
       pre_latch_elapsed_s = pre_latch_elapsed_s + actual_dt
       # Canonical V4 WAIT_ONE_NEWTON publishes a guarded approach command.
@@ -826,7 +848,7 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       elif read_input_integer_register(25) != 2 or read_input_integer_register(36) < 1:
         return codex_r006_fault(epoch, ordinal, token, kind, consumed, 50, runtime_revision, runtime_extension)
       end
-      local path_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
+      local path_qdot = [codex_r006_cache_d37, codex_r006_cache_d38, codex_r006_cache_d39, codex_r006_cache_d40, codex_r006_cache_d41, codex_r006_cache_d42]
       speedj(path_qdot, 5.000000000, actual_path_dt)
       if not codex_r006_actual_qd_ok(0.060000000):
         return codex_r006_fault(epoch, ordinal, token, kind, consumed, 76, runtime_revision, runtime_extension)

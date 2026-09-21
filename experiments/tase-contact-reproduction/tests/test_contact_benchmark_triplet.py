@@ -18,8 +18,17 @@ def test_triplet_preserves_home_xyz_and_has_narrow_common_caps(tmp_path):
     s=(out/f'{BASENAME}.script').read_text();assert '62.831853071796' in s
     assert 'codex_r006_finite(qdot, 0.050000000)' in s
     assert 'def codex_r006_actual_qd_ok(limit):' in s
+    assert 'def codex_r006_cached_qdot(index):' in s
+    assert 'local baseline_qdot = [codex_r006_cache_d37' in s
+    assert 'local path_qdot = [codex_r006_cache_d37' in s
+    assert 'elif codex_r006_cache_d27 < 0.5' in s
     assert 'elif not codex_r006_actual_qd_ok(0.060000000):' in s
     assert 'return 76' in s
+    assert (
+        '  stopl(0.010000000)\n'
+        '  stopj(20.000000000)\n'
+        '  if not codex_r006_stationary(0.250000000):'
+    ) in s
     assert 'local runtime_revision = 23' in s
     assert r['numeric_sanity']['tp_actual_joint_speed_guard_rad_s'] == pytest.approx(.06)
     assert 'local force_fuse_n = 20.000000000' in s

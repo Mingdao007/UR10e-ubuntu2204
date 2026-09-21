@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from tase_contact_provider import (
+    TASE_LIVE_OUTER_CONFIG,
     TASE_PAPER_OUTER_CONFIG,
     TASE_FORCE_PREEMPT_REARM_N,
     TASE_FORCE_PREEMPT_THRESHOLD_N,
@@ -73,10 +74,12 @@ def test_real_rnn_full_state_replay_and_json_snapshot(provider):
 
 def test_live_tase_binds_paper_outer_parameters(provider):
     config = provider.runtime.outer_loop_config
-    assert config is TASE_PAPER_OUTER_CONFIG
+    assert config is TASE_LIVE_OUTER_CONFIG
     assert (config.kp, config.ko, config.kf, config.Md_scalar, config.Bd_scalar) == (
         4.0, 5.0, 1.0, 12.0, 550.0
     )
+    assert config.orientation_gain_scale == 0.0
+    assert TASE_PAPER_OUTER_CONFIG.orientation_gain_scale == 1.0
     # The R006 candidate has a different derived force mapping; checking the
     # runtime binding prevents candidate tuning from silently replacing the
     # TASE Eq. 16/17 anchors.
@@ -91,6 +94,27 @@ def test_live_tase_binds_paper_outer_parameters(provider):
         internal_setpoint_n=1.,
     )
     assert provider.last_result['outer_loop_binding']['equations'] == ['Eq16', 'Eq17']
+
+
+def test_live_path_keeps_confirmed_home_orientation_velocity_zero(provider):
+    o, s = tick(provider, .002)
+    provider.command(
+        output=o,
+        sensor=s,
+        monotonic_s=.002,
+        actual_dt_s=.002,
+        mode='path',
+        path_time_s=0.0,
+        internal_setpoint_n=1.0,
+    )
+    assert provider.last_result['outer_loop_binding']['live_orientation_policy'] == {
+        'orientation_gain_scale': 0.0,
+        'target': 'confirmed Figure-eight Home orientation',
+        'paper_comparison_orientation_gain_scale': 1.0,
+        'reason': 'avoid world +Z posture step at PATH admission',
+    }
+    predicted = provider.last_result['predicted_twist_m_s_rad_s']
+    assert predicted[3:] == pytest.approx((0.0, 0.0, 0.0), abs=1e-12)
 
 
 def test_live_tase_uses_raw_normal_rise_envelope_without_replacing_evidence_filter(provider):

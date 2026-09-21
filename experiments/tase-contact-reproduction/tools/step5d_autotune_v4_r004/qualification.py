@@ -479,7 +479,14 @@ class CanonicalQualificationControl:
                 force_norm_n=sensor.force_norm_n,
                 torque_norm_nm=sensor.torque_norm_nm,
                 sensor_fresh=sensor.sensor_fresh,
-                stationary=output.stationary,
+                # PATH admission must use the measured joint state as well as
+                # the TCP-speed summary.  The R013 transition can otherwise
+                # see a single quiet TCP sample while contact compliance is
+                # still carrying joint motion into the next phase.
+                stationary=(
+                    output.stationary
+                    and max(abs(float(value)) for value in output.qd_rad_s) <= 0.001
+                ),
             )
             self._baseline_state, baseline_command = step_baseline(
                 self._canonical_candidate,
@@ -586,7 +593,10 @@ class CanonicalQualificationControl:
                                 "narrow_path_release_opened": self._path_entry_release_state.opened,
                             }
                         )
-                if not r013_transition_open and not self._path_entry_release_state.opened:
+                # R013's hard transition is a readiness result, not a motion
+                # waiver.  Reuse the same fresh force/stationary release dwell
+                # for every PATH request, including the R013 profile.
+                if not self._path_entry_release_state.opened:
                     self._pause_contact_provider(
                         output=output,
                         sensor=sensor,

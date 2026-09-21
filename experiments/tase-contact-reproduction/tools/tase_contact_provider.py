@@ -72,6 +72,12 @@ TASE_OUTER_SEARCH_BOUNDS = {
 TASE_PAPER_OUTER_CONFIG = Step5dOuterLoopConfig(
     kp=4.0,
     ko=5.0,
+    # The printed equation is retained with its posture-compliance term for
+    # offline comparison.  Live Figure-eight execution binds the separate
+    # fixed-posture profile below; otherwise the outer loop's
+    # ``desired_rotation_preserving_roll`` seam turns the confirmed Home
+    # orientation into a world +Z alignment at PATH admission.
+    orientation_gain_scale=1.0,
     kf=1.0,
     Md_scalar=12.0,
     Bd_scalar=550.0,
@@ -80,6 +86,13 @@ TASE_PAPER_OUTER_CONFIG = Step5dOuterLoopConfig(
     delay_T_s=None,
     force_sign_convention='step5_step6_positive_normal_load',
 )
+
+# Live Figure-eight posture is the user-confirmed Home orientation.  The
+# normal-force and XY path components remain active; only the orientation
+# compliance velocity is disabled so PATH cannot introduce a several-degree
+# orientation step at the phase seam.  Keep the paper configuration above
+# intact for the explicitly named offline comparison.
+TASE_LIVE_OUTER_CONFIG = replace(TASE_PAPER_OUTER_CONFIG, orientation_gain_scale=0.0)
 
 TASE_PAPER_OUTER_BINDING = {
     'source': 'config/step5c_tase_paper_truth.json',
@@ -91,13 +104,20 @@ TASE_PAPER_OUTER_BINDING = {
         'Md_scalar': 12.0,
         'Bd_scalar': 550.0,
     },
-        'live_adaptations': [
-            'force target from internal setpoint',
-            'delay T from actual dt',
-            'shared live integral and normal-velocity safety limits',
-            'one-sided raw-normal rise envelope for live force protection',
-            'hysteretic RNN warm-start on each measured force-rise episode above threshold_n',
-        ],
+    'live_adaptations': [
+        'force target from internal setpoint',
+        'delay T from actual dt',
+        'shared live integral and normal-velocity safety limits',
+        'one-sided raw-normal rise envelope for live force protection',
+        'hysteretic RNN warm-start on each measured force-rise episode above threshold_n',
+        'fixed confirmed Figure-eight Home orientation during live PATH',
+    ],
+    'live_orientation_policy': {
+        'orientation_gain_scale': 0.0,
+        'target': 'confirmed Figure-eight Home orientation',
+        'paper_comparison_orientation_gain_scale': 1.0,
+        'reason': 'avoid world +Z posture step at PATH admission',
+    },
     'live_force_measurement_envelope': {
         'schema': 'tase-live-force-rise-envelope-v1',
         'formula': 'control_normal=max(canonical_filtered_normal, measured_normal_load, measured_force_norm)',
@@ -139,11 +159,12 @@ TASE_PAPER_OUTER_BINDING = {
 def load_tase_outer_config(path=None):
     """Load only the bounded research parameters for one frozen live run."""
     if path is None:
-        return TASE_PAPER_OUTER_CONFIG, {
+        return TASE_LIVE_OUTER_CONFIG, {
             'schema': TASE_PARAMETER_SCHEMA,
             'source': 'paper-default',
-            'Md_scalar': TASE_PAPER_OUTER_CONFIG.Md_scalar,
-            'Bd_scalar': TASE_PAPER_OUTER_CONFIG.Bd_scalar,
+            'Md_scalar': TASE_LIVE_OUTER_CONFIG.Md_scalar,
+            'Bd_scalar': TASE_LIVE_OUTER_CONFIG.Bd_scalar,
+            'orientation_gain_scale': TASE_LIVE_OUTER_CONFIG.orientation_gain_scale,
         }
     candidate_path = Path(path).expanduser().resolve()
     if candidate_path.is_symlink() or not candidate_path.is_file():
@@ -174,8 +195,9 @@ def load_tase_outer_config(path=None):
         raise ValueError('TASE frozen outer-loop fields differ')
     binding = dict(payload)
     binding.update({'schema': TASE_PARAMETER_SCHEMA, 'source': str(candidate_path),
-                    'Md_scalar': md, 'Bd_scalar': bd})
-    return replace(TASE_PAPER_OUTER_CONFIG, Md_scalar=md, Bd_scalar=bd), binding
+                    'Md_scalar': md, 'Bd_scalar': bd,
+                    'orientation_gain_scale': TASE_LIVE_OUTER_CONFIG.orientation_gain_scale})
+    return replace(TASE_LIVE_OUTER_CONFIG, Md_scalar=md, Bd_scalar=bd), binding
 
 
 @dataclass(frozen=True)
@@ -236,7 +258,7 @@ class TaseContactProvider(ContactCommandProvider):
             contract, candidate, motion_profile=motion_profile,
             solver_profile=solver_profile, path_reference=self.reference,
             target_rotvec=pose[3:], force_normal_velocity_limit_m_s=.003,
-            outer_loop_config=(TASE_PAPER_OUTER_CONFIG if outer_loop_config is None
+            outer_loop_config=(TASE_LIVE_OUTER_CONFIG if outer_loop_config is None
                                else outer_loop_config))
         self.contract = contract
         self.model_hashes = dict(self.runtime.model_hashes)

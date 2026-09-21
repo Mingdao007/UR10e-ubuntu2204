@@ -1,0 +1,38 @@
+{
+  "schema": "tase-live-path-orientation-jump-replay-v1",
+  "source_run": "runs/figure8-20260921T144014-573787",
+  "observed": {
+    "path_admission_consumed_packet_sequence": 18400,
+    "home_rotvec_rad": [3.120752062, 0.0, 0.068626833],
+    "first_path_command_qdot_rad_s": [-0.00219, 0.00013, 0.00146, -0.00354, 0.00499, -0.00210],
+    "after_ramp_command_qdot_rad_s": [-0.02035, 0.00240, 0.01354, -0.03441, 0.04651, -0.01953],
+    "tcp_pose_rotvec_after_ramp_rad": [3.12295, -0.00017, 0.06121],
+    "tcp_speed_after_ramp_m_s_rad_s": [-0.00047, 0.00039, 0.00028, 0.02214, 0.04688, 0.00167],
+    "interpretation": "The PATH seam commanded posture compliance toward world +Z; this is the observed jump mechanism, not an Md/Bd-only transient."
+  },
+  "offline_replay": {
+    "inputs": "same canonical Home pose, calibrated Home joint branch, 5 N synthetic contact observation, path_time_s=0",
+    "paper_orientation_gain_scale": 1.0,
+    "paper_qdot_rad_s": [-0.020493118864326525, 0.000334186534770492, 0.013803017294523587, -0.0324919897443376, 0.04660433495417852, -0.019671584070265286],
+    "paper_predicted_twist_m_s_rad_s": [-1.0716526633106072e-09, 4.310293563042355e-10, -1.0598510039429646e-09, 0.020776068269313434, 0.04547916998762698, -1.8485651551158888e-10],
+    "live_orientation_gain_scale": 0.0,
+    "live_qdot_max_abs_rad_s": 8.293650052525498e-20,
+    "live_predicted_angular_max_abs_rad_s": 1.1711195883146964e-26,
+    "replay_result": "The paper replay reproduces the recorded entry qdot and angular TCP speed; the fixed-posture live replay removes the angular step while retaining the same force/path interface."
+  },
+  "repair": {
+    "live_profile": "TASE_LIVE_OUTER_CONFIG",
+    "paper_profile_retained": "TASE_PAPER_OUTER_CONFIG",
+    "changed": "Live Figure-eight binds orientation_gain_scale=0.0; paper posture-compliance remains available for offline comparison.",
+    "unchanged": [
+      "Md/Bd search bounds",
+      "normal-force target and integral policy",
+      "joint/TCP speed limits",
+      "host slew and TP actual-qdot guard",
+      "force/readiness/timing gates",
+      "automatic Home recovery"
+    ],
+    "focused_tests": "105 passed, 1 warning",
+    "physical_status": "No new live motion issued by this repair; latest failed attempt remains failed and the robot was recovered to canonical Home before diagnosis."
+  }
+}

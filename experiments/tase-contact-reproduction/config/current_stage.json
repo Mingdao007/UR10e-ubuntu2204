@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-09-20T23:57:55.291084+00:00",
+  "updated_at": "2026-09-21T22:17:30+08:00",
   "current_stage_id": "step5d_contact_six_qp_v1",
   "current_step": "Step5d",
   "program": "step5d_contact_six_qp_v1",
@@ -9,18 +9,18 @@
   "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
   "controller_script": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script",
   "local_triplet": "programs/step5/step5d/contact-six-qp/step5d_contact_six_qp_v1",
-  "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T214929+0800.json",
+  "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T221725+0800.json",
   "sha256": {
-    ".script": "1e1b754c53efd77efcf3b483f1df434e5b83b3b3edc60872d6b85ee16c46898c",
-    ".txt": "afa5d05680aa1ce6a7dcb9cb74b480da01ad387ca31f3c1dfdc161adfffa0fcf",
-    ".urp": "458acefb7d001f20f38ce091c51647700624a6af82d682920972734d81838bc6"
+    ".script": "69ac200624ab78a7f7f33f71df592be9dd2ddc6945be8f830de88f019386d06d",
+    ".txt": "d11888f3d72c5e3563a2372084c9a044a392147dc471b425c4eda39859aff8cb",
+    ".urp": "367130651e572212c9c9d705263af8eda9e0a9e338b9f30036f401a04135a573"
   },
   "status": "fresh_controller_readback_verified_pending_liveprep_admission",
   "liveprep_status": "awaiting_live_authorization",
   "liveprep_readiness_path": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260921.json",
   "reproduction_status": "incomplete",
   "standing_task_authority": {
-    "source": "User: 可live了, 2026-09-20",
+    "source": "User: \u53eflive\u4e86, 2026-09-20",
     "scope": "lifecycle repair, supervised resident check, and existing bounded live task after fresh gates",
     "requires_fresh_machine_admission": true,
     "live_revoked_by_user": false
@@ -88,10 +88,10 @@
     "latest_home_recovery": "runs/yield-home-recovery-20260920/live-1/result.json",
     "latest_contact_withdrawal": "runs/yield-sfc-qualification-20260920T113129Z/withdrawal/result.json",
     "native_writer_previously_armed": true,
-    "v1_controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T214929+0800.json",
-    "fresh_contact_controller_delivery_manifest": "runs/tase-package-v23-20260921T1350Z/controller_readback_step5d_contact_six_qp_v1_20260921_214924/manifest.json",
-    "fresh_contact_controller_delivery_manifest_sha256": "2ab7233a996eb958fdbcb57cde6b45dec72e38e67094705bf0609dc445f9744f",
-    "fresh_contact_controller_checked_at": "2026-09-21T21:49:29+08:00",
+    "v1_controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T221725+0800.json",
+    "fresh_contact_controller_delivery_manifest": "runs/tase-package-v24-20260921T1415Z/controller-readback/controller_readback_step5d_contact_six_qp_v1_20260921_221725/manifest.json",
+    "fresh_contact_controller_delivery_manifest_sha256": "e68160a00a671bf6a9d188b2e3862a83e201557b8eef9577372821622991e0c0",
+    "fresh_contact_controller_checked_at": "2026-09-21T22:17:30+08:00",
     "previous_contact_readback_selection": {
       "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T211745+0800.json",
       "sha256": {

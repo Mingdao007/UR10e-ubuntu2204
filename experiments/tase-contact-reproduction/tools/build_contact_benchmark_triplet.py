@@ -33,6 +33,85 @@ SEARCH_TIMEOUT_S=90.0
 SEARCH_FORCE_FUSE_N=20.0
 
 
+def _apply_packet_snapshot(body: str) -> str:
+    """Use the packet snapshot for the native contact execution path."""
+    marker = "\ndef codex_r006_packet_observe():"
+    cached_qdot = """
+
+# The packet observer validates and snapshots one complete RTDE image. Active
+# control reads use this image; re-reading live registers can tear a 500 Hz
+# update across joint components.
+def codex_r006_cached_qdot(index):
+  if index == 0:
+    return codex_r006_cache_d37
+  elif index == 1:
+    return codex_r006_cache_d38
+  elif index == 2:
+    return codex_r006_cache_d39
+  elif index == 3:
+    return codex_r006_cache_d40
+  elif index == 4:
+    return codex_r006_cache_d41
+  elif index == 5:
+    return codex_r006_cache_d42
+  end
+  return 0.0
+end
+"""
+    if body.count(marker) != 1:
+        raise ValueError("packet observer marker differs")
+    body = body.replace(marker, cached_qdot + marker, 1)
+    replacements = {
+        "local qdot = read_input_float_register(37 + index)":
+            "local qdot = codex_r006_cached_qdot(index)",
+        "elif read_input_float_register(27) < 0.5 or read_input_float_register(29) < 0.5:":
+            "elif codex_r006_cache_d27 < 0.5 or codex_r006_cache_d29 < 0.5:",
+        "elif read_input_float_register(28) > 0.5:":
+            "elif codex_r006_cache_d28 > 0.5:",
+        "elif codex_r006_abs(read_input_float_register(24)) >= abs_normal_limit:":
+            "elif codex_r006_abs(codex_r006_cache_d24) >= abs_normal_limit:",
+        "elif read_input_float_register(25) >= force_norm_limit:":
+            "elif codex_r006_cache_d25 >= force_norm_limit:",
+        "elif read_input_float_register(30) >= torque_limit:":
+            "elif codex_r006_cache_d30 >= torque_limit:",
+        "elif read_input_float_register(44) < 1.0 or read_input_float_register(44) > 5.0:":
+            "elif codex_r006_cache_d44 < 1.0 or codex_r006_cache_d44 > 5.0:",
+        "local normal_force = read_input_float_register(24)":
+            "local normal_force = codex_r006_cache_d24",
+        "local force_norm = read_input_float_register(25)":
+            "local force_norm = codex_r006_cache_d25",
+        "local setpoint = read_input_float_register(44)":
+            "local setpoint = codex_r006_cache_d44",
+        "local baseline_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]":
+            "local baseline_qdot = [codex_r006_cache_d37, codex_r006_cache_d38, codex_r006_cache_d39, codex_r006_cache_d40, codex_r006_cache_d41, codex_r006_cache_d42]",
+        "local path_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]":
+            "local path_qdot = [codex_r006_cache_d37, codex_r006_cache_d38, codex_r006_cache_d39, codex_r006_cache_d40, codex_r006_cache_d41, codex_r006_cache_d42]",
+    }
+    for old, new in replacements.items():
+        if old not in body:
+            raise ValueError(f"packet snapshot source differs: {old}")
+        body = body.replace(old, new)
+    # The contact-search primitive ends with an open-loop Cartesian command.
+    # Stop that command at the joint level before the baseline/path owner takes
+    # over.  Without this explicit handoff, a residual speedl command can
+    # survive the phase transition even when the host packet already carries a
+    # near-zero qdot, producing a real Jqdot jump at PATH admission.
+    transition = (
+        "  stopl(0.010000000)\n"
+        "  if not codex_r006_stationary(0.250000000):"
+    )
+    if body.count(transition) != 1:
+        raise ValueError("contact-search transition stop source differs")
+    body = body.replace(
+        transition,
+        "  stopl(0.010000000)\n"
+        "  stopj(20.000000000)\n"
+        "  if not codex_r006_stationary(0.250000000):",
+        1,
+    )
+    return body
+
+
 def transform(source,home,stamp):
     if home.get('user_home_confirmed') is not True:raise ValueError('user-defined Home receipt required')
     obs=home['rtde'];pose=np.asarray(home['home_pose']);q=np.asarray(home['home_q'])
@@ -42,6 +121,7 @@ def transform(source,home,stamp):
     if not np.isclose(obs['payload'],.413,atol=1e-6) or not np.allclose(obs['payload_cog'],[.0011,.0031,.0163],atol=1e-6):raise ValueError('tool mass/CoG differs')
     if 'while path_elapsed_s < 60.000000000 and not r012_path_early_end:' not in source:raise ValueError('source resident differs')
     body=source.replace('step5d_strict_rnn_autotune_v4_r012',BASENAME)
+    body=_apply_packet_snapshot(body)
     body=re.sub(r'^# VERSION: .*$',f'# VERSION: {stamp}',body,flags=re.M)
     body=body.replace('612012',str(PROTOCOL))
     body=re.sub(r'local runtime_revision = [-0-9]+',f'local runtime_revision = {REVISION}',body)
@@ -74,9 +154,9 @@ def transform(source,home,stamp):
                       1)
     # A stop-only packet has no sensor measurement. Explicit STOP still means
     # external_stop in active loops; preserve any earlier terminal fault.
-    guard='  if packet_reason != 0:\n    return packet_reason\n  elif read_input_float_register(27) < 0.5'
+    guard='  if packet_reason != 0:\n    return packet_reason\n  elif codex_r006_cache_d27 < 0.5'
     if body.count(guard)!=1:raise ValueError('native packet guard differs')
-    body=body.replace(guard,'  if packet_reason != 0:\n    return packet_reason\n  elif read_input_integer_register(27) == 3:\n    return 4\n  elif read_input_float_register(27) < 0.5')
+    body=body.replace(guard,'  if packet_reason != 0:\n    return packet_reason\n  elif read_input_integer_register(27) == 3:\n    return 4\n  elif codex_r006_cache_d27 < 0.5')
     # Narrow inherited speed bounds; leave the fault/return lifecycle intact.
     body=body.replace('codex_r006_finite(qdot, 5.000000000)','codex_r006_finite(qdot, 0.050000000)')
     body=body.replace('speedj(baseline_qdot, 40.000000000,','speedj(baseline_qdot, 5.000000000,')
@@ -101,17 +181,17 @@ def codex_r006_recovery_packet_guard(packet_reason, abs_normal_limit, force_norm
   # bounded Home route runs. All sensor, qdot, tool and force guards remain.
   if packet_reason != 0:
     return packet_reason
-  elif read_input_float_register(27) < 0.5 or read_input_float_register(29) < 0.5:
+  elif codex_r006_cache_d27 < 0.5 or codex_r006_cache_d29 < 0.5:
     return 3
-  elif read_input_integer_register(27) != 0 and read_input_integer_register(27) != 1 and read_input_integer_register(27) != 3:
+  elif codex_r006_cache_i27 != 0 and codex_r006_cache_i27 != 1 and codex_r006_cache_i27 != 3:
     return 66
-  elif codex_r006_abs(read_input_float_register(24)) >= abs_normal_limit:
+  elif codex_r006_abs(codex_r006_cache_d24) >= abs_normal_limit:
     return 5
-  elif read_input_float_register(25) >= force_norm_limit:
+  elif codex_r006_cache_d25 >= force_norm_limit:
     return 6
-  elif read_input_float_register(30) >= torque_limit:
+  elif codex_r006_cache_d30 >= torque_limit:
     return 7
-  elif read_input_float_register(44) < 1.0 or read_input_float_register(44) > 5.0:
+  elif codex_r006_cache_d44 < 1.0 or codex_r006_cache_d44 > 5.0:
     return 49
   elif not codex_r006_qdot_ok():
     return 45

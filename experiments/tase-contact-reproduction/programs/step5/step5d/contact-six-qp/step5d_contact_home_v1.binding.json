@@ -1,6 +1,6 @@
 {
   "basename": "step5d_contact_home_v1",
-  "stamp": "2026-09-21T1151Z_CONTACT_HOME_V1",
+  "stamp": "2026-09-21T1439Z_CONTACT_HOME_V1",
   "controller_directory": "/programs/andyl/kunwei/step5",
   "home_pose": [
     0.4620551816,
@@ -10,11 +10,20 @@
     0.0,
     0.068626833
   ],
+  "final_home_pose": [
+    0.4620551816,
+    0.1778825964,
+    0.03408876139925415,
+    3.120752062,
+    0.0,
+    0.068626833
+  ],
+  "segmented_recovery": false,
   "bounded_recovery": false,
   "bounded_withdrawal": false,
   "clearance_entry": true,
   "numeric_sanity": {
-    "max_transfer_distance_m": 4.584612262930876e-05,
+    "max_transfer_distance_m": 1.987749785656593e-05,
     "speed_m_s": 0.09,
     "acceleration_m_s2": 0.135,
     "segment_1_speed_m_s": 0.04,

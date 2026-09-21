@@ -1,0 +1,60 @@
+{
+  "schema": "contact-readback-selection-v2",
+  "status": "controller read-back verified",
+  "program": "step5d_contact_six_qp_v1",
+  "source_delivery_manifest": "runs/tase-package-v24-20260921T1415Z/controller-readback/controller_readback_step5d_contact_six_qp_v1_20260921_221725/manifest.json",
+  "source_delivery_manifest_sha256": "e68160a00a671bf6a9d188b2e3862a83e201557b8eef9577372821622991e0c0",
+  "readback_directory": "runs/tase-package-v24-20260921T1415Z/controller-readback/controller_readback_step5d_contact_six_qp_v1_20260921_221725",
+  "readback_time_policy": "fresh controller GET captured at the recorded check time; this selection does not assert runtime freshness or task qualification",
+  "sha256": {
+    "local": {
+      ".script": "69ac200624ab78a7f7f33f71df592be9dd2ddc6945be8f830de88f019386d06d",
+      ".txt": "d11888f3d72c5e3563a2372084c9a044a392147dc471b425c4eda39859aff8cb",
+      ".urp": "367130651e572212c9c9d705263af8eda9e0a9e338b9f30036f401a04135a573"
+    },
+    "controller": {
+      ".script": "69ac200624ab78a7f7f33f71df592be9dd2ddc6945be8f830de88f019386d06d",
+      ".txt": "d11888f3d72c5e3563a2372084c9a044a392147dc471b425c4eda39859aff8cb",
+      ".urp": "367130651e572212c9c9d705263af8eda9e0a9e338b9f30036f401a04135a573"
+    },
+    "readback": {
+      ".script": "69ac200624ab78a7f7f33f71df592be9dd2ddc6945be8f830de88f019386d06d",
+      ".txt": "d11888f3d72c5e3563a2372084c9a044a392147dc471b425c4eda39859aff8cb",
+      ".urp": "367130651e572212c9c9d705263af8eda9e0a9e338b9f30036f401a04135a573"
+    }
+  },
+  "delivery_mode": "full_upload_readback",
+  "fresh_controller_sha_verified": true,
+  "fresh_controller_checked_at": "2026-09-21T22:17:30+08:00",
+  "readback_source": "fresh_controller_get",
+  "safety_boundary": [
+    "ssh/scp file deploy only",
+    "no URScript send",
+    "no program load",
+    "no program start",
+    "no live bridge",
+    "no robot motion command"
+  ],
+  "supersedes": {
+    "path": "report/yield-live-transition-v1/contact-readback-selection-20260921T214929+0800.json",
+    "sha256": "d56f4c9ed6d5a45f6af8a3d8942bff3fdf22fa2acbdde01c036a0796525c5088",
+    "prior_schema": "contact-readback-selection-v2",
+    "prior_sha256": {
+      "local": {
+        ".script": "1e1b754c53efd77efcf3b483f1df434e5b83b3b3edc60872d6b85ee16c46898c",
+        ".txt": "afa5d05680aa1ce6a7dcb9cb74b480da01ad387ca31f3c1dfdc161adfffa0fcf",
+        ".urp": "458acefb7d001f20f38ce091c51647700624a6af82d682920972734d81838bc6"
+      },
+      "controller": {
+        ".script": "1e1b754c53efd77efcf3b483f1df434e5b83b3b3edc60872d6b85ee16c46898c",
+        ".txt": "afa5d05680aa1ce6a7dcb9cb74b480da01ad387ca31f3c1dfdc161adfffa0fcf",
+        ".urp": "458acefb7d001f20f38ce091c51647700624a6af82d682920972734d81838bc6"
+      },
+      "readback": {
+        ".script": "1e1b754c53efd77efcf3b483f1df434e5b83b3b3edc60872d6b85ee16c46898c",
+        ".txt": "afa5d05680aa1ce6a7dcb9cb74b480da01ad387ca31f3c1dfdc161adfffa0fcf",
+        ".urp": "458acefb7d001f20f38ce091c51647700624a6af82d682920972734d81838bc6"
+      }
+    }
+  }
+}
