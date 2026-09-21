@@ -26,10 +26,14 @@ from step5d_autotune_v4_r004.timing import MAX_FRESH_GAP_S
 from step5d_paper_outer_loop import Step5dOuterLoopConfig
 
 
-# A one-time live safety transition, not a change to the paper gains.  The
-# canonical task target is 5 N; a 1 N norm margin gives the RNN time to shed a
-# rising load before the shared 20 N raw-wrench guard is reached.
+# A live safety transition, not a change to the paper gains.  The canonical
+# task target is 5 N; a 1 N norm margin gives the RNN time to shed a rising
+# load before the shared 20 N raw-wrench guard is reached.  The transition is
+# re-armed after the measured load falls below the lower hysteresis threshold,
+# so a later force-rise episode cannot inherit stale RNN state from an earlier
+# episode.
 TASE_FORCE_PREEMPT_THRESHOLD_N = 6.0
+TASE_FORCE_PREEMPT_REARM_N = 5.0
 
 
 # Parameters copied from config/step5c_tase_paper_truth.json (Eq. 16/17).
@@ -71,10 +75,11 @@ TASE_PAPER_OUTER_BINDING = {
         'evidence_field': 'control_normal_n',
     },
     'force_preemptive_rnn_warm_start': {
-        'schema': 'tase-live-force-preempt-warm-start-v1',
+        'schema': 'tase-live-force-preempt-warm-start-v2',
         'threshold_n': TASE_FORCE_PREEMPT_THRESHOLD_N,
-        'condition': 'measured_force_norm >= threshold_n; one trigger per provider lifecycle',
-        'purpose': 'remove strict-RNN state lag at a rising load without raising the raw guard',
+        'rearm_threshold_n': TASE_FORCE_PREEMPT_REARM_N,
+        'condition': 'measured_force_norm crosses threshold_n after falling below rearm_threshold_n; one trigger per force-rise episode',
+        'purpose': 'remove strict-RNN state lag at each rising-load episode without raising the raw guard',
         'evidence_field': 'force_preempt_warm_start',
     },
 }
@@ -127,6 +132,8 @@ class TaseContactProvider(ContactCommandProvider):
         self.last_result = self.last_pause = None
         self.command_history = None
         self.force_preempt_warm_started = False
+        self.force_preempt_armed = True
+        self.force_preempt_episode = 0
         self.lifecycle_observer = ContactReadinessObserver(candidate.normal_filter_tau_s,
             max_dt_s=MAX_FRESH_GAP_S, strict_dt_upper=True)
         self.runtime = V4CalibratedRuntime(
@@ -175,6 +182,8 @@ class TaseContactProvider(ContactCommandProvider):
             'last_result': self.last_result,
             'last_pause': self.last_pause, 'command_history': self.command_history,
             'force_preempt_warm_started': self.force_preempt_warm_started,
+            'force_preempt_armed': self.force_preempt_armed,
+            'force_preempt_episode': self.force_preempt_episode,
             'filter': {'filtered_normal_n': self.lifecycle_observer.filtered_normal_n,
                 'last_log': None if self.lifecycle_observer.last_log is None else asdict(self.lifecycle_observer.last_log)}})
 
@@ -303,9 +312,17 @@ class TaseContactProvider(ContactCommandProvider):
                 filtered_normal_n=control_normal, internal_setpoint_n=internal_setpoint_n,
                 actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
             force_preempt_warm_start = False
+            measured_force_norm = float(sensor.force_norm_n)
+            # Hysteresis is deliberately based on the measured full-force
+            # channel.  The canonical filtered channel remains the evidence
+            # signal, while this conservative transition prevents an already
+            # rising load from being hidden by filter lag.  A low-force
+            # observation re-arms exactly one warm-start for the next episode.
+            if measured_force_norm < TASE_FORCE_PREEMPT_REARM_N:
+                self.force_preempt_armed = True
             if (
-                not self.force_preempt_warm_started
-                and float(sensor.force_norm_n) >= TASE_FORCE_PREEMPT_THRESHOLD_N
+                self.force_preempt_armed
+                and measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N
             ):
                 force_preempt_warm_start = bool(self.runtime.warm_start_for_twist(
                     actual_q=output.q_rad,
@@ -314,6 +331,8 @@ class TaseContactProvider(ContactCommandProvider):
                 ))
                 if force_preempt_warm_start:
                     self.force_preempt_warm_started = True
+                    self.force_preempt_armed = False
+                    self.force_preempt_episode += 1
             command = self.runtime.command(actual_q=output.q_rad, actual_qd=output.qd_rad_s,
                 actual_tcp_pose=output.tcp_pose_m_rad, desired_twist=twist,
                 actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
@@ -338,6 +357,10 @@ class TaseContactProvider(ContactCommandProvider):
                     command = replace(command, qdot=tuple(ramp.qdot))
             self._commit_clock(obs)
             self.phase = phase
+            predicted_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
+                command.qdot, dtype=float
+            )
+            approach_normal_velocity = float(-predicted_twist[2])
             self.last_result = {'phase': phase, 'sample_time_s': monotonic_s,
                 'qdot_rad_s': command.qdot,
                 'host_slew_scale': host_slew_scale,
@@ -348,6 +371,10 @@ class TaseContactProvider(ContactCommandProvider):
                 'measured_force_norm_n': float(sensor.force_norm_n),
                 'force_preempt_warm_start': force_preempt_warm_start,
                 'force_preempt_warm_started': self.force_preempt_warm_started,
+                'force_preempt_armed': self.force_preempt_armed,
+                'force_preempt_episode': self.force_preempt_episode,
+                'predicted_twist_m_s_rad_s': tuple(float(value) for value in predicted_twist),
+                'predicted_approach_normal_velocity_m_s': approach_normal_velocity,
                 'entry_time_s': t if phase == 'entry' else None,
                 'formal_time_s': t if phase == 'path' else None,
                 'actual_dt_s': actual_dt_s, 'solver': copy.deepcopy(self.runtime.last_solver_diagnostics),

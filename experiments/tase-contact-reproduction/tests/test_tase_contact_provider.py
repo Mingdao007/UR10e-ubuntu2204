@@ -138,6 +138,36 @@ def test_live_tase_force_preempt_warm_starts_rnn_once(provider):
     assert provider.last_result['force_preempt_warm_started'] is True
 
 
+def test_live_tase_force_preempt_rearms_after_low_force_episode(provider):
+    def run(now, force):
+        o, s = tick(provider, now, force=force)
+        s = replace(s, normal_load_n=force, force_norm_n=force)
+        provider.command(
+            output=o,
+            sensor=s,
+            monotonic_s=now,
+            actual_dt_s=.002,
+            mode='baseline',
+            internal_setpoint_n=1.,
+        )
+        return provider.last_result
+
+    first = run(.002, 8.)
+    assert first['force_preempt_warm_start'] is True
+    assert first['force_preempt_episode'] == 1
+    held = run(.004, 8.)
+    assert held['force_preempt_warm_start'] is False
+    assert held['force_preempt_episode'] == 1
+    rearmed = run(.006, 4.)
+    assert rearmed['force_preempt_armed'] is True
+    second = run(.008, 8.)
+    assert second['force_preempt_warm_start'] is True
+    assert second['force_preempt_episode'] == 2
+    assert second['predicted_approach_normal_velocity_m_s'] == pytest.approx(
+        -0.002, abs=2e-3
+    )
+
+
 def test_stale_observation_does_not_advance_control_state(provider):
     before=provider.snapshot();o,s=tick(provider,.1)
     s=replace(s,observed_at_s=.001)
