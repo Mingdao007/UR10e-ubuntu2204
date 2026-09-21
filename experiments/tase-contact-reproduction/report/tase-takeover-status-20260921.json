@@ -1,0 +1,70 @@
+{
+  "schema": "tase.takeover-status-v1",
+  "as_of": "2026-09-21",
+  "claim_scope": "integrated status; physical PATH is not accepted",
+  "worktree": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920",
+  "head": "b8620929",
+  "live_state": {
+    "current_state": "HOME_RECOVERED_AND_STOPPED",
+    "latest_preflight": "runs/preflight_20260921_after_unload_boost_fail/preflight_readonly.json",
+    "preflight_passed": true,
+    "dashboard": "STOPPED step5d_contact_home_v1.urp",
+    "safety": "NORMAL",
+    "tcp_speed_zero": true,
+    "live_writer_or_bridge_active": false,
+    "full_path_accepted": false
+  },
+  "recovery": {
+    "staged_home_success": true,
+    "successful_home_report": "report/tase-staged-home-recovery-20260921.json",
+    "latest_failed_attempt": "runs/tase-qualification-unload-boost-20260921T1600",
+    "automatic_home_success": true,
+    "failed_attempts_remain_failed": true
+  },
+  "qualification_attempts": {
+    "independent_direction_aware_success": "runs/tase-qualification-direction-aware-20260921T1528",
+    "formal_pilot_first_failure": "runs/tase-figure8-pilot-direction-aware-20260921T1535",
+    "formal_pilot_retry_failure": "runs/tase-figure8-pilot-direction-aware-retry-20260921T1545",
+    "unload_boost_single_failure": "runs/tase-qualification-unload-boost-20260921T1600",
+    "failure_reports": [
+      "report/tase-qualification-failure-20260921.json",
+      "report/tase-qualification-repeat-failure-20260921.json",
+      "report/tase-pilot-qualification-failure-20260921.json",
+      "report/tase-pilot-retry-qualification-failure-20260921.json",
+      "report/tase-qualification-unload-boost-failure-20260921.json"
+    ],
+    "live_repetition_status": "STOPPED_PENDING_OFFLINE_DIAGNOSIS"
+  },
+  "offline_research": {
+    "campaign_summary": "report/contact-yield-recovery-20260920/tase-research-campaign-20260921/summary.json",
+    "claim_scope": "offline proxy only; no robot/bridge/physical/human-push claim",
+    "tuning_units": 768,
+    "holdout_units": 160,
+    "methods": [
+      "TASE_RNN",
+      "TASE_RNN_MATURE",
+      "TASE_RNN_MATURE_MINUS",
+      "TASE_QP",
+      "TASE_IMPROVED"
+    ],
+    "compositions": [
+      "TASE_RNN_MATURE+LAC",
+      "TASE_RNN_MATURE+NAC",
+      "TASE_RNN_MATURE+SFC"
+    ],
+    "paired_ci_method": "10000 stratified paired bootstrap; equal case weight",
+    "threshold_n": 0.1
+  },
+  "manuscript": {
+    "worktree": "/home/andy/.codex-worktrees/aim-tensor-tmech-20260916",
+    "head": "ef29b48",
+    "pdf": "manuscript/aim2027/build/manuscript.pdf",
+    "pages": 7,
+    "visual_review": "PASS",
+    "quality_check": "PASS_WITHOUT_PHYSICAL_RESULTS",
+    "submission_ready": false,
+    "physical_results_present": false,
+    "reason": "manuscript preserves physical evidence boundary until a complete PATH is accepted"
+  },
+  "next_gate": "offline diagnosis of baseline force acquisition and review of the new unload boost; no live writer until a bounded, tested change and fresh package/read-back admission exist"
+}
