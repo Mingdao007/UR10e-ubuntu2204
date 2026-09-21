@@ -1,0 +1,49 @@
+{
+  "schema": "tase.qualification-guard-projection-only-failure-v1",
+  "claim_scope": "physical qualification failure and automatic recovery evidence; no PATH acceptance or controller promotion",
+  "attempt": {
+    "run": "experiments/tase-contact-reproduction/experiments/tase-contact-reproduction/runs/tase-qualification-guard-projection-only-20260921T083437-r1",
+    "method": "TASE_RNN_MATURE",
+    "commit": "480ea294",
+    "command": "supervise --action qualify --method TASE_RNN_MATURE",
+    "software_path_incidents_before_dispatch": 2,
+    "software_path_incident_scope": "prepare directory pre-created, then supervisor was first invoked with a path relative to the wrong root; neither opened a controller writer"
+  },
+  "qualification": {
+    "passed": false,
+    "path_accepted": false,
+    "error": "LiveWriterError: resident TP is STOPPED: reason=48 return_guard=0",
+    "samples": 15001,
+    "readiness_samples": 11734,
+    "filtered_max_n": 4.922457660005363,
+    "filtered_min_n": 0.12814396614484228,
+    "force_norm_max_n": 7.284989880006606,
+    "raw_max_n": 7.184361135516877,
+    "raw_min_n": -0.5365832446562098,
+    "torque_norm_max_nm": 0.07576198178291223,
+    "last_filtered_normal_n": 4.599667583668283,
+    "last_force_norm_n": 3.9458215091846873,
+    "last_raw_normal_n": 3.9300176867691823,
+    "readiness_gate": "unchanged 4-6 N filtered, 3-7 N raw, force norm <=7 N, torque <=0.30 Nm, continuous 10 s hold"
+  },
+  "diagnostic_observation": {
+    "largest_force_norm_sequence": 39631,
+    "largest_force_norm_n": 7.284989880006606,
+    "filtered_at_largest_force_norm_n": 4.759286142612302,
+    "normal_realization_before_peak_m_s": 0.00027048720616298553,
+    "normal_realization_at_peak_m_s": -0.0015302956684538388,
+    "normal_realization_after_peak_m_s": -0.001639461519466249,
+    "interpretation": "The early inward cap prevents a large inward realization, but a force rise can continue after the main 5.75 N transition while host slew and plant response move the realized command outward. This remains an offline diagnosis; it does not authorize a gate change or prove a new controller fix."
+  },
+  "recovery": {
+    "automatic_home_same_run": true,
+    "home_blocked": false,
+    "dashboard_after": "STOPPED step5d_contact_home_v1.urp",
+    "safety_after": "NORMAL",
+    "final_position_error_m": 3.2929379602750176e-05,
+    "final_orientation_error_rad": 9.794606080116396e-05,
+    "live_writer_or_bridge_active_after": false,
+    "source_receipt_remains_failed": true
+  },
+  "next_gate": "offline replay/source review of force-rise transition and workflow path normalization; no unchanged live qualification"
+}

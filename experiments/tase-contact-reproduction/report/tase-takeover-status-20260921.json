@@ -17,7 +17,7 @@
   "recovery": {
     "staged_home_success": true,
     "successful_home_report": "report/tase-staged-home-recovery-20260921.json",
-    "latest_failed_attempt": "runs/tase-qualification-unload-boost-20260921T1600",
+    "latest_failed_attempt": "experiments/tase-contact-reproduction/experiments/tase-contact-reproduction/runs/tase-qualification-guard-projection-only-20260921T083437-r1",
     "automatic_home_success": true,
     "failed_attempts_remain_failed": true,
     "supervised_lock_handoff_repair": {
@@ -40,10 +40,10 @@
       "threshold_n": 4.0,
       "delta_n": 0.5,
       "inward_cap_m_s": 0.0005,
-      "status": "READY_FOR_SINGLE_QUALIFICATION_AFTER_FRESH_ADMISSION",
+      "status": "PHYSICAL_QUALIFICATION_FAILED_RETAINED",
       "state_reset_policy": "projection_only_below_main_threshold",
       "focused_regression": "122 passed, 1 warning",
-      "physical_claim": "none"
+      "physical_claim": "no improvement claim; force norm still crossed unchanged readiness ceiling"
     }
   },
   "qualification_attempts": {
@@ -51,6 +51,7 @@
     "formal_pilot_first_failure": "runs/tase-figure8-pilot-direction-aware-20260921T1535",
     "formal_pilot_retry_failure": "runs/tase-figure8-pilot-direction-aware-retry-20260921T1545",
     "unload_boost_single_failure": "runs/tase-qualification-unload-boost-20260921T1600",
+    "guard_projection_only_single_failure": "experiments/tase-contact-reproduction/experiments/tase-contact-reproduction/runs/tase-qualification-guard-projection-only-20260921T083437-r1",
     "failure_reports": [
       "report/tase-qualification-failure-20260921.json",
       "report/tase-qualification-repeat-failure-20260921.json",
@@ -63,6 +64,12 @@
       "run": "runs/figure8-20260921T081409-498138",
       "report": "report/tase-pilot-preempt575-failure-20260921.json",
       "transient_diagnosis": "report/tase-force-transient-diagnosis-20260921.json",
+      "automatic_home_same_run": true,
+      "path_accepted": false
+    },
+    "latest_guard_projection_only_failure": {
+      "run": "experiments/tase-contact-reproduction/experiments/tase-contact-reproduction/runs/tase-qualification-guard-projection-only-20260921T083437-r1",
+      "report": "report/tase-qualification-guard-projection-only-failure-20260921.json",
       "automatic_home_same_run": true,
       "path_accepted": false
     }
@@ -98,5 +105,5 @@
     "physical_results_present": false,
     "reason": "manuscript preserves physical evidence boundary until a complete PATH is accepted"
   },
-  "next_gate": "fresh package/read-back admission, then at most one single qualification with automatic Home; keep this attempt denominator separate"
+  "next_gate": "offline replay/source review of force-rise transition and workflow path normalization; no unchanged live qualification"
 }
