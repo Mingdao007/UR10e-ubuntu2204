@@ -1,4 +1,5 @@
-# VERSION: 2026-09-21T0058Z_CONTACT_HOME_V1
+# VERSION: 2026-09-21T0654Z_CONTACT_HOME_V1
+# BOUNDED_RECOVERY: observed start to approved Home; translation<=3mm turn<=20mrad; historical v=0.040/0.090 m/s
 # ROLE: standalone immutable one-shot campaign Home positioning helper
 # TP_PROGRAM_ID: step5d_contact_home_v1
 # TARGET_POSE: p[0.462055181600, 0.177882596400, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
@@ -121,7 +122,7 @@ def step5d_contact_home_v1():
   local home_delta = pose_trans(pose_inv(target_pose), current_pose)
   local home_distance = sqrt(home_delta[0]*home_delta[0] + home_delta[1]*home_delta[1] + home_delta[2]*home_delta[2])
   local home_angle = sqrt(home_delta[3]*home_delta[3] + home_delta[4]*home_delta[4] + home_delta[5]*home_delta[5])
-  if current_pose[2] < 0.032 or home_distance > 0.080 or home_angle > 0.010:
+  if current_pose[2] < 0.032 or home_distance > 0.080 or home_angle > 0.020:
     textmsg("contact_home: clearance entry rejected; no motion")
     halt
   end

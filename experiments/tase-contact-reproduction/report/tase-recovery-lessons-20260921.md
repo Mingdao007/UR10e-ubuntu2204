@@ -21,3 +21,6 @@ The fourth attempt is the current hardware stop condition. All live writers,
 bridge processes, and control ownership were stopped. Offline work may proceed;
 the next physical action requires fresh evidence for the Home corridor and a
 new diagnostic, not a repeated attempt.
+| 11 | User-approved staged recovery was bound to the fresh 2026-09-21 14:53:39 HKT pose: vertical rise 12.411 mm, lateral transfer 0.353 mm, shortest SO(3) turn within 20 mrad; calibrated sampled IK max joint speed was 0.121 rad/s | Added a direct-plan rejection fallback that enters the monitored staged route, marks `bounded_recovery`/`clearance_entry`, and gives the clearance Home package a 20 mrad pre-correction guard. The final Home verifier remains 5 mrad; relief remains vertical-only and force release remains mandatory. | Local and fetched package validation PASS; controller triplets byte-equal; physical recovery pending. |
+
+The prior direct Home blocker is now covered by an explicitly approved staged route. The staged package has been uploaded and fresh-read-back verified. The original failed attempt remains failed; the next live step is the single recovery owner, followed only after verified Home by affected qualification and the complete Figure-eight.

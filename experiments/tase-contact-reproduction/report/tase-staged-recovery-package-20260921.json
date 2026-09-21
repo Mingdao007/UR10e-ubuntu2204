@@ -1,0 +1,122 @@
+{
+  "schema": "tase.staged-recovery-package-v1",
+  "claim_scope": "approved staged Home/relief package generation and controller read-back; no Load, Play, motion, force release, or Home acceptance",
+  "created_at": "2026-09-21T14:53:39+08:00",
+  "approval": "user approved all staged recovery geometry and requested uninterrupted workflow",
+  "source_preflight": "runs/preflight_20260921_staged_package/preflight_readonly.json",
+  "source_preflight_sha256": "e2a603e5e515b649ccecf3d39c56a38b3e9090ee06f4972a4d14b6d1f77687e3",
+  "plan": {
+    "needs_lift": true,
+    "lift_pose": [
+      0.46170653398801403,
+      0.17782840459175636,
+      0.033,
+      -2.032196976124031,
+      -2.3938231444000437,
+      0.016602644015407033
+    ],
+    "home_pose": [
+      0.4620551816,
+      0.1778825964,
+      0.033,
+      2.0331342431227566,
+      2.3949884238824652,
+      -2.2711768777011217e-22
+    ],
+    "start_pose": [
+      0.46170653398801403,
+      0.17782840459175636,
+      0.02058928901545644,
+      -2.032196976124031,
+      -2.3938231444000437,
+      0.016602644015407033
+    ],
+    "staged_recovery": true,
+    "route": "staged_clearance_orientation",
+    "direct_home_max_so3_angle_rad": 0.01,
+    "staged_max_so3_angle_rad": 0.02,
+    "staged_max_lateral_m": 0.003,
+    "direct_home_rejected": true,
+    "direct_home_rejection": "Home SO3 angle exceeds 10mrad"
+  },
+  "geometry": {
+    "pass": true,
+    "max_residual": 7.408250278544735e-12,
+    "max_joint_speed_rad_s": 0.12070644944715671,
+    "home_q": [
+      0.7256134420492133,
+      -1.8213289392700387,
+      -2.5495798058073658,
+      -0.34079408458631744,
+      1.5723007565210336,
+      3.7063398490298964
+    ],
+    "joint_delta": [
+      -0.0004043311021844076,
+      0.03250678273913743,
+      -0.000358290151848184,
+      -0.02146891942866358,
+      0.00013908202152190796,
+      -0.00048087736475688203
+    ],
+    "scope": "calibrated sampled geometry, not collision or force proof"
+  },
+  "package_dir": "programs/step5/step5d/contact-six-qp",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "artifacts": {
+    "step5d_contact_relief_v1": {
+      "script": {
+        "local": "ff4e3f76f7a97523f190d901aa8237439df5b9fd32afb83a6e2e7a4025fb3790",
+        "controller_readback": "ff4e3f76f7a97523f190d901aa8237439df5b9fd32afb83a6e2e7a4025fb3790",
+        "byte_equal": true
+      },
+      "txt": {
+        "local": "45c36f6f54eb23bf469caba18e4c94c975147dd11ec404341796d513eacdb7ec",
+        "controller_readback": "45c36f6f54eb23bf469caba18e4c94c975147dd11ec404341796d513eacdb7ec",
+        "byte_equal": true
+      },
+      "urp": {
+        "local": "03bd16b3919c91d9667290d09600d3b74223a65b59873cb8e87c8f60e9550f0c",
+        "controller_readback": "03bd16b3919c91d9667290d09600d3b74223a65b59873cb8e87c8f60e9550f0c",
+        "byte_equal": true
+      }
+    },
+    "step5d_contact_home_v1": {
+      "script": {
+        "local": "dab061a9ea97e036f8f89ff8a4ff8e4fda345fb5572b96715bea51a0195aa3bd",
+        "controller_readback": "dab061a9ea97e036f8f89ff8a4ff8e4fda345fb5572b96715bea51a0195aa3bd",
+        "byte_equal": true
+      },
+      "txt": {
+        "local": "2f7893a5f33ed74e4db20565d019c176cd50017905ba337226b9e225c5173970",
+        "controller_readback": "2f7893a5f33ed74e4db20565d019c176cd50017905ba337226b9e225c5173970",
+        "byte_equal": true
+      },
+      "urp": {
+        "local": "8a5becda2fe9f220cf5af1ba01a2ca9562b2fb6a74dc223eddebeeb0bee78140",
+        "controller_readback": "8a5becda2fe9f220cf5af1ba01a2ca9562b2fb6a74dc223eddebeeb0bee78140",
+        "byte_equal": true
+      }
+    }
+  },
+  "local_validations": {
+    "step5d_contact_relief_v1": true,
+    "step5d_contact_home_v1": true
+  },
+  "fetched_validations": {
+    "step5d_contact_relief_v1": true,
+    "step5d_contact_home_v1": true
+  },
+  "fresh_recovery_readback": {
+    "pass": true,
+    "observed_at_s": 1789973705.8366725,
+    "scope": "fresh GET of installed packages",
+    "basenames": [
+      "step5d_contact_relief_v1",
+      "step5d_contact_home_v1"
+    ]
+  },
+  "prior_package_backup": "runs/staged-recovery-package-20260921T145339-prior-current",
+  "motion_performed": false,
+  "next_action": "run single recovery owner with relief -> corrected-force release -> clearance Home; preserve original failed attempt"
+}
