@@ -15,7 +15,7 @@ PROTOCOL=618001
 # Single-admission contact package: one continuous ten-second qualification
 # feeds the following PATH attempt. This wire-semantic change gets a fresh
 # readable runtime revision and a fresh controller read-back.
-REVISION=21
+REVISION=22
 
 
 def transform(source,home,stamp):
@@ -100,6 +100,8 @@ def codex_r006_recovery_packet_guard(packet_reason, abs_normal_limit, force_norm
     return 49
   elif not codex_r006_qdot_ok():
     return 45
+  elif not codex_r006_actual_qd_ok(0.060000000):
+    return 76
   end
   return 0
 end
@@ -329,6 +331,7 @@ def build(home_path,output):
     manifest['numeric_sanity']={'duration_s':Task().duration_s,'span_m':[.08,.02],
         'peak_nominal_linear_speed_bound_m_s':Task().sanity()['speed_upper_bound_m_s'],
         'host_tangent_speed_cap_m_s':.01,'tp_joint_speed_limit_rad_s':.05,
+        'tp_actual_joint_speed_guard_rad_s':.06,
         'tp_speedj_acceleration_rad_s2':5.,'search_speed_m_s':.0002,
         'search_travel_limit_m':.015,'search_timeout_s':90.,'full_search_travel_time_s':75.,
         'raw_force_limit_n':20.,'raw_torque_limit_nm':2.,'fixed_orientation_approach_axis':[0,0,-1],

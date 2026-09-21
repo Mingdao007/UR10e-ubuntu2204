@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import math
 import time
+import json
+from typing import Mapping
 import numpy as np
 
 from contact_benchmark_kernel import ContactKernel, KernelDeadlineError
@@ -38,6 +40,7 @@ def validate_measured_observation(
     model,
     max_dt_s=.004,
     strict_dt_upper=False,
+    diagnostic_context: Mapping[str, object] | None = None,
 ):
     """Shared robot/sensor admission used by the sole measured-observation runtimes.
 
@@ -92,8 +95,22 @@ def validate_measured_observation(
         (6,),
         'raw TCP wrench',
     )
-    if np.max(np.abs(qd)) > .06:
-        raise ValueError('observed joint speed exceeds envelope')
+    max_abs_qd = float(np.max(np.abs(qd)))
+    if max_abs_qd > .06:
+        details: dict[str, object] = {
+            'limit_rad_s': 0.06,
+            'max_abs_actual_qd_rad_s': max_abs_qd,
+            'actual_qd_rad_s': tuple(float(value) for value in qd),
+            'controller_timestamp_s': controller_t,
+            'tcp_speed_m_s_rad_s': tuple(float(value) for value in finite(
+                robot['actual_TCP_speed'], (6,), 'TCP speed')),
+        }
+        if diagnostic_context:
+            details.update(dict(diagnostic_context))
+        raise ValueError(
+            'observed joint speed exceeds envelope: '
+            + json.dumps(details, sort_keys=True, separators=(',', ':'), default=str)
+        )
     # Limit all possible commands for a maximum 4ms hold at joint limits.
     lower = np.maximum((model.model.lowerPositionLimit - q) / .004, -.05)
     upper = np.minimum((model.model.upperPositionLimit - q) / .004, .05)

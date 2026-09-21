@@ -302,7 +302,7 @@ class TaseContactProvider(ContactCommandProvider):
         for name, value in state.items():
             setattr(self, name, value)
 
-    def _observe(self, output, sensor, now, dt, *, maximum=MAX_FRESH_GAP_S):
+    def _observe(self, output, sensor, now, dt, *, maximum=MAX_FRESH_GAP_S, phase=None):
         if not math.isfinite(dt) or not 0 < dt < maximum:
             raise ValueError('TASE actual interval outside mature timing bound')
         if sensor.stop_request or not output.safety_normal:
@@ -325,7 +325,14 @@ class TaseContactProvider(ContactCommandProvider):
             sensor_observed_at_s=sensor.observed_at_s, sample_time_s=now,
             last_sample_s=self.last_sample_s, last_controller_timestamp=self.last_controller_timestamp,
             last_sensor_timestamp=self.last_sensor_timestamp, freshness=self.freshness,
-            model=self.runtime.model, max_dt_s=maximum, strict_dt_upper=maximum>.004)
+            model=self.runtime.model, max_dt_s=maximum, strict_dt_upper=maximum>.004,
+            diagnostic_context={
+                'phase': phase,
+                'consumed_packet_sequence': getattr(output, 'consumed_packet_sequence', None),
+                'previous_command_qdot_rad_s': tuple(
+                    (getattr(self, 'command_history', None) or {}).get('previous_qdot', ())
+                ),
+            })
         return obs
 
     def _commit_clock(self, obs):
@@ -399,7 +406,10 @@ class TaseContactProvider(ContactCommandProvider):
             raise ValueError('unknown TASE phase')
         checkpoint = self.snapshot()
         try:
-            obs = self._observe(output, sensor, monotonic_s, actual_dt_s)
+            obs = self._observe(
+                output, sensor, monotonic_s, actual_dt_s,
+                phase=mode,
+            )
             elapsed = 0. if path_time_s is None else float(path_time_s)
             phase = 'baseline' if mode == 'baseline' else ('entry' if elapsed < 1. else 'path')
             t = elapsed-1. if phase == 'path' else elapsed

@@ -359,6 +359,24 @@ def codex_r006_qdot_ok():
   return True
 end
 
+def codex_r006_actual_qd_ok(limit):
+  # The packet qdot is an input envelope; the controller's measured joint
+  # speed is a separate safety fact. Keep this guard at the resident TP
+  # boundary so a command/actual mismatch fails closed at the source.
+  if not codex_r006_finite(limit, 1000000.0) or limit <= 0.0:
+    return False
+  end
+  local actual_qd = get_actual_joint_speeds()
+  local index = 0
+  while index < 6:
+    if not codex_r006_finite(actual_qd[index], limit):
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
 def codex_r006_packet_guard(packet_reason, abs_normal_limit, force_norm_limit, torque_limit):
   if packet_reason != 0:
     return packet_reason
@@ -380,6 +398,8 @@ def codex_r006_packet_guard(packet_reason, abs_normal_limit, force_norm_limit, t
     return 49
   elif not codex_r006_qdot_ok():
     return 45
+  elif not codex_r006_actual_qd_ok(0.060000000):
+    return 76
   end
   return 0
 end
@@ -659,6 +679,9 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       # Execute it so contact can progress from the lower acquisition
       # threshold to the sticky 1 N latch.
       speedj(baseline_qdot, 40.000000000, actual_dt)
+      if not codex_r006_actual_qd_ok(0.060000000):
+        return codex_r006_fault(epoch, ordinal, token, kind, consumed, 76, runtime_revision, runtime_extension)
+      end
       codex_r006_echo(epoch, ordinal, 21, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)
       sync()
     else:
@@ -689,6 +712,9 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
         # calibrated Jacobian gate proves pure-normal baseline motion before
         # the single writer publishes this bounded six-joint command.
         speedj(baseline_qdot, 40.000000000, actual_dt)
+        if not codex_r006_actual_qd_ok(0.060000000):
+          return codex_r006_fault(epoch, ordinal, token, kind, consumed, 76, runtime_revision, runtime_extension)
+        end
         prior_setpoint = setpoint
         prior_baseline_successes = baseline_successes
         codex_r006_echo(epoch, ordinal, 21, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)
@@ -733,6 +759,9 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       end
       local path_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
       speedj(path_qdot, 40.000000000, actual_path_dt)
+      if not codex_r006_actual_qd_ok(0.060000000):
+        return codex_r006_fault(epoch, ordinal, token, kind, consumed, 76, runtime_revision, runtime_extension)
+      end
       path_elapsed_s = path_elapsed_s + actual_path_dt
       codex_r006_echo(epoch, ordinal, 25, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)
     end

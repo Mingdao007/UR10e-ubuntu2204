@@ -5,7 +5,7 @@ import pytest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 from contact_laws import ContactLaw
 from build_contact_qp import build
-from contact_benchmark_runtime import ContactRuntime
+from contact_benchmark_runtime import ContactRuntime, validate_measured_observation
 from contact_benchmark_kernel import KernelDeadlineError
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 
@@ -67,3 +67,29 @@ def test_complete_adapter_deadline_rolls_back_state_and_clocks(lib):
             runtime.step(robot=robot,wrench_tcp=[1,0,-1,0,0,0],sensor_observed_at_s=100.,
                          sample_time_s=100.,phase='baseline',force_reference_n=1.)
         assert runtime.snapshot()==before
+
+
+def test_actual_joint_speed_rejection_keeps_pairing_diagnostics(lib):
+    with ContactLaw.from_config('MSFC') as law:
+        runtime, robot = fixture(law, lib)
+        robot['actual_qd'] = [0.0, 0.061, 0.0, -0.02, 0.0, 0.0]
+        with pytest.raises(ValueError, match='observed joint speed exceeds envelope') as caught:
+            validate_measured_observation(
+                robot=robot,
+                wrench_tcp=[0, 0, -5, 0, 0, 0],
+                sensor_observed_at_s=100.0,
+                sample_time_s=100.0,
+                last_sample_s=None,
+                last_controller_timestamp=None,
+                last_sensor_timestamp=None,
+                freshness=runtime.freshness,
+                model=runtime.model,
+                diagnostic_context={
+                    'consumed_packet_sequence': 42877,
+                    'paired_command_qdot_rad_s': (0.0,) * 6,
+                },
+            )
+        message = str(caught.value)
+        assert '"actual_qd_rad_s":[0.0,0.061,0.0,-0.02,0.0,0.0]' in message
+        assert '"consumed_packet_sequence":42877' in message
+        assert '"paired_command_qdot_rad_s":[0.0,0.0,0.0,0.0,0.0,0.0]' in message
