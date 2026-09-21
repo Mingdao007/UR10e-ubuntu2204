@@ -1,0 +1,32 @@
+{
+  "schema": "tase.pilot-preempt575-qualification-failure-v1",
+  "claim_scope": "physical first-qualification failure plus same-run automatic Home evidence; no PATH acceptance",
+  "run": "runs/figure8-20260921T081409-498138",
+  "method": "TASE_RNN_MATURE",
+  "candidate": {
+    "commit": "5694abe8",
+    "force_preempt_threshold_n": 5.75,
+    "rearm_threshold_n": 5.0
+  },
+  "failure": {
+    "success": false,
+    "error": "LiveWriterError: five_newton_acquisition_timeout",
+    "filtered_max_n": 4.933348264657374,
+    "force_norm_max_n": 12.42165380171251,
+    "raw_max_n": 11.927793261782668,
+    "readiness_samples": 11690,
+    "samples": 15001,
+    "full_path_accepted": false
+  },
+  "automatic_home": {
+    "success": true,
+    "same_supervisor_run": true,
+    "home_blocked": false,
+    "route": "direct",
+    "final_position_error_m": 1.8487775378490914e-05,
+    "final_orientation_error_rad": 6.067260287426689e-05,
+    "fresh_post_failure_preflight": "runs/preflight_20260921_after_pilot_fail/preflight_readonly.json"
+  },
+  "interpretation": "The earlier preempt candidate did not establish stable physical acquisition across a fresh formal pilot start. The attempt remains failed; no threshold or readiness gate was widened, and no PATH or controller promotion claim is made.",
+  "next_action": "offline replay/source diagnosis only"
+}

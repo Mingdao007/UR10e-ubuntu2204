@@ -3,10 +3,10 @@
   "as_of": "2026-09-21",
   "claim_scope": "integrated status; physical PATH is not accepted",
   "worktree": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920",
-  "head": "c15942c2",
+  "head": "PENDING_COMMIT",
   "live_state": {
     "current_state": "HOME_RECOVERED_AND_STOPPED",
-    "latest_preflight": "runs/preflight_20260921_preempt575/preflight_readonly.json",
+    "latest_preflight": "runs/preflight_20260921_after_pilot_fail/preflight_readonly.json",
     "preflight_passed": true,
     "dashboard": "STOPPED step5d_contact_home_v1.urp",
     "safety": "NORMAL",
@@ -32,7 +32,8 @@
       "rearm_threshold_n": 5.0,
       "offline_replay": "report/tase-force-preempt-threshold-replay-20260921.json",
       "focused_regression": "121 passed, 1 warning",
-      "fresh_preflight": "runs/preflight_20260921_preempt575/preflight_readonly.json"
+      "fresh_preflight": "runs/preflight_20260921_preempt575/preflight_readonly.json",
+      "latest_pilot_outcome": "FAIL_FIRST_QUALIFICATION_AUTO_HOME_SUCCESS"
     }
   },
   "qualification_attempts": {
@@ -47,7 +48,13 @@
       "report/tase-pilot-retry-qualification-failure-20260921.json",
       "report/tase-qualification-unload-boost-failure-20260921.json"
     ],
-    "live_repetition_status": "STOPPED_PENDING_OFFLINE_DIAGNOSIS"
+    "live_repetition_status": "STOPPED_PENDING_OFFLINE_DIAGNOSIS",
+    "latest_formal_pilot_failure": {
+      "run": "runs/figure8-20260921T081409-498138",
+      "report": "report/tase-pilot-preempt575-failure-20260921.json",
+      "automatic_home_same_run": true,
+      "path_accepted": false
+    }
   },
   "offline_research": {
     "campaign_summary": "report/contact-yield-recovery-20260920/tase-research-campaign-20260921/summary.json",
@@ -80,5 +87,5 @@
     "physical_results_present": false,
     "reason": "manuscript preserves physical evidence boundary until a complete PATH is accepted"
   },
-  "next_gate": "offline diagnosis of baseline force acquisition and review of the new unload boost; no live writer until a bounded, tested change and fresh package/read-back admission exist"
+  "next_gate": "offline diagnosis of baseline force acquisition variability; no further live writer until a new bounded, tested change and fresh package/read-back admission exist"
 }

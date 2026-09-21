@@ -77,7 +77,7 @@ TASE_PAPER_OUTER_BINDING = {
             'delay T from actual dt',
             'shared live integral and normal-velocity safety limits',
             'one-sided raw-normal rise envelope for live force protection',
-            'hysteretic RNN warm-start on each measured force-rise episode above 6 N',
+            'hysteretic RNN warm-start on each measured force-rise episode above threshold_n',
         ],
     'live_force_measurement_envelope': {
         'schema': 'tase-live-force-rise-envelope-v1',
