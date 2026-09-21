@@ -293,6 +293,67 @@ def _write_receipts(directory, row, proof, contract):
         provenance='continuous supervisor-rtde.jsonl from before Load/Play'))
 
 
+def _complete_path_home_recovered(run_dir: Path, result: dict) -> bool:
+    """Recognize a sealed PATH whose only late failure was writer cleanup.
+
+    The live writer owns the RTDE socket and may close it immediately after
+    sealing the terminal Home proof. In that case the resident observer can
+    report ``socket closed`` while the immutable dispatch receipt already
+    proves a complete 550-bin PATH. Keep the original supervisor failure in
+    the result, but allow the outer lifecycle to close successfully only when
+    the recovery owner has independently verified Home.
+    """
+    if not isinstance(result, dict) or result.get("success") is True:
+        return False
+    if "attempt cleanup or physical stop confirmation failed" not in str(result.get("error", "")):
+        return False
+    recovery = result.get("autonomous_home_recovery")
+    if not isinstance(recovery, dict) or recovery.get("success") is not True:
+        return False
+    try:
+        dispatch = json.loads((Path(run_dir) / "dispatch_receipt.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    if (
+        dispatch.get("command") != "pilot"
+        or dispatch.get("evidence_eligible") is not True
+        or dispatch.get("error")
+    ):
+        return False
+    path = dispatch.get("live_path") or {}
+    metrics = dispatch.get("evidence_metrics") or {}
+    timing = metrics.get("timing_evidence") or {}
+    if (
+        path.get("kind") != "r013_compat_60"
+        or path.get("protocol_id") != "figure8_window60_r013_compat_v1"
+        or metrics.get("complete") is not True
+        or metrics.get("coverage_complete") is not True
+        or metrics.get("objective_eligible") is not True
+        or metrics.get("interrupted") is not False
+        or int(metrics.get("complete_bins", -1)) != 550
+        or int(metrics.get("required_bins", -1)) != 550
+        or float(metrics.get("path_duration_s", 0.0)) < 60.0
+        or float(metrics.get("formal_metric_duration_s", 0.0)) < 55.0
+        or metrics.get("timing_gate_passed") is not True
+        or timing.get("successful") is not True
+    ):
+        return False
+    attempts = dispatch.get("attempts") or []
+    if not attempts or not isinstance(attempts[-1], dict):
+        return False
+    evidence = attempts[-1].get("evidence") or {}
+    home_proof = evidence.get("home_proof") or {}
+    if (
+        evidence.get("complete_bins") != 550
+        or evidence.get("return_gate_passed") is not True
+        or evidence.get("safety_gate_passed") is not True
+        or home_proof.get("stationary") is not True
+        or home_proof.get("fixed_home_route") is not True
+    ):
+        return False
+    return True
+
+
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--action',choices=['resident-check','qualify','pilot'],required=True)
@@ -421,6 +482,14 @@ def main(argv=None):
                     'home_blocked':True,
                     'home_blocked_reason':f'{type(fallback_exc).__name__}: {fallback_exc}',
                 }
+        if _complete_path_home_recovered(a.run_dir, result):
+            # Preserve the original cleanup failure and recovery receipt for
+            # audit, while making the lifecycle outcome usable by the
+            # sequential tuner after independent Home verification.
+            result['original_supervisor_success'] = False
+            result['completion_status'] = 'COMPLETE_PATH_HOME_RECOVERED_AFTER_CLEANUP_FAILURE'
+            result['attempt_failure_preserved'] = True
+            result['success'] = True
     with (a.run_dir/'supervisor-result.json').open('x') as out: json.dump(result,out,indent=2)
     print(json.dumps(result,indent=2))
     return 0 if result['success'] else 1
