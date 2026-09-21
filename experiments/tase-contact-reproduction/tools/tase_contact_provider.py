@@ -396,6 +396,8 @@ class TaseContactProvider(ContactCommandProvider):
             baseline_residual_hold = False
             baseline_residual_tangential_m_s = 0.0
             baseline_residual_angular_rad_s = 0.0
+            baseline_normal_projection_applied = False
+            baseline_normal_projection_target_m_s = 0.0
             if mode == 'baseline':
                 baseline_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
                     command.qdot, dtype=float
@@ -406,8 +408,46 @@ class TaseContactProvider(ContactCommandProvider):
                     baseline_residual_tangential_m_s > TASE_BASELINE_TANGENTIAL_TOLERANCE_M_S
                     or baseline_residual_angular_rad_s > TASE_BASELINE_ANGULAR_TOLERANCE_RAD_S
                 ):
-                    command = replace(command, qdot=(0.0,) * 6)
+                    # The baseline contract permits only normal motion.  A
+                    # zero-vector hold removed the residual motion but also
+                    # discarded the normal component that maintains contact;
+                    # on the bench that made the qualification alternate
+                    # between over-load and contact loss.  Keep the exact
+                    # normal component of the solved J*qdot and realize it
+                    # with the same calibrated Jacobian.  This is a
+                    # projection at the provider boundary, not a gain or
+                    # envelope change.  If the calibrated Jacobian cannot
+                    # realize that bounded normal-only command, fail closed.
+                    jacobian = np.asarray(command.jacobian_6x6, dtype=float)
+                    if jacobian.shape != (6, 6) or not np.all(np.isfinite(jacobian)):
+                        raise ValueError('baseline normal projection Jacobian is invalid')
+                    normal_target = np.zeros(6, dtype=float)
+                    normal_target[2] = float(baseline_twist[2])
+                    try:
+                        projected_qdot = np.linalg.solve(jacobian, normal_target)
+                    except np.linalg.LinAlgError as exc:
+                        raise ValueError('baseline normal projection is infeasible') from exc
+                    if not np.all(np.isfinite(projected_qdot)):
+                        raise ValueError('baseline normal projection is nonfinite')
+                    projected_twist = jacobian @ projected_qdot
+                    if not np.all(np.isfinite(projected_twist)) or float(
+                        np.max(np.abs(projected_twist - normal_target))
+                    ) > 1e-9:
+                        raise ValueError('baseline normal projection residual is nonzero')
+                    qdot_limit = min(
+                        float(self.solver_profile.qdot_limit_rad_s),
+                        0.15
+                        if self.runtime.motion_profile is None
+                        else float(self.runtime.motion_profile.qdot_cap_rad_s),
+                    )
+                    if float(np.max(np.abs(projected_qdot))) > qdot_limit + 1e-12:
+                        raise ValueError(
+                            'baseline normal projection exceeds joint velocity envelope'
+                        )
+                    command = replace(command, qdot=tuple(float(value) for value in projected_qdot))
                     baseline_residual_hold = True
+                    baseline_normal_projection_applied = True
+                    baseline_normal_projection_target_m_s = float(baseline_twist[2])
             # The mature writer intentionally rejects provider output that
             # exceeds its typed host-slew envelope.  TASE owns the complete
             # outer loop, so apply the same-direction scalar ramp at this
@@ -454,6 +494,8 @@ class TaseContactProvider(ContactCommandProvider):
                 'baseline_residual_hold': baseline_residual_hold,
                 'baseline_residual_tangential_m_s': baseline_residual_tangential_m_s,
                 'baseline_residual_angular_rad_s': baseline_residual_angular_rad_s,
+                'baseline_normal_projection_applied': baseline_normal_projection_applied,
+                'baseline_normal_projection_target_m_s': baseline_normal_projection_target_m_s,
                 'predicted_twist_m_s_rad_s': tuple(float(value) for value in predicted_twist),
                 'predicted_approach_normal_velocity_m_s': approach_normal_velocity,
                 'entry_time_s': t if phase == 'entry' else None,

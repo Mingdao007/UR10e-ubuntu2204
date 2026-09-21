@@ -1,0 +1,74 @@
+{
+  "schema": "tase.qualification-repeat-failure-v1",
+  "claim_scope": "physical qualification failure denominator and recovery evidence; no PATH acceptance or controller promotion",
+  "method": "TASE_RNN_MATURE",
+  "attempts": [
+    {
+      "run": "runs/tase-figure8-full-20260921T1501-staged-home",
+      "phase": "qualification-1 of pilot entry",
+      "success": false,
+      "error": "LiveWriterError: resident TP is STOPPED: reason=48 return_guard=0",
+      "baseline_diag": {
+        "filtered_max_n": 12.841062034996323,
+        "filtered_min_n": -0.004921516230964453,
+        "force_norm_max_n": 14.868161011715102,
+        "last": {
+          "filtered_normal_n": 5.119126326292632,
+          "force_norm_n": 5.237968982597165,
+          "mode": 1,
+          "raw_normal_n": 5.231418211452096,
+          "setpoint_n": 5.0,
+          "torque_norm_nm": 0.022243162456617723
+        },
+        "raw_max_n": 14.834181715632408,
+        "raw_min_n": -0.9104803234821257,
+        "readiness_samples": 6583,
+        "samples": 14626,
+        "torque_norm_max_nm": 0.1640346690095457
+      },
+      "motion_commands_from_supervisor": 0,
+      "automatic_home_success": true,
+      "home_route": "direct",
+      "home_position_error_m": 1.651578453306894e-05,
+      "home_orientation_error_rad": 4.290384764515541e-05
+    },
+    {
+      "run": "runs/tase-qualification-retry-20260921T1515",
+      "phase": "single fresh qualification retry",
+      "success": false,
+      "error": "LiveWriterError: resident TP is STOPPED: reason=48 return_guard=0",
+      "baseline_diag": {
+        "filtered_max_n": 13.565658884128892,
+        "filtered_min_n": -0.007213053098790769,
+        "force_norm_max_n": 16.740612457896574,
+        "last": {
+          "filtered_normal_n": 0.29646831402421087,
+          "force_norm_n": 0.04141585545095797,
+          "mode": 1,
+          "raw_normal_n": 0.005250301320435025,
+          "setpoint_n": 5.0,
+          "torque_norm_nm": 0.0005353175805146225
+        },
+        "raw_max_n": 16.542172140672385,
+        "raw_min_n": -1.0007574635375724,
+        "readiness_samples": 251,
+        "samples": 15003,
+        "torque_norm_max_nm": 0.17070705339029085
+      },
+      "motion_commands_from_supervisor": 0,
+      "automatic_home_success": true,
+      "home_route": "direct",
+      "home_position_error_m": 3.0213843761224752e-05,
+      "home_orientation_error_rad": 9.31496560128467e-05
+    }
+  ],
+  "same_root_cause": "both runs reached TP state 21 and expired the unchanged 30 s post-latch baseline watchdog with reason 48; no PATH command was accepted",
+  "diagnostic_change_before_next_live": "provider baseline normal-only calibrated-Jacobian projection; offline replay and 97 focused tests passed",
+  "automatic_home_policy": "AUTO_HOME_WHEN_COMMANDABLE",
+  "fresh_after_retry_preflight": "runs/preflight_20260921_after_qualification_retry/preflight_readonly.json",
+  "fresh_after_retry_preflight_status": "PASS; Dashboard STOPPED step5d_contact_home_v1.urp, Safety NORMAL, RTDE speed zero, no live writer",
+  "stop_condition": "two same-reason live failures are preserved; no unchanged third attempt",
+  "source_hashes": {
+    "provider": "b233673e10fbcf1ece45590ce2307426727b76fe4a3bf15dc03ccaa928d5c119"
+  }
+}

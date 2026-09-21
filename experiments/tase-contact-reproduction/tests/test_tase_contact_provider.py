@@ -139,7 +139,7 @@ def test_live_tase_baseline_holds_non_normal_realization(provider, monkeypatch):
 
     def residual_command(**kwargs):
         command = original_command(**kwargs)
-        return replace(command, qdot=(0.01, 0.0, 0.0, 0.0, 0.0, 0.0))
+        return replace(command, qdot=(0.01, 0.0, 0.01, 0.0, 0.0, 0.0))
 
     monkeypatch.setattr(provider.runtime, 'command', residual_command)
     command = provider.command(
@@ -150,8 +150,12 @@ def test_live_tase_baseline_holds_non_normal_realization(provider, monkeypatch):
         mode='baseline',
         internal_setpoint_n=1.,
     )
-    assert command.qdot == (0.0,) * 6
+    realized = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(command.qdot)
+    assert command.qdot != (0.0,) * 6
+    assert np.linalg.norm(realized[:2]) <= 2e-6
+    assert np.linalg.norm(realized[3:]) <= 2e-6
     assert provider.last_result['baseline_residual_hold'] is True
+    assert provider.last_result['baseline_normal_projection_applied'] is True
     assert provider.last_result['baseline_residual_tangential_m_s'] > 2e-6
 
 

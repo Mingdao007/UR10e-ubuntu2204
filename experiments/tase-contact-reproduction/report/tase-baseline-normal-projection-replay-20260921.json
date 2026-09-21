@@ -1,0 +1,132 @@
+{
+  "schema": "tase.baseline-normal-projection-replay-v1",
+  "claim_scope": "offline provider replay and interface verification only; no physical qualification or PATH acceptance",
+  "created_from_commit": "b7f7cd26",
+  "repair_source": "tools/tase_contact_provider.py",
+  "repair_source_sha256": "b233673e10fbcf1ece45590ce2307426727b76fe4a3bf15dc03ccaa928d5c119",
+  "trigger": {
+    "first_qualification": "runs/tase-figure8-full-20260921T1501-staged-home",
+    "retry_qualification": "runs/tase-qualification-retry-20260921T1515",
+    "same_failure": "TP reason 48 post-latch baseline watchdog; no PATH",
+    "first_baseline_diag": {
+      "success": false,
+      "error": "LiveWriterError: resident TP is STOPPED: reason=48 return_guard=0",
+      "baseline_diag": {
+        "filtered_max_n": 12.841062034996323,
+        "filtered_min_n": -0.004921516230964453,
+        "force_norm_max_n": 14.868161011715102,
+        "last": {
+          "filtered_normal_n": 5.119126326292632,
+          "force_norm_n": 5.237968982597165,
+          "mode": 1,
+          "raw_normal_n": 5.231418211452096,
+          "setpoint_n": 5.0,
+          "torque_norm_nm": 0.022243162456617723
+        },
+        "raw_max_n": 14.834181715632408,
+        "raw_min_n": -0.9104803234821257,
+        "readiness_samples": 6583,
+        "samples": 14626,
+        "torque_norm_max_nm": 0.1640346690095457
+      },
+      "motion_commands_from_supervisor": 0,
+      "automatic_home_success": true,
+      "home_route": "direct",
+      "home_position_error_m": 1.651578453306894e-05,
+      "home_orientation_error_rad": 4.290384764515541e-05
+    },
+    "retry_baseline_diag": {
+      "success": false,
+      "error": "LiveWriterError: resident TP is STOPPED: reason=48 return_guard=0",
+      "baseline_diag": {
+        "filtered_max_n": 13.565658884128892,
+        "filtered_min_n": -0.007213053098790769,
+        "force_norm_max_n": 16.740612457896574,
+        "last": {
+          "filtered_normal_n": 0.29646831402421087,
+          "force_norm_n": 0.04141585545095797,
+          "mode": 1,
+          "raw_normal_n": 0.005250301320435025,
+          "setpoint_n": 5.0,
+          "torque_norm_nm": 0.0005353175805146225
+        },
+        "raw_max_n": 16.542172140672385,
+        "raw_min_n": -1.0007574635375724,
+        "readiness_samples": 251,
+        "samples": 15003,
+        "torque_norm_max_nm": 0.17070705339029085
+      },
+      "motion_commands_from_supervisor": 0,
+      "automatic_home_success": true,
+      "home_route": "direct",
+      "home_position_error_m": 3.0213843761224752e-05,
+      "home_orientation_error_rad": 9.31496560128467e-05
+    }
+  },
+  "prior_policy": {
+    "name": "baseline_residual_zero_hold",
+    "behavior": "zero the complete qdot when realized tangential or angular Jqdot exceeded 2e-6",
+    "observed_consequence": "normal contact-maintenance component was discarded on the same tick"
+  },
+  "new_policy": {
+    "name": "baseline_normal_only_jacobian_projection",
+    "behavior": "retain the solved Jqdot z component and solve the same calibrated 6x6 Jacobian for [0,0,vz,0,0,0]",
+    "tangential_tolerance_m_s": 2e-06,
+    "angular_tolerance_rad_s": 2e-06,
+    "joint_velocity_envelope_unchanged": true,
+    "fail_closed_conditions": [
+      "invalid Jacobian",
+      "nonfinite or nonzero projection residual",
+      "projected qdot beyond existing joint envelope"
+    ],
+    "solver_state": "continues from the original RNN command; only provider boundary realization is replaced"
+  },
+  "recorded_replay": {
+    "source_runs": [
+      "runs/figure8-20260921T020723-450698",
+      "runs/tase-figure8-full-20260921T1501-staged-home",
+      "runs/tase-qualification-retry-20260921T1515"
+    ],
+    "old_unheld_run": {
+      "run": "runs/figure8-20260921T020723-450698",
+      "baseline_ticks": 14918,
+      "projection_ticks_under_new_policy": 14194,
+      "projection_fraction": 0.951468025204451,
+      "original_max_tangential_m_s": 0.0005668722380282413,
+      "original_max_angular_rad_s": 0.001797437785370869,
+      "projected_max_tangential_m_s": 8.672661995114348e-07,
+      "projected_max_angular_rad_s": 1.9797519846732654e-06,
+      "projected_max_abs_qdot_rad_s": 0.00904858124694954
+    },
+    "current_zero_hold_runs_replayed": [
+      {
+        "run": "runs/tase-figure8-full-20260921T1501-staged-home",
+        "baseline_ticks": 14626,
+        "projection_ticks_under_new_policy": 14044,
+        "projection_fraction": 0.9602078490359633,
+        "original_max_tangential_m_s": 0.0002910085563502598,
+        "original_max_angular_rad_s": 0.0011874007649967137,
+        "projected_max_tangential_m_s": 1.9992040155994525e-06,
+        "projected_max_angular_rad_s": 1.998042370294762e-06,
+        "projected_max_abs_qdot_rad_s": 0.009058665910401453
+      },
+      {
+        "run": "runs/tase-qualification-retry-20260921T1515",
+        "baseline_ticks": 15003,
+        "projection_ticks_under_new_policy": 14293,
+        "projection_fraction": 0.9526761314403785,
+        "original_max_tangential_m_s": 0.00034000733211412464,
+        "original_max_angular_rad_s": 0.0011875406505800327,
+        "projected_max_tangential_m_s": 1.999451904643435e-06,
+        "projected_max_angular_rad_s": 1.999143574557034e-06,
+        "projected_max_abs_qdot_rad_s": 0.009059385087930244
+      }
+    ],
+    "replay_method": "reconstructed R004 output/SensorPacket streams from raw_sensor.jsonl and robot_frames.jsonl; current provider executed sequentially with the recorded setpoints and actual dt; no device writes"
+  },
+  "offline_validation": {
+    "focused_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONNOUSERSITE=1 .venv-contact-six/bin/python -m pytest -q tests/test_tase_offline_baselines.py tests/test_step5d_paper_outer_loop.py tests/test_tase_method_registry.py tests/test_contact_method_registry.py tests/test_contact_yield_method_registry.py tests/test_tase_improved_offline.py tests/test_tase_contact_provider.py tests/test_contact_qualification_provider.py tests/test_contact_benchmark_provider.py tests/test_contact_benchmark_runtime.py tests/test_contact_benchmark_outer.py tests/test_contact_benchmark_timing.py tests/test_tase_figure8_reference_binding.py",
+    "result": "97 passed, 1 warning"
+  },
+  "live_decision": "Do not repeat live qualification until this provider patch is package-validated, uploaded/read back, and a fresh single qualification is authorized by the unchanged gates."
+}
