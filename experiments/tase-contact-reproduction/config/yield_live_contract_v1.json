@@ -6,13 +6,13 @@
   "controller_directory": "/programs/andyl/kunwei/step5",
   "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
   "package_dir": "programs/step5/step5d/contact-six-qp",
-  "revision": 21,
+  "revision": 22,
   "protocol": 618001,
   "runtime_protocol": 606006,
-  "runtime_revision": 21,
+  "runtime_revision": 22,
   "runtime_extension_protocol": 618001,
   "readable_runtime_identity": [
-    21,
+    22,
     618001
   ],
   "identity_projection": "contact_six_legacy_wire_abi",
@@ -29,6 +29,7 @@
     "raw_force_n": 20.0,
     "raw_torque_nm": 2.0,
     "qdot_cap_rad_s": 0.05,
+    "actual_joint_speed_guard_rad_s": 0.06,
     "search_speed_m_s": 0.0002,
     "search_travel_max_m": 0.015
   },

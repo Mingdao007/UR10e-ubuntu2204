@@ -1,17 +1,17 @@
 {
   "schema": "contact-readback-registration-v1",
-  "registered_at": "2026-09-21T06:39:12+08:00",
+  "registered_at": "2026-09-21T21:19:42+08:00",
   "program": "step5d_contact_six_qp_v1",
-  "selection": "report/yield-live-transition-v1/contact-readback-selection-20260921T063352+0800.json",
-  "selection_sha256": "da91a1b50ca776ed80bc985a99a7806c9d852f2ca08da7377d1666bad00b901c",
-  "fresh_delivery_manifest": "runs/controller_readback_step5d_contact_six_qp_v1_20260921_063347/manifest.json",
-  "fresh_delivery_manifest_sha256": "9a9385ae108fcd1829b4c22fb2bef4a13693767d4a90a5865757b127713372ac",
-  "previous_selection": "report/yield-live-transition-v1/contact-readback-selection.json",
-  "previous_selection_sha256": "37cf5f27702eeccad6b9838cc9c7656b6f2a439ce1566a5213e35662299080c4",
+  "selection": "report/yield-live-transition-v1/contact-readback-selection-20260921T211745+0800.json",
+  "selection_sha256": "89490a21c9b5d63811e3870f0cb92ac3fdb05193feea585de4ae5567942ba68a",
+  "fresh_delivery_manifest": "runs/tase-package-v22-20260921T1320Z/manifest.json",
+  "fresh_delivery_manifest_sha256": "c9aec83e9603c1f7e304d224f700d7fc63eb43ca6de68faf66199b007c98f2ba",
+  "previous_selection": "report/yield-live-transition-v1/contact-readback-selection-20260921T174912+0800.json",
+  "previous_selection_sha256": "be63dee224fc7e8152fca6f8e9ae2a1c5d4dc3880c4a196bc60e23409ff844bf",
   "triplet_sha256": {
-    ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
-    ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
-    ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+    ".script": "e78ae2adae73e1d8c1886297f10930061d543338ef340f06fa982adfd3ec4653",
+    ".txt": "a9f7ca29f5da1c727b9e1a266412f63b46b1cd1f8256a1f1e8ef60ce8d439815",
+    ".urp": "57cfba24771f4a0c35ea67178be8b4aec2f333ea2f59cb7248e26f2a8929a531"
   },
   "current_stage_updated": true,
   "stage_table_updated": true,

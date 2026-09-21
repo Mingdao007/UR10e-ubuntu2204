@@ -11320,7 +11320,15 @@
       "campaign": {
         "fresh_qualifications": 3,
         "pd_bootstrap": 10,
-        "named_7d": ["P", "D", "tau", "I_on_log2", "I_off", "Ko", "Kp"],
+        "named_7d": [
+          "P",
+          "D",
+          "tau",
+          "I_on_log2",
+          "I_off",
+          "Ko",
+          "Kp"
+        ],
         "target_force_n": 5.0,
         "anchor_damping": 28.0,
         "pending_max": 2,
@@ -11333,8 +11341,14 @@
           "target_force_n": 5.0,
           "target_is_optimizer_dimension": false,
           "path_stage": 25,
-          "window_half_open_s": [5.0, 60.0],
-          "legacy_shadow_window_half_open_s": [0.0, 55.0],
+          "window_half_open_s": [
+            5.0,
+            60.0
+          ],
+          "legacy_shadow_window_half_open_s": [
+            0.0,
+            55.0
+          ],
           "bin_width_s": 0.1,
           "required_complete_bins": 550,
           "bin_statistic": "mean_filtered_normal_then_absolute_error",
@@ -11343,13 +11357,23 @@
           "raw_path_evidence_required": true
         },
         "dispatch_transition": "one_physical_coordinate_at_most_0.25_octave",
-        "outcome_enum": ["OBJECTIVE", "SAFE_NONTRAINABLE", "CODE_OR_EVIDENCE_BUG", "SAFETY_OR_RETURN_FAILURE"],
+        "outcome_enum": [
+          "OBJECTIVE",
+          "SAFE_NONTRAINABLE",
+          "CODE_OR_EVIDENCE_BUG",
+          "SAFETY_OR_RETURN_FAILURE"
+        ],
         "no_trial_count_limit": true
       },
       "timing": {
         "nominal_hz": 500.0,
         "minimum_rate_hz": 460.0,
-        "independent_gates": ["writer", "rtde", "kunwei", "tp"],
+        "independent_gates": [
+          "writer",
+          "rtde",
+          "kunwei",
+          "tp"
+        ],
         "absolute_deadline": true
       },
       "acceptance": {
@@ -11430,7 +11454,15 @@
         "fresh_qualifications": 3,
         "first_warm_start_exact_trials": 25,
         "second_warm_start_exact_trials": 25,
-        "named_axes": ["P", "D", "tau", "I_mode", "I_on_log2", "Ko", "Kp"],
+        "named_axes": [
+          "P",
+          "D",
+          "tau",
+          "I_mode",
+          "I_on_log2",
+          "Ko",
+          "Kp"
+        ],
         "target_force_n": 5.0,
         "target_force_is_optimizer_dimension": false,
         "unbounded_quarter_octave_graph": true,
@@ -11438,12 +11470,23 @@
         "pending_max": 2,
         "physical_inflight_max": 1,
         "attempt_sequence": "positive_monotonic_unbounded",
-        "outcome_enum": ["OBJECTIVE", "SAFE_NONTRAINABLE", "CODE_OR_EVIDENCE_BUG", "SAFETY_OR_RETURN_FAILURE"],
+        "outcome_enum": [
+          "OBJECTIVE",
+          "SAFE_NONTRAINABLE",
+          "CODE_OR_EVIDENCE_BUG",
+          "SAFETY_OR_RETURN_FAILURE"
+        ],
         "objective": {
           "schema": "step5d.force-objective/v3-r006",
           "path_stage": 25,
-          "formal_window_half_open_s": [5.0, 60.0],
-          "legacy_r004_shadow_window_half_open_s": [0.0, 55.0],
+          "formal_window_half_open_s": [
+            5.0,
+            60.0
+          ],
+          "legacy_r004_shadow_window_half_open_s": [
+            0.0,
+            55.0
+          ],
           "bin_width_s": 0.1,
           "required_complete_bins": 550,
           "raw_bundle_cold_read": true,
@@ -11460,7 +11503,12 @@
         "absolute_deadline": true,
         "active_lease_s": 0.08,
         "source_stall_stop_s": 0.08,
-        "independent_gates": ["writer", "rtde", "kunwei", "tp"]
+        "independent_gates": [
+          "writer",
+          "rtde",
+          "kunwei",
+          "tp"
+        ]
       },
       "acceptance": {
         "offline_source_closure_required": true,
@@ -11517,26 +11565,26 @@
         "stage_id": "step5d_contact_six_qp_v1",
         "program": "step5d_contact_six_qp_v1",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
-        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T174912+0800.json",
+        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T211745+0800.json",
         "controller_readback_status": "verified_current"
       },
       "package_delivery": {
         "controller_readback_verified": true,
         "controller_readback_status": "verified_current",
-        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T174912+0800.json",
-        "controller_readback_manifest_sha256": "be63dee224fc7e8152fca6f8e9ae2a1c5d4dc3880c4a196bc60e23409ff844bf",
+        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T211745+0800.json",
+        "controller_readback_manifest_sha256": "89490a21c9b5d63811e3870f0cb92ac3fdb05193feea585de4ae5567942ba68a",
         "delivery_mode": "full_upload_readback",
         "fresh_controller_sha_verified": true,
-        "fresh_controller_checked_at": "2026-09-21T17:49:12+08:00",
+        "fresh_controller_checked_at": "2026-09-21T21:17:45+08:00",
         "sha256": {
-          ".script": "3426050bb3b5ee7d47b11947e93a4cbdc7183c46f7cd7acd276a7e71a03a065f",
-          ".txt": "c59e654499ee7904ce656b4a741b926e20791183fe3b7f61dab2e592bb2588b9",
-          ".urp": "5562973257f238a67716aab233b3482a4266d45e716db2c81212d13445425489"
+          ".script": "e78ae2adae73e1d8c1886297f10930061d543338ef340f06fa982adfd3ec4653",
+          ".txt": "a9f7ca29f5da1c727b9e1a266412f63b46b1cd1f8256a1f1e8ef60ce8d439815",
+          ".urp": "57cfba24771f4a0c35ea67178be8b4aec2f333ea2f59cb7248e26f2a8929a531"
         }
       },
       "entrypoint": "scripts/contact-yield-live.sh",
       "entrypoint_status": "lifecycle_repaired_software_verified",
-      "runtime_revision": 21,
+      "runtime_revision": 22,
       "task": [
         "constant_force",
         "unknown_surface",
@@ -11565,11 +11613,11 @@
         "controller_readback_verified": true,
         "controller_readback_status": "verified_current",
         "sha256": {
-          ".script": "3426050bb3b5ee7d47b11947e93a4cbdc7183c46f7cd7acd276a7e71a03a065f",
-          ".txt": "c59e654499ee7904ce656b4a741b926e20791183fe3b7f61dab2e592bb2588b9",
-          ".urp": "5562973257f238a67716aab233b3482a4266d45e716db2c81212d13445425489"
+          ".script": "e78ae2adae73e1d8c1886297f10930061d543338ef340f06fa982adfd3ec4653",
+          ".txt": "a9f7ca29f5da1c727b9e1a266412f63b46b1cd1f8256a1f1e8ef60ce8d439815",
+          ".urp": "57cfba24771f4a0c35ea67178be8b4aec2f333ea2f59cb7248e26f2a8929a531"
         },
-        "source_delivery_manifest": "runs/tase-package-readback-20260921/controller_readback_step5d_contact_six_qp_v1_20260921_174908/manifest.json"
+        "source_delivery_manifest": "runs/tase-package-v22-20260921T1320Z/manifest.json"
       },
       "liveprep_status": {
         "state": "awaiting_live_authorization",
