@@ -1,0 +1,52 @@
+{
+  "schema": "tase.takeover-status-v3",
+  "as_of": "2026-09-21",
+  "worktree": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920",
+  "head": "219454be",
+  "software": {
+    "single_qualification_chain": "implemented",
+    "fixed_baseline_contact_primitive": "implemented and replayed",
+    "cpp_replay_core": "ctest 2/2",
+    "focused_python_tests": "49 passed, 1 warning",
+    "tp_readback": "revision 21, local/controller/fetched-back SHA equal",
+    "autotuner": "implemented but not started because no complete PATH observation exists"
+  },
+  "live_state": {
+    "latest_attempt": "runs/tase-figure8-fixed-baseline-20260921T102833Z",
+    "first_failure": "five_newton_acquisition_timeout before PATH admission",
+    "full_path_accepted": false,
+    "autotuner_campaign_complete": false,
+    "home_recovery": {
+      "policy": "AUTO_HOME_WHEN_COMMANDABLE",
+      "attempts": 2,
+      "home_motion_dispatched": false,
+      "blocked_reason": "RTDE stationarity predicate false; recovery owner observed residual motion",
+      "latest_observer": "runs/tase-figure8-fixed-baseline-20260921T102833Z/post-failure-stationarity-observer-20260921T105000Z.json"
+    },
+    "dashboard": "STOPPED step5d_contact_six_qp_v1.urp",
+    "safety": "NORMAL",
+    "live_writer_or_bridge_active": false
+  },
+  "metrics": {
+    "filtered_max_n": 4.60230952230233,
+    "force_norm_max_n": 7.729575228951145,
+    "raw_max_n": 7.641550596174897,
+    "readiness_samples": 10037,
+    "sample_count": 15000,
+    "post_failure_observed_max_tcp_speed_m_s": 0.0026582326370133934,
+    "post_failure_observed_max_qd_rad_s": 0.0035532459150999784
+  },
+  "next_gate": "obtain fresh verified stationarity, complete monitored Home, then reassess the fixed-baseline diagnosis; do not start autotuner or repeat unchanged qualification",
+  "claim_boundary": "no full PATH, no autotuner result, no controller comparison, and no physical precision claim",
+  "evidence": [
+    "runs/tase-figure8-fixed-baseline-20260921T102833Z/dispatch_receipt.json",
+    "runs/tase-figure8-fixed-baseline-20260921T102833Z/supervisor-result.json",
+    "runs/tase-figure8-fixed-baseline-20260921T102833Z/baseline-frames.json",
+    "runs/tase-figure8-fixed-baseline-20260921T102833Z/raw_sensor.jsonl",
+    "runs/tase-figure8-fixed-baseline-20260921T102833Z/published_packets.jsonl",
+    "runs/tase-figure8-fixed-baseline-20260921T102833Z/video.mkv",
+    "runs/tase-figure8-fixed-baseline-20260921T102833Z-autonomous-home-retry-20260921T103059Z/result.json",
+    "runs/tase-figure8-fixed-baseline-20260921T102833Z-autonomous-home-retry-20260921T103131Z/result.json",
+    "runs/tase-figure8-fixed-baseline-20260921T102833Z/post-failure-stationarity-observer-20260921T105000Z.json"
+  ]
+}
