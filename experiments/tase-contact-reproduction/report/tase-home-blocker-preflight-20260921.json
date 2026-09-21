@@ -1,0 +1,43 @@
+{
+  "schema": "tase.home-blocker-preflight-v1",
+  "claim_scope": "read-only current-state admission evidence; no Home command, ARM, Play, or motion",
+  "preflight": "runs/preflight_20260921_tase_current_v3/preflight_readonly.json",
+  "preflight_sha256": "7a6d43b2fb3af38fccaea59532e12a213528f6837827674344b05b71a88d3afb",
+  "preflight_ok": true,
+  "dashboard": {
+    "is in remote control": "true",
+    "safetymode": "Safetymode: NORMAL",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: false",
+    "programState": "STOPPED step5d_contact_six_qp_v1.urp"
+  },
+  "writer_process": {
+    "active_writers": [],
+    "ok": true
+  },
+  "current_tcp_pose_m_rad": [
+    0.46169515194737043,
+    0.17781641615128657,
+    0.020573274520831936,
+    -2.032162804063862,
+    -2.393815475277199,
+    0.01667715165810941
+  ],
+  "approved_home_pose_m_rad": [
+    0.4620551816,
+    0.1778825964,
+    0.033,
+    2.0331342431227566,
+    2.3949884238824652,
+    -2.2711768777011217e-22
+  ],
+  "position_error_m": 0.012432115962727227,
+  "orientation_error_rad": 0.010724475626845248,
+  "orientation_error_mrad": 10.724475626845248,
+  "home_policy": {
+    "existing_max_so3_angle_rad": 0.01,
+    "decision": "BLOCKED",
+    "error": "ValueError: Home SO3 angle exceeds 10mrad"
+  },
+  "next_action": "Require a new approved recovery geometry or external physical-state change; do not widen the existing Home corridor or retry unchanged."
+}
