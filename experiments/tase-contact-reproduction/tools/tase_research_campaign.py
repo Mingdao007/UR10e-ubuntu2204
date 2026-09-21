@@ -220,7 +220,7 @@ def _candidate_distance(left: Mapping[str, Any], right: Mapping[str, Any]) -> fl
 
 
 def _propose_bo(method: str, observed: list[dict[str, Any]], proposal_index: int) -> dict[str, Any]:
-    """Deterministic history-dependent lower-confidence-bound proposal."""
+    """Deterministic Gaussian-process lower-confidence-bound proposal."""
     pool = _candidate_pool(method)
     used = {_candidate_key(item["candidate"]) for item in observed if item.get("budget_stage") in {"initial", "bo"}}
     available = [candidate for candidate in pool if _candidate_key(candidate) not in used]
@@ -237,13 +237,22 @@ def _propose_bo(method: str, observed: list[dict[str, Any]], proposal_index: int
     if not grouped:
         return dict(available[proposal_index % len(available)])
     observations = [(candidates_by_key[key], float(np.mean(values))) for key, values in grouped.items()]
+    points = [point for point, _ in observations]
+    scores = np.asarray([score for _, score in observations], dtype=float)
+    prior = float(np.mean(scores))
+    length_scale = 0.45
+    observation_noise = 0.01
+    kernel = np.asarray(
+        [[math.exp(-(_candidate_distance(left, right) ** 2) / (2.0 * length_scale ** 2)) for right in points] for left in points],
+        dtype=float,
+    )
+    system = kernel + (observation_noise ** 2) * np.eye(len(points))
+    alpha = np.linalg.solve(system, scores - prior)
     def acquisition(candidate: Mapping[str, Any]) -> tuple[float, str]:
-        weights = np.asarray([math.exp(-(_candidate_distance(candidate, point) ** 2) / (2.0 * 0.45 ** 2)) for point, _ in observations])
-        scores = np.asarray([score for _, score in observations])
-        total = float(np.sum(weights))
-        prediction = float(np.dot(weights, scores) / total) if total > 1e-12 else float(np.mean(scores))
-        uncertainty = 1.0 / math.sqrt(max(total, 1e-12))
-        return prediction - 0.05 * uncertainty, _candidate_key(candidate)
+        cross = np.asarray([math.exp(-(_candidate_distance(candidate, point) ** 2) / (2.0 * length_scale ** 2)) for point in points])
+        prediction = prior + float(cross @ alpha)
+        variance = max(0.0, 1.0 - float(cross @ np.linalg.solve(system, cross)))
+        return prediction - 1.96 * math.sqrt(variance), _candidate_key(candidate)
     return dict(min(available, key=acquisition))
 
 
@@ -317,7 +326,7 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
             force_n += DT_S * (-stiffness * normal_velocity - 0.7 * (force_n - FORCE_TARGET_N))
             force_n += 0.15 * math.sin(index * 0.11) if case_name != "plane" else 0.0
             force_n = float(np.clip(force_n, 0.0, RAW_FORCE_LIMIT_N - 1e-6))
-            rows.append({"time_s": index * DT_S, "dt_s": DT_S, "age_s": observation["state_age_s"], "normal_force_n": force_n, "normal_error_n": force_n - FORCE_TARGET_N, "force_norm_n": float(np.linalg.norm(observation["raw_force_base_n"])), "path_error_m": path_error, "qdot_norm_rad_s": float(np.linalg.norm(qdot)), "saturated": bool(np.any(np.isclose(qdot, QDOT_LIMIT_RAD_S, atol=1e-8))), "normal_velocity_m_s": normal_velocity, "realization_residual_norm": realization_residual, "stiffness_n_per_m": stiffness})
+            rows.append({"time_s": index * DT_S, "dt_s": DT_S, "age_s": observation["state_age_s"], "normal_force_n": force_n, "normal_error_n": force_n - FORCE_TARGET_N, "force_norm_n": float(np.linalg.norm(observation["raw_force_base_n"])), "path_error_m": path_error, "qdot_norm_rad_s": float(np.linalg.norm(qdot)), "saturated": bool(np.any(np.isclose(np.abs(qdot), QDOT_LIMIT_RAD_S, atol=1e-8))), "normal_velocity_m_s": normal_velocity, "realization_residual_norm": realization_residual, "stiffness_n_per_m": stiffness})
             position = position + DT_S * actual_twist[:3]
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
@@ -328,15 +337,22 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
     return {"schema": ATTEMPT_SCHEMA, "attempt_id": attempt_id, "method": method, "candidate": dict(candidate), "case": case_name, "trial_key": trial_key or attempt_id, "proxy_only": True, "surface_geometry_provided_to_controller": False, "metrics": metrics}
 
 
-def _ci95(values: list[float]) -> dict[str, Any]:
+def _ci95(values: list[tuple[str, float]], *, seed: int) -> dict[str, Any]:
     if not values:
         return {"n": 0, "mean": None, "lower": None, "upper": None}
-    mean = float(np.mean(values))
-    if len(values) == 1:
-        half = 0.0
-    else:
-        half = 1.96 * float(np.std(values, ddof=1)) / math.sqrt(len(values))
-    return {"n": len(values), "mean": mean, "lower": mean - half, "upper": mean + half}
+    groups: dict[str, list[float]] = {}
+    for case, value in values:
+        groups.setdefault(case, []).append(float(value))
+    case_means = [float(np.mean(group)) for group in groups.values()]
+    mean = float(np.mean(case_means))
+    rng = np.random.default_rng(seed)
+    bootstrap = np.empty(10000, dtype=float)
+    for index in range(len(bootstrap)):
+        bootstrap[index] = float(np.mean([
+            np.mean(rng.choice(group, size=len(group), replace=True))
+            for group in groups.values()
+        ]))
+    return {"n": len(values), "mean": mean, "lower": float(np.percentile(bootstrap, 2.5)), "upper": float(np.percentile(bootstrap, 97.5)), "case_count": len(groups), "case_means": case_means, "ci_method": "stratified paired bootstrap percentile; 10000 resamples; equal case weight"}
 
 
 def run_campaign(*, output_dir: Path, qp_library: Path, config: CampaignConfig = CampaignConfig()) -> dict[str, Any]:
@@ -426,13 +442,13 @@ def run_campaign(*, output_dir: Path, qp_library: Path, config: CampaignConfig =
     for method in METHODS:
         if method == PRIMARY_METHOD:
             continue
-        diffs: list[float] = []
+        diffs: list[tuple[str, float]] = []
         for a in holdout:
             key = (a["block"], a["case"])
             b = base_map.get(key)
             if a["method"] == method and b is not None and not a["metrics"]["failed"] and not b["metrics"]["failed"]:
-                diffs.append(float(a["metrics"]["normal_force_mae_n"]) - float(b["metrics"]["normal_force_mae_n"]))
-        ci = _ci95(diffs); ci["improvement_threshold_n"] = 0.10; ci["supported_improvement"] = bool(ci["upper"] is not None and ci["upper"] <= -0.10); paired[method] = ci
+                diffs.append((a["case"], float(a["metrics"]["normal_force_mae_n"]) - float(b["metrics"]["normal_force_mae_n"])))
+        ci = _ci95(diffs, seed=config.seed ^ int(_sha({"ci_method": method})[:8], 16)); ci["improvement_threshold_n"] = 0.10; ci["supported_improvement"] = bool(ci["upper"] is not None and ci["upper"] <= -0.10); paired[method] = ci
     attempts_path = out / "attempts.jsonl"
     holdout_path = out / "holdout.jsonl"
     attempts_path.write_text("".join(json.dumps(a, sort_keys=True) + "\n" for a in attempts), encoding="ascii")
@@ -447,7 +463,9 @@ def run_campaign(*, output_dir: Path, qp_library: Path, config: CampaignConfig =
             "cases": list(CASES),
             "budget": {"initial": config.initial_units, "bo": config.bo_units, "repeat": config.repeat_units, "holdout_rounds": config.holdout_rounds},
             "cases_per_tuning_unit": len(CASES),
-            "bo_acquisition": "history-dependent Gaussian-kernel lower-confidence bound on case-balanced mean MAE",
+            "bo_acquisition": "history-dependent Gaussian-process RBF lower-confidence bound on case-balanced mean MAE",
+            "ci_estimand": "macro-average paired normal-force MAE difference over available cases",
+            "ci_method": "stratified paired bootstrap percentile; 10000 resamples; equal case weight",
             "paired_holdout_seed_contract": "holdout:block:case shared across methods",
             "paired_holdout_units": config.holdout_rounds * len(CASES),
             "normal_force_target_n": FORCE_TARGET_N,

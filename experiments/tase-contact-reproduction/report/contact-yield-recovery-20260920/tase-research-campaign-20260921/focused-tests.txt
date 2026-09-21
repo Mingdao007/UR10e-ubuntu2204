@@ -5,4 +5,4 @@
     __ConstructUnitsValue = collections.namedtuple('__ConstructUnitsValue', ['tag', 'conversion_constant'])
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-57 passed, 1 warning in 14.21s
+57 passed, 1 warning in 15.18s

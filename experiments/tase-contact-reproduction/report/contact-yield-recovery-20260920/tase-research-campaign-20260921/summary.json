@@ -1,7 +1,7 @@
 {
   "artifacts": {
-    "attempts_sha256": "32793868d0475a0e42bdc7a170b43c5e449876a0dc58db91ae271b7c79546a9c",
-    "holdout_sha256": "a7783ffa93f259c8ec5b5276469e50108cfa710f67b553401035ae8b9eaa2b69"
+    "attempts_sha256": "b947ad62d9c06f8f4bdaf98b6c214bc8df699aa2a5c771019ebae885859ae706",
+    "holdout_sha256": "9c1c3b65fe9d49ebca49618d0da97102c4113762df9b1d38f04a2980205f24d8"
   },
   "attempt_denominators": {
     "failed_holdout": 70,
@@ -23,8 +23,8 @@
       "candidate": {
         "force_contact_gate_n": 0.25,
         "force_integral_leak_tau_s": 0.625,
-        "force_integral_limit_n_s": 0.5,
-        "normal_weight": 80.0
+        "force_integral_limit_n_s": 1.5,
+        "normal_weight": 140.0
       },
       "eligible_training_attempts": 80,
       "eligible_training_candidates": 20,
@@ -44,7 +44,7 @@
       "candidate": {
         "epsilon": 0.018500000000000003,
         "lambda_update_sign": "plus",
-        "sigr_exponent_r": 0.30000000000000004
+        "sigr_exponent_r": 0.25
       },
       "eligible_training_attempts": 80,
       "eligible_training_candidates": 20,
@@ -55,7 +55,7 @@
       "candidate": {
         "epsilon": 0.014,
         "lambda_update_sign": "minus",
-        "sigr_exponent_r": 0.30000000000000004
+        "sigr_exponent_r": 0.25
       },
       "eligible_training_attempts": 80,
       "eligible_training_candidates": 20,
@@ -96,7 +96,7 @@
       "candidate": {
         "epsilon": 0.014,
         "lambda_update_sign": "minus",
-        "sigr_exponent_r": 0.30000000000000004
+        "sigr_exponent_r": 0.25
       },
       "eligible_training_attempts": 80,
       "eligible_training_candidates": 20,
@@ -106,28 +106,50 @@
   },
   "paired_vs_primary": {
     "TASE_IMPROVED": {
+      "case_count": 4,
+      "case_means": [
+        3.934680639022109e-06,
+        0.005840345318724483,
+        0.006695758506691707,
+        0.007565470778528205
+      ],
+      "ci_method": "stratified paired bootstrap percentile; 10000 resamples; equal case weight",
       "improvement_threshold_n": 0.1,
-      "lower": 0.0036939595603712847,
-      "mean": 0.0050263773211680005,
+      "lower": 0.005019395508156542,
+      "mean": 0.005026377321145854,
       "n": 20,
       "supported_improvement": false,
-      "upper": 0.006358795081964717
+      "upper": 0.00503289426947787
     },
     "TASE_QP": {
+      "case_count": 2,
+      "case_means": [
+        1.170892991802369e-06,
+        -0.00342265746276893
+      ],
+      "ci_method": "stratified paired bootstrap percentile; 10000 resamples; equal case weight",
       "improvement_threshold_n": 0.1,
-      "lower": -0.0028291950504700275,
+      "lower": -0.001712377779809586,
       "mean": -0.0017107432848885637,
       "n": 10,
       "supported_improvement": false,
-      "upper": -0.0005922915193070999
+      "upper": -0.0017093520279127827
     },
     "TASE_RNN": {
+      "case_count": 4,
+      "case_means": [
+        0.6439288815448062,
+        -0.1159550494658383,
+        1.0414832676568255,
+        1.4670363962917148
+      ],
+      "ci_method": "stratified paired bootstrap percentile; 10000 resamples; equal case weight",
       "improvement_threshold_n": 0.1,
-      "lower": 0.4967255820838397,
+      "lower": 0.7478278200146472,
       "mean": 0.759123374006877,
       "n": 20,
       "supported_improvement": false,
-      "upper": 1.0215211659299144
+      "upper": 0.7683526278317957
     },
     "TASE_RNN_MATURE+LAC": {
       "improvement_threshold_n": 0.1,
@@ -154,6 +176,14 @@
       "upper": null
     },
     "TASE_RNN_MATURE_MINUS": {
+      "case_count": 4,
+      "case_means": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "ci_method": "stratified paired bootstrap percentile; 10000 resamples; equal case weight",
       "improvement_threshold_n": 0.1,
       "lower": 0.0,
       "mean": 0.0,
@@ -163,7 +193,7 @@
     }
   },
   "protocol": {
-    "bo_acquisition": "history-dependent Gaussian-kernel lower-confidence bound on case-balanced mean MAE",
+    "bo_acquisition": "history-dependent Gaussian-process RBF lower-confidence bound on case-balanced mean MAE",
     "budget": {
       "bo": 12,
       "holdout_rounds": 5,
@@ -177,6 +207,8 @@
       "stiffness_change"
     ],
     "cases_per_tuning_unit": 4,
+    "ci_estimand": "macro-average paired normal-force MAE difference over available cases",
+    "ci_method": "stratified paired bootstrap percentile; 10000 resamples; equal case weight",
     "composition_methods": [
       "TASE_RNN_MATURE+LAC",
       "TASE_RNN_MATURE+NAC",
