@@ -19,11 +19,12 @@ Usage: contact-yield-live.sh <status|supervise|qualify|pilot|stop> [options]
 status     Software/registry/package identity. No devices.
 supervise  Continuously observe Load/Play, resident-check or writer, and Stop.
 qualify    Open the mature writer, ARM, qualification attempt, stop/Home.
-pilot      Open, ARM, PATH --method SFC|DSFC|MSFC --duration 2|10|full.
+pilot      Open, ARM, PATH --method TASE_RNN_MATURE|SFC --duration 2|10|r013_60|full.
 stop       Signal the bound owner process and read its physical stop receipt.
 
 Native parameters are seeds, not physical qualification.
-Short 2s/10s rungs are diagnostic. Full period is 62.831853 s.
+Short 2s/10s rungs are diagnostic. r013_60 is the explicit 60 s R013-compatible
+measurement window; full period remains 62.831853 s.
 Hardware admission uses run-dir receipts; this script does not invent them.
 EOF
 }
