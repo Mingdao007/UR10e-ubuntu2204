@@ -6,7 +6,7 @@
   "head": "c15942c2",
   "live_state": {
     "current_state": "HOME_RECOVERED_AND_STOPPED",
-    "latest_preflight": "runs/preflight_20260921_after_lock_handoff/preflight_readonly.json",
+    "latest_preflight": "runs/preflight_20260921_preempt575/preflight_readonly.json",
     "preflight_passed": true,
     "dashboard": "STOPPED step5d_contact_home_v1.urp",
     "safety": "NORMAL",
@@ -25,6 +25,14 @@
       "report": "report/tase-recovery-workflow-lock-race-20260921.json",
       "offline_regression": "PASS",
       "behavior": "seal and STOP under the supervisor lock, release it, then invoke the monitored Home owner once"
+    },
+    "force_preempt_candidate": {
+      "commit": "5694abe8",
+      "threshold_n": 5.75,
+      "rearm_threshold_n": 5.0,
+      "offline_replay": "report/tase-force-preempt-threshold-replay-20260921.json",
+      "focused_regression": "121 passed, 1 warning",
+      "fresh_preflight": "runs/preflight_20260921_preempt575/preflight_readonly.json"
     }
   },
   "qualification_attempts": {
