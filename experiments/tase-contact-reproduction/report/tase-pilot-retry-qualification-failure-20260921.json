@@ -31,8 +31,14 @@
   },
   "readiness_segments": {
     "required_hold_s": 10.0,
-    "max_contiguous_s": null,
-    "note": "same reason48 watchdog; full segment audit retained in raw traces"
+    "max_contiguous_s": 8.970371667994186,
+    "note": "same reason48 watchdog; full segment audit retained in raw traces",
+    "segments_seconds": [
+      8.970371667994186,
+      2.9341960739984643,
+      2.393865749007091,
+      1.4540028049959801
+    ]
   },
   "interpretation": "The second formal pilot first phase again expired the unchanged reason 48 baseline watchdog after the independent single qualification had passed. Automatic Home and fresh preflight passed. This closes the live retry budget for the current diagnostic; no PATH was admitted.",
   "fresh_after_failure_preflight": "runs/preflight_20260921_after_pilot_retry_fail/preflight_readonly.json",
