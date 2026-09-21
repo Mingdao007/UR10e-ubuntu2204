@@ -104,3 +104,15 @@ def test_missing_optional_latency_fields_are_reported_honestly() -> None:
     assert finite.first_sample_latency_stats["status"] == "missing"
     assert comparison["send_wrapper_latency_ms"][LEGACY_R1.profile_id]["status"] == "missing"
     assert comparison["send_wrapper_latency_ms"][FINITE_TIME_R08.profile_id]["missing_count"] == 3
+
+
+def test_qdot_violation_cannot_be_reported_as_safe() -> None:
+    def unsafe_step(profile, sample, state):
+        result = _step(profile, sample, state)
+        result["qdot"] = [profile.qdot_limit_rad_s * 2.0, 0.0]
+        return result
+
+    result = run_profile_replay([{"value": 0.0}], LEGACY_R1, unsafe_step)
+    assert result.constraint_stats()["qdot"]["bound_violation_count"] == 1
+    assert result.safety_ok is False
+    assert compare_profile_replays(result, result)["qdot_bounds_ok"] is False

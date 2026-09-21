@@ -196,6 +196,16 @@ def test_invalid_fusion_frame_resets_sfc_state() -> None:
     np.testing.assert_allclose(fusion.sfc_state, np.zeros(2))
 
 
+def test_non_numeric_normal_is_a_governed_invalid_state() -> None:
+    fusion = TaseSfcFusion((0.0, 0.0, 1.0))
+    fusion.fuse((0.0, 0.0, 0.05, 0.0, 0.0, 0.0), (0.01, 0.0, 0.0, 0.0, 0.0, 0.0), (0.0, 0.0, 1.0), phase="PATH")
+    with pytest.raises(FusionError, match="finite"):
+        fusion.fuse((0.0,) * 6, (0.0,) * 6, ("bad", 0.0, 1.0), phase="PATH")
+    assert fusion.sfc_enabled is False
+    assert fusion.sfc_state.tolist() == [0.0, 0.0]
+    assert "invalid_state" in fusion.reset_events
+
+
 def test_final_qp_fails_closed_when_normal_is_unrealizable() -> None:
     qp = FinalBoundedJointVelocityQP()
     with pytest.raises(FusionError, match="preserve the TASE normal"):
@@ -208,4 +218,57 @@ def test_final_qp_fails_closed_when_normal_is_unrealizable() -> None:
             qdot_lower=np.zeros(1),
             qdot_upper=np.zeros(1),
             slew_limit=0.04,
+        )
+
+
+def test_conditional_clamp_and_snapshot_restore_preserve_effective_limit() -> None:
+    clamp = ConditionalDoubleClamp()
+    original = clamp.update(1.0, 1.0)
+    assert original.state_n_s == pytest.approx(1.0)
+    snapshot = clamp.snapshot()
+    restored = ConditionalDoubleClamp()
+    restored.restore(snapshot)
+    assert restored.snapshot() == snapshot
+
+    narrowed = clamp.update(1.0, 0.1, authority_error_n=0.1, saturation_sources={"qp": True})
+    assert narrowed.effective_limit_n_s == pytest.approx(0.4)
+    assert narrowed.state_n_s <= narrowed.effective_limit_n_s + 1e-12
+    assert narrowed.diagnostics["state_clamped_to_effective_limit"] is True
+
+    bad = dict(snapshot)
+    bad["unwind_events"] = "bad"
+    before = restored.snapshot()
+    with pytest.raises(FusionError, match="counters"):
+        restored.restore(bad)
+    assert restored.snapshot() == before
+
+
+def test_final_qp_uses_normal_first_solution_when_soft_tradeoff_would_not() -> None:
+    qp = FinalBoundedJointVelocityQP()
+    result = qp.realize(
+        np.array([[1.0], [0.0], [0.01], [0.0], [0.0], [0.0]]),
+        normal=(1.0, 0.0, 0.0),
+        normal_twist=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        tangent_twist=(0.0, 0.0, 0.04, 0.0, 0.0, 0.0),
+        previous_qdot=np.zeros(1),
+        qdot_lower=np.array([-0.05]),
+        qdot_upper=np.array([0.05]),
+        slew_limit=0.05,
+    )
+    assert result.normal_preserved is True
+    assert result.qdot_rad_s == pytest.approx((0.0,), abs=1e-8)
+
+
+def test_final_qp_rejects_nonfinite_overflow_before_normal_fallback() -> None:
+    qp = FinalBoundedJointVelocityQP()
+    with pytest.raises(FusionError, match="nonfinite"):
+        qp.realize(
+            np.eye(6),
+            normal=(0.0, 0.0, 1.0),
+            normal_twist=(0.0, 0.0, 1e308, 0.0, 0.0, 0.0),
+            tangent_twist=(0.0,) * 6,
+            previous_qdot=np.zeros(6),
+            qdot_lower=-0.05 * np.ones(6),
+            qdot_upper=0.05 * np.ones(6),
+            slew_limit=0.05,
         )

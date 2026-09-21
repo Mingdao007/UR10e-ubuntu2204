@@ -32,6 +32,9 @@ class TimingLedgerError(ValueError):
     """A lifecycle receipt cannot be interpreted without inventing timing."""
 
 
+R013_PROTOCOL_ID = "figure8_window60_r013_compat_v1"
+
+
 def _finite(value: Any, label: str) -> float:
     try:
         result = float(value)
@@ -47,7 +50,7 @@ class TaseR013TimingLedger:
     """One attempt's stage transitions, with no implicit missing timestamps."""
 
     attempt_id: str
-    protocol_id: str = "figure8_window60_r013_compat_v1"
+    protocol_id: str = R013_PROTOCOL_ID
     events: list[dict[str, Any]] = field(default_factory=list)
     failure_stage: str | None = None
     failure_condition: str | None = None
@@ -55,6 +58,12 @@ class TaseR013TimingLedger:
     recovery: Mapping[str, Any] | None = None
     missing_events: list[dict[str, Any]] = field(default_factory=list)
     supplemental_events: list[dict[str, Any]] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.protocol_id != R013_PROTOCOL_ID:
+            raise TimingLedgerError(
+                f"R013 timing ledger cannot admit protocol {self.protocol_id!r}"
+            )
 
     def mark(self, stage: str, timestamp_s: float, *, event: str = "start") -> None:
         stage = str(stage)
@@ -76,11 +85,15 @@ class TaseR013TimingLedger:
         attempt_id: str,
         events: Iterable[Mapping[str, Any]],
         *,
-        protocol_id: str = "figure8_window60_r013_compat_v1",
+        protocol_id: str = R013_PROTOCOL_ID,
         failure_stage: str | None = None,
         failure_condition: str | None = None,
         source_success: bool | None = None,
     ) -> "TaseR013TimingLedger":
+        if str(protocol_id) != R013_PROTOCOL_ID:
+            raise TimingLedgerError(
+                f"R013 timing ledger cannot admit protocol {protocol_id!r}"
+            )
         ledger = cls(
             attempt_id=str(attempt_id),
             protocol_id=str(protocol_id),
@@ -213,6 +226,52 @@ def ledger_from_receipts(
     supervisor = dict(supervisor_result or {})
     missing_events: list[dict[str, Any]] = []
 
+    def check_protocol(source: Mapping[str, Any], source_name: str) -> None:
+        identities: list[tuple[str, Any]] = []
+        value = source.get("protocol_id")
+        if value is not None:
+            identities.append(("protocol_id", value))
+        protocol = source.get("protocol")
+        if isinstance(protocol, Mapping) and protocol.get("protocol_id") is not None:
+            identities.append(("protocol.protocol_id", protocol["protocol_id"]))
+        live_path = source.get("live_path")
+        if isinstance(live_path, Mapping):
+            live_identity = live_path.get("protocol_id")
+            kind = live_path.get("kind")
+            if kind is not None and str(kind) != "r013_compat_60":
+                raise TimingLedgerError(
+                    f"{source_name} live_path kind {kind!r} is not the R013 compatibility path"
+                )
+            duration_raw = live_path.get("path_duration_s")
+            if duration_raw is not None:
+                try:
+                    duration = float(duration_raw)
+                except (TypeError, ValueError, OverflowError) as exc:
+                    raise TimingLedgerError(
+                        f"{source_name} live_path duration is not numeric"
+                    ) from exc
+                if not math.isclose(duration, 60.0, rel_tol=0.0, abs_tol=1e-9):
+                    raise TimingLedgerError(
+                        f"{source_name} live_path duration differs from R013 60 s"
+                    )
+            if live_identity is not None:
+                identities.append(("live_path.protocol_id", live_identity))
+            elif kind != "r013_compat_60":
+                raise TimingLedgerError(
+                    f"{source_name} live_path has no explicit R013 identity"
+                )
+        distinct = {str(item[1]) for item in identities}
+        if len(distinct) > 1:
+            raise TimingLedgerError(f"{source_name} receipt contains conflicting protocol identities")
+        for field, identity in identities:
+            if str(identity) != R013_PROTOCOL_ID:
+                raise TimingLedgerError(
+                    f"{source_name} receipt {field} {identity!r} differs from {R013_PROTOCOL_ID!r}"
+                )
+
+    check_protocol(dispatch, "dispatch")
+    check_protocol(supervisor, "supervisor")
+
     def collect(source: Mapping[str, Any], source_name: str) -> list[Mapping[str, Any]]:
         raw = source.get("lifecycle_events", source.get("timing_events", ()))
         if raw is None:
@@ -236,6 +295,10 @@ def ledger_from_receipts(
                 })
                 continue
             stage = str(row.get("stage", ""))
+            if row.get("protocol_id") is not None and str(row["protocol_id"]) != R013_PROTOCOL_ID:
+                raise TimingLedgerError(
+                    f"{source_name} lifecycle event protocol {row['protocol_id']!r} differs from {R013_PROTOCOL_ID!r}"
+                )
             timestamp = row.get("timestamp_s")
             if stage not in _STAGE_INDEX or timestamp is None:
                 missing_events.append({
@@ -264,11 +327,18 @@ def ledger_from_receipts(
     # owns dispatch events and the supervisor owns recovery events, so neither
     # side can silently replace the other.
     argument_rows = list(lifecycle_events)
+    for row in argument_rows:
+        if isinstance(row, Mapping) and row.get("protocol_id") is not None:
+            if str(row["protocol_id"]) != R013_PROTOCOL_ID:
+                raise TimingLedgerError(
+                    f"lifecycle event protocol {row['protocol_id']!r} differs from {R013_PROTOCOL_ID!r}"
+                )
     merged_events.extend(collect({"lifecycle_events": argument_rows}, "argument"))
     merged_events.extend(collect(dispatch, "dispatch"))
     merged_events.extend(collect(supervisor, "supervisor"))
     recovery_candidate = dispatch.get("automatic_home_recovery") or supervisor.get("autonomous_home_recovery")
     if isinstance(recovery_candidate, Mapping):
+        check_protocol(recovery_candidate, "recovery")
         merged_events.extend(collect(recovery_candidate, "recovery"))
     deduplicated: list[Mapping[str, Any]] = []
     seen: set[tuple[str, str, float]] = set()
@@ -433,7 +503,7 @@ def lifecycle_events_from_writer(
         ),
         "UNLOAD_RELIEF": (first_state.get(40), "tp_state_40"),
         "CLEARANCE": (first_state.get(78), "tp_state_78"),
-        "HOME": (first_state.get(78) if home_verified else None, "home_proof"),
+        "HOME": (first_state.get(78) if home_verified else None, "verified"),
     }
     events: list[dict[str, Any]] = []
     for stage in STAGES:
@@ -489,6 +559,7 @@ def summarize_timing_ledgers(ledgers: Iterable[TaseR013TimingLedger]) -> dict[st
 
 
 __all__ = [
+    "R013_PROTOCOL_ID",
     "STAGES",
     "TaseR013TimingLedger",
     "TimingLedgerError",

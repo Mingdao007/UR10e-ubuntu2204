@@ -54,14 +54,20 @@ class FusionError(ValueError):
 
 
 def _finite_vector(value: Any, size: int, name: str) -> np.ndarray:
-    array = np.asarray(value, dtype=float)
+    try:
+        array = np.asarray(value, dtype=float)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise FusionError(f"{name} must be a finite vector of shape ({size},)") from exc
     if array.shape != (size,) or not np.isfinite(array).all():
         raise FusionError(f"{name} must be a finite vector of shape ({size},)")
     return array.copy()
 
 
 def _finite_matrix(value: Any, shape: tuple[int, int], name: str) -> np.ndarray:
-    array = np.asarray(value, dtype=float)
+    try:
+        array = np.asarray(value, dtype=float)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise FusionError(f"{name} must be a finite matrix of shape {shape}") from exc
     if array.shape != shape or not np.isfinite(array).all():
         raise FusionError(f"{name} must be a finite matrix of shape {shape}")
     return array.copy()
@@ -535,6 +541,12 @@ class ConditionalDoubleClamp:
             self.reset("invalid_state")
             raise FusionError("clamp error must be finite and dt must be positive")
         limit = self.effective_limit(authority_error_n)
+        state_was_clamped = abs(self.state_n_s) > limit + 1e-12
+        if state_was_clamped:
+            # A newly reduced authority bound must constrain the already
+            # accumulated state before freeze/unwind decisions are reported.
+            # This is a state clamp, not back-calculation from the actuator.
+            self.state_n_s = float(np.clip(self.state_n_s, -limit, limit))
         source_name: str | None = None
         observed_source_name: str | None = None
         freeze_reason: str | None = None
@@ -594,6 +606,7 @@ class ConditionalDoubleClamp:
                 "unwind": unwind,
                 "downstream_saturation_source": observed_source_name,
                 "no_back_calculation": True,
+                "state_clamped_to_effective_limit": state_was_clamped,
                 "reset_boundaries": list(RESET_BOUNDARIES),
             },
         )
@@ -643,11 +656,65 @@ class ConditionalDoubleClamp:
         events = state.get("reset_events")
         if not isinstance(events, list) or not all(item in RESET_BOUNDARIES for item in events):
             raise FusionError("clamp snapshot reset events are invalid")
+        unwind_events = state.get("unwind_events")
+        updates = state.get("updates")
+        if (
+            isinstance(unwind_events, bool)
+            or not isinstance(unwind_events, int)
+            or unwind_events < 0
+            or isinstance(updates, bool)
+            or not isinstance(updates, int)
+            or updates < 0
+        ):
+            raise FusionError("clamp snapshot counters are invalid")
+        raw_last = state.get("last")
+        restored_last: ClampStep | None
+        if raw_last is None:
+            restored_last = None
+        else:
+            if not isinstance(raw_last, Mapping):
+                raise FusionError("clamp snapshot last step is invalid")
+            freeze_reason = raw_last.get("freeze_reason")
+            if freeze_reason is not None and not isinstance(freeze_reason, str):
+                raise FusionError("clamp snapshot freeze reason is invalid")
+            downstream_source = raw_last.get("downstream_saturation_source")
+            if downstream_source is not None and not isinstance(downstream_source, str):
+                raise FusionError("clamp snapshot saturation source is invalid")
+            frozen = raw_last.get("frozen")
+            unwind = raw_last.get("unwind")
+            if type(frozen) is not bool or type(unwind) is not bool:
+                raise FusionError("clamp snapshot boolean state is invalid")
+            diagnostics = raw_last.get("diagnostics", {})
+            if not isinstance(diagnostics, Mapping):
+                raise FusionError("clamp snapshot diagnostics are invalid")
+            last_state = float(raw_last.get("state_n_s"))
+            last_integral = float(raw_last.get("integral_term_n"))
+            last_limit = float(raw_last.get("effective_limit_n_s"))
+            if (
+                not math.isfinite(last_state)
+                or abs(last_state) > self.state_limit_n_s + 1e-12
+                or not math.isfinite(last_integral)
+                or not math.isfinite(last_limit)
+                or last_limit < 0.0
+            ):
+                raise FusionError("clamp snapshot last step values are invalid")
+            restored_last = ClampStep(
+                state_n_s=last_state,
+                integral_term_n=last_integral,
+                effective_limit_n_s=last_limit,
+                frozen=frozen,
+                freeze_reason=freeze_reason,
+                unwind=unwind,
+                downstream_saturation_source=downstream_source,
+                diagnostics=copy.deepcopy(dict(diagnostics)),
+            )
+        # Commit only after every field, including the optional last step, has
+        # validated. A rejected restore leaves the live state untouched.
         self.state_n_s = value
         self._reset_events = list(events)
-        self._unwind_events = int(state.get("unwind_events"))
-        self._updates = int(state.get("updates"))
-        self._last = None
+        self._unwind_events = unwind_events
+        self._updates = updates
+        self._last = restored_last
 
 
 @dataclass(frozen=True)
@@ -683,7 +750,10 @@ class FinalBoundedJointVelocityQP:
         qdot_upper: Any,
         slew_limit: Any,
     ) -> JointVelocityRealization:
-        jac = np.asarray(jacobian, dtype=float)
+        try:
+            jac = np.asarray(jacobian, dtype=float)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise FusionError("jacobian must be finite with shape (6, n)") from exc
         if jac.ndim != 2 or jac.shape[0] != 6 or not np.isfinite(jac).all():
             raise FusionError("jacobian must be finite with shape (6, n)")
         n_joints = jac.shape[1]
@@ -719,41 +789,84 @@ class FinalBoundedJointVelocityQP:
         # Weighted least-squares QP, solved as a deterministic box-QP by
         # coordinate descent.  The large normal weight gives lexicographic
         # normal priority while retaining a finite, inspectable objective.
-        h = (
-            self.normal_weight * (jac.T @ normal_mask @ jac)
-            + self.tangent_weight * (jac.T @ tangent_mask @ jac)
-            + self.regularization * np.eye(n_joints)
-        )
-        b = self.normal_weight * (jac.T @ normal_mask @ normal_target) + self.tangent_weight * (jac.T @ tangent_mask @ tangent_target)
-        try:
-            candidate = np.linalg.solve(h, b)
-        except np.linalg.LinAlgError as exc:
-            raise FusionError("final QP Hessian is singular") from exc
-        candidate = np.clip(candidate, effective_lower, effective_upper)
-        for _ in range(512):
-            before = candidate.copy()
-            for index in range(n_joints):
-                diagonal = float(h[index, index])
-                if diagonal <= 0.0 or not math.isfinite(diagonal):
-                    raise FusionError("final QP Hessian has invalid diagonal")
-                other = float(b[index] - (h[index] @ candidate - diagonal * candidate[index]))
-                candidate[index] = float(np.clip(other / diagonal, effective_lower[index], effective_upper[index]))
-            if float(np.max(np.abs(candidate - before))) <= 1e-12:
-                break
-        applied = jac @ candidate
-        normal_residual = float(np.linalg.norm(normal_mask @ (applied - normal_target)))
-        tangent_residual = float(np.linalg.norm(tangent_mask @ (applied - tangent_target)))
+        def solve_box_qp(tangent_weight: float) -> np.ndarray:
+            with np.errstate(over="ignore", invalid="ignore"):
+                h = (
+                    self.normal_weight * (jac.T @ normal_mask @ jac)
+                    + tangent_weight * (jac.T @ tangent_mask @ jac)
+                    + self.regularization * np.eye(n_joints)
+                )
+                b = self.normal_weight * (jac.T @ normal_mask @ normal_target) + tangent_weight * (jac.T @ tangent_mask @ tangent_target)
+            try:
+                candidate = np.linalg.solve(h, b)
+            except np.linalg.LinAlgError as exc:
+                raise FusionError("final QP Hessian is singular") from exc
+            if not np.isfinite(candidate).all():
+                raise FusionError("final QP produced a nonfinite joint velocity")
+            candidate = np.clip(candidate, effective_lower, effective_upper)
+            if not np.isfinite(candidate).all():
+                raise FusionError("final QP clipping produced a nonfinite joint velocity")
+            for _ in range(512):
+                before = candidate.copy()
+                for index in range(n_joints):
+                    diagonal = float(h[index, index])
+                    if diagonal <= 0.0 or not math.isfinite(diagonal):
+                        raise FusionError("final QP Hessian has invalid diagonal")
+                    other = float(b[index] - (h[index] @ candidate - diagonal * candidate[index]))
+                    candidate[index] = float(np.clip(other / diagonal, effective_lower[index], effective_upper[index]))
+                    if not math.isfinite(candidate[index]):
+                        raise FusionError("final QP iteration produced a nonfinite joint velocity")
+                if float(np.max(np.abs(candidate - before))) <= 1e-12:
+                    break
+            return candidate
+
+        # First establish the best achievable normal command with tangent
+        # weight zero. Tangent optimization may use that feasible normal
+        # manifold, but it is never allowed to trade normal error for tangent
+        # progress merely because the normal weight is finite.
+        normal_candidate = solve_box_qp(0.0)
+        normal_only_applied = jac @ normal_candidate
+        if not np.isfinite(normal_only_applied).all():
+            raise FusionError("final QP produced a nonfinite normal twist")
+        normal_only_residual = float(np.linalg.norm(normal_mask @ (normal_only_applied - normal_target)))
         normal_request_norm = float(np.linalg.norm(normal_target))
-        normal_preserved = normal_residual <= max(1e-9, 1e-6 * max(1.0, normal_request_norm))
-        tangent_degraded = tangent_residual > max(1e-9, 1e-6 * max(1.0, float(np.linalg.norm(tangent_target))))
-        if not normal_preserved:
+        if not math.isfinite(normal_only_residual) or not math.isfinite(normal_request_norm):
+            raise FusionError("final QP normal residual is nonfinite")
+        normal_tolerance = max(1e-9, 1e-6 * max(1.0, normal_request_norm))
+        if normal_only_residual > normal_tolerance:
             raise FusionError(
                 "final QP cannot preserve the TASE normal command within qdot/slew bounds"
             )
+        candidate = solve_box_qp(self.tangent_weight)
+        applied = jac @ candidate
+        if not np.isfinite(applied).all():
+            raise FusionError("final QP produced a nonfinite applied twist")
+        normal_residual = float(np.linalg.norm(normal_mask @ (applied - normal_target)))
+        tangent_residual = float(np.linalg.norm(tangent_mask @ (applied - tangent_target)))
+        if not math.isfinite(normal_residual) or not math.isfinite(tangent_residual):
+            raise FusionError("final QP residual is nonfinite")
+        normal_preserved = normal_residual <= normal_tolerance
+        normal_solver_fallback = False
+        if not normal_preserved:
+            candidate = normal_candidate
+            applied = normal_only_applied
+            normal_residual = normal_only_residual
+            tangent_residual = float(np.linalg.norm(tangent_mask @ (applied - tangent_target)))
+            if not math.isfinite(tangent_residual):
+                raise FusionError("final QP fallback residual is nonfinite")
+            normal_preserved = True
+            normal_solver_fallback = True
+        if not np.isfinite(candidate).all() or not np.all(
+            (candidate >= effective_lower - 1e-12)
+            & (candidate <= effective_upper + 1e-12)
+        ):
+            raise FusionError("final QP candidate violates qdot or slew bounds")
+        tangent_degraded = tangent_residual > max(1e-9, 1e-6 * max(1.0, float(np.linalg.norm(tangent_target))))
         diagnostics = {
             "schema": "final-bounded-joint-velocity-qp-v1",
             "composition_id": COMPOSITION_ID,
             "normal_priority": True,
+            "normal_priority_mode": "hard_feasible_then_tangent",
             "normal_weight": self.normal_weight,
             "tangent_weight": self.tangent_weight,
             "qdot_lower": effective_lower.tolist(),
@@ -763,6 +876,7 @@ class FinalBoundedJointVelocityQP:
             "qdot_bounds_satisfied": bool(np.all(candidate >= lower - 1e-12) and np.all(candidate <= upper + 1e-12)),
             "slew_bounds_satisfied": bool(np.all(np.abs(candidate - previous) <= slew + 1e-12)),
             "tangent_degraded": tangent_degraded,
+            "normal_solver_fallback": normal_solver_fallback,
             "single_realization_interface": True,
         }
         return JointVelocityRealization(

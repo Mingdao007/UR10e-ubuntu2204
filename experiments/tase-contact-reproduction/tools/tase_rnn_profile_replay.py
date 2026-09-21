@@ -150,7 +150,11 @@ class ProfileReplayResult:
     def safety_ok(self) -> bool:
         return all(
             record.qp_feasible and record.slew_ok and record.safety_ok
-            and all(math.isfinite(value) for value in record.qdot)
+            and all(
+                math.isfinite(value)
+                and abs(value) <= self.profile.qdot_limit_rad_s + 1e-12
+                for value in record.qdot
+            )
             for record in self.records
         )
 

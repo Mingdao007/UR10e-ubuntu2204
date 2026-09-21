@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from tase_r013_timing_ledger import (
+    R013_PROTOCOL_ID,
     STAGES,
     TaseR013TimingLedger,
     TimingLedgerError,
@@ -151,6 +152,69 @@ def test_writer_reducer_preserves_readiness_hold_boundaries() -> None:
     ]
     ledger = ledger_from_receipts("readiness", lifecycle_events=events)
     assert ledger.durations()["readiness_hold_s"] == pytest.approx(10.0)
+
+
+def test_home_verified_boundary_and_protocol_identity_are_not_downgraded() -> None:
+    writer = SimpleNamespace(
+        robot_observations=[
+            {"integer_echoes": {26: 20}, "received_monotonic_s": 1.0},
+            {"integer_echoes": {26: 21}, "received_monotonic_s": 2.0},
+            {"integer_echoes": {26: 25}, "received_monotonic_s": 13.0},
+            {"integer_echoes": {26: 40}, "received_monotonic_s": 74.0},
+            {"integer_echoes": {26: 78}, "received_monotonic_s": 75.0},
+        ],
+        admission_robot_observations=[],
+        _qualification_control=SimpleNamespace(
+            readiness_hold_start_monotonic_s=3.0,
+            readiness_hold_end_monotonic_s=13.0,
+        ),
+        _path_command_started_mono_s=13.1,
+        _r013_path_end_request_mono_s=73.1,
+    )
+    events = lifecycle_events_from_writer(writer, home_check_s=0.0, home_verified=True)
+    ledger = ledger_from_receipts("home", lifecycle_events=events)
+    assert ledger.durations()["home_to_home_s"] == pytest.approx(75.0)
+    with pytest.raises(TimingLedgerError, match="protocol"):
+        ledger_from_receipts(
+            "mixed",
+            dispatch_receipt={"protocol_id": "contact_yield_full_period_v1"},
+        )
+    with pytest.raises(TimingLedgerError, match="live_path"):
+        ledger_from_receipts(
+            "mixed-live-path",
+            dispatch_receipt={
+                "live_path": {
+                    "kind": "full_period",
+                    "protocol_id": "contact_yield_full_period_v1",
+                }
+            },
+        )
+    with pytest.raises(TimingLedgerError, match="live_path kind"):
+        ledger_from_receipts(
+            "legacy-full-kind-only",
+            dispatch_receipt={
+                "live_path": {
+                    "kind": "full_period",
+                    "path_duration_s": 62.83185307179586,
+                }
+            },
+        )
+    with pytest.raises(TimingLedgerError, match="live_path kind"):
+        ledger_from_receipts(
+            "conflicting-kind-with-id",
+            dispatch_receipt={
+                "live_path": {
+                    "kind": "full_period",
+                    "protocol_id": R013_PROTOCOL_ID,
+                    "path_duration_s": 62.83185307179586,
+                }
+            },
+        )
+    with pytest.raises(TimingLedgerError, match="explicit R013 identity"):
+        ledger_from_receipts(
+            "duration-only",
+            dispatch_receipt={"live_path": {"path_duration_s": 60.0}},
+        )
 
 
 def test_summary_reports_median_p90_and_failure_stages() -> None:
