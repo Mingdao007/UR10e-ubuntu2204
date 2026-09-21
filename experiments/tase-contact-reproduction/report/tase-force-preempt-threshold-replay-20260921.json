@@ -1,0 +1,38 @@
+{
+  "schema": "tase.force-preempt-threshold-replay-v1",
+  "claim_scope": "open-loop replay of recorded baseline inputs; no new physical force or PATH claim",
+  "source_runs": [
+    "runs/tase-qualification-unload-boost-20260921T1600",
+    "runs/tase-figure8-pilot-direction-aware-retry-20260921T1545"
+  ],
+  "fixed_constraints": {
+    "target_force_n": 5.0,
+    "readiness_force_norm_max_n": 7.0,
+    "raw_guard_n": 20.0,
+    "rearm_threshold_n": 5.0,
+    "host_slew_rad_s2": 2.5,
+    "qdot_cap_rad_s": 0.05
+  },
+  "comparison": {
+    "old_threshold_n": 6.0,
+    "candidate_threshold_n": 5.75,
+    "unload_boost_stream": {
+      "old_ge5_max_inward_realization_m_s": 0.0007432443487300287,
+      "candidate_ge5_max_inward_realization_m_s": 0.0006383967714121118,
+      "old_force_preempt_episodes": 59,
+      "candidate_force_preempt_episodes": 141,
+      "old_direction_retries": 20,
+      "candidate_direction_retries": 82
+    },
+    "pilot_retry_stream": {
+      "old_ge5_max_inward_realization_m_s": 0.0005994767417778273,
+      "candidate_ge5_max_inward_realization_m_s": 0.0005957331134505388,
+      "old_force_preempt_episodes": 82,
+      "candidate_force_preempt_episodes": 163,
+      "old_direction_retries": 16,
+      "candidate_direction_retries": 73
+    }
+  },
+  "interpretation": "Earlier bounded intervention is a plausible diagnostic change because inward realization precedes the recorded force peaks; the replay holds the recorded plant response fixed and therefore cannot prove a closed-loop force improvement.",
+  "next_gate": "focused regression, fresh package/read-back preflight, then at most one new qualification with automatic Home"
+}

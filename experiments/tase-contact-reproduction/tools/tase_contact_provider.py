@@ -32,7 +32,10 @@ from step5d_paper_outer_loop import Step5dOuterLoopConfig
 # re-armed after the measured load falls below the lower hysteresis threshold,
 # so a later force-rise episode cannot inherit stale RNN state from an earlier
 # episode.
-TASE_FORCE_PREEMPT_THRESHOLD_N = 6.0
+# Trigger the bounded unload transition before the 7 N readiness ceiling.  The
+# 0.25 N earlier margin is a live safety adaptation; it does not change any
+# hard force, timing, qdot, slew, or readiness envelope.
+TASE_FORCE_PREEMPT_THRESHOLD_N = 5.75
 TASE_FORCE_PREEMPT_REARM_N = 5.0
 # Keep a strict numerical margin below the shared host slew envelope.  The
 # qualification layer checks the same limit with a strict ``>`` comparison;

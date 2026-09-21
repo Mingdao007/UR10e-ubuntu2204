@@ -6,6 +6,8 @@ import numpy as np
 import pytest
 from tase_contact_provider import (
     TASE_PAPER_OUTER_CONFIG,
+    TASE_FORCE_PREEMPT_REARM_N,
+    TASE_FORCE_PREEMPT_THRESHOLD_N,
     TaseContactProvider,
     current_model_binding,
 )
@@ -170,6 +172,9 @@ def test_live_tase_baseline_holds_non_normal_realization(provider, monkeypatch):
 
 
 def test_live_tase_force_preempt_warm_starts_rnn_once(provider):
+    assert TASE_FORCE_PREEMPT_THRESHOLD_N == pytest.approx(5.75)
+    assert TASE_FORCE_PREEMPT_REARM_N == pytest.approx(5.0)
+    assert TASE_FORCE_PREEMPT_THRESHOLD_N > TASE_FORCE_PREEMPT_REARM_N
     o, s = tick(provider, .002, force=8.)
     s = replace(s, normal_load_n=8., force_norm_n=8.)
     provider.command(
