@@ -3,7 +3,7 @@
   "as_of": "2026-09-21",
   "claim_scope": "integrated status; physical PATH is not accepted",
   "worktree": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920",
-  "head": "WORKTREE_PENDING_COMMIT",
+  "head": "81b41a24",
   "live_state": {
     "current_state": "HOME_RECOVERED_AND_STOPPED",
     "latest_preflight": "runs/preflight_20260921_after_guard_candidate/preflight_readonly.json",
