@@ -148,7 +148,11 @@ def _blocked_recovery_result(source, error, *, phase, output=None, previous_outp
         'trial_stays_failed':True,
         'recovery_policy':RECOVERY_POLICY,
         'home_required':True,
+        'recovery_owner_invoked':True,
+        'home_commandability_checked':False,
         'home_attempted':False,
+        'home_commandable':False,
+        'home_motion_dispatched':False,
         'home_blocked':True,
         'home_blocked_reason':f'{type(error).__name__}: {error}',
     }
@@ -194,7 +198,11 @@ def _emergency_home_when_commandable(source, output, host, packages, *, reason,
         'trial_stays_failed': True,
         'recovery_policy': RECOVERY_POLICY,
         'home_required': True,
+        'recovery_owner_invoked': True,
+        'home_commandability_checked': False,
         'home_attempted': False,
+        'home_commandable': False,
+        'home_motion_dispatched': False,
         'home_blocked': True,
         'preflight_error': str(reason),
     }
@@ -247,6 +255,7 @@ def _emergency_home_when_commandable(source, output, host, packages, *, reason,
         # Match the clearance-entry guard generated in build_contact_home;
         # do not convert an unknown low/contact pose into a lateral Home move.
         from contact_yield_math import so3_exp, so3_log
+        payload['home_commandability_checked'] = True
         if pose[2] < target[2] - .001:
             raise ValueError('current TCP is below the clearance-entry Home floor')
         if np.linalg.norm(pose[:3] - target[:3]) > .080:
@@ -467,7 +476,7 @@ def run(args):
     )
     if not args.execute:return {'success':False,'motion':False,'state':'read-only preflight passed','dashboard':dashboard_before,'source_protective_stop':source_protective}
     out.mkdir(parents=True)
-    result={'success':False,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_attempt':str(source),'trial_stays_failed':True,'recovery_policy':RECOVERY_POLICY,'source_receipt_present':bool(source_receipt.get('receipt_present',True)),'source_armed':source_receipt.get('armed'),'source_protective_stop':source_protective,'dashboard_before':dashboard_before,'home_required':True,'home_attempted':False,'home_blocked':False}
+    result={'success':False,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_attempt':str(source),'trial_stays_failed':True,'recovery_policy':RECOVERY_POLICY,'source_receipt_present':bool(source_receipt.get('receipt_present',True)),'source_armed':source_receipt.get('armed'),'source_protective_stop':source_protective,'dashboard_before':dashboard_before,'home_required':True,'recovery_owner_invoked':True,'home_commandability_checked':False,'home_attempted':False,'home_commandable':False,'home_motion_dispatched':False,'home_blocked':False}
     obs=Observer(args.host);sensor=LiveR004KunweiTransport('192.168.50.25',port=5152);video=None;adapter=None;wrench_rows=[];last_sensor=None;last_force=None;plan=None;geometry=None;home_invoked=False
     lease=WriterLock(INSTALLED_LOCK);lease_held=False
     protective_unlock_attempted=False
@@ -481,6 +490,7 @@ def run(args):
         release already make the clearance Home commandable.
         """
         nonlocal lease_held, video, home_invoked
+        result['home_commandability_checked'] = True
         if home_invoked:
             return result.get('home')
         if plan is None or geometry is None:
@@ -492,6 +502,7 @@ def run(args):
         if not force or force.get('released') is not True:
             raise ValueError('Home is not commandable: contact force is not released')
         check_dashboard(args.host)
+        result['home_commandable'] = True
         home=json.loads((Path(__file__).resolve().parents[1]/'report/contact-six-qp-20260917/preserved-home.json').read_text())
         home.pop('bounded_recovery',None);home.pop('bounded_withdrawal',None)
         home.update(rtde=current,home_pose=list(contract.home_pose),home_q=geometry['home_q'],clearance_entry=True)
@@ -505,6 +516,7 @@ def run(args):
             lease.__exit__(None,None,None);lease_held=False
         home_invoked=True
         result['home_attempted']=True
+        result['home_motion_dispatched']=True
         home_args=SimpleNamespace(host=args.host,home_receipt=home_receipt,validation=Path(args.readback_proof_dir)/f'{BASENAME}-validation.json',package_dir=packages,readback_dir=Path(args.readback_dir)/BASENAME,output=out/'home',execute=True)
         try:
             home_result=run_home(home_args)
@@ -548,6 +560,7 @@ def run(args):
             check_dashboard(args.host)
         else:
             check_dashboard(args.host)
+        result['home_commandability_checked'] = True
         plan=plan_home_recovery(row['actual_TCP_pose'],contract.home_pose);result['plan']=plan
         geometry=check_geometry(row,plan);result['geometry']=geometry
         result['lift_guard']={

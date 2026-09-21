@@ -1,0 +1,34 @@
+{
+  "schema": "tase.recovery-receipt-semantics-v1",
+  "claim_scope": "offline receipt-schema repair and focused tests; no hardware, endpoint, Home, or motion action",
+  "created_at": "2026-09-21T14:26:29.967",
+  "source_commit": "48898b5b554b631a4c71a879e2874ff2e034ff2c",
+  "semantic_fields": {
+    "recovery_owner_invoked": "the recovery owner was entered for this failed attempt",
+    "home_commandability_checked": "the owner evaluated its physical/package/geometry preconditions",
+    "home_commandable": "all preconditions passed and the Home owner could be dispatched",
+    "home_attempted": "the independent Home owner call was entered",
+    "home_motion_dispatched": "the Home owner was given an execute=True motion path"
+  },
+  "current_failed_run_interpretation": {
+    "recovery_owner_invoked": true,
+    "home_commandability_checked": true,
+    "home_commandable": false,
+    "home_attempted": false,
+    "home_motion_dispatched": false,
+    "reason": "Home SO3 angle exceeds 10mrad; relief geometry proof missing"
+  },
+  "source_hashes": {
+    "tools/run_contact_recovery.py": "9a4f93490506f23be028242b28eef338fdae24a95af122622758dc550ff63b11",
+    "tools/contact_yield_live.py": "2b2d69eb8bb9bac1c37cf368c9c7018144104929c6d7cbab67bf4b8a17bc5f9f",
+    "tools/contact_yield_supervisor.py": "d617f3bed9823f9245ff0313c7132da6bd8181b19653c72a60595e911d13995e",
+    "tests/test_contact_recovery_runner.py": "a3c0801ea3beb1217a168154a7591efa5c6929821db11969087a2adb77dc7b24"
+  },
+  "tests": {
+    "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONNOUSERSITE=1 pytest -q tests/test_contact_recovery_runner.py tests/test_contact_yield_live.py tests/test_contact_yield_supervisor.py tests/test_contact_yield_recovery_contract.py",
+    "passed": 46,
+    "failed": 0,
+    "warnings": 1
+  },
+  "safety_boundary": "No threshold, recovery geometry, package, or live dispatch behavior was widened or changed by this semantic repair."
+}

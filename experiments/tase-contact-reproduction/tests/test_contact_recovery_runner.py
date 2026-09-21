@@ -110,7 +110,11 @@ def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure)
         assert 'lift_stop' in events
         assert events.index('lift_stop')<events.index('unlock')
         assert result['home_required'] is True
+        assert result['recovery_owner_invoked'] is True
+        assert result['home_commandability_checked'] is True
         assert result['home_attempted'] is False
+        assert result['home_commandable'] is False
+        assert result['home_motion_dispatched'] is False
         assert result['home_blocked'] is True
         assert result['home_blocked_reason']
     if failure == 'home_failure':

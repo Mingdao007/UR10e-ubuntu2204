@@ -67,7 +67,11 @@ def _blocked_home_recovery(*, run_dir: Path, reason: str) -> dict[str, Any]:
         "trial_stays_failed": True,
         "recovery_policy": "AUTO_HOME_WHEN_COMMANDABLE",
         "home_required": True,
+        "recovery_owner_invoked": True,
+        "home_commandability_checked": False,
         "home_attempted": False,
+        "home_commandable": False,
+        "home_motion_dispatched": False,
         "home_blocked": True,
         "home_blocked_reason": str(reason),
     }
