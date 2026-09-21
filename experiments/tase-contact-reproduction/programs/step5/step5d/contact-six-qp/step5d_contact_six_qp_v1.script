@@ -1,4 +1,4 @@
-# VERSION: 2026-09-21T1213Z_CONTACT_SIX_QP_V1_618001
+# VERSION: 2026-09-21T1314Z_CONTACT_SIX_QP_V1_618001
 # ROLE: six-law shared-QP preparation; requires matching host owner 618001
 # CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm
 # CONTACT_SEARCH: constant 0.0002m/s; travel<=0.015m; timeout=90s; original Home XYZ with current aligned attitude
@@ -363,6 +363,24 @@ def codex_r006_qdot_ok():
   return True
 end
 
+def codex_r006_actual_qd_ok(limit):
+  # The packet qdot is an input envelope; the controller's measured joint
+  # speed is a separate safety fact. Keep this guard at the resident TP
+  # boundary so a command/actual mismatch fails closed at the source.
+  if not codex_r006_finite(limit, 1000000.0) or limit <= 0.0:
+    return False
+  end
+  local actual_qd = get_actual_joint_speeds()
+  local index = 0
+  while index < 6:
+    if not codex_r006_finite(actual_qd[index], limit):
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
 def codex_r006_packet_guard(packet_reason, abs_normal_limit, force_norm_limit, torque_limit):
   if packet_reason != 0:
     return packet_reason
@@ -386,6 +404,8 @@ def codex_r006_packet_guard(packet_reason, abs_normal_limit, force_norm_limit, t
     return 49
   elif not codex_r006_qdot_ok():
     return 45
+  elif not codex_r006_actual_qd_ok(0.060000000):
+    return 76
   end
   return 0
 end
@@ -435,6 +455,8 @@ def codex_r006_recovery_packet_guard(packet_reason, abs_normal_limit, force_norm
     return 49
   elif not codex_r006_qdot_ok():
     return 45
+  elif not codex_r006_actual_qd_ok(0.060000000):
+    return 76
   end
   return 0
 end
@@ -521,7 +543,7 @@ def codex_r006_echo(epoch, ordinal, state, token, reason, consumed, kind, return
   write_output_integer_register(30, kind)
   write_output_integer_register(31, return_guard)
   write_output_integer_register(32, 606006)
-  write_output_integer_register(33, 21)
+  write_output_integer_register(33, 22)
   write_output_integer_register(34, 618001)
 end
 
@@ -726,6 +748,9 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       # Execute it so contact can progress from the lower acquisition
       # threshold to the sticky 1 N latch.
       speedj(baseline_qdot, 5.000000000, actual_dt)
+      if not codex_r006_actual_qd_ok(0.060000000):
+        return codex_r006_fault(epoch, ordinal, token, kind, consumed, 76, runtime_revision, runtime_extension)
+      end
       codex_r006_echo(epoch, ordinal, 21, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)
       sync()
     else:
@@ -756,6 +781,9 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
         # calibrated Jacobian gate proves pure-normal baseline motion before
         # the single writer publishes this bounded six-joint command.
         speedj(baseline_qdot, 5.000000000, actual_dt)
+        if not codex_r006_actual_qd_ok(0.060000000):
+          return codex_r006_fault(epoch, ordinal, token, kind, consumed, 76, runtime_revision, runtime_extension)
+        end
         prior_setpoint = setpoint
         prior_baseline_successes = baseline_successes
         codex_r006_echo(epoch, ordinal, 21, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)
@@ -800,6 +828,9 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       end
       local path_qdot = [read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41), read_input_float_register(42)]
       speedj(path_qdot, 5.000000000, actual_path_dt)
+      if not codex_r006_actual_qd_ok(0.060000000):
+        return codex_r006_fault(epoch, ordinal, token, kind, consumed, 76, runtime_revision, runtime_extension)
+      end
       path_elapsed_s = path_elapsed_s + actual_path_dt
       codex_r006_echo(epoch, ordinal, 25, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)
     end
@@ -817,7 +848,7 @@ def step5d_contact_six_qp_v1():
   local fixed_home_pose = p[0.462055181600, 0.177882596400, 0.034088761399, 3.120752062000, 0.000000000000, 0.068626833000]
   local locked_home_q = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local locked_home_q_valid = False
-  local runtime_revision = 21
+  local runtime_revision = 22
   local runtime_extension = 618001
   local active_epoch = 0
   local last_failed_epoch = 0

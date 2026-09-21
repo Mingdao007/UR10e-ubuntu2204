@@ -1,12 +1,12 @@
 {
   "schema": "contact-qp-package-preparation-v1",
   "basename": "step5d_contact_six_qp_v1",
-  "stamp": "2026-09-21T1213Z_CONTACT_SIX_QP_V1_618001",
+  "stamp": "2026-09-21T1314Z_CONTACT_SIX_QP_V1_618001",
   "controller_directory": "/programs/andyl/kunwei/step5",
-  "revision": 21,
+  "revision": 22,
   "protocol": 618001,
   "home_receipt_sha256": "6bdb3f39e6f6b6288a5c1c88a59fc8d0ad9c7b39072a18ed1779bbd7ae72e84e",
-  "source_sha256": "647e18269b52aea3ad756ac6f2fc1d2c21d0fcec78ea27600af8f018dddcc43d",
+  "source_sha256": "87f929a1437cc831a5d3a7b3f95c45801e41f8f04df310d28036703be520ae8e",
   "live_qualified": false,
   "geometry": {
     "duration_s": 62.83185307179586,
@@ -29,6 +29,7 @@
     "peak_nominal_linear_speed_bound_m_s": 0.00447213595499958,
     "host_tangent_speed_cap_m_s": 0.01,
     "tp_joint_speed_limit_rad_s": 0.05,
+    "tp_actual_joint_speed_guard_rad_s": 0.06,
     "tp_speedj_acceleration_rad_s2": 5.0,
     "search_speed_m_s": 0.0002,
     "search_travel_limit_m": 0.015,
