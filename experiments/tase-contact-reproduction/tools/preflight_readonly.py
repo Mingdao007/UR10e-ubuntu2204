@@ -19,9 +19,19 @@ from typing import Any
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
-BENCH_GATE = Path(
-    "/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/"
-    "check_ubuntu_network.py"
+_BENCH_GATE_CANDIDATES = (
+    Path(
+        "/home/andy/codex-private-skills-shared-main/skills/ur10e-realsetup/scripts/"
+        "check_ubuntu_network.py"
+    ),
+    Path(
+        "/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts/"
+        "check_ubuntu_network.py"
+    ),
+)
+BENCH_GATE = next(
+    (candidate for candidate in _BENCH_GATE_CANDIDATES if candidate.is_file()),
+    _BENCH_GATE_CANDIDATES[0],
 )
 UR_REALSETUP_SCRIPTS = Path("/home/andy/codex-private-skills/skills/ur10e-realsetup/scripts")
 sys.path.insert(0, str(UR_REALSETUP_SCRIPTS))
@@ -49,6 +59,78 @@ P0_LOCAL_PROFILES = {
     P0_V8_PROFILE: "no_contact_p0_v8_capture",
     P0_V9_PROFILE: "no_contact_p0_v9_capture",
 }
+CONTACT_PROGRAM = "step5d_contact_six_qp_v1"
+CONTACT_TARGET_DIR = "/programs/andyl/kunwei/step5"
+
+
+def contact_controller_binding(root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
+    """Verify the current contact-six package through its own readback schema."""
+
+    from register_contact_readback import _validate_manifest
+
+    current = json.loads((root / "config" / "current_stage.json").read_text(encoding="utf-8"))
+    if current.get("program") != CONTACT_PROGRAM or current.get("current_stage_id") != CONTACT_PROGRAM:
+        raise ValueError("current stage is not the contact-six-q-p program")
+    selection_rel = current.get("controller_readback_manifest")
+    if not isinstance(selection_rel, str) or not selection_rel:
+        raise ValueError("contact-six current readback selection is missing")
+    selection_path = (root / selection_rel).resolve()
+    selection_path.relative_to(root.resolve())
+    selection = json.loads(selection_path.read_text(encoding="utf-8"))
+    if selection.get("schema") != "contact-readback-selection-v2":
+        raise ValueError("contact-six readback selection schema differs")
+    if selection.get("status") != "controller read-back verified" or selection.get("program") != CONTACT_PROGRAM:
+        raise ValueError("contact-six readback selection identity differs")
+    source_rel = selection.get("source_delivery_manifest")
+    source_sha = selection.get("source_delivery_manifest_sha256")
+    if not isinstance(source_rel, str) or not isinstance(source_sha, str):
+        raise ValueError("contact-six source delivery manifest binding is missing")
+    source_path = (root / source_rel).resolve()
+    source_path.relative_to(root.resolve())
+    if hashlib.sha256(source_path.read_bytes()).hexdigest() != source_sha:
+        raise ValueError("contact-six source delivery manifest SHA differs")
+    triplet, _manifest = _validate_manifest(root, source_path)
+    expected_selection_sha = {
+        "local": dict(triplet),
+        "controller": dict(triplet),
+        "readback": dict(triplet),
+    }
+    if selection.get("sha256") != expected_selection_sha:
+        raise ValueError("contact-six selection triplet differs from fresh manifest")
+    if current.get("sha256") != dict(triplet):
+        raise ValueError("contact-six current-stage triplet differs from fresh manifest")
+    expected_target = f"{CONTACT_TARGET_DIR}/{CONTACT_PROGRAM}.urp"
+    expected_script = f"{CONTACT_TARGET_DIR}/{CONTACT_PROGRAM}.script"
+    if current.get("controller_target") != expected_target or current.get("controller_script") != expected_script:
+        raise ValueError("contact-six current controller target differs")
+    return {
+        "ok": True,
+        "program": CONTACT_PROGRAM,
+        "controller_target": expected_target,
+        "manifest": selection_rel,
+        "source_delivery_manifest": source_rel,
+        "delivery_mode": selection.get("delivery_mode"),
+        "fresh_controller_sha_verified": selection.get("fresh_controller_sha_verified"),
+        "fresh_controller_checked_at": selection.get("fresh_controller_checked_at"),
+        "sha256": dict(triplet),
+    }
+
+
+def controller_binding_check(root: Path, bridge_profile: str | None) -> Any:
+    current = json.loads((root / "config" / "current_stage.json").read_text(encoding="utf-8"))
+    if current.get("program") == CONTACT_PROGRAM:
+        return contact_controller_binding(root)
+    if bridge_profile in P0_LOCAL_PROFILES:
+        return p0_controller_binding(bridge_profile, root)
+    return run_command(
+        [
+            sys.executable,
+            str(root / "tools/verify_step5d_current_binding.py"),
+            "--root",
+            str(root),
+            "--json",
+        ]
+    )
 
 
 def bridge_profile_uses_tp_local(profile: str | None) -> bool:
@@ -310,18 +392,8 @@ def main(argv: list[str] | None = None) -> int:
             "kunwei_tcp_connect_only": lambda: tcp_connect_only(
                 args.sensor_ip, args.sensor_port, args.timeout_s
             ),
-            "controller_binding": (
-                (lambda: p0_controller_binding(args.bridge_profile, EXPERIMENT_ROOT))
-                if args.bridge_profile in P0_LOCAL_PROFILES
-                else (lambda: run_command(
-                    [
-                        sys.executable,
-                        str(EXPERIMENT_ROOT / "tools/verify_step5d_current_binding.py"),
-                        "--root",
-                        str(EXPERIMENT_ROOT),
-                        "--json",
-                    ]
-                ))
+            "controller_binding": lambda: controller_binding_check(
+                EXPERIMENT_ROOT, args.bridge_profile
             ),
             "bench_network": lambda: run_command(
                 [sys.executable, str(BENCH_GATE), "--include-kunwei", "--json-only"]
