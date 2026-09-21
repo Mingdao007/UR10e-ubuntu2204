@@ -34,6 +34,12 @@ from step5d_paper_outer_loop import Step5dOuterLoopConfig
 # episode.
 TASE_FORCE_PREEMPT_THRESHOLD_N = 6.0
 TASE_FORCE_PREEMPT_REARM_N = 5.0
+# Keep a strict numerical margin below the shared host slew envelope.  The
+# qualification layer checks the same limit with a strict ``>`` comparison;
+# using the exact boundary can differ by one floating-point ulp after the
+# provider's scalar rescale, turning a valid emergency transition into a
+# false interface failure.
+TASE_HOST_SLEW_NUMERIC_MARGIN = 1e-9
 
 
 # Parameters copied from config/step5c_tase_paper_truth.json (Eq. 16/17).
@@ -61,13 +67,13 @@ TASE_PAPER_OUTER_BINDING = {
         'Md_scalar': 12.0,
         'Bd_scalar': 550.0,
     },
-    'live_adaptations': [
-        'force target from internal setpoint',
-        'delay T from actual dt',
-        'shared live integral and normal-velocity safety limits',
-        'one-sided raw-normal rise envelope for live force protection',
-        'one-time RNN warm-start when measured force norm exceeds 6 N',
-    ],
+        'live_adaptations': [
+            'force target from internal setpoint',
+            'delay T from actual dt',
+            'shared live integral and normal-velocity safety limits',
+            'one-sided raw-normal rise envelope for live force protection',
+            'hysteretic RNN warm-start on each measured force-rise episode above 6 N',
+        ],
     'live_force_measurement_envelope': {
         'schema': 'tase-live-force-rise-envelope-v1',
         'formula': 'control_normal=max(canonical_filtered_normal, measured_normal_load, measured_force_norm)',
@@ -349,7 +355,10 @@ class TaseContactProvider(ContactCommandProvider):
                     command.qdot,
                     self.command_history.get('previous_qdot'),
                     dt_s=actual_dt_s,
-                    max_slew_rad_s2=float(self.command_history['slew_rad_s2']),
+                    max_slew_rad_s2=(
+                        float(self.command_history['slew_rad_s2'])
+                        * (1.0 - TASE_HOST_SLEW_NUMERIC_MARGIN)
+                    ),
                 )
                 host_slew_scale = float(ramp.scale)
                 host_slew_limit = float(ramp.delta_limit_rad_s)
