@@ -1,0 +1,42 @@
+{
+  "schema": "tase.force-transient-diagnosis-v1",
+  "claim_scope": "offline analysis of recorded first-qualification failure; no new physical acceptance",
+  "source_run": "runs/figure8-20260921T081409-498138",
+  "failure": "five_newton_acquisition_timeout",
+  "window": {
+    "sequence_start": 32160,
+    "sequence_end": 32176,
+    "peak_sequence": 32168,
+    "peak_force_norm_n": 12.42165380171251,
+    "peak_raw_normal_n": 11.927793261782668,
+    "peak_filtered_normal_n": 1.3025892562478973
+  },
+  "command_transition": {
+    "sequence_32162": {
+      "force_norm_n": 4.742,
+      "filtered_normal_n": 1.008,
+      "approach_velocity_m_s": 0.0022511,
+      "interpretation": "inward realization"
+    },
+    "sequence_32163": {
+      "force_norm_n": 6.138,
+      "filtered_normal_n": 1.034,
+      "approach_velocity_m_s": 0.0007526,
+      "interpretation": "transition after force-rise preempt"
+    },
+    "sequence_32164": {
+      "force_norm_n": 7.762,
+      "filtered_normal_n": 1.072,
+      "approach_velocity_m_s": -0.0006774,
+      "interpretation": "outward realization"
+    },
+    "sequence_32168": {
+      "force_norm_n": 12.42165380171251,
+      "filtered_normal_n": 1.3025892562478973,
+      "approach_velocity_m_s": -0.002999837398203701,
+      "interpretation": "full outward cap while force still rises"
+    }
+  },
+  "conclusion": "The recorded transient includes a correct outward command but force continues to rise after the command transition; persistent inward sign is not sufficient as the root cause. A bounded rate/early-rise diagnosis is required before another live attempt.",
+  "safety_boundary": "all hard force, readiness, qdot, slew, stop, and automatic Home gates remain unchanged"
+}
