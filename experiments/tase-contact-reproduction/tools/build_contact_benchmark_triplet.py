@@ -12,7 +12,10 @@ SOURCE=ROOT/'programs/step5/step5d/step5d_strict_rnn_autotune_v4_r012.script'
 BASENAME='step5d_contact_six_qp_v1'
 CONTROLLER_DIR='/programs/andyl/kunwei/step5'
 PROTOCOL=618001
-REVISION=20
+# Single-admission contact package: one continuous ten-second qualification
+# feeds the following PATH attempt. This wire-semantic change gets a fresh
+# readable runtime revision and a fresh controller read-back.
+REVISION=21
 
 
 def transform(source,home,stamp):

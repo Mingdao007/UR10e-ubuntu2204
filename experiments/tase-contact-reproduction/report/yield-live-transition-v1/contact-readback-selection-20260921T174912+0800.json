@@ -1,0 +1,38 @@
+{
+  "schema": "contact-readback-selection-v2",
+  "status": "controller read-back verified",
+  "program": "step5d_contact_six_qp_v1",
+  "source_delivery_manifest": "runs/tase-package-readback-20260921/controller_readback_step5d_contact_six_qp_v1_20260921_174908/manifest.json",
+  "readback_directory": "runs/tase-package-readback-20260921/controller_readback_step5d_contact_six_qp_v1_20260921_174908",
+  "readback_time_policy": "fresh controller GET captured at the recorded check time; this selection does not assert runtime freshness or task qualification",
+  "sha256": {
+    "local": {
+      ".script": "3426050bb3b5ee7d47b11947e93a4cbdc7183c46f7cd7acd276a7e71a03a065f",
+      ".txt": "c59e654499ee7904ce656b4a741b926e20791183fe3b7f61dab2e592bb2588b9",
+      ".urp": "5562973257f238a67716aab233b3482a4266d45e716db2c81212d13445425489"
+    },
+    "controller": {
+      ".script": "3426050bb3b5ee7d47b11947e93a4cbdc7183c46f7cd7acd276a7e71a03a065f",
+      ".txt": "c59e654499ee7904ce656b4a741b926e20791183fe3b7f61dab2e592bb2588b9",
+      ".urp": "5562973257f238a67716aab233b3482a4266d45e716db2c81212d13445425489"
+    },
+    "readback": {
+      ".script": "3426050bb3b5ee7d47b11947e93a4cbdc7183c46f7cd7acd276a7e71a03a065f",
+      ".txt": "c59e654499ee7904ce656b4a741b926e20791183fe3b7f61dab2e592bb2588b9",
+      ".urp": "5562973257f238a67716aab233b3482a4266d45e716db2c81212d13445425489"
+    }
+  },
+  "delivery_mode": "full_upload_readback",
+  "fresh_controller_sha_verified": true,
+  "fresh_controller_checked_at": "2026-09-21T17:49:12+08:00",
+  "readback_source": "fresh_controller_get",
+  "safety_boundary": [
+    "ssh/scp file deploy only",
+    "no URScript send",
+    "no program load",
+    "no program start",
+    "no live bridge",
+    "no robot motion command"
+  ],
+  "supersedes": "report/yield-live-transition-v1/contact-readback-selection-20260921T063352+0800.json"
+}

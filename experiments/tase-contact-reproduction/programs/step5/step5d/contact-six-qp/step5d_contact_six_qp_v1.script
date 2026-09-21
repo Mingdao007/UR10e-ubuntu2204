@@ -1,4 +1,4 @@
-# VERSION: 2026-09-20T2220Z_CONTACT_SIX_QP_V1_618001
+# VERSION: 2026-09-21T0948Z_CONTACT_SIX_QP_V1_618001
 # ROLE: six-law shared-QP preparation; requires matching host owner 618001
 # CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm
 # CONTACT_SEARCH: constant 0.0002m/s; travel<=0.015m; timeout=90s; original Home XYZ with current aligned attitude
@@ -521,7 +521,7 @@ def codex_r006_echo(epoch, ordinal, state, token, reason, consumed, kind, return
   write_output_integer_register(30, kind)
   write_output_integer_register(31, return_guard)
   write_output_integer_register(32, 606006)
-  write_output_integer_register(33, 20)
+  write_output_integer_register(33, 21)
   write_output_integer_register(34, 618001)
 end
 
@@ -745,7 +745,9 @@ def codex_r006_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       elif baseline_mode == 3:
         baseline_done = True
       elif baseline_mode == 2:
-        if baseline_successes < 3:
+        # Native yield uses one continuous ten-second qualification; the host
+        # and resident package share this single-admission contract.
+        if baseline_successes < 1:
           return codex_r006_fault(epoch, ordinal, token, kind, consumed, 50, runtime_revision, runtime_extension)
         end
         baseline_done = True
@@ -815,7 +817,7 @@ def step5d_contact_six_qp_v1():
   local fixed_home_pose = p[0.462055181600, 0.177882596400, 0.033000000000, 2.033134243123, 2.394988423882, -0.000000000000]
   local locked_home_q = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local locked_home_q_valid = False
-  local runtime_revision = 20
+  local runtime_revision = 21
   local runtime_extension = 618001
   local active_epoch = 0
   local last_failed_epoch = 0

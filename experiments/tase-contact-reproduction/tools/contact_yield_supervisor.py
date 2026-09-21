@@ -298,6 +298,7 @@ def main(argv=None):
     p.add_argument('--action',choices=['resident-check','qualify','pilot'],required=True)
     p.add_argument('--method',default='SFC'); p.add_argument('--duration',default='2')
     p.add_argument('--run-dir',type=Path,required=True); p.add_argument('--readback-dir',type=Path,required=True)
+    p.add_argument('--parameter-file',type=Path)
     p.add_argument('--controller-host',default='192.168.1.18'); p.add_argument('--kunwei-host',default='192.168.50.25')
     p.add_argument('--control-cpu',type=int,required=True)
     p.add_argument('--video-url',default='rtsp://127.0.0.1:8554/arm')
@@ -366,6 +367,8 @@ def main(argv=None):
         cli=[a.action,'--method',a.method,'--run-dir',str(a.run_dir),
              '--controller-host',a.controller_host,'--kunwei-host',a.kunwei_host,
              '--control-cpu',str(a.control_cpu),'--attempt-id','r006-supervised-'+a.action]
+        if a.parameter_file is not None:
+            cli += ['--parameter-file', str(a.parameter_file)]
         if a.action=='pilot':cli+=['--duration',a.duration]
         return run_live(
             _parse_args(cli),

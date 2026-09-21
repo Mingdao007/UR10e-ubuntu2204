@@ -335,7 +335,11 @@ def build_wire_packet(
         stop_reason, reason = 4, "typed_stop_mode"
     elif session.command_mode is CommandMode.HOLD and any(abs(value) > 0.0 for value in qdot):
         stop_reason, reason = 42, "hold_mode_requires_zero_qdot"
-    elif session.command_mode is CommandMode.PATH and session.baseline_consecutive_successes < 3:
+    elif (
+        session.command_mode is CommandMode.PATH
+        and session.baseline_consecutive_successes
+        < (1 if candidate.__class__.__name__ == "R006Candidate" else 3)
+    ):
         stop_reason, reason = 50, "baseline_qualification_missing"
     stop = bool(stop_reason)
     mode = CommandMode.STOP if stop else session.command_mode

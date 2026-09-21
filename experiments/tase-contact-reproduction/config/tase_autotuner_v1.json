@@ -1,0 +1,19 @@
+{
+  "schema": "tase.autotuner-v1",
+  "method": "TASE_RNN_MATURE",
+  "objective": "formal_path_normal_force_mae_n",
+  "target_force_n": 5.0,
+  "tuned_parameters": ["Md_scalar", "Bd_scalar"],
+  "center": {"Md_scalar": 12.0, "Bd_scalar": 550.0},
+  "log2_bounds": {"Md_scalar": [-0.5, 0.5], "Bd_scalar": [-0.5, 0.5]},
+  "budget": {"initial": 8, "bo": 12, "repeats": 4},
+  "holdout_rounds": 5,
+  "seed": 20260921,
+  "bo_pool_size": 512,
+  "minimum_complete_path_for_observation": true,
+  "failed_attempt_consumes_budget": true,
+  "protection_parameters_frozen": true,
+  "integral_policy_frozen": true,
+  "claim_threshold_n": 0.10,
+  "claim_confidence": 0.95
+}

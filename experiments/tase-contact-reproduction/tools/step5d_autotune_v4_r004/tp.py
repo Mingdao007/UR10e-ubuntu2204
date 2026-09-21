@@ -558,7 +558,9 @@ def codex_r004_execute_attempt(home_pose, home_q, epoch, ordinal, token, kind, c
       elif baseline_mode == 3:
         baseline_done = True
       elif baseline_mode == 2:
-        if baseline_successes < 3:
+        # Native yield uses one continuous ten-second qualification. The host
+        # and resident package share this single-admission contract.
+        if baseline_successes < 1:
           return codex_r004_fault(epoch, ordinal, token, kind, consumed, 50, runtime_hi, runtime_lo)
         end
         baseline_done = True

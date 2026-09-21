@@ -11517,26 +11517,26 @@
         "stage_id": "step5d_contact_six_qp_v1",
         "program": "step5d_contact_six_qp_v1",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
-        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T063352+0800.json",
+        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T174912+0800.json",
         "controller_readback_status": "verified_current"
       },
       "package_delivery": {
         "controller_readback_verified": true,
         "controller_readback_status": "verified_current",
-        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T063352+0800.json",
-        "controller_readback_manifest_sha256": "da91a1b50ca776ed80bc985a99a7806c9d852f2ca08da7377d1666bad00b901c",
+        "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T174912+0800.json",
+        "controller_readback_manifest_sha256": "be63dee224fc7e8152fca6f8e9ae2a1c5d4dc3880c4a196bc60e23409ff844bf",
         "delivery_mode": "full_upload_readback",
         "fresh_controller_sha_verified": true,
-        "fresh_controller_checked_at": "2026-09-21T06:33:52+08:00",
+        "fresh_controller_checked_at": "2026-09-21T17:49:12+08:00",
         "sha256": {
-          ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
-          ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
-          ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+          ".script": "3426050bb3b5ee7d47b11947e93a4cbdc7183c46f7cd7acd276a7e71a03a065f",
+          ".txt": "c59e654499ee7904ce656b4a741b926e20791183fe3b7f61dab2e592bb2588b9",
+          ".urp": "5562973257f238a67716aab233b3482a4266d45e716db2c81212d13445425489"
         }
       },
       "entrypoint": "scripts/contact-yield-live.sh",
       "entrypoint_status": "lifecycle_repaired_software_verified",
-      "runtime_revision": 20,
+      "runtime_revision": 21,
       "task": [
         "constant_force",
         "unknown_surface",
@@ -11565,11 +11565,11 @@
         "controller_readback_verified": true,
         "controller_readback_status": "verified_current",
         "sha256": {
-          ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
-          ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
-          ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+          ".script": "3426050bb3b5ee7d47b11947e93a4cbdc7183c46f7cd7acd276a7e71a03a065f",
+          ".txt": "c59e654499ee7904ce656b4a741b926e20791183fe3b7f61dab2e592bb2588b9",
+          ".urp": "5562973257f238a67716aab233b3482a4266d45e716db2c81212d13445425489"
         },
-        "source_delivery_manifest": "runs/controller_readback_step5d_contact_six_qp_v1_20260921_063347/manifest.json"
+        "source_delivery_manifest": "runs/tase-package-readback-20260921/controller_readback_step5d_contact_six_qp_v1_20260921_174908/manifest.json"
       },
       "liveprep_status": {
         "state": "awaiting_live_authorization",

@@ -504,6 +504,7 @@ def build_native_yield_owner(
     prerequisites: YieldLivePrerequisites,
     home_binding: Any,
     qp_library: Path | str | None = None,
+    parameter_file: Path | str | None = None,
     authority_root: Path,
     route_id: str,
     attempt_id: str,
@@ -535,10 +536,16 @@ def build_native_yield_owner(
     task_basis = require_figure8_home(pose)
     tase = record.family == "tase_mature"
     if tase:
-        from tase_contact_provider import TaseContactProvider, current_model_binding
+        from tase_contact_provider import (
+            TaseContactProvider,
+            current_model_binding,
+            load_tase_outer_config,
+        )
         from step5d_autotune_v4_r014.solver_profile import LEGACY_R1
+        outer_config, parameter_binding = load_tase_outer_config(parameter_file)
         provider = TaseContactProvider(contract=current_model_binding(), candidate=R006Candidate(),
-            motion_profile=native_motion_profile(), home_pose=pose, solver_profile=LEGACY_R1)
+            motion_profile=native_motion_profile(), home_pose=pose, solver_profile=LEGACY_R1,
+            outer_loop_config=outer_config, parameter_binding=parameter_binding)
         runtime = provider
     else:
         runtime, binding = create_native_yield_runtime(

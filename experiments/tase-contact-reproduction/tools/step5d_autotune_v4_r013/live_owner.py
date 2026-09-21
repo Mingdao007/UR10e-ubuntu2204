@@ -567,7 +567,7 @@ def _validate_resident_ready_binding(
     identities = {
         "step5d_strict_rnn_autotune_v4_r013": (13, 613013, "r013_legacy_runtime_limbs"),
         "step6_figure8_autotune_v1": (13, 613013, "r013_legacy_runtime_limbs"),
-        "step5d_contact_six_qp_v1": (20, 618001, "contact_six_legacy_wire_abi"),
+        "step5d_contact_six_qp_v1": (21, 618001, "contact_six_legacy_wire_abi"),
     }
     if expected_program not in identities:
         raise R013OwnerError("resident program has no registered physical identity")

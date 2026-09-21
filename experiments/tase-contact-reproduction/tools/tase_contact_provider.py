@@ -27,20 +27,12 @@ from step5d_paper_outer_loop import Step5dOuterLoopConfig
 
 
 # A live safety transition, not a change to the paper gains.  The canonical
-# The task target is 5 N.  The two-stage transition gives the RNN an early
-# bounded warm-start before the unchanged 7 N readiness ceiling, then retains
-# the later direction retry/unload transition.  It is re-armed after the
-# measured load falls below the lower hysteresis threshold, so a later
-# force-rise episode cannot inherit stale RNN state from an earlier episode.
-# Trigger the RNN state warm-start before the 7 N readiness ceiling.  The
-# 0.25 N margin above the 5 N target is a live safety adaptation; it does not change any
-# hard force, timing, qdot, slew, or readiness envelope.
-TASE_FORCE_PREEMPT_THRESHOLD_N = 5.25
-TASE_FORCE_PREEMPT_REARM_N = 4.5
-# Keep the stronger direction retry and baseline unload boost at the later
-# transition.  This makes the early warm-start a single state correction,
-# rather than turning every 5.25 N tick into a repeated solver intervention.
-TASE_FORCE_DIRECTION_RETRY_THRESHOLD_N = 5.75
+# The task target is 5 N; the 0.75 N margin gives the mature RNN time to shed a
+# rising load before the shared 7 N readiness ceiling.  This is one hysteretic
+# transition per force-rise episode; it does not change any hard force, timing,
+# joint-velocity, slew, or readiness envelope.
+TASE_FORCE_PREEMPT_THRESHOLD_N = 5.75
+TASE_FORCE_PREEMPT_REARM_N = 5.0
 # An earlier, rate-triggered guard limits only additional inward baseline
 # realization while a measured force rise is already underway.
 TASE_FORCE_RISE_GUARD_THRESHOLD_N = 4.0
@@ -54,6 +46,12 @@ TASE_FORCE_RISE_INWARD_CAP_M_S = 0.0005
 TASE_HOST_SLEW_NUMERIC_MARGIN = 1e-9
 TASE_BASELINE_TANGENTIAL_TOLERANCE_M_S = 2e-6
 TASE_BASELINE_ANGULAR_TOLERANCE_RAD_S = 2e-6
+
+TASE_PARAMETER_SCHEMA = 'tase.outer-parameters-v1'
+TASE_OUTER_SEARCH_BOUNDS = {
+    'Md_scalar': (12.0 * 2.0 ** -0.5, 12.0 * 2.0 ** 0.5),
+    'Bd_scalar': (550.0 * 2.0 ** -0.5, 550.0 * 2.0 ** 0.5),
+}
 
 
 # Parameters copied from config/step5c_tase_paper_truth.json (Eq. 16/17).
@@ -98,10 +96,9 @@ TASE_PAPER_OUTER_BINDING = {
         'schema': 'tase-live-force-preempt-warm-start-v2',
         'threshold_n': TASE_FORCE_PREEMPT_THRESHOLD_N,
         'rearm_threshold_n': TASE_FORCE_PREEMPT_REARM_N,
-        'direction_retry_threshold_n': TASE_FORCE_DIRECTION_RETRY_THRESHOLD_N,
-        'condition': 'measured_force_norm crosses threshold_n after falling below rearm_threshold_n; one warm-start per force-rise episode; direction retry at direction_retry_threshold_n',
-        'purpose': 'remove strict-RNN state lag at each rising-load episode and retry a pressing Jqdot once per high-force tick without raising the raw guard',
-        'evidence_field': 'force_preempt_warm_start,force_preempt_direction_retry',
+        'condition': 'measured_force_norm crosses threshold_n after falling below rearm_threshold_n; one warm-start per force-rise episode',
+        'purpose': 'remove strict-RNN state lag at each rising-load episode without raising the raw guard',
+        'evidence_field': 'force_preempt_warm_start',
     },
     'force_rise_inward_cap': {
         'threshold_n': TASE_FORCE_RISE_GUARD_THRESHOLD_N,
@@ -111,6 +108,48 @@ TASE_PAPER_OUTER_BINDING = {
         'evidence_field': 'force_rise_guard,force_rise_inward_cap_applied',
     },
 }
+
+
+def load_tase_outer_config(path=None):
+    """Load only the bounded research parameters for one frozen live run."""
+    if path is None:
+        return TASE_PAPER_OUTER_CONFIG, {
+            'schema': TASE_PARAMETER_SCHEMA,
+            'source': 'paper-default',
+            'Md_scalar': TASE_PAPER_OUTER_CONFIG.Md_scalar,
+            'Bd_scalar': TASE_PAPER_OUTER_CONFIG.Bd_scalar,
+        }
+    candidate_path = Path(path).expanduser().resolve()
+    if candidate_path.is_symlink() or not candidate_path.is_file():
+        raise ValueError(f'TASE parameter file is not a regular file: {candidate_path}')
+    try:
+        payload = json.loads(candidate_path.read_text(encoding='utf-8'))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f'TASE parameter file is unreadable: {candidate_path}') from exc
+    if not isinstance(payload, dict) or payload.get('schema') != TASE_PARAMETER_SCHEMA:
+        raise ValueError('TASE parameter schema differs')
+    try:
+        md = float(payload['Md_scalar'])
+        bd = float(payload['Bd_scalar'])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError('TASE parameter file requires Md_scalar and Bd_scalar') from exc
+    if not math.isfinite(md) or not math.isfinite(bd):
+        raise ValueError('TASE Md/Bd must be finite')
+    for name, value in (('Md_scalar', md), ('Bd_scalar', bd)):
+        lo, hi = TASE_OUTER_SEARCH_BOUNDS[name]
+        if not lo <= value <= hi:
+            raise ValueError(f'TASE {name} is outside the bounded autotuner search box')
+    frozen = payload.get('frozen')
+    if frozen is not None and frozen != {
+        'kp': 4.0, 'ko': 5.0, 'kf': 1.0, 'force_target_n': 5.0,
+        'force_integral_limit_n_s': 5.0,
+        'force_sign_convention': 'step5_step6_positive_normal_load',
+    }:
+        raise ValueError('TASE frozen outer-loop fields differ')
+    binding = dict(payload)
+    binding.update({'schema': TASE_PARAMETER_SCHEMA, 'source': str(candidate_path),
+                    'Md_scalar': md, 'Bd_scalar': bd})
+    return replace(TASE_PAPER_OUTER_CONFIG, Md_scalar=md, Bd_scalar=bd), binding
 
 
 @dataclass(frozen=True)
@@ -148,7 +187,8 @@ class TaseContactProvider(ContactCommandProvider):
     # it never raises a safety cap or changes the RNN state law.
     allow_bounded_gate_projection = True
 
-    def __init__(self, *, contract, candidate, motion_profile, home_pose, solver_profile):
+    def __init__(self, *, contract, candidate, motion_profile, home_pose,
+                 solver_profile, outer_loop_config=None, parameter_binding=None):
         pose = np.asarray(home_pose, dtype=float)
         self.basis = require_figure8_home(pose)
         self.anchor = pose[:3].copy()
@@ -170,11 +210,17 @@ class TaseContactProvider(ContactCommandProvider):
             contract, candidate, motion_profile=motion_profile,
             solver_profile=solver_profile, path_reference=self.reference,
             target_rotvec=pose[3:], force_normal_velocity_limit_m_s=.003,
-            outer_loop_config=TASE_PAPER_OUTER_CONFIG)
+            outer_loop_config=(TASE_PAPER_OUTER_CONFIG if outer_loop_config is None
+                               else outer_loop_config))
         self.contract = contract
         self.model_hashes = dict(self.runtime.model_hashes)
         self.solver_profile = solver_profile
         self.command_timeline = []
+        self.parameter_binding = (dict(parameter_binding) if parameter_binding is not None
+                                  else {'schema': TASE_PARAMETER_SCHEMA,
+                                        'source': 'paper-default',
+                                        'Md_scalar': self.runtime.outer_loop_config.Md_scalar,
+                                        'Bd_scalar': self.runtime.outer_loop_config.Bd_scalar})
 
     def reference(self, stage_id, pose_xy, elapsed_s):
         if stage_id != 'step5d_strict_rnn_autotune_v1':
@@ -216,6 +262,7 @@ class TaseContactProvider(ContactCommandProvider):
             'force_preempt_episode': self.force_preempt_episode,
             'force_preempt_direction_retry_count': self.force_preempt_direction_retry_count,
             'last_measured_force_norm': self.last_measured_force_norm,
+            'parameter_binding': copy.deepcopy(self.parameter_binding),
             'filter': {'filtered_normal_n': self.lifecycle_observer.filtered_normal_n,
                 'last_log': None if self.lifecycle_observer.last_log is None else asdict(self.lifecycle_observer.last_log)}})
 
@@ -395,7 +442,7 @@ class TaseContactProvider(ContactCommandProvider):
             # is a bounded safety retry, not a gain or envelope change.
             force_preempt_direction_retry = False
             force_preempt_approach_before_retry = None
-            if measured_force_norm >= TASE_FORCE_DIRECTION_RETRY_THRESHOLD_N:
+            if measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N:
                 preliminary_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
                     command.qdot, dtype=float
                 )
@@ -445,7 +492,7 @@ class TaseContactProvider(ContactCommandProvider):
                 baseline_residual_tangential_m_s = float(np.linalg.norm(baseline_twist[:2]))
                 baseline_residual_angular_rad_s = float(np.linalg.norm(baseline_twist[3:]))
                 force_rise_unload_needed = bool(
-                    measured_force_norm >= TASE_FORCE_DIRECTION_RETRY_THRESHOLD_N
+                    measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N
                     and float(twist[2]) > 0.0
                     and abs(float(twist[2])) > abs(float(baseline_twist[2])) + 1e-12
                 )
@@ -485,7 +532,7 @@ class TaseContactProvider(ContactCommandProvider):
                         # outer-loop normal direction; otherwise a baseline
                         # acquisition can repeatedly unload after contact.
                         target_magnitude = abs(original_normal)
-                        if measured_force_norm >= TASE_FORCE_DIRECTION_RETRY_THRESHOLD_N:
+                        if measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N:
                             # The existing force-preempt threshold already
                             # marks a rising-load episode.  If the mature RNN
                             # has lagged to a tiny outward realization, use
@@ -598,6 +645,7 @@ class TaseContactProvider(ContactCommandProvider):
                 'formal_time_s': t if phase == 'path' else None,
                 'actual_dt_s': actual_dt_s, 'solver': copy.deepcopy(self.runtime.last_solver_diagnostics),
                 'implementation': 'mature_local_tase_rnn',
+                'parameter_binding': copy.deepcopy(self.parameter_binding),
                 'outer_loop_binding': copy.deepcopy(TASE_PAPER_OUTER_BINDING)}
             self.last_measured_force_norm = measured_force_norm
             return command

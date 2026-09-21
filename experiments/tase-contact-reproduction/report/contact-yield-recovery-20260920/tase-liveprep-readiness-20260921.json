@@ -6,13 +6,13 @@
     "package_accepted": true,
     "reproduction_complete": false
   },
-  "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T063352+0800.json",
-  "controller_readback_manifest_sha256": "da91a1b50ca776ed80bc985a99a7806c9d852f2ca08da7377d1666bad00b901c",
+  "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260921T174912+0800.json",
+  "controller_readback_manifest_sha256": "be63dee224fc7e8152fca6f8e9ae2a1c5d4dc3880c4a196bc60e23409ff844bf",
   "controller_readback_verified": true,
   "evidence": {
     "baseline_no_contact": true,
     "contact_six_status": "runs/tase-liveprep-refresh-20260920T234325Z/contact-six-status.json",
-    "current_provider_sha256": "226c482893e716a3eb16a11aa5a67ed33c418707d27b3d428ee87069ad5b87a2",
+    "current_provider_sha256": "7ea229331166080db6d040f882d2e1fb9945859fff52b641f4edd8ee5f12b004",
     "current_recovery_sha256": "52e6eabc5cc3b8f86da0da91f013422668e32563e0ac0d45c0206243dca7f1d2",
     "fresh_no_contact_baseline": "runs/tase-liveprep-refresh-20260920T234325Z/software_baseline_receipt.json",
     "fresh_resident_check": "runs/tase-liveprep-refresh-20260920T234325Z/supervisor-result.json",
@@ -27,15 +27,15 @@
     "binding": {
       "ok": true,
       "readback_triplet": {
-        "script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
-        "txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
-        "urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+        "script": "3426050bb3b5ee7d47b11947e93a4cbdc7183c46f7cd7acd276a7e71a03a065f",
+        "txt": "c59e654499ee7904ce656b4a741b926e20791183fe3b7f61dab2e592bb2588b9",
+        "urp": "5562973257f238a67716aab233b3482a4266d45e716db2c81212d13445425489"
       },
       "scope": "resident identity and current package binding",
       "source": "runs/tase-liveprep-refresh-20260920T234325Z/supervisor-result.json",
       "wire_identity": [
         606006,
-        20,
+        21,
         618001
       ]
     },
@@ -105,9 +105,9 @@
   "live_motion_authorized": false,
   "package_hashes_match": true,
   "package_sha256": {
-    ".script": "2c158962af06e48909e47bb3c807335670bc3e404a0be3d702f019360f6ba9dc",
-    ".txt": "3c6b996bccfa1886b5561a7b845bcc4eeb950405abca273a1e50177419167754",
-    ".urp": "a0a6bbd0def20748f80e31c6b8b4f659419df7aeceedd5dc451c42e28c7e9d2c"
+    ".script": "3426050bb3b5ee7d47b11947e93a4cbdc7183c46f7cd7acd276a7e71a03a065f",
+    ".txt": "c59e654499ee7904ce656b4a741b926e20791183fe3b7f61dab2e592bb2588b9",
+    ".urp": "5562973257f238a67716aab233b3482a4266d45e716db2c81212d13445425489"
   },
   "profile": "step5d_contact_six_qp_v1",
   "program": "step5d_contact_six_qp_v1",

@@ -1,0 +1,48 @@
+{
+  "schema": "tase.qualification-failure-v1",
+  "attempt": "tase-qualification-two-stage-preempt-20260921T085113-r1",
+  "method": "TASE_RNN_MATURE",
+  "candidate": {
+    "warm_start_threshold_n": 5.25,
+    "warm_start_rearm_threshold_n": 4.5,
+    "direction_retry_threshold_n": 5.75,
+    "force_rise_guard_threshold_n": 4.0,
+    "force_rise_inward_cap_m_s": 0.0005
+  },
+  "run": "runs/tase-qualification-two-stage-preempt-20260921T085113-r1",
+  "first_failure": {
+    "condition": "resident TP stopped during the single ten-second qualification before PATH admission",
+    "reason": 48,
+    "stage": "baseline_contact_acquisition",
+    "filtered_max_n": 4.853077374191403,
+    "force_norm_max_n": 9.312496419181882,
+    "raw_max_n": 9.302720568097348,
+    "readiness_samples": 11422,
+    "required_samples": 15001,
+    "sample_count": 15001,
+    "last_filtered_normal_n": 4.65475051559393,
+    "last_force_norm_n": 5.872924371281581,
+    "last_raw_normal_n": 5.804749564772065
+  },
+  "path_accepted": false,
+  "home": {
+    "automatic_home_success": true,
+    "home_blocked": false,
+    "home_attempted": true,
+    "home_commandable": true,
+    "dashboard": "STOPPED",
+    "safety": "NORMAL",
+    "stationary": true,
+    "recovery_receipt": "runs/tase-qualification-two-stage-preempt-20260921T085113-r1/supervisor-result.json"
+  },
+  "interpretation": {
+    "observed": "the earlier warm-start and later direction retry did not produce a continuous ten-second readiness window; force norm also crossed the unchanged readiness ceiling",
+    "not_claimed": "no physical precision improvement and no controller win",
+    "decision": "do not repeat this two-stage candidate; restore the known-better single 5.75 N hysteretic transition before the next live admission"
+  },
+  "evidence": [
+    "runs/tase-qualification-two-stage-preempt-20260921T085113-r1/dispatch_receipt.json",
+    "runs/tase-qualification-two-stage-preempt-20260921T085113-r1/supervisor-result.json",
+    "runs/tase-qualification-two-stage-preempt-20260921T085113-r1/video.mkv"
+  ]
+}

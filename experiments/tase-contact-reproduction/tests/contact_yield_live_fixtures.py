@@ -90,7 +90,7 @@ class YieldLiveRTDEDouble(FakeLiveRTDETransport):
         if command_mode == int(CommandMode.BASELINE):
             self._state = 21
         if command_mode == int(CommandMode.PATH):
-            if self._input_integers[0] < 3:
+            if self._input_integers[0] < 1:
                 self._state, self._reason = 90, 50
             else:
                 self._state = 25

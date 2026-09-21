@@ -320,7 +320,7 @@ def test_status_fresh_process_lists_native_identity_without_devices():
     assert completed.returncode == 0, completed.stderr
     payload = json.loads(completed.stdout)
     assert payload["program"] == "step5d_contact_six_qp_v1"
-    assert payload["readable_runtime_identity"] == [20, 618001]
+    assert payload["readable_runtime_identity"] == [21, 618001]
     assert payload["physical_qualification"] is False
     assert payload["machine_evidence_fresh"] is False
 
@@ -447,9 +447,9 @@ def test_pilot_diagnostic_is_not_full_period_acceptance(tmp_path: Path, lib):
     assert receipt['formally_qualified'] is False
     assert receipt['full_cycle_acceptance'] is False
     assert receipt['stop']['stopped'] is True
-    assert len([row for row in receipt['attempts'] if row['phase'] == 'qualify']) == 3
+    assert len([row for row in receipt['attempts'] if row['phase'] == 'qualify']) == 1
     assert rtde.closed
-    assert rtde._early_end_sequence == 4, receipt.get('error')
+    assert rtde._early_end_sequence == 2, receipt.get('error')
     assert code == 0, receipt.get('error')
 
 
@@ -504,6 +504,6 @@ def test_mature_full_figure8_with_trajectory_endpoint_double(tmp_path, lib):
                 wall_clock=lambda:100.,mono_clock=clock.now,sleep=clock.sleep,now_s=100.)
     receipt = json.loads((tmp_path/'dispatch_receipt.json').read_text())
     assert code == 0, receipt.get('error')
-    assert len(receipt['attempts']) == 4
+    assert len(receipt['attempts']) == 2
     assert receipt['attempts'][-1]['phase'] == 'pilot'
     assert receipt['stop']['stopped'] is True

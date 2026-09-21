@@ -190,6 +190,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     qualify.add_argument("--method", default="SFC")
     qualify.add_argument("--run-dir", type=Path, required=True)
     qualify.add_argument("--qp-library", type=Path)
+    qualify.add_argument("--parameter-file", type=Path,
+                         help="validated TASE outer-loop parameter snapshot")
     qualify.add_argument("--controller-host")
     qualify.add_argument("--kunwei-host")
     qualify.add_argument("--kunwei-port", type=int, default=5152)
@@ -203,6 +205,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     pilot.add_argument("--duration", required=True)
     pilot.add_argument("--run-dir", type=Path, required=True)
     pilot.add_argument("--qp-library", type=Path)
+    pilot.add_argument("--parameter-file", type=Path,
+                       help="validated TASE outer-loop parameter snapshot")
     pilot.add_argument("--controller-host")
     pilot.add_argument("--kunwei-host")
     pilot.add_argument("--kunwei-port", type=int, default=5152)
@@ -310,6 +314,7 @@ def run_live(
         prerequisites=prerequisites,
         home_binding=home_binding,
         qp_library=args.qp_library,
+        parameter_file=getattr(args, "parameter_file", None),
         authority_root=args.authority_root or (Path(args.run_dir) / "authority"),
         route_id=args.route_id,
         attempt_id=args.attempt_id,
@@ -351,6 +356,7 @@ def run_live(
         "full_cycle_acceptance": False,
         "physical_qualification": False,
         "rnn_hash_or_profile": provider.solver_profile.as_dict() if args.method == "TASE_RNN_MATURE" else False,
+        "tase_parameter_binding": getattr(provider, "parameter_binding", None),
         "prewarmed_before_endpoints": True,
         "provider_prewarm": getattr(provider, "prewarm_record", None),
         "command_timeline": getattr(provider, "command_timeline", []),
@@ -385,7 +391,10 @@ def run_live(
         import copy
         import os
         seed_state = provider.snapshot()
-        phases = ["qualify"] if args.command == "qualify" else ["qualify"] * 3 + ["pilot"]
+        # Native yield qualification is one continuous ten-second admission.
+        # The TP package and host enforce the same single success; the PATH
+        # attempt reuses that contact state.
+        phases = ["qualify"] if args.command == "qualify" else ["qualify", "pilot"]
         receipt["attempts"] = []
         for sequence, phase in enumerate(phases, start=1):
             # Separate physical attempts start from the documented seed; state
@@ -423,8 +432,15 @@ def run_live(
                     os.fsync(handle.fileno())
                 if path.read_text() != body:
                     raise YieldLiveError("qualification receipt cold-read differs")
-                mature.writer.set_baseline_state(consecutive_successes=sequence,
-                                                 sticky_one_newton_latched=0)
+                # R006MatureWriter wraps the actual R004 wire writer. Bind the
+                # one successful admission to that sole writer; assigning a
+                # new attribute on the adapter would silently leave the next
+                # PATH packet at baseline_successes=0.
+                admission_writer = getattr(mature.writer, "writer", mature.writer)
+                admission_writer.set_baseline_state(
+                    consecutive_successes=sequence,
+                    sticky_one_newton_latched=0,
+                )
         receipt["evidence_type"] = type(evidence).__name__
         receipt["evidence_eligible"] = bool(evidence.eligible)
         receipt["evidence_metrics"] = dict(evidence.metrics)
