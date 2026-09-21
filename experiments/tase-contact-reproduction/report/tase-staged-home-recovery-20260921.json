@@ -1,0 +1,104 @@
+{
+  "schema": "tase.staged-home-recovery-v1",
+  "claim_scope": "physical staged recovery and verified Home; original contact attempt remains failed; no contact PATH qualification claim",
+  "created_at": "2026-09-21T15:00:03+08:00",
+  "source_attempt": "runs/figure8-20260921T020723-450698",
+  "first_recovery_failure": "runs/figure8-20260921T020723-450698-autonomous-home-staged-20260921T1455",
+  "first_failure_root_cause": "staged clearance transfer actual TCP angular speed 0.0577295 rad/s exceeded unchanged 0.040 rad/s guard",
+  "repair_retry": "runs/figure8-20260921T020723-450698-autonomous-home-staged-speed-repair-20260921T1500",
+  "recovery_result": {
+    "success": true,
+    "state": "HOME_RECOVERED",
+    "trial_stays_failed": true,
+    "recovery_owner_invoked": true,
+    "home_commandable": true,
+    "home_motion_dispatched": true,
+    "relief_complete": true,
+    "route": "direct",
+    "direct_home_rejected": false
+  },
+  "home_result": {
+    "success": true,
+    "final_position_error_m": 1.3460619203802573e-05,
+    "final_orientation_error_rad": 5.213998294133332e-05,
+    "safety_after": "NORMAL",
+    "dashboard_running_after": "Program running: false",
+    "program_state_after": "STOPPED step5d_contact_home_v1.urp"
+  },
+  "fresh_final_preflight": "runs/preflight_20260921_after_home_recovered/preflight_readonly.json",
+  "fresh_final_preflight_sha256": "4836b028e9f6992d78470e86c14a58fbbfd7f47eb0d47641fcaf91d420af8046",
+  "final_dashboard": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "true",
+    "programState": "STOPPED step5d_contact_home_v1.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: false",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "final_rtde": {
+    "actual_TCP_force": [
+      -0.24980404024090033,
+      0.42167126795508886,
+      -0.22405342896650135,
+      -0.00047582687785192277,
+      -0.024681355420509588,
+      -0.002106916795262613
+    ],
+    "actual_TCP_pose": [
+      0.46206136200794345,
+      0.1778478653408519,
+      0.032974910568617496,
+      -2.033229290152612,
+      -2.3949048410490335,
+      8.715815925699864e-05
+    ],
+    "actual_TCP_speed": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "actual_q": [
+      0.725551426410675,
+      -1.8213831386961878,
+      -2.549579381942749,
+      -0.34080155313525395,
+      1.5722969770431519,
+      3.706357955932617
+    ],
+    "payload": 0.413,
+    "payload_cog": [
+      0.0011,
+      0.0031,
+      0.0163
+    ],
+    "robot_mode": 7,
+    "runtime_state": 1,
+    "safety_mode": 1,
+    "speed_scaling": 0.0,
+    "tcp_offset": [
+      0.0,
+      0.0,
+      0.0874,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "final_derived": {
+    "actual_tcp_force_norm_n": 0.5388957744974224,
+    "actual_tcp_speed_linear_norm_m_s": 0.0,
+    "actual_tcp_torque_norm_nm": 0.024775690000348405,
+    "payload_kg": 0.413,
+    "tcp_offset_z_mm": 87.4
+  },
+  "single_writer": {
+    "active_writers": [],
+    "ok": true
+  },
+  "fresh_package_readback": "runs/preflight_20260921_after_home_recovered/recovery-readback/readback-results.json",
+  "qualification_status": "not yet rerun; next step is affected qualification before formal PATH",
+  "motion_summary": "vertical relief and force release were executed; Home completed using staged package transfer 0.040 m/s and final verification passed"
+}
