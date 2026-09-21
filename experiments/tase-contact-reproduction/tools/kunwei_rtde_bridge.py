@@ -35,6 +35,10 @@ from typing import Any, Callable, Mapping, Sequence
 import numpy as np
 
 
+STEP5D_INTEGRAL_POLICY_LEGACY = "legacy-v4-default"
+STEP5D_INTEGRAL_POLICY_R013 = "conditional-double-clamp-v1"
+
+
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 STEP4F_SAFE_FRAME_PATH = EXPERIMENT_ROOT / "config" / "step4f_safe_frame.json"
 KUNWEI_TOOLS = (
@@ -80,6 +84,7 @@ from step5d_paper_outer_loop import (  # noqa: E402
     Step5dOuterLoopOutput,
     Step5dOuterLoopState,
     compute_step5d_outer_loop,
+    conditional_double_clamp_step as step5d_conditional_anti_windup_step,
     rnn_target_state_from_outer_loop,
 )
 from step5d_p0_v8_control_core import (  # noqa: E402
@@ -4424,6 +4429,11 @@ class BridgeState:
         self.step5d_solver_lifecycle_key = "inactive"
         self.step5d_pending_solver_warm_start = False
         self.step5d_outer_state = Step5dOuterLoopState()
+        self.step5d_integral_gain_signature: tuple[float, float, float] | None = None
+        self.step5d_integral_active_s = 0.0
+        self.step5d_integral_saturated_s = 0.0
+        self.step5d_integral_frozen_s = 0.0
+        self.step5d_integral_reset_reason = ""
         self.step5d_v30_sequence = 0
         self.step5d_v30_deferred_diagnostics: DeferredV30Diagnostics | None = None
         self.step5d_v30_diagnostics_trial_id: int | None = None
@@ -4502,6 +4512,7 @@ class BridgeState:
         self.line_stage_s = 0.0
         self.last_robot_stage = None
         self.step5d_outer_state = Step5dOuterLoopState()
+        self.reset_conditional_integral("mode_exit_or_home")
         self.step5d_v30_sequence = 0
         self.step5d_p0_v9_anchor_tcp_pose = None
         self.step5d_p0_v9_approach_normal = None
@@ -4541,6 +4552,19 @@ class BridgeState:
         self.step5d_live_normal_load_gate_s = 0.0
         self.step5d_live_normal_blend_enabled = False
         self.reset_step5b_15n_trial()
+
+    def reset_conditional_integral(self, reason: str) -> None:
+        """Reset all conditional-double-clamp state at a lifecycle boundary."""
+
+        parsed_reason = str(reason).strip()
+        if not parsed_reason:
+            raise ValueError("conditional integral reset requires a reason")
+        self.step5d_outer_state = Step5dOuterLoopState()
+        self.step5d_integral_gain_signature = None
+        self.step5d_integral_active_s = 0.0
+        self.step5d_integral_saturated_s = 0.0
+        self.step5d_integral_frozen_s = 0.0
+        self.step5d_integral_reset_reason = parsed_reason
 
     def reset_step5b_15n_trial(self) -> None:
         self.step5b_15n_anchor_xy = None
@@ -9188,6 +9212,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step4e-force-damping", type=float, default=0.35)
     parser.add_argument("--step4e-normal-command-sign", type=float, choices=(-1.0, 1.0), default=1.0)
     parser.add_argument("--step4e-integral-limit-n-s", type=float, default=10.0)
+    parser.add_argument(
+        "--bridge-integral-policy",
+        choices=(STEP5D_INTEGRAL_POLICY_LEGACY, STEP5D_INTEGRAL_POLICY_R013),
+        default=STEP5D_INTEGRAL_POLICY_LEGACY,
+    )
     parser.add_argument("--step4e-min-force-for-control-n", type=float, default=1.0)
     parser.add_argument("--step4e-acquire-grace-s", type=float, default=0.25)
     parser.add_argument("--step4e-reacquire-velocity-m-s", type=float, default=0.001)
