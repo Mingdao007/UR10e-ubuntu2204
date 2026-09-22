@@ -16,6 +16,14 @@
     0.0,
     0.068626833
   ],
+  "joint_positions_rad": [
+    0.7451654076576233,
+    -1.8181091747679652,
+    -2.5626940727233887,
+    -0.3122711938670655,
+    1.5276236534118652,
+    -0.8238123098956507
+  ],
   "source": {
     "historical_worktree": "/home/andy/.codex-worktrees/step5d-r013-offline-20260813",
     "receipt": "experiments/tase-contact-reproduction/runs/step6_figure8_home_calibration_v1_20260816_201400/home_calibration_receipt.json",

@@ -31,6 +31,8 @@ def test_triplet_preserves_home_xyz_and_has_narrow_common_caps(tmp_path):
         '  if not codex_r006_stationary(0.250000000):'
     ) in s
     assert 'local runtime_revision = 25' in s
+    assert 'movej(home_q, a=0.050000000, v=0.050000000, t=0.0, r=0.0)' in s
+    assert 'movel(transfer_pose, a=0.135, v=0.090, r=0.0)' not in s
     assert r['numeric_sanity']['tp_actual_joint_speed_guard_rad_s'] == pytest.approx(.06)
     assert 'local force_fuse_n = 20.000000000' in s
     assert 'travel >= 0.015000000' in s

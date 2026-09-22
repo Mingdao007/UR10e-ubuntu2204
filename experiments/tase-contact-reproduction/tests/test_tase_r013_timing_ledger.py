@@ -127,6 +127,27 @@ def test_writer_reducer_accepts_serialized_integer_echo_keys() -> None:
     assert next(row for row in events if row["stage"] == "PATH")["timestamp_s"] == pytest.approx(3.1)
 
 
+def test_writer_reducer_ignores_stale_prearm_clearance_state() -> None:
+    writer = SimpleNamespace(
+        robot_observations=[
+            {"integer_echoes": {26: 78}, "received_monotonic_s": 0.5},
+            {"integer_echoes": {26: 20}, "received_monotonic_s": 1.0},
+            {"integer_echoes": {26: 21}, "received_monotonic_s": 2.0},
+            {"integer_echoes": {26: 25}, "received_monotonic_s": 3.0},
+            {"integer_echoes": {26: 40}, "received_monotonic_s": 64.0},
+            {"integer_echoes": {26: 78}, "received_monotonic_s": 65.0},
+        ],
+        admission_robot_observations=[],
+        _path_command_started_mono_s=3.1,
+        _r013_path_end_request_mono_s=63.9,
+    )
+    events = lifecycle_events_from_writer(writer, home_check_s=0.0, home_verified=True)
+    clearance = next(row for row in events if row["stage"] == "CLEARANCE")
+    home = next(row for row in events if row["stage"] == "HOME")
+    assert clearance["timestamp_s"] == pytest.approx(65.0)
+    assert home["timestamp_s"] == pytest.approx(65.0)
+
+
 def test_writer_reducer_preserves_readiness_hold_boundaries() -> None:
     writer = SimpleNamespace(
         robot_observations=[

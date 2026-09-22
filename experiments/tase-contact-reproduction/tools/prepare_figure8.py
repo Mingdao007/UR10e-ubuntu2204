@@ -38,6 +38,9 @@ def validate_sample(output, wrench, received, now, contract, profile):
     if (np.linalg.norm(pose[:3]-contract.home_pose[:3]) > .0005
         or np.linalg.norm(so3_log(so3_exp(pose[3:]) @ so3_exp(contract.home_pose[3:]).T)) > .01):
         raise ValueError('not at the configured figure-eight clearance Home; run scripts/home.sh first')
+    q_error = max(abs(float(actual) - float(expected)) for actual, expected in zip(output.q_rad, contract.home_q, strict=True))
+    if q_error > 0.02:
+        raise ValueError(f'not at the configured Figure-eight joint Home; max joint error={q_error:.6f} rad')
     if (max(map(abs, output.qd_rad_s)) >= .001
         or max(map(abs, output.tcp_speed_m_s_rad_s)) >= .001):
         raise ValueError('baseline robot is moving')

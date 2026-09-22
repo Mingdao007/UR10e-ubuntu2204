@@ -255,6 +255,34 @@ end
         raise ValueError('return-home guard call sites differ')
     return_body=return_body.replace('codex_r006_packet_guard(','codex_r006_recovery_packet_guard(')
     return_body=return_body.replace('codex_r006_stationary(','codex_r006_recovery_stationary(')
+    # Figure-eight Home is a joint-space identity.  Keep the vertical
+    # withdrawal above the contact surface, then use the approved joint target
+    # for the actual return.  The previous XY ``movel`` only happened to end
+    # near the same TCP pose and could leave a different joint branch.
+    old_transfer = (
+        '  local transfer_pose = p[home_pose[0], home_pose[1], target_z, home_pose[3], home_pose[4], home_pose[5]]\n'
+        '  movel(transfer_pose, a=0.135, v=0.090, r=0.0)\n'
+        '  stopl(0.1)\n'
+        '  if not codex_r006_recovery_stationary(0.250000000):\n'
+        '    return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 59, runtime_revision, runtime_extension, return_guard)\n'
+        '  end\n'
+        '  return_guard = return_guard + 16\n'
+        '  codex_r006_echo(epoch, ordinal, 40, token, 0, consumed, kind, return_guard, runtime_revision, runtime_extension)\n'
+    )
+    if return_body.count(old_transfer) != 1:
+        raise ValueError('joint Home return transfer source differs')
+    joint_return = (
+        '  # The vertical lift is the contact-release step; the approved Home\n'
+        '  # identity is reached with one bounded joint-space move.\n'
+        '  movej(home_q, a=0.050000000, v=0.050000000, t=0.0, r=0.0)\n'
+        '  stopj(1.0)\n'
+        '  if not codex_r006_recovery_stationary(0.250000000):\n'
+        '    return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 59, runtime_revision, runtime_extension, return_guard)\n'
+        '  end\n'
+        '  return_guard = return_guard + 16\n'
+        '  codex_r006_echo(epoch, ordinal, 40, token, 0, consumed, kind, return_guard, runtime_revision, runtime_extension)\n'
+    )
+    return_body=return_body.replace(old_transfer, joint_return, 1)
     body=body[:return_start]+return_body+body[return_end:]
     # Every terminal fault must attempt the existing bounded return-to-Home
     # route.  The inherited R012 resident only latched STOPPED, which left a

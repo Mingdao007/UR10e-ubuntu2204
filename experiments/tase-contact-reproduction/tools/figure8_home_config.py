@@ -17,6 +17,14 @@ EXPECTED_POSE = (
     0.0,
     0.068626833,
 )
+EXPECTED_HOME_Q = (
+    0.7451654076576233,
+    -1.8181091747679652,
+    -2.5626940727233887,
+    -0.3122711938670655,
+    1.5276236534118652,
+    -0.8238123098956507,
+)
 
 
 def load_canonical_figure8_home(path: Path = CONFIG_PATH) -> tuple[float, ...]:
@@ -38,4 +46,17 @@ def load_canonical_figure8_home(path: Path = CONFIG_PATH) -> tuple[float, ...]:
     return pose
 
 
+def load_canonical_figure8_home_q(path: Path = CONFIG_PATH) -> tuple[float, ...]:
+    document = json.loads(Path(path).read_text(encoding="utf-8"))
+    if document.get("schema") != "tase.figure8/canonical-home-v1":
+        raise ValueError("Figure-eight canonical Home schema differs")
+    joints = tuple(float(value) for value in document.get("joint_positions_rad", ()))
+    if len(joints) != 6 or not all(math.isfinite(value) for value in joints):
+        raise ValueError("Figure-eight canonical Home joints are not finite six-dimensional")
+    if joints != EXPECTED_HOME_Q:
+        raise ValueError("Figure-eight canonical Home joints differ from the approved target")
+    return joints
+
+
 CANONICAL_FIGURE8_HOME_POSE = load_canonical_figure8_home()
+CANONICAL_FIGURE8_HOME_Q = load_canonical_figure8_home_q()

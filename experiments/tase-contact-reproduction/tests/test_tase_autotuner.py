@@ -310,3 +310,21 @@ def test_missing_terminal_preflight_proof_is_unknown_recovery_state(tmp_path: Pa
         "status": "failed",
         "failure": "receipt_parse:ValueError",
     })
+
+
+def test_terminal_preflight_receipt_is_retryable_without_motion(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "terminal-no-dispatch-receipt.json").write_text(json.dumps({
+        "attempt_dispatched": False,
+        "terminal_no_dispatch": True,
+        "writer_artifacts_absent": True,
+    }))
+    row = {
+        "status": "failed",
+        "failure": "owner_failed_or_missing_receipt",
+        "preflight_failed": True,
+        "run_dir": str(run_dir),
+    }
+    assert _is_preflight_only_failure(row)
+    assert not _needs_recovery_pause(row)

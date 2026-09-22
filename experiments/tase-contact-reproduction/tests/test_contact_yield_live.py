@@ -65,7 +65,7 @@ def _prepare(tmp_path: Path, *, program_running: bool = True, observed: float = 
         route_id="r006-yield-live",
         session_epoch=1,
         resident_session_id="r006-yield-live-session",
-        home_q=PRESERVED["home_q"],
+        home_q=contract.home_q,
         observed_controller=observed,
         observed_runtime=observed + 5.0,
         observed_home=observed,
@@ -359,7 +359,7 @@ def test_wrong_protocol_fails_before_arm(tmp_path: Path, lib):
     rtde = YieldLiveRTDEDouble(
         contract,
         home_pose=contract.home_pose,
-        home_q=PRESERVED["home_q"],
+        home_q=contract.home_q,
         wrong_protocol=True,
         clock=clock.now,
     )
@@ -381,7 +381,7 @@ def test_stale_receipt_fails_before_arm(tmp_path: Path, lib):
     contract = _prepare(tmp_path, observed=0.0)
     clock = Clock(0.01)
     rtde = YieldLiveRTDEDouble(
-        contract, home_pose=contract.home_pose, home_q=PRESERVED["home_q"], clock=clock.now
+        contract, home_pose=contract.home_pose, home_q=contract.home_q, clock=clock.now
     )
     kunwei = FakeLiveKunweiTransport(observed_clock=clock.now)
     code = main(
@@ -404,7 +404,7 @@ def test_endpoint_qualify_uses_real_open_arm_execute(tmp_path: Path, lib, method
     rtde = YieldLiveRTDEDouble(
         contract,
         home_pose=contract.home_pose,
-        home_q=PRESERVED["home_q"],
+        home_q=contract.home_q,
         events=events,
         # The approved Figure-eight Home is an exact rotation-vector
         # contract; negating this non-pi vector is a different SO(3) pose.
@@ -433,7 +433,7 @@ def test_pilot_diagnostic_is_not_full_period_acceptance(tmp_path: Path, lib):
     contract = _prepare(tmp_path)
     clock = Clock(0.01)
     rtde = YieldLiveRTDEDouble(
-        contract, home_pose=contract.home_pose, home_q=PRESERVED["home_q"], clock=clock.now
+        contract, home_pose=contract.home_pose, home_q=contract.home_q, clock=clock.now
     )
     kunwei = FakeLiveKunweiTransport(observed_clock=clock.now, wrench_n_nm=(0.0, 0.0, -5.0, 0.0, 0.0, 0.0))
     code = main(
@@ -461,7 +461,7 @@ def test_second_writer_is_rejected(tmp_path: Path, lib):
     contract = _prepare(tmp_path)
     clock = Clock(.01)
     rtde = YieldLiveRTDEDouble(contract,home_pose=contract.home_pose,
-        home_q=PRESERVED["home_q"],clock=clock.now)
+        home_q=contract.home_q,clock=clock.now)
     kunwei = FakeLiveKunweiTransport(observed_clock=clock.now)
     assert _R006_INJECTION_LOCK.acquire(blocking=False)
     try:
@@ -499,7 +499,7 @@ def test_mature_full_figure8_with_trajectory_endpoint_double(tmp_path, lib):
                 self.path_origin = None
             return row
     rtde = FollowingEndpoint(contract, home_pose=contract.home_pose,
-                             home_q=PRESERVED['home_q'], clock=clock.now, flip_rotvec=False)
+                             home_q=contract.home_q, clock=clock.now, flip_rotvec=False)
     sensor = FakeLiveKunweiTransport(observed_clock=clock.now,
                                     wrench_n_nm=(0.,0.,-5.,0.,0.,0.))
     code = main(_argv('pilot',tmp_path,qp_library=str(lib),method='TASE_RNN_MATURE',duration='full'),

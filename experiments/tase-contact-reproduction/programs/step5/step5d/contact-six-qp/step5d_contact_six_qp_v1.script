@@ -1,4 +1,4 @@
-# VERSION: 2026-09-21T1756Z_CONTACT_SIX_QP_V1_618001
+# VERSION: 2026-09-22T0745Z_CONTACT_SIX_QP_V1_618001
 # ROLE: six-law shared-QP preparation; requires matching host owner 618001
 # CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm
 # CONTACT_SEARCH: STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1; FAR=0.005000m/s until 0.011029311m, NEAR=0.000500m/s; travel<=0.015m; timeout=90.0s; no scalar admittance
@@ -608,9 +608,10 @@ def codex_r006_return_home(home_pose, home_q, epoch, ordinal, token, kind, consu
   end
   return_guard = return_guard + 1 + 2 + 8
   codex_r006_echo(epoch, ordinal, 40, token, 0, consumed, kind, return_guard, runtime_revision, runtime_extension)
-  local transfer_pose = p[home_pose[0], home_pose[1], target_z, home_pose[3], home_pose[4], home_pose[5]]
-  movel(transfer_pose, a=0.135, v=0.090, r=0.0)
-  stopl(0.1)
+  # The vertical lift is the contact-release step; the approved Home
+  # identity is reached with one bounded joint-space move.
+  movej(home_q, a=0.050000000, v=0.050000000, t=0.0, r=0.0)
+  stopj(1.0)
   if not codex_r006_recovery_stationary(0.250000000):
     return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 59, runtime_revision, runtime_extension, return_guard)
   end

@@ -29,6 +29,10 @@ from step5d_autotune_v4_r006.live_adapter import (
     R006LiveAdapterError,
 )
 from step5d_eoat_profiles import load_new_eoat_profile
+from figure8_home_config import (
+    CANONICAL_FIGURE8_HOME_Q,
+    CANONICAL_FIGURE8_HOME_POSE,
+)
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -99,6 +103,11 @@ def load_live_contract_document(path: Path | str | None = None) -> dict[str, Any
     if identity != READABLE_RUNTIME_IDENTITY:
         raise YieldLiveContractError("native readable runtime identity is not (25, 618001)")
     task = _require_mapping(payload.get("task"), "task")
+    home_q = _finite6(payload.get("home_q_rad"), "home_q_rad")
+    if tuple(home_q) != tuple(CANONICAL_FIGURE8_HOME_Q):
+        raise YieldLiveContractError("native live contract joint Home differs from canonical Figure-eight Home")
+    if tuple(_finite6(payload.get("home_pose_m_rad"), "home_pose_m_rad")) != tuple(CANONICAL_FIGURE8_HOME_POSE):
+        raise YieldLiveContractError("native live contract TCP Home differs from canonical Figure-eight Home")
     if not math.isclose(float(task.get("period_s")), PERIOD_S, rel_tol=0.0, abs_tol=1e-12):
         raise YieldLiveContractError("native live contract period is not the formal PATH period")
     if float(task.get("normal_force_n")) != 5.0:
@@ -153,6 +162,7 @@ class YieldLiveIdentityContract:
     raw: Mapping[str, Any]
     readable_runtime_identity: tuple[int, int]
     home_pose: tuple[float, float, float, float, float, float]
+    home_q: tuple[float, float, float, float, float, float]
     triplet: Mapping[str, str]
 
     @property
@@ -167,6 +177,7 @@ def load_identity_contract(path: Path | str | None = None) -> YieldLiveIdentityC
     triplet = package_triplet()
     home_sha = home_script_sha256()
     home_pose = _finite6(document["home_pose_m_rad"], "home_pose_m_rad")
+    home_q = _finite6(document["home_q_rad"], "home_q_rad")
     raw = {
         "program": CONTACT_PROGRAM,
         "script2": {
@@ -193,6 +204,7 @@ def load_identity_contract(path: Path | str | None = None) -> YieldLiveIdentityC
             "triplet": triplet,
             "home_script": home_sha,
             "home_pose": list(home_pose),
+            "home_q": list(home_q),
         }
     )
     return YieldLiveIdentityContract(
@@ -204,6 +216,7 @@ def load_identity_contract(path: Path | str | None = None) -> YieldLiveIdentityC
         raw=raw,
         readable_runtime_identity=READABLE_RUNTIME_IDENTITY,
         home_pose=home_pose,
+        home_q=home_q,
         triplet=triplet,
     )
 
@@ -264,6 +277,8 @@ def contact_home_binding(
     if abs(pose[2] - contract.home_pose[2]) > HOME_POSITION_TOLERANCE_M:
         raise YieldLiveContractError("Home receipt Z differs from the contact Home")
     q = _finite6(final_q, "Home receipt q")
+    if max(abs(actual - expected) for actual, expected in zip(q, contract.home_q, strict=True)) > HOME_Q_TOLERANCE_RAD:
+        raise YieldLiveContractError("Home receipt joints differ from the approved Figure-eight joint Home")
     eoat = load_new_eoat_profile()
     profile = ContactHomeProfileV1(
         eoat_profile_id=eoat.profile_id,

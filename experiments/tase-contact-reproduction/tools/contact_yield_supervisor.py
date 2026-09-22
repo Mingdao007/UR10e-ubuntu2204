@@ -21,6 +21,11 @@ from contact_yield_live_contract import (
     CONTACT_PROGRAM, HOME_PROGRAM, PACKAGE_DIR, READABLE_RUNTIME_IDENTITY,
     RUNTIME_PROTOCOL, load_identity_contract, software_identity_limbs,
 )
+from contact_home_motion_profile import (
+    HOME_ANGULAR_SPEED_GUARD_RAD_S,
+    HOME_JOINT_SPEED_GUARD_RAD_S,
+    HOME_TCP_SPEED_GUARD_M_S,
+)
 from step5d_autotune_v4_r004.transport import OUTPUT_FIELDS, R004OutputSnapshot
 from tase_r013_timing_ledger import ledger_from_receipts
 
@@ -269,6 +274,17 @@ class ResidentSupervisor:
         if row['safety_mode'] != 1 or row['robot_mode'] != 7:
             raise RuntimeError(f"robot gate failed: safety={row['safety_mode']} robot={row['robot_mode']}")
         if idle and not stationary(row): raise RuntimeError('unexpected motion in resident idle')
+        # The TP publishes RETURNING before any Home motion.  Keep its joint
+        # and Cartesian return envelope independent from PATH admission: a
+        # return sample that exceeds the ordinary Home guards stops the live
+        # owner and enters the same automatic Home recovery path.
+        if row.get('output_int_register_26') == 40:
+            if max(abs(float(value)) for value in row['actual_qd']) > HOME_JOINT_SPEED_GUARD_RAD_S:
+                raise RuntimeError('joint Home return speed envelope violated')
+            if math.hypot(*row['actual_TCP_speed'][:3]) > HOME_TCP_SPEED_GUARD_M_S:
+                raise RuntimeError('joint Home return Cartesian speed envelope violated')
+            if math.hypot(*row['actual_TCP_speed'][3:]) > HOME_ANGULAR_SPEED_GUARD_RAD_S:
+                raise RuntimeError('joint Home return angular speed envelope violated')
         if (not math.isclose(row['payload'], .413, abs_tol=.0005)
             or any(abs(a-b)>.00005 for a,b in zip(row['payload_cog'],[.0011,.0031,.0163]))
             or any(abs(a-b)>.00005 for a,b in zip(row['tcp_offset'],[0,0,.0874,0,0,0]))):

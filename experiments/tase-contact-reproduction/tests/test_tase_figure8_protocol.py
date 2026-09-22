@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import pytest
 
@@ -40,6 +41,12 @@ def test_reference_rejects_full_period_clock_and_requires_separate_identity() ->
     assert request.kind == "r013_compat_60"
     assert request.path_duration_s == 60.0
     assert request.protocol_id == PROTOCOL_ID
+
+
+def test_figure8_entry_defaults_to_r013_60() -> None:
+    script = (Path(__file__).resolve().parents[1] / "scripts" / "figure8.sh").read_text()
+    assert "duration='r013_60'" in script
+    assert "Use --duration full explicitly" in script
 
 
 def test_incomplete_and_complete_metrics_are_both_reported() -> None:

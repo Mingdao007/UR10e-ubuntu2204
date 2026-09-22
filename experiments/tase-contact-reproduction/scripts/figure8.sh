@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
   echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60] [--run-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--video-policy required|evidence-only]'
-  echo 'Defaults: TASE_RNN_MATURE, CPU 2, one 62.831853 s full-period figure-eight, then stop/Home.'
-  echo 'The autotuner passes --duration r013_60 explicitly for the historical 60 s R013-compatible window.'
+  echo 'Defaults: TASE_RNN_MATURE, CPU 2, one 60 s R013-compatible figure-eight, then stop/Home.'
+  echo 'Use --duration full explicitly for the separate 62.831853 s full-period protocol.'
   echo 'Without --run-dir: automatically capture fresh baseline and fetch installed packages.'
   echo 'An unavailable method is rejected before controller access; no substitution.'
   exit 0
@@ -14,7 +14,7 @@ method=TASE_RNN_MATURE
 cpu=2
 run_dir=''
 parameter_file=''
-duration='full'
+duration='r013_60'
 video_policy='required'
 while (($#)); do
   case "$1" in
@@ -35,16 +35,64 @@ case "$duration" in
   full|full_period|period|r013_60|compat60|r013_compat_60) ;;
   *) echo "Unsupported Figure-eight duration: $duration" >&2; exit 64 ;;
 esac
+
+write_terminal_no_dispatch_receipt() {
+  local phase="$1"
+  local returncode="$2"
+  RUN_DIR="$run_dir" PHASE="$phase" RETURN_CODE="$returncode" \
+    "$ROOT/.venv-contact-six/bin/python" - <<'PY'
+import datetime
+import json
+import os
+from pathlib import Path
+
+run_dir = Path(os.environ["RUN_DIR"])
+run_dir.mkdir(parents=True, exist_ok=True)
+forbidden = {
+    "dispatch_receipt.json", "owner.json", "raw_sensor.jsonl",
+    "robot_frames.jsonl", "published_packets.jsonl",
+    "admission_robot_frames.jsonl", "rejected_robot_frames.jsonl",
+    "supervisor-result.json",
+}
+payload = {
+    "schema": "yield-live-entry/terminal-no-dispatch-v1",
+    "terminal_no_dispatch": True,
+    "attempt_dispatched": False,
+    "motion_started": False,
+    "dispatch_receipt_present": False,
+    "writer_artifacts_absent": not any((run_dir / name).exists() for name in forbidden),
+    "phase": os.environ["PHASE"],
+    "returncode": int(os.environ["RETURN_CODE"]),
+    "recorded_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    "reason": "owner preflight failed before the live writer was opened",
+}
+(run_dir / "terminal-no-dispatch-receipt.json").write_text(
+    json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+)
+PY
+}
+
 if [[ -z "$run_dir" || ! -d "$run_dir" ]]; then
-  "$ROOT/scripts/contact-six.sh" status
+  status_rc=0
+  "$ROOT/scripts/contact-six.sh" status || status_rc=$?
   if [[ -z "$run_dir" ]]; then
     run_dir="$ROOT/runs/figure8-$(date -u +%Y%m%dT%H%M%S)-$$"
   fi
+  mkdir -p "$run_dir"
+  if (( status_rc != 0 )); then
+    write_terminal_no_dispatch_receipt contact_six_status "$status_rc"
+    exit "$status_rc"
+  fi
+  prepare_rc=0
   env -u VIRTUAL_ENV -u PYTHONHOME PYTHONNOUSERSITE=1 \
     PYTHONPATH="$ROOT/tools:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages" \
     AMENT_PREFIX_PATH=/opt/ros/humble OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
     "$ROOT/.venv-contact-six/bin/python" -B "$ROOT/tools/prepare_figure8.py" \
-    --run-dir "$run_dir" --method "$method" --video-policy "$video_policy"
+    --run-dir "$run_dir" --method "$method" --video-policy "$video_policy" || prepare_rc=$?
+  if (( prepare_rc != 0 )); then
+    write_terminal_no_dispatch_receipt prepare_figure8 "$prepare_rc"
+    exit "$prepare_rc"
+  fi
 fi
 set +e
 supervise_args=(supervise --action pilot \

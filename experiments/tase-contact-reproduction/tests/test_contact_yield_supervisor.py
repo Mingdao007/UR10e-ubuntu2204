@@ -72,6 +72,21 @@ def test_idle_resident_check_never_loads_plays_or_stops():
     assert not any(event == 'play' or event == 'stop' or event.startswith('load ') for event in events)
 
 
+def test_returning_state_has_independent_joint_home_speed_guard():
+    s, body, t, events = rig()
+    latest = s.observer.latest
+
+    def returning_too_fast(**kwargs):
+        row = latest(**kwargs)
+        row['output_int_register_26'] = 40
+        row['actual_qd'][0] = 0.151
+        return row
+
+    s.observer.latest = returning_too_fast
+    with pytest.raises(RuntimeError, match='joint Home return speed envelope violated'):
+        s.check()
+
+
 def test_first_body_failure_survives_stop_timeout():
     s,body,t,events=rig(body_error=True,stop_delay=10.)
     result=s.run(body)

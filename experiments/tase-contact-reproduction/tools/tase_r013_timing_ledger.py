@@ -477,6 +477,23 @@ def lifecycle_events_from_writer(
         if state in {20, 21, 25, 40, 78} and timestamp is not None and state not in first_state:
             first_state[state] = timestamp
 
+    # The RTDE observer can retain a pre-arm terminal 78 image from the
+    # resident program.  It is not this attempt's clearance/Home transition.
+    # Once TP state 40 has been observed, use the first subsequent 78 sample;
+    # never let a stale admission image regress the lifecycle clock.
+    if 40 in first_state and first_state.get(78, math.inf) < first_state[40]:
+        ordered_rows = sorted(
+            (row for row in rows if row_time(row) is not None),
+            key=lambda row: float(row_time(row)),
+        )
+        post_return_home = [
+            float(row_time(row))
+            for row in ordered_rows
+            if row_state(row) == 78 and float(row_time(row)) >= first_state[40]
+        ]
+        if post_return_home:
+            first_state[78] = post_return_home[0]
+
     candidates: dict[str, tuple[float | None, str]] = {
         "HOME_CHECK": (finite_or_none(home_check_s), "verified_preflight"),
         "CONTACT_SEARCH": (

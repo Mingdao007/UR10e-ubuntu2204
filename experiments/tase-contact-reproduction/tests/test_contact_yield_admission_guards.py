@@ -7,7 +7,7 @@ from contact_yield_live_writer import (
 )
 from contact_yield_live_contract import contact_home_binding, YieldLiveContractError
 from step5d_autotune_v4_r006.live_adapter import R006LiveWriter, R006LiveAdapterError
-from test_contact_yield_live import _prepare, PRESERVED
+from test_contact_yield_live import _prepare
 
 
 def load(tmp_path, contract):
@@ -52,14 +52,22 @@ def test_home_observation_cannot_be_replaced_by_desired_pose(tmp_path, field, va
 def test_actual_equivalent_home_pose_is_preserved(tmp_path):
     contract = _prepare(tmp_path)
     pose = list(contract.home_pose)
-    pose[3:] = [-x for x in pose[3:]]
     binding = contact_home_binding(contract=contract, final_pose=pose,
-        final_q=PRESERVED['home_q'], observed_at_s=90., receipt_sha256='a'*64)
+        final_q=contract.home_q, observed_at_s=90., receipt_sha256='a'*64)
     assert binding.entry_receipt.final_pose == tuple(pose)
     pose[3] += .1
     with pytest.raises((YieldLiveContractError,R006LiveAdapterError),match='orientation'):
         contact_home_binding(contract=contract, final_pose=pose,
-            final_q=PRESERVED['home_q'], observed_at_s=90., receipt_sha256='a'*64)
+            final_q=contract.home_q, observed_at_s=90., receipt_sha256='a'*64)
+
+
+def test_joint_home_is_authoritative_for_admission(tmp_path):
+    contract = _prepare(tmp_path)
+    wrong_q = list(contract.home_q)
+    wrong_q[0] += 0.03
+    with pytest.raises(YieldLiveContractError, match='joints'):
+        contact_home_binding(contract=contract, final_pose=contract.home_pose,
+            final_q=wrong_q, observed_at_s=90., receipt_sha256='a'*64)
 
 
 @pytest.mark.parametrize('fresh,state,stationary,confirmed', [
@@ -71,7 +79,7 @@ def test_stop_needs_fresh_stationary_controller_observation(fresh,state,stationa
     clock = NS(now=1.)
     output = NS(timestamp=2., received_monotonic_s=1. if fresh else .1,
         stationary=stationary, safety_normal=True,
-        integer_echoes={26:state,28:4,32:606006,33:20,34:618001},
+        integer_echoes={26:state,28:4,32:606006,33:25,34:618001},
         qd_rad_s=(0.,)*6, tcp_speed_m_s_rad_s=(0.,)*6)
     writer = NS(_mono_clock=lambda:clock.now, _last_output=NS(timestamp=1.),
         stop=lambda reason:None, _opened=True,

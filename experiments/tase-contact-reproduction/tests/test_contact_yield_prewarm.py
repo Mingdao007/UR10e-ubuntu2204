@@ -188,7 +188,7 @@ def test_owner_prewarms_actual_instance_before_writer_without_opening_endpoints(
         route_id="r006-yield-live",
         session_epoch=1,
         resident_session_id="r006-yield-live-session",
-        home_q=PRESERVED["home_q"],
+        home_q=contract.home_q,
         observed_controller=90.0,
         observed_runtime=95.0,
         observed_home=90.0,
@@ -203,7 +203,7 @@ def test_owner_prewarms_actual_instance_before_writer_without_opening_endpoints(
     )
     events: list[str] = []
     rtde = YieldLiveRTDEDouble(
-        contract, home_pose=contract.home_pose, home_q=PRESERVED["home_q"], events=events
+        contract, home_pose=contract.home_pose, home_q=contract.home_q, events=events
     )
     kunwei = FakeLiveKunweiTransport(events=events)
     order: list[str] = []
