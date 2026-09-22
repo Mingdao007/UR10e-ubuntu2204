@@ -110,7 +110,12 @@ class ProcessObserver:
     def latest(self, *, allow_fault=False):
         self._drain()
         if self.error and not allow_fault: raise RuntimeError(self.error)
-        if not self.process.is_alive(): raise RuntimeError('observer process exited')
+        # After a normal TP STOP the RTDE child may close before Dashboard's
+        # STOPPED acknowledgement is observed.  Stop-only verification may
+        # use the final fresh sample; live/healthy reads still require the
+        # observer process to remain alive.
+        if not self.process.is_alive() and not allow_fault:
+            raise RuntimeError('observer process exited')
         if self.row is None or not 0 <= time.monotonic()-self.row['received_monotonic_s'] < MAX_AGE_S:
             raise RuntimeError('observer latest sample is stale')
         return self.row
