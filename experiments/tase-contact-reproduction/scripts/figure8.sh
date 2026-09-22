@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
   echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60|r013_60_rate400] [--run-dir RUN] [--prepared-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--resident-parameter-manifest FILE | --resident-candidate-dir DIR] [--resident-attempts N] [--video-policy required|evidence-only]'
+  echo '       figure8.sh --autotune [--campaign-dir CAMPAIGN]'
+  echo '       figure8.sh --resume --campaign-dir CAMPAIGN'
   echo 'Adaptive resident mode reads candidate-0001.json before launch, then waits up to 120 s at verified joint Home for each next candidate.'
   echo '       figure8.sh --stop --run-dir RUN'
   echo 'Defaults: TASE_RNN_MATURE, CPU 2, one 60 s R013-compatible figure-eight, then stop/Home.'
@@ -24,23 +26,81 @@ duration='r013_60'
 video_policy='evidence-only'
 resident_attempts=1
 offline_acceptance=0
+autotune_requested=0
+resume_requested=0
+campaign_dir=''
+autotuner_mixed_options=0
 while (($#)); do
   case "$1" in
-    --method) [[ $# -ge 2 ]] || exit 64; method="$2"; shift 2 ;;
-    --duration) [[ $# -ge 2 ]] || exit 64; duration="$2"; shift 2 ;;
-    --control-cpu) [[ $# -ge 2 ]] || exit 64; cpu="$2"; shift 2 ;;
-    --run-dir) [[ $# -ge 2 ]] || exit 64; run_dir="$2"; shift 2 ;;
-    --prepared-dir) [[ $# -ge 2 ]] || exit 64; prepared_dir="$2"; shift 2 ;;
-    --stop) stop_requested=1; shift ;;
-    --parameter-file) [[ $# -ge 2 ]] || exit 64; parameter_file="$2"; shift 2 ;;
-    --resident-parameter-manifest) [[ $# -ge 2 ]] || exit 64; resident_parameter_manifest="$2"; shift 2 ;;
-    --resident-candidate-dir) [[ $# -ge 2 ]] || exit 64; resident_candidate_dir="$2"; shift 2 ;;
-    --video-policy) [[ $# -ge 2 ]] || exit 64; video_policy="$2"; shift 2 ;;
-    --resident-attempts) [[ $# -ge 2 ]] || exit 64; resident_attempts="$2"; shift 2 ;;
-    --offline-acceptance) offline_acceptance=1; shift ;;
+    --method) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; method="$2"; shift 2 ;;
+    --duration) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; duration="$2"; shift 2 ;;
+    --control-cpu) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; cpu="$2"; shift 2 ;;
+    --run-dir) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; run_dir="$2"; shift 2 ;;
+    --prepared-dir) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; prepared_dir="$2"; shift 2 ;;
+    --stop) autotuner_mixed_options=1; stop_requested=1; shift ;;
+    --parameter-file) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; parameter_file="$2"; shift 2 ;;
+    --resident-parameter-manifest) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; resident_parameter_manifest="$2"; shift 2 ;;
+    --resident-candidate-dir) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; resident_candidate_dir="$2"; shift 2 ;;
+    --video-policy) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; video_policy="$2"; shift 2 ;;
+    --resident-attempts) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; resident_attempts="$2"; shift 2 ;;
+    --offline-acceptance) autotuner_mixed_options=1; offline_acceptance=1; shift ;;
+    --autotune) (( autotune_requested == 0 )) || { echo '--autotune may only be specified once' >&2; exit 64; }; autotune_requested=1; shift ;;
+    --resume) (( resume_requested == 0 )) || { echo '--resume may only be specified once' >&2; exit 64; }; resume_requested=1; shift ;;
+    --campaign-dir) [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { echo '--campaign-dir requires a non-option path' >&2; exit 64; }; [[ -z "$campaign_dir" ]] || { echo '--campaign-dir may only be specified once' >&2; exit 64; }; campaign_dir="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 64 ;;
   esac
 done
+if (( autotune_requested && resume_requested )); then
+  echo '--autotune and --resume are separate campaign actions' >&2
+  exit 64
+fi
+if (( autotune_requested || resume_requested )); then
+  if (( autotuner_mixed_options )); then
+    echo '--autotune/--resume cannot be combined with Figure-eight run, stop, or acceptance options' >&2
+    exit 64
+  fi
+  if (( resume_requested )) && [[ -z "$campaign_dir" ]]; then
+    echo '--resume requires --campaign-dir' >&2
+    exit 64
+  fi
+  if [[ -z "$campaign_dir" ]]; then
+    campaign_dir="$ROOT/runs/tase-resident-autotune-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  elif [[ "$campaign_dir" != /* ]]; then
+    campaign_dir="$PWD/$campaign_dir"
+  fi
+  if (( autotune_requested )); then
+    if [[ -e "$campaign_dir" || -L "$campaign_dir" ]]; then
+      echo "new autotuner campaign path already exists: $campaign_dir" >&2
+      exit 64
+    fi
+  else
+    if [[ -L "$campaign_dir" || ! -d "$campaign_dir" ]]; then
+      echo "resume campaign directory is missing or not a regular directory: $campaign_dir" >&2
+      exit 64
+    fi
+    for required_file in config-frozen.json ledger.jsonl; do
+      if [[ -L "$campaign_dir/$required_file" || ! -f "$campaign_dir/$required_file" ]]; then
+        echo "resume campaign is missing regular $required_file: $campaign_dir" >&2
+        exit 64
+      fi
+    done
+  fi
+  action='start'
+  tuner_args=(--config "$ROOT/config/tase_resident_autotuner_rate400_b_v1.json" --campaign-dir "$campaign_dir")
+  if (( resume_requested )); then
+    action='resume'
+    tuner_args+=(--resume)
+  fi
+  printf 'Resident autotuner campaign (%s): %s\n' "$action" "$campaign_dir" >&2
+  exec env -u VIRTUAL_ENV -u PYTHONHOME PYTHONNOUSERSITE=1 \
+    PYTHONPATH="$ROOT/tools:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages" \
+    "$ROOT/.venv-contact-six/bin/python" "$ROOT/tools/tase_resident_autotuner.py" \
+    "${tuner_args[@]}"
+fi
+if [[ -n "$campaign_dir" ]]; then
+  echo '--campaign-dir requires --autotune or --resume' >&2
+  exit 64
+fi
 if [[ -n "$resident_candidate_dir" ]]; then
   if [[ -n "$resident_parameter_manifest" || -n "$parameter_file" ]]; then
     echo '--resident-candidate-dir is mutually exclusive with --resident-parameter-manifest and --parameter-file' >&2
