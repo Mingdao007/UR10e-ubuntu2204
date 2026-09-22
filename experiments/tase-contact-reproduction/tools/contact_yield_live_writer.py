@@ -714,6 +714,22 @@ class NativeYieldLiveWriter(R006LiveWriter):
         if len(proposed) != 6 or any(not math.isfinite(x) or abs(x) > .05 for x in proposed):
             raise YieldLiveWriterError("native joint velocity limit exceeded (0.05 rad/s)")
         packet = super()._send_packet(sensor, **kwargs)
+        if (
+            kwargs.get("command_mode") is CommandMode.PATH
+            and kwargs.get("reference_phase") in {"entry", "path"}
+        ):
+            qualification = getattr(self, "_qualification_control", None)
+            provider = getattr(qualification, "contact_command_provider", None)
+            confirm = getattr(provider, "confirm_published_packet", None)
+            if callable(confirm):
+                # Use the qdot values in the packet that was sent, after all
+                # host projection and wire construction. This feedback is
+                # committed only after send_packet returned successfully.
+                confirm(
+                    tuple(float(value) for value in packet.double_values[13:19]),
+                    packet_sequence=int(packet.sequence),
+                    published_at_s=float(self._last_writer_publish_mono_s),
+                )
         if (kwargs.get("reference_phase") == "path"
             and kwargs.get("command_mode") is CommandMode.PATH):
             self._host_path_publish_count += 1

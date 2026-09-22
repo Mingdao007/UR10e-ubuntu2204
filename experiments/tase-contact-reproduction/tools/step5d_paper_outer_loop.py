@@ -27,6 +27,7 @@ from contact_semantics import (
 LEGACY_FORCE_INTEGRAL_POLICY = "legacy-clamp-v1"
 CONDITIONAL_DOUBLE_CLAMP_POLICY = "conditional-double-clamp-v1"
 CONTACT_GATED_LEAKY_POLICY = "contact-gated-leaky-antiwindup-v1"
+INTEGRAL_OFF_POLICY = "integral-off-v1"
 
 
 def _finite_array(values: Any, shape: tuple[int, ...], name: str) -> np.ndarray:
@@ -98,6 +99,7 @@ class Step5dOuterLoopInputs:
     integral_enabled: bool = True
     integral_reset_reason: str = ""
     control_reaction_normal_base: tuple[float, float, float] = (0.0, 0.0, -1.0)
+    integral_freeze_same_direction: bool = False
 
 
 @dataclass(frozen=True)
@@ -130,6 +132,7 @@ class ConditionalAntiWindupResult:
     conditional_frozen: bool
     velocity_saturated: bool
     reset_reason: str = ""
+    output_feedback_frozen: bool = False
 
 
 @dataclass(frozen=True)
@@ -320,6 +323,7 @@ def conditional_double_clamp_step(
     authority_error_n: float = 0.5,
     integral_enabled: bool = True,
     reset_reason: str = "",
+    freeze_integral: bool = False,
 ) -> ConditionalAntiWindupResult:
     """Apply R013 conditional integration and both integral clamps.
 
@@ -371,8 +375,12 @@ def conditional_double_clamp_step(
     prior_authority_clamped = not math.isclose(
         state_limited_old, old_state, rel_tol=0.0, abs_tol=1e-15
     )
+    if type(freeze_integral) is not bool:
+        raise ValueError("conditional-double-clamp-v1 freeze_integral must be a boolean")
+    output_feedback_frozen = bool(integral_enabled and freeze_integral)
     unbounded_trial = old_state + (
-        parsed["force_error_n"] * parsed["dt_s"] if integral_enabled else 0.0
+        parsed["force_error_n"] * parsed["dt_s"]
+        if integral_enabled and not output_feedback_frozen else 0.0
     )
     state_limited_trial = clamp(unbounded_trial, -state_limit, state_limit)
     trial_state = clamp(state_limited_trial, -effective_limit, effective_limit)
@@ -395,7 +403,9 @@ def conditional_double_clamp_step(
     velocity_limit = parsed["normal_velocity_limit_m_s"]
     pushes_upper = raw_trial > velocity_limit and parsed["force_error_n"] > 0.0
     pushes_lower = raw_trial < -velocity_limit and parsed["force_error_n"] < 0.0
-    conditional_frozen = bool(integral_enabled and (pushes_upper or pushes_lower))
+    conditional_frozen = bool(
+        integral_enabled and (output_feedback_frozen or pushes_upper or pushes_lower)
+    )
     next_state = old_state if conditional_frozen else trial_state
     raw_applied_state = raw_velocity(next_state)
     applied_velocity = clamp(raw_applied_state, -velocity_limit, velocity_limit)
@@ -411,6 +421,7 @@ def conditional_double_clamp_step(
         conditional_frozen=conditional_frozen,
         velocity_saturated=not math.isclose(raw_applied_state, applied_velocity, rel_tol=0.0, abs_tol=1e-15),
         reset_reason=parsed_reset_reason if not integral_enabled else "",
+        output_feedback_frozen=output_feedback_frozen,
     )
 
 
@@ -575,7 +586,11 @@ def compute_step5d_outer_loop(
         next_state = (
             Step5dOuterLoopState()
             if config.force_integral_policy
-            in {CONDITIONAL_DOUBLE_CLAMP_POLICY, CONTACT_GATED_LEAKY_POLICY}
+            in {
+                CONDITIONAL_DOUBLE_CLAMP_POLICY,
+                CONTACT_GATED_LEAKY_POLICY,
+                INTEGRAL_OFF_POLICY,
+            }
             else state
         )
         return Step5dOuterLoopOutput(
@@ -591,7 +606,11 @@ def compute_step5d_outer_loop(
                 "integral_reset_reason": (
                     "invalid_command_or_control_normal"
                     if config.force_integral_policy
-                    in {CONDITIONAL_DOUBLE_CLAMP_POLICY, CONTACT_GATED_LEAKY_POLICY}
+                    in {
+                        CONDITIONAL_DOUBLE_CLAMP_POLICY,
+                        CONTACT_GATED_LEAKY_POLICY,
+                        INTEGRAL_OFF_POLICY,
+                    }
                     else ""
                 ),
                 "control_normal_valid": control_normal_valid,
@@ -640,6 +659,7 @@ def compute_step5d_outer_loop(
             authority_error_n=float(config.force_integral_authority_error_n),
             integral_enabled=bool(inputs.integral_enabled),
             reset_reason=str(inputs.integral_reset_reason),
+            freeze_integral=bool(inputs.integral_freeze_same_direction),
         )
         force_integral = anti_windup.integral_state_n_s
         xddot_p = force_motion_acceleration_base(
@@ -697,6 +717,20 @@ def compute_step5d_outer_loop(
         xdot_force_candidate = xdot_force_candidate + (
             anti_windup.applied_normal_velocity_m_s - raw_normal_velocity
         ) * approach_normal_base
+    elif config.force_integral_policy == INTEGRAL_OFF_POLICY:
+        # Screening E is a true I-off arm. Keep the policy identity explicit
+        # and force the stored state to exact zero on every valid tick.
+        force_integral = 0.0
+        xddot_p = force_motion_acceleration_base(
+            force_error=e_f,
+            force_integral=force_integral,
+            kf=float(config.kf),
+            Md=Md,
+            Bd=Bd,
+            xdot_p_prev_base=xdot_p_prev,
+            reaction_normal=control_reaction_normal_base,
+        )
+        xdot_force_candidate = xdot_p_prev + xddot_p * T_s
     elif config.force_integral_policy == LEGACY_FORCE_INTEGRAL_POLICY:
         integral_increment = (
             e_f * dt_s if bool(inputs.integral_enabled) else 0.0
@@ -792,6 +826,7 @@ def compute_step5d_outer_loop(
             "integral_state_clamped": anti_windup.state_clamped if anti_windup is not None else False,
             "integral_authority_clamped": anti_windup.authority_clamped if anti_windup is not None else False,
             "integral_conditional_frozen": anti_windup.conditional_frozen if anti_windup is not None else False,
+            "integral_final_output_frozen": anti_windup.output_feedback_frozen if anti_windup is not None else False,
             "integral_velocity_saturated": anti_windup.velocity_saturated if anti_windup is not None else False,
             "integral_saturated": bool(
                 (anti_windup.state_clamped or anti_windup.authority_clamped)
@@ -823,6 +858,7 @@ def compute_step5d_outer_loop(
             "force_sign_convention": config.force_sign_convention,
             "normal_load_n": normal_load_n,
             "e_f": e_f,
+            "approach_normal_base": _tuple3(approach_normal_base),
             "outer_orientation_angle_rad": outer_orientation_angle_rad,
             "R_d_z_dot_R_cur_z": float(np.dot(R_d[:, 2], R_cur[:, 2])),
             "force_integral_n_s": float(force_integral),
@@ -855,6 +891,7 @@ def compute_step5d_outer_loop(
             "integral_state_clamped": anti_windup.state_clamped if anti_windup is not None else False,
             "integral_authority_clamped": anti_windup.authority_clamped if anti_windup is not None else False,
             "integral_conditional_frozen": anti_windup.conditional_frozen if anti_windup is not None else False,
+            "integral_final_output_frozen": anti_windup.output_feedback_frozen if anti_windup is not None else False,
             "integral_velocity_saturated": anti_windup.velocity_saturated if anti_windup is not None else False,
             "integral_saturated": bool(
                 (anti_windup.state_clamped or anti_windup.authority_clamped)

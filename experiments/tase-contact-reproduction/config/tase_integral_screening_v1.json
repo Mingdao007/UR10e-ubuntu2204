@@ -1,8 +1,8 @@
 {
   "schema": "tase.integral-screening-v1",
   "method": "TASE_RNN_MATURE",
-  "protocol_id": "figure8_window60_r013_compat_v1",
-  "duration_token": "r013_60",
+  "protocol_id": "figure8_window60_r013_rate400_v1",
+  "duration_token": "r013_60_rate400",
   "target_force_n": 5.0,
   "Md_scalar": 9.565272137974492,
   "Bd_scalar": 693.6559295653944,
@@ -35,6 +35,13 @@
       "label": "conditional-double-clamp",
       "force_integral_limit_n_s": 1.0,
       "force_integral_policy": "conditional-double-clamp-v1",
+      "force_integral_authority_error_n": 0.5
+    },
+    {
+      "arm_id": "E",
+      "label": "integral-off",
+      "force_integral_limit_n_s": 1.0,
+      "force_integral_policy": "integral-off-v1",
       "force_integral_authority_error_n": 0.5
     }
   ]

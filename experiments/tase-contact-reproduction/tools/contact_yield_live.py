@@ -285,6 +285,24 @@ def request_process_stop(run_dir):
             "reason": "owner stop receipt pending; do not infer physical stop"}
 
 
+def resident_candidate_can_continue(item: Mapping[str, Any], *, research_campaign: bool) -> bool:
+    """A failed score may consume budget only after sealed Home and sound timing."""
+
+    if item.get("evidence_eligible") is True:
+        return True
+    metrics = (item.get("evidence") or {}).get("metrics") or {}
+    lifecycle = item.get("lifecycle") or {}
+    return bool(
+        research_campaign
+        and lifecycle.get("path_complete") is True
+        and metrics.get("complete_bins") == 550
+        and metrics.get("timing_gate_passed") is True
+        and lifecycle.get("home_verified") is True
+        and lifecycle.get("ready_for_next") is True
+        and lifecycle.get("sealed") is True
+    )
+
+
 def run_live(
     args: argparse.Namespace,
     *,
@@ -300,6 +318,7 @@ def run_live(
     attempt_count: int = 1,
     parameter_bindings: list[Mapping[str, Any]] | None = None,
     parameter_files: list[Path] | None = None,
+    research_campaign: bool = False,
     refresh_readback=None,
     dashboard_stop_and_verify=None,
     deferred_seals=None,
@@ -312,6 +331,8 @@ def run_live(
         raise YieldLiveError("resident parameter binding count differs from attempt count")
     if parameter_files is not None and len(parameter_files) != attempt_count:
         raise YieldLiveError("resident parameter file count differs from attempt count")
+    if research_campaign and parameter_files is None:
+        raise YieldLiveError("research campaign requires a Home-loaded candidate")
     # The live entry owns all artifacts below one canonical run directory.
     # Relative paths otherwise depend on the caller's current directory and
     # can split the attempt receipt from its read-back and recovery evidence.
@@ -384,6 +405,7 @@ def run_live(
         "schema": "yield-live-entry-dispatch-v1",
         "evidence_scope": ("live" if controller_transport is None else "offline_synthetic_endpoints"),
         "command": args.command,
+        "research_campaign": bool(research_campaign),
         "attempt_id": args.attempt_id,
         "method": args.method,
         "program": CONTACT_PROGRAM,
@@ -444,6 +466,7 @@ def run_live(
         lifecycle_clock=lifecycle_clock,
         parameter_bindings=parameter_bindings,
         parameter_files=parameter_files,
+        research_campaign=research_campaign,
         attempt_count=attempt_count,
         defer_recovery=defer_recovery,
         refresh_readback=refresh_readback,
@@ -471,6 +494,7 @@ def _run_live_with_resident_session(
     lifecycle_clock: Any,
     parameter_bindings: list[Mapping[str, Any]] | None,
     parameter_files: list[Path] | None,
+    research_campaign: bool,
     attempt_count: int,
     defer_recovery: bool,
     refresh_readback: Any | None,
@@ -533,7 +557,10 @@ def _run_live_with_resident_session(
             active_attempt = None
             if (request is not None and request.kind == "r013_compat_60"
                 and item.get("evidence_eligible") is not True):
-                raise YieldLiveError("completed resident attempt failed evidence gates")
+                if not resident_candidate_can_continue(
+                    item, research_campaign=research_campaign,
+                ):
+                    raise YieldLiveError("completed resident attempt failed evidence gates")
             if phase == "qualify":
                 evidence = item.get("evidence") or {}
                 if item.get("evidence_eligible") is not True:
@@ -556,7 +583,22 @@ def _run_live_with_resident_session(
         receipt["evidence_type"] = "ResidentAttemptEvidence"
         receipt["evidence_eligible"] = bool(last.get("evidence_eligible"))
         receipt["evidence_metrics"] = dict(evidence.get("metrics") or {})
-        receipt["success"] = bool(receipt["evidence_eligible"])
+        receipt["all_evidence_eligible"] = all(
+            item.get("evidence_eligible") is True for item in receipt["attempts"]
+        )
+        receipt["candidate_failures"] = sum(
+            item.get("evidence_eligible") is not True for item in receipt["attempts"]
+        )
+        receipt["campaign_execution_complete"] = bool(
+            len(receipt["attempts"]) == attempt_count
+            and all(item.get("lifecycle", {}).get("home_verified") is True
+                    and item.get("lifecycle", {}).get("sealed") is True
+                    for item in receipt["attempts"])
+        )
+        receipt["success"] = (
+            receipt["campaign_execution_complete"] if research_campaign
+            else bool(receipt["evidence_eligible"])
+        )
     except BaseException as exc:
         receipt["error"] = f"{type(exc).__name__}: {exc}"
         receipt["failure_state"] = provider.snapshot()
@@ -564,38 +606,53 @@ def _run_live_with_resident_session(
             isinstance(row, dict) and row.get("sequence") == active_attempt[0]
             for row in receipt.get("attempts", ())
         ):
-            partial_writer = getattr(mature.writer, "writer", mature.writer)
-            partial_item = {
-                "sequence": active_attempt[0],
-                "phase": active_attempt[1],
-                "partial": True,
-                "evidence": {
-                    "eligible": False,
-                    "complete": False,
-                    "metrics": {
+            physical_dispatch = (
+                getattr(session, "last_arm_invoked_sequence", None) == active_attempt[0]
+            )
+            if not physical_dispatch:
+                receipt["pre_arm_failure"] = {
+                    "sequence": active_attempt[0],
+                    "candidate_id": None if binding is None else binding.get("candidate_id"),
+                    "physical_dispatched": False,
+                    "error": str(exc),
+                }
+            else:
+                partial_writer = getattr(mature.writer, "writer", mature.writer)
+                partial_item = {
+                    "sequence": active_attempt[0],
+                    "phase": active_attempt[1],
+                    "partial": True,
+                    "parameter_binding": None if binding is None else dict(binding),
+                    "physical_dispatched": True,
+                    "evidence": {
+                        "eligible": False,
                         "complete": False,
-                        "stage": active_attempt[1],
+                        "metrics": {
+                            "complete": False,
+                            "stage": active_attempt[1],
+                            "failure": str(exc),
+                            "raw_sensor_samples": len(getattr(partial_writer, "raw_observations", ())),
+                            "robot_frames": len(getattr(partial_writer, "robot_observations", ())),
+                        },
                         "failure": str(exc),
-                        "raw_sensor_samples": len(getattr(partial_writer, "raw_observations", ())),
-                        "robot_frames": len(getattr(partial_writer, "robot_observations", ())),
                     },
-                    "failure": str(exc),
-                },
-                "state": provider.snapshot(),
-                "lifecycle": {
-                    "path_complete": False,
-                    "home_verified": False,
-                    "ready_for_next": False,
-                    "program_stopped": False,
-                    "sealed": False,
-                },
-            }
-            if session.last_completed_sequence == active_attempt[0]:
+                    "state": provider.snapshot(),
+                    "lifecycle": {
+                        "path_complete": False,
+                        "home_verified": False,
+                        "ready_for_next": False,
+                        "program_stopped": False,
+                        "sealed": False,
+                    },
+                }
+            if physical_dispatch and session.last_completed_sequence == active_attempt[0]:
                 completed = session.last_completed_evidence
                 payload = asdict(completed) if is_dataclass(completed) else dict(completed)
                 partial_item['evidence'] = payload
                 partial_item['failed_after_collector'] = str(exc)
-                partial_item['evidence_eligible'] = bool(getattr(completed, 'eligible', False))
+                # Collector success is diagnostic when a later lifecycle
+                # operation fails; it cannot promote the physical attempt.
+                partial_item['evidence_eligible'] = False
                 metrics = payload.get('metrics', {})
                 proof = payload.get('home_proof', {})
                 partial_item['lifecycle']['path_complete'] = metrics.get('complete') is True
@@ -604,7 +661,8 @@ def _run_live_with_resident_session(
                 partial_item['partial'] = not partial_item['lifecycle']['path_complete']
                 receipt['evidence_metrics'] = metrics
                 receipt['evidence_eligible'] = False
-            receipt.setdefault("attempts", []).append(partial_item)
+            if physical_dispatch:
+                receipt.setdefault("attempts", []).append(partial_item)
         if request is None or request.kind != "diagnostic" or "of 550 bins" not in str(exc):
             raise
         receipt["diagnostic_incomplete"] = True

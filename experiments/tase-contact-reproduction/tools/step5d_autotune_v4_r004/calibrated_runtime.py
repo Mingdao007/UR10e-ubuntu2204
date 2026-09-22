@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import copy
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
@@ -26,6 +27,7 @@ from step5c_strict_rnn import StrictTaseRnnSolver
 from contact_qp import NativeContactQp, QpSolverProfile
 from step5d_paper_outer_loop import (
     CONDITIONAL_DOUBLE_CLAMP_POLICY,
+    INTEGRAL_OFF_POLICY,
     LEGACY_FORCE_INTEGRAL_POLICY,
     Step5dOuterLoopConfig,
     Step5dOuterLoopInputs,
@@ -50,6 +52,8 @@ PATH_STAGE_ID = "step5d_strict_rnn_autotune_v1"
 TARGET_ROTVEC = np.asarray((3.120752062, 0.0, 0.068626833), dtype=float)
 TCP_OFFSET_TOOL0 = np.asarray((0.0, 0.0, 0.0874), dtype=float)
 SOLVER_GATE_PATH = Path(__file__).resolve().parents[2] / "config/step5d_liveprep_solver_gate.json"
+OUTER_OUTPUT_FEEDBACK_SCHEMA = "step5d-outer-output-feedback-v1"
+OUTER_OUTPUT_SATURATION_TOL_M_S = 1e-12
 
 
 class CalibratedRuntimeError(RuntimeError):
@@ -225,6 +229,7 @@ class V4CalibratedRuntime:
         if force_integral_policy not in {
             LEGACY_FORCE_INTEGRAL_POLICY,
             CONDITIONAL_DOUBLE_CLAMP_POLICY,
+            INTEGRAL_OFF_POLICY,
         }:
             raise CalibratedRuntimeError("force_integral_policy is unknown")
         authority_error = float(force_integral_authority_error_n)
@@ -266,6 +271,8 @@ class V4CalibratedRuntime:
         self.last_solver_diagnostics: dict[str, Any] = {}
         self._active_mode: str | None = None
         self._outer_state = Step5dOuterLoopState()
+        self._last_published_outer_feedback: dict[str, Any] | None = None
+        self._pending_outer_feedback: dict[str, Any] | None = None
 
     @property
     def feedforward_enabled(self) -> bool:
@@ -278,9 +285,15 @@ class V4CalibratedRuntime:
 
         return {
             "schema": "step5d.autotune-v4/calibrated-runtime-state-v1",
+            "runtime_config": self.actual_runtime_config(),
             "outer_state": {
                 "force_integral_n_s": float(self._outer_state.force_integral_n_s),
                 "xdot_p_prev_m_s": [float(value) for value in self._outer_state.xdot_p_prev_m_s],
+            },
+            "outer_output_feedback": {
+                "schema": OUTER_OUTPUT_FEEDBACK_SCHEMA,
+                "last_published": copy.deepcopy(self._last_published_outer_feedback),
+                "pending": copy.deepcopy(self._pending_outer_feedback),
             },
             "solver_state": self.solver.snapshot() if isinstance(self.solver_profile, QpSolverProfile) else {
                 "theta_dot_state": [float(value) for value in self.solver.theta_dot_state],
@@ -302,6 +315,8 @@ class V4CalibratedRuntime:
         if not isinstance(outer, Mapping) or not isinstance(solver, Mapping):
             raise CalibratedRuntimeError("calibrated runtime state sections are missing")
         outer_integral = _finite_vector((outer.get("force_integral_n_s"),), 1, "outer integral")[0]
+        if getattr(self, "force_integral_policy", None) == INTEGRAL_OFF_POLICY:
+            outer_integral = 0.0
         outer_prev = _finite_vector(outer.get("xdot_p_prev_m_s"), 3, "outer previous velocity")
         if isinstance(self.solver_profile, QpSolverProfile):
             theta = _finite_vector(solver.get("x"), 6, "QP primal state")
@@ -316,6 +331,28 @@ class V4CalibratedRuntime:
             force_integral_n_s=float(outer_integral),
             xdot_p_prev_m_s=tuple(float(value) for value in outer_prev),
         )
+        feedback = state.get("outer_output_feedback")
+        if feedback is None:
+            self._last_published_outer_feedback = None
+            self._pending_outer_feedback = None
+        else:
+            if (
+                not isinstance(feedback, Mapping)
+                or feedback.get("schema") != OUTER_OUTPUT_FEEDBACK_SCHEMA
+            ):
+                raise CalibratedRuntimeError("calibrated runtime outer feedback schema differs")
+            last_published = feedback.get("last_published")
+            pending = feedback.get("pending")
+            if last_published is not None and not isinstance(last_published, Mapping):
+                raise CalibratedRuntimeError("calibrated runtime published feedback is invalid")
+            if pending is not None and not isinstance(pending, Mapping):
+                raise CalibratedRuntimeError("calibrated runtime pending feedback is invalid")
+            self._last_published_outer_feedback = (
+                None if last_published is None else copy.deepcopy(dict(last_published))
+            )
+            self._pending_outer_feedback = (
+                None if pending is None else copy.deepcopy(dict(pending))
+            )
         if isinstance(self.solver_profile, QpSolverProfile):
             self.solver.restore({"x": theta, "y": lambd})
         else:
@@ -323,6 +360,128 @@ class V4CalibratedRuntime:
             self.solver.lambda_state = np.asarray(lambd, dtype=float)
             self.solver._sync_cupy_state_from_numpy()
         self._active_mode = None if active_mode is None else str(active_mode)
+
+    def actual_runtime_config(self) -> dict[str, Any]:
+        """Expose the values the control path currently consumes."""
+
+        config = getattr(self, "outer_loop_config", None)
+        outer_parameters = None
+        if config is not None:
+            outer_parameters = {
+                "kp": float(config.kp),
+                "ko": float(config.ko),
+                "orientation_gain_scale": float(config.orientation_gain_scale),
+                "kf": float(config.kf),
+                "Md_scalar": float(config.Md_scalar),
+                "Bd_scalar": float(config.Bd_scalar),
+            }
+        return {
+            "force_integral_policy": str(getattr(self, "force_integral_policy", LEGACY_FORCE_INTEGRAL_POLICY)),
+            "force_integral_limit_n_s": float(getattr(self, "force_integral_limit_n_s", 1.0)),
+            "force_integral_authority_error_n": float(getattr(self, "force_integral_authority_error_n", 0.5)),
+            "force_normal_velocity_limit_m_s": getattr(self, "force_normal_velocity_limit_m_s", None),
+            "outer_parameters": outer_parameters,
+        }
+
+    def reset_outer_loop_state(self) -> None:
+        """Reset the force integral and its published-output feedback at Home."""
+
+        self._outer_state = Step5dOuterLoopState()
+        self._last_published_outer_feedback = None
+        self._pending_outer_feedback = None
+
+    def bind_command_twist(self, twist: Sequence[float]) -> None:
+        """Bind the final task-space request after fixed-posture adaptation."""
+
+        if self._pending_outer_feedback is None:
+            return
+        vector = _finite_vector(twist, 6, "command task-space twist")
+        self._pending_outer_feedback["task_space_command_twist"] = tuple(
+            float(value) for value in vector
+        )
+
+    def record_published_outer_output(
+        self,
+        *,
+        final_qdot: Sequence[float],
+        jacobian_6x6: Sequence[Sequence[float]],
+        explicit_realization_limit: bool,
+        packet_sequence: int,
+        published_at_s: float,
+    ) -> dict[str, Any] | None:
+        """Commit D feedback from the final Jqdot of a successfully sent packet."""
+
+        pending = self._pending_outer_feedback
+        if pending is None:
+            return None
+        qdot = _finite_vector(final_qdot, 6, "published final_qdot")
+        jacobian = np.asarray(jacobian_6x6, dtype=float)
+        if jacobian.shape != (6, 6) or not np.all(np.isfinite(jacobian)):
+            raise CalibratedRuntimeError("published command Jacobian is invalid")
+        if type(packet_sequence) is not int or packet_sequence < 0:
+            raise CalibratedRuntimeError("published packet sequence is invalid")
+        if type(explicit_realization_limit) is not bool:
+            raise CalibratedRuntimeError("published realization-limit flag is invalid")
+        if not math.isfinite(float(published_at_s)):
+            raise CalibratedRuntimeError("published packet time is invalid")
+        requested = _finite_vector(pending.get("requested_twist"), 6, "outer requested twist")
+        task_command = _finite_vector(
+            pending.get("task_space_command_twist"), 6, "task-space command twist"
+        )
+        force_axis = _finite_vector(pending.get("force_normal_base"), 3, "force-normal axis")
+        axis_norm = float(np.linalg.norm(force_axis))
+        if axis_norm <= 1e-12:
+            raise CalibratedRuntimeError("force-normal axis is degenerate")
+        force_axis /= axis_norm
+        achieved = jacobian @ qdot
+        if not np.all(np.isfinite(achieved)):
+            raise CalibratedRuntimeError("published Jqdot is nonfinite")
+        requested_normal = float(requested[:3] @ force_axis)
+        task_normal = float(task_command[:3] @ force_axis)
+        achieved_normal = float(achieved[:3] @ force_axis)
+        task_residual = requested_normal - task_normal
+        realization_residual = task_normal - achieved_normal
+        total_shortfall = requested_normal - achieved_normal
+        task_space_saturated = bool(
+            abs(task_residual) > OUTER_OUTPUT_SATURATION_TOL_M_S
+        )
+        realization_saturated = bool(
+            explicit_realization_limit
+            and abs(realization_residual) > OUTER_OUTPUT_SATURATION_TOL_M_S
+        )
+        force_error = float(pending["force_error_n"])
+        directional_shortfall = bool(
+            abs(total_shortfall) > OUTER_OUTPUT_SATURATION_TOL_M_S
+            and force_error * total_shortfall > 0.0
+            and (task_space_saturated or realization_saturated)
+        )
+        saturation_sign = (
+            1 if force_error > 0.0 else -1 if force_error < 0.0 else 0
+        ) if directional_shortfall else 0
+        feedback = {
+            "schema": OUTER_OUTPUT_FEEDBACK_SCHEMA,
+            "policy": str(pending["policy"]),
+            "packet_sequence": packet_sequence,
+            "published_at_s": float(published_at_s),
+            "force_error_n": force_error,
+            "force_normal_base": tuple(float(value) for value in force_axis),
+            "requested_twist_m_s_rad_s": tuple(float(value) for value in requested),
+            "task_space_command_twist_m_s_rad_s": tuple(float(value) for value in task_command),
+            "final_jqdot_m_s_rad_s": tuple(float(value) for value in achieved),
+            "requested_normal_m_s": requested_normal,
+            "task_space_command_normal_m_s": task_normal,
+            "final_realized_normal_m_s": achieved_normal,
+            "task_space_saturation_residual_m_s": task_residual,
+            "realization_saturation_residual_m_s": realization_residual,
+            "total_directional_shortfall_m_s": total_shortfall,
+            "task_space_saturated": task_space_saturated,
+            "realization_saturated": realization_saturated,
+            "explicit_realization_limit": explicit_realization_limit,
+            "same_direction_freeze_sign": saturation_sign,
+        }
+        self._last_published_outer_feedback = feedback
+        self._pending_outer_feedback = None
+        return copy.deepcopy(feedback)
 
     def path_errors(
         self,
@@ -663,6 +822,19 @@ class V4CalibratedRuntime:
                 delay_T_s=float(actual_dt_s),
                 force_sign_convention="step5_step6_positive_normal_load",
             )
+        prior_feedback = getattr(self, "_last_published_outer_feedback", None)
+        current_force_error = float(internal_setpoint_n) - float(filtered_normal_n)
+        prior_saturation_sign = 0
+        if isinstance(prior_feedback, Mapping):
+            try:
+                prior_saturation_sign = int(prior_feedback.get("same_direction_freeze_sign", 0))
+            except (TypeError, ValueError, OverflowError):
+                prior_saturation_sign = 0
+        freeze_integral_same_direction = bool(
+            outer_config.force_integral_policy == CONDITIONAL_DOUBLE_CLAMP_POLICY
+            and prior_saturation_sign != 0
+            and current_force_error * prior_saturation_sign > 0.0
+        )
         output = compute_step5d_outer_loop(
             outer_config,
             self._outer_state,
@@ -683,11 +855,13 @@ class V4CalibratedRuntime:
                 ),
                 dt_s=float(actual_dt_s),
                 cmd_valid=True,
+                integral_freeze_same_direction=freeze_integral_same_direction,
             ),
             include_diagnostics="compact",
         )
         self._outer_state = output.next_state
-        twist = tuple(float(value) for value in output.xdot_c)
+        raw_twist = _finite_vector(output.xdot_c, 6, "paper outer-loop twist")
+        twist = tuple(float(value) for value in raw_twist)
         if len(twist) != 6 or not all(math.isfinite(value) for value in twist):
             raise CalibratedRuntimeError("paper outer loop returned invalid twist")
         # Bound the task-space proposal before strict RNN; the independent
@@ -721,7 +895,22 @@ class V4CalibratedRuntime:
         angular_norm = float(np.linalg.norm(angular))
         if angular_norm > angular_cap:
             angular *= angular_cap / angular_norm
-        return tuple(float(value) for value in np.r_[linear, angular])  # type: ignore[return-value]
+        task_space_command = np.r_[linear, angular]
+        force_normal_base = _finite_vector(
+            output.diagnostics.get("approach_normal_base"), 3, "outer force-normal axis"
+        )
+        self._pending_outer_feedback = {
+            "schema": OUTER_OUTPUT_FEEDBACK_SCHEMA,
+            "policy": outer_config.force_integral_policy,
+            "force_error_n": float(output.diagnostics.get("e_f", current_force_error)),
+            "force_normal_base": tuple(float(value) for value in force_normal_base),
+            "requested_twist": tuple(float(value) for value in raw_twist),
+            "task_space_command_twist": tuple(float(value) for value in task_space_command),
+            "previous_output_freeze_applied": freeze_integral_same_direction,
+            "integral_state_n_s": float(output.next_state.force_integral_n_s),
+            "integral_policy": outer_config.force_integral_policy,
+        }
+        return tuple(float(value) for value in task_space_command)  # type: ignore[return-value]
 
 
 __all__ = [

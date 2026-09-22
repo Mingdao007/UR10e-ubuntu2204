@@ -108,6 +108,22 @@ def test_body_partial_receipt_is_not_promoted_to_supervisor_success():
     assert events.count('stop') == 1
 
 
+def test_research_candidate_score_failure_does_not_fail_closed_session():
+    s, _body, _t, events = rig()
+    def research(_supervisor):
+        return {
+            'research_campaign': True,
+            'campaign_execution_complete': True,
+            'success': True,
+            'evidence_eligible': False,
+            'candidate_failures': 1,
+        }
+    result = s.run(research)
+    assert result['success'] is True
+    assert result['body']['candidate_failures'] == 1
+    assert events.count('stop') == 1
+
+
 def test_safety_fault_is_recorded_and_stop_observation_keeps_actual_safety():
     s,body,t,events=rig(safety_fault_at=.3)
     result=s.run(body)

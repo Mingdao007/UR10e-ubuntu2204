@@ -265,6 +265,166 @@ def test_parameter_file_binds_conditional_double_clamp_policy(tmp_path):
     assert config.force_integral_authority_error_n == pytest.approx(0.5)
 
 
+def test_integral_off_parameter_is_applied_and_remains_exact_zero(provider, tmp_path):
+    payload = {
+        'schema': 'tase.outer-parameters-v1',
+        'candidate_id': 'screen-E-00',
+        'stage': 'screening',
+        'index': 0,
+        'Md_scalar': 12.0,
+        'Bd_scalar': 550.0,
+        'frozen': {
+            'kp': 4.0,
+            'ko': 5.0,
+            'kf': 1.0,
+            'force_target_n': 5.0,
+            'force_integral_limit_n_s': 1.0,
+            'force_integral_policy': 'integral-off-v1',
+            'force_integral_authority_error_n': 0.5,
+            'force_sign_convention': 'step5_step6_positive_normal_load',
+        },
+    }
+    path = tmp_path / 'screen-E-00.json'
+    path.write_text(json.dumps(payload), encoding='utf-8')
+
+    binding = provider.apply_outer_parameters_at_home(path)
+    assert binding['force_integral_policy'] == 'integral-off-v1'
+    assert provider.runtime.actual_runtime_config()['force_integral_policy'] == 'integral-off-v1'
+    assert provider.runtime.dynamic_state_snapshot()['outer_state']['force_integral_n_s'] == 0.0
+    for index in range(20):
+        provider.runtime.desired_twist(
+            actual_tcp_pose=load_identity_contract().home_pose,
+            actual_tcp_speed=(0.0,) * 6,
+            force_tcp_n=(0.0, 0.0, -2.0),
+            filtered_normal_n=2.0,
+            internal_setpoint_n=5.0,
+            actual_dt_s=0.002,
+            mode='path',
+            path_time_s=index * 0.002,
+        )
+        assert provider.runtime.dynamic_state_snapshot()['outer_state']['force_integral_n_s'] == 0.0
+
+
+def test_conditional_policy_uses_published_taskspace_saturation_for_next_tick(provider):
+    runtime = provider.runtime
+    runtime.outer_loop_config = replace(
+        TASE_LIVE_OUTER_CONFIG,
+        force_integral_policy='conditional-double-clamp-v1',
+    )
+    runtime.force_integral_policy = 'conditional-double-clamp-v1'
+    runtime.reset_outer_loop_state()
+
+    def command(force, at_s):
+        return runtime.desired_twist(
+            actual_tcp_pose=load_identity_contract().home_pose,
+            actual_tcp_speed=(0.0,) * 6,
+            force_tcp_n=(0.0, 0.0, -force),
+            filtered_normal_n=force,
+            internal_setpoint_n=5.0,
+            actual_dt_s=0.002,
+            mode='path',
+            path_time_s=at_s,
+        )
+
+    command(1.0, 0.0)
+    integral_after_first = runtime._outer_state.force_integral_n_s
+    feedback = runtime.record_published_outer_output(
+        final_qdot=(0.0,) * 6,
+        jacobian_6x6=np.eye(6),
+        explicit_realization_limit=True,
+        packet_sequence=10,
+        published_at_s=1.0,
+    )
+    assert feedback is not None
+    assert feedback['task_space_saturated'] is False
+    assert feedback['realization_saturated'] is True
+    assert feedback['realization_saturation_residual_m_s'] > 0.0
+    assert feedback['same_direction_freeze_sign'] == 1, feedback
+
+    command(1.0, 0.002)
+    assert runtime._pending_outer_feedback['previous_output_freeze_applied'] is True
+    assert runtime._outer_state.force_integral_n_s == pytest.approx(integral_after_first)
+    second_twist = runtime._pending_outer_feedback['task_space_command_twist']
+    runtime.record_published_outer_output(
+        final_qdot=second_twist,
+        jacobian_6x6=np.eye(6),
+        explicit_realization_limit=False,
+        packet_sequence=11,
+        published_at_s=1.002,
+    )
+
+    command(6.0, 0.004)
+    assert runtime._pending_outer_feedback['previous_output_freeze_applied'] is False
+    assert runtime._outer_state.force_integral_n_s < integral_after_first
+
+
+def test_conditional_policy_does_not_freeze_on_plain_rnn_tracking_residual(provider):
+    runtime = provider.runtime
+    runtime.outer_loop_config = replace(
+        TASE_LIVE_OUTER_CONFIG,
+        force_integral_policy='conditional-double-clamp-v1',
+    )
+    runtime.force_integral_policy = 'conditional-double-clamp-v1'
+    runtime.reset_outer_loop_state()
+    kwargs = dict(
+        actual_tcp_pose=load_identity_contract().home_pose,
+        actual_tcp_speed=(0.0,) * 6,
+        force_tcp_n=(0.0, 0.0, -1.0),
+        filtered_normal_n=1.0,
+        internal_setpoint_n=5.0,
+        actual_dt_s=0.002,
+        mode='path',
+    )
+    runtime.desired_twist(**kwargs, path_time_s=0.0)
+    before = runtime._outer_state.force_integral_n_s
+    normal = np.asarray(runtime._pending_outer_feedback['force_normal_base'])
+    request = tuple(float(value) for value in np.r_[normal * 0.0001, np.zeros(3)])
+    runtime._pending_outer_feedback['requested_twist'] = request
+    runtime._pending_outer_feedback['task_space_command_twist'] = request
+    feedback = runtime.record_published_outer_output(
+        final_qdot=(0.0,) * 6,
+        jacobian_6x6=np.eye(6),
+        explicit_realization_limit=False,
+        packet_sequence=10,
+        published_at_s=1.0,
+    )
+    assert feedback['realization_saturation_residual_m_s'] > 0.0
+    assert feedback['realization_saturated'] is False
+    assert feedback['same_direction_freeze_sign'] == 0
+    runtime.desired_twist(**kwargs, path_time_s=0.002)
+    assert runtime._pending_outer_feedback['previous_output_freeze_applied'] is False
+    assert runtime._outer_state.force_integral_n_s > before
+
+
+def test_published_feedback_uses_actual_native_joint_cap(provider):
+    assert provider.runtime.motion_profile.qdot_cap_rad_s == pytest.approx(0.05)
+    assert provider.solver_profile.qdot_limit_rad_s == pytest.approx(0.15)
+    provider.runtime._pending_outer_feedback = {
+        'schema': 'step5d-outer-output-feedback-v1',
+        'policy': 'conditional-double-clamp-v1',
+        'force_error_n': 1.0,
+        'force_normal_base': (1.0, 0.0, 0.0),
+        'requested_twist': (0.06, 0.0, 0.0, 0.0, 0.0, 0.0),
+        'task_space_command_twist': (0.06, 0.0, 0.0, 0.0, 0.0, 0.0),
+    }
+    provider.last_result = {
+        'qdot_rad_s': (0.05, 0.0, 0.0, 0.0, 0.0, 0.0),
+        'jacobian_6x6': np.eye(6).tolist(),
+        'actual_q_rad': CANONICAL_HOME_Q,
+        'host_slew_scale': 1.0,
+        'gate_projection_applied': False,
+    }
+    provider.confirm_published_packet(
+        (0.05, 0.0, 0.0, 0.0, 0.0, 0.0),
+        packet_sequence=21,
+        published_at_s=1.0,
+    )
+    feedback = provider.last_result['published_output_feedback']
+    assert feedback['explicit_realization_limit'] is True
+    assert feedback['realization_saturated'] is True
+    assert feedback['same_direction_freeze_sign'] == 1
+
+
 def test_live_path_keeps_confirmed_home_orientation_velocity_zero(provider):
     o, s = tick(provider, .002)
     provider.command(
@@ -500,6 +660,67 @@ def test_tase_projection_binds_final_qdot_and_preserves_provider_qdot(provider):
     assert provider.last_result['qdot_rad_s'] == (
         0.01, 0.02, 0.03, 0.04, 0.05, 0.06
     )
+
+
+@pytest.mark.parametrize('send_fails', [False, True])
+def test_native_writer_commits_output_feedback_only_after_successful_send(
+    monkeypatch, send_fails
+):
+    from types import SimpleNamespace
+
+    from contact_yield_live_writer import NativeYieldLiveWriter, R006LiveWriter
+    from step5d_autotune_v4_r004.wire import CommandMode
+
+    calls = []
+    provider = SimpleNamespace(
+        confirm_published_packet=lambda qdot, **kwargs: calls.append((qdot, kwargs))
+    )
+    writer = object.__new__(NativeYieldLiveWriter)
+    writer.__dict__.update({
+        '_qualification_control': SimpleNamespace(contact_command_provider=provider),
+        '_last_output': None,
+        '_stopped': False,
+        '_host_path_publish_count': 0,
+        '_last_writer_publish_mono_s': None,
+        '_r013_path_early_end_controller': None,
+        '_service_mode': False,
+        '_mono_clock': lambda: 123.5,
+        'command_observations': [],
+    })
+    packet_qdot = (0.01, 0.02, 0.03, 0.04, 0.05, 0.049)
+    proposed_qdot = (0.011, 0.021, 0.031, 0.041, 0.048, 0.049)
+
+    def send_success(self, _sensor, **_kwargs):
+        self._last_writer_publish_mono_s = 123.5
+        doubles = (0.0,) * 13 + packet_qdot + (0.0,) * 5
+        return SimpleNamespace(sequence=17, double_values=doubles)
+
+    def send_failure(self, _sensor, **_kwargs):
+        raise OSError('synthetic packet send failure')
+
+    monkeypatch.setattr(
+        R006LiveWriter,
+        '_send_packet',
+        send_failure if send_fails else send_success,
+    )
+    send = lambda: writer._send_packet(
+        None,
+        command_mode=CommandMode.PATH,
+        proposed_qdot=proposed_qdot,
+        reference_phase='path',
+        reference_time_s=0.0,
+    )
+    if send_fails:
+        with pytest.raises(OSError, match='synthetic packet send failure'):
+            send()
+        assert calls == []
+    else:
+        packet = send()
+        assert packet.sequence == 17
+        assert calls == [(
+            packet_qdot,
+            {'packet_sequence': 17, 'published_at_s': 123.5},
+        )]
 
 
 def test_live_tase_force_rise_guard_keeps_fixed_baseline_primitive_bounded(provider):

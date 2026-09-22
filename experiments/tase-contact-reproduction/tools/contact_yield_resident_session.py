@@ -905,6 +905,10 @@ class ResidentSession:
                 )
                 self.writer.install_timing_scheduler_lease(lease)
                 self.writer.prepare_timing_scheduler_lease(collect_gc=False)
+            # ARM can be partially sent before an exception is raised. From
+            # this boundary onward the ordinal is a physical attempt even
+            # when no acknowledgement returns.
+            self.last_arm_invoked_sequence = sequence
             self.mature.arm(attempt)
             _event(self, "ATTEMPT", "arm", sequence=sequence, phase=phase)
             evidence = self.mature.run_60s(attempt)
@@ -929,7 +933,23 @@ class ResidentSession:
             },
             "sequence": sequence,
             "phase": phase,
+            "physical_dispatched": True,
             "host_path_publishes": getattr(self.writer, "_host_path_publish_count", None),
+            "timing_attribution": {
+                "host_path_publishes": getattr(self.writer, "_host_path_publish_count", None),
+                "host_path_publish_rate_hz": (
+                    float(self.writer._host_path_publish_count) / 60.0
+                    if getattr(self.writer, "_host_path_publish_count", None) is not None
+                    else None
+                ),
+                "sampled_writer_sequence_count": (
+                    (metrics.get("timing_evidence") or {}).get("successful_writer_publishes")
+                ),
+                "sampled_writer_sequence_scope": (
+                    "writer sequences represented in accepted RTDE/TP metric samples; "
+                    "not all successful host PATH publishes"
+                ),
+            },
             "scheduler": scheduler,
             "evidence": evidence_payload,
             "state": self.provider.snapshot(),

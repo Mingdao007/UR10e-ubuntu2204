@@ -23,6 +23,7 @@ from step5d_paper_outer_loop import (  # noqa: E402
     Step5dOuterLoopConfig,
     Step5dOuterLoopInputs,
     Step5dOuterLoopState,
+    INTEGRAL_OFF_POLICY,
     compute_step5d_outer_loop,
     quaternion_orientation_error,
     rotation_matrix_to_quaternion,
@@ -109,6 +110,22 @@ class Step5dPaperOuterLoopTest(unittest.TestCase):
         np.testing.assert_allclose(output.xdot_p, [0.0, 0.0, expected_z], atol=1e-12)
         self.assertAlmostEqual(output.diagnostics["e_f"], 3.0, places=12)
         np.testing.assert_allclose(output.diagnostics["xddot_p"], [0.0, 0.0, 0.275], atol=1e-12)
+
+    def test_integral_off_policy_zeros_existing_state_exactly(self) -> None:
+        output = compute_step5d_outer_loop(
+            Step5dOuterLoopConfig(
+                kp=0.0,
+                ko=0.0,
+                kf=1.0,
+                force_target_n=5.0,
+                force_integral_policy=INTEGRAL_OFF_POLICY,
+            ),
+            Step5dOuterLoopState(force_integral_n_s=0.75),
+            self.make_inputs(dt_s=0.002),
+        )
+        self.assertEqual(output.next_state.force_integral_n_s, 0.0)
+        self.assertEqual(output.diagnostics["force_integral_policy"], "integral-off-v1")
+        self.assertEqual(output.diagnostics["force_integral_n_s"], 0.0)
 
     def test_contact_semantics_positive_load_and_press_direction(self) -> None:
         reaction_normal = np.array([0.0, 0.0, -1.0])

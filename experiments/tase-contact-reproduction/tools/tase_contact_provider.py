@@ -32,6 +32,7 @@ from step5d_autotune_v4_r004.motion_profile import same_direction_qdot_rescale
 from step5d_autotune_v4_r004.timing import MAX_FRESH_GAP_S
 from step5d_paper_outer_loop import (
     CONDITIONAL_DOUBLE_CLAMP_POLICY,
+    INTEGRAL_OFF_POLICY,
     LEGACY_FORCE_INTEGRAL_POLICY,
     Step5dOuterLoopConfig,
 )
@@ -180,6 +181,8 @@ def load_tase_outer_config(path=None):
             'Md_scalar': TASE_LIVE_OUTER_CONFIG.Md_scalar,
             'Bd_scalar': TASE_LIVE_OUTER_CONFIG.Bd_scalar,
             'force_integral_limit_n_s': TASE_LIVE_OUTER_CONFIG.force_integral_limit_n_s,
+            'force_integral_policy': TASE_LIVE_OUTER_CONFIG.force_integral_policy,
+            'force_integral_authority_error_n': TASE_LIVE_OUTER_CONFIG.force_integral_authority_error_n,
             'orientation_gain_scale': TASE_LIVE_OUTER_CONFIG.orientation_gain_scale,
         }
     candidate_path = Path(path).expanduser().resolve()
@@ -232,7 +235,11 @@ def load_tase_outer_config(path=None):
     if integral_limit not in {0.1, 0.5, 1.0}:
         raise ValueError('TASE frozen integral limit must be 0.1, 0.5, or 1.0 N s')
     integral_policy = str(frozen['force_integral_policy'])
-    if integral_policy not in {LEGACY_FORCE_INTEGRAL_POLICY, CONDITIONAL_DOUBLE_CLAMP_POLICY}:
+    if integral_policy not in {
+        LEGACY_FORCE_INTEGRAL_POLICY,
+        CONDITIONAL_DOUBLE_CLAMP_POLICY,
+        INTEGRAL_OFF_POLICY,
+    }:
         raise ValueError('TASE frozen integral policy is unknown')
     authority_error = float(frozen['force_integral_authority_error_n'])
     if not math.isfinite(authority_error) or authority_error <= 0.0:
@@ -350,7 +357,10 @@ class TaseContactProvider(ContactCommandProvider):
                                         'Md_scalar': self.runtime.outer_loop_config.Md_scalar,
                                         'Bd_scalar': self.runtime.outer_loop_config.Bd_scalar,
                                         'force_integral_limit_n_s': (
-                                            self.runtime.force_integral_limit_n_s)})
+                                            self.runtime.force_integral_limit_n_s),
+                                        'force_integral_policy': self.runtime.force_integral_policy,
+                                        'force_integral_authority_error_n': (
+                                            self.runtime.force_integral_authority_error_n)})
         declared_protocol = self.parameter_binding.get("protocol_id")
         if declared_protocol is not None and str(declared_protocol) != self.protocol_id:
             raise ValueError("TASE parameter protocol identity differs from live request")
@@ -461,6 +471,7 @@ class TaseContactProvider(ContactCommandProvider):
             self.runtime.force_integral_policy,
             self.runtime.force_integral_authority_error_n,
             copy.deepcopy(self.parameter_binding),
+            self.runtime.dynamic_state_snapshot(),
         )
         try:
             self.runtime.outer_loop_config = config
@@ -478,12 +489,15 @@ class TaseContactProvider(ContactCommandProvider):
                 or self.runtime.force_integral_authority_error_n != binding['force_integral_authority_error_n']
             ):
                 raise ValueError('TASE candidate was not applied to the runtime')
+            self.runtime.reset_outer_loop_state()
         except BaseException:
             (self.runtime.outer_loop_config,
              self.runtime.force_integral_limit_n_s,
              self.runtime.force_integral_policy,
              self.runtime.force_integral_authority_error_n,
-             self.parameter_binding) = previous
+             self.parameter_binding,
+             previous_runtime_state) = previous
+            self.runtime.restore_dynamic_state(previous_runtime_state)
             raise
         return copy.deepcopy(self.parameter_binding)
 
@@ -555,6 +569,52 @@ class TaseContactProvider(ContactCommandProvider):
             'provider_qdot_rad_s', tuple(self.last_result.get('qdot_rad_s', ()))
         )
         self.last_result['qdot_rad_s'] = values
+
+    def confirm_published_packet(
+        self, qdot, *, packet_sequence: int, published_at_s: float
+    ):
+        """Commit output anti-windup only after the writer successfully sends."""
+
+        self.record_final_qdot(qdot)
+        if not isinstance(self.last_result, dict):
+            raise ValueError('TASE published packet requires a committed command result')
+        jacobian = self.last_result.get('jacobian_6x6')
+        if jacobian is None:
+            raise ValueError('TASE published packet is missing its command Jacobian')
+        final_twist = np.asarray(jacobian, dtype=float) @ np.asarray(qdot, dtype=float)
+        if final_twist.shape != (6,) or not np.all(np.isfinite(final_twist)):
+            raise ValueError('TASE published packet Jqdot is invalid')
+        actual_q = np.asarray(self.last_result.get('actual_q_rad'), dtype=float)
+        if actual_q.shape != (6,) or not np.all(np.isfinite(actual_q)):
+            raise ValueError('TASE published command joint state is invalid')
+        motion_cap = (
+            0.15 if self.runtime.motion_profile is None
+            else float(self.runtime.motion_profile.qdot_cap_rad_s)
+        )
+        qdot_cap = min(motion_cap, float(self.solver_profile.qdot_limit_rad_s))
+        lower = np.maximum(self.runtime.model.model.lowerPositionLimit - actual_q, -qdot_cap)
+        upper = np.minimum(self.runtime.model.model.upperPositionLimit - actual_q, qdot_cap)
+        final_qdot = np.asarray(qdot, dtype=float)
+        joint_bound_active = bool(np.any(
+            (final_qdot <= lower + 1e-12) | (final_qdot >= upper - 1e-12)
+        ))
+        feedback = self.runtime.record_published_outer_output(
+            final_qdot=qdot,
+            jacobian_6x6=jacobian,
+            explicit_realization_limit=bool(
+                self.last_result.get('host_slew_scale', 1.0) < 1.0
+                or self.last_result.get('gate_projection_applied') is True
+                or joint_bound_active
+            ),
+            packet_sequence=packet_sequence,
+            published_at_s=published_at_s,
+        )
+        self.last_result['final_published_twist_m_s_rad_s'] = tuple(
+            float(value) for value in final_twist
+        )
+        self.last_result['published_packet_sequence'] = int(packet_sequence)
+        self.last_result['published_at_s'] = float(published_at_s)
+        self.last_result['published_output_feedback'] = copy.deepcopy(feedback)
 
     def pause(self, *, output, sensor, monotonic_s, actual_dt_s, reason):
         obs = self._observe(output, sensor, monotonic_s, actual_dt_s)
@@ -684,6 +744,7 @@ class TaseContactProvider(ContactCommandProvider):
                           * value)
                     for value in home_orientation_error
                 )
+                self.runtime.bind_command_twist(twist)
                 if (
                     self.force_preempt_armed
                     and measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N
@@ -877,6 +938,8 @@ class TaseContactProvider(ContactCommandProvider):
             approach_normal_velocity = float(-predicted_twist[2])
             self.last_result = {'phase': phase, 'sample_time_s': monotonic_s,
                 'qdot_rad_s': command.qdot,
+                'actual_q_rad': tuple(float(value) for value in output.q_rad),
+                'jacobian_6x6': command.jacobian_6x6,
                 'host_slew_scale': host_slew_scale,
                 'host_slew_limit_rad_s': host_slew_limit,
                 'filtered_normal_n': float(filtered),
@@ -917,6 +980,10 @@ class TaseContactProvider(ContactCommandProvider):
                 'actual_dt_s': actual_dt_s, 'solver': copy.deepcopy(self.runtime.last_solver_diagnostics),
                 'implementation': 'mature_local_tase_rnn',
                 'parameter_binding': copy.deepcopy(self.parameter_binding),
+                'applied_runtime_parameters': self.runtime.actual_runtime_config(),
+                'outer_output_feedback_pending': copy.deepcopy(
+                    self.runtime._pending_outer_feedback
+                ),
                 'outer_loop_binding': copy.deepcopy(TASE_PAPER_OUTER_BINDING)}
             self.last_measured_force_norm = measured_force_norm
             return command

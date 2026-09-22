@@ -119,6 +119,30 @@ def test_stopped_session_seal_never_reopens_or_services_transport(tmp_path):
     assert Path(item['sealed_evidence']['segments']['raw_sensor']['path']).is_file()
 
 
+def test_failed_candidate_consumes_budget_only_after_sound_home_and_timing():
+    from contact_yield_live import resident_candidate_can_continue
+    row = {
+        'evidence_eligible': False,
+        'evidence': {'metrics': {'timing_gate_passed': True, 'complete_bins': 550}},
+        'lifecycle': {'path_complete': True, 'home_verified': True,
+                      'ready_for_next': True, 'sealed': True},
+    }
+    assert resident_candidate_can_continue(row, research_campaign=True)
+    assert not resident_candidate_can_continue(row, research_campaign=False)
+    for section, key in (('evidence', 'timing_gate_passed'),
+                         ('evidence', 'complete_bins'),
+                         ('lifecycle', 'path_complete'),
+                         ('lifecycle', 'home_verified'),
+                         ('lifecycle', 'ready_for_next'),
+                         ('lifecycle', 'sealed')):
+        changed = json.loads(json.dumps(row))
+        if section == 'evidence':
+            changed[section]['metrics'][key] = False
+        else:
+            changed[section][key] = False
+        assert not resident_candidate_can_continue(changed, research_campaign=True)
+
+
 def test_real_refresh_callback_captures_ten_seconds_and_fetches_files(tmp_path, monkeypatch):
     from figure8_resident_acceptance import OfflineClock, OfflineResidentRTDE, _write_receipts
     from contact_yield_live_contract import load_identity_contract

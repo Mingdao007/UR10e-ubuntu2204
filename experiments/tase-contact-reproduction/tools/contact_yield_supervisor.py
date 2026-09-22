@@ -424,7 +424,11 @@ class ResidentSupervisor:
                 isinstance(body_result, dict)
                 and (
                     bool(body_result.get('error'))
-                    or body_result.get('evidence_eligible') is False
+                    or (
+                        body_result.get('success') is not True
+                        if body_result.get('research_campaign') is True
+                        else body_result.get('evidence_eligible') is False
+                    )
                 )
             )
             if body_failed:
@@ -631,6 +635,7 @@ def main(argv=None):
             deferred_seals=deferred_seals,
             attempt_count=a.resident_attempts,
             parameter_files=parameter_files,
+            research_campaign=parameter_files is not None,
             refresh_readback=refresh_live_preparation,
         )
     with WriterLock(INSTALLED_LOCK):
