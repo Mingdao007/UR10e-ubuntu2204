@@ -2112,15 +2112,28 @@ class LiveR004Writer:
                     terminal_reference = getattr(
                         path_collector, "observe_terminal_reference", None
                     )
+                    # The TP can consume the final bounded PATH packet on the
+                    # same RTDE frame that changes its state to RETURNING.
+                    # In that frame ``state`` is already 40/78 and the host
+                    # clock is no longer a PATH clock, but the consumed packet
+                    # remains the authoritative endpoint evidence.  Use its
+                    # validated reference time so a one-frame (2 ms) coverage
+                    # deficit is closed by the existing bounded seam policy.
+                    consumed_reference_time = (
+                        None
+                        if consumed_entry is None
+                        else consumed_entry.reference_time_s
+                    )
                     if (
                         callable(terminal_reference)
                         and entry_aware
-                        and state == 25
-                        and path_clock_time_s is not None
-                        and formal_duration_s <= path_clock_time_s
-                        and path_clock_time_s < formal_duration_s + PATH_SEAM_CONTINUATION_S
+                        and state in {25, 40, 78}
                         and consumed_entry is not None
                         and consumed_entry.reference_phase == "path"
+                        and consumed_reference_time is not None
+                        and formal_duration_s <= float(consumed_reference_time)
+                        and float(consumed_reference_time)
+                        < formal_duration_s + PATH_SEAM_CONTINUATION_S
                     ):
                         terminal_reference(sequence=consumed_sequence)
                 self._hot_path_mark("packet_evidence_exit")
