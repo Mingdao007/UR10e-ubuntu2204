@@ -447,6 +447,44 @@ def test_live_path_keeps_confirmed_home_orientation_velocity_zero(provider):
     assert predicted[3:] == pytest.approx((0.0, 0.0, 0.0), abs=1e-12)
 
 
+def test_bounded_path_diagnostics_capture_solver_and_limit_activity(monkeypatch):
+    provider = object.__new__(TaseContactProvider)
+    provider.reset_command_diagnostics()
+    def command(**_kwargs):
+        provider.last_result = {
+            'phase': 'path', 'host_slew_scale': .5,
+            'gate_projection_applied': True, 'force_rise_guard': True,
+            'solver': {'backend': 'numpy', 'solve_wall_s': .001,
+                       'active_bounds_mask': (True, False, False, False, False, False)},
+        }
+        return 'command'
+    monkeypatch.setattr(provider, 'command', command)
+    assert provider.execution_command() == 'command'
+    stats = provider.command_diagnostics
+    assert stats['path_calls'] == stats['solver_timed_calls'] == 1
+    assert stats['solver_active_bound_calls'] == 1
+    assert stats['host_slew_limited_calls'] == 1
+    assert stats['gate_projection_calls'] == 0
+    assert stats['solver_backend_counts']['numpy'] == 1
+    provider.reset_command_diagnostics()
+    assert provider.command_diagnostics['calls'] == 0
+
+
+def test_real_path_step_propagates_existing_rnn_solver_time(provider):
+    for now, path_time in ((.002, 0.0), (.004, 1.002)):
+        output, sensor = tick(provider, now, force=5.)
+        provider.execution_command(
+            output=output, sensor=sensor, monotonic_s=now,
+            actual_dt_s=.002, mode='path', path_time_s=path_time,
+            internal_setpoint_n=5.,
+        )
+    solver = provider.last_result['solver']
+    assert solver['backend'] == 'numpy'
+    assert solver['solve_wall_s'] > 0
+    assert provider.command_diagnostics['path_calls'] == 1
+    assert provider.command_diagnostics['solver_timed_calls'] == 1
+
+
 def test_r013_compat_accepts_bounded_returning_handshake_but_caps_reference_seam():
     contract = load_identity_contract()
     provider = TaseContactProvider(

@@ -61,6 +61,17 @@ class YieldLiveWriterError(RuntimeError):
     """Native live writer admission or lifecycle failed closed."""
 
 
+# The resident rate400 route keeps its own preparation policy.  The legacy
+# R004 contract retains its 300 s read-back limit.
+R013_RATE400_RESIDENT_ADMISSION_MAX_AGE_S = 3600.0
+
+
+def resident_admission_max_age(*, method: str, duration: str | None) -> float:
+    if method == "TASE_RNN_MATURE" and duration == "r013_60_rate400":
+        return R013_RATE400_RESIDENT_ADMISSION_MAX_AGE_S
+    return CONTROLLER_READBACK_MAX_AGE_S
+
+
 @dataclass(frozen=True)
 class YieldLivePrerequisites:
     contract: YieldLiveIdentityContract
@@ -74,15 +85,19 @@ class YieldLivePrerequisites:
     input_baseline_ledger_sha256: str
     software_baseline_n: tuple[float, ...]
     baseline_observed_at_s: float
+    admission_max_age_s: float = CONTROLLER_READBACK_MAX_AGE_S
 
     def validate(self, *, now_s: float) -> None:
+        maximum_age = float(self.admission_max_age_s)
+        if not math.isfinite(maximum_age) or maximum_age <= 0:
+            raise YieldLiveWriterError("admission maximum age is invalid")
         for stamp in (now_s, self.controller.observed_at_s, self.runtime.observed_at_s,
                       self.script1.observed_at_s, self.baseline_observed_at_s):
             if not math.isfinite(float(stamp)):
                 raise YieldLiveWriterError("admission timestamp is not finite")
         for label, stamp, maximum in (
-            ("runtime", self.runtime.observed_at_s, CONTROLLER_READBACK_MAX_AGE_S),
-            ("baseline", self.baseline_observed_at_s, CONTROLLER_READBACK_MAX_AGE_S),
+            ("runtime", self.runtime.observed_at_s, maximum_age),
+            ("baseline", self.baseline_observed_at_s, maximum_age),
             ("Home", self.script1.observed_at_s, SCRIPT1_RECEIPT_MAX_AGE_S),
         ):
             if not 0 <= now_s - stamp <= maximum:
@@ -91,7 +106,7 @@ class YieldLivePrerequisites:
             raise YieldLiveWriterError("controller receipt route differs")
         if self.controller.observed_at_s > now_s or self.runtime.observed_at_s > now_s:
             raise YieldLiveWriterError("native receipt timestamp is from the future")
-        if now_s - self.controller.observed_at_s > CONTROLLER_READBACK_MAX_AGE_S:
+        if now_s - self.controller.observed_at_s > maximum_age:
             raise YieldLiveWriterError("controller readback receipt is stale")
         home_observed = float(getattr(self.script1, "observed_at_s", now_s))
         if now_s - home_observed > SCRIPT1_RECEIPT_MAX_AGE_S:
@@ -141,7 +156,8 @@ def _require_run_file(run_dir: Path, name: str) -> Path:
     return path
 
 
-def load_software_baseline(run_dir: Path, contract, *, now_s: float):
+def load_software_baseline(run_dir: Path, contract, *, now_s: float,
+                           maximum_age_s: float = CONTROLLER_READBACK_MAX_AGE_S):
     baseline_path = _require_run_file(run_dir, "software_baseline_receipt.json")
     baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
     values = tuple(float(x) for x in baseline["mean_wrench_n_nm"])
@@ -158,7 +174,7 @@ def load_software_baseline(run_dir: Path, contract, *, now_s: float):
     if hashlib.sha256(capture_path.read_bytes()).hexdigest() != baseline["capture_sha256"]:
         raise YieldLiveWriterError("software baseline capture digest differs")
     observed = float(baseline["observed_at_s"])
-    if not 0 <= now_s-observed <= CONTROLLER_READBACK_MAX_AGE_S:
+    if not 0 <= now_s-observed <= maximum_age_s:
         raise YieldLiveWriterError("software baseline is stale or from the future")
     return baseline_path, baseline, values
 
@@ -170,6 +186,7 @@ def load_run_dir_receipts(
     route_id: str,
     attempt_id: str,
     now_s: float,
+    admission_max_age_s: float = CONTROLLER_READBACK_MAX_AGE_S,
 ) -> tuple[YieldLivePrerequisites, Any]:
     del attempt_id
     controller = load_controller_receipt(_require_run_file(run_dir, "controller_receipt.json"))
@@ -199,7 +216,9 @@ def load_run_dir_receipts(
         )
     else:
         raise YieldLiveWriterError(f"missing admission receipt: {home_path}")
-    baseline_path, baseline, values = load_software_baseline(run_dir, contract, now_s=now_s)
+    baseline_path, baseline, values = load_software_baseline(
+        run_dir, contract, now_s=now_s, maximum_age_s=admission_max_age_s,
+    )
     prerequisites = YieldLivePrerequisites(
         contract=contract,
         controller=controller,
@@ -212,6 +231,7 @@ def load_run_dir_receipts(
         input_baseline_ledger_sha256=hashlib.sha256(baseline_path.read_bytes()).hexdigest(),
         software_baseline_n=values,
         baseline_observed_at_s=float(baseline["observed_at_s"]),
+        admission_max_age_s=float(admission_max_age_s),
     )
     prerequisites.validate(now_s=now_s)
     return prerequisites, binding
@@ -664,6 +684,47 @@ class NativeYieldLiveWriter(R006LiveWriter):
         self._service_lock = threading.Lock()
         self._first_output_error = None
         self._host_path_publish_count = 0
+        self.reset_path_timing_stats()
+
+    def _reopen_prearm_rtde(self) -> None:
+        super()._reopen_prearm_rtde()
+        # A reconnect breaks the continuity asserted by the resident rate400
+        # preparation receipt.  Stop before ARM; the recovery owner returns
+        # Home and a new session obtains fresh read-back and baseline evidence.
+        if self.prerequisites.admission_max_age_s > CONTROLLER_READBACK_MAX_AGE_S:
+            raise YieldLiveWriterError(
+                "resident rate400 pre-ARM reconnect requires fresh preparation"
+            )
+
+    def reset_path_timing_stats(self) -> None:
+        self._path_timing_stats = {
+            "path_publishes": 0,
+            "interpublish_intervals": 0,
+            "max_interpublish_s": 0.0,
+            "over_2ms_intervals": 0,
+            "missed_2ms_slots_proxy": 0,
+            "last_publish_s": None,
+            "scheduler_wakeups": 0,
+            "scheduler_wakeups_over_0p5ms": 0,
+            "scheduler_max_lateness_s": 0.0,
+        }
+
+    def _hot_path_mark(self, name: str, **values: Any) -> None:
+        stats = getattr(self, "_path_timing_stats", None)
+        if stats is not None:
+            if name == "scheduler_enter":
+                stats["next_scheduler_deadline_s"] = values.get("next_publish_monotonic_s")
+            elif name == "scheduler_exit":
+                deadline = stats.pop("next_scheduler_deadline_s", None)
+                if deadline is not None:
+                    lateness = max(0.0, self._mono_clock() - float(deadline))
+                    stats["scheduler_wakeups"] += 1
+                    stats["scheduler_max_lateness_s"] = max(
+                        stats["scheduler_max_lateness_s"], lateness,
+                    )
+                    if lateness > .0005:
+                        stats["scheduler_wakeups_over_0p5ms"] += 1
+        super()._hot_path_mark(name, **values)
 
     def recovery_lifecycle(self, *, home_transition=None, ownership_registry=None):
         """Expose the offline recovery seam on this existing sole writer.
@@ -714,6 +775,21 @@ class NativeYieldLiveWriter(R006LiveWriter):
         if len(proposed) != 6 or any(not math.isfinite(x) or abs(x) > .05 for x in proposed):
             raise YieldLiveWriterError("native joint velocity limit exceeded (0.05 rad/s)")
         packet = super()._send_packet(sensor, **kwargs)
+        stats = getattr(self, "_path_timing_stats", None)
+        if (stats is not None and kwargs.get("command_mode") is CommandMode.PATH
+                and kwargs.get("reference_phase") == "path"):
+            published = self._last_writer_publish_mono_s
+            if published is not None:
+                previous = stats["last_publish_s"]
+                stats["path_publishes"] += 1
+                if previous is not None and published > previous:
+                    gap = float(published - previous)
+                    stats["interpublish_intervals"] += 1
+                    stats["max_interpublish_s"] = max(stats["max_interpublish_s"], gap)
+                    if gap > .002:
+                        stats["over_2ms_intervals"] += 1
+                    stats["missed_2ms_slots_proxy"] += max(0, int(gap / .002) - 1)
+                stats["last_publish_s"] = float(published)
         if (
             kwargs.get("command_mode") is CommandMode.PATH
             and kwargs.get("reference_phase") in {"entry", "path"}

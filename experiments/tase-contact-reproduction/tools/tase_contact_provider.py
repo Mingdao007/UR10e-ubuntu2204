@@ -7,11 +7,13 @@ raw-wrench limits, command slew/Jacobian checks and physical stopping.
 from __future__ import annotations
 
 import copy
+import bisect
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 import hashlib
 import json
 import math
+import time
 import numpy as np
 
 from contact_benchmark_provider import ContactCommandProvider, ContactReadinessObserver, ContactForceObservation
@@ -36,6 +38,8 @@ from step5d_paper_outer_loop import (
     LEGACY_FORCE_INTEGRAL_POLICY,
     Step5dOuterLoopConfig,
 )
+
+TASE_COMPUTE_BUCKETS_S = (.00025, .0005, .001, .0015, .002, .004)
 
 
 # A live safety transition, not a change to the paper gains.  The canonical
@@ -351,6 +355,7 @@ class TaseContactProvider(ContactCommandProvider):
         self.model_hashes = dict(self.runtime.model_hashes)
         self.solver_profile = solver_profile
         self.command_timeline = []
+        self.reset_command_diagnostics()
         self.parameter_binding = (dict(parameter_binding) if parameter_binding is not None
                                   else {'schema': TASE_PARAMETER_SCHEMA,
                                         'source': 'paper-default',
@@ -598,6 +603,11 @@ class TaseContactProvider(ContactCommandProvider):
         joint_bound_active = bool(np.any(
             (final_qdot <= lower + 1e-12) | (final_qdot >= upper - 1e-12)
         ))
+        if self.last_result.get('phase') == 'path':
+            if self.last_result.get('gate_projection_applied') is True:
+                self.command_diagnostics['gate_projection_calls'] += 1
+            if joint_bound_active:
+                self.command_diagnostics['published_joint_bound_calls'] += 1
         feedback = self.runtime.record_published_outer_output(
             final_qdot=qdot,
             jacobian_6x6=jacobian,
@@ -643,7 +653,73 @@ class TaseContactProvider(ContactCommandProvider):
     path_errors = execution_path_errors
 
     def execution_command(self, **kwargs):
-        return self.command(**kwargs)
+        started = time.perf_counter()
+        try:
+            result = self.command(**kwargs)
+        except BaseException:
+            self.command_diagnostics['failed_calls'] += 1
+            raise
+        finally:
+            elapsed = time.perf_counter() - started
+            self.command_diagnostics['calls'] += 1
+            self.command_diagnostics['total_compute_s'] += elapsed
+            self.command_diagnostics['max_compute_s'] = max(
+                self.command_diagnostics['max_compute_s'], elapsed,
+            )
+            if elapsed > .002:
+                self.command_diagnostics['over_2ms_calls'] += 1
+        detail = self.last_result or {}
+        if detail.get('phase') == 'path':
+            self.command_diagnostics['path_calls'] += 1
+            self.command_diagnostics['path_compute_histogram'][
+                bisect.bisect_right(TASE_COMPUTE_BUCKETS_S, elapsed)
+            ] += 1
+            self.command_diagnostics['path_max_compute_s'] = max(
+                self.command_diagnostics['path_max_compute_s'], elapsed,
+            )
+            if elapsed > .002:
+                self.command_diagnostics['path_over_2ms_calls'] += 1
+            if detail.get('host_slew_scale', 1.0) < 1.0:
+                self.command_diagnostics['host_slew_limited_calls'] += 1
+            if detail.get('force_rise_guard') is True:
+                self.command_diagnostics['force_rise_guard_calls'] += 1
+            solver = detail.get('solver') or {}
+            backend = str(solver.get('backend', 'unknown'))
+            bucket = backend if backend in {'numpy', 'cupy', 'strict-rnn', 'osqp-codegen-c',
+                                            'fixed-normal-jacobian'} else 'other'
+            self.command_diagnostics['solver_backend_counts'][bucket] += 1
+            solve_wall_s = solver.get('solve_wall_s')
+            if isinstance(solve_wall_s, (int, float)) and math.isfinite(solve_wall_s):
+                self.command_diagnostics['solver_timed_calls'] += 1
+                self.command_diagnostics['solver_total_s'] += solve_wall_s
+                self.command_diagnostics['solver_max_s'] = max(
+                    self.command_diagnostics['solver_max_s'], solve_wall_s,
+                )
+                if solve_wall_s > .002:
+                    self.command_diagnostics['solver_over_2ms_calls'] += 1
+            if any(solver.get('active_bounds_mask') or ()):
+                self.command_diagnostics['solver_active_bound_calls'] += 1
+        return result
+
+    def reset_command_diagnostics(self):
+        self.command_diagnostics = {
+            'calls': 0, 'path_calls': 0, 'failed_calls': 0,
+            'total_compute_s': 0.0, 'max_compute_s': 0.0,
+            'path_max_compute_s': 0.0, 'over_2ms_calls': 0,
+            'path_over_2ms_calls': 0,
+            'path_compute_bucket_upper_s': list(TASE_COMPUTE_BUCKETS_S),
+            'path_compute_histogram': [0] * (len(TASE_COMPUTE_BUCKETS_S) + 1),
+            'host_slew_limited_calls': 0, 'gate_projection_calls': 0,
+            'published_joint_bound_calls': 0,
+            'force_rise_guard_calls': 0,
+            'solver_timed_calls': 0, 'solver_total_s': 0.0,
+            'solver_max_s': 0.0, 'solver_over_2ms_calls': 0,
+            'solver_active_bound_calls': 0,
+            'solver_backend_counts': {
+                'numpy': 0, 'cupy': 0, 'strict-rnn': 0,
+                'osqp-codegen-c': 0, 'fixed-normal-jacobian': 0, 'other': 0,
+            },
+        }
 
     def command(self, *, output, sensor, monotonic_s, actual_dt_s, mode,
                 internal_setpoint_n, path_time_s=None):

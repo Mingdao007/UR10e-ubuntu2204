@@ -27,6 +27,7 @@ from contact_yield_live_writer import (
     build_native_yield_owner,
     load_run_dir_receipts,
     native_attempt,
+    resident_admission_max_age,
     stop_and_confirm,
 )
 from contact_yield_resident_session import (
@@ -526,6 +527,9 @@ def run_live(
         route_id=args.route_id,
         attempt_id=args.attempt_id,
         now_s=clock,
+        admission_max_age_s=resident_admission_max_age(
+            method=args.method, duration=getattr(args, "duration", None),
+        ),
     )
     mature, runtime, provider, request = build_native_yield_owner(
         method=args.method,

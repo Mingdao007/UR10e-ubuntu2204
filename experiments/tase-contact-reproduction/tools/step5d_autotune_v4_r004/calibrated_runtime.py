@@ -600,6 +600,14 @@ class V4CalibratedRuntime:
             status = float(result.solver_status)
             if len(qdot) != 6 or not all(math.isfinite(value) for value in qdot):
                 raise CalibratedRuntimeError("strict RNN returned invalid qdot")
+            diagnostics = result.diagnostics
+            self.last_solver_diagnostics = {
+                "backend": diagnostics.get("backend", "strict-rnn"),
+                "solve_wall_s": float(diagnostics["solve_wall_ms"]) / 1000.0,
+                "residual_norm": float(result.residual_norm),
+                "active_bounds_mask": tuple(diagnostics.get("active_bounds_mask", ())),
+                "inner_iterations": diagnostics.get("executed_inner_iterations"),
+            }
         return CalibratedCommand(
             qdot=qdot,  # type: ignore[arg-type]
             jacobian_6x6=tuple(

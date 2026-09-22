@@ -4,6 +4,7 @@ import math
 import pytest
 from contact_yield_live_writer import (
     NativeYieldLiveWriter, YieldLiveWriterError, load_run_dir_receipts,
+    resident_admission_max_age,
 )
 from contact_yield_live_contract import contact_home_binding, YieldLiveContractError
 from step5d_autotune_v4_r006.live_adapter import R006LiveWriter, R006LiveAdapterError
@@ -13,6 +14,57 @@ from test_contact_yield_live import _prepare
 def load(tmp_path, contract):
     return load_run_dir_receipts(tmp_path, contract=contract, route_id="r006-yield-live",
                                 attempt_id="r006-test", now_s=100.)
+
+
+def test_rate400_preparation_age_is_route_scoped_and_home_start_stays_fresh(tmp_path):
+    contract = _prepare(tmp_path)
+    home = tmp_path / "home_start_receipt.json"
+    document = json.loads(home.read_text())
+    document["observed_at_s"] = 3689.0
+    home.write_text(json.dumps(document))
+    assert resident_admission_max_age(method="TASE_RNN_MATURE", duration="r013_60_rate400") == 3600.0
+    assert resident_admission_max_age(method="TASE_RNN_MATURE", duration="r013_60") == 300.0
+    for now in (3689.0, 3690.0):
+        prerequisites, _ = load_run_dir_receipts(
+            tmp_path, contract=contract, route_id="r006-yield-live",
+            attempt_id="r006-test", now_s=now, admission_max_age_s=3600.0,
+        )
+        assert prerequisites.admission_max_age_s == 3600.0
+    with pytest.raises(YieldLiveWriterError, match="stale"):
+        load_run_dir_receipts(tmp_path, contract=contract, route_id="r006-yield-live",
+                              attempt_id="r006-test", now_s=3690.001,
+                              admission_max_age_s=3600.0)
+    with pytest.raises(YieldLiveWriterError, match="stale"):
+        load_run_dir_receipts(tmp_path, contract=contract, route_id="r006-yield-live",
+                              attempt_id="r006-test", now_s=4000.0,
+                              admission_max_age_s=3600.0)
+
+
+def test_rate400_prearm_reconnect_forces_new_preparation(monkeypatch):
+    from types import SimpleNamespace as NS
+    calls = []
+    monkeypatch.setattr(R006LiveWriter, '_reopen_prearm_rtde',
+                        lambda self: calls.append('reopened'))
+    writer = object.__new__(NativeYieldLiveWriter)
+    writer.prerequisites = NS(admission_max_age_s=3600.0)
+    with pytest.raises(YieldLiveWriterError, match='fresh preparation'):
+        writer._reopen_prearm_rtde()
+    assert calls == ['reopened']
+    writer.prerequisites = NS(admission_max_age_s=300.0)
+    writer._reopen_prearm_rtde()
+    assert calls == ['reopened', 'reopened']
+
+
+def test_scheduler_lateness_is_bounded_without_cycle_file_writes():
+    writer = object.__new__(NativeYieldLiveWriter)
+    writer._mono_clock = lambda: 1.0007
+    writer.reset_path_timing_stats()
+    writer._hot_path_mark('scheduler_enter', next_publish_monotonic_s=1.0)
+    writer._hot_path_mark('scheduler_exit')
+    stats = writer._path_timing_stats
+    assert stats['scheduler_wakeups'] == 1
+    assert stats['scheduler_wakeups_over_0p5ms'] == 1
+    assert stats['scheduler_max_lateness_s'] == pytest.approx(.0007)
 
 
 @pytest.mark.parametrize("raw", [(21.,0.,0.,0.,0.,0.), (0.,0.,0.,0.,2.01,0.),

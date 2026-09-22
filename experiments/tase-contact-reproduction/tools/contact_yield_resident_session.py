@@ -330,6 +330,8 @@ class ResidentSession:
         self.lifecycle_events: list[dict[str, Any]] = []
         self.transport_trace: list[dict[str, Any]] = []
         self.refreshes: list[dict[str, Any]] = []
+        self._refresh_reasons: set[str] = set()
+        self._home_settle_dirty = False
         self._last_rtde_timestamp: float | None = None
         self._last_consumed_packet: int | None = None
         self._last_session_sequence: int | None = None
@@ -338,6 +340,10 @@ class ResidentSession:
         self._gc_was_enabled = gc.isenabled()
         self.last_completed_evidence = None
         self.last_completed_sequence = None
+        self._physical_home_arrival_mono_s: float | None = None
+        self._stationary_home_verified_mono_s: float | None = None
+        self._terminal_finalize_start_mono_s: float | None = None
+        self._terminal_finalize_end_mono_s: float | None = None
         self._service_context: dict[str, Any] = {
             "attempt_sequence": 0,
             "stage": "session",
@@ -433,6 +439,7 @@ class ResidentSession:
     def _wait_home_settle(self, terminal):
         """Keep RETURNING guards until joint Home stays still for 0.5 s."""
         previous_mode = getattr(self.writer, '_service_mode', False)
+        self._physical_home_arrival_mono_s = getattr(terminal, "received_monotonic_s", None)
         self.writer._service_mode = True
         deadline = float(self.mono_clock()) + 5.0
         stable_since = None
@@ -448,6 +455,11 @@ class ResidentSession:
                     now = float(output.timestamp)
                     stable_since = now if stable_since is None else stable_since
                     if now - stable_since >= 0.5:
+                        self._stationary_home_verified_mono_s = float(self.mono_clock())
+                        if (self._home_settle_dirty
+                                and self.prerequisites is not None
+                                and self.prerequisites.admission_max_age_s > 300.0):
+                            self.require_refresh("home_reacquired")
                         self._home_settle_dirty = False
                         _event(self, 'HOME_SETTLE', 'verified', sequence=self.next_sequence,
                                stationary_duration_s=now-stable_since)
@@ -567,6 +579,7 @@ class ResidentSession:
     def _run_terminal_finalize(self, finalizer):
         """Finalize evidence in a fork while this owner services RTDE."""
 
+        self._terminal_finalize_start_mono_s = float(self.mono_clock())
         result = self._run_process_work(reason="terminal_finalize", task=finalizer)
         self.last_completed_evidence = result
         self.last_completed_sequence = self.next_sequence
@@ -593,6 +606,7 @@ class ResidentSession:
             value = cell.cell_contents
             if isinstance(value, collectors):
                 retire(value)
+        self._terminal_finalize_end_mono_s = float(self.mono_clock())
         return result
 
     def _clear_serviced(self, buffer):
@@ -717,6 +731,12 @@ class ResidentSession:
         _event(self, "HOME_CHECK", "verified", reason=reason, state=state)
         return result
 
+    def require_refresh(self, reason: str) -> None:
+        if reason not in {"home_reacquired", "transport_reconnected",
+                          "identity_changed", "eoat_changed", "fault_recovered"}:
+            raise ResidentSessionError("unknown preparation refresh reason")
+        self._refresh_reasons.add(reason)
+
     def _refresh_needed(self) -> bool:
         if not isinstance(self.prerequisites, YieldLivePrerequisites):
             return False
@@ -728,10 +748,10 @@ class ResidentSession:
             self.prerequisites.baseline_observed_at_s,
         )
         oldest = min(float(value) for value in stamps)
-        return now - oldest >= 300.0
+        return bool(self._refresh_reasons) or now - oldest >= self.prerequisites.admission_max_age_s
 
     def refresh_at_home(self) -> dict[str, Any] | None:
-        """Refresh session-owned admission evidence before the 300 s seam.
+        """Refresh session-owned admission evidence at its route-specific seam.
 
         The current open RTDE/Kunwei pair is reused at verified Home.  No
         neutral HOLD, reconnect, or competing endpoint is introduced.
@@ -741,7 +761,7 @@ class ResidentSession:
         home = self.verify_ready_for_next(reason="pre_expiry_refresh")
         if self.refresh_readback is None:
             raise ResidentSessionError(
-                "admission evidence reached 300 s without an injected fresh readback/baseline fetch"
+                "admission evidence requires refresh without an injected readback/baseline fetch"
             )
         now = float(self.wall_clock())
         refreshed = self.refresh_readback(
@@ -792,6 +812,7 @@ class ResidentSession:
         result = {
             "schema": RESIDENT_REFRESH_SCHEMA,
             "refresh_index": refresh_index,
+            "refresh_reasons": sorted(self._refresh_reasons) or ["age_limit"],
             "refreshed_at_s": now,
             "previous_observed_at_s": min(
                 old.controller.observed_at_s,
@@ -811,6 +832,7 @@ class ResidentSession:
         self.writer.software_baseline_n = new_prerequisites.software_baseline_n
         self.writer.session.identity._expected = new_prerequisites.controller
         self.refreshes.append(result)
+        self._refresh_reasons.clear()
         _event(self, "SESSION_REFRESH", "sealed", refresh_index=refresh_index)
         return result
 
@@ -829,6 +851,12 @@ class ResidentSession:
         refresh = self.refresh_at_home()
         del refresh
         self.provider.restore(copy.deepcopy(self.seed_state))
+        reset_diagnostics = getattr(self.provider, "reset_command_diagnostics", None)
+        if callable(reset_diagnostics):
+            reset_diagnostics()
+        reset_path_timing = getattr(self.writer, "reset_path_timing_stats", None)
+        if callable(reset_path_timing):
+            reset_path_timing()
         if parameter_file is not None:
             apply = getattr(self.provider, 'apply_outer_parameters_at_home', None)
             if not callable(apply):
@@ -871,6 +899,10 @@ class ResidentSession:
     ) -> dict[str, Any]:
         started_mono = float(self.mono_clock())
         started_wall = float(self.wall_clock())
+        self._physical_home_arrival_mono_s = None
+        self._stationary_home_verified_mono_s = None
+        self._terminal_finalize_start_mono_s = None
+        self._terminal_finalize_end_mono_s = None
         refresh_count = len(self.refreshes)
         if sequence != self.next_sequence:
             raise ResidentSessionError(
@@ -926,6 +958,10 @@ class ResidentSession:
                 "started_monotonic_s": started_mono,
                 "started_at_s": started_wall,
                 "home_verified_monotonic_s": float(self.mono_clock()),
+                "physical_home_arrival_monotonic_s": self._physical_home_arrival_mono_s,
+                "stationary_home_verified_monotonic_s": self._stationary_home_verified_mono_s,
+                "terminal_finalize_start_monotonic_s": self._terminal_finalize_start_mono_s,
+                "terminal_finalize_end_monotonic_s": self._terminal_finalize_end_mono_s,
                 "path_started_monotonic_s": getattr(self.writer, "_path_command_started_mono_s", None),
                 "preparation_refreshed": len(self.refreshes) != refresh_count,
                 "cycle_kind": ("cold" if sequence == 1 else
@@ -948,6 +984,12 @@ class ResidentSession:
                 "sampled_writer_sequence_scope": (
                     "writer sequences represented in accepted RTDE/TP metric samples; "
                     "not all successful host PATH publishes"
+                ),
+                "provider_compute": copy.deepcopy(
+                    getattr(self.provider, "command_diagnostics", None)
+                ),
+                "host_interpublish": copy.deepcopy(
+                    getattr(self.writer, "_path_timing_stats", None)
                 ),
             },
             "scheduler": scheduler,
@@ -1016,6 +1058,7 @@ class ResidentSession:
         segments = dict(snapshot["segments"])
         service_segment = dict(snapshot["service_segment"])
         service_counts = {name: len(rows) for name, rows in frozen_service.items()}
+        sealed_lifecycle = {**dict(item.get("lifecycle") or {}), "sealed": True}
         seal = {
             "schema": RESIDENT_SEAL_SCHEMA,
             "session_schema": RESIDENT_SESSION_SCHEMA,
@@ -1026,24 +1069,31 @@ class ResidentSession:
             "service_observations": service_segment,
             "service_context": dict(service_context),
             "service_buffer_rotated": True,
-            "lifecycle": dict(item.get("lifecycle") or {}),
+            "lifecycle": sealed_lifecycle,
         }
-        seal["lifecycle"]["sealed"] = True
+        timing = dict(item.get("timing") or {})
+        timing["tp_stage_observations"] = snapshot["tp_stage_observations"]
+        # The segment worker has finished and returned immutable digests. The
+        # timestamp is captured before the small atomic metadata write so the
+        # persisted receipt can include its own through-seal duration.
+        timing["sealed_monotonic_s"] = float(self.mono_clock())
+        if "started_monotonic_s" in timing:
+            timing["through_seal_s"] = timing["sealed_monotonic_s"] - timing["started_monotonic_s"]
+        sealed_item = {**item, "lifecycle": sealed_lifecycle,
+                       "timing": timing, "sealed_evidence": seal}
         work(
             reason="attempt_seal_metadata",
             task=lambda: (
                 _atomic_json(self.run_dir / "attempts" / f"{sequence:04d}" / "seal.json", seal),
                 _atomic_json(self.run_dir / "attempts" / f"{sequence:04d}" / "attempt-result.json",
-                             {**item, 'sealed_evidence': seal}),
+                             sealed_item),
             ),
         )
-        item["sealed_evidence"] = seal
+        item.update({"lifecycle": sealed_lifecycle, "timing": timing,
+                     "sealed_evidence": seal})
         self._pending_service_batches = [
             batch for batch in self._pending_service_batches if batch[0] is not frozen_service
         ]
-        item.setdefault("lifecycle", {})["sealed"] = True
-        timing = item.setdefault("timing", {})
-        timing["tp_stage_observations"] = snapshot["tp_stage_observations"]
         buffer_names = {
             "raw_sensor": "raw_observations",
             "robot_frames": "robot_observations",
@@ -1058,9 +1108,6 @@ class ResidentSession:
         timeline = getattr(self.provider, "command_timeline", None)
         if isinstance(timeline, list):
             self._clear_serviced(timeline)
-        timing["sealed_monotonic_s"] = float(self.mono_clock())
-        if "started_monotonic_s" in timing:
-            timing["through_seal_s"] = timing["sealed_monotonic_s"] - timing["started_monotonic_s"]
         _event(self, "SEAL", "complete", sequence=sequence, segment_count=len(segments))
         return item
 
@@ -1291,7 +1338,8 @@ def refresh_live_preparation(*, session, home, now_s):
     baseline_meta = session._run_process_work(reason='baseline_refresh_seal', task=persist)
     renewed, _ = load_run_dir_receipts(refresh_dir, contract=contract,
                         route_id=old.route_id, attempt_id='resident-refresh',
-                        now_s=session.wall_clock())
+                        now_s=session.wall_clock(),
+                        admission_max_age_s=old.admission_max_age_s)
     return {'prerequisites': renewed, 'baseline': baseline_meta,
             'readback_validation': {'path': str(package_dir), **proof}}
 

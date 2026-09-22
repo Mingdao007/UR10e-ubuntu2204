@@ -112,11 +112,62 @@ def test_stopped_session_seal_never_reopens_or_services_transport(tmp_path):
     session.closed = True
     session._service_tick = lambda: pytest.fail('stopped transport was serviced')
     item = {'sequence': 1, 'partial': True,
+            'timing': {'started_monotonic_s': time.monotonic() - 1.0},
             'lifecycle': {'path_complete': False, 'home_verified': False}}
     session.seal_attempt(item, service=False)
     assert item['lifecycle']['sealed']
     assert item['lifecycle']['path_complete'] is False
     assert Path(item['sealed_evidence']['segments']['raw_sensor']['path']).is_file()
+    persisted = json.loads((tmp_path / 'attempts/0001/attempt-result.json').read_text())
+    assert persisted['lifecycle']['sealed'] is True
+    assert persisted['timing']['through_seal_s'] >= 1.0
+    assert persisted['timing']['sealed_monotonic_s'] >= persisted['timing']['started_monotonic_s']
+
+
+def test_rate400_refresh_is_hourly_or_event_triggered(tmp_path):
+    from figure8_resident_acceptance import _write_receipts
+    from contact_yield_live_contract import load_identity_contract
+    from contact_yield_live_writer import load_run_dir_receipts
+    contract = load_identity_contract()
+    _write_receipts(tmp_path, contract, 100.)
+    prerequisites, _ = load_run_dir_receipts(
+        tmp_path, contract=contract, route_id='r006-yield-live', attempt_id='old',
+        now_s=100., admission_max_age_s=3600.,
+    )
+    now = [3699.]
+    session = ResidentSession(mature=NS(writer=NS()), runtime=None, provider=None,
+                              prerequisites=prerequisites, run_dir=tmp_path,
+                              wall_clock=lambda: now[0])
+    assert session._refresh_needed() is False
+    for reason in ('home_reacquired', 'transport_reconnected', 'identity_changed',
+                   'eoat_changed', 'fault_recovered'):
+        session.require_refresh(reason)
+        assert session._refresh_needed() is True
+        session._refresh_reasons.clear()
+    now[0] = 3700.
+    assert session._refresh_needed() is True
+    with pytest.raises(ResidentSessionError, match='unknown'):
+        session.require_refresh('arbitrary')
+
+
+def test_reacquired_home_triggers_refresh_after_measured_settle(tmp_path, monkeypatch):
+    import contact_yield_resident_session as resident
+    now = [0.]
+    writer = NS(_service_mode=False)
+    session = ResidentSession(mature=NS(writer=writer), runtime=None, provider=None,
+                              prerequisites=NS(admission_max_age_s=3600.),
+                              run_dir=tmp_path, mono_clock=lambda: now[0])
+    session._home_settle_dirty = True
+    def tick(*, settling=False):
+        assert settling
+        now[0] += .1
+        return NS(timestamp=now[0]), None
+    session._service_tick = tick
+    monkeypatch.setattr(resident, '_home_proof', lambda *args, **kwargs: {'home_verified': True})
+    session._wait_home_settle(NS(received_monotonic_s=0.))
+    assert session._physical_home_arrival_mono_s == 0.
+    assert session._stationary_home_verified_mono_s >= .5
+    assert session._refresh_reasons == {'home_reacquired'}
 
 
 def test_failed_candidate_consumes_budget_only_after_sound_home_and_timing():

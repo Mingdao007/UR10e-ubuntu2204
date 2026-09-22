@@ -33,6 +33,8 @@ class TimingLedgerError(ValueError):
 
 
 R013_PROTOCOL_ID = "figure8_window60_r013_compat_v1"
+R013_RATE400_PROTOCOL_ID = "figure8_window60_r013_rate400_v1"
+R013_PROTOCOL_IDS = frozenset({R013_PROTOCOL_ID, R013_RATE400_PROTOCOL_ID})
 
 
 def _finite(value: Any, label: str) -> float:
@@ -60,7 +62,7 @@ class TaseR013TimingLedger:
     supplemental_events: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        if self.protocol_id != R013_PROTOCOL_ID:
+        if self.protocol_id not in R013_PROTOCOL_IDS:
             raise TimingLedgerError(
                 f"R013 timing ledger cannot admit protocol {self.protocol_id!r}"
             )
@@ -90,7 +92,7 @@ class TaseR013TimingLedger:
         failure_condition: str | None = None,
         source_success: bool | None = None,
     ) -> "TaseR013TimingLedger":
-        if str(protocol_id) != R013_PROTOCOL_ID:
+        if str(protocol_id) not in R013_PROTOCOL_IDS:
             raise TimingLedgerError(
                 f"R013 timing ledger cannot admit protocol {protocol_id!r}"
             )
@@ -225,6 +227,15 @@ def ledger_from_receipts(
     dispatch = dict(dispatch_receipt or {})
     supervisor = dict(supervisor_result or {})
     missing_events: list[dict[str, Any]] = []
+    live_path = dispatch.get("live_path")
+    selected_protocol = (
+        live_path.get("protocol_id") if isinstance(live_path, Mapping)
+        else None
+    ) or dispatch.get("protocol_id") or supervisor.get("protocol_id") or R013_PROTOCOL_ID
+    selected_protocol = str(selected_protocol)
+    if selected_protocol not in R013_PROTOCOL_IDS:
+        field = "live_path.protocol_id" if isinstance(live_path, Mapping) and live_path.get("protocol_id") is not None else "protocol_id"
+        raise TimingLedgerError(f"R013 timing ledger cannot admit {field} {selected_protocol!r}")
 
     def check_protocol(source: Mapping[str, Any], source_name: str) -> None:
         identities: list[tuple[str, Any]] = []
@@ -264,9 +275,9 @@ def ledger_from_receipts(
         if len(distinct) > 1:
             raise TimingLedgerError(f"{source_name} receipt contains conflicting protocol identities")
         for field, identity in identities:
-            if str(identity) != R013_PROTOCOL_ID:
+            if str(identity) != selected_protocol:
                 raise TimingLedgerError(
-                    f"{source_name} receipt {field} {identity!r} differs from {R013_PROTOCOL_ID!r}"
+                    f"{source_name} receipt {field} {identity!r} differs from {selected_protocol!r}"
                 )
 
     check_protocol(dispatch, "dispatch")
@@ -295,9 +306,9 @@ def ledger_from_receipts(
                 })
                 continue
             stage = str(row.get("stage", ""))
-            if row.get("protocol_id") is not None and str(row["protocol_id"]) != R013_PROTOCOL_ID:
+            if row.get("protocol_id") is not None and str(row["protocol_id"]) != selected_protocol:
                 raise TimingLedgerError(
-                    f"{source_name} lifecycle event protocol {row['protocol_id']!r} differs from {R013_PROTOCOL_ID!r}"
+                    f"{source_name} lifecycle event protocol {row['protocol_id']!r} differs from {selected_protocol!r}"
                 )
             timestamp = row.get("timestamp_s")
             if stage not in _STAGE_INDEX or timestamp is None:
@@ -329,9 +340,9 @@ def ledger_from_receipts(
     argument_rows = list(lifecycle_events)
     for row in argument_rows:
         if isinstance(row, Mapping) and row.get("protocol_id") is not None:
-            if str(row["protocol_id"]) != R013_PROTOCOL_ID:
+            if str(row["protocol_id"]) != selected_protocol:
                 raise TimingLedgerError(
-                    f"lifecycle event protocol {row['protocol_id']!r} differs from {R013_PROTOCOL_ID!r}"
+                    f"lifecycle event protocol {row['protocol_id']!r} differs from {selected_protocol!r}"
                 )
     merged_events.extend(collect({"lifecycle_events": argument_rows}, "argument"))
     merged_events.extend(collect(dispatch, "dispatch"))
@@ -407,6 +418,7 @@ def ledger_from_receipts(
     ledger = TaseR013TimingLedger.from_events(
         attempt_id,
         ordered_events,
+        protocol_id=selected_protocol,
         failure_stage=dispatch.get("failure_stage") or supervisor.get("failure_stage"),
         failure_condition=dispatch.get("failure_condition") or supervisor.get("error"),
         source_success=(

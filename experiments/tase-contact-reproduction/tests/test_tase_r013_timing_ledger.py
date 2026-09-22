@@ -34,6 +34,20 @@ def test_lifecycle_ledger_records_home_to_home_and_path_duration() -> None:
     assert ledger.as_dict()["protocol_id"] == "figure8_window60_r013_compat_v1"
 
 
+def test_rate400_receipt_keeps_its_distinct_timing_identity() -> None:
+    ledger = ledger_from_receipts(
+        "rate400",
+        lifecycle_events=_events() + [{"stage": "HOME", "event": "verified", "timestamp_s": 100.0}],
+        dispatch_receipt={"live_path": {
+            "kind": "r013_compat_60",
+            "path_duration_s": 60.0,
+            "protocol_id": "figure8_window60_r013_rate400_v1",
+        }},
+    )
+    assert ledger.protocol_id == "figure8_window60_r013_rate400_v1"
+    assert ledger.durations()["home_to_home_s"] == 100.0
+
+
 def test_regression_is_rejected() -> None:
     ledger = TaseR013TimingLedger("a")
     ledger.mark("HOME_CHECK", 1.0)

@@ -627,8 +627,10 @@ def main(argv=None):
     if a.action=='pilot': parse_live_duration(a.duration)
     if (a.run_dir/'supervisor-result.json').exists(): raise RuntimeError('run already completed')
     contract=load_identity_contract()
+    from contact_yield_live_writer import resident_admission_max_age
+    admission_max_age_s = resident_admission_max_age(method=a.method, duration=a.duration)
     proof=json.loads((a.run_dir/'readback-results.json').read_text())
-    if proof.get('pass') is not True or not 0<=time.time()-proof['observed_at_s']<300:
+    if proof.get('pass') is not True or not 0<=time.time()-proof['observed_at_s']<admission_max_age_s:
         raise RuntimeError('fresh verified read-back required')
     for base in (CONTACT_PROGRAM,HOME_PROGRAM):
         for ext in ('script','txt','urp'):
@@ -639,10 +641,11 @@ def main(argv=None):
     from contact_yield_live_writer import load_software_baseline
     from contact_yield_live_contract import contact_home_binding
     def before_load(s):
-        if not 0 <= time.time()-proof['observed_at_s'] < 300:
+        if not 0 <= time.time()-proof['observed_at_s'] < admission_max_age_s:
             raise RuntimeError('controller read-back expired before Load')
         if a.action != 'resident-check':
-            load_software_baseline(a.run_dir,contract,now_s=time.time())
+            load_software_baseline(a.run_dir,contract,now_s=time.time(),
+                                   maximum_age_s=admission_max_age_s)
             row=s.check(idle=True)
             contact_home_binding(contract=contract,final_pose=row['actual_TCP_pose'],
                 final_q=row['actual_q'],observed_at_s=row['observed_at_s'],
@@ -786,11 +789,22 @@ def main(argv=None):
         except Exception as exc:
             result['video_evidence_persist_error'] = f'{type(exc).__name__}: {exc}'
     try:
-        timing_ledger = ledger_from_receipts(
-            str(dispatch_receipt.get('attempt_id') or f'r006-supervised-{a.action}'),
-            dispatch_receipt=dispatch_receipt,
-            supervisor_result=result,
-        ).as_dict()
+        resident_rate400 = (a.action == 'pilot' and a.method == 'TASE_RNN_MATURE'
+                            and a.duration == 'r013_60_rate400')
+        if resident_rate400:
+            # Reduce each sealed physical unit after the writer lock has been
+            # released. A session-wide lifecycle list cannot assign TP stage
+            # timestamps to the correct attempt after buffer rotation.
+            from analyze_tase_resident_evidence import seal_session_diagnostic
+            events = (((result.get('body') or {}).get('session') or {})
+                      .get('lifecycle_events') or [])
+            timing_ledger = seal_session_diagnostic(a.run_dir, events=events)
+        else:
+            timing_ledger = ledger_from_receipts(
+                str(dispatch_receipt.get('attempt_id') or f'r006-supervised-{a.action}'),
+                dispatch_receipt=dispatch_receipt,
+                supervisor_result=result,
+            ).as_dict()
         result['timing_ledger'] = timing_ledger
         if dispatch_receipt:
             dispatch_receipt['timing_ledger'] = timing_ledger
