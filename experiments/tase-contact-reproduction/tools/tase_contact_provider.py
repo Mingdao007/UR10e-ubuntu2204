@@ -386,7 +386,12 @@ class TaseContactProvider(ContactCommandProvider):
 
     def formal_reference(self, time_s):
         """World reference for evidence joined to an actually consumed packet."""
-        ref = self.task.reference(time_s)
+        # The TP can emit one bounded seam sample after the 60 s endpoint while
+        # the RETURNING handshake is being acknowledged.  Keep evidence
+        # joining consistent with the live command path; formal scoring still
+        # excludes samples at or beyond 60 s.
+        t = min(max(float(time_s), 0.0), self.path_duration_s + self.path_seam_continuation_s)
+        ref = self.task.reference(t, allow_seam=True)
         return {'position_m': self.anchor + self.basis @ np.asarray(ref['position_m']),
                 'velocity_m_s': self.basis @ np.asarray(ref['velocity_m_s'])}
 
