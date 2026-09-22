@@ -122,6 +122,7 @@ from step5d_paper_outer_loop import (  # noqa: E402
     compute_step5d_outer_loop,
     rnn_target_state_from_outer_loop,
 )
+from tase_rnn_mature_provider import TaseRnnMatureProvider  # noqa: E402
 from step5d_p0_v8_control_core import (  # noqa: E402
     P0V8Target,
     build_p0_v8_target as shared_build_p0_v8_target,
@@ -3962,6 +3963,8 @@ def ensure_step5d_liveprep_control_runtime(
 ) -> None:
     """Preallocate control owners after model and TCP calibration are bound."""
 
+    state.tase_rnn_mature_provider.validate_binding()
+
     if args.bridge_profile in STEP5D_TCP_CAGE_PROFILES and state.step5d_tcp_cage is None:
         state.step5d_tcp_cage = build_step5d_v15a_tcp_cage()
     if state.step5d_solver is None:
@@ -4430,6 +4433,7 @@ class BridgeState:
         self.step5d_tcp_offset_tool0: np.ndarray | None = None
         self.step5d_tcp_cage: Step5dTcpCage | None = None
         self.step5d_solver: StrictTaseRnnSolver | None = None
+        self.tase_rnn_mature_provider = TaseRnnMatureProvider()
         self.step5d_solver_lifecycle_key = "inactive"
         self.step5d_pending_solver_warm_start = False
         self.step5d_outer_state = Step5dOuterLoopState()
@@ -5937,7 +5941,7 @@ def compute_bridge_values(
                         if step5d_v30_contract_profile
                         else {}
                     )
-                    step5d_outer_output = compute_step5d_outer_loop(
+                    step5d_outer_output = state.tase_rnn_mature_provider.compute_outer_loop(
                         Step5dOuterLoopConfig(
                             kp=STEP5D_V33_TANGENTIAL_KP if step5d_v33_outer_profile else 4.0,
                             ko=base_step5d_ko,

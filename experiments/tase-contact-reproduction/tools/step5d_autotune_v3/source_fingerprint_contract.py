@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 EXPERIMENT_SOURCE_PATHS = frozenset({
+    'config/tase_protocol_table.json',
     'config/schemas/step5d_autotune_campaign_v1.schema.json',
     'config/step5/step5d_autotune_v3_control_contract.json',
     'config/step5/step5d_v3_runtime_contract.json',
@@ -18,6 +19,7 @@ EXPERIMENT_SOURCE_PATHS = frozenset({
     'programs/step5/step5d/step5d_strict_rnn_ablation_v35.urp',
     'pyproject.toml',
     'scripts/step5d-autotune-v3.sh',
+    'scripts/figure8.sh',
     'tools/analyze_step5d_bridge_run.py',
     'tools/build_step4e_line_programs.py',
     'tools/build_step4e_p0p1_programs.py',
@@ -118,6 +120,8 @@ EXPERIMENT_SOURCE_PATHS = frozenset({
     'tools/step6_eight.py',
     'tools/step_pose_contract.py',
     'tools/tase_protocol_table.py',
+    'tools/tase_figure8_entrypoint.py',
+    'tools/tase_rnn_mature_provider.py',
     'tools/upload_ur_tp_package.py',
     'tools/ur10e_artifact_store.py',
     'tools/ur10e_decision_manifest.py',

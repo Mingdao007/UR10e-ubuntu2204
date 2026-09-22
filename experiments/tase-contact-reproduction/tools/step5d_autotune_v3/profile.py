@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 from decimal import Decimal
 from pathlib import Path
@@ -394,6 +395,7 @@ def runtime_values(
     return {
         "command_mailbox": str(resolved / "command.json"),
         "output_dir": str(resolved / "bridge"),
+        "path_shape": os.environ.get("TASE_PATH_SHAPE", "cycloid"),
     }
 
 
@@ -411,6 +413,7 @@ def resolve_expected_value(
         "$candidate.force_terms": candidate_force_terms(candidate_values),
         "$runtime.command_mailbox": runtime["command_mailbox"],
         "$runtime.output_dir": runtime["output_dir"],
+        "$runtime.path_shape": runtime["path_shape"],
     }
     if isinstance(value, str) and value.startswith("$"):
         if value not in placeholders:

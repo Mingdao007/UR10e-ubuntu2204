@@ -2281,6 +2281,16 @@ def _run_live_session(
         "bridge_alive_at_campaign_outcome": bridge_alive_at_campaign_outcome,
         "authority_revocation_errors": authority_revocation_errors,
         "program_stop": cleanup,
+        "tase_context": {
+            "provider": os.environ.get("TASE_CONTROL_PROVIDER"),
+            "trajectory": os.environ.get("TASE_TRAJECTORY"),
+            "protocol_id": os.environ.get("TASE_PROTOCOL_ID"),
+            "duration_s": os.environ.get("TASE_PROTOCOL_DURATION_S"),
+            "score_window_start_s": os.environ.get("TASE_SCORE_WINDOW_START_S"),
+            "score_window_end_s": os.environ.get("TASE_SCORE_WINDOW_END_S"),
+            "required_complete_bins": os.environ.get("TASE_REQUIRED_COMPLETE_BINS"),
+            "complete_period_s": os.environ.get("TASE_COMPLETE_PERIOD_S"),
+        },
     }
     atomic_json(args.output_root / "live_campaign_result.json", result)
     if result["ok"] is not True:

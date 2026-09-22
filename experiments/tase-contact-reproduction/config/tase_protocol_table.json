@@ -266,5 +266,31 @@
     "schema_version": "tase_protocol_table_v1",
     "source_of_truth": "paper_level_shared_protocol_parameters"
   },
-  "version": 1
+  "version": 1,
+  "figure8_protocols": {
+    "r013_60s": {
+      "protocol_id": "r013-60s",
+      "trajectory": "figure8",
+      "duration_s": 60.0,
+      "score_window_s": [
+        5.0,
+        60.0
+      ],
+      "complete_bins": 550,
+      "period_s": null,
+      "scoring": "r013_window_only"
+    },
+    "full_cycle": {
+      "protocol_id": "full-cycle",
+      "trajectory": "figure8",
+      "duration_s": 62.831853,
+      "score_window_s": [
+        0.0,
+        62.831853
+      ],
+      "complete_bins": 550,
+      "period_s": 62.831853,
+      "scoring": "full_period_only"
+    }
+  }
 }
