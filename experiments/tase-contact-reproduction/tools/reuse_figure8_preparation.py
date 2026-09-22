@@ -11,9 +11,6 @@ import shutil
 
 
 PREPARATION_FILES = (
-    "controller_receipt.json",
-    "runtime_evidence.json",
-    "home_start_receipt.json",
     "readback-results.json",
     "software_baseline_receipt.json",
     "baseline-frames.json",
