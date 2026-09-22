@@ -49,7 +49,8 @@ class OfflineClock:
 
 
 class OfflineResidentRTDE(FakeLiveRTDETransport):
-    def __init__(self, contract, *, home_pose, home_q, clock: OfflineClock):
+    def __init__(self, contract, *, home_pose, home_q, clock: OfflineClock,
+                 drop_formal_start_echoes: int = 0):
         super().__init__(contract)
         self.home_pose = tuple(float(value) for value in home_pose)
         self.home_q = tuple(float(value) for value in home_q)
@@ -57,6 +58,9 @@ class OfflineResidentRTDE(FakeLiveRTDETransport):
         self.dashboard_stopped = False
         self._early_end_sequence = None
         self.command_trace: list[dict[str, Any]] = []
+        self.drop_formal_start_echoes = int(drop_formal_start_echoes)
+        self._formal_start_drops = 0
+        self._last_entry_packet_sequence = None
 
     def write_input_integer_register(self, register: int, value: int) -> None:
         if register == 35:
@@ -89,6 +93,12 @@ class OfflineResidentRTDE(FakeLiveRTDETransport):
             if getattr(self, "path_origin", None) is None:
                 self.path_origin = self.clock.mono()
             elapsed = self.clock.mono() - self.path_origin
+            if elapsed < 1.0:
+                self._last_entry_packet_sequence = payload.get("output_double_register_24")
+            elif (self._formal_start_drops < self.drop_formal_start_echoes
+                  and self._last_entry_packet_sequence is not None):
+                payload["output_double_register_24"] = self._last_entry_packet_sequence
+                self._formal_start_drops += 1
             task = Figure8Window60Task()
             ref = (task.entry_reference(elapsed) if elapsed < 1.0
                    else task.reference(min(elapsed - 1.0, 60.0)))
@@ -99,6 +109,7 @@ class OfflineResidentRTDE(FakeLiveRTDETransport):
             payload["actual_TCP_speed"] = [*(basis @ np.asarray(ref["velocity_m_s"])), 0., 0., 0.]
         else:
             self.path_origin = None
+            self._formal_start_drops = 0
         return payload
 
     def send_packet(self, double_values: Sequence[float], integer_values: Sequence[int]) -> None:
@@ -239,7 +250,8 @@ def _parameter_file(path: Path) -> Path:
 
 
 def run(*, run_dir: Path, attempts: int = 2,
-        vary_parameters: bool = False, rate400: bool = False) -> dict[str, Any]:
+        vary_parameters: bool = False, rate400: bool = False,
+        drop_formal_start_echoes: int = 0) -> dict[str, Any]:
     if attempts < 2:
         raise ValueError("resident acceptance requires at least two attempts")
     run_dir = Path(run_dir).expanduser().resolve()
@@ -255,7 +267,10 @@ def run(*, run_dir: Path, attempts: int = 2,
         payload["protocol_id"] = "figure8_window60_r013_rate400_v1"
         payload["duration_token"] = duration_token
         _write_json(parameter_file, payload)
-    controller = OfflineResidentRTDE(contract, home_pose=contract.home_pose, home_q=contract.home_q, clock=clock)
+    controller = OfflineResidentRTDE(
+        contract, home_pose=contract.home_pose, home_q=contract.home_q,
+        clock=clock, drop_formal_start_echoes=drop_formal_start_echoes,
+    )
     sensor = FakeLiveKunweiTransport(observed_clock=clock.mono,
                                    wrench_n_nm=(0., 0., -5., 0., 0., 0.))
 
@@ -342,9 +357,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--attempts", type=int, default=6)
     parser.add_argument("--vary-parameters", action="store_true")
     parser.add_argument("--rate400", action="store_true")
+    parser.add_argument("--drop-formal-start-echoes", type=int, default=0)
     args = parser.parse_args(argv)
     receipt = run(run_dir=args.run_dir, attempts=args.attempts,
-                  vary_parameters=args.vary_parameters, rate400=args.rate400)
+                  vary_parameters=args.vary_parameters, rate400=args.rate400,
+                  drop_formal_start_echoes=args.drop_formal_start_echoes)
     print(json.dumps(receipt, indent=2, sort_keys=True, allow_nan=False))
     return 0 if receipt.get("success") is True else 1
 

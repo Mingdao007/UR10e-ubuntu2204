@@ -300,6 +300,23 @@ def test_contact_provider_guard_rejects_command_without_rescaling(monkeypatch) -
     assert control._previous_qdot == (0.0,) * 6
 
 
+def test_formal_reference_waits_for_first_consumed_path_ack(monkeypatch) -> None:
+    provider = _Provider()
+    control = _control(provider)
+    control._last_monotonic_s = 1.008
+    control._path_origin_monotonic_s = 0.0
+    monkeypatch.setattr(baseline_runtime, "step_baseline", _successful_baseline)
+    monkeypatch.setitem(sys.modules, "step5d_autotune_v4_r004.calibrated_runtime",
+                        SimpleNamespace(CalibratedCommand=CalibratedCommand))
+    for now, ack, expected in ((1.010, False, 1.0),
+                               (1.014, False, 1.0),
+                               (1.018, True, 1.004)):
+        control.step(output=_output(), sensor=_sensor(), monotonic_s=now,
+                     command_sequence=len(provider.command_calls) + 1,
+                     formal_start_ack=ack)
+        assert provider.command_calls[-1]["path_time_s"] == pytest.approx(expected)
+
+
 def test_opted_in_provider_uses_bounded_task_space_projection(monkeypatch) -> None:
     provider = _Provider(qdot=(0.01, 0.0, 0.0, 0.0, 0.0, 0.0))
     provider.allow_bounded_gate_projection = True

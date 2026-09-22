@@ -252,7 +252,10 @@ class CanonicalQualificationControl:
         sensor: SensorPacket,
         monotonic_s: float,
         command_sequence: int,
+        formal_start_ack: bool = True,
     ) -> QualificationCommand:
+        if type(formal_start_ack) is not bool:
+            raise QualificationControlError("formal PATH start acknowledgement is not bool")
         provider_checkpoint = None
         provider_restore = None
         first_sample = self._last_monotonic_s is None
@@ -688,6 +691,13 @@ class CanonicalQualificationControl:
                     if self._path_origin_monotonic_s is None:
                         self._path_origin_monotonic_s = now
                     path_time_s = now - self._path_origin_monotonic_s
+                    if not formal_start_ack and path_time_s >= 1.0:
+                        # Keep publishing the actual t=0 formal reference
+                        # until the TP echoes one such packet. The first
+                        # consumed formal command, not a missed host tick,
+                        # then owns the 60 s clock origin.
+                        self._path_origin_monotonic_s = now - 1.0
+                        path_time_s = 1.0
                 else:
                     path_time_s = 0.0
                 if self.contact_command_provider is None:

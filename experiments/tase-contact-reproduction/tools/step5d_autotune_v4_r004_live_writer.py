@@ -1671,6 +1671,7 @@ class LiveR004Writer:
         )
         contact_provider = getattr(self._qualification_control, "contact_command_provider", None)
         entry_aware = callable(getattr(contact_provider, "execution_command", None))
+        selected_protocol = str(getattr(contact_provider, "protocol_id", ""))
         formal_duration_s = self._path_duration_s
         path_fence_duration_s = formal_duration_s
         if entry_aware and path_requested:
@@ -1680,7 +1681,6 @@ class LiveR004Writer:
                 YieldPathEvidenceCollector,
             )
             from contact_yield_protocol import PERIOD_S
-            selected_protocol = str(getattr(contact_provider, "protocol_id", ""))
             if selected_protocol == "figure8_window60_r013_compat_v1":
                 formal_duration_s = float(getattr(contact_provider, "path_duration_s", 60.0))
                 path_collector_type = TaseR013Compat60PathEvidenceCollector
@@ -1798,12 +1798,21 @@ class LiveR004Writer:
                         )
                         self._hot_path_mark("control_step_enter")
                         try:
-                            command = self._qualification_control.step(
+                            step_kwargs = dict(
                                 output=output,
                                 sensor=sensor,
                                 monotonic_s=now,
                                 command_sequence=self._packet_sequence,
                             )
+                            if (entry_aware and state == 25
+                                and selected_protocol in {
+                                    "figure8_window60_r013_compat_v1",
+                                    "figure8_window60_r013_rate400_v1",
+                                }):
+                                step_kwargs["formal_start_ack"] = (
+                                    self._path_command_started_mono_s is not None
+                                )
+                            command = self._qualification_control.step(**step_kwargs)
                         except BaseException as exc:
                             self._hot_path_mark(
                                 "control_step_error", error_type=type(exc).__name__

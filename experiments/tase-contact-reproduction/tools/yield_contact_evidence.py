@@ -296,6 +296,7 @@ class TaseR013Compat60PathEvidenceCollector(PathEvidenceCollector):
             "formal_metric_duration_s": 55.0,
             "normal_force_mae_n": float(evidence.mae_n),
             "mae_n": float(evidence.mae_n),
+            "first_consumed_formal_reference_s": self._first_reference_time_s,
         }
         return replace(
             evidence,
