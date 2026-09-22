@@ -1,4 +1,4 @@
-# VERSION: 2026-09-22T0745Z_CONTACT_SIX_QP_V1_618001
+# VERSION: 2026-09-22T0810Z_CONTACT_SIX_QP_V1_618001
 # ROLE: six-law shared-QP preparation; requires matching host owner 618001
 # CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm
 # CONTACT_SEARCH: STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1; FAR=0.005000m/s until 0.011029311m, NEAR=0.000500m/s; travel<=0.015m; timeout=90.0s; no scalar admittance
@@ -570,6 +570,7 @@ end
 
 def codex_r006_fault(epoch, ordinal, token, kind, consumed, reason, runtime_revision, runtime_extension):
   stopl(0.250000000)
+  stopj(20.000000000)
   codex_r006_attempt_reason = reason
   codex_r006_attempt_guard = 0
   codex_r006_attempt_success = False
@@ -579,6 +580,7 @@ end
 
 def codex_r006_return_fault(epoch, ordinal, token, kind, consumed, reason, runtime_revision, runtime_extension, return_guard):
   stopl(0.250000000)
+  stopj(20.000000000)
   codex_r006_attempt_reason = reason
   codex_r006_attempt_guard = return_guard
   codex_r006_attempt_success = False
