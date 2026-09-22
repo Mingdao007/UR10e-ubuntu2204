@@ -379,7 +379,10 @@ class ResidentSession:
         wait_s = max(configured_wait, FRESH_FRAME_WAIT_MAX_S)
         try:
             output = writer._poll_checked(
-                require_stationary=not settling,
+                # A TP READY_HOME_NEXT frame can have residual sub-limit
+                # velocity after its state change. Keep servicing transport;
+                # the separate Home dwell gates the next ARM.
+                require_stationary=False,
                 allow_prearm_epoch=True,
                 wait_s=wait_s,
             )
@@ -400,17 +403,23 @@ class ResidentSession:
         # NativeYieldLiveWriter records every frame and packet in the durable
         # service segments; avoid a second campaign-sized copy in the receipt.
         state = (getattr(output, "integer_echoes", {}) or {}).get(26)
-        if settling:
+        if state in {READY_HOME_NEXT, 80}:
             from contact_home_motion_profile import (
                 HOME_JOINT_SPEED_GUARD_RAD_S, HOME_TCP_SPEED_GUARD_M_S,
                 HOME_ANGULAR_SPEED_GUARD_RAD_S,
             )
+        if settling:
             if state not in {READY_HOME_NEXT, 80}:
                 raise ResidentSessionError('Home settle lost terminal return state')
+        if state in {READY_HOME_NEXT, 80}:
             if (max(abs(v) for v in output.qd_rad_s) > HOME_JOINT_SPEED_GUARD_RAD_S
                     or math.hypot(*output.tcp_speed_m_s_rad_s[:3]) > HOME_TCP_SPEED_GUARD_M_S
                     or math.hypot(*output.tcp_speed_m_s_rad_s[3:]) > HOME_ANGULAR_SPEED_GUARD_RAD_S):
                 raise ResidentSessionError('Home settle exceeds existing return velocity guard')
+            if not _home_proof(writer, output, fresh=True).get('home_verified'):
+                self._home_settle_dirty = True
+        elif not settling and not output.stationary:
+            raise ResidentSessionError('resident service left stationary Home state')
         sensor = None
         if state in {READY_HOME_NEXT, 80}:
             sensor = writer._read_sensor()
@@ -437,6 +446,7 @@ class ResidentSession:
                     now = float(output.timestamp)
                     stable_since = now if stable_since is None else stable_since
                     if now - stable_since >= 0.5:
+                        self._home_settle_dirty = False
                         _event(self, 'HOME_SETTLE', 'verified', sequence=self.next_sequence,
                                stationary_duration_s=now-stable_since)
                         return output
@@ -617,7 +627,7 @@ class ResidentSession:
         wait_s = max(float(getattr(wait_policy, "wait_s", 0.0)), FRESH_FRAME_WAIT_MAX_S)
         while float(self.mono_clock()) < deadline:
             output = poll(
-                require_stationary=True,
+                require_stationary=False,
                 allow_prearm_epoch=True,
                 wait_s=max(0.0, min(wait_s, deadline - float(self.mono_clock()))),
             )
@@ -627,6 +637,9 @@ class ResidentSession:
             self.sleep(0.002)
         if not fresh or output is None:
             raise ResidentSessionError("READY_HOME_NEXT fresh RTDE frame timeout")
+        if not output.stationary or getattr(self, '_home_settle_dirty', False):
+            output = self._wait_home_settle(output)
+            fresh = True
         echoes = getattr(output, "integer_echoes", {}) or {}
         state = echoes.get(26)
         if state != READY_HOME_NEXT:

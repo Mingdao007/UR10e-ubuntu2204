@@ -263,12 +263,72 @@ def test_home_settle_restarts_dwell_after_actual_joint_motion(tmp_path, monkeypa
         clock[0] += .01
         return NS(timestamp=clock[0], stationary=not .29 < clock[0] < .32), None
     session._service_tick = service
+    session._home_settle_dirty = True
     monkeypatch.setattr(module, '_home_proof',
                         lambda w, o, fresh: {'home_verified': o.stationary})
     result = session._wait_home_settle(None)
     assert .81 <= result.timestamp <= .84
     assert not owner._service_mode
+    assert not session._home_settle_dirty
     assert session.lifecycle_events[-1]['stationary_duration_s'] >= .5
+
+
+def test_service_keeps_ready_home_transient_under_existing_return_guard(tmp_path):
+    from step5d_autotune_v4_r004.wire import SessionCommand
+    from step5d_autotune_v4_r004.wire import CommandMode
+    output = NS(
+        integer_echoes={26: 78}, stationary=False,
+        qd_rad_s=(0., 0., 0., 0., -.0025, 0.),
+        tcp_speed_m_s_rad_s=(.00035, -.00038, 0., -.0019, -.0017, 0.),
+    )
+    sent = []
+    owner = NS(
+        _last_poll_was_fresh=True,
+        _poll_checked=lambda **kwargs: output,
+        _read_sensor=lambda: object(),
+        _send_packet=lambda sensor, **kwargs: sent.append(kwargs['command_mode']),
+        _session_command=SessionCommand.ARM,
+        fresh_frame_wait_policy=NS(wait_s=0.),
+    )
+    session = ResidentSession(mature=NS(writer=owner), runtime=None,
+                              provider=None, prerequisites=None, run_dir=tmp_path)
+    session.sleep = lambda _: None
+    pair = session._service_tick()
+    assert pair[0] is output
+    assert sent == [CommandMode.HOLD]
+    assert owner._session_command is SessionCommand.HOLD
+
+
+@pytest.mark.parametrize('first_stationary,dirty', [(False, False), (True, True)])
+def test_next_arm_waits_for_verified_home_after_ready_transient(
+    tmp_path, monkeypatch, first_stationary, dirty,
+):
+    import contact_yield_resident_session as module
+    moving = NS(stationary=False, integer_echoes={26: 78, 29: 2},
+                timestamp=10., consumed_packet_sequence=100, runtime_state=2)
+    stopped = NS(stationary=True, integer_echoes={26: 78, 29: 2},
+                 timestamp=10.5, consumed_packet_sequence=101, runtime_state=2)
+    checked = []
+    owner = NS(
+        _poll_checked=lambda **kwargs: stopped if first_stationary else moving,
+        _last_poll_was_fresh=True,
+        fresh_frame_wait_policy=NS(wait_s=0.),
+        _assert_prearm_home_boundary=lambda output: checked.append(output),
+    )
+    session = ResidentSession(mature=NS(writer=owner), runtime=None,
+                              provider=None, prerequisites=None, run_dir=tmp_path)
+    session.prepared = True
+    session._home_settle_dirty = dirty
+    session.mono_clock = lambda: 1.
+    session.wall_clock = lambda: 2.
+    waits = []
+    session._wait_home_settle = lambda output: (waits.append(output) or stopped)
+    monkeypatch.setattr(module, '_home_proof',
+                        lambda *args, **kwargs: {'home_verified': True})
+    result = session.verify_ready_for_next(reason='test')
+    assert result['home_verified'] is True
+    assert waits == [stopped if first_stationary else moving]
+    assert checked == [stopped]
 
 
 def test_home_settle_timeout_never_manufactures_home(tmp_path, monkeypatch):
