@@ -9,6 +9,8 @@ def test_joint_home_binds_historical_joint_target(tmp_path):
     binding = build(tmp_path / "package", initial)
     script = (tmp_path / "package" / f"{PROGRAM}.script").read_text()
     assert script.count("movej(target_q, a=0.100, v=0.100, t=0.0, r=0.0)") == 1
+    assert "stopj(20.0)" in script
+    assert "settled_qd_max" not in script
     assert "movel(" not in script
     assert binding["home_q"] == HOME_Q
     assert binding["home_pose"] == HOME_POSE

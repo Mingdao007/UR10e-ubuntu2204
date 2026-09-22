@@ -23,6 +23,14 @@ HOME_Q = [
 ]
 HOME_POSE = [0.4620551816, 0.1778825964, 0.03408876139925415, 3.120752062, 0.0, 0.068626833]
 INITIAL_Q_TOL = 0.02
+# A failed contact TP can leave a small residual speedj image after Dashboard
+# STOP.  Recovery Home accepts only this bounded pre-stop envelope, issues a
+# bounded stopj, and then takes over with the approved joint-space move.  The
+# controller's RTDE qdot image can oscillate while the tool is still loaded;
+# requiring a strict zero-qdot sample before movej would leave the tool on the
+# surface and make recovery impossible.
+INITIAL_QD_PRESTOP_TOL = 0.010
+FINAL_QD_TOL = 0.001
 FINAL_Q_TOL = 0.02
 
 
@@ -64,10 +72,12 @@ def codex_joint_home():
     end
     index = index + 1
   end
-  if initial_q_error > {INITIAL_Q_TOL:.3f} or initial_qd_max > 0.001:
+  if initial_q_error > {INITIAL_Q_TOL:.3f} or initial_qd_max > {INITIAL_QD_PRESTOP_TOL:.3f}:
     textmsg("joint_home: initial joint state changed; halted")
     halt
   end
+  stopj(20.0)
+  sleep(0.10)
   movej(target_q, a=0.100, v=0.100, t=0.0, r=0.0)
   stopj(1.0)
   sleep(0.20)
@@ -106,7 +116,7 @@ codex_joint_home()
 def build(output: Path, initial_q: list[float]) -> dict:
     if len(initial_q) != 6:
         raise ValueError("initial_q must have six values")
-    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ_JOINT_FIGURE8_HOME_V1")
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H%MZ_JOINT_FIGURE8_HOME_V1")
     output.mkdir(parents=True, exist_ok=False)
     script = _script(initial_q, stamp)
     (output / f"{PROGRAM}.script").write_text(script, encoding="utf-8")
@@ -123,7 +133,10 @@ def build(output: Path, initial_q: list[float]) -> dict:
         "initial_q": initial_q,
         "initial_q_tolerance_rad": INITIAL_Q_TOL,
         "final_q_tolerance_rad": FINAL_Q_TOL,
-        "motion": {"type": "movej", "acceleration_rad_s2": 0.1, "speed_rad_s": 0.1},
+        "motion": {"type": "stopj_then_movej", "stopj_acceleration_rad_s2": 2.0,
+                   "acceleration_rad_s2": 0.1, "speed_rad_s": 0.1,
+                   "initial_qd_prestop_tolerance_rad_s": INITIAL_QD_PRESTOP_TOL,
+                   "final_qd_tolerance_rad_s": FINAL_QD_TOL},
         "historical_source": "August R013 Step6 Figure-eight contact-derived final_q receipt",
         "live_executed": False,
     }

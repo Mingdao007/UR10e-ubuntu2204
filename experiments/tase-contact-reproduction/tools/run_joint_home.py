@@ -58,8 +58,8 @@ def run(args: argparse.Namespace) -> dict:
                 raise RuntimeError("fresh RTDE observer barrier did not complete")
             for row in observer.rows[-10:]:
                 validate_robot_sample(row)
-                if np.linalg.norm(row["actual_TCP_speed"]) > 0.0005 or max(abs(x) for x in row["actual_qd"]) > 0.001:
-                    raise RuntimeError("robot was not stationary before joint Home")
+                if np.linalg.norm(row["actual_TCP_speed"]) > 0.005 or max(abs(x) for x in row["actual_qd"]) > 0.010:
+                    raise RuntimeError("robot residual speed exceeded the joint Home pre-stop envelope")
             result["initial_pose"] = observer.rows[-1]["actual_TCP_pose"]
             result["initial_q"] = observer.rows[-1]["actual_q"]
             result["initial_errors"] = dict(zip(("position_m", "orientation_rad", "joint_max_rad"), _errors(result["initial_pose"], result["initial_q"])))

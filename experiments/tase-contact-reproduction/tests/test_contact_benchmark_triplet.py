@@ -30,6 +30,8 @@ def test_triplet_preserves_home_xyz_and_has_narrow_common_caps(tmp_path):
         '  stopj(20.000000000)\n'
         '  if not codex_r006_stationary(0.250000000):'
     ) in s
+    fault = s[s.index('def codex_r006_fault'):s.index('def codex_r006_return_home')]
+    assert fault.count('stopj(20.000000000)') == 2
     assert 'local runtime_revision = 25' in s
     assert 'movej(home_q, a=0.050000000, v=0.050000000, t=0.0, r=0.0)' in s
     assert 'movel(transfer_pose, a=0.135, v=0.090, r=0.0)' not in s

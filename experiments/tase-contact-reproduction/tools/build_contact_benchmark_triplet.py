@@ -113,6 +113,27 @@ end
     return body
 
 
+def _add_fault_stopj(body: str) -> str:
+    """Stop residual joint speed before the host recovery owner takes over.
+
+    Dashboard STOP can leave a bounded speedj image while the tool is still
+    loaded.  The host recovery owner remains responsible for the verified
+    Home motion; this joint stop only prevents a terminal TP fault from
+    continuing to drive the old command during that handoff.
+    """
+    for name in ("codex_r006_fault", "codex_r006_return_fault"):
+        marker = f"def {name}"
+        start = body.index(marker)
+        stop = body.index("\nend", start)
+        block = body[start:stop]
+        old = "  stopl(0.250000000)\n"
+        if block.count(old) != 1:
+            raise ValueError(f"{name} stop source differs")
+        block = block.replace(old, old + "  stopj(20.000000000)\n", 1)
+        body = body[:start] + block + body[stop:]
+    return body
+
+
 def transform(source,home,stamp):
     if home.get('user_home_confirmed') is not True:raise ValueError('user-defined Home receipt required')
     obs=home['rtde'];pose=np.asarray(home['home_pose']);q=np.asarray(home['home_q'])
@@ -123,6 +144,7 @@ def transform(source,home,stamp):
     if 'while path_elapsed_s < 60.000000000 and not r012_path_early_end:' not in source:raise ValueError('source resident differs')
     body=source.replace('step5d_strict_rnn_autotune_v4_r012',BASENAME)
     body=_apply_packet_snapshot(body)
+    body=_add_fault_stopj(body)
     body=re.sub(r'^# VERSION: .*$',f'# VERSION: {stamp}',body,flags=re.M)
     body=body.replace('612012',str(PROTOCOL))
     body=re.sub(r'local runtime_revision = [-0-9]+',f'local runtime_revision = {REVISION}',body)
