@@ -65,3 +65,10 @@ Scope: additive correction of the prior live claims. Original run artifacts are 
 - The TP rejects stale ARM at Home with reason62. Host now retires ARM during RETURNING and sends session HOLD during resident idle, while preserving new ARM. Existing protections and package bytes are unchanged.
 - Packet ids are reserved before attempted send; send failures roll back the unpublished control step and cannot reuse the uncertain packet id.
 - First live preparation: `runs/tase-resident-infra-20260922T163000Z`; fresh package readback passed and4751stationary distinct baseline samples collected over10s. Video unavailable under approved evidence-only policy; continuous RTDE and Kunwei remain the alternative observations. No motion completion is claimed by preparation.
+
+## First resident hardware attempt and focused repair
+
+- `tase-resident-infra-20260922T163000Z` executed the Figure-eight and returned to Home, then failed with observer TimeoutError during terminal handoff. Recovery completed automatically at joint Home with Dashboard STOPPED. This attempt remains failed.
+- Raw packet reconstruction covers550bins in[5,60), diagnostic normal-bin MAE1.777492N. The original collector result was lost before failure sealing; reconstructed metrics are explicitly labeled and are not a successful BO observation.
+- A read-only real-controller probe (no input recipe or motion commands) reproduced an observer gap85.269ms after parent GC74.891ms. Disabling collection for the resident interval passed three40MB CPU/JSON finalizations; max service gap4.787ms under FIFO20/CPU4. This establishes a reproducible starvation trigger; it does not prove every historical peer-close cause.
+- Keep cyclic GC outside the session, skip forced per-arm collection, retire collector/raw buffers in serviced chunks, retain completed collector evidence before later handoff checks, and seal per-attempt results for immediate reporting. All raw service frames/packets remain; duplicate per-frame receipt events are removed. Focused lifecycle checks:56passed.

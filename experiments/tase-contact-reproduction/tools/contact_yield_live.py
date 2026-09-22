@@ -583,6 +583,20 @@ def _run_live_with_resident_session(
                     "sealed": False,
                 },
             }
+            if session.last_completed_sequence == active_attempt[0]:
+                completed = session.last_completed_evidence
+                payload = asdict(completed) if is_dataclass(completed) else dict(completed)
+                partial_item['evidence'] = payload
+                partial_item['failed_after_collector'] = str(exc)
+                partial_item['evidence_eligible'] = bool(getattr(completed, 'eligible', False))
+                metrics = payload.get('metrics', {})
+                proof = payload.get('home_proof', {})
+                partial_item['lifecycle']['path_complete'] = metrics.get('complete') is True
+                partial_item['lifecycle']['home_verified'] = bool(
+                    proof.get('stationary') is True and proof.get('fixed_home_route') is True)
+                partial_item['partial'] = not partial_item['lifecycle']['path_complete']
+                receipt['evidence_metrics'] = metrics
+                receipt['evidence_eligible'] = False
             receipt.setdefault("attempts", []).append(partial_item)
         if request is None or request.kind != "diagnostic" or "of 550 bins" not in str(exc):
             raise

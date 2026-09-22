@@ -655,7 +655,7 @@ class LiveR004Writer:
         result = lease.exit()
         return dict(result) if isinstance(result, Mapping) else None
 
-    def prepare_timing_scheduler_lease(self) -> None:
+    def prepare_timing_scheduler_lease(self, *, collect_gc: bool = True) -> None:
         """Collect once before the timing lease and ARM/session mutation.
 
         The mature ARM path retains its legacy pre-ARM ``gc.collect`` for
@@ -668,7 +668,8 @@ class LiveR004Writer:
             raise LiveWriterError(
                 "pre-ARM GC preparation is too late after timing lease entry"
             )
-        gc.collect()
+        if collect_gc:
+            gc.collect()
         self._prearm_gc_collected = True
 
     def record_arm_transition_marker(self, name: str) -> None:

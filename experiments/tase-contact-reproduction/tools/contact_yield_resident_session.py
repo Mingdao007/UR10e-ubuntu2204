@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, is_dataclass
 import copy
+import gc
 import hashlib
 import json
 import math
@@ -332,6 +333,9 @@ class ResidentSession:
         self._last_session_sequence: int | None = None
         self._service_error: BaseException | None = None
         self._pending_service_batches = []
+        self._gc_was_enabled = gc.isenabled()
+        self.last_completed_evidence = None
+        self.last_completed_sequence = None
         self._service_context: dict[str, Any] = {
             "attempt_sequence": 0,
             "stage": "session",
@@ -346,6 +350,8 @@ class ResidentSession:
         if self.prepared:
             raise ResidentSessionError("resident session was prepared twice")
         _event(self, "SESSION", "open_start")
+        gc.collect()
+        gc.disable()
         self.mature.open(live_ack=live_ack)
         self.writer._terminal_finalize_service = self._run_terminal_finalize
         self.seed_state = copy.deepcopy(self.provider.snapshot())
@@ -390,33 +396,14 @@ class ResidentSession:
         if not getattr(writer, "_last_poll_was_fresh", False):
             self.sleep(0.002)
             return None
-        self.transport_trace.append(
-            {
-                "event": "recv",
-                "stage": "service",
-                "monotonic_s": float(self.mono_clock()),
-                "wall_s": float(self.wall_clock()),
-                "fresh": True,
-                "controller_timestamp": getattr(output, "timestamp", None),
-                "state": (getattr(output, "integer_echoes", {}) or {}).get(26),
-            }
-        )
+        # NativeYieldLiveWriter records every frame and packet in the durable
+        # service segments; avoid a second campaign-sized copy in the receipt.
         state = (getattr(output, "integer_echoes", {}) or {}).get(26)
         sensor = None
         if state in {READY_HOME_NEXT, 80}:
             sensor = writer._read_sensor()
             writer._session_command = SessionCommand.HOLD
             writer._send_packet(sensor, command_mode=CommandMode.HOLD)
-            self.transport_trace.append(
-                {
-                    "event": "send",
-                    "stage": "service",
-                    "mode": "HOLD",
-                    "monotonic_s": float(self.mono_clock()),
-                    "wall_s": float(self.wall_clock()),
-                    "packet_sequence": getattr(writer, "_last_writer_sequence", None),
-                }
-            )
         self.sleep(0.002)
         return output, sensor
 
@@ -529,7 +516,29 @@ class ResidentSession:
     def _run_terminal_finalize(self, finalizer):
         """Finalize evidence in a fork while this owner services RTDE."""
 
-        return self._run_process_work(reason="terminal_finalize", task=finalizer)
+        result = self._run_process_work(reason="terminal_finalize", task=finalizer)
+        self.last_completed_evidence = result
+        self.last_completed_sequence = self.next_sequence
+        # Collector destruction also costs CPU: release large lists in chunks
+        # while the sole owner keeps servicing the real endpoints.
+        for cell in getattr(finalizer, '__closure__', ()) or ():
+            value = cell.cell_contents
+            if hasattr(value, '_samples') and hasattr(value, '_bins'):
+                for buffer in vars(value).values():
+                    if isinstance(buffer, list):
+                        self._clear_serviced(buffer)
+                    elif isinstance(buffer, dict):
+                        for nested in buffer.values():
+                            if isinstance(nested, list):
+                                self._clear_serviced(nested)
+        return result
+
+    def _clear_serviced(self, buffer):
+        while len(buffer) > 1024:
+            del buffer[-1024:]
+            if not self.closed:
+                self._service_tick()
+        buffer.clear()
 
     def verify_ready_for_next(self, *, reason: str) -> dict[str, Any]:
         if not self.prepared or self.closed:
@@ -801,7 +810,7 @@ class ResidentSession:
                     TimingSchedulerProfileV1(control_cpu_affinity=(int(control_cpu),))
                 )
                 self.writer.install_timing_scheduler_lease(lease)
-                self.writer.prepare_timing_scheduler_lease()
+                self.writer.prepare_timing_scheduler_lease(collect_gc=False)
             self.mature.arm(attempt)
             _event(self, "ATTEMPT", "arm", sequence=sequence, phase=phase)
             evidence = self.mature.run_60s(attempt)
@@ -900,8 +909,10 @@ class ResidentSession:
         seal["lifecycle"]["sealed"] = True
         work(
             reason="attempt_seal_metadata",
-            task=lambda: _atomic_json(
-                self.run_dir / "attempts" / f"{sequence:04d}" / "seal.json", seal
+            task=lambda: (
+                _atomic_json(self.run_dir / "attempts" / f"{sequence:04d}" / "seal.json", seal),
+                _atomic_json(self.run_dir / "attempts" / f"{sequence:04d}" / "attempt-result.json",
+                             {**item, 'sealed_evidence': seal}),
             ),
         )
         item["sealed_evidence"] = seal
@@ -911,9 +922,6 @@ class ResidentSession:
         item.setdefault("lifecycle", {})["sealed"] = True
         timing = item.setdefault("timing", {})
         timing["tp_stage_observations"] = snapshot["tp_stage_observations"]
-        timing["sealed_monotonic_s"] = float(self.mono_clock())
-        if "started_monotonic_s" in timing:
-            timing["through_seal_s"] = timing["sealed_monotonic_s"] - timing["started_monotonic_s"]
         buffer_names = {
             "raw_sensor": "raw_observations",
             "robot_frames": "robot_observations",
@@ -924,10 +932,13 @@ class ResidentSession:
         for name, attribute in buffer_names.items():
             buffer = getattr(writer, attribute, None)
             if isinstance(buffer, list):
-                buffer.clear()
+                self._clear_serviced(buffer)
         timeline = getattr(self.provider, "command_timeline", None)
         if isinstance(timeline, list):
-            timeline.clear()
+            self._clear_serviced(timeline)
+        timing["sealed_monotonic_s"] = float(self.mono_clock())
+        if "started_monotonic_s" in timing:
+            timing["through_seal_s"] = timing["sealed_monotonic_s"] - timing["started_monotonic_s"]
         _event(self, "SEAL", "complete", sequence=sequence, segment_count=len(segments))
         return item
 
@@ -1036,6 +1047,8 @@ class ResidentSession:
             }
         )
         self.closed = True
+        if self._gc_was_enabled:
+            gc.enable()
         stop["cleanup_errors"] = errors
         # TP state 90 is a protocol acknowledgement from the resident
         # while-True program.  Dashboard termination is owned by the outer
