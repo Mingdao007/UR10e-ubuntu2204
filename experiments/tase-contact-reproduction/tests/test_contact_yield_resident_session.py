@@ -247,5 +247,42 @@ def test_real_path_collector_retired_while_new_service_frames_survive(tmp_path):
     assert not collector._timing._layer_keys['rtde_frames']
     session._clear_serviced(owner.raw_observations)
     assert not owner.raw_observations
-    assert len(owner._service_observations['robot_frames']) == 16
+    assert owner._service_observations['robot_frames']
+    assert not owner._service_mode
+
+
+def test_home_settle_restarts_dwell_after_actual_joint_motion(tmp_path, monkeypatch):
+    import contact_yield_resident_session as module
+    owner = NS(_service_mode=False)
+    session = ResidentSession(mature=NS(writer=owner), runtime=None,
+                              provider=None, prerequisites=None, run_dir=tmp_path)
+    clock = [0.]
+    session.mono_clock = lambda: clock[0]
+    def service(*, settling):
+        assert settling and owner._service_mode
+        clock[0] += .01
+        return NS(timestamp=clock[0], stationary=not .29 < clock[0] < .32), None
+    session._service_tick = service
+    monkeypatch.setattr(module, '_home_proof',
+                        lambda w, o, fresh: {'home_verified': o.stationary})
+    result = session._wait_home_settle(None)
+    assert .81 <= result.timestamp <= .84
+    assert not owner._service_mode
+    assert session.lifecycle_events[-1]['stationary_duration_s'] >= .5
+
+
+def test_home_settle_timeout_never_manufactures_home(tmp_path, monkeypatch):
+    import contact_yield_resident_session as module
+    owner = NS(_service_mode=False)
+    session = ResidentSession(mature=NS(writer=owner), runtime=None,
+                              provider=None, prerequisites=None, run_dir=tmp_path)
+    clock = [0.]
+    session.mono_clock = lambda: clock[0]
+    def service(*, settling):
+        clock[0] += .1
+        return NS(timestamp=clock[0]), None
+    session._service_tick = service
+    monkeypatch.setattr(module, '_home_proof', lambda *a, **k: {'home_verified': False})
+    with pytest.raises(ResidentSessionError, match='stationary dwell timed out'):
+        session._wait_home_settle(None)
     assert not owner._service_mode

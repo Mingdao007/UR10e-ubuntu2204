@@ -354,6 +354,7 @@ class ResidentSession:
         gc.disable()
         self.mature.open(live_ack=live_ack)
         self.writer._terminal_finalize_service = self._run_terminal_finalize
+        self.writer._terminal_settle_service = self._wait_home_settle
         self.seed_state = copy.deepcopy(self.provider.snapshot())
         self.prepared = True
         self.transport_trace.append(
@@ -371,14 +372,14 @@ class ResidentSession:
         )
         _event(self, "SESSION", "open_complete", resident_state="READY_HOME_NEXT")
 
-    def _service_tick(self) -> tuple[Any, Any] | None:
+    def _service_tick(self, *, settling=False) -> tuple[Any, Any] | None:
         writer = self.writer
         wait_policy = getattr(writer, "fresh_frame_wait_policy", None)
         configured_wait = float(getattr(wait_policy, "wait_s", 0.0))
         wait_s = max(configured_wait, FRESH_FRAME_WAIT_MAX_S)
         try:
             output = writer._poll_checked(
-                require_stationary=True,
+                require_stationary=not settling,
                 allow_prearm_epoch=True,
                 wait_s=wait_s,
             )
@@ -399,6 +400,17 @@ class ResidentSession:
         # NativeYieldLiveWriter records every frame and packet in the durable
         # service segments; avoid a second campaign-sized copy in the receipt.
         state = (getattr(output, "integer_echoes", {}) or {}).get(26)
+        if settling:
+            from contact_home_motion_profile import (
+                HOME_JOINT_SPEED_GUARD_RAD_S, HOME_TCP_SPEED_GUARD_M_S,
+                HOME_ANGULAR_SPEED_GUARD_RAD_S,
+            )
+            if state not in {READY_HOME_NEXT, 80}:
+                raise ResidentSessionError('Home settle lost terminal return state')
+            if (max(abs(v) for v in output.qd_rad_s) > HOME_JOINT_SPEED_GUARD_RAD_S
+                    or math.hypot(*output.tcp_speed_m_s_rad_s[:3]) > HOME_TCP_SPEED_GUARD_M_S
+                    or math.hypot(*output.tcp_speed_m_s_rad_s[3:]) > HOME_ANGULAR_SPEED_GUARD_RAD_S):
+                raise ResidentSessionError('Home settle exceeds existing return velocity guard')
         sensor = None
         if state in {READY_HOME_NEXT, 80}:
             sensor = writer._read_sensor()
@@ -406,6 +418,33 @@ class ResidentSession:
             writer._send_packet(sensor, command_mode=CommandMode.HOLD)
         self.sleep(0.002)
         return output, sensor
+
+    def _wait_home_settle(self, terminal):
+        """Keep RETURNING guards until joint Home stays still for 0.5 s."""
+        previous_mode = getattr(self.writer, '_service_mode', False)
+        self.writer._service_mode = True
+        deadline = float(self.mono_clock()) + 5.0
+        stable_since = None
+        _event(self, 'HOME_SETTLE', 'start', sequence=self.next_sequence)
+        try:
+            while float(self.mono_clock()) < deadline:
+                pair = self._service_tick(settling=True)
+                if pair is None:
+                    continue
+                output, _ = pair
+                proof = _home_proof(self.writer, output, fresh=True)
+                if proof['home_verified']:
+                    now = float(output.timestamp)
+                    stable_since = now if stable_since is None else stable_since
+                    if now - stable_since >= 0.5:
+                        _event(self, 'HOME_SETTLE', 'verified', sequence=self.next_sequence,
+                               stationary_duration_s=now-stable_since)
+                        return output
+                else:
+                    stable_since = None
+            raise ResidentSessionError('continuous joint Home stationary dwell timed out')
+        finally:
+            self.writer._service_mode = previous_mode
 
     def _set_service_context(self, *, attempt_sequence: int, stage: str) -> None:
         self._service_context = {
@@ -547,6 +586,7 @@ class ResidentSession:
     def _clear_serviced(self, buffer):
         previous_mode = getattr(self.writer, '_service_mode', False)
         self.writer._service_mode = True
+        self._retirement_last_tick_s = -math.inf
         try:
             while buffer:
                 if isinstance(buffer, set):
@@ -554,8 +594,10 @@ class ResidentSession:
                         buffer.pop()
                 else:
                     del buffer[-1024:]
-                if not self.closed:
+                if not self.closed and (
+                        float(self.mono_clock()) - getattr(self, '_retirement_last_tick_s', -math.inf) >= .002):
                     self._service_tick()
+                    self._retirement_last_tick_s = float(self.mono_clock())
         finally:
             self.writer._service_mode = previous_mode
 

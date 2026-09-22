@@ -2146,6 +2146,9 @@ class LiveR004Writer:
                 self._hot_path_finish(success=True)
             if terminal is None or terminal.integer_echoes[26] == 90 or self._home is None:
                 raise LiveWriterError("r004 attempt terminated without a valid return")
+            settle = getattr(self, '_terminal_settle_service', None)
+            if callable(settle):
+                terminal = settle(terminal)
             pose_error = math.dist(terminal.tcp_pose_m_rad[:3], self._home.pose[:3])
             # Native yield Home uses SO(3). Equivalent ±π rotation vectors are
             # the same attitude; Euclidean rotvec distance is not. Legacy RNN
