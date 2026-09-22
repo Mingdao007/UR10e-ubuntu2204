@@ -521,24 +521,43 @@ class ResidentSession:
         self.last_completed_sequence = self.next_sequence
         # Collector destruction also costs CPU: release large lists in chunks
         # while the sole owner keeps servicing the real endpoints.
+        from step5d_autotune_v4_r004.evidence import (
+            PathEvidenceCollector, QualificationEvidenceCollector,
+        )
+        from step5d_autotune_v4_r004.timing import TimingEvidenceCollector
+        collectors = (PathEvidenceCollector, QualificationEvidenceCollector,
+                      TimingEvidenceCollector)
+
+        def retire(value):
+            if isinstance(value, collectors):
+                for buffer in vars(value).values():
+                    retire(buffer)
+            elif isinstance(value, dict):
+                for buffer in value.values():
+                    retire(buffer)
+            elif isinstance(value, (list, set)):
+                self._clear_serviced(value)
+
         for cell in getattr(finalizer, '__closure__', ()) or ():
             value = cell.cell_contents
-            if hasattr(value, '_samples') and hasattr(value, '_bins'):
-                for buffer in vars(value).values():
-                    if isinstance(buffer, list):
-                        self._clear_serviced(buffer)
-                    elif isinstance(buffer, dict):
-                        for nested in buffer.values():
-                            if isinstance(nested, list):
-                                self._clear_serviced(nested)
+            if isinstance(value, collectors):
+                retire(value)
         return result
 
     def _clear_serviced(self, buffer):
-        while len(buffer) > 1024:
-            del buffer[-1024:]
-            if not self.closed:
-                self._service_tick()
-        buffer.clear()
+        previous_mode = getattr(self.writer, '_service_mode', False)
+        self.writer._service_mode = True
+        try:
+            while buffer:
+                if isinstance(buffer, set):
+                    for _ in range(min(len(buffer), 1024)):
+                        buffer.pop()
+                else:
+                    del buffer[-1024:]
+                if not self.closed:
+                    self._service_tick()
+        finally:
+            self.writer._service_mode = previous_mode
 
     def verify_ready_for_next(self, *, reason: str) -> dict[str, Any]:
         if not self.prepared or self.closed:

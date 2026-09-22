@@ -222,3 +222,30 @@ def test_return_neutralizes_arm_without_erasing_next_arm(state, expected, monkey
     writer._r013_path_early_end_controller = None
     writer._send_packet(object(), command_mode=CommandMode.HOLD)
     assert captured == [expected]
+
+
+def test_real_path_collector_retired_while_new_service_frames_survive(tmp_path):
+    from step5d_autotune_v4_r004.evidence import PathEvidenceCollector
+    collector = PathEvidenceCollector()
+    collector._path_samples = [object() for _ in range(3073)]
+    collector._seen_path_identities = set(range(3073))
+    collector._timing._layer_keys['rtde_frames'] = set(range(3073))
+    owner = NS(_service_mode=False, raw_observations=list(range(3073)),
+               _service_observations={'robot_frames': []})
+    session = ResidentSession(mature=NS(writer=owner), runtime=None,
+                              provider=None, prerequisites=None, run_dir=tmp_path)
+    def tick():
+        assert owner._service_mode
+        owner._service_observations['robot_frames'].append('new')
+    session._service_tick = tick
+    session._run_process_work = lambda **kw: kw['task']()
+    def finalize():
+        return len(collector._path_samples)
+    assert session._run_terminal_finalize(finalize) == 3073
+    assert not collector._path_samples
+    assert not collector._seen_path_identities
+    assert not collector._timing._layer_keys['rtde_frames']
+    session._clear_serviced(owner.raw_observations)
+    assert not owner.raw_observations
+    assert len(owner._service_observations['robot_frames']) == 16
+    assert not owner._service_mode
