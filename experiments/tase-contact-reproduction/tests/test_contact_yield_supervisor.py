@@ -5,6 +5,7 @@ import pytest
 from contact_yield_supervisor import (
     ResidentSupervisor,
     READABLE_RUNTIME_IDENTITY,
+    VideoRecorder,
     _complete_path_home_recovered,
 )
 from contact_yield_live import ObservedTransport
@@ -194,3 +195,28 @@ def test_preload_gate_failure_never_loads_or_plays():
     result=s.run(body,before_load=invalid)
     assert not result['success']
     assert 'play' not in events and not any(e.startswith('load ') for e in events)
+
+
+def test_evidence_only_video_failure_does_not_become_motion_gate(tmp_path, monkeypatch):
+    class DeadProcess:
+        def poll(self):
+            return 1
+
+        def terminate(self):
+            return None
+
+        def wait(self, timeout=None):
+            return 1
+
+    monkeypatch.setattr(
+        "contact_yield_supervisor.subprocess.Popen",
+        lambda *args, **kwargs: DeadProcess(),
+    )
+    recorder = VideoRecorder("rtsp://127.0.0.1:8554/arm", tmp_path, policy="evidence-only")
+    recorder.start()
+    recorder.check()
+    recorder.close()
+    evidence = recorder.evidence()
+    assert evidence["policy"] == "evidence-only"
+    assert evidence["available"] is False
+    assert evidence["required_for_motion_admission"] is False

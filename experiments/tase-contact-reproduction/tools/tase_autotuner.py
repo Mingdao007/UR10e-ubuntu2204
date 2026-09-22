@@ -91,6 +91,10 @@ def _load_config(path: Path) -> dict[str, Any]:
     if isinstance(control_cpu, bool) or not isinstance(control_cpu, int) or control_cpu < 0:
         raise ValueError("control_cpu must be a nonnegative CPU index")
     payload["control_cpu"] = control_cpu
+    video_policy = payload.get("video_policy", "required")
+    if video_policy not in {"required", "evidence-only"}:
+        raise ValueError("video_policy must be required or evidence-only")
+    payload["video_policy"] = video_policy
     if payload.get("protection_parameters_frozen") is not True or payload.get("integral_policy_frozen") is not True:
         raise ValueError("autotuner protection/integral freeze is missing")
     noise = float(payload.get("observation_noise_n", 0.05))
@@ -640,6 +644,7 @@ def _execute_preflight_recovery(
         "--method", "TASE_RNN_MATURE",
         "--duration", "r013_60",
         "--control-cpu", str(config["control_cpu"]),
+        "--video-policy", str(config["video_policy"]),
         "--run-dir", str(run_dir),
         "--parameter-file", str(candidate_file),
     ]
@@ -821,6 +826,7 @@ def run_campaign(
         _append(ledger, {**row, "status": "started"})
         command = [str(script), "--method", "TASE_RNN_MATURE", "--duration", "r013_60",
                    "--control-cpu", str(config["control_cpu"]),
+                   "--video-policy", str(config["video_policy"]),
                    "--run-dir", str(run_dir), "--parameter-file", str(candidate_file)]
         completed = subprocess.run(command, cwd=str(ROOT), check=False)
         receipt_path = run_dir / "dispatch_receipt.json"
@@ -879,6 +885,7 @@ def run_campaign(
         "schema": "tase.autotuner-summary-v1",
         "protocol_id": R013_COMPAT60_PROTOCOL_ID,
         "duration_token": "r013_60",
+        "video_policy": config["video_policy"],
         "config": str(config_path),
         "campaign_dir": str(campaign_dir),
         "budget": config["budget"],
@@ -974,6 +981,7 @@ def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) ->
                 completed = subprocess.run(
                     [str(script), "--method", "TASE_RNN_MATURE", "--duration", "r013_60",
                      "--control-cpu", str(config["control_cpu"]),
+                     "--video-policy", str(config["video_policy"]),
                      "--run-dir", str(run_dir), "--parameter-file", str(candidate_file)],
                     cwd=str(ROOT), check=False,
                 )
@@ -1057,6 +1065,7 @@ def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) ->
     summary = {
         "schema": "tase.autotuner-confirmation-summary-v1",
         "protocol_id": R013_COMPAT60_PROTOCOL_ID,
+        "video_policy": config["video_policy"],
         "state": "COMPLETE" if len(pairs) == rounds else "INCOMPLETE",
         "rounds": rounds,
         "paired_complete": len(pairs),

@@ -2,7 +2,7 @@ from pathlib import Path
 import sys
 import pytest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
-from run_contact_home import admit_sample
+from run_contact_home import admit_sample, validate_robot_sample
 
 
 def fixture():
@@ -38,8 +38,24 @@ def test_normal_with_3pe_input_is_not_a_stop():
     with pytest.raises(ValueError,match='NORMAL'):admit_sample(sample,home,initial=True)
 
 
-def test_slow_figure8_transfer_timeout_uses_path_length_without_widening_geometry():
-    from run_contact_home import home_motion_timeout_s
+def test_recovery_protective_allowlist_rejects_unknown_safety_bits():
+    sample, _ = fixture()
+    for bits in (4, 2052):
+        sample['safety_status_bits'] = bits
+        validate_robot_sample(sample, allow_protective=True)
+    for bits in (0, -1, 5, 2053, '4', True):
+        sample['safety_status_bits'] = bits
+        with pytest.raises(ValueError):
+            validate_robot_sample(sample, allow_protective=True)
+
+
+def test_slow_figure8_transfer_timeout_uses_path_length_without_widening_geometry(monkeypatch):
+    import run_contact_home
+    # Keep this regression focused on the timeout geometry.  The live Home
+    # profile is intentionally historical 90 mm/s; the older slow profile is
+    # injected here so the path-length assertion remains meaningful.
+    monkeypatch.setattr(run_contact_home, 'HOME_TRANSFER_SPEED_M_S', .002)
+    home_motion_timeout_s = run_contact_home.home_motion_timeout_s
     sample,home=fixture()
     home['rtde']['actual_TCP_pose']=[.487834547,.129337053,.033,*sample['actual_TCP_pose'][3:]]
     home['home_pose']=[.4620551816,.1778825964,.033,*sample['actual_TCP_pose'][3:]]

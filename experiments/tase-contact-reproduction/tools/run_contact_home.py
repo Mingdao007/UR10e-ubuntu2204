@@ -25,6 +25,13 @@ from contact_home_motion_profile import (
 FIELDS=('timestamp','actual_TCP_pose','actual_TCP_speed','actual_q','actual_qd','tcp_offset','payload','payload_cog','safety_status_bits')
 TARGET=f'{CONTROLLER_DIR}/{BASENAME}.urp'
 INSTALLED_LOCK=Path('/home/andy/.codex-worktrees/step5d-r014-fixed-confidence-20260821/experiments/tase-contact-reproduction/runs/r014_autotuner/live-writer.lock')
+# UR RTDE ``safety_status_bits`` reports NORMAL as 1, optionally combined with
+# bit 11 (3PE input active) as 2049.  Protective Stop is bit 3 (4); the same
+# explicitly known 3PE combination is 2052.  Recovery may admit only these
+# two Protective Stop encodings for its pre-unlock observation.  Unknown,
+# malformed, or mixed safety states remain rejected.
+NORMAL_SAFETY_BITS = frozenset((1, 2049))
+PROTECTIVE_STOP_SAFETY_BITS = frozenset((4, 2052))
 
 
 
@@ -43,13 +50,20 @@ def home_motion_timeout_s(home):
     return max(20.,float(length_s)+10.)
 
 
-def validate_robot_sample(sample):
+def validate_robot_sample(sample, *, allow_protective=False):
     for key,n in [('actual_TCP_pose',6),('actual_TCP_speed',6),('actual_q',6),('actual_qd',6),('tcp_offset',6),('payload_cog',3)]:
         value=np.asarray(sample[key]);
         if value.shape!=(n,) or not np.isfinite(value).all():raise ValueError(f'invalid {key}')
-    # UR RTDE bit 11 is informational 3PE input active; bits 1-10 remain forbidden.
-    # https://docs.universal-robots.com/tutorials/communication-protocol-tutorials/rtde-guide.html
-    if sample['safety_status_bits'] not in (1, 2049):raise ValueError('RTDE safety is not NORMAL')
+    # UR RTDE bit 11 is informational 3PE input active.  NORMAL is admitted
+    # only as 1/2049; recovery separately admits the explicit Protective Stop
+    # encodings above and nothing else.
+    bits = sample['safety_status_bits']
+    if isinstance(bits, (bool, np.bool_)) or not isinstance(bits, (int, np.integer)):
+        raise ValueError('invalid RTDE safety status bits')
+    bits = int(bits)
+    if bits not in NORMAL_SAFETY_BITS:
+        if not (allow_protective and bits in PROTECTIVE_STOP_SAFETY_BITS):
+            raise ValueError('RTDE safety is not NORMAL')
     if not np.isclose(sample['payload'],.413,atol=1e-6) or not np.allclose(sample['payload_cog'],[.0011,.0031,.0163],atol=1e-6) or not np.allclose(sample['tcp_offset'],[0,0,.0874,0,0,0],atol=1e-9):raise ValueError('active tool binding changed')
     if np.linalg.norm(sample['actual_TCP_speed'][:3])>HOME_TCP_SPEED_GUARD_M_S or max(abs(x) for x in sample['actual_qd'])>HOME_JOINT_SPEED_GUARD_RAD_S:raise ValueError('Home speed envelope violated')
 
@@ -119,9 +133,13 @@ def run(args):
         if local.read_bytes()!=remote.read_bytes():raise ValueError('read-back bytes changed')
     observed=dashboard_exchange(args.host,['is in remote control','safetymode','running','programState','robotmode'])
     if observed.get('is in remote control')!='true' or observed.get('safetymode')!='Safetymode: NORMAL' or observed.get('running')!='Program running: false' or observed.get('robotmode')!='Robotmode: RUNNING':raise ValueError(f'Home Remote/stopped gate failed: {observed}')
-    if not args.execute:return {'action':'read_only_preflight','dashboard':observed,'motion':False}
+    video_policy = getattr(args, 'video_policy', 'required')
+    video_url = getattr(args, 'video_url', 'rtsp://127.0.0.1:8554/arm')
+    if video_policy not in VideoRecorder.POLICIES:
+        raise ValueError(f'unknown video policy: {video_policy}')
+    if not args.execute:return {'action':'read_only_preflight','dashboard':observed,'motion':False,'video_policy':video_policy}
     args.output.mkdir(parents=True,exist_ok=False)
-    result={'requested_action':'bounded contact withdrawal to Home' if home.get('bounded_withdrawal') else 'noncontact Home only','started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'load':None,'play':None,'success':False}
+    result={'requested_action':'bounded contact withdrawal to Home' if home.get('bounded_withdrawal') else 'noncontact Home only','started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'load':None,'play':None,'success':False,'video_policy':video_policy}
     sensor=None;wrench_rows=[]
     def check_wrench():
         raw,received=sensor.poll();now=time.monotonic()
@@ -133,14 +151,22 @@ def run(args):
     with WriterLock(INSTALLED_LOCK):
         try:
             obs.start()
-            video=VideoRecorder('rtsp://127.0.0.1:8554/arm',args.output)
+            video = (
+                VideoRecorder(video_url, args.output)
+                if video_policy == 'required'
+                else VideoRecorder(video_url, args.output, policy=video_policy)
+            )
             video.start()
             barrier_deadline=time.monotonic()+8.
             while time.monotonic()<barrier_deadline:
                 video.check()
                 obs.latest()
-                camera_file=video.path
-                if len(obs.rows)>=10 and camera_file.exists() and camera_file.stat().st_size>512:break
+                camera_ready = (
+                    True
+                    if video_policy == 'evidence-only'
+                    else video.path.exists() and video.path.stat().st_size > 512
+                )
+                if len(obs.rows)>=10 and camera_ready:break
                 time.sleep(.05)
             else:raise ValueError('RTDE/camera observer barrier did not complete')
             for row in obs.rows[-10:]:admit_sample(row,home,initial=True)
@@ -202,12 +228,14 @@ def run(args):
                 (args.output/'raw-wrench.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in wrench_rows))
             if video is not None:
                 video.close()
+                evidence = getattr(video, 'evidence', None)
+                result['video_evidence'] = evidence() if callable(evidence) else None
             (args.output/'rtde.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in obs.rows))
             result['ended_at']=datetime.datetime.now(datetime.timezone.utc).isoformat();(args.output/'result.json').write_text(json.dumps(result,indent=2)+'\n')
     return result
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--host',default='192.168.1.18');p.add_argument('--home-receipt',type=Path,required=True);p.add_argument('--validation',type=Path,required=True);p.add_argument('--package-dir',type=Path,required=True);p.add_argument('--readback-dir',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--execute',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--host',default='192.168.1.18');p.add_argument('--home-receipt',type=Path,required=True);p.add_argument('--validation',type=Path,required=True);p.add_argument('--package-dir',type=Path,required=True);p.add_argument('--readback-dir',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--video-url',default='rtsp://127.0.0.1:8554/arm');p.add_argument('--video-policy',choices=sorted(VideoRecorder.POLICIES),default='required');p.add_argument('--execute',action='store_true');a=p.parse_args()
     try:r=run(a)
     except Exception as exc:r={'success':False,'failure':f'{type(exc).__name__}: {exc}'}
     print(json.dumps(r,indent=2));raise SystemExit(0 if r.get('success') or r.get('motion') is False else 1)

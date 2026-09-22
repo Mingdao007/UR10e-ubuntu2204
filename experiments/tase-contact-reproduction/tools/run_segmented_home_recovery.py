@@ -197,7 +197,8 @@ def _deploy_and_readback(package_dir: Path, readback_root: Path, stamp: str) -> 
 
 
 def _run_vertical_clearance_withdrawal(
-    *, host: str, output: Path, fresh: dict, final_target: np.ndarray, index: int
+    *, host: str, output: Path, fresh: dict, final_target: np.ndarray, index: int,
+    video_url: str = VIDEO_DEFAULT, video_policy: str = "required"
 ) -> dict:
     """Raise a low stopped pose to the existing 33 mm Home clearance floor.
 
@@ -276,6 +277,8 @@ def _run_vertical_clearance_withdrawal(
         package_dir=package,
         readback_dir=Path(readback["readback_dir"]),
         output=segment / "home-run",
+        video_url=video_url,
+        video_policy=video_policy,
         execute=True,
     )
     home_result = run_home(home_args)
@@ -341,6 +344,8 @@ def run(args: argparse.Namespace) -> dict:
                     fresh=fresh,
                     final_target=final_target,
                     index=index,
+                    video_url=getattr(args, "video_url", VIDEO_DEFAULT),
+                    video_policy=getattr(args, "video_policy", "required"),
                 )
             except Exception as exc:
                 result["state"] = "BLOCKED"
@@ -432,6 +437,8 @@ def run(args: argparse.Namespace) -> dict:
             package_dir=package,
             readback_dir=Path(readback["readback_dir"]),
             output=home_out,
+            video_url=getattr(args, "video_url", VIDEO_DEFAULT),
+            video_policy=getattr(args, "video_policy", "required"),
             execute=True,
         )
         home_result = run_home(home_args)
@@ -461,6 +468,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--host", default=HOST_DEFAULT)
     parser.add_argument("--video-url", default=VIDEO_DEFAULT)
+    parser.add_argument("--video-policy", choices=("required", "evidence-only"), default="required")
     parser.add_argument("--execute", action="store_true")
     args = parser.parse_args(argv)
     try:

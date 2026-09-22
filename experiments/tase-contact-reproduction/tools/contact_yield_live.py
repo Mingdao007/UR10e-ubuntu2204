@@ -79,7 +79,8 @@ def _blocked_home_recovery(*, run_dir: Path, reason: str) -> dict[str, Any]:
 
 
 def automatic_home_after_fault(
-    *, run_dir: Path, controller_host: str | None, video_url: str
+    *, run_dir: Path, controller_host: str | None, video_url: str,
+    video_policy: str = "required",
 ) -> dict[str, Any]:
     """Use the existing monitored recovery owner after a physical fault.
 
@@ -101,7 +102,12 @@ def automatic_home_after_fault(
             reason=f"Home recovery owner import failed: {type(exc).__name__}: {exc}",
         )
     try:
-        result = recover_failed_contact_run(Path(run_dir), controller_host, video_url)
+        if video_policy == "required":
+            result = recover_failed_contact_run(Path(run_dir), controller_host, video_url)
+        else:
+            result = recover_failed_contact_run(
+                Path(run_dir), controller_host, video_url, video_policy=video_policy
+            )
     except BaseException as exc:
         # The normal owner already escalates its own failures.  Keep one
         # direct, monitored fallback here as well so an unexpected exception
@@ -113,12 +119,20 @@ def automatic_home_after_fault(
                 _emergency_home_when_commandable,
             )
 
+            import inspect
+            fallback_kwargs = {
+                "video_url": video_url,
+                "video_policy": video_policy,
+            }
+            if "video_url" not in inspect.signature(_emergency_home_when_commandable).parameters:
+                fallback_kwargs = {}
             fallback = _emergency_home_when_commandable(
                 Path(run_dir),
                 Path(run_dir).with_name(Path(run_dir).name + "-home-fallback"),
                 controller_host,
                 PACKAGE_DIR,
                 reason=exc,
+                **fallback_kwargs,
             )
             if isinstance(fallback, dict):
                 fallback.setdefault(

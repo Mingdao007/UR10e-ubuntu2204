@@ -33,6 +33,7 @@ def test_config_is_frozen_to_outer_mass_and_damping():
     assert payload["tuned_parameters"] == ["Md_scalar", "Bd_scalar"]
     assert payload["protection_parameters_frozen"] is True
     assert payload["integral_policy_frozen"] is True
+    assert payload["video_policy"] == "evidence-only"
 
 
 def test_gp_posterior_uses_observation_noise_and_returns_finite_variance():

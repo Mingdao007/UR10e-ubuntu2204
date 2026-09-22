@@ -123,43 +123,116 @@ class ProcessObserver:
 
 
 class VideoRecorder:
-    def __init__(self, url, directory):
+    """Best-effort video capture with an explicit evidence policy.
+
+    ``required`` preserves the historical admission behavior.  In
+    ``evidence-only`` mode the recorder makes a short best-effort attempt and
+    records the result, but an absent publisher never becomes a motion gate.
+    The controller/RTDE/sensor and recovery gates remain independent.
+    """
+
+    POLICIES = frozenset(("required", "evidence-only"))
+
+    def __init__(self, url, directory, *, policy="required"):
+        if policy not in self.POLICIES:
+            raise ValueError(f"unknown video policy: {policy}")
         self.url, self.directory, self.process = url, Path(directory), None
+        self.policy = policy
+        self.attempted = False
+        self.available = False
+        self.error = None
+        self.closed = False
+        self.path = self.directory / "video.mkv"
         self.last_size = 0
         self.progress_at = None
 
     def start(self):
         self.log = (self.directory/'video-stderr.txt').open('x')
-        self.path = self.directory/'video.mkv'
+        self.attempted = True
         self.process = subprocess.Popen(['ffmpeg','-hide_banner','-loglevel','error',
             '-rtsp_transport','tcp','-i',self.url,'-c','copy','-flush_packets','1',
             '-cluster_time_limit','500',str(self.path)],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=self.log)
         self.progress_at = time.monotonic()
-        deadline = time.monotonic()+8.
+        # A missing publisher is an evidence gap in evidence-only mode.  Keep
+        # the probe short so it cannot serialize every candidate behind an
+        # unavailable camera; required mode retains the original 8 s barrier.
+        deadline = time.monotonic() + (8. if self.policy == "required" else .5)
         while time.monotonic() < deadline:
-            self.check()
-            if self.path.exists() and self.path.stat().st_size > 512: return
+            if self.process.poll() is not None:
+                reason = "video recorder exited before first frame"
+                if self.policy == "required":
+                    raise RuntimeError(reason)
+                self.error = reason
+                self.process = None
+                return
+            size = self.path.stat().st_size if self.path.exists() else 0
+            if size > 512:
+                self.available = True
+                self.last_size = size
+                return
             time.sleep(.05)
-        raise RuntimeError('video recording start barrier timed out')
+        if self.policy == "required":
+            raise RuntimeError('video recording start barrier timed out')
+        self.error = "video stream was not available at recorder start"
+        self._stop_process()
 
     def check(self):
-        if self.process is None or self.process.poll() is not None:
-            raise RuntimeError('video recording is not running')
+        if self.process is None:
+            if self.policy == "required":
+                raise RuntimeError('video recording is not running')
+            return
+        if self.process.poll() is not None:
+            if self.policy == "required":
+                raise RuntimeError('video recording is not running')
+            if self.error is None:
+                self.error = "video recorder exited during run"
+            self.process = None
+            return
         size = self.path.stat().st_size if self.path.exists() else 0
         now = time.monotonic()
         if size > self.last_size:
             self.last_size, self.progress_at = size, now
+            self.available = True
         elif self.last_size > 512 and now-self.progress_at > 2.:
-            raise RuntimeError('video recording has stopped advancing')
+            if self.policy == "required":
+                raise RuntimeError('video recording has stopped advancing')
+            self.error = "video recording stopped advancing"
+            self._stop_process()
+
+    def _stop_process(self):
+        if self.process is None:
+            return
+        self.process.terminate()
+        try: self.process.wait(3.)
+        except subprocess.TimeoutExpired:
+            self.process.kill(); self.process.wait()
+        self.process = None
 
     def close(self):
-        if self.process is not None:
-            self.process.terminate()
-            try: self.process.wait(3.)
-            except subprocess.TimeoutExpired:
-                self.process.kill(); self.process.wait()
+        self._stop_process()
         if hasattr(self, 'log'): self.log.close()
+        self.closed = True
+
+    def evidence(self):
+        return {
+            'policy': self.policy,
+            'attempted': self.attempted,
+            'available': self.available,
+            'path': str(self.path) if self.available else None,
+            'error': self.error,
+            'required_for_motion_admission': self.policy == 'required',
+        }
+
+    def healthy(self):
+        """Return true only while a live capture is currently advancing."""
+        if not self.available or self.process is None:
+            return False
+        if self.process.poll() is not None:
+            return False
+        if self.last_size <= 512 or self.progress_at is None:
+            return False
+        return time.monotonic() - self.progress_at <= 2.0
 
 
 def stationary(row):
@@ -300,6 +373,8 @@ class ResidentSupervisor:
                 except BaseException as exc:
                     self.audit['success']=False
                     self.audit.setdefault('close_errors',[]).append(f'{label}: {type(exc).__name__}: {exc}')
+            evidence = getattr(self.video, 'evidence', None)
+            self.audit['video_evidence'] = evidence() if callable(evidence) else None
         return self.audit
 
 
@@ -405,6 +480,7 @@ def main(argv=None):
     p.add_argument('--controller-host',default='192.168.1.18'); p.add_argument('--kunwei-host',default='192.168.50.25')
     p.add_argument('--control-cpu',type=int,required=True)
     p.add_argument('--video-url',default='rtsp://127.0.0.1:8554/arm')
+    p.add_argument('--video-policy',choices=sorted(VideoRecorder.POLICIES),default='required')
     a=p.parse_args(argv)
     # Resolve once at the process boundary so every receipt, observer and
     # recovery owner shares the same directory even when the caller starts
@@ -444,7 +520,7 @@ def main(argv=None):
     from run_contact_home import INSTALLED_LOCK
     target=contract.raw['script2']['controller_target']
     observer=ProcessObserver(a.controller_host,a.run_dir/'supervisor-rtde.jsonl')
-    video=VideoRecorder(a.video_url,a.run_dir)
+    video=VideoRecorder(a.video_url,a.run_dir,policy=a.video_policy)
     supervisor=ResidentSupervisor(observer=observer,video=video,
         read_dashboard=lambda:dashboard_exchange(a.controller_host,DASHBOARD_FIELDS),
         writer=RemoteDashboardWriter(a.controller_host,load_target=target),target=target)
@@ -487,10 +563,14 @@ def main(argv=None):
             before_load=before_load if a.action != 'resident-check' else None,
             execute_program=a.action != 'resident-check',
         )
+    result['video_policy'] = a.video_policy
     if a.action in ('qualify','pilot') and not result.get('success'):
         try:
             from run_contact_recovery import recover_failed_contact_run
-            result['autonomous_home_recovery']=recover_failed_contact_run(a.run_dir,a.controller_host,a.video_url)
+            result['autonomous_home_recovery']=recover_failed_contact_run(
+                a.run_dir, a.controller_host, a.video_url,
+                video_policy=a.video_policy,
+            )
         except BaseException as exc:
             # A recovery-owner exception is itself a commandable recovery
             # event.  Give the Home module one last direct, monitored attempt
@@ -498,12 +578,20 @@ def main(argv=None):
             # geometry denial may leave the robot without a verified Home.
             try:
                 from run_contact_recovery import _emergency_home_when_commandable
+                import inspect
+                fallback_kwargs = {
+                    'video_url': a.video_url,
+                    'video_policy': a.video_policy,
+                }
+                if 'video_url' not in inspect.signature(_emergency_home_when_commandable).parameters:
+                    fallback_kwargs = {}
                 result['autonomous_home_recovery'] = _emergency_home_when_commandable(
                     a.run_dir,
                     a.run_dir.with_name(a.run_dir.name + '-autonomous-home-fallback'),
                     a.controller_host,
                     PACKAGE_DIR,
                     reason=exc,
+                    **fallback_kwargs,
                 )
             except BaseException as fallback_exc:
                 result['autonomous_home_recovery']={
@@ -541,6 +629,15 @@ def main(argv=None):
                 dispatch_receipt = loaded
         except (OSError, UnicodeError, json.JSONDecodeError):
             dispatch_receipt = {}
+    if dispatch_receipt:
+        dispatch_receipt['video_policy'] = a.video_policy
+        dispatch_receipt['video_evidence'] = result.get('video_evidence')
+        try:
+            temporary = dispatch_path.with_suffix('.video.tmp')
+            temporary.write_text(json.dumps(dispatch_receipt, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+            temporary.replace(dispatch_path)
+        except Exception as exc:
+            result['video_evidence_persist_error'] = f'{type(exc).__name__}: {exc}'
     try:
         timing_ledger = ledger_from_receipts(
             str(dispatch_receipt.get('attempt_id') or f'r006-supervised-{a.action}'),

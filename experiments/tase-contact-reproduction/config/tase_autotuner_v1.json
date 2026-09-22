@@ -13,6 +13,7 @@
   "holdout_rounds": 5,
   "confirmation_rounds": 5,
   "control_cpu": 3,
+  "video_policy": "evidence-only",
   "seed": 20260921,
   "bo_pool_size": 512,
   "gp_length_scale": 0.25,

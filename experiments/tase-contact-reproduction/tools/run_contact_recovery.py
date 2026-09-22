@@ -38,6 +38,12 @@ from step5d_autotune_v4_r004.calibrated_runtime import tcp_jacobian_base
 
 DIRECTORY='/programs/andyl/kunwei/step5'
 RECOVERY_POLICY='AUTO_HOME_WHEN_COMMANDABLE'
+VIDEO_POLICIES = frozenset(('required', 'evidence-only'))
+
+
+def _video_evidence(video):
+    recorder = getattr(video, 'evidence', None)
+    return recorder() if callable(recorder) else None
 # Use the historical 40 mm/s vertical command, with a small observer margin
 # for the controller's first RTDE sample. This is still a vertical-only
 # relief and does not relax force, lateral, attitude, freshness, or safety
@@ -181,7 +187,8 @@ def _blocked_recovery_result(source, error, *, phase, output=None, previous_outp
 
 
 def _emergency_home_when_commandable(source, output, host, packages, *, reason,
-                                     previous_output=None):
+                                     previous_output=None, video_url=None,
+                                     video_policy='required'):
     """Attempt the installed Home owner even when relief setup failed.
 
     A recovery-package/read-back failure is a failure of the preferred
@@ -218,6 +225,10 @@ def _emergency_home_when_commandable(source, output, host, packages, *, reason,
         return payload
 
     obs = None
+    sensor = None
+    lease = None
+    lease_held = False
+    video = None
     try:
         packages = Path(packages)
         if not (packages / f'{BASENAME}.script').exists():
@@ -232,6 +243,9 @@ def _emergency_home_when_commandable(source, output, host, packages, *, reason,
             packages,
             basenames=(BASENAME,),
         )
+        lease = WriterLock(INSTALLED_LOCK)
+        lease.__enter__()
+        lease_held = True
         dashboard = check_dashboard(host, allow_protective=True, stop_if_running=True)
         obs = Observer(host)
         obs.start()
@@ -239,6 +253,8 @@ def _emergency_home_when_commandable(source, output, host, packages, *, reason,
         while time.monotonic() < deadline:
             row = obs.latest()
             if stationary(row):
+                if _protective_safety(dashboard):
+                    validate_robot_sample(row, allow_protective=True)
                 break
             time.sleep(.02)
         else:
@@ -246,8 +262,91 @@ def _emergency_home_when_commandable(source, output, host, packages, *, reason,
         # Protective Stop may be commandable after a fresh stationary sample,
         # but it must be unlocked exactly once and re-verified before Home.
         if _protective_safety(dashboard):
+            if not video_url:
+                raise ValueError('Protective Stop Home fallback requires a video URL')
+            video_dir = output.with_name(output.name + '-video-probe')
+            video_dir.mkdir(parents=True, exist_ok=False)
+            video = VideoRecorder(video_url, video_dir, policy='required')
+            video.start()
+            video.check()
+            healthy = getattr(video, 'healthy', None)
+            if callable(healthy) and not healthy():
+                raise ValueError('Protective Stop Home fallback lacks fresh video quiescence evidence')
             if dashboard.get('running') == 'Program running: true':
                 dashboard = _dashboard_until_stopped(host)
+            video.check()
+            healthy = getattr(video, 'healthy', None)
+            if callable(healthy) and not healthy():
+                raise ValueError('Protective Stop Home fallback video became stale before unlock')
+            row = obs.latest()
+            validate_robot_sample(row, allow_protective=True)
+            if not stationary(row):
+                raise ValueError('Protective Stop Home fallback RTDE sample is not stationary before unlock')
+            sensor = LiveR004KunweiTransport('192.168.50.25', port=5152)
+            sensor.open()
+            force_deadline = time.monotonic() + 1.0
+            while time.monotonic() < force_deadline:
+                raw, received = sensor.poll()
+                now = time.monotonic()
+                if raw is None or received is None or not 0 <= now - received < .08:
+                    time.sleep(.01)
+                    continue
+                wrench = np.asarray(raw, dtype=float)
+                if wrench.shape != (6,) or not np.isfinite(wrench).all():
+                    raise ValueError('Protective Stop Home fallback force sample is invalid')
+                if np.linalg.norm(wrench[:3]) >= 20 or np.linalg.norm(wrench[3:]) >= 2:
+                    raise ValueError('Protective Stop Home fallback force guard exceeded')
+                break
+            else:
+                raise ValueError('Protective Stop Home fallback force sample is stale')
+            # Force initialization can take up to a second.  Do not unlock
+            # using the RTDE/video evidence captured before that wait: refresh
+            # every quiescence predicate, then perform one final Dashboard
+            # check immediately before the one-shot unlock.
+            video.check()
+            healthy = getattr(video, 'healthy', None)
+            if callable(healthy) and not healthy():
+                raise ValueError('Protective Stop Home fallback video became stale before unlock')
+            row = obs.latest()
+            validate_robot_sample(row, allow_protective=True)
+            if not stationary(row):
+                raise ValueError('Protective Stop Home fallback RTDE sample is not stationary before unlock')
+            raw, received = sensor.poll()
+            now = time.monotonic()
+            if raw is None or received is None or not 0 <= now - received < .08:
+                raise ValueError('Protective Stop Home fallback force sample is stale before unlock')
+            wrench = np.asarray(raw, dtype=float)
+            if wrench.shape != (6,) or not np.isfinite(wrench).all():
+                raise ValueError('Protective Stop Home fallback force sample is invalid before unlock')
+            if np.linalg.norm(wrench[:3]) >= 20 or np.linalg.norm(wrench[3:]) >= 2:
+                raise ValueError('Protective Stop Home fallback force guard exceeded before unlock')
+            dashboard = check_dashboard(host, allow_protective=True)
+            if not _protective_safety(dashboard):
+                raise ValueError(f'Protective Stop disappeared before unlock: {dashboard}')
+            if dashboard.get('running') != 'Program running: false':
+                raise ValueError(
+                    f'Protective Stop Home fallback Dashboard is not stopped before unlock: {dashboard}'
+                )
+            # The Dashboard exchange is a blocking network read.  Refresh the
+            # independent evidence after it returns so a slow response cannot
+            # turn an old stationary/force/video sample into an unlock proof.
+            video.check()
+            healthy = getattr(video, 'healthy', None)
+            if callable(healthy) and not healthy():
+                raise ValueError('Protective Stop Home fallback video became stale before unlock')
+            row = obs.latest()
+            validate_robot_sample(row, allow_protective=True)
+            if not stationary(row):
+                raise ValueError('Protective Stop Home fallback RTDE sample is not stationary before unlock')
+            raw, received = sensor.poll()
+            now = time.monotonic()
+            if raw is None or received is None or not 0 <= now - received < .08:
+                raise ValueError('Protective Stop Home fallback force sample is stale before unlock')
+            wrench = np.asarray(raw, dtype=float)
+            if wrench.shape != (6,) or not np.isfinite(wrench).all():
+                raise ValueError('Protective Stop Home fallback force sample is invalid before unlock')
+            if np.linalg.norm(wrench[:3]) >= 20 or np.linalg.norm(wrench[3:]) >= 2:
+                raise ValueError('Protective Stop Home fallback force guard exceeded before unlock')
             _unlock_protective_stop_once(
                 host, target=f'{DIRECTORY}/{BASENAME}.urp'
             )
@@ -294,9 +393,17 @@ def _emergency_home_when_commandable(source, output, host, packages, *, reason,
             package_dir=packages,
             readback_dir=Path(proof) / 'readback' / BASENAME,
             output=output / 'fallback-home',
+            video_url=video_url or 'rtsp://127.0.0.1:8554/arm',
+            video_policy=video_policy,
             execute=True,
         )
         payload['home_attempted'] = True
+        if sensor is not None:
+            sensor.close()
+            sensor = None
+        if lease_held:
+            lease.__exit__(None, None, None)
+            lease_held = False
         home_result = run_home(home_args)
         payload['home'] = home_result
         payload['motion'] = bool(
@@ -316,6 +423,23 @@ def _emergency_home_when_commandable(source, output, host, packages, *, reason,
         if obs is not None:
             try:
                 obs.close()
+            except BaseException:
+                pass
+        if sensor is not None:
+            try:
+                sensor.close()
+            except BaseException:
+                pass
+        if video is not None:
+            try:
+                video.close()
+                evidence = getattr(video, 'evidence', None)
+                payload['video_evidence'] = evidence() if callable(evidence) else None
+            except BaseException as exc:
+                payload['video_evidence_error'] = f'{type(exc).__name__}: {exc}'
+        if lease_held and lease is not None:
+            try:
+                lease.__exit__(None, None, None)
             except BaseException:
                 pass
     try:
@@ -578,6 +702,9 @@ def run(args):
     if not args.execute:return {'success':False,'motion':False,'state':'read-only preflight passed','dashboard':dashboard_before,'source_protective_stop':source_protective}
     out.mkdir(parents=True)
     result={'success':False,'started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_attempt':str(source),'trial_stays_failed':True,'recovery_policy':RECOVERY_POLICY,'source_receipt_present':bool(source_receipt.get('receipt_present',True)),'source_armed':source_receipt.get('armed'),'source_protective_stop':source_protective,'dashboard_before':dashboard_before,'home_required':True,'recovery_owner_invoked':True,'home_commandability_checked':False,'home_attempted':False,'home_commandable':False,'home_motion_dispatched':False,'home_blocked':False}
+    video_policy = getattr(args, 'video_policy', 'required')
+    if video_policy not in VIDEO_POLICIES:
+        raise ValueError(f'unknown video policy: {video_policy}')
     obs=Observer(args.host);sensor=LiveR004KunweiTransport('192.168.50.25',port=5152);video=None;adapter=None;wrench_rows=[];last_sensor=None;last_force=None;plan=None;geometry=None;geometry_scope=None;home_invoked=False
     lease=WriterLock(INSTALLED_LOCK);lease_held=False
     protective_unlock_attempted=False
@@ -611,7 +738,9 @@ def run(args):
             # bounded segmented Home owner from the fresh clearance pose.
             obs.close(); sensor.close()
             if video is not None:
-                video.close(); video = None
+                video.close()
+                result['video_evidence'] = _video_evidence(video)
+                video = None
             if lease_held:
                 lease.__exit__(None, None, None); lease_held = False
             from run_segmented_home_recovery import run as run_segmented_home
@@ -620,6 +749,7 @@ def run(args):
                 output=segmented_output,
                 host=args.host,
                 video_url=args.video_url,
+                video_policy=video_policy,
                 execute=True,
             ))
             result['segmented_home_recovery'] = segmented
@@ -700,13 +830,15 @@ def run(args):
         # writer, even when this helper is entered from an exception path.
         obs.close();sensor.close()
         if video is not None:
-            video.close();video=None
+            video.close()
+            result['video_evidence'] = _video_evidence(video)
+            video=None
         if lease_held:
             lease.__exit__(None,None,None);lease_held=False
         home_invoked=True
         result['home_attempted']=True
         result['home_motion_dispatched']=True
-        home_args=SimpleNamespace(host=args.host,home_receipt=home_receipt,validation=home_validation,package_dir=home_package_dir,readback_dir=home_readback_dir,output=out/'home',execute=True)
+        home_args=SimpleNamespace(host=args.host,home_receipt=home_receipt,validation=home_validation,package_dir=home_package_dir,readback_dir=home_readback_dir,output=out/'home',video_url=args.video_url,video_policy=video_policy,execute=True)
         try:
             home_result=run_home(home_args)
         except BaseException as exc:
@@ -724,16 +856,31 @@ def run(args):
 
     try:
         lease.__enter__();lease_held=True
-        obs.start();sensor.open();video=VideoRecorder(args.video_url,out);video.start()
+        live_protective = _protective_safety(dashboard_before)
+        obs.start();sensor.open()
+        video = (
+            VideoRecorder(args.video_url, out)
+            if video_policy == 'required'
+            else VideoRecorder(args.video_url, out, policy=video_policy)
+        )
+        video.start()
         deadline=time.monotonic()+8
         while time.monotonic()<deadline:
-            video.check();row=obs.latest();validate_robot_sample(row);raw,at=sensor.poll()
-            if len(obs.rows)>=10 and raw is not None and video.path.exists() and video.path.stat().st_size>512:break
+            video.check();row=obs.latest();validate_robot_sample(row, allow_protective=live_protective);raw,at=sensor.poll()
+            video_ready = (
+                True
+                if video_policy == 'evidence-only'
+                else video.path.exists() and video.path.stat().st_size > 512
+            )
+            if len(obs.rows)>=10 and raw is not None and video_ready:break
             time.sleep(.01)
-        else:raise ValueError('recovery observer/video barrier failed')
+        else:raise ValueError('recovery observer/sensor barrier failed')
         if not stationary(row):raise ValueError('robot is not stationary before recovery')
-        live_protective=_protective_safety(dashboard_before)
         if live_protective:
+            healthy = getattr(video, 'healthy', None)
+            video_healthy = healthy() if callable(healthy) else getattr(video, 'available', True)
+            if not video_healthy:
+                raise ValueError('Protective Stop recovery requires fresh video quiescence evidence')
             # The source writer may still have a Dashboard PLAY state after a
             # protective stop. Stop it first, then use the already fresh,
             # stationary observer sample as the quiescence proof.
@@ -742,6 +889,59 @@ def run(args):
             dashboard_before=_dashboard_until_stopped(args.host)
             if not _protective_safety(dashboard_before):
                 raise ValueError(f'protective-stop source changed unexpectedly: {dashboard_before}')
+            video.check()
+            healthy = getattr(video, 'healthy', None)
+            if callable(healthy) and not healthy():
+                raise ValueError('Protective Stop video became stale before unlock')
+            row = obs.latest()
+            validate_robot_sample(row, allow_protective=True)
+            if not stationary(row):
+                raise ValueError('Protective Stop RTDE sample is no longer stationary before unlock')
+            raw, received = sensor.poll()
+            now = time.monotonic()
+            if raw is None or received is None or not 0 <= now - received < .08:
+                raise ValueError('Protective Stop force sample is stale before unlock')
+            wrench = np.asarray(raw, dtype=float)
+            if wrench.shape != (6,) or not np.isfinite(wrench).all():
+                raise ValueError('Protective Stop force sample is invalid before unlock')
+            if np.linalg.norm(wrench[:3]) >= 20 or np.linalg.norm(wrench[3:]) >= 2:
+                raise ValueError('Protective Stop force guard exceeded before unlock')
+            # The force poll above is intentionally followed by a fresh
+            # Dashboard read and a second RTDE/video sample.  This keeps the
+            # one-shot unlock adjacent to all three independent quiescence
+            # proofs, even when sensor setup or Dashboard STOP propagation is
+            # slow.
+            dashboard_before = check_dashboard(
+                args.host, allow_protective=True
+            )
+            if not _protective_safety(dashboard_before):
+                raise ValueError(
+                    f'protective-stop source changed before unlock: {dashboard_before}'
+                )
+            if dashboard_before.get('running') != 'Program running: false':
+                raise ValueError(
+                    f'protective-stop Dashboard is not stopped before unlock: {dashboard_before}'
+                )
+            # Recompute freshness after the final Dashboard exchange.  The
+            # controller may take long enough to answer that the evidence
+            # sampled immediately before the exchange is no longer valid.
+            video.check()
+            healthy = getattr(video, 'healthy', None)
+            if callable(healthy) and not healthy():
+                raise ValueError('Protective Stop video became stale before unlock')
+            row = obs.latest()
+            validate_robot_sample(row, allow_protective=True)
+            if not stationary(row):
+                raise ValueError('Protective Stop RTDE sample is no longer stationary before unlock')
+            raw, received = sensor.poll()
+            now = time.monotonic()
+            if raw is None or received is None or not 0 <= now - received < .08:
+                raise ValueError('Protective Stop force sample is stale before unlock')
+            wrench = np.asarray(raw, dtype=float)
+            if wrench.shape != (6,) or not np.isfinite(wrench).all():
+                raise ValueError('Protective Stop force sample is invalid before unlock')
+            if np.linalg.norm(wrench[:3]) >= 20 or np.linalg.norm(wrench[3:]) >= 2:
+                raise ValueError('Protective Stop force guard exceeded before unlock')
             quiescence=row
             result['protective_quiescence']={'stationary':stationary(quiescence),'fresh':True,'safety_mode':dashboard_before.get('safetymode'),'attempted_at':time.monotonic()}
             protective_unlock_attempted=True
@@ -895,7 +1095,9 @@ def run(args):
     finally:
         if hasattr(obs,'thread'):obs.close()
         sensor.close()
-        if video is not None:video.close()
+        if video is not None:
+            video.close()
+            result['video_evidence'] = _video_evidence(video)
         def encode(obj):
             if isinstance(obj,np.ndarray):return obj.tolist()
             if isinstance(obj,(np.floating,np.integer)):return obj.item()
@@ -908,7 +1110,7 @@ def run(args):
     return result
 
 
-def recover_failed_contact_run(source_run, host, video_url):
+def recover_failed_contact_run(source_run, host, video_url, *, video_policy='required'):
     """Route every failed contact attempt through the existing Home owner.
 
     Packages must already be installed. Protective stops are handled inside
@@ -945,6 +1147,8 @@ def recover_failed_contact_run(source_run, host, video_url):
                 PACKAGE_DIR,
                 reason=ValueError('home-first recovery priority'),
                 previous_output=previous_output,
+                video_url=video_url,
+                video_policy=video_policy,
             )
             if home_first.get('success') is True:
                 home_first['recovery_phase']='HOME_FIRST_DIRECT'
@@ -973,8 +1177,20 @@ def recover_failed_contact_run(source_run, host, video_url):
                 PACKAGE_DIR,
                 reason=ValueError('relief package is not installed; Home recovery cannot be proven'),
                 previous_output=previous_output,
+                video_url=video_url,
+                video_policy=video_policy,
             )
-        result=run(SimpleNamespace(source_run=source,output=output,readback_proof_dir=None,readback_dir=None,package_dir=PACKAGE_DIR,host=host,video_url=video_url,execute=True))
+        result=run(SimpleNamespace(
+            source_run=source,
+            output=output,
+            readback_proof_dir=None,
+            readback_dir=None,
+            package_dir=PACKAGE_DIR,
+            host=host,
+            video_url=video_url,
+            video_policy=video_policy,
+            execute=True,
+        ))
         if 'home_first' in locals():
             result['home_first_probe']=home_first
             result['recovery_phase']='STAGED_RELIEF_THEN_HOME'
@@ -995,11 +1211,13 @@ def recover_failed_contact_run(source_run, host, video_url):
             PACKAGE_DIR,
             reason=exc,
             previous_output=previous_output,
+            video_url=video_url,
+            video_policy=video_policy,
         )
 
 
 def main(argv=None):
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--source-run',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--readback-proof-dir',type=Path);p.add_argument('--readback-dir',type=Path);p.add_argument('--package-dir',type=Path);p.add_argument('--host',default='192.168.1.18');p.add_argument('--video-url',default='rtsp://127.0.0.1:8554/arm');p.add_argument('--execute',action='store_true');args=p.parse_args(argv)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--source-run',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--readback-proof-dir',type=Path);p.add_argument('--readback-dir',type=Path);p.add_argument('--package-dir',type=Path);p.add_argument('--host',default='192.168.1.18');p.add_argument('--video-url',default='rtsp://127.0.0.1:8554/arm');p.add_argument('--video-policy',choices=sorted(VIDEO_POLICIES),default='required');p.add_argument('--execute',action='store_true');args=p.parse_args(argv)
     try:result=run(args)
     except BaseException as exc:
         result = _emergency_home_when_commandable(
@@ -1008,6 +1226,8 @@ def main(argv=None):
             args.host,
             args.package_dir or PACKAGE_DIR,
             reason=exc,
+            video_url=args.video_url,
+            video_policy=args.video_policy,
         )
     print(json.dumps(result,indent=2));return 0 if result.get('success') or (result.get('motion') is False and result.get('state') != 'BLOCKED') else 1
 

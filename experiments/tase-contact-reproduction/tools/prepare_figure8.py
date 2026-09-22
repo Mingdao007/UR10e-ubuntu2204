@@ -50,7 +50,7 @@ def validate_sample(output, wrench, received, now, contract, profile):
         raise ValueError('baseline EOAT identity differs')
 
 
-def prepare(run_dir, method):
+def prepare(run_dir, method, video_policy="required"):
     resolve_method(method)  # Reject unsupported methods before any device access.
     out = Path(run_dir).expanduser().resolve()
     if out.exists():
@@ -69,7 +69,7 @@ def prepare(run_dir, method):
         sensor = LiveR004KunweiTransport('192.168.50.25', port=5152)
         video_dir = out/'baseline-video'
         video_dir.mkdir()
-        video = VideoRecorder('rtsp://127.0.0.1:8554/arm', video_dir)
+        video = VideoRecorder('rtsp://127.0.0.1:8554/arm', video_dir, policy=video_policy)
         try:
             video.start(); rtde.open(); sensor.open()
             # A previous resident STOP/ARM image survives Dashboard Load/Play.
@@ -169,7 +169,9 @@ def prepare(run_dir, method):
                 'mean_wrench_n_nm': values.mean(axis=0).tolist(),
                 'std_wrench_n_nm': values.std(axis=0).tolist(),
                 'stationary': True, 'no_contact': True,
-                'no_contact_basis': 'configured clearance Home, unchanged bench geometry; operator-attended task authorization; video retained',
+                'no_contact_basis': 'configured clearance Home, unchanged bench geometry; operator-attended task authorization',
+                'video_policy': video_policy,
+                'video_evidence': video.evidence(),
                 'eoat_identity_sha256': profile.profile_sha256,
                 'capture_file': capture.name,
                 'capture_sha256': hashlib.sha256(capture.read_bytes()).hexdigest(),
@@ -184,8 +186,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run-dir', type=Path, required=True)
     parser.add_argument('--method', default='TASE_RNN_MATURE')
+    parser.add_argument('--video-policy', choices=sorted(VideoRecorder.POLICIES), default='required')
     args = parser.parse_args()
-    prepare(args.run_dir, args.method)
+    prepare(args.run_dir, args.method, args.video_policy)
 
 if __name__ == '__main__':
     main()

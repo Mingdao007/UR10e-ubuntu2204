@@ -3,7 +3,7 @@
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
-  echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60] [--run-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE]'
+  echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60] [--run-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--video-policy required|evidence-only]'
   echo 'Defaults: TASE_RNN_MATURE, CPU 2, one 62.831853 s full-period figure-eight, then stop/Home.'
   echo 'The autotuner passes --duration r013_60 explicitly for the historical 60 s R013-compatible window.'
   echo 'Without --run-dir: automatically capture fresh baseline and fetch installed packages.'
@@ -15,6 +15,7 @@ cpu=2
 run_dir=''
 parameter_file=''
 duration='full'
+video_policy='required'
 while (($#)); do
   case "$1" in
     --method) [[ $# -ge 2 ]] || exit 64; method="$2"; shift 2 ;;
@@ -22,9 +23,14 @@ while (($#)); do
     --control-cpu) [[ $# -ge 2 ]] || exit 64; cpu="$2"; shift 2 ;;
     --run-dir) [[ $# -ge 2 ]] || exit 64; run_dir="$2"; shift 2 ;;
     --parameter-file) [[ $# -ge 2 ]] || exit 64; parameter_file="$2"; shift 2 ;;
+    --video-policy) [[ $# -ge 2 ]] || exit 64; video_policy="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 64 ;;
   esac
 done
+case "$video_policy" in
+  required|evidence-only) ;;
+  *) echo "Unsupported video policy: $video_policy" >&2; exit 64 ;;
+esac
 case "$duration" in
   full|full_period|period|r013_60|compat60|r013_compat_60) ;;
   *) echo "Unsupported Figure-eight duration: $duration" >&2; exit 64 ;;
@@ -38,12 +44,13 @@ if [[ -z "$run_dir" || ! -d "$run_dir" ]]; then
     PYTHONPATH="$ROOT/tools:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages" \
     AMENT_PREFIX_PATH=/opt/ros/humble OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
     "$ROOT/.venv-contact-six/bin/python" -B "$ROOT/tools/prepare_figure8.py" \
-    --run-dir "$run_dir" --method "$method"
+    --run-dir "$run_dir" --method "$method" --video-policy "$video_policy"
 fi
 set +e
 supervise_args=(supervise --action pilot \
  --method "$method" --duration "$duration" --run-dir "$run_dir" \
  --readback-dir "$run_dir/readback" --control-cpu "$cpu")
+supervise_args+=(--video-policy "$video_policy")
 if [[ -n "$parameter_file" ]]; then
   supervise_args+=(--parameter-file "$parameter_file")
 fi
