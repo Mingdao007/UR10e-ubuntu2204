@@ -23,7 +23,7 @@ from contact_yield_live_contract import (
 )
 from contact_yield_live_path import LivePathRequest, parse_live_duration, require_live_path_request
 from contact_yield_method_registry import CONTACT_PROGRAM, resolve_method
-from contact_yield_protocol import QP_LIBRARY_PATH
+from contact_yield_protocol import PATH_SEAM_CONTINUATION_S, QP_LIBRARY_PATH
 from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 from step5d_autotune_v4_r004.contracts import (
     CONTROLLER_READBACK_MAX_AGE_S,
@@ -692,9 +692,18 @@ class NativeYieldLiveWriter(R006LiveWriter):
         phase = kwargs.get("reference_phase")
         phase_time = kwargs.get("reference_time_s")
         end = self._r013_path_early_end_controller
-        if (request is not None and request.kind in {"diagnostic", "r013_compat_60"}
-            and phase == "path" and phase_time is not None
-            and phase_time >= request.path_duration_s and not end.requested):
+        # The TP consumes the end register on a later 500 Hz tick.  Requesting
+        # it at the exact formal endpoint lets controller/host clock skew end
+        # a real PATH a few milliseconds early (the measured 59.994--59.998 s
+        # failures).  Keep the formal metric window at [5, 60), but allow the
+        # bounded protocol seam to be consumed before publishing RETURNING.
+        end_time_s = None
+        if request is not None and request.kind in {"diagnostic", "r013_compat_60"}:
+            end_time_s = request.path_duration_s
+            if request.kind == "r013_compat_60":
+                end_time_s += PATH_SEAM_CONTINUATION_S
+        if (end_time_s is not None and phase == "path" and phase_time is not None
+            and phase_time >= end_time_s and not end.requested):
             if not end.request_early_end(self._ordinal):
                 raise YieldLiveWriterError("diagnostic PATH-end request rejected")
             # This is the writer-owned normal end fence, not an active

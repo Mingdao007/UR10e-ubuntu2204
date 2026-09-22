@@ -163,6 +163,16 @@ def test_native_r013_normal_end_is_not_misclassified_as_active_censor(monkeypatc
         reference_time_s=60.0,
     )
 
+    assert writer._r013_path_end_requested is False
+
+    native_writer_module.NativeYieldLiveWriter._send_packet(
+        writer,
+        None,
+        proposed_qdot=(0.0,) * 6,
+        reference_phase="path",
+        reference_time_s=60.004,
+    )
+
     assert writer._r013_path_end_requested is True
     assert writer._r013_path_end_request_sequence == 1
     assert writer._r013_path_end_request_mono_s == pytest.approx(12.5)
