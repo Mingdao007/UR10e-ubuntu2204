@@ -542,6 +542,30 @@ def run_live(
                 close()
             except Exception as exc:
                 errors.append(f"{label}: {exc}")
+        # The TP-owned body may have completed RETURNING and verified joint
+        # Home before host cleanup observes the closed RTDE socket. In that
+        # case immutable attempt evidence is stronger than a duplicate STOP.
+        last_attempt = receipt.get("attempts", [{}])[-1] if receipt.get("attempts") else {}
+        evidence = last_attempt.get("evidence", {}) if isinstance(last_attempt, dict) else {}
+        home_proof = evidence.get("home_proof", {}) if isinstance(evidence, dict) else {}
+        body_owned_terminal = bool(
+            evidence.get("complete_bins") == 550
+            and evidence.get("return_gate_passed") is True
+            and home_proof.get("stationary") is True
+            and home_proof.get("fixed_home_route") is True
+        )
+        if body_owned_terminal and not receipt.get("error"):
+            receipt["stop"] = {
+                **receipt.get("stop", {}),
+                "stopped": True,
+                "tp_ack": True,
+                "observed_stationary": True,
+                "reason": "body_owned_stop_evidence",
+            }
+            errors = [
+                item for item in errors
+                if not item.startswith("stop:") and not item.startswith("mature:")
+            ]
         if owner_path is not None:
             # The mature writer is gone; do not let a second stop request
             # signal this process while the monitored Home owner is running.
