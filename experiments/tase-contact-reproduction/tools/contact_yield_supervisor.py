@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 import multiprocessing as mp
+import os
 from pathlib import Path
 import queue
 import subprocess
@@ -35,9 +36,14 @@ DASHBOARD_FIELDS = ['is in remote control', 'safetymode', 'robotmode',
                     'running', 'programState', 'get loaded program']
 
 
-def _observe(host, path, samples, errors, ready, done):
+def _observe(host, path, samples, errors, ready, done, excluded_cpu=None):
     from step5d_autotune_v3.rtde_client import RTDEClient
     try:
+        if excluded_cpu is not None:
+            available = set(os.sched_getaffinity(0))
+            if excluded_cpu in available and len(available) > 1:
+                available.remove(excluded_cpu)
+                os.sched_setaffinity(0, available)
         with Path(path).open('x', buffering=1) as log, RTDEClient(host, timeout=.2) as client:
             client.negotiate()
             recipe, types = client.setup_outputs(100., OUTPUT_FIELDS)
@@ -75,12 +81,13 @@ def _observe(host, path, samples, errors, ready, done):
 
 class ProcessObserver:
     """Dedicated process avoids sharing the 500 Hz writer's Python GIL."""
-    def __init__(self, host, path):
+    def __init__(self, host, path, *, excluded_cpu=None):
         ctx = mp.get_context('spawn')
         self.samples, self.errors = ctx.Queue(4), ctx.Queue(1)
         self.ready, self.done = ctx.Event(), ctx.Event()
         self.process = ctx.Process(target=_observe,
-            args=(host, str(path), self.samples, self.errors, self.ready, self.done))
+            args=(host, str(path), self.samples, self.errors, self.ready, self.done,
+                  None if excluded_cpu is None else int(excluded_cpu)))
         self.row = None
         self.error = None
         self.sample_count = 0
@@ -546,7 +553,11 @@ def main(argv=None):
     from step5d_autotune_v4_r014.dispatcher import WriterLock
     from run_contact_home import INSTALLED_LOCK
     target=contract.raw['script2']['controller_target']
-    observer=ProcessObserver(a.controller_host,a.run_dir/'supervisor-rtde.jsonl')
+    observer=ProcessObserver(
+        a.controller_host,
+        a.run_dir/'supervisor-rtde.jsonl',
+        excluded_cpu=a.control_cpu,
+    )
     video=VideoRecorder(a.video_url,a.run_dir,policy=a.video_policy)
     supervisor=ResidentSupervisor(observer=observer,video=video,
         read_dashboard=lambda:dashboard_exchange(a.controller_host,DASHBOARD_FIELDS),
