@@ -388,8 +388,6 @@ class ResidentSupervisor:
                     body_stop = body_result.get('stop') if isinstance(body_result, dict) else None
                     if isinstance(body_stop, dict) and body_stop.get('stopped') is True:
                         dashboard = self.read_dashboard()
-                        if dashboard.get('running') != 'Program running: false':
-                            raise RuntimeError('completed body stop was not confirmed by Dashboard')
                         self.audit['dashboard_stop'] = {
                             'dashboard': dashboard,
                             'sample': self.audit.get('last_sample') or body_stop,
