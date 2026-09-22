@@ -1,5 +1,6 @@
 """Resident failure regressions. Every endpoint here is synthetic/offline."""
 import json
+from dataclasses import asdict
 import multiprocessing as mp
 import socket
 import struct
@@ -168,6 +169,25 @@ def test_real_refresh_callback_captures_ten_seconds_and_fetches_files(tmp_path, 
     assert capture[-1]['poll_monotonic_s'] >= 10.
     assert all(row['robot']['integer_echoes']['26'] == 78 for row in capture)
     rtde.close()
+
+
+def test_resident_seal_keeps_exact_rtde_json_bytes_without_deep_copy():
+    from contact_yield_resident_session import _json_default
+    from contact_yield_live_contract import load_identity_contract
+    from figure8_resident_acceptance import OfflineClock, OfflineResidentRTDE
+    contract = load_identity_contract()
+    clock = OfflineClock()
+    rtde = OfflineResidentRTDE(contract, home_pose=contract.home_pose,
+                              home_q=contract.home_q, clock=clock)
+    rtde.open()
+    try:
+        frame = rtde.poll_output()
+        actual = json.dumps(frame, sort_keys=True, allow_nan=False,
+                            default=_json_default)
+        original = json.dumps(asdict(frame), sort_keys=True, allow_nan=False)
+        assert actual == original
+    finally:
+        rtde.close()
 
 
 def test_failed_seal_retains_rotated_service_until_recovery(tmp_path):

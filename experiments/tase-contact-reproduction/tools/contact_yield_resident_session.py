@@ -5,7 +5,7 @@ wire safety remain in the existing mature writer/provider path.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import asdict, dataclass, fields, is_dataclass
 import copy
 import gc
 import hashlib
@@ -151,7 +151,9 @@ def _resident_service_tail_task(
 
 def _json_default(value: Any) -> Any:
     if is_dataclass(value):
-        return asdict(value)
+        # json walks nested dataclasses itself. Avoid asdict's recursive deep
+        # copies for tens of thousands of immutable RTDE and wire packets.
+        return {field.name: getattr(value, field.name) for field in fields(value)}
     if isinstance(value, Mapping):
         return dict(value)
     if hasattr(value, "tolist"):
