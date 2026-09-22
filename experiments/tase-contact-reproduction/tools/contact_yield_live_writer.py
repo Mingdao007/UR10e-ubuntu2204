@@ -9,6 +9,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import threading
 import time
 from typing import Any, Callable, Mapping, Sequence
 
@@ -658,6 +659,9 @@ class NativeYieldLiveWriter(R006LiveWriter):
         self.robot_observations = []
         self.admission_robot_observations = []
         self.rejected_robot_observations = []
+        self._service_mode = False
+        self._service_observations: dict[str, list[Any]] = {}
+        self._service_lock = threading.Lock()
         self._first_output_error = None
 
     def recovery_lifecycle(self, *, home_transition=None, ownership_registry=None):
@@ -674,15 +678,37 @@ class NativeYieldLiveWriter(R006LiveWriter):
             ownership_registry=ownership_registry,
         )
 
-    @staticmethod
-    def _record(buffer, value):
-        # One public pilot owns three qualifications and one PATH attempt.
-        # Buffers are run-scoped and retained until close, not per-attempt.
+    def _record(self, buffer, value):
+        # Attempts and idle service have separate bounded evidence buffers.
+        if getattr(self, "_service_mode", False):
+            labels = {
+                id(self.raw_observations): "raw_sensor",
+                id(self.command_observations): "published_packets",
+                id(self.robot_observations): "robot_frames",
+                id(self.admission_robot_observations): "admission_robot_frames",
+                id(self.rejected_robot_observations): "rejected_robot_frames",
+            }
+            label = labels.get(id(buffer), "service")
+            with self._service_lock:
+                rows = self._service_observations.setdefault(label, [])
+                # A full buffer is a recording failure, never permission to
+                # silently delete observations. The session seals each rotation.
+                if len(rows) >= 4 * 150000:
+                    raise YieldLiveWriterError("resident service evidence capacity reached")
+                rows.append(value)
+            return
         if len(buffer) >= 4 * 150000:
             raise YieldLiveWriterError("four-attempt run evidence capacity reached")
         buffer.append(value)
 
     def _send_packet(self, sensor, **kwargs):
+        output = getattr(self, '_last_output', None)
+        if (output is not None and output.integer_echoes.get(26) == 40
+            and kwargs.get('command_mode') is CommandMode.HOLD and not self._stopped):
+            # The TP rejects a repeated ARM at READY_HOME_NEXT with reason62.
+            # Retire ARM during its announced return, before Home is reached.
+            from step5d_autotune_v4_r004.wire import SessionCommand
+            self._session_command = SessionCommand.HOLD
         proposed = tuple(float(x) for x in kwargs.get("proposed_qdot", (0.,)*6))
         if len(proposed) != 6 or any(not math.isfinite(x) or abs(x) > .05 for x in proposed):
             raise YieldLiveWriterError("native joint velocity limit exceeded (0.05 rad/s)")
@@ -900,33 +926,10 @@ class NativeYieldLiveWriter(R006LiveWriter):
             "stop_packet_provenance": self._stop_packet_provenance,
         }
         if not self._runtime_transport_is_open():
-            # The TP-owned PATH return can already reach terminal state 90 and
-            # close the RTDE socket before host cleanup runs. Reusing the
-            # final verified output is safe here; sending a second STOP is
-            # neither necessary nor possible.
-            if (
-                self._stopped
-                and prior is not None
-                and self._identity_matches(prior)
-                and bool(getattr(prior, "safety_normal", False))
-                and bool(getattr(prior, "stationary", False))
-                and (getattr(prior, "integer_echoes", {}) or {}).get(26) == 90
-            ):
-                receipt.update({
-                    "stopped": True,
-                    "tp_ack": True,
-                    "observed_stationary": True,
-                    "safety_mode": getattr(prior, "safety_mode", None),
-                    "robot_mode": getattr(prior, "robot_mode", None),
-                    "runtime_state": getattr(prior, "runtime_state", None),
-                    "runtime_mode": 90,
-                    "state": 90,
-                    "reason": "body_owned_stop",
-                    "controller_timestamp": getattr(prior, "timestamp", None),
-                    "received_monotonic_s": getattr(prior, "received_monotonic_s", None),
-                    "actual_qd": list(getattr(prior, "qd_rad_s", ())),
-                    "actual_tcp_speed": list(getattr(prior, "tcp_speed_m_s_rad_s", ())),
-                })
+            # A closed transport has no fresh STOP observation.  The prior
+            # Home/terminal image is retained as raw evidence, but it cannot
+            # mint a physical STOP acknowledgement or promote the session.
+            receipt["reason"] = "transport_closed_before_fresh_stop_observation"
             self._stop_terminal_receipt = receipt
             return dict(receipt)
         deadline = requested_at + float(timeout_s)

@@ -28,8 +28,12 @@ from step5d_autotune_v4_r014.dispatcher import WriterLock
 from step5d_eoat_profiles import load_new_eoat_profile
 
 
-def validate_sample(output, wrench, received, now, contract, profile):
-    if output is None or not output.safety_normal or output.runtime_state != 1:
+def validate_sample(output, wrench, received, now, contract, profile, *, resident=False):
+    ready = (output is not None and output.program_running
+             and output.integer_echoes.get(26) == 78)
+    if output is None or not output.safety_normal or not (
+        ready if resident else output.runtime_state == 1
+    ):
         raise ValueError('baseline needs a stopped NORMAL robot')
     for at in (output.received_monotonic_s, received):
         if at is None or not 0 <= now-at < .080:

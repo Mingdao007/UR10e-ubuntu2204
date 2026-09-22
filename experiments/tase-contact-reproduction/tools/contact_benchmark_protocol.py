@@ -92,6 +92,31 @@ class SensorFreshnessTracker:
             self._held_streak = 0
         return band
 
+    def checkpoint(self):
+        return {'count': len(self._ages), 'counts': dict(self._counts),
+                'held_streak': self._held_streak,
+                'longest_hold_samples': self._longest_hold_samples,
+                'longest_hold_s': self._longest_hold_s,
+                'stale_stop_count': self._stale_stop_count,
+                'geometric_latency_reject_count': self._geometric_latency_reject_count}
+
+    def restore(self, state):
+        from bisect import bisect_left
+        count = int(state['count'])
+        if not 0 <= count <= len(self._ages):
+            raise ValueError('freshness checkpoint is not an earlier observation boundary')
+        if count == 0:
+            self._ages.clear()
+            self._ordered_ages.clear()
+        else:
+            for age in self._ages[count:]:
+                del self._ordered_ages[bisect_left(self._ordered_ages, age)]
+            del self._ages[count:]
+        self._counts = dict(state['counts'])
+        for key in ('held_streak', 'longest_hold_samples', 'longest_hold_s',
+                    'stale_stop_count', 'geometric_latency_reject_count'):
+            setattr(self, '_' + key, state[key])
+
     def stale_stop(self, age_s):
         band = self.observe(age_s)
         if band != "stale":

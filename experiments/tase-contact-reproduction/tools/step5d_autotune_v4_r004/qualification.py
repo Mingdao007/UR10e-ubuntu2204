@@ -327,6 +327,13 @@ class CanonicalQualificationControl:
                 if isinstance(value, list):
                     del value[length:]
 
+        def rollback_unpublished_step():
+            restore_control_checkpoint()
+            if provider_checkpoint is not None:
+                provider_restore(provider_checkpoint)
+            self._pending_transport_rollback = None
+
+        self._pending_transport_rollback = rollback_unpublished_step
         try:
             from step5d_autotune_v4_r004.baseline_runtime import (
                 BaselineHardLimits,

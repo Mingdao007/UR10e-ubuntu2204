@@ -889,6 +889,8 @@ class LiveR004Writer:
         )
         self._hot_path_mark("wire_build_exit")
         self._hot_path_mark("transport_send_enter")
+        # A partial send has an uncertain wire outcome; never reuse its id.
+        self._packet_sequence += 1
         rtde.send_packet(packet.double_values, packet.integer_values)
         self._hot_path_mark("transport_send_exit")
         published_at = self._mono_clock()
@@ -904,7 +906,6 @@ class LiveR004Writer:
             reference_time_s=reference_time_s if mode not in {CommandMode.HOLD, CommandMode.STOP} else None,
         )
         self._hot_path_mark("packet_history_exit")
-        self._packet_sequence += 1
         return packet
 
     def _request_r013_path_end(self, sequence: int) -> None:
@@ -1945,11 +1946,15 @@ class LiveR004Writer:
                             **reference_kwargs,
                         )
                     except BaseException as exc:
+                        rollback = getattr(self._qualification_control, '_pending_transport_rollback', None)
+                        if callable(rollback):
+                            rollback()
                         self._hot_path_mark(
                             "send_wrapper_error", error_type=type(exc).__name__
                         )
                         self._hot_path_finish(success=False, error=exc)
                         raise
+                    self._qualification_control._pending_transport_rollback = None
                     self._hot_path_mark(
                         "send_wrapper_return",
                         published_monotonic_s=self._last_writer_publish_mono_s,
@@ -2187,31 +2192,30 @@ class LiveR004Writer:
                 "home_q_error_rad": q_error,
                 "return_guard": guard,
             }
-            if qualification_collector is not None:
-                evidence: AttemptEvidence | QualificationEvidence = qualification_collector.finalize(
-                    return_gate_passed=decision.passed,
-                    home_proof=home_proof,
-                    timing_evidence=qualification_timing.finalize(),
-                )
-            elif path_collector is not None:
-                if self._r013_external_path_end_requested():
-                    # Active V4 censoring owns a sequence-matched graceful
-                    # PATH end.  Preserve the partial raw trace as a typed,
-                    # non-trainable receipt instead of sending it through the
-                    # exact 550-bin constructor (which must remain strict).
-                    evidence = path_collector.finalize_censored(
+            def finalize_evidence():
+                if qualification_collector is not None:
+                    return qualification_collector.finalize(
+                        return_gate_passed=decision.passed,
+                        home_proof=home_proof,
+                        timing_evidence=qualification_timing.finalize(),
+                    )
+                if path_collector is not None:
+                    if self._r013_external_path_end_requested():
+                        return path_collector.finalize_censored(
+                            return_gate_passed=decision.passed,
+                            home_proof=home_proof,
+                            contact_gate_passed={20, 21, 25}.issubset(seen_states),
+                        )
+                    return path_collector.finalize(
                         return_gate_passed=decision.passed,
                         home_proof=home_proof,
                         contact_gate_passed={20, 21, 25}.issubset(seen_states),
                     )
-                else:
-                    evidence = path_collector.finalize(
-                        return_gate_passed=decision.passed,
-                        home_proof=home_proof,
-                        contact_gate_passed={20, 21, 25}.issubset(seen_states),
-                    )
-            else:  # pragma: no cover - exhaustive construction above
                 raise LiveWriterError("r004 attempt evidence collector is unavailable")
+
+            evidence: AttemptEvidence | QualificationEvidence = self._run_terminal_finalize(
+                finalize_evidence
+            )
             if not decision.passed or (not evidence.eligible and not allow_safe_nontrainable):
                 self._stopped = True
                 timing_detail = (
@@ -2238,6 +2242,13 @@ class LiveR004Writer:
         finally:
             if gc_was_enabled and not gc.isenabled():
                 gc.enable()
+
+    def _run_terminal_finalize(self, finalizer):
+        """Run evidence finalization through an owner-provided service seam."""
+        service = getattr(self, "_terminal_finalize_service", None)
+        if callable(service):
+            return service(finalizer)
+        return finalizer()
 
     def stop(self, reason: str = "operator_stop") -> None:
         if self._stopped:

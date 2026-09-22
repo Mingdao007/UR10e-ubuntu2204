@@ -253,15 +253,18 @@ def stationary(row):
 
 class ResidentSupervisor:
     def __init__(self, *, observer, video, read_dashboard, writer, target,
-                 clock=time.monotonic, sleep=time.sleep):
+                 home_pose=None, home_q=None, clock=time.monotonic, sleep=time.sleep):
         self.observer, self.video = observer, video
         self.read_dashboard, self.writer, self.target = read_dashboard, writer, target
+        self.home_pose = None if home_pose is None else tuple(float(value) for value in home_pose)
+        self.home_q = None if home_q is None else tuple(float(value) for value in home_q)
         self.clock, self.sleep = clock, sleep
         self.audit = {
             'success': False,
             'events': [],
             'lifecycle_events': [],
             'motion_commands_from_supervisor': 0,
+            'program_stopped': False,
         }
 
     def _mark_lifecycle(self, stage: str, event: str = 'start') -> None:
@@ -298,7 +301,25 @@ class ResidentSupervisor:
             raise RuntimeError('resident wire identity differs')
         return row
 
-    def _wait(self, *, running, after, timeout=5., healthy=True, prior_timestamp=None):
+    def _at_home(self, row):
+        if self.home_pose is None or self.home_q is None:
+            return True
+        if max(abs(a - b) for a, b in zip(row['actual_q'], self.home_q, strict=True)) > .02:
+            return False
+        if math.dist(row['actual_TCP_pose'][:3], self.home_pose[:3]) > .0005:
+            return False
+        try:
+            import numpy as np
+            from contact_yield_math import so3_exp, so3_log
+            orientation_error = float(np.linalg.norm(
+                so3_log(so3_exp(row['actual_TCP_pose'][3:]) @ so3_exp(self.home_pose[3:]).T)
+            ))
+        except Exception:
+            orientation_error = math.dist(row['actual_TCP_pose'][3:], self.home_pose[3:])
+        return orientation_error <= .01
+
+    def _wait(self, *, running, after, timeout=5., healthy=True, prior_timestamp=None,
+              require_home=False):
         deadline = self.clock()+timeout
         while self.clock() < deadline:
             # Stop verification preserves raw safety mode rather than requiring NORMAL.
@@ -315,6 +336,7 @@ class ResidentSupervisor:
                 and dash['programState'].startswith(desired)
                 and row['runtime_state']==(2 if running else 1)
                 and row['received_monotonic_s'] >= after and stationary(row)
+                and (not require_home or self._at_home(row))
                 and (prior_timestamp is None or row['timestamp'] > prior_timestamp)):
                 if running and [row[f'output_int_register_{i}'] for i in (32,33,34)] != [RUNTIME_PROTOCOL,*READABLE_RUNTIME_IDENTITY]:
                     self.sleep(.02)
@@ -322,6 +344,37 @@ class ResidentSupervisor:
                 return {'dashboard':dash,'sample':row}
             self.sleep(.02)
         raise RuntimeError(f'{desired} was not observed before timeout')
+
+    def stop_program_and_verify(self, *, reason='operator_stop', protocol_stop=None,
+                                home_proof=None):
+        """Issue the real Dashboard STOP and verify a fresh stopped Home image."""
+
+        del protocol_stop, home_proof
+        prior = self.audit.get('last_sample', {}).get('timestamp')
+        requested_at = self.clock()
+        self._mark_lifecycle('PROGRAM_STOP', 'requested')
+        self.writer.write('stop')
+        observed = self._wait(
+            running=False,
+            after=requested_at,
+            healthy=False,
+            prior_timestamp=prior,
+            require_home=True,
+        )
+        sample = observed['sample']
+        if sample.get('runtime_state') != 1 or not stationary(sample) or not self._at_home(sample):
+            raise RuntimeError('fresh Dashboard STOPPED image is not stationary approved Home')
+        self.audit['dashboard_stop'] = observed
+        self.audit['program_stopped'] = True
+        self._mark_lifecycle('PROGRAM_STOP', 'verified')
+        return {
+            'program_stopped': True,
+            'stopped': True,
+            'dashboard': observed['dashboard'],
+            'sample': sample,
+            'reason': str(reason),
+            'requested_monotonic_s': requested_at,
+        }
 
     def run(self, body, before_load=None, *, execute_program=True):
         play_attempted = False
@@ -379,29 +432,22 @@ class ResidentSupervisor:
         finally:
             if play_attempted:
                 try:
-                    # A completed live body owns the TP STOP/RETURNING/Home
-                    # handshake. By the time control returns here, the
-                    # observer may have closed with the TP connection; do
-                    # not issue a duplicate stop or require a fresh observer
-                    # sample. The body stop receipt and current Dashboard
-                    # STOPPED state are the authoritative cleanup evidence.
-                    body_stop = body_result.get('stop') if isinstance(body_result, dict) else None
-                    if isinstance(body_stop, dict) and body_stop.get('stopped') is True:
-                        dashboard = self.read_dashboard()
-                        self.audit['dashboard_stop'] = {
-                            'dashboard': dashboard,
-                            'sample': self.audit.get('last_sample') or body_stop,
-                            'source': 'body_stop_receipt',
-                        }
-                    else:
-                        prior = self.audit.get('last_sample',{}).get('timestamp')
-                        if not any(
-                            isinstance(row, dict) and row.get('stage') == 'STOP'
-                            for row in self.audit['lifecycle_events']
-                        ):
-                            self._mark_lifecycle('STOP', 'requested')
+                    prior = self.audit.get('last_sample',{}).get('timestamp')
+                    if not any(
+                        isinstance(row, dict) and row.get('stage') == 'STOP'
+                        for row in self.audit['lifecycle_events']
+                    ):
+                        self._mark_lifecycle('STOP', 'requested')
+                    if not self.audit.get('program_stopped'):
                         at=self.clock(); self.writer.write('stop')
-                        self.audit['dashboard_stop']=self._wait(running=False,after=at,healthy=False,prior_timestamp=prior)
+                        self.audit['dashboard_stop']=self._wait(
+                            running=False,
+                            after=at,
+                            healthy=False,
+                            prior_timestamp=prior,
+                            require_home=True,
+                        )
+                        self.audit['program_stopped'] = True
                 except BaseException as exc:
                     self.audit['success']=False
                     self.audit['stop_error']=f'{type(exc).__name__}: {exc}'
@@ -422,7 +468,8 @@ def _prewarm(method):
     _prewarm_qp(QP_LIBRARY_PATH)
 
 
-def _write_receipts(directory, row, proof, contract):
+def _write_receipts(directory, row, proof, contract, *, session_epoch=1,
+                    resident_session_id=None):
     hi,lo=software_identity_limbs(contract)
     def write(name, body):
         body['receipt_sha256']=hashlib.sha256(json.dumps(body,sort_keys=True,separators=(',',':')).encode()).hexdigest()
@@ -442,70 +489,10 @@ def _write_receipts(directory, row, proof, contract):
         'safety_mode':'NORMAL','eoat_identity_sha256':contract.eoat_sha256,
         'provenance':'supervisor-rtde.jsonl; actual observed pose, not desired Home'})
     write('runtime_evidence.json',dict(common,program=contract.program,
-        script_sha256=contract.triplet['script'],session_epoch=1,resident_session_id=str(uuid.uuid4()),
+        script_sha256=contract.triplet['script'],session_epoch=session_epoch,
+        resident_session_id=resident_session_id or str(uuid.uuid4()),
         program_running=row['runtime_state']==2,uninterrupted=True,observed_at_s=row['observed_at_s'],
         provenance='continuous supervisor-rtde.jsonl from before Load/Play'))
-
-
-def _complete_path_home_recovered(run_dir: Path, result: dict) -> bool:
-    """Recognize a sealed PATH whose only late failure was writer cleanup.
-
-    The live writer owns the RTDE socket and may close it immediately after
-    sealing the terminal Home proof. In that case the resident observer can
-    report ``socket closed`` while the immutable dispatch receipt already
-    proves a complete 550-bin PATH. Keep the original supervisor failure in
-    the result, but allow the outer lifecycle to close successfully only when
-    the recovery owner has independently verified Home.
-    """
-    if not isinstance(result, dict) or result.get("success") is True:
-        return False
-    if "attempt cleanup or physical stop confirmation failed" not in str(result.get("error", "")):
-        return False
-    recovery = result.get("autonomous_home_recovery")
-    if not isinstance(recovery, dict) or recovery.get("success") is not True:
-        return False
-    try:
-        dispatch = json.loads((Path(run_dir) / "dispatch_receipt.json").read_text())
-    except (OSError, json.JSONDecodeError):
-        return False
-    if (
-        dispatch.get("command") != "pilot"
-        or dispatch.get("evidence_eligible") is not True
-        or dispatch.get("error")
-    ):
-        return False
-    path = dispatch.get("live_path") or {}
-    metrics = dispatch.get("evidence_metrics") or {}
-    timing = metrics.get("timing_evidence") or {}
-    if (
-        path.get("kind") != "r013_compat_60"
-        or path.get("protocol_id") != "figure8_window60_r013_compat_v1"
-        or metrics.get("complete") is not True
-        or metrics.get("coverage_complete") is not True
-        or metrics.get("objective_eligible") is not True
-        or metrics.get("interrupted") is not False
-        or int(metrics.get("complete_bins", -1)) != 550
-        or int(metrics.get("required_bins", -1)) != 550
-        or float(metrics.get("path_duration_s", 0.0)) < 60.0
-        or float(metrics.get("formal_metric_duration_s", 0.0)) < 55.0
-        or metrics.get("timing_gate_passed") is not True
-        or timing.get("successful") is not True
-    ):
-        return False
-    attempts = dispatch.get("attempts") or []
-    if not attempts or not isinstance(attempts[-1], dict):
-        return False
-    evidence = attempts[-1].get("evidence") or {}
-    home_proof = evidence.get("home_proof") or {}
-    if (
-        evidence.get("complete_bins") != 550
-        or evidence.get("return_gate_passed") is not True
-        or evidence.get("safety_gate_passed") is not True
-        or home_proof.get("stationary") is not True
-        or home_proof.get("fixed_home_route") is not True
-    ):
-        return False
-    return True
 
 
 def main(argv=None):
@@ -514,11 +501,14 @@ def main(argv=None):
     p.add_argument('--method',default='SFC'); p.add_argument('--duration',default='2')
     p.add_argument('--run-dir',type=Path,required=True); p.add_argument('--readback-dir',type=Path,required=True)
     p.add_argument('--parameter-file',type=Path)
+    p.add_argument('--resident-attempts',type=int,default=1)
     p.add_argument('--controller-host',default='192.168.1.18'); p.add_argument('--kunwei-host',default='192.168.50.25')
     p.add_argument('--control-cpu',type=int,required=True)
     p.add_argument('--video-url',default='rtsp://127.0.0.1:8554/arm')
     p.add_argument('--video-policy',choices=sorted(VideoRecorder.POLICIES),default='required')
     a=p.parse_args(argv)
+    if a.resident_attempts < 1 or (a.action != 'pilot' and a.resident_attempts != 1):
+        p.error('resident attempts require a positive pilot count')
     # Resolve once at the process boundary so every receipt, observer and
     # recovery owner shares the same directory even when the caller starts
     # from the worktree root or the experiment root.
@@ -560,7 +550,10 @@ def main(argv=None):
     video=VideoRecorder(a.video_url,a.run_dir,policy=a.video_policy)
     supervisor=ResidentSupervisor(observer=observer,video=video,
         read_dashboard=lambda:dashboard_exchange(a.controller_host,DASHBOARD_FIELDS),
-        writer=RemoteDashboardWriter(a.controller_host,load_target=target),target=target)
+        writer=RemoteDashboardWriter(a.controller_host,load_target=target),target=target,
+        home_pose=contract.home_pose, home_q=contract.home_q)
+    deferred_seals = []
+    from contact_yield_resident_session import refresh_live_preparation
     def body(s):
         if a.action=='resident-check':
             # The supervisor's ProcessObserver already owns the sole RTDE
@@ -593,6 +586,10 @@ def main(argv=None):
             # writer lock.  Defer monitored Home until the context below has
             # released it; otherwise recovery collides with its own lock.
             defer_recovery=True,
+            dashboard_stop_and_verify=supervisor.stop_program_and_verify,
+            deferred_seals=deferred_seals,
+            attempt_count=a.resident_attempts,
+            refresh_readback=refresh_live_preparation,
         )
     with WriterLock(INSTALLED_LOCK):
         result=supervisor.run(
@@ -649,14 +646,13 @@ def main(argv=None):
                     'home_blocked':True,
                     'home_blocked_reason':f'{type(fallback_exc).__name__}: {fallback_exc}',
                 }
-        if _complete_path_home_recovered(a.run_dir, result):
-            # Preserve the original cleanup failure and recovery receipt for
-            # audit, while making the lifecycle outcome usable by the
-            # sequential tuner after independent Home verification.
-            result['original_supervisor_success'] = False
-            result['completion_status'] = 'COMPLETE_PATH_HOME_RECOVERED_AFTER_CLEANUP_FAILURE'
-            result['attempt_failure_preserved'] = True
-            result['success'] = True
+    # Fault recovery owns the robot before any potentially large serialization.
+    for seal in deferred_seals:
+        try:
+            seal()
+        except Exception as exc:
+            result['success'] = False
+            result.setdefault('seal_errors', []).append(f'{type(exc).__name__}: {exc}')
     dispatch_path = a.run_dir / 'dispatch_receipt.json'
     dispatch_receipt = {}
     if dispatch_path.is_file() and not dispatch_path.is_symlink():

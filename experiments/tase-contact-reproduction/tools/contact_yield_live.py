@@ -11,6 +11,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import time
 from typing import Any, Mapping
 
 from contact_yield_live_contract import (
@@ -27,6 +28,12 @@ from contact_yield_live_writer import (
     load_run_dir_receipts,
     native_attempt,
     stop_and_confirm,
+)
+from contact_yield_resident_session import (
+    ResidentSessionError,
+    finish_session,
+    prepare_session,
+    run_attempt,
 )
 from contact_yield_method_registry import (
     MethodUnavailableError,
@@ -256,7 +263,8 @@ def request_process_stop(run_dir):
         or _process_start(pid) != owner["process_start"]):
         raise YieldLiveError("live owner process identity differs")
     argv = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
-    if str(Path(__file__).resolve()).encode() not in argv:
+    allowed_entries = (Path(__file__).resolve(), Path(__file__).resolve().with_name('contact_yield_supervisor.py'))
+    if not any(str(entry).encode() in argv for entry in allowed_entries):
         raise YieldLiveError("live owner command differs")
     os.kill(pid, signal.SIGINT)
     deadline = time.monotonic() + 3.
@@ -289,9 +297,18 @@ def run_live(
     owner_holder: list[Any] | None = None,
     observer_guard=None,
     defer_recovery: bool = False,
+    attempt_count: int = 1,
+    parameter_bindings: list[Mapping[str, Any]] | None = None,
+    refresh_readback=None,
+    dashboard_stop_and_verify=None,
+    deferred_seals=None,
 ) -> dict[str, Any]:
     if args.command not in {"qualify", "pilot"}:
         raise YieldLiveError(f"unknown live command {args.command!r}")
+    if isinstance(attempt_count, bool) or not isinstance(attempt_count, int) or attempt_count <= 0:
+        raise YieldLiveError("resident attempt count must be a positive integer")
+    if parameter_bindings is not None and len(parameter_bindings) != attempt_count:
+        raise YieldLiveError("resident parameter binding count differs from attempt count")
     # The live entry owns all artifacts below one canonical run directory.
     # Relative paths otherwise depend on the caller's current directory and
     # can split the attempt receipt from its read-back and recovery evidence.
@@ -362,6 +379,7 @@ def run_live(
     receipt: dict[str, Any] = {
         "motion_profile": asdict(mature.injection.motion_profile),
         "schema": "yield-live-entry-dispatch-v1",
+        "evidence_scope": ("live" if controller_transport is None else "offline_synthetic_endpoints"),
         "command": args.command,
         "attempt_id": args.attempt_id,
         "method": args.method,
@@ -405,55 +423,114 @@ def run_live(
             raise YieldLiveError(f"operator process stop signal {signum}")
         for sig in (signal.SIGINT, signal.SIGTERM):
             old_handlers[sig] = signal.signal(sig, interrupted)
+    return _run_live_with_resident_session(
+        args=args,
+        controller_transport=controller_transport,
+        mature=mature,
+        runtime=runtime,
+        provider=provider,
+        prerequisites=prerequisites,
+        request=request,
+        contract=contract,
+        video_url=video_url,
+        owner_holder=owner_holder,
+        owner_path=owner_path,
+        owner=owner if owner_path is not None else None,
+        old_handlers=old_handlers,
+        receipt=receipt,
+        lifecycle_clock=lifecycle_clock,
+        parameter_bindings=parameter_bindings,
+        attempt_count=attempt_count,
+        defer_recovery=defer_recovery,
+        refresh_readback=refresh_readback,
+        dashboard_stop_and_verify=dashboard_stop_and_verify,
+        deferred_seals=deferred_seals,
+    )
+
+
+def _run_live_with_resident_session(
+    *,
+    args: argparse.Namespace,
+    controller_transport: Any | None,
+    mature: Any,
+    runtime: Any,
+    provider: Any,
+    prerequisites: Any,
+    request: Any,
+    contract: Any,
+    video_url: str,
+    owner_holder: list[Any] | None,
+    owner_path: Path | None,
+    owner: dict[str, Any] | None,
+    old_handlers: dict[Any, Any],
+    receipt: dict[str, Any],
+    lifecycle_clock: Any,
+    parameter_bindings: list[Mapping[str, Any]] | None,
+    attempt_count: int,
+    defer_recovery: bool,
+    refresh_readback: Any | None,
+    dashboard_stop_and_verify: Any | None,
+    deferred_seals: list | None,
+) -> dict[str, Any]:
+    from dataclasses import asdict, is_dataclass
+    import os
+    import signal
+
+    session_started_s = float(lifecycle_clock())
+    if controller_transport is None:
+        session_started_s = float(os.environ.get('TASE_FIGURE8_STARTED_MONOTONIC', session_started_s))
+    session = prepare_session(
+        mature=mature,
+        runtime=runtime,
+        provider=provider,
+        prerequisites=prerequisites,
+        run_dir=Path(args.run_dir),
+        mono_clock=getattr(mature.writer, "_mono_clock", lifecycle_clock),
+        wall_clock=getattr(mature.writer, "_wall_clock", time.time),
+        sleep=getattr(mature.writer, "_sleep", time.sleep),
+        injected_endpoints=(controller_transport is not None),
+        refresh_readback=refresh_readback,
+        dashboard_stop_and_verify=dashboard_stop_and_verify,
+    )
     active_attempt: tuple[int, str] | None = None
+    partial_item: dict[str, Any] | None = None
+    errors: list[str] = []
     try:
-        mature.open(live_ack=R005_LIVE_ACK)
+        end_controller = getattr(mature.writer, "_r013_path_early_end_controller", None)
+        if end_controller is not None:
+            end_controller.writer = mature.writer._controller_transport
+        session.prepare_session(live_ack=R005_LIVE_ACK)
         receipt["opened"] = True
-        if getattr(mature.writer, "_r013_path_early_end_controller", None) is not None:
-            mature.writer._r013_path_early_end_controller.writer = (
-                mature.writer._controller_transport
-            )
-        from dataclasses import asdict
-        import copy
-        import os
-        seed_state = provider.snapshot()
-        # A pilot is one physical attempt: the TP-owned contact search and the
-        # host's ten-second readiness gate feed entry and the complete PATH
-        # without returning Home or reacquiring contact. ``qualify`` remains
-        # an explicitly qualification-only diagnostic command.
-        phases = ["qualify"] if args.command == "qualify" else ["pilot"]
         receipt["attempts"] = []
-        for sequence, phase in enumerate(phases, start=1):
-            # Separate physical attempts start from the documented seed; state
-            # is never reset inside contact, disturbance or recovery.
-            provider.restore(copy.deepcopy(seed_state))
-            attempt = native_attempt(command=phase, epoch=prerequisites.session_epoch,
-                                     sequence=sequence)
-            mature.writer._r013_path_early_end_controller.arm(sequence)
-            mature.dispatch(attempt, object())
+        phase = "qualify" if args.command == "qualify" else "pilot"
+        for sequence in range(1, attempt_count + 1):
+            if receipt["attempts"]:
+                previous = receipt["attempts"][-1].get("timing", {})
+                previous["next_started_monotonic_s"] = float(lifecycle_clock())
+                previous["turnaround_s"] = (
+                    previous["next_started_monotonic_s"] - previous["started_monotonic_s"]
+                )
             active_attempt = (sequence, phase)
-            if controller_transport is None:
-                from step5d_autotune_v4_r013.timing_scheduler import (
-                    FormalTimingSchedulerLeaseV2, TimingSchedulerProfileV1)
-                lease = FormalTimingSchedulerLeaseV2(TimingSchedulerProfileV1(
-                    control_cpu_affinity=(int(args.control_cpu),)))
-                mature.writer.install_timing_scheduler_lease(lease)
-                mature.writer.prepare_timing_scheduler_lease()
-            mature.arm(attempt)
-            lifecycle_contact_search_s = float(lifecycle_clock())
-            receipt["armed"] = True
-            evidence = mature.run_60s(attempt)
-            receipt["executed"] = True
-            scheduler = mature.writer.release_timing_scheduler_lease()
-            item = {"sequence": sequence, "phase": phase, "scheduler": scheduler,
-                    "evidence": asdict(evidence), "state": provider.snapshot()}
+            binding = None if parameter_bindings is None else parameter_bindings[sequence - 1]
+            item = run_attempt(
+                session,
+                phase=phase,
+                sequence=sequence,
+                control_cpu=getattr(args, "control_cpu", None),
+                parameter_binding=binding,
+            )
+            item = session.seal_attempt(item)
             receipt["attempts"].append(item)
+            receipt["armed"] = True
+            receipt["executed"] = True
             active_attempt = None
+            if (request is not None and request.kind == "r013_compat_60"
+                and item.get("evidence_eligible") is not True):
+                raise YieldLiveError("completed resident attempt failed evidence gates")
             if phase == "qualify":
-                if not evidence.eligible:
+                evidence = item.get("evidence") or {}
+                if item.get("evidence_eligible") is not True:
                     raise YieldLiveError("physical qualification failed; PATH not admitted")
-                # Count only actual completed, timing-qualified, returned
-                # attempts, after durable write and cold-read verification.
                 path = Path(args.run_dir) / f"qualification-{sequence}.json"
                 body = json.dumps(item, sort_keys=True, allow_nan=False)
                 with path.open("x") as handle:
@@ -462,34 +539,26 @@ def run_live(
                     os.fsync(handle.fileno())
                 if path.read_text() != body:
                     raise YieldLiveError("qualification receipt cold-read differs")
-                # R006MatureWriter wraps the actual R004 wire writer. Bind the
-                # one successful admission to that sole writer; assigning a
-                # new attribute on the adapter would silently leave the next
-                # PATH packet at baseline_successes=0.
                 admission_writer = getattr(mature.writer, "writer", mature.writer)
                 admission_writer.set_baseline_state(
                     consecutive_successes=sequence,
                     sticky_one_newton_latched=0,
                 )
-        receipt["evidence_type"] = type(evidence).__name__
-        receipt["evidence_eligible"] = bool(evidence.eligible)
-        receipt["evidence_metrics"] = dict(evidence.metrics)
-        receipt["success"] = bool(evidence.eligible)
-        return receipt
+        last = receipt["attempts"][-1]
+        evidence = last.get("evidence") or {}
+        receipt["evidence_type"] = "ResidentAttemptEvidence"
+        receipt["evidence_eligible"] = bool(last.get("evidence_eligible"))
+        receipt["evidence_metrics"] = dict(evidence.get("metrics") or {})
+        receipt["success"] = bool(receipt["evidence_eligible"])
     except BaseException as exc:
         receipt["error"] = f"{type(exc).__name__}: {exc}"
         receipt["failure_state"] = provider.snapshot()
         if active_attempt is not None and not any(
-            isinstance(item, dict)
-            and item.get("sequence") == active_attempt[0]
-            for item in receipt.get("attempts", ())
+            isinstance(row, dict) and row.get("sequence") == active_attempt[0]
+            for row in receipt.get("attempts", ())
         ):
-            # Preserve a typed partial-attempt denominator when the writer
-            # fails before it can construct AttemptEvidence.  No MAE is
-            # invented; the raw buffers and failure string remain the only
-            # diagnostic evidence for this attempt.
             partial_writer = getattr(mature.writer, "writer", mature.writer)
-            receipt.setdefault("attempts", []).append({
+            partial_item = {
                 "sequence": active_attempt[0],
                 "phase": active_attempt[1],
                 "partial": True,
@@ -506,82 +575,42 @@ def run_live(
                     "failure": str(exc),
                 },
                 "state": provider.snapshot(),
-            })
-        diagnostic_partial = bool(
-            request is not None
-            and request.kind == "diagnostic"
-            and "of 550 bins" in str(exc)
-        )
-        if diagnostic_partial:
-            # Short diagnostic rungs are allowed to seal an incomplete
-            # denominator.  They are never eligible BO observations, but the
-            # owner still returns a receipt so the caller can score coverage.
-            receipt["diagnostic_incomplete"] = True
-            receipt["evidence_eligible"] = False
-            receipt["evidence_type"] = "PartialAttemptEvidence"
-            receipt["evidence_metrics"] = (
-                receipt.get("attempts", [{}])[-1].get("evidence", {}).get("metrics", {})
-            )
-            return receipt
-        raise
+                "lifecycle": {
+                    "path_complete": False,
+                    "home_verified": False,
+                    "ready_for_next": False,
+                    "program_stopped": False,
+                    "sealed": False,
+                },
+            }
+            receipt.setdefault("attempts", []).append(partial_item)
+        if request is None or request.kind != "diagnostic" or "of 550 bins" not in str(exc):
+            raise
+        receipt["diagnostic_incomplete"] = True
+        receipt["evidence_eligible"] = False
+        receipt["evidence_type"] = "PartialAttemptEvidence"
+        receipt["evidence_metrics"] = receipt["attempts"][-1]["evidence"]["metrics"]
     finally:
-        errors = []
-        stop_requested_s: float | None = None
         if old_handlers:
-            # A repeated request must not interrupt transport cleanup.
             for sig in old_handlers:
                 signal.signal(sig, signal.SIG_IGN)
         try:
-            stop_requested_s = float(lifecycle_clock())
-            receipt["stop"] = stop_and_confirm(mature.writer)
-        except Exception as exc:
-            receipt["stop"] = {"stopped": False, "error": str(exc)}
-            errors.append(f"stop: {exc}")
-        for label, close in (("mature", mature.close), ("runtime", runtime.close)):
-            try:
-                close()
-            except Exception as exc:
-                errors.append(f"{label}: {exc}")
-        # The TP-owned body may have completed RETURNING and verified joint
-        # Home before host cleanup observes the closed RTDE socket. In that
-        # case immutable attempt evidence is stronger than a duplicate STOP.
-        last_attempt = receipt.get("attempts", [{}])[-1] if receipt.get("attempts") else {}
-        evidence = last_attempt.get("evidence", {}) if isinstance(last_attempt, dict) else {}
-        home_proof = evidence.get("home_proof", {}) if isinstance(evidence, dict) else {}
-        body_owned_terminal = bool(
-            evidence.get("complete_bins") == 550
-            and evidence.get("return_gate_passed") is True
-            and home_proof.get("stationary") is True
-            and home_proof.get("fixed_home_route") is True
-        )
-        if body_owned_terminal and not receipt.get("error"):
-            receipt["stop"] = {
-                **receipt.get("stop", {}),
-                "stopped": True,
-                "tp_ack": True,
-                "observed_stationary": True,
-                "reason": "body_owned_stop_evidence",
-            }
-            errors = [
-                item for item in errors
-                if not item.startswith("stop:") and not item.startswith("mature:")
-            ]
-        if owner_path is not None:
-            # The mature writer is gone; do not let a second stop request
-            # signal this process while the monitored Home owner is running.
+            receipt["stop"] = finish_session(
+                session,
+                reason="operator_stop" if not receipt.get("error") else "attempt_fault",
+            )
+        except BaseException as exc:
+            receipt["stop"] = {"stopped": False, "tp_ack": False, "error": str(exc)}
+            errors.append(f"stop: {type(exc).__name__}: {exc}")
+        if owner is not None and owner_path is not None:
             owner["active"] = False
             owner_path.write_text(json.dumps(owner))
-        # Once the original writer is closed, give the monitored Home owner
-        # priority over evidence serialization. This is the first host-side
-        # action after a physical fault; it never retries the failed attempt.
+        stop_errors = receipt.get("stop", {}).get("cleanup_errors", [])
+        if isinstance(stop_errors, list):
+            errors.extend(str(value) for value in stop_errors)
         physical_fault = bool(receipt.get("error")) or bool(errors) or not receipt.get("stop", {}).get("stopped")
         if physical_fault and controller_transport is None:
             if defer_recovery:
-                # The resident supervisor holds the process-wide writer lock
-                # around this call.  Its caller must release that lock before
-                # the independent monitored Home owner can acquire the same
-                # resource; otherwise recovery races its own lock and is
-                # reported BLOCKED even though the robot is commandable.
                 receipt["automatic_home_recovery_deferred"] = {
                     "state": "DEFERRED_UNTIL_SINGLE_WRITER_RELEASE",
                     "policy": "AUTO_HOME_WHEN_COMMANDABLE",
@@ -599,62 +628,90 @@ def run_live(
                         "automatic_home: "
                         + str(recovery.get("home_blocked_reason") or recovery.get("error") or recovery.get("state"))
                     )
-        from dataclasses import asdict, is_dataclass
+        def seal_after_recovery():
+            if partial_item is not None and partial_item.get("lifecycle", {}).get("sealed") is not True:
+                session.seal_attempt(partial_item, service=False)
+            receipt["service_tail"] = session.seal_service_tail()
+
+        seal_deferred = bool(physical_fault and controller_transport is None and defer_recovery)
+        if not seal_deferred:
+            try:
+                seal_after_recovery()
+            except Exception as exc:
+                errors.append(f"evidence seal: {type(exc).__name__}: {exc}")
+        receipt["evidence_seal_deferred"] = seal_deferred
+        receipt["cleanup_errors"] = errors
+        receipt["session"] = {
+            "schema": "yield-live-entry/resident-session-v2",
+            "resource_scope": "one_writer_one_rtde_one_kunwei_one_provider",
+            "attempt_count": len(receipt.get("attempts", ())),
+            "resident_resources_reused": True,
+            "resident_tp_stop_between_attempts": False,
+            "lifecycle_events": list(session.lifecycle_events),
+            "transport_trace": list(session.transport_trace),
+            "refreshes": list(session.refreshes),
+            "protocol_stop_ack": bool(receipt.get("stop", {}).get("protocol_stop_ack")),
+            "program_stopped": bool(receipt.get("stop", {}).get("program_stopped")),
+        }
+        if attempt_count == 6:
+            from contact_yield_resident_session import infrastructure_report
+            receipt['infrastructure_acceptance'] = infrastructure_report(
+                receipt, session_started_s=session_started_s,
+                finished_s=lifecycle_clock(), live=controller_transport is None)
+        try:
+            receipt["lifecycle_events"] = lifecycle_events_from_writer(
+                mature.writer,
+                home_check_s=float(lifecycle_clock()),
+                contact_search_s=None,
+                stop_s=float(lifecycle_clock()),
+                home_verified=bool(receipt.get("stop", {}).get("home_verified")),
+            )
+        except Exception as exc:
+            receipt["lifecycle_events"] = []
+            receipt["lifecycle_event_error"] = f"{type(exc).__name__}: {exc}"
         def encode(value):
             if is_dataclass(value):
                 return asdict(value)
             if hasattr(value, "tolist"):
                 return value.tolist()
-            raise TypeError(f"unsupported evidence type: {type(value).__name__}")
-        for filename, rows in (
-            ("raw_sensor.jsonl", mature.writer.raw_observations),
-            ("robot_frames.jsonl", mature.writer.robot_observations),
-            ("admission_robot_frames.jsonl", mature.writer.admission_robot_observations),
-            ("rejected_robot_frames.jsonl", mature.writer.rejected_robot_observations),
-            ("published_packets.jsonl", mature.writer.command_observations),
-        ):
-            try:
-                with (Path(args.run_dir) / filename).open("x") as handle:
-                    for row in rows:
-                        handle.write(json.dumps(row, default=encode, allow_nan=False) + "\n")
-            except Exception as exc:
-                errors.append(f"evidence {filename}: {exc}")
-        receipt["cleanup_errors"] = errors
-        home_verified = False
-        for item in receipt.get("attempts", ()):
-            if not isinstance(item, dict):
-                continue
-            evidence_row = item.get("evidence") or {}
-            proof = evidence_row.get("home_proof") if isinstance(evidence_row, dict) else None
-            if isinstance(proof, dict) and proof.get("stationary") is True and proof.get("fixed_home_route") is True and evidence_row.get("return_gate_passed") is True:
-                home_verified = True
+            raise TypeError(f"unsupported receipt type: {type(value).__name__}")
+        initial_document = recovery_handoff_receipt(receipt) if seal_deferred else receipt
         try:
-            receipt["lifecycle_events"] = lifecycle_events_from_writer(
-                mature.writer,
-                home_check_s=lifecycle_home_check_s,
-                contact_search_s=lifecycle_contact_search_s,
-                stop_s=stop_requested_s,
-                home_verified=home_verified,
-            )
+            with (Path(args.run_dir) / "dispatch_receipt.json").open("x") as handle:
+                json.dump(initial_document, handle, indent=2, sort_keys=True, allow_nan=False, default=encode)
+                handle.write("\n")
         except Exception as exc:
-            # Timing reduction is observation-only; preserve the original
-            # attempt outcome while making the missing reducer evidence clear.
-            receipt["lifecycle_events"] = []
-            receipt["lifecycle_event_error"] = f"{type(exc).__name__}: {exc}"
-        # Preserve failed attempts as well as successful ones. Never overwrite
-        # a prior attempt: the caller must supply a fresh run directory.
-        with (Path(args.run_dir) / "dispatch_receipt.json").open("x") as handle:
-            json.dump(receipt, handle, indent=2, sort_keys=True, allow_nan=False)
-            handle.write("\n")
+            errors.append(f"receipt sink: {type(exc).__name__}: {exc}")
+        if seal_deferred and deferred_seals is not None:
+            def deferred_seal():
+                try:
+                    seal_after_recovery()
+                    receipt["evidence_seal_deferred"] = False
+                except Exception as exc:
+                    errors.append(f"evidence seal: {type(exc).__name__}: {exc}")
+                temporary = Path(args.run_dir) / "dispatch_receipt.seal.tmp"
+                temporary.write_text(json.dumps(receipt, indent=2, sort_keys=True, allow_nan=False, default=encode) + "\n")
+                temporary.replace(Path(args.run_dir) / "dispatch_receipt.json")
+            deferred_seals.append(deferred_seal)
         if owner_holder is not None:
             owner_holder.clear()
-        if owner_path is not None:
+        if owner is not None and owner_path is not None:
             owner["active"] = False
             owner_path.write_text(json.dumps(owner))
         for sig, handler in old_handlers.items():
             signal.signal(sig, handler)
         if not receipt.get("error") and (errors or not receipt["stop"].get("stopped")):
             raise YieldLiveError("attempt cleanup or physical stop confirmation failed")
+    return receipt
+
+
+def recovery_handoff_receipt(receipt):
+    """Bounded metadata only; full traces remain owned until after recovery."""
+    keys = ('schema', 'attempt_id', 'command', 'method', 'program', 'home_program',
+            'runtime_protocol', 'evidence_scope', 'armed', 'executed', 'error',
+            'stop', 'automatic_home_policy', 'automatic_home_recovery_deferred',
+            'evidence_seal_deferred')
+    return {key: receipt[key] for key in keys if key in receipt}
 
 
 def time_clock(now_s: float | None) -> float:

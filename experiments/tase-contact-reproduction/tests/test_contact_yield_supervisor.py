@@ -6,7 +6,6 @@ from contact_yield_supervisor import (
     ResidentSupervisor,
     READABLE_RUNTIME_IDENTITY,
     VideoRecorder,
-    _complete_path_home_recovered,
 )
 from contact_yield_live import ObservedTransport
 
@@ -162,46 +161,23 @@ def test_observer_loss_does_not_prevent_dashboard_stop_dispatch():
     assert 'observer lost' in result['stop_error']
 
 
-def test_complete_path_cleanup_failure_requires_verified_home_recovery(tmp_path):
-    metrics = {
-        'complete': True,
-        'coverage_complete': True,
-        'objective_eligible': True,
-        'interrupted': False,
-        'complete_bins': 550,
-        'required_bins': 550,
-        'path_duration_s': 60.0,
-        'formal_metric_duration_s': 55.0,
-        'timing_gate_passed': True,
-        'timing_evidence': {'successful': True},
-    }
-    dispatch = {
-        'command': 'pilot',
-        'evidence_eligible': True,
-        'live_path': {
-            'kind': 'r013_compat_60',
-            'protocol_id': 'figure8_window60_r013_compat_v1',
-        },
-        'evidence_metrics': metrics,
-        'attempts': [{
-            'evidence': {
-                'complete_bins': 550,
-                'return_gate_passed': True,
-                'safety_gate_passed': True,
-                'home_proof': {'stationary': True, 'fixed_home_route': True},
-            },
-        }],
-    }
-    (tmp_path / 'dispatch_receipt.json').write_text(json.dumps(dispatch))
-    result = {
-        'success': False,
-        'error': 'YieldLiveError: attempt cleanup or physical stop confirmation failed',
-        'autonomous_home_recovery': {'success': True, 'state': 'HOME_RECOVERED'},
-    }
-    assert _complete_path_home_recovered(tmp_path, result)
+def test_protocol_ack_never_substitutes_for_dashboard_stop():
+    s, _, t, events = rig()
+    result = s.run(lambda _: {'stop': {'stopped': True, 'tp_ack': True}})
+    assert result['success']
+    assert events.count('stop') == 1
+    assert result['program_stopped'] is True
+    assert result['dashboard_stop']['sample']['runtime_state'] == 1
+    assert events.index('stop') < events.index('observer.close')
 
-    result['autonomous_home_recovery'] = {'success': False, 'state': 'BLOCKED'}
-    assert not _complete_path_home_recovered(tmp_path, result)
+
+def test_protocol_ack_with_still_playing_dashboard_fails():
+    s, _, t, events = rig(stop_delay=10.)
+    result = s.run(lambda _: {'stop': {'stopped': True, 'tp_ack': True}})
+    assert not result['success']
+    assert not result['program_stopped']
+    assert 'STOPPED was not observed' in result['stop_error']
+    assert events.count('stop') == 1
 
 
 def test_preload_gate_failure_never_loads_or_plays():

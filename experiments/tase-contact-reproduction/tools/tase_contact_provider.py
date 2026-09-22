@@ -386,12 +386,18 @@ class TaseContactProvider(ContactCommandProvider):
 
     def formal_reference(self, time_s):
         """World reference for evidence joined to an actually consumed packet."""
-        # The TP can emit one bounded seam sample after the 60 s endpoint while
-        # the RETURNING handshake is being acknowledged.  Keep evidence
-        # joining consistent with the live command path; formal scoring still
-        # excludes samples at or beyond 60 s.
-        seam = self.path_seam_continuation_s if self.protocol_id == R013_COMPAT60_PROTOCOL_ID else 0.0
-        t = min(max(float(time_s), 0.0), self.path_duration_s + seam)
+        # The TP can emit one bounded R013 seam sample after the 60 s endpoint
+        # while the RETURNING handshake is being acknowledged.  Reject every
+        # other clock value: clamping an invalid timestamp would bind evidence
+        # to a different command and hide a transport/protocol fault.
+        try:
+            t = float(time_s)
+        except (TypeError, ValueError) as exc:
+            raise ValueError('TASE formal reference clock is not numeric') from exc
+        seam = self.path_seam_continuation_s
+        upper = self.path_duration_s + seam
+        if not math.isfinite(t) or not 0.0 <= t <= upper:
+            raise ValueError('TASE formal reference clock is outside the bounded protocol seam')
         kwargs = {"allow_seam": True} if self.protocol_id == R013_COMPAT60_PROTOCOL_ID else {}
         ref = self.task.reference(t, **kwargs)
         return {'position_m': self.anchor + self.basis @ np.asarray(ref['position_m']),
@@ -399,6 +405,7 @@ class TaseContactProvider(ContactCommandProvider):
 
     def snapshot(self):
         return copy.deepcopy({
+            'freshness': self.freshness.checkpoint(),
             'runtime': self.runtime.dynamic_state_snapshot(), 'phase': self.phase,
             'reference_phase': self.reference_phase, 'last_sample_s': self.last_sample_s,
             'last_controller_timestamp': self.last_controller_timestamp,
@@ -416,6 +423,8 @@ class TaseContactProvider(ContactCommandProvider):
 
     def restore(self, state):
         state = copy.deepcopy(state)
+        if 'freshness' in state:
+            self.freshness.restore(state.pop('freshness'))
         self.runtime.restore_dynamic_state(state.pop('runtime'))
         observation = state.pop('filter')
         self.lifecycle_observer.filtered_normal_n = observation['filtered_normal_n']
@@ -843,10 +852,12 @@ class TaseContactProvider(ContactCommandProvider):
                 'predicted_twist_m_s_rad_s': tuple(float(value) for value in predicted_twist),
                 'predicted_approach_normal_velocity_m_s': approach_normal_velocity,
                 'entry_time_s': t if phase == 'entry' else None,
-                # Keep handshake-only ticks on the bounded periodic seam. The
-                # formal metric collector still clips observations at PERIOD_S.
+                # Bind the packet to the reference actually evaluated above.
+                # The raw host clock is retained separately; reference() has
+                # already rejected clocks outside the bounded handshake.
+                'host_formal_time_s': t if phase == 'path' else None,
                 'formal_time_s': (
-                    min(t, PERIOD_S + PATH_SEAM_CONTINUATION_S)
+                    min(t, self.path_duration_s + self.path_seam_continuation_s)
                     if phase == 'path' else None
                 ),
                 'actual_dt_s': actual_dt_s, 'solver': copy.deepcopy(self.runtime.last_solver_diagnostics),

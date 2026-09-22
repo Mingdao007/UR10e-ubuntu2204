@@ -557,3 +557,35 @@ def test_native_readiness_default_still_rejects_above_four_ms():
     from contact_benchmark_provider import ContactReadinessObserver
     with pytest.raises(ValueError,match='interval'):
         ContactReadinessObserver(.1).step(actual_dt_s=.006,raw_normal_n=1.,setpoint_n=1.,mode='baseline')
+
+
+def test_r013_packet_reference_matches_bounded_evaluated_reference():
+    p = TaseContactProvider(contract=current_model_binding(), candidate=V4Candidate(),
+        motion_profile=native_motion_profile(), home_pose=load_identity_contract().home_pose,
+        solver_profile=LEGACY_R1, protocol_id=R013_COMPAT60_PROTOCOL_ID)
+    try:
+        o, s = tick(p, .002, force=5.)
+        reference = p.formal_reference(60.004)
+        o.tcp_pose_m_rad = (*reference['position_m'], *load_identity_contract().home_pose[3:])
+        p.command(output=o, sensor=s, monotonic_s=.002, actual_dt_s=.002,
+                  mode='path', path_time_s=61.008, internal_setpoint_n=5.)
+        assert p.last_result['formal_time_s'] == 60.004
+        assert p.last_result['host_formal_time_s'] == pytest.approx(60.008)
+        p.formal_reference(p.last_result['formal_time_s'])
+        for invalid in (float('nan'), float('inf'), -1., 60.005):
+            with pytest.raises(ValueError, match='bounded protocol seam'):
+                p.formal_reference(invalid)
+    finally:
+        p.close()
+
+
+def test_provider_restore_rolls_back_freshness_without_history_copy(provider):
+    p = provider
+    seed = p.snapshot()
+    o, s = tick(p, .002)
+    p.command(output=o, sensor=s, monotonic_s=.002, actual_dt_s=.002,
+              mode='baseline', internal_setpoint_n=1.)
+    assert p.freshness.as_dict()['observation_count'] == 1
+    p.restore(seed)
+    assert p.freshness.as_dict()['observation_count'] == 0
+    assert p.snapshot() == seed

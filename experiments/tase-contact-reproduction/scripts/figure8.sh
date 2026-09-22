@@ -18,7 +18,9 @@ parameter_file=''
 prepared_dir=''
 stop_requested=0
 duration='r013_60'
-video_policy='required'
+video_policy='evidence-only'
+resident_attempts=1
+offline_acceptance=0
 while (($#)); do
   case "$1" in
     --method) [[ $# -ge 2 ]] || exit 64; method="$2"; shift 2 ;;
@@ -29,9 +31,19 @@ while (($#)); do
     --stop) stop_requested=1; shift ;;
     --parameter-file) [[ $# -ge 2 ]] || exit 64; parameter_file="$2"; shift 2 ;;
     --video-policy) [[ $# -ge 2 ]] || exit 64; video_policy="$2"; shift 2 ;;
+    --resident-attempts) [[ $# -ge 2 ]] || exit 64; resident_attempts="$2"; shift 2 ;;
+    --offline-acceptance) offline_acceptance=1; shift ;;
     *) echo "Unknown option: $1" >&2; exit 64 ;;
   esac
 done
+if (( offline_acceptance )); then
+  [[ -n "$run_dir" ]] || { echo '--offline-acceptance requires --run-dir' >&2; exit 64; }
+  exec env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONNOUSERSITE=1 \
+    PYTHONPATH="$ROOT/tools:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages" \
+    OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
+    "$ROOT/.venv-contact-six/bin/python" "$ROOT/tools/figure8_resident_acceptance.py" \
+    --run-dir "$run_dir" --attempts "$resident_attempts"
+fi
 case "$video_policy" in
   required|evidence-only) ;;
   *) echo "Unsupported video policy: $video_policy" >&2; exit 64 ;;
@@ -45,6 +57,11 @@ case "$duration" in
   full|full_period|period|r013_60|compat60|r013_compat_60) ;;
   *) echo "Unsupported Figure-eight duration: $duration" >&2; exit 64 ;;
 esac
+if [[ -z "$parameter_file" && "$method" == TASE_RNN_MATURE ]]; then
+  case "$duration" in
+    r013_60|compat60|r013_compat_60) parameter_file="$ROOT/config/tase_figure8_integral_0p1.json" ;;
+  esac
+fi
 
 write_terminal_no_dispatch_receipt() {
   local phase="$1"
@@ -91,6 +108,7 @@ if [[ -n "$prepared_dir" ]]; then
       --source "$prepared_dir" --destination "$run_dir"
   fi
 fi
+export TASE_FIGURE8_STARTED_MONOTONIC="$(python3 -c 'import time; print(time.monotonic())')"
 if [[ -z "$run_dir" || ! -d "$run_dir" ]]; then
   status_rc=0
   "$ROOT/scripts/contact-six.sh" status || status_rc=$?
@@ -118,6 +136,7 @@ supervise_args=(supervise --action pilot \
  --method "$method" --duration "$duration" --run-dir "$run_dir" \
  --readback-dir "$run_dir/readback" --control-cpu "$cpu")
 supervise_args+=(--video-policy "$video_policy")
+supervise_args+=(--resident-attempts "$resident_attempts")
 if [[ -n "$parameter_file" ]]; then
   supervise_args+=(--parameter-file "$parameter_file")
 fi
