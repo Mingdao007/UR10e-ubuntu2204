@@ -78,8 +78,8 @@ if [[ -z "$run_dir" || ! -d "$run_dir" ]]; then
   if [[ -z "$run_dir" ]]; then
     run_dir="$ROOT/runs/figure8-$(date -u +%Y%m%dT%H%M%S)-$$"
   fi
-  mkdir -p "$run_dir"
   if (( status_rc != 0 )); then
+    mkdir -p "$run_dir"
     write_terminal_no_dispatch_receipt contact_six_status "$status_rc"
     exit "$status_rc"
   fi
