@@ -174,6 +174,7 @@ def load_tase_outer_config(path=None):
             'source': 'paper-default',
             'Md_scalar': TASE_LIVE_OUTER_CONFIG.Md_scalar,
             'Bd_scalar': TASE_LIVE_OUTER_CONFIG.Bd_scalar,
+            'force_integral_limit_n_s': TASE_LIVE_OUTER_CONFIG.force_integral_limit_n_s,
             'orientation_gain_scale': TASE_LIVE_OUTER_CONFIG.orientation_gain_scale,
         }
     candidate_path = Path(path).expanduser().resolve()
@@ -203,18 +204,33 @@ def load_tase_outer_config(path=None):
         if not lo <= value <= hi:
             raise ValueError(f'TASE {name} is outside the bounded autotuner search box')
     frozen = payload.get('frozen')
-    if frozen is not None and frozen != {
+    expected_frozen = {
         'kp': 4.0, 'ko': 5.0, 'kf': 1.0, 'force_target_n': 5.0,
-        'force_integral_limit_n_s': 1.0,
         'force_sign_convention': 'step5_step6_positive_normal_load',
-    }:
+    }
+    if not isinstance(frozen, dict):
+        raise ValueError('TASE parameter file requires frozen outer-loop fields')
+    if set(frozen) != set(expected_frozen) | {'force_integral_limit_n_s'}:
         raise ValueError('TASE frozen outer-loop fields differ')
+    if {key: frozen.get(key) for key in expected_frozen} != expected_frozen:
+        raise ValueError('TASE frozen outer-loop fields differ')
+    try:
+        integral_limit = float(frozen['force_integral_limit_n_s'])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError('TASE frozen integral limit is required') from exc
+    # 1.0 N s is the retained R013 baseline.  0.1 N s is the explicitly
+    # discussed low-windup Figure-eight trial.  Keep this selector discrete so
+    # a parameter file cannot silently turn the integral into a new tuner axis.
+    if integral_limit not in {0.1, 1.0}:
+        raise ValueError('TASE frozen integral limit must be 0.1 or 1.0 N s')
     binding = dict(payload)
     binding.update({'schema': TASE_PARAMETER_SCHEMA, 'source': str(candidate_path),
                     'Md_scalar': md, 'Bd_scalar': bd,
+                    'force_integral_limit_n_s': integral_limit,
                     'orientation_gain_scale': TASE_LIVE_OUTER_CONFIG.orientation_gain_scale,
                     'orientation_target_policy': 'fixed_approved_home_rotvec'})
-    return replace(TASE_LIVE_OUTER_CONFIG, Md_scalar=md, Bd_scalar=bd), binding
+    return replace(TASE_LIVE_OUTER_CONFIG, Md_scalar=md, Bd_scalar=bd,
+                   force_integral_limit_n_s=integral_limit), binding
 
 
 @dataclass(frozen=True)
@@ -307,7 +323,9 @@ class TaseContactProvider(ContactCommandProvider):
                                   else {'schema': TASE_PARAMETER_SCHEMA,
                                         'source': 'paper-default',
                                         'Md_scalar': self.runtime.outer_loop_config.Md_scalar,
-                                        'Bd_scalar': self.runtime.outer_loop_config.Bd_scalar})
+                                        'Bd_scalar': self.runtime.outer_loop_config.Bd_scalar,
+                                        'force_integral_limit_n_s': (
+                                            self.runtime.outer_loop_config.force_integral_limit_n_s)})
         declared_protocol = self.parameter_binding.get("protocol_id")
         if declared_protocol is not None and str(declared_protocol) != self.protocol_id:
             raise ValueError("TASE parameter protocol identity differs from live request")

@@ -12,6 +12,7 @@ from tase_contact_provider import (
     TASE_FORCE_RISE_INWARD_CAP_M_S,
     TaseContactProvider,
     current_model_binding,
+    load_tase_outer_config,
 )
 from tase_figure8_protocol import PROTOCOL_ID as R013_COMPAT60_PROTOCOL_ID
 from step5d_autotune_v4.contracts import V4Candidate
@@ -81,6 +82,7 @@ def test_live_tase_binds_paper_outer_parameters(provider):
     )
     assert config.orientation_gain_scale == 1.0
     assert TASE_PAPER_OUTER_CONFIG.orientation_gain_scale == 1.0
+    assert provider.parameter_binding['force_integral_limit_n_s'] == pytest.approx(1.0)
     # The R006 candidate has a different derived force mapping; checking the
     # runtime binding prevents candidate tuning from silently replacing the
     # TASE Eq. 16/17 anchors.
@@ -95,6 +97,57 @@ def test_live_tase_binds_paper_outer_parameters(provider):
         internal_setpoint_n=1.,
     )
     assert provider.last_result['outer_loop_binding']['equations'] == ['Eq16', 'Eq17']
+
+
+def test_parameter_file_binds_explicit_low_windup_integral_limit(tmp_path):
+    payload = {
+        'schema': 'tase.outer-parameters-v1',
+        'candidate_id': 'manual-integral-0p1',
+        'stage': 'diagnostic',
+        'index': 0,
+        'Md_scalar': 12.0,
+        'Bd_scalar': 550.0,
+        'protocol_id': R013_COMPAT60_PROTOCOL_ID,
+        'duration_token': 'r013_60',
+        'frozen': {
+            'kp': 4.0,
+            'ko': 5.0,
+            'kf': 1.0,
+            'force_target_n': 5.0,
+            'force_integral_limit_n_s': 0.1,
+            'force_sign_convention': 'step5_step6_positive_normal_load',
+        },
+    }
+    path = tmp_path / 'integral-0p1.json'
+    path.write_text(json.dumps(payload), encoding='utf-8')
+    config, binding = load_tase_outer_config(path)
+    assert config.force_integral_limit_n_s == pytest.approx(0.1)
+    assert binding['force_integral_limit_n_s'] == pytest.approx(0.1)
+
+
+def test_parameter_file_rejects_unapproved_integral_limit(tmp_path):
+    payload = {
+        'schema': 'tase.outer-parameters-v1',
+        'candidate_id': 'manual-integral-0p2',
+        'stage': 'diagnostic',
+        'index': 0,
+        'Md_scalar': 12.0,
+        'Bd_scalar': 550.0,
+        'protocol_id': R013_COMPAT60_PROTOCOL_ID,
+        'duration_token': 'r013_60',
+        'frozen': {
+            'kp': 4.0,
+            'ko': 5.0,
+            'kf': 1.0,
+            'force_target_n': 5.0,
+            'force_integral_limit_n_s': 0.2,
+            'force_sign_convention': 'step5_step6_positive_normal_load',
+        },
+    }
+    path = tmp_path / 'integral-0p2.json'
+    path.write_text(json.dumps(payload), encoding='utf-8')
+    with pytest.raises(ValueError, match='0.1 or 1.0'):
+        load_tase_outer_config(path)
 
 
 def test_live_path_keeps_confirmed_home_orientation_velocity_zero(provider):
