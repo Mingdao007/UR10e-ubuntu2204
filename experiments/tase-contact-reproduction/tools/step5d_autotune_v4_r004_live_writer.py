@@ -1926,7 +1926,22 @@ class LiveR004Writer:
                 if state not in {78, 80, 90}:
                     reference_kwargs = {}
                     provider = getattr(self._qualification_control, "contact_command_provider", None)
-                    if (state == 25 and mode is CommandMode.PATH and not path_end_fence
+                    if (state == 21 and mode is CommandMode.PATH
+                        and callable(getattr(provider, "formal_reference", None))):
+                        # State 21 is the TP-owned stationary transition into
+                        # state 25. The host must keep input register 25 at
+                        # PATH so the TP can open that transition, but every
+                        # packet consumed during the dwell is pre-PATH and
+                        # must never become the formal clock origin. Bind it
+                        # explicitly as entry evidence; otherwise a delayed
+                        # state-25 observation can make the first consumed
+                        # formal reference appear late and fail the strict
+                        # boundary gate.
+                        reference_kwargs = {
+                            "reference_phase": "entry",
+                            "reference_time_s": 0.0,
+                        }
+                    elif (state == 25 and mode is CommandMode.PATH and not path_end_fence
                         and callable(getattr(provider, "execution_command", None))):
                         result = provider.last_result
                         if (not isinstance(result, dict) or result.get("sample_time_s") != now
