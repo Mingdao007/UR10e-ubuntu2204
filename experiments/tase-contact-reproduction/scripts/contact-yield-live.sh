@@ -35,7 +35,9 @@ fi
 entry="${EXPERIMENT_ROOT}/tools/contact_yield_live.py"
 case "$1" in
   supervise)
-    "${EXPERIMENT_ROOT}/scripts/contact-six.sh" status >&2
+    if [[ "${TASE_CAMPAIGN_REUSE:-0}" != "1" ]]; then
+      "${EXPERIMENT_ROOT}/scripts/contact-six.sh" status >&2
+    fi
     entry="${EXPERIMENT_ROOT}/tools/contact_yield_supervisor.py"
     shift ;;
   qualify|pilot) "${EXPERIMENT_ROOT}/scripts/contact-six.sh" status >&2 ;;

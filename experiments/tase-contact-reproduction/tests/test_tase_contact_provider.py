@@ -99,7 +99,11 @@ def test_live_tase_binds_paper_outer_parameters(provider):
     assert provider.last_result['outer_loop_binding']['equations'] == ['Eq16', 'Eq17']
 
 
-def test_parameter_file_binds_explicit_low_windup_integral_limit(tmp_path):
+@pytest.mark.parametrize('integral_limit', [0.1, 1.0])
+@pytest.mark.parametrize('force_error', [-1.0, 1.0])
+def test_parameter_file_binds_explicit_low_windup_integral_limit(
+    tmp_path, integral_limit, force_error
+):
     payload = {
         'schema': 'tase.outer-parameters-v1',
         'candidate_id': 'manual-integral-0p1',
@@ -114,15 +118,44 @@ def test_parameter_file_binds_explicit_low_windup_integral_limit(tmp_path):
             'ko': 5.0,
             'kf': 1.0,
             'force_target_n': 5.0,
-            'force_integral_limit_n_s': 0.1,
+            'force_integral_limit_n_s': integral_limit,
+            'force_integral_policy': 'legacy-clamp-v1',
+            'force_integral_authority_error_n': 0.5,
             'force_sign_convention': 'step5_step6_positive_normal_load',
         },
     }
     path = tmp_path / 'integral-0p1.json'
     path.write_text(json.dumps(payload), encoding='utf-8')
     config, binding = load_tase_outer_config(path)
-    assert config.force_integral_limit_n_s == pytest.approx(0.1)
-    assert binding['force_integral_limit_n_s'] == pytest.approx(0.1)
+    assert config.force_integral_limit_n_s == pytest.approx(integral_limit)
+    assert binding['force_integral_limit_n_s'] == pytest.approx(integral_limit)
+    p = TaseContactProvider(
+        contract=current_model_binding(), candidate=V4Candidate(),
+        motion_profile=native_motion_profile(),
+        home_pose=load_identity_contract().home_pose,
+        solver_profile=LEGACY_R1, outer_loop_config=config,
+        parameter_binding=binding, protocol_id=R013_COMPAT60_PROTOCOL_ID,
+    )
+    try:
+        # Exercise the real runtime replacement and integrator, not just the
+        # parameter-file binding: a constructor default previously overwrote
+        # 0.1 with 1.0 on every live update.
+        for index in range(600):
+            load = 5.0 - force_error
+            p.runtime.desired_twist(
+                actual_tcp_pose=load_identity_contract().home_pose,
+                actual_tcp_speed=(0.0,) * 6,
+                force_tcp_n=(0.0, 0.0, -load),
+                filtered_normal_n=load, internal_setpoint_n=5.0,
+                actual_dt_s=0.002, mode='path', path_time_s=index * 0.002,
+            )
+            state = p.snapshot()['runtime']['outer_state']['force_integral_n_s']
+            assert abs(state) <= integral_limit + 1e-12
+        assert state == pytest.approx(force_error * integral_limit)
+        assert p.runtime.force_integral_limit_n_s == pytest.approx(integral_limit)
+        assert p.parameter_binding['force_integral_limit_n_s'] == pytest.approx(integral_limit)
+    finally:
+        p.close()
 
 
 def test_parameter_file_rejects_unapproved_integral_limit(tmp_path):
@@ -141,13 +174,44 @@ def test_parameter_file_rejects_unapproved_integral_limit(tmp_path):
             'kf': 1.0,
             'force_target_n': 5.0,
             'force_integral_limit_n_s': 0.2,
+            'force_integral_policy': 'legacy-clamp-v1',
+            'force_integral_authority_error_n': 0.5,
             'force_sign_convention': 'step5_step6_positive_normal_load',
         },
     }
     path = tmp_path / 'integral-0p2.json'
     path.write_text(json.dumps(payload), encoding='utf-8')
-    with pytest.raises(ValueError, match='0.1 or 1.0'):
+    with pytest.raises(ValueError, match='0.1, 0.5, or 1.0'):
         load_tase_outer_config(path)
+
+
+def test_parameter_file_binds_conditional_double_clamp_policy(tmp_path):
+    payload = {
+        'schema': 'tase.outer-parameters-v1',
+        'candidate_id': 'screen-D-00',
+        'stage': 'screening',
+        'index': 0,
+        'Md_scalar': 9.565272137974492,
+        'Bd_scalar': 693.6559295653944,
+        'protocol_id': R013_COMPAT60_PROTOCOL_ID,
+        'duration_token': 'r013_60',
+        'frozen': {
+            'kp': 4.0,
+            'ko': 5.0,
+            'kf': 1.0,
+            'force_target_n': 5.0,
+            'force_integral_limit_n_s': 1.0,
+            'force_integral_policy': 'conditional-double-clamp-v1',
+            'force_integral_authority_error_n': 0.5,
+            'force_sign_convention': 'step5_step6_positive_normal_load',
+        },
+    }
+    path = tmp_path / 'screen-D-00.json'
+    path.write_text(json.dumps(payload), encoding='utf-8')
+    config, binding = load_tase_outer_config(path)
+    assert config.force_integral_policy == 'conditional-double-clamp-v1'
+    assert binding['force_integral_policy'] == 'conditional-double-clamp-v1'
+    assert config.force_integral_authority_error_n == pytest.approx(0.5)
 
 
 def test_live_path_keeps_confirmed_home_orientation_velocity_zero(provider):

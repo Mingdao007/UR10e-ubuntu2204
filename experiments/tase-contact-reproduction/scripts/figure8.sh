@@ -3,7 +3,8 @@
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
-  echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60] [--run-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--video-policy required|evidence-only]'
+  echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60] [--run-dir RUN] [--prepared-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--video-policy required|evidence-only]'
+  echo '       figure8.sh --stop --run-dir RUN'
   echo 'Defaults: TASE_RNN_MATURE, CPU 2, one 60 s R013-compatible figure-eight, then stop/Home.'
   echo 'Use --duration full explicitly for the separate 62.831853 s full-period protocol.'
   echo 'Without --run-dir: automatically capture fresh baseline and fetch installed packages.'
@@ -14,6 +15,8 @@ method=TASE_RNN_MATURE
 cpu=2
 run_dir=''
 parameter_file=''
+prepared_dir=''
+stop_requested=0
 duration='r013_60'
 video_policy='required'
 while (($#)); do
@@ -22,6 +25,8 @@ while (($#)); do
     --duration) [[ $# -ge 2 ]] || exit 64; duration="$2"; shift 2 ;;
     --control-cpu) [[ $# -ge 2 ]] || exit 64; cpu="$2"; shift 2 ;;
     --run-dir) [[ $# -ge 2 ]] || exit 64; run_dir="$2"; shift 2 ;;
+    --prepared-dir) [[ $# -ge 2 ]] || exit 64; prepared_dir="$2"; shift 2 ;;
+    --stop) stop_requested=1; shift ;;
     --parameter-file) [[ $# -ge 2 ]] || exit 64; parameter_file="$2"; shift 2 ;;
     --video-policy) [[ $# -ge 2 ]] || exit 64; video_policy="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 64 ;;
@@ -31,6 +36,11 @@ case "$video_policy" in
   required|evidence-only) ;;
   *) echo "Unsupported video policy: $video_policy" >&2; exit 64 ;;
 esac
+
+if (( stop_requested )); then
+  [[ -n "$run_dir" ]] || { echo '--stop requires --run-dir' >&2; exit 64; }
+  exec "$ROOT/scripts/contact-yield-live.sh" stop --run-dir "$run_dir"
+fi
 case "$duration" in
   full|full_period|period|r013_60|compat60|r013_compat_60) ;;
   *) echo "Unsupported Figure-eight duration: $duration" >&2; exit 64 ;;
@@ -72,6 +82,15 @@ payload = {
 PY
 }
 
+if [[ -n "$prepared_dir" ]]; then
+  [[ -n "$run_dir" ]] || { echo '--prepared-dir requires --run-dir' >&2; exit 64; }
+  if [[ ! -f "$run_dir/software_baseline_receipt.json" ]]; then
+    env -u VIRTUAL_ENV -u PYTHONHOME PYTHONNOUSERSITE=1 \
+      PYTHONPATH="$ROOT/tools:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages" \
+      "$ROOT/.venv-contact-six/bin/python" -B "$ROOT/tools/reuse_figure8_preparation.py" \
+      --source "$prepared_dir" --destination "$run_dir"
+  fi
+fi
 if [[ -z "$run_dir" || ! -d "$run_dir" ]]; then
   status_rc=0
   "$ROOT/scripts/contact-six.sh" status || status_rc=$?
@@ -102,7 +121,11 @@ supervise_args+=(--video-policy "$video_policy")
 if [[ -n "$parameter_file" ]]; then
   supervise_args+=(--parameter-file "$parameter_file")
 fi
-"$ROOT/scripts/contact-yield-live.sh" "${supervise_args[@]}"
+if [[ -n "$prepared_dir" ]]; then
+  TASE_CAMPAIGN_REUSE=1 "$ROOT/scripts/contact-yield-live.sh" "${supervise_args[@]}"
+else
+  "$ROOT/scripts/contact-yield-live.sh" "${supervise_args[@]}"
+fi
 
 result=$?
 # Keep the previous recoverable run when admission failed before dispatch.

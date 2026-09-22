@@ -1,0 +1,41 @@
+{
+  "schema": "tase.integral-screening-v1",
+  "method": "TASE_RNN_MATURE",
+  "protocol_id": "figure8_window60_r013_compat_v1",
+  "duration_token": "r013_60",
+  "target_force_n": 5.0,
+  "Md_scalar": 9.565272137974492,
+  "Bd_scalar": 693.6559295653944,
+  "repeats_per_arm": 5,
+  "seed": 20260922,
+  "arms": [
+    {
+      "arm_id": "A",
+      "label": "legacy-limit-1p0",
+      "force_integral_limit_n_s": 1.0,
+      "force_integral_policy": "legacy-clamp-v1",
+      "force_integral_authority_error_n": 0.5
+    },
+    {
+      "arm_id": "B",
+      "label": "legacy-limit-0p5",
+      "force_integral_limit_n_s": 0.5,
+      "force_integral_policy": "legacy-clamp-v1",
+      "force_integral_authority_error_n": 0.5
+    },
+    {
+      "arm_id": "C",
+      "label": "legacy-limit-0p1",
+      "force_integral_limit_n_s": 0.1,
+      "force_integral_policy": "legacy-clamp-v1",
+      "force_integral_authority_error_n": 0.5
+    },
+    {
+      "arm_id": "D",
+      "label": "conditional-double-clamp",
+      "force_integral_limit_n_s": 1.0,
+      "force_integral_policy": "conditional-double-clamp-v1",
+      "force_integral_authority_error_n": 0.5
+    }
+  ]
+}

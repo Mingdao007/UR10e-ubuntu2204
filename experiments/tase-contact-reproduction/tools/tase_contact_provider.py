@@ -29,7 +29,11 @@ from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 from step5d_autotune_v4_r004.calibrated_runtime import V4CalibratedRuntime
 from step5d_autotune_v4_r004.motion_profile import same_direction_qdot_rescale
 from step5d_autotune_v4_r004.timing import MAX_FRESH_GAP_S
-from step5d_paper_outer_loop import Step5dOuterLoopConfig
+from step5d_paper_outer_loop import (
+    CONDITIONAL_DOUBLE_CLAMP_POLICY,
+    LEGACY_FORCE_INTEGRAL_POLICY,
+    Step5dOuterLoopConfig,
+)
 
 
 # A live safety transition, not a change to the paper gains.  The canonical
@@ -210,7 +214,10 @@ def load_tase_outer_config(path=None):
     }
     if not isinstance(frozen, dict):
         raise ValueError('TASE parameter file requires frozen outer-loop fields')
-    if set(frozen) != set(expected_frozen) | {'force_integral_limit_n_s'}:
+    if set(frozen) != set(expected_frozen) | {
+        'force_integral_limit_n_s', 'force_integral_policy',
+        'force_integral_authority_error_n',
+    }:
         raise ValueError('TASE frozen outer-loop fields differ')
     if {key: frozen.get(key) for key in expected_frozen} != expected_frozen:
         raise ValueError('TASE frozen outer-loop fields differ')
@@ -218,19 +225,29 @@ def load_tase_outer_config(path=None):
         integral_limit = float(frozen['force_integral_limit_n_s'])
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError('TASE frozen integral limit is required') from exc
-    # 1.0 N s is the retained R013 baseline.  0.1 N s is the explicitly
-    # discussed low-windup Figure-eight trial.  Keep this selector discrete so
+    # 1.0 N s is the retained R013 baseline.  0.5 and 0.1 N s are the
+    # explicitly screened low-windup Figure-eight arms. Keep this selector discrete so
     # a parameter file cannot silently turn the integral into a new tuner axis.
-    if integral_limit not in {0.1, 1.0}:
-        raise ValueError('TASE frozen integral limit must be 0.1 or 1.0 N s')
+    if integral_limit not in {0.1, 0.5, 1.0}:
+        raise ValueError('TASE frozen integral limit must be 0.1, 0.5, or 1.0 N s')
+    integral_policy = str(frozen['force_integral_policy'])
+    if integral_policy not in {LEGACY_FORCE_INTEGRAL_POLICY, CONDITIONAL_DOUBLE_CLAMP_POLICY}:
+        raise ValueError('TASE frozen integral policy is unknown')
+    authority_error = float(frozen['force_integral_authority_error_n'])
+    if not math.isfinite(authority_error) or authority_error <= 0.0:
+        raise ValueError('TASE frozen integral authority error must be positive')
     binding = dict(payload)
     binding.update({'schema': TASE_PARAMETER_SCHEMA, 'source': str(candidate_path),
                     'Md_scalar': md, 'Bd_scalar': bd,
                     'force_integral_limit_n_s': integral_limit,
+                    'force_integral_policy': integral_policy,
+                    'force_integral_authority_error_n': authority_error,
                     'orientation_gain_scale': TASE_LIVE_OUTER_CONFIG.orientation_gain_scale,
                     'orientation_target_policy': 'fixed_approved_home_rotvec'})
     return replace(TASE_LIVE_OUTER_CONFIG, Md_scalar=md, Bd_scalar=bd,
-                   force_integral_limit_n_s=integral_limit), binding
+                   force_integral_limit_n_s=integral_limit,
+                   force_integral_policy=integral_policy,
+                   force_integral_authority_error_n=authority_error), binding
 
 
 @dataclass(frozen=True)
@@ -309,12 +326,19 @@ class TaseContactProvider(ContactCommandProvider):
         self.last_measured_force_norm = None
         self.lifecycle_observer = ContactReadinessObserver(candidate.normal_filter_tau_s,
             max_dt_s=MAX_FRESH_GAP_S, strict_dt_upper=True)
+        selected_outer_config = (
+            TASE_LIVE_OUTER_CONFIG if outer_loop_config is None else outer_loop_config
+        )
         self.runtime = V4CalibratedRuntime(
             contract, candidate, motion_profile=motion_profile,
             solver_profile=solver_profile, path_reference=self.reference,
             target_rotvec=pose[3:], force_normal_velocity_limit_m_s=.003,
-            outer_loop_config=(TASE_LIVE_OUTER_CONFIG if outer_loop_config is None
-                               else outer_loop_config))
+            # The runtime reapplies this constructor value on every tick.
+            # Passing only outer_loop_config leaves its default 1.0 active.
+            force_integral_limit_n_s=selected_outer_config.force_integral_limit_n_s,
+            force_integral_policy=selected_outer_config.force_integral_policy,
+            force_integral_authority_error_n=selected_outer_config.force_integral_authority_error_n,
+            outer_loop_config=selected_outer_config)
         self.contract = contract
         self.model_hashes = dict(self.runtime.model_hashes)
         self.solver_profile = solver_profile
@@ -325,7 +349,7 @@ class TaseContactProvider(ContactCommandProvider):
                                         'Md_scalar': self.runtime.outer_loop_config.Md_scalar,
                                         'Bd_scalar': self.runtime.outer_loop_config.Bd_scalar,
                                         'force_integral_limit_n_s': (
-                                            self.runtime.outer_loop_config.force_integral_limit_n_s)})
+                                            self.runtime.force_integral_limit_n_s)})
         declared_protocol = self.parameter_binding.get("protocol_id")
         if declared_protocol is not None and str(declared_protocol) != self.protocol_id:
             raise ValueError("TASE parameter protocol identity differs from live request")

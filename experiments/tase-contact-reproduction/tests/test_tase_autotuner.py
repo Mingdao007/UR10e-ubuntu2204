@@ -24,8 +24,8 @@ def test_plan_is_complete_and_does_not_execute_hardware(tmp_path: Path):
     assert len(candidates) == 24
     first = json.loads(candidates[0].read_text())
     assert first["schema"] == "tase.outer-parameters-v1"
-    assert first["Md_scalar"] == 12.0
-    assert first["Bd_scalar"] == 550.0
+    assert first["Md_scalar"] == pytest.approx(9.565272137974492)
+    assert first["Bd_scalar"] == pytest.approx(693.6559295653944)
 
 
 def test_config_is_frozen_to_outer_mass_and_damping():

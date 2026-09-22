@@ -32,6 +32,8 @@ from tase_figure8_protocol import (
     REQUIRED_BINS as R013_COMPAT60_REQUIRED_BINS,
 )
 from tase_r013_timing_ledger import ledger_from_receipts
+from tase_campaign_session import CampaignSession, CampaignSessionError
+from tase_campaign_timing import reduce_attempt_timing
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,7 +50,8 @@ class Candidate:
     Md_scalar: float
     Bd_scalar: float
 
-    def parameters(self) -> dict[str, Any]:
+    def parameters(self, config: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        config = {} if config is None else config
         return {
             "schema": PARAMETER_SCHEMA,
             "protocol_id": R013_COMPAT60_PROTOCOL_ID,
@@ -63,7 +66,11 @@ class Candidate:
                 "ko": 5.0,
                 "kf": 1.0,
                 "force_target_n": 5.0,
-                "force_integral_limit_n_s": 1.0,
+                "force_integral_limit_n_s": float(config.get("integral_limit_n_s", 1.0)),
+                "force_integral_policy": str(config.get("integral_policy", "legacy-clamp-v1")),
+                "force_integral_authority_error_n": float(
+                    config.get("integral_authority_error_n", 0.5)
+                ),
                 "force_sign_convention": "step5_step6_positive_normal_load",
             },
         }
@@ -97,6 +104,24 @@ def _load_config(path: Path) -> dict[str, Any]:
     payload["video_policy"] = video_policy
     if payload.get("protection_parameters_frozen") is not True or payload.get("integral_policy_frozen") is not True:
         raise ValueError("autotuner protection/integral freeze is missing")
+    integral_limit = float(payload.get("integral_limit_n_s", 1.0))
+    if integral_limit not in {0.1, 0.5, 1.0}:
+        raise ValueError("integral_limit_n_s must be 0.1, 0.5, or 1.0")
+    integral_policy = str(payload.get("integral_policy", "legacy-clamp-v1"))
+    if integral_policy not in {"legacy-clamp-v1", "conditional-double-clamp-v1"}:
+        raise ValueError("integral_policy is unknown")
+    authority_error = float(payload.get("integral_authority_error_n", 0.5))
+    if not math.isfinite(authority_error) or authority_error <= 0.0:
+        raise ValueError("integral_authority_error_n must be positive")
+    payload["integral_limit_n_s"] = integral_limit
+    payload["integral_policy"] = integral_policy
+    payload["integral_authority_error_n"] = authority_error
+    if payload.get("reuse_preparation") is not True:
+        raise ValueError("reuse_preparation must be true for the campaign runner")
+    timing_target = float(payload.get("timing_target_median_s", 85.0))
+    if not math.isfinite(timing_target) or timing_target <= 0.0:
+        raise ValueError("timing_target_median_s must be positive")
+    payload["timing_target_median_s"] = timing_target
     noise = float(payload.get("observation_noise_n", 0.05))
     if not math.isfinite(noise) or noise <= 0.0:
         raise ValueError("observation_noise_n must be finite and positive")
@@ -620,7 +645,7 @@ def _execute_preflight_recovery(
     stem = f"{ordinal:02d}-{candidate.candidate_id}-recovery-{recovery_index:02d}"
     candidate_file = campaign_dir / "candidates" / f"{stem}.json"
     run_dir = campaign_dir / "runs" / stem
-    _write_candidate(candidate_file, candidate)
+    _write_candidate(candidate_file, candidate, config)
     row = {
         "schema": "tase.autotuner-attempt-v1",
         "protocol_id": R013_COMPAT60_PROTOCOL_ID,
@@ -647,6 +672,7 @@ def _execute_preflight_recovery(
         "--video-policy", str(config["video_policy"]),
         "--run-dir", str(run_dir),
         "--parameter-file", str(candidate_file),
+        "--prepared-dir", str(campaign_dir / "prepared"),
     ]
     completed = subprocess.run(command, cwd=str(ROOT), check=False)
     receipt_path = run_dir / "dispatch_receipt.json"
@@ -703,9 +729,9 @@ def _execute_preflight_recovery(
     return result
 
 
-def _write_candidate(path: Path, candidate: Candidate) -> None:
+def _write_candidate(path: Path, candidate: Candidate, config: Mapping[str, Any] | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(candidate.parameters(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(candidate.parameters(config), indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _candidate_for(config: Mapping[str, Any], records: list[dict[str, Any]], ordinal: int) -> Candidate:
@@ -728,10 +754,29 @@ def run_campaign(
     execute: bool,
     dry_run: bool = False,
     resume: bool = False,
+    session_dir: Path | None = None,
 ) -> dict[str, Any]:
     config = _load_config(config_path)
     campaign_dir = campaign_dir.expanduser().resolve()
     campaign_dir.mkdir(parents=True, exist_ok=True)
+    session_root = (session_dir or campaign_dir).expanduser().resolve()
+    try:
+        session = CampaignSession.prepare_once(
+            session_root,
+            protocol_id=R013_COMPAT60_PROTOCOL_ID,
+            duration_token="r013_60",
+            method="TASE_RNN_MATURE",
+            config_path=config_path,
+            metadata={
+                "source": "tase_autotuner",
+                "campaign_dir": str(campaign_dir),
+            },
+        )
+    except CampaignSessionError as exc:
+        raise ValueError(f"campaign session is not reusable: {exc}") from exc
+    if resume and session.state.name in {"STOPPED", "STOPPING", "RUNNING"}:
+        session.resume()
+    prepared_dir = campaign_dir / "prepared"
     ledger = campaign_dir / "ledger.jsonl"
     records, recovered = _read_records(ledger)
     _assert_r013_records(records)
@@ -753,6 +798,24 @@ def run_campaign(
     script = ROOT / "scripts" / "figure8.sh"
     if execute and not script.is_file():
         raise RuntimeError(f"figure8 owner is missing: {script}")
+    if execute and not (prepared_dir / "software_baseline_receipt.json").is_file():
+        interpreter = ROOT / ".venv-contact-six" / "bin" / "python"
+        prepare_env = dict(os.environ)
+        prepare_env.update({
+            "PYTHONNOUSERSITE": "1",
+            "PYTHONPATH": f"{ROOT / 'tools'}:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages",
+            "AMENT_PREFIX_PATH": "/opt/ros/humble",
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+        })
+        prepared = subprocess.run(
+            [str(interpreter), "-B", str(ROOT / "tools" / "prepare_figure8.py"),
+             "--run-dir", str(prepared_dir), "--method", "TASE_RNN_MATURE",
+             "--video-policy", str(config["video_policy"])],
+            cwd=str(ROOT), env=prepare_env, check=False,
+        )
+        if prepared.returncode != 0:
+            raise RuntimeError("campaign preparation failed before any attempt was dispatched")
     if unresolved_recovery:
         # A started row without a terminal receipt does not prove that motion
         # never started.  Do not reinterpret it as a cheap preflight retry;
@@ -801,7 +864,7 @@ def run_campaign(
         ordinal = len(records)
         candidate = _candidate_for(config, records, ordinal)
         candidate_file = campaign_dir / "candidates" / f"{ordinal:02d}-{candidate.candidate_id}.json"
-        _write_candidate(candidate_file, candidate)
+        _write_candidate(candidate_file, candidate, config)
         run_dir = campaign_dir / "runs" / f"{ordinal:02d}-{candidate.candidate_id}"
         row = {
             "schema": "tase.autotuner-attempt-v1",
@@ -823,12 +886,26 @@ def run_campaign(
             _append(ledger, planned)
             records.append(planned)
             continue
+        session.start_attempt(
+            f"{ordinal:02d}-{candidate.candidate_id}",
+            ordinal,
+            run_dir=run_dir,
+            metadata={"candidate_id": candidate.candidate_id, "stage": candidate.stage},
+        )
         _append(ledger, {**row, "status": "started"})
         command = [str(script), "--method", "TASE_RNN_MATURE", "--duration", "r013_60",
                    "--control-cpu", str(config["control_cpu"]),
                    "--video-policy", str(config["video_policy"]),
-                   "--run-dir", str(run_dir), "--parameter-file", str(candidate_file)]
-        completed = subprocess.run(command, cwd=str(ROOT), check=False)
+                   "--run-dir", str(run_dir), "--parameter-file", str(candidate_file),
+                   "--prepared-dir", str(prepared_dir)]
+        try:
+            completed = subprocess.run(command, cwd=str(ROOT), check=False)
+        except BaseException as exc:
+            session.finish_attempt(
+                status="interrupted",
+                reason=f"owner_exception:{type(exc).__name__}:{exc}",
+            )
+            raise
         receipt_path = run_dir / "dispatch_receipt.json"
         if not receipt_path.is_file():
             failure = {**row, "status": "failed", "mae_n": None,
@@ -838,6 +915,11 @@ def run_campaign(
                        "finished_at": time.time()}
             _append(ledger, failure)
             records.append(failure)
+            session.finish_attempt(
+                status="failed",
+                returncode=completed.returncode,
+                reason="owner_failed_or_missing_receipt",
+            )
             failure["campaign_state"] = "PAUSED_PRECHECK_BLOCKED"
             _append(ledger, failure)
             break
@@ -856,6 +938,11 @@ def run_campaign(
                       "home_verified": home_verified,
                       "recovery": evidence.get("recovery"),
                       "metrics": evidence.get("metrics"),
+                      "timing": reduce_attempt_timing(
+                          list((evidence.get("dispatch") or {}).get("lifecycle_events", ())),
+                          attempt_started_at=row["started_at"],
+                          attempt_finished_at=time.time(),
+                      ),
                       "failure": (
                           None
                           if status == "complete"
@@ -870,6 +957,11 @@ def run_campaign(
             result = {**row, "status": "failed", "mae_n": None,
                       "failure": f"receipt_parse:{type(exc).__name__}:{exc}",
                       "finished_at": time.time()}
+        session.finish_attempt(
+            status="complete" if result["status"] == "complete" else "failed",
+            returncode=completed.returncode,
+            reason=result.get("failure"),
+        )
         _append(ledger, result)
         records.append(result)
         # A physical writer may not advance the campaign until its failed
@@ -908,7 +1000,33 @@ def run_campaign(
             else "COMPLETE" if len(records) >= total else "PAUSED_RECOVERY_BLOCKED"
         ),
         "claim_scope": "complete-path receipts only; no controller promotion or manuscript claim",
+        "campaign_session": session.summary(),
     }
+    timing_rows: list[dict[str, Any]] = []
+    timing_path = campaign_dir / "attempt-timing-receipts.jsonl"
+    if timing_path.is_file():
+        for line in timing_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                timing_rows.append(json.loads(line))
+    elapsed = sorted(
+        float(row["elapsed_s"])
+        for row in timing_rows
+        if row.get("status") == "complete" and row.get("elapsed_s") is not None
+    )
+    summary["timing_acceptance"] = {
+        "schema": "tase.campaign-timing-acceptance-v1",
+        "target_median_s": float(config["timing_target_median_s"]),
+        "complete_attempts": len(elapsed),
+        "median_s": None if not elapsed else float(np.median(np.asarray(elapsed))),
+        "passed": bool(elapsed) and float(np.median(np.asarray(elapsed))) <= float(config["timing_target_median_s"]),
+        "includes_cold_start_and_refresh": True,
+    }
+    if execute:
+        if len(records) >= total and not resume_paused:
+            session.complete()
+        elif resume_paused:
+            session.stop("campaign_paused_until_recovery_or_preflight_closure")
+        summary["campaign_session"] = session.summary()
     (campaign_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
     return summary
 
@@ -972,7 +1090,7 @@ def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) ->
             }
             candidate_file = confirmation_dir / "candidates" / f"round-{ordinal:02d}-{arm}.json"
             run_dir = confirmation_dir / "runs" / f"round-{ordinal:02d}-{arm}"
-            _write_candidate(candidate_file, candidate)
+            _write_candidate(candidate_file, candidate, config)
             row.update({"parameter_file": str(candidate_file), "run_dir": str(run_dir)})
             _append(ledger, {**row, "status": "started"})
             if not execute:
@@ -982,7 +1100,8 @@ def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) ->
                     [str(script), "--method", "TASE_RNN_MATURE", "--duration", "r013_60",
                      "--control-cpu", str(config["control_cpu"]),
                      "--video-policy", str(config["video_policy"]),
-                     "--run-dir", str(run_dir), "--parameter-file", str(candidate_file)],
+                     "--run-dir", str(run_dir), "--parameter-file", str(candidate_file),
+                     "--prepared-dir", str(campaign_dir / "prepared")],
                     cwd=str(ROOT), check=False,
                 )
                 if not (run_dir / "dispatch_receipt.json").is_file():
