@@ -390,8 +390,10 @@ class TaseContactProvider(ContactCommandProvider):
         # the RETURNING handshake is being acknowledged.  Keep evidence
         # joining consistent with the live command path; formal scoring still
         # excludes samples at or beyond 60 s.
-        t = min(max(float(time_s), 0.0), self.path_duration_s + self.path_seam_continuation_s)
-        ref = self.task.reference(t, allow_seam=True)
+        seam = self.path_seam_continuation_s if self.protocol_id == R013_COMPAT60_PROTOCOL_ID else 0.0
+        t = min(max(float(time_s), 0.0), self.path_duration_s + seam)
+        kwargs = {"allow_seam": True} if self.protocol_id == R013_COMPAT60_PROTOCOL_ID else {}
+        ref = self.task.reference(t, **kwargs)
         return {'position_m': self.anchor + self.basis @ np.asarray(ref['position_m']),
                 'velocity_m_s': self.basis @ np.asarray(ref['velocity_m_s'])}
 

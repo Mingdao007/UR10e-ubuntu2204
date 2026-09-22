@@ -900,6 +900,33 @@ class NativeYieldLiveWriter(R006LiveWriter):
             "stop_packet_provenance": self._stop_packet_provenance,
         }
         if not self._runtime_transport_is_open():
+            # The TP-owned PATH return can already reach terminal state 90 and
+            # close the RTDE socket before host cleanup runs. Reusing the
+            # final verified output is safe here; sending a second STOP is
+            # neither necessary nor possible.
+            if (
+                self._stopped
+                and prior is not None
+                and self._identity_matches(prior)
+                and bool(getattr(prior, "safety_normal", False))
+                and bool(getattr(prior, "stationary", False))
+                and (getattr(prior, "integer_echoes", {}) or {}).get(26) == 90
+            ):
+                receipt.update({
+                    "stopped": True,
+                    "tp_ack": True,
+                    "observed_stationary": True,
+                    "safety_mode": getattr(prior, "safety_mode", None),
+                    "robot_mode": getattr(prior, "robot_mode", None),
+                    "runtime_state": getattr(prior, "runtime_state", None),
+                    "runtime_mode": 90,
+                    "state": 90,
+                    "reason": "body_owned_stop",
+                    "controller_timestamp": getattr(prior, "timestamp", None),
+                    "received_monotonic_s": getattr(prior, "received_monotonic_s", None),
+                    "actual_qd": list(getattr(prior, "qd_rad_s", ())),
+                    "actual_tcp_speed": list(getattr(prior, "tcp_speed_m_s_rad_s", ())),
+                })
             self._stop_terminal_receipt = receipt
             return dict(receipt)
         deadline = requested_at + float(timeout_s)
