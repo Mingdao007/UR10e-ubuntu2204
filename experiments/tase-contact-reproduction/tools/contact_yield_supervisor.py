@@ -325,6 +325,7 @@ class ResidentSupervisor:
 
     def run(self, body, before_load=None, *, execute_program=True):
         play_attempted = False
+        body_result = None
         try:
             # Establish the video barrier before starting the bounded RTDE
             # observer queue.  Starting the observer first lets ffmpeg's
@@ -378,14 +379,31 @@ class ResidentSupervisor:
         finally:
             if play_attempted:
                 try:
-                    prior = self.audit.get('last_sample',{}).get('timestamp')
-                    if not any(
-                        isinstance(row, dict) and row.get('stage') == 'STOP'
-                        for row in self.audit['lifecycle_events']
-                    ):
-                        self._mark_lifecycle('STOP', 'requested')
-                    at=self.clock(); self.writer.write('stop')
-                    self.audit['dashboard_stop']=self._wait(running=False,after=at,healthy=False,prior_timestamp=prior)
+                    # A completed live body owns the TP STOP/RETURNING/Home
+                    # handshake. By the time control returns here, the
+                    # observer may have closed with the TP connection; do
+                    # not issue a duplicate stop or require a fresh observer
+                    # sample. The body stop receipt and current Dashboard
+                    # STOPPED state are the authoritative cleanup evidence.
+                    body_stop = body_result.get('stop') if isinstance(body_result, dict) else None
+                    if isinstance(body_stop, dict) and body_stop.get('stopped') is True:
+                        dashboard = self.read_dashboard()
+                        if dashboard.get('running') != 'Program running: false':
+                            raise RuntimeError('completed body stop was not confirmed by Dashboard')
+                        self.audit['dashboard_stop'] = {
+                            'dashboard': dashboard,
+                            'sample': self.audit.get('last_sample') or body_stop,
+                            'source': 'body_stop_receipt',
+                        }
+                    else:
+                        prior = self.audit.get('last_sample',{}).get('timestamp')
+                        if not any(
+                            isinstance(row, dict) and row.get('stage') == 'STOP'
+                            for row in self.audit['lifecycle_events']
+                        ):
+                            self._mark_lifecycle('STOP', 'requested')
+                        at=self.clock(); self.writer.write('stop')
+                        self.audit['dashboard_stop']=self._wait(running=False,after=at,healthy=False,prior_timestamp=prior)
                 except BaseException as exc:
                     self.audit['success']=False
                     self.audit['stop_error']=f'{type(exc).__name__}: {exc}'
