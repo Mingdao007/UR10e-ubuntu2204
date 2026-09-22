@@ -5,6 +5,7 @@ import argparse
 import json
 import math
 from pathlib import Path
+import re
 import subprocess
 from typing import Any
 import statistics
@@ -159,6 +160,15 @@ def _session_verified_closed(session: Path) -> bool:
     return stop.get("home_verified") is True and stop.get("program_stopped") is True
 
 
+def _campaign_sessions(campaign_dir: Path) -> list[Path]:
+    # Recovery owns sibling directories such as session-01-autonomous-home.
+    # They are evidence for one session, not additional candidate sessions.
+    return sorted(
+        path for path in campaign_dir.iterdir()
+        if path.is_dir() and re.fullmatch(r"session-[0-9]+", path.name)
+    )
+
+
 def score_campaign(campaign_dir: Path) -> dict[str, Any]:
     """Account for every sealed attempt without promoting partial metrics."""
 
@@ -170,7 +180,7 @@ def score_campaign(campaign_dir: Path) -> dict[str, Any]:
     if len(planned) != 25:
         raise ValueError("screening schedule must contain 25 cells")
     observed: list[tuple[Path, dict[str, Any]]] = []
-    for session in sorted(campaign_dir.glob("session-*")):
+    for session in _campaign_sessions(campaign_dir):
         for path in sorted(session.glob("attempts/*/attempt-result.json")):
             observed.append((path, json.loads(path.read_text(encoding="utf-8"))))
     if len(observed) > len(planned):
@@ -237,7 +247,7 @@ def score_campaign(campaign_dir: Path) -> dict[str, Any]:
             "mean_mae_n": None if not values else statistics.fmean(values),
         }
     complete_budget = len(attempts) == 25
-    sessions = [path for path in sorted(campaign_dir.glob("session-*")) if path.is_dir()]
+    sessions = _campaign_sessions(campaign_dir)
     sessions_closed = bool(sessions) and all(_session_verified_closed(path) for path in sessions)
     winner = None
     if (complete_budget and sessions_closed
@@ -273,7 +283,7 @@ def execute_campaign(campaign_dir: Path, *, resume: bool = False) -> dict[str, A
 
     campaign_dir = Path(campaign_dir).expanduser().resolve()
     result = score_campaign(campaign_dir)
-    sessions = sorted(path for path in campaign_dir.glob("session-*") if path.is_dir())
+    sessions = _campaign_sessions(campaign_dir)
     if sessions and not resume:
         raise ValueError("existing screening session requires explicit resume")
     if sessions:

@@ -210,3 +210,22 @@ def test_later_blocked_recovery_overrides_earlier_home_stop(tmp_path):
     }))
     with pytest.raises(RuntimeError, match="verified joint Home and STOPPED"):
         execute_campaign(campaign, resume=True)
+
+
+def test_recovery_evidence_directories_are_not_candidate_sessions(monkeypatch, tmp_path):
+    campaign = tmp_path / "screen"
+    prepare_campaign(campaign)
+    session = campaign / "session-01"
+    session.mkdir()
+    (session / "dispatch_receipt.json").write_text(json.dumps({
+        "attempts": [],
+        "stop": {"home_verified": True, "program_stopped": True},
+    }))
+    (campaign / "session-01-autonomous-home").mkdir()
+    commands = []
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        return type("Completed", (), {"returncode": 0})()
+    monkeypatch.setattr("tase_integral_screening.subprocess.run", fake_run)
+    execute_campaign(campaign, resume=True)
+    assert commands[0][commands[0].index("--run-dir") + 1] == str(campaign / "session-02")
