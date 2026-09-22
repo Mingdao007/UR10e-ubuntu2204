@@ -299,6 +299,7 @@ def run_live(
     defer_recovery: bool = False,
     attempt_count: int = 1,
     parameter_bindings: list[Mapping[str, Any]] | None = None,
+    parameter_files: list[Path] | None = None,
     refresh_readback=None,
     dashboard_stop_and_verify=None,
     deferred_seals=None,
@@ -309,6 +310,8 @@ def run_live(
         raise YieldLiveError("resident attempt count must be a positive integer")
     if parameter_bindings is not None and len(parameter_bindings) != attempt_count:
         raise YieldLiveError("resident parameter binding count differs from attempt count")
+    if parameter_files is not None and len(parameter_files) != attempt_count:
+        raise YieldLiveError("resident parameter file count differs from attempt count")
     # The live entry owns all artifacts below one canonical run directory.
     # Relative paths otherwise depend on the caller's current directory and
     # can split the attempt receipt from its read-back and recovery evidence.
@@ -440,6 +443,7 @@ def run_live(
         receipt=receipt,
         lifecycle_clock=lifecycle_clock,
         parameter_bindings=parameter_bindings,
+        parameter_files=parameter_files,
         attempt_count=attempt_count,
         defer_recovery=defer_recovery,
         refresh_readback=refresh_readback,
@@ -466,6 +470,7 @@ def _run_live_with_resident_session(
     receipt: dict[str, Any],
     lifecycle_clock: Any,
     parameter_bindings: list[Mapping[str, Any]] | None,
+    parameter_files: list[Path] | None,
     attempt_count: int,
     defer_recovery: bool,
     refresh_readback: Any | None,
@@ -512,12 +517,14 @@ def _run_live_with_resident_session(
                 )
             active_attempt = (sequence, phase)
             binding = None if parameter_bindings is None else parameter_bindings[sequence - 1]
+            parameter_file = None if parameter_files is None else parameter_files[sequence - 1]
             item = run_attempt(
                 session,
                 phase=phase,
                 sequence=sequence,
                 control_cpu=getattr(args, "control_cpu", None),
                 parameter_binding=binding,
+                parameter_file=parameter_file,
             )
             item = session.seal_attempt(item)
             receipt["attempts"].append(item)

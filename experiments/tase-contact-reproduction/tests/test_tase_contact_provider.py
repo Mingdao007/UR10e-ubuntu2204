@@ -158,6 +158,57 @@ def test_parameter_file_binds_explicit_low_windup_integral_limit(
         p.close()
 
 
+def test_resident_home_load_changes_runtime_and_resets_integral(tmp_path):
+    source = Path(__file__).resolve().parents[1] / 'config/tase_figure8_integral_0p1.json'
+    first = json.loads(source.read_text(encoding='utf-8'))
+    second = json.loads(source.read_text(encoding='utf-8'))
+    second['candidate_id'] = 'resident-second'
+    second['Md_scalar'] = 10.0
+    second['Bd_scalar'] = 700.0
+    second['frozen']['force_integral_limit_n_s'] = 0.5
+    first_path = tmp_path / 'first.json'
+    second_path = tmp_path / 'second.json'
+    first_path.write_text(json.dumps(first), encoding='utf-8')
+    second_path.write_text(json.dumps(second), encoding='utf-8')
+    p = TaseContactProvider(
+        contract=current_model_binding(), candidate=V4Candidate(),
+        motion_profile=native_motion_profile(),
+        home_pose=load_identity_contract().home_pose,
+        solver_profile=LEGACY_R1, protocol_id=R013_COMPAT60_PROTOCOL_ID,
+    )
+    try:
+        seed = p.snapshot()
+        first_binding = p.apply_outer_parameters_at_home(first_path)
+        assert first_binding['Md_scalar'] == p.runtime.outer_loop_config.Md_scalar
+        assert first_binding['Bd_scalar'] == p.runtime.outer_loop_config.Bd_scalar
+        assert p.runtime.force_integral_limit_n_s == 0.1
+        for index in range(5):
+            p.runtime.desired_twist(
+                actual_tcp_pose=load_identity_contract().home_pose,
+                actual_tcp_speed=(0.0,) * 6,
+                force_tcp_n=(0.0, 0.0, -4.0),
+                filtered_normal_n=4.0, internal_setpoint_n=5.0,
+                actual_dt_s=0.002, mode='path', path_time_s=index * 0.002,
+            )
+        assert p.snapshot()['runtime']['outer_state']['force_integral_n_s'] > 0.0
+        p.restore(seed)
+        second_binding = p.apply_outer_parameters_at_home(second_path)
+        assert second_binding['candidate_id'] == 'resident-second'
+        assert p.runtime.outer_loop_config.Md_scalar == 10.0
+        assert p.runtime.outer_loop_config.Bd_scalar == 700.0
+        assert p.runtime.force_integral_limit_n_s == 0.5
+        assert p.snapshot()['runtime']['outer_state']['force_integral_n_s'] == 0.0
+        invalid = dict(second, unexpected=True)
+        bad_path = tmp_path / 'bad.json'
+        bad_path.write_text(json.dumps(invalid), encoding='utf-8')
+        with pytest.raises(ValueError, match='unknown fields'):
+            p.apply_outer_parameters_at_home(bad_path)
+        assert p.runtime.outer_loop_config.Md_scalar == 10.0
+        assert p.parameter_binding == second_binding
+    finally:
+        p.close()
+
+
 def test_parameter_file_rejects_unapproved_integral_limit(tmp_path):
     payload = {
         'schema': 'tase.outer-parameters-v1',

@@ -799,7 +799,12 @@ class ResidentSession:
         _event(self, "SESSION_REFRESH", "sealed", refresh_index=refresh_index)
         return result
 
-    def reset_at_home(self, *, parameter_binding: Mapping[str, Any] | None = None) -> None:
+    def reset_at_home(
+        self,
+        *,
+        parameter_binding: Mapping[str, Any] | None = None,
+        parameter_file: Path | None = None,
+    ) -> None:
         if self.seed_state is None:
             raise ResidentSessionError("resident seed state is unavailable")
         if callable(getattr(self.writer, "_poll_checked", None)):
@@ -809,6 +814,13 @@ class ResidentSession:
         refresh = self.refresh_at_home()
         del refresh
         self.provider.restore(copy.deepcopy(self.seed_state))
+        if parameter_file is not None:
+            apply = getattr(self.provider, 'apply_outer_parameters_at_home', None)
+            if not callable(apply):
+                raise ResidentSessionError(
+                    'resident provider has no validated Home parameter loader'
+                )
+            apply(parameter_file)
         if parameter_binding is not None:
             current = getattr(self.provider, "parameter_binding", None)
             if not isinstance(current, Mapping):
@@ -840,6 +852,7 @@ class ResidentSession:
         sequence: int,
         control_cpu: int | None,
         parameter_binding: Mapping[str, Any] | None = None,
+        parameter_file: Path | None = None,
     ) -> dict[str, Any]:
         started_mono = float(self.mono_clock())
         started_wall = float(self.wall_clock())
@@ -849,7 +862,10 @@ class ResidentSession:
                 f"attempt sequence {sequence} is not the next resident sequence {self.next_sequence}"
             )
         self._set_service_context(attempt_sequence=sequence, stage="attempt")
-        self.reset_at_home(parameter_binding=parameter_binding)
+        self.reset_at_home(
+            parameter_binding=parameter_binding,
+            parameter_file=parameter_file,
+        )
         end = getattr(self.writer, "_r013_path_early_end_controller", None)
         if end is not None:
             end.arm(sequence)
@@ -900,6 +916,13 @@ class ResidentSession:
             "evidence": evidence_payload,
             "state": self.provider.snapshot(),
             "parameter_binding": dict(getattr(self.provider, "parameter_binding", {})),
+            "applied_runtime_parameters": {
+                "Md_scalar": getattr(getattr(self.provider.runtime, "outer_loop_config", None), "Md_scalar", None),
+                "Bd_scalar": getattr(getattr(self.provider.runtime, "outer_loop_config", None), "Bd_scalar", None),
+                "force_integral_limit_n_s": getattr(self.provider.runtime, "force_integral_limit_n_s", None),
+                "force_integral_policy": getattr(self.provider.runtime, "force_integral_policy", None),
+                "force_integral_authority_error_n": getattr(self.provider.runtime, "force_integral_authority_error_n", None),
+            } if hasattr(self.provider, "runtime") else None,
             "evidence_eligible": bool(getattr(evidence, "eligible", False)),
             "lifecycle": {
                 "path_complete": bool(

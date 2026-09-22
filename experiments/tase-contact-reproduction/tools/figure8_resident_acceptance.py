@@ -238,7 +238,8 @@ def _parameter_file(path: Path) -> Path:
     return path
 
 
-def run(*, run_dir: Path, attempts: int = 2) -> dict[str, Any]:
+def run(*, run_dir: Path, attempts: int = 2,
+        vary_parameters: bool = False) -> dict[str, Any]:
     if attempts < 2:
         raise ValueError("resident acceptance requires at least two attempts")
     run_dir = Path(run_dir).expanduser().resolve()
@@ -295,11 +296,17 @@ def run(*, run_dir: Path, attempts: int = 2) -> dict[str, Any]:
 
     from tase_contact_provider import load_tase_outer_config
 
-    _, incumbent_binding = load_tase_outer_config(parameter_file)
-    # Infrastructure acceptance keeps the validated incumbent fixed. Attempt
-    # identity/sequence still changes; parameter loading remains a later,
-    # explicitly validated Home-boundary operation.
-    bindings = [dict(incumbent_binding) for _ in range(attempts)]
+    parameter_files = [parameter_file] * attempts
+    if vary_parameters:
+        varied = json.loads(parameter_file.read_text(encoding='utf-8'))
+        varied['candidate_id'] = 'offline-resident-second'
+        varied['Md_scalar'] = 10.0
+        varied['Bd_scalar'] = 700.0
+        varied['frozen']['force_integral_limit_n_s'] = 0.5
+        second_path = run_dir / 'second.json'
+        _write_json(second_path, varied)
+        parameter_files[1] = second_path
+    bindings = [load_tase_outer_config(path)[1] for path in parameter_files]
     args = _parse_args([
         "pilot", "--method", "TASE_RNN_MATURE", "--duration", "r013_60",
         "--run-dir", str(run_dir), "--qp-library", str(Path(__file__).resolve().parents[1] / "build/contact-qp/libcontact_qp.so"),
@@ -317,6 +324,7 @@ def run(*, run_dir: Path, attempts: int = 2) -> dict[str, Any]:
         now_s=clock.wall(),
         attempt_count=attempts,
         parameter_bindings=bindings,
+        parameter_files=parameter_files,
         refresh_readback=refresh_readback,
         dashboard_stop_and_verify=dashboard_stop_and_verify,
     )
@@ -326,8 +334,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--attempts", type=int, default=6)
+    parser.add_argument("--vary-parameters", action="store_true")
     args = parser.parse_args(argv)
-    receipt = run(run_dir=args.run_dir, attempts=args.attempts)
+    receipt = run(run_dir=args.run_dir, attempts=args.attempts,
+                  vary_parameters=args.vary_parameters)
     print(json.dumps(receipt, indent=2, sort_keys=True, allow_nan=False))
     return 0 if receipt.get("success") is True else 1
 

@@ -116,6 +116,16 @@ def _load_config(path: Path) -> dict[str, Any]:
     payload["integral_limit_n_s"] = integral_limit
     payload["integral_policy"] = integral_policy
     payload["integral_authority_error_n"] = authority_error
+    incumbent = payload.get("incumbent")
+    if not isinstance(incumbent, dict) or set(incumbent) != {"Md_scalar", "Bd_scalar"}:
+        raise ValueError("autotuner incumbent Md/Bd is required")
+    for name in ("Md_scalar", "Bd_scalar"):
+        value = float(incumbent[name])
+        center = float(payload["center"][name])
+        lo, hi = (float(v) for v in payload["log2_bounds"][name])
+        if not math.isfinite(value) or not center * 2.0 ** lo <= value <= center * 2.0 ** hi:
+            raise ValueError(f"autotuner incumbent {name} is outside the search box")
+        incumbent[name] = value
     if payload.get("reuse_preparation") is not True:
         raise ValueError("reuse_preparation must be true for the campaign runner")
     timing_target = float(payload.get("timing_target_median_s", 85.0))
@@ -147,8 +157,8 @@ def _initial_candidates(config: Mapping[str, Any]) -> list[Candidate]:
     # emitted by scipy for a non-power-of-two draw.
     points = sampler.random_base2(m=3)[:7]
     candidates = [Candidate("initial-00", "initial", 0,
-                            float(config["center"]["Md_scalar"]),
-                            float(config["center"]["Bd_scalar"]))]
+                            float(config["incumbent"]["Md_scalar"]),
+                            float(config["incumbent"]["Bd_scalar"]))]
     for index, point in enumerate(points, start=1):
         md, bd = _scale_unit(config, point)
         candidates.append(Candidate(f"initial-{index:02d}", "initial", index, md, bd))
@@ -1052,8 +1062,8 @@ def run_confirmation(config_path: Path, campaign_dir: Path, *, execute: bool) ->
     )
     baseline = Candidate(
         "frozen-baseline", "confirmation", 0,
-        float(config["center"]["Md_scalar"]),
-        float(config["center"]["Bd_scalar"]),
+        float(config["incumbent"]["Md_scalar"]),
+        float(config["incumbent"]["Bd_scalar"]),
     )
     confirmation_dir = campaign_dir / "confirmation"
     ledger = confirmation_dir / "ledger.jsonl"

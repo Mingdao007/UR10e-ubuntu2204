@@ -508,6 +508,7 @@ def main(argv=None):
     p.add_argument('--method',default='SFC'); p.add_argument('--duration',default='2')
     p.add_argument('--run-dir',type=Path,required=True); p.add_argument('--readback-dir',type=Path,required=True)
     p.add_argument('--parameter-file',type=Path)
+    p.add_argument('--resident-parameter-manifest',type=Path)
     p.add_argument('--resident-attempts',type=int,default=1)
     p.add_argument('--controller-host',default='192.168.1.18'); p.add_argument('--kunwei-host',default='192.168.50.25')
     p.add_argument('--control-cpu',type=int,required=True)
@@ -516,6 +517,31 @@ def main(argv=None):
     a=p.parse_args(argv)
     if a.resident_attempts < 1 or (a.action != 'pilot' and a.resident_attempts != 1):
         p.error('resident attempts require a positive pilot count')
+    parameter_files = None
+    if a.resident_parameter_manifest is not None:
+        if a.action != 'pilot' or a.method != 'TASE_RNN_MATURE' or a.duration != 'r013_60':
+            p.error('resident parameter manifest requires TASE_RNN_MATURE r013_60 pilot')
+        manifest_path = a.resident_parameter_manifest.expanduser().resolve()
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+        if not isinstance(manifest, dict) or manifest.get('schema') != 'tase.resident-parameter-manifest-v1':
+            p.error('resident parameter manifest schema differs')
+        names = manifest.get('parameter_files')
+        if not isinstance(names, list) or len(names) != a.resident_attempts or not all(
+            isinstance(name, str) and name for name in names
+        ):
+            p.error('resident parameter manifest must name each attempt')
+        parameter_files = [
+            (manifest_path.parent / name).resolve() for name in names
+        ]
+        if a.parameter_file is not None and a.parameter_file.expanduser().resolve() != parameter_files[0]:
+            p.error('initial parameter file differs from resident manifest')
+        from tase_contact_provider import load_tase_outer_config
+        for parameter_file in parameter_files:
+            _, binding = load_tase_outer_config(parameter_file)
+            if (binding.get('protocol_id') != 'figure8_window60_r013_compat_v1'
+                or binding.get('duration_token') != 'r013_60'):
+                p.error(f'resident candidate protocol differs: {parameter_file}')
+        a.parameter_file = parameter_files[0]
     # Resolve once at the process boundary so every receipt, observer and
     # recovery owner shares the same directory even when the caller starts
     # from the worktree root or the experiment root.
@@ -600,6 +626,7 @@ def main(argv=None):
             dashboard_stop_and_verify=supervisor.stop_program_and_verify,
             deferred_seals=deferred_seals,
             attempt_count=a.resident_attempts,
+            parameter_files=parameter_files,
             refresh_readback=refresh_live_preparation,
         )
     with WriterLock(INSTALLED_LOCK):

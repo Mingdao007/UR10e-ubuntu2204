@@ -433,6 +433,57 @@ class TaseContactProvider(ContactCommandProvider):
         for name, value in state.items():
             setattr(self, name, value)
 
+    def apply_outer_parameters_at_home(self, parameter_file):
+        """Load one validated candidate after the resident Home reset.
+
+        This changes the values consumed by the next control tick, not only
+        the receipt label.  The session owns the fresh stationary joint-Home
+        check before calling this method.
+        """
+        if self.phase is not None or self.reference_phase != 'baseline':
+            raise ValueError('TASE candidate can only be applied after the Home state reset')
+        config, binding = load_tase_outer_config(parameter_file)
+        declared_protocol = binding.get('protocol_id')
+        if declared_protocol is not None and declared_protocol != self.protocol_id:
+            raise ValueError('TASE candidate protocol differs from resident PATH')
+        declared_duration = binding.get('duration_token')
+        if declared_duration is not None and (
+            (self.protocol_id == R013_COMPAT60_PROTOCOL_ID and declared_duration != 'r013_60')
+            or (self.protocol_id != R013_COMPAT60_PROTOCOL_ID and declared_duration == 'r013_60')
+        ):
+            raise ValueError('TASE candidate duration differs from resident PATH')
+        previous = (
+            self.runtime.outer_loop_config,
+            self.runtime.force_integral_limit_n_s,
+            self.runtime.force_integral_policy,
+            self.runtime.force_integral_authority_error_n,
+            copy.deepcopy(self.parameter_binding),
+        )
+        try:
+            self.runtime.outer_loop_config = config
+            self.runtime.force_integral_limit_n_s = config.force_integral_limit_n_s
+            self.runtime.force_integral_policy = config.force_integral_policy
+            self.runtime.force_integral_authority_error_n = config.force_integral_authority_error_n
+            self.parameter_binding = dict(binding)
+            self.parameter_binding.setdefault('protocol_id', self.protocol_id)
+            self.parameter_binding.setdefault('path_duration_s', self.path_duration_s)
+            if (
+                self.runtime.outer_loop_config.Md_scalar != binding['Md_scalar']
+                or self.runtime.outer_loop_config.Bd_scalar != binding['Bd_scalar']
+                or self.runtime.force_integral_limit_n_s != binding['force_integral_limit_n_s']
+                or self.runtime.force_integral_policy != binding['force_integral_policy']
+                or self.runtime.force_integral_authority_error_n != binding['force_integral_authority_error_n']
+            ):
+                raise ValueError('TASE candidate was not applied to the runtime')
+        except BaseException:
+            (self.runtime.outer_loop_config,
+             self.runtime.force_integral_limit_n_s,
+             self.runtime.force_integral_policy,
+             self.runtime.force_integral_authority_error_n,
+             self.parameter_binding) = previous
+            raise
+        return copy.deepcopy(self.parameter_binding)
+
     def _observe(self, output, sensor, now, dt, *, maximum=MAX_FRESH_GAP_S, phase=None):
         if not math.isfinite(dt) or not 0 < dt < maximum:
             raise ValueError('TASE actual interval outside mature timing bound')

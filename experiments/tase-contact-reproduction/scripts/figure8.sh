@@ -3,7 +3,7 @@
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
-  echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60] [--run-dir RUN] [--prepared-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--video-policy required|evidence-only]'
+  echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60] [--run-dir RUN] [--prepared-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--resident-parameter-manifest FILE] [--video-policy required|evidence-only]'
   echo '       figure8.sh --stop --run-dir RUN'
   echo 'Defaults: TASE_RNN_MATURE, CPU 2, one 60 s R013-compatible figure-eight, then stop/Home.'
   echo 'Use --duration full explicitly for the separate 62.831853 s full-period protocol.'
@@ -15,6 +15,7 @@ method=TASE_RNN_MATURE
 cpu=2
 run_dir=''
 parameter_file=''
+resident_parameter_manifest=''
 prepared_dir=''
 stop_requested=0
 duration='r013_60'
@@ -30,6 +31,7 @@ while (($#)); do
     --prepared-dir) [[ $# -ge 2 ]] || exit 64; prepared_dir="$2"; shift 2 ;;
     --stop) stop_requested=1; shift ;;
     --parameter-file) [[ $# -ge 2 ]] || exit 64; parameter_file="$2"; shift 2 ;;
+    --resident-parameter-manifest) [[ $# -ge 2 ]] || exit 64; resident_parameter_manifest="$2"; shift 2 ;;
     --video-policy) [[ $# -ge 2 ]] || exit 64; video_policy="$2"; shift 2 ;;
     --resident-attempts) [[ $# -ge 2 ]] || exit 64; resident_attempts="$2"; shift 2 ;;
     --offline-acceptance) offline_acceptance=1; shift ;;
@@ -57,7 +59,7 @@ case "$duration" in
   full|full_period|period|r013_60|compat60|r013_compat_60) ;;
   *) echo "Unsupported Figure-eight duration: $duration" >&2; exit 64 ;;
 esac
-if [[ -z "$parameter_file" && "$method" == TASE_RNN_MATURE ]]; then
+if [[ -z "$parameter_file" && -z "$resident_parameter_manifest" && "$method" == TASE_RNN_MATURE ]]; then
   case "$duration" in
     r013_60|compat60|r013_compat_60) parameter_file="$ROOT/config/tase_figure8_integral_0p1.json" ;;
   esac
@@ -137,6 +139,9 @@ supervise_args=(supervise --action pilot \
  --readback-dir "$run_dir/readback" --control-cpu "$cpu")
 supervise_args+=(--video-policy "$video_policy")
 supervise_args+=(--resident-attempts "$resident_attempts")
+if [[ -n "$resident_parameter_manifest" ]]; then
+  supervise_args+=(--resident-parameter-manifest "$resident_parameter_manifest")
+fi
 if [[ -n "$parameter_file" ]]; then
   supervise_args+=(--parameter-file "$parameter_file")
 fi
