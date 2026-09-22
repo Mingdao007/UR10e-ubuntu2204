@@ -34,6 +34,47 @@ from tase_r013_timing_ledger import ledger_from_receipts
 MAX_AGE_S = .080
 DASHBOARD_FIELDS = ['is in remote control', 'safetymode', 'robotmode',
                     'running', 'programState', 'get loaded program']
+RESIDENT_CANDIDATE_NAME = "candidate-{ordinal:04d}.json"
+
+
+def validate_resident_candidate_directory(
+    candidate_dir: Path, *, duration: str, attempts: int
+) -> tuple[Path, Path, dict]:
+    """Prevalidate candidate 1 and require later ordinals to arrive on demand."""
+
+    raw_dir = Path(candidate_dir).expanduser()
+    if raw_dir.is_symlink():
+        raise ValueError("resident candidate directory cannot be a symlink")
+    directory = raw_dir.resolve()
+    if not directory.is_dir():
+        raise ValueError(f"resident candidate directory is invalid: {directory}")
+    if isinstance(attempts, bool) or not isinstance(attempts, int) or attempts < 1:
+        raise ValueError("resident candidate directory requires a positive attempt count")
+    if duration not in {"r013_60", "r013_60_rate400"}:
+        raise ValueError("resident candidate directory requires a 60 s R013 duration")
+    first = directory / RESIDENT_CANDIDATE_NAME.format(ordinal=1)
+    if first.is_symlink() or not first.is_file():
+        raise ValueError(f"initial resident candidate is not a regular file: {first}")
+    from tase_contact_provider import load_tase_outer_config
+
+    _config, binding = load_tase_outer_config(first)
+    expected_protocol = (
+        "figure8_window60_r013_rate400_v1"
+        if duration == "r013_60_rate400"
+        else "figure8_window60_r013_compat_v1"
+    )
+    if (
+        binding.get("protocol_id") != expected_protocol
+        or binding.get("duration_token") != duration
+    ):
+        raise ValueError(f"initial resident candidate protocol/duration differs: {first}")
+    for ordinal in range(2, attempts + 1):
+        later = directory / RESIDENT_CANDIDATE_NAME.format(ordinal=ordinal)
+        if later.exists() or later.is_symlink():
+            raise ValueError(
+                f"resident candidate {ordinal} must be supplied only after the prior seal"
+            )
+    return directory, first, binding
 
 
 def _observe(host, path, samples, errors, ready, done, excluded_cpu=None):
@@ -513,6 +554,7 @@ def main(argv=None):
     p.add_argument('--run-dir',type=Path,required=True); p.add_argument('--readback-dir',type=Path,required=True)
     p.add_argument('--parameter-file',type=Path)
     p.add_argument('--resident-parameter-manifest',type=Path)
+    p.add_argument('--resident-candidate-dir',type=Path)
     p.add_argument('--resident-attempts',type=int,default=1)
     p.add_argument('--controller-host',default='192.168.1.18'); p.add_argument('--kunwei-host',default='192.168.50.25')
     p.add_argument('--control-cpu',type=int,required=True)
@@ -521,6 +563,8 @@ def main(argv=None):
     a=p.parse_args(argv)
     if a.resident_attempts < 1 or (a.action != 'pilot' and a.resident_attempts != 1):
         p.error('resident attempts require a positive pilot count')
+    if a.resident_parameter_manifest is not None and a.resident_candidate_dir is not None:
+        p.error('resident parameter manifest and candidate directory are mutually exclusive')
     parameter_files = None
     if a.resident_parameter_manifest is not None:
         if a.action != 'pilot' or a.method != 'TASE_RNN_MATURE' or a.duration not in {'r013_60', 'r013_60_rate400'}:
@@ -550,6 +594,26 @@ def main(argv=None):
                 or binding.get('duration_token') != a.duration):
                 p.error(f'resident candidate protocol differs: {parameter_file}')
         a.parameter_file = parameter_files[0]
+    if a.resident_candidate_dir is not None:
+        if (
+            a.action != 'pilot'
+            or a.method != 'TASE_RNN_MATURE'
+            or a.duration not in {'r013_60', 'r013_60_rate400'}
+        ):
+            p.error('resident candidate directory requires a 60 s TASE_RNN_MATURE pilot')
+        if a.parameter_file is not None:
+            p.error('resident candidate directory selects candidate-0001.json; omit --parameter-file')
+        try:
+            a.resident_candidate_dir, first_candidate, _binding = (
+                validate_resident_candidate_directory(
+                    a.resident_candidate_dir,
+                    duration=a.duration,
+                    attempts=a.resident_attempts,
+                )
+            )
+        except (OSError, ValueError) as exc:
+            p.error(str(exc))
+        a.parameter_file = first_candidate
     # Resolve once at the process boundary so every receipt, observer and
     # recovery owner shares the same directory even when the caller starts
     # from the worktree root or the experiment root.
@@ -635,7 +699,10 @@ def main(argv=None):
             deferred_seals=deferred_seals,
             attempt_count=a.resident_attempts,
             parameter_files=parameter_files,
-            research_campaign=parameter_files is not None,
+            resident_candidate_dir=a.resident_candidate_dir,
+            research_campaign=(
+                parameter_files is not None or a.resident_candidate_dir is not None
+            ),
             refresh_readback=refresh_live_preparation,
         )
     with WriterLock(INSTALLED_LOCK):

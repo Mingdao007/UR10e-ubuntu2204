@@ -3,7 +3,8 @@
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
-  echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60|r013_60_rate400] [--run-dir RUN] [--prepared-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--resident-parameter-manifest FILE] [--video-policy required|evidence-only]'
+  echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60|r013_60_rate400] [--run-dir RUN] [--prepared-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--resident-parameter-manifest FILE | --resident-candidate-dir DIR] [--resident-attempts N] [--video-policy required|evidence-only]'
+  echo 'Adaptive resident mode reads candidate-0001.json before launch, then waits up to 120 s at verified joint Home for each next candidate.'
   echo '       figure8.sh --stop --run-dir RUN'
   echo 'Defaults: TASE_RNN_MATURE, CPU 2, one 60 s R013-compatible figure-eight, then stop/Home.'
   echo 'Use --duration full explicitly for the separate 62.831853 s full-period protocol.'
@@ -16,6 +17,7 @@ cpu=2
 run_dir=''
 parameter_file=''
 resident_parameter_manifest=''
+resident_candidate_dir=''
 prepared_dir=''
 stop_requested=0
 duration='r013_60'
@@ -32,12 +34,67 @@ while (($#)); do
     --stop) stop_requested=1; shift ;;
     --parameter-file) [[ $# -ge 2 ]] || exit 64; parameter_file="$2"; shift 2 ;;
     --resident-parameter-manifest) [[ $# -ge 2 ]] || exit 64; resident_parameter_manifest="$2"; shift 2 ;;
+    --resident-candidate-dir) [[ $# -ge 2 ]] || exit 64; resident_candidate_dir="$2"; shift 2 ;;
     --video-policy) [[ $# -ge 2 ]] || exit 64; video_policy="$2"; shift 2 ;;
     --resident-attempts) [[ $# -ge 2 ]] || exit 64; resident_attempts="$2"; shift 2 ;;
     --offline-acceptance) offline_acceptance=1; shift ;;
     *) echo "Unknown option: $1" >&2; exit 64 ;;
   esac
 done
+if [[ -n "$resident_candidate_dir" ]]; then
+  if [[ -n "$resident_parameter_manifest" || -n "$parameter_file" ]]; then
+    echo '--resident-candidate-dir is mutually exclusive with --resident-parameter-manifest and --parameter-file' >&2
+    exit 64
+  fi
+  if [[ "$method" != TASE_RNN_MATURE || ( "$duration" != r013_60 && "$duration" != r013_60_rate400 ) ]]; then
+    echo '--resident-candidate-dir requires a 60 s TASE_RNN_MATURE pilot' >&2
+    exit 64
+  fi
+  if (( resident_attempts < 1 )); then
+    echo '--resident-candidate-dir requires a positive resident attempt count' >&2
+    exit 64
+  fi
+  if (( offline_acceptance || stop_requested )); then
+    echo '--resident-candidate-dir applies only to a supervised resident pilot' >&2
+    exit 64
+  fi
+  env -u VIRTUAL_ENV -u PYTHONHOME PYTHONNOUSERSITE=1 \
+    PYTHONPATH="$ROOT/tools:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages" \
+    CANDIDATE_DIR="$resident_candidate_dir" DURATION="$duration" ATTEMPTS="$resident_attempts" \
+    "$ROOT/.venv-contact-six/bin/python" - <<'PY'
+import os
+from pathlib import Path
+
+root = Path(os.environ["CANDIDATE_DIR"]).expanduser()
+if root.is_symlink():
+    raise SystemExit("resident candidate directory cannot be a symlink")
+root = root.resolve()
+if not root.is_dir():
+    raise SystemExit(f"resident candidate directory is invalid: {root}")
+duration = os.environ["DURATION"]
+attempts = int(os.environ["ATTEMPTS"])
+first = root / "candidate-0001.json"
+if first.is_symlink() or not first.is_file():
+    raise SystemExit(f"initial resident candidate is not a regular file: {first}")
+try:
+    from tase_contact_provider import load_tase_outer_config
+
+    _config, binding = load_tase_outer_config(first)
+except Exception as exc:
+    raise SystemExit(f"initial resident candidate is invalid: {type(exc).__name__}: {exc}")
+expected_protocol = (
+    "figure8_window60_r013_rate400_v1"
+    if duration == "r013_60_rate400"
+    else "figure8_window60_r013_compat_v1"
+)
+if binding.get("protocol_id") != expected_protocol or binding.get("duration_token") != duration:
+    raise SystemExit(f"initial resident candidate protocol/duration differs: {first}")
+for ordinal in range(2, attempts + 1):
+    later = root / f"candidate-{ordinal:04d}.json"
+    if later.exists() or later.is_symlink():
+        raise SystemExit(f"resident candidate {ordinal} must arrive only after the prior seal")
+PY
+fi
 if (( offline_acceptance )); then
   [[ -n "$run_dir" ]] || { echo '--offline-acceptance requires --run-dir' >&2; exit 64; }
   offline_args=(--run-dir "$run_dir" --attempts "$resident_attempts")
@@ -63,7 +120,7 @@ case "$duration" in
   full|full_period|period|r013_60|compat60|r013_compat_60|r013_60_rate400) ;;
   *) echo "Unsupported Figure-eight duration: $duration" >&2; exit 64 ;;
 esac
-if [[ -z "$parameter_file" && -z "$resident_parameter_manifest" && "$method" == TASE_RNN_MATURE ]]; then
+if [[ -z "$parameter_file" && -z "$resident_parameter_manifest" && -z "$resident_candidate_dir" && "$method" == TASE_RNN_MATURE ]]; then
   case "$duration" in
     r013_60|compat60|r013_compat_60) parameter_file="$ROOT/config/tase_figure8_integral_0p1.json" ;;
     r013_60_rate400) parameter_file="$ROOT/config/tase_figure8_integral_0p1_rate400.json" ;;
@@ -146,6 +203,9 @@ supervise_args+=(--video-policy "$video_policy")
 supervise_args+=(--resident-attempts "$resident_attempts")
 if [[ -n "$resident_parameter_manifest" ]]; then
   supervise_args+=(--resident-parameter-manifest "$resident_parameter_manifest")
+fi
+if [[ -n "$resident_candidate_dir" ]]; then
+  supervise_args+=(--resident-candidate-dir "$resident_candidate_dir")
 fi
 if [[ -n "$parameter_file" ]]; then
   supervise_args+=(--parameter-file "$parameter_file")

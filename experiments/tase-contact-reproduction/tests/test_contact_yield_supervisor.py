@@ -1,11 +1,13 @@
 """Fault-injected lifecycle checks. No network endpoints or robot execution."""
 from types import SimpleNamespace as NS
 import json
+from pathlib import Path
 import pytest
 from contact_yield_supervisor import (
     ResidentSupervisor,
     READABLE_RUNTIME_IDENTITY,
     VideoRecorder,
+    validate_resident_candidate_directory,
 )
 from contact_yield_live import ObservedTransport
 
@@ -138,6 +140,57 @@ def test_observer_start_failure_never_plays():
     s.observer.start=fail
     result=s.run(body)
     assert not result['success'] and 'play' not in events
+
+
+def test_resident_candidate_directory_prevalidates_only_the_initial_file(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    candidate_dir = tmp_path / "candidates"
+    candidate_dir.mkdir()
+    first_payload = json.loads(
+        (root / "config/tase_figure8_integral_0p1_rate400.json").read_text()
+    )
+    first_payload["candidate_id"] = "tuner-1"
+    first_payload["index"] = 0
+    first_path = candidate_dir / "candidate-0001.json"
+    first_path.write_text(json.dumps(first_payload), encoding="utf-8")
+
+    single_directory, single_selected, single_binding = validate_resident_candidate_directory(
+        candidate_dir, duration="r013_60_rate400", attempts=1
+    )
+    assert single_directory == candidate_dir.resolve()
+    assert single_selected == first_path.resolve()
+    assert single_binding["candidate_id"] == "tuner-1"
+
+    directory, selected, binding = validate_resident_candidate_directory(
+        candidate_dir, duration="r013_60_rate400", attempts=3
+    )
+    assert directory == candidate_dir.resolve()
+    assert selected == first_path.resolve()
+    assert binding["candidate_id"] == "tuner-1"
+
+    (candidate_dir / "candidate-0002.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="only after the prior seal"):
+        validate_resident_candidate_directory(
+            candidate_dir, duration="r013_60_rate400", attempts=3
+        )
+
+
+def test_supervisor_rejects_static_and_adaptive_manifest_together(tmp_path):
+    from contact_yield_supervisor import main
+
+    with pytest.raises(SystemExit) as exc:
+        main([
+            "--action", "pilot",
+            "--method", "TASE_RNN_MATURE",
+            "--duration", "r013_60_rate400",
+            "--run-dir", str(tmp_path / "run"),
+            "--readback-dir", str(tmp_path / "readback"),
+            "--control-cpu", "2",
+            "--resident-attempts", "2",
+            "--resident-parameter-manifest", str(tmp_path / "manifest.json"),
+            "--resident-candidate-dir", str(tmp_path / "candidates"),
+        ])
+    assert exc.value.code == 2
 
 
 def test_old_runtime_identity_waits_for_new_program_then_times_out():

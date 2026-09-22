@@ -54,6 +54,7 @@ REMAINING_AFTER_ENTRY = (
     "full-chain 500 Hz formal timing on this route",
     "current_stage promotion after main validates the actual route",
 )
+RESIDENT_CANDIDATE_WAIT_TIMEOUT_S = 120.0
 
 
 class YieldLiveError(RuntimeError):
@@ -103,7 +104,7 @@ def automatic_home_after_fault(
         )
     try:
         from run_contact_recovery import recover_failed_contact_run
-    except BaseException as exc:
+    except Exception as exc:
         return _blocked_home_recovery(
             run_dir=run_dir,
             reason=f"Home recovery owner import failed: {type(exc).__name__}: {exc}",
@@ -115,7 +116,7 @@ def automatic_home_after_fault(
             result = recover_failed_contact_run(
                 Path(run_dir), controller_host, video_url, video_policy=video_policy
             )
-    except BaseException as exc:
+    except Exception as exc:
         # The normal owner already escalates its own failures.  Keep one
         # direct, monitored fallback here as well so an unexpected exception
         # in the dispatcher cannot silently become a revoke-only outcome while
@@ -303,6 +304,137 @@ def resident_candidate_can_continue(item: Mapping[str, Any], *, research_campaig
     )
 
 
+def resident_candidate_path(candidate_dir: Path, ordinal: int) -> Path:
+    if isinstance(ordinal, bool) or not isinstance(ordinal, int) or ordinal < 1:
+        raise YieldLiveError("resident candidate ordinal must be a positive integer")
+    return Path(candidate_dir).expanduser().resolve() / f"candidate-{ordinal:04d}.json"
+
+
+def _load_resident_candidate(candidate_dir: Path, ordinal: int, *, duration: str):
+    path = resident_candidate_path(candidate_dir, ordinal)
+    if path.is_symlink() or not path.is_file():
+        raise YieldLiveError(f"resident candidate {ordinal} is not a regular file: {path}")
+    try:
+        from tase_contact_provider import load_tase_outer_config
+
+        _config, binding = load_tase_outer_config(path)
+    except Exception as exc:
+        raise YieldLiveError(
+            f"resident candidate {ordinal} failed validated Home config load: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+    expected_protocol = (
+        "figure8_window60_r013_rate400_v1"
+        if duration == "r013_60_rate400"
+        else "figure8_window60_r013_compat_v1"
+    )
+    if (
+        binding.get("protocol_id") != expected_protocol
+        or binding.get("duration_token") != duration
+    ):
+        raise YieldLiveError(f"resident candidate {ordinal} protocol/duration differs: {path}")
+    return path, binding
+
+
+def _require_sealed_home_result(
+    session, item: Mapping[str, Any], *, run_dir: Path
+) -> int:
+    lifecycle = item.get("lifecycle")
+    sequence = item.get("sequence")
+    if (
+        isinstance(sequence, bool)
+        or not isinstance(sequence, int)
+        or not isinstance(lifecycle, Mapping)
+        or lifecycle.get("sealed") is not True
+        or lifecycle.get("home_verified") is not True
+        or lifecycle.get("ready_for_next") is not True
+    ):
+        raise YieldLiveError("next resident candidate requires sealed attempt and verified joint Home")
+    attempt_dir = Path(run_dir) / "attempts" / f"{sequence:04d}"
+    seal_path = attempt_dir / "seal.json"
+    result_path = attempt_dir / "attempt-result.json"
+    if any(path.is_symlink() or not path.is_file() for path in (seal_path, result_path)):
+        raise YieldLiveError("next resident candidate requires both sealed result files")
+    try:
+        seal = json.loads(seal_path.read_text(encoding="utf-8"))
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise YieldLiveError("prior resident attempt result or seal is unreadable") from exc
+    sealed_evidence = result.get("sealed_evidence") if isinstance(result, dict) else None
+    seal_lifecycle = seal.get("lifecycle") if isinstance(seal, dict) else None
+    if (
+        not isinstance(seal, dict)
+        or seal.get("attempt_sequence") != sequence
+        or not isinstance(seal_lifecycle, Mapping)
+        or seal_lifecycle.get("sealed") is not True
+        or seal_lifecycle.get("home_verified") is not True
+        or not isinstance(result, dict)
+        or result.get("sequence") != sequence
+        or not isinstance(sealed_evidence, dict)
+        or sealed_evidence.get("attempt_sequence") != sequence
+    ):
+        raise YieldLiveError("prior resident attempt result/seal identity or Home state differs")
+    return max(seal_path.stat().st_mtime_ns, result_path.stat().st_mtime_ns)
+
+
+def _wait_for_resident_candidate(
+    session,
+    *,
+    item: Mapping[str, Any],
+    candidate_dir: Path,
+    ordinal: int,
+    duration: str,
+    run_dir: Path,
+) -> tuple[Path, Mapping[str, Any]]:
+    """Wait at sealed, verified joint Home while servicing the resident TP."""
+
+    sealed_artifacts_mtime_ns = _require_sealed_home_result(
+        session, item, run_dir=run_dir
+    )
+    writer = session.writer
+    previous_service_mode = getattr(writer, "_service_mode", False)
+    set_context = getattr(session, "_set_service_context", None)
+    if callable(set_context):
+        set_context(attempt_sequence=ordinal, stage="candidate_wait")
+    writer._service_mode = True
+    deadline = float(session.mono_clock()) + RESIDENT_CANDIDATE_WAIT_TIMEOUT_S
+    try:
+        home = session.verify_ready_for_next(reason=f"candidate_{ordinal}_wait_start")
+        if not isinstance(home, Mapping) or home.get("home_verified") is not True:
+            raise YieldLiveError("resident candidate wait did not start at verified joint Home")
+        path = resident_candidate_path(candidate_dir, ordinal)
+        while True:
+            now = float(session.mono_clock())
+            if now >= deadline:
+                raise YieldLiveError(
+                    f"resident candidate {ordinal} wait timed out after "
+                    f"{RESIDENT_CANDIDATE_WAIT_TIMEOUT_S:.0f}s at verified joint Home"
+                )
+            if path.exists() or path.is_symlink():
+                if path.is_symlink() or not path.is_file():
+                    raise YieldLiveError(
+                        f"resident candidate {ordinal} is not a regular file: {path}"
+                    )
+                if path.stat().st_mtime_ns <= sealed_artifacts_mtime_ns:
+                    raise YieldLiveError(
+                        f"resident candidate {ordinal} predates the previous attempt result/seal"
+                    )
+                selected_path, binding = _load_resident_candidate(
+                    candidate_dir, ordinal, duration=duration
+                )
+                final_home = session.verify_ready_for_next(
+                    reason=f"candidate_{ordinal}_ready"
+                )
+                if not isinstance(final_home, Mapping) or final_home.get("home_verified") is not True:
+                    raise YieldLiveError(
+                        f"resident candidate {ordinal} arrived outside verified joint Home"
+                    )
+                return selected_path, binding
+            session._service_tick()
+    finally:
+        writer._service_mode = previous_service_mode
+
+
 def run_live(
     args: argparse.Namespace,
     *,
@@ -318,6 +450,7 @@ def run_live(
     attempt_count: int = 1,
     parameter_bindings: list[Mapping[str, Any]] | None = None,
     parameter_files: list[Path] | None = None,
+    resident_candidate_dir: Path | None = None,
     research_campaign: bool = False,
     refresh_readback=None,
     dashboard_stop_and_verify=None,
@@ -331,7 +464,38 @@ def run_live(
         raise YieldLiveError("resident parameter binding count differs from attempt count")
     if parameter_files is not None and len(parameter_files) != attempt_count:
         raise YieldLiveError("resident parameter file count differs from attempt count")
-    if research_campaign and parameter_files is None:
+    candidate_directory = None
+    if resident_candidate_dir is not None:
+        if parameter_files is not None or parameter_bindings is not None:
+            raise YieldLiveError("resident candidate directory is exclusive with static parameters")
+        if (
+            args.command != "pilot"
+            or args.method != "TASE_RNN_MATURE"
+            or getattr(args, "duration", None) not in {"r013_60", "r013_60_rate400"}
+        ):
+            raise YieldLiveError(
+                "resident candidate directory requires a 60 s TASE_RNN_MATURE pilot"
+            )
+        raw_candidate_directory = Path(resident_candidate_dir).expanduser()
+        if raw_candidate_directory.is_symlink():
+            raise YieldLiveError("resident candidate directory cannot be a symlink")
+        candidate_directory = raw_candidate_directory.resolve()
+        if not candidate_directory.is_dir():
+            raise YieldLiveError(f"resident candidate directory is invalid: {candidate_directory}")
+        first_candidate, _first_binding = _load_resident_candidate(
+            candidate_directory, 1, duration=args.duration
+        )
+        for ordinal in range(2, attempt_count + 1):
+            future_candidate = resident_candidate_path(candidate_directory, ordinal)
+            if future_candidate.exists() or future_candidate.is_symlink():
+                raise YieldLiveError(
+                    f"resident candidate {ordinal} must be supplied only after the prior seal"
+                )
+        configured_candidate = getattr(args, "parameter_file", None)
+        if configured_candidate is not None and Path(configured_candidate).expanduser().resolve() != first_candidate:
+            raise YieldLiveError("initial parameter file differs from candidate-0001.json")
+        args.parameter_file = first_candidate
+    if research_campaign and parameter_files is None and candidate_directory is None:
         raise YieldLiveError("research campaign requires a Home-loaded candidate")
     # The live entry owns all artifacts below one canonical run directory.
     # Relative paths otherwise depend on the caller's current directory and
@@ -425,6 +589,9 @@ def run_live(
         "continuous_contact_path": bool(args.command == "pilot"),
         "rnn_hash_or_profile": provider.solver_profile.as_dict() if args.method == "TASE_RNN_MATURE" else False,
         "tase_parameter_binding": getattr(provider, "parameter_binding", None),
+        "resident_candidate_dir": (
+            None if candidate_directory is None else str(candidate_directory)
+        ),
         "prewarmed_before_endpoints": True,
         "provider_prewarm": getattr(provider, "prewarm_record", None),
         "command_timeline": getattr(provider, "command_timeline", []),
@@ -466,6 +633,7 @@ def run_live(
         lifecycle_clock=lifecycle_clock,
         parameter_bindings=parameter_bindings,
         parameter_files=parameter_files,
+        resident_candidate_dir=candidate_directory,
         research_campaign=research_campaign,
         attempt_count=attempt_count,
         defer_recovery=defer_recovery,
@@ -494,6 +662,7 @@ def _run_live_with_resident_session(
     lifecycle_clock: Any,
     parameter_bindings: list[Mapping[str, Any]] | None,
     parameter_files: list[Path] | None,
+    resident_candidate_dir: Path | None,
     research_campaign: bool,
     attempt_count: int,
     defer_recovery: bool,
@@ -539,9 +708,32 @@ def _run_live_with_resident_session(
                 previous["turnaround_s"] = (
                     previous["next_started_monotonic_s"] - previous["started_monotonic_s"]
                 )
+            if resident_candidate_dir is not None:
+                if sequence == 1:
+                    parameter_file, binding = _load_resident_candidate(
+                        resident_candidate_dir, sequence, duration=args.duration
+                    )
+                else:
+                    parameter_file, binding = _wait_for_resident_candidate(
+                        session,
+                        item=receipt["attempts"][-1],
+                        candidate_dir=resident_candidate_dir,
+                        ordinal=sequence,
+                        duration=args.duration,
+                        run_dir=Path(args.run_dir),
+                    )
+            else:
+                binding = None if parameter_bindings is None else parameter_bindings[sequence - 1]
+                parameter_file = None if parameter_files is None else parameter_files[sequence - 1]
+            if resident_candidate_dir is not None and sequence < attempt_count:
+                future_candidate = resident_candidate_path(
+                    resident_candidate_dir, sequence + 1
+                )
+                if future_candidate.exists() or future_candidate.is_symlink():
+                    raise YieldLiveError(
+                        f"resident candidate {sequence + 1} arrived before attempt {sequence} sealed"
+                    )
             active_attempt = (sequence, phase)
-            binding = None if parameter_bindings is None else parameter_bindings[sequence - 1]
-            parameter_file = None if parameter_files is None else parameter_files[sequence - 1]
             item = run_attempt(
                 session,
                 phase=phase,
@@ -550,6 +742,12 @@ def _run_live_with_resident_session(
                 parameter_binding=binding,
                 parameter_file=parameter_file,
             )
+            if resident_candidate_dir is not None:
+                item["resident_candidate"] = {
+                    "ordinal": sequence,
+                    "source_path": str(parameter_file),
+                    "candidate_id": binding.get("candidate_id"),
+                }
             item = session.seal_attempt(item)
             receipt["attempts"].append(item)
             receipt["armed"] = True
