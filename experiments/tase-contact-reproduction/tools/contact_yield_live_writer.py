@@ -663,6 +663,7 @@ class NativeYieldLiveWriter(R006LiveWriter):
         self._service_observations: dict[str, list[Any]] = {}
         self._service_lock = threading.Lock()
         self._first_output_error = None
+        self._host_path_publish_count = 0
 
     def recovery_lifecycle(self, *, home_transition=None, ownership_registry=None):
         """Expose the offline recovery seam on this existing sole writer.
@@ -713,6 +714,9 @@ class NativeYieldLiveWriter(R006LiveWriter):
         if len(proposed) != 6 or any(not math.isfinite(x) or abs(x) > .05 for x in proposed):
             raise YieldLiveWriterError("native joint velocity limit exceeded (0.05 rad/s)")
         packet = super()._send_packet(sensor, **kwargs)
+        if (kwargs.get("reference_phase") == "path"
+            and kwargs.get("command_mode") is CommandMode.PATH):
+            self._host_path_publish_count += 1
         self._record(self.command_observations, (self._mono_clock(), packet))
         request = getattr(self, "live_path_request", None)
         phase = kwargs.get("reference_phase")

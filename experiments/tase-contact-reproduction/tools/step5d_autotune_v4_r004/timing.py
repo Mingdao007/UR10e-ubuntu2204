@@ -20,6 +20,8 @@ TIMING_EVIDENCE_VERSION = "step5d.autotune-v4/r004-timing-v1"
 TIMING_EVIDENCE_SCHEMA = "step5d.autotune-v4/r004-timing-evidence-v1"
 NOMINAL_RATE_HZ = 500.0
 MIN_SUCCESS_RATE_HZ = 460.0
+R013_RATE400_MIN_HZ = 400.0
+R013_RATE400_ACCEPTANCE_ID = "figure8_window60_r013_rate400_v1"
 FEEDBACK_AGE_P99_MAX_S = 0.010
 MAX_FRESH_GAP_S = 0.020
 RUNTIME_STALE_STOP_S = 0.080
@@ -121,12 +123,12 @@ class TimingLayerEvidence:
         rate = _finite(self.rate_hz, f"{self.layer} rate")
         nominal = _finite(self.nominal_rate_hz, f"{self.layer} nominal rate")
         minimum = _finite(self.minimum_rate_hz, f"{self.layer} minimum rate")
-        if duration <= 0.0 or rate < 0.0 or nominal != NOMINAL_RATE_HZ or minimum != MIN_SUCCESS_RATE_HZ:
+        if duration <= 0.0 or rate < 0.0 or nominal != NOMINAL_RATE_HZ or minimum not in {MIN_SUCCESS_RATE_HZ, R013_RATE400_MIN_HZ}:
             raise TimingError(f"{self.layer} timing contract is invalid")
 
     @property
     def passed(self) -> bool:
-        # The comparison is deliberately inclusive at 460 Hz.
+        # The comparison is inclusive at the declared protocol threshold.
         return self.rate_hz >= self.minimum_rate_hz
 
     @property
@@ -170,6 +172,7 @@ class TimingEvidence:
     max_fresh_gap_s: float = float("inf")
     nominal_rate_hz: float = NOMINAL_RATE_HZ
     minimum_rate_hz: float = MIN_SUCCESS_RATE_HZ
+    acceptance_protocol_id: str = "r004_460"
     runtime_stale_stop_s: float = RUNTIME_STALE_STOP_S
     layer_rates_hz: Mapping[str, float] = field(default_factory=dict)
     version: str = TIMING_EVIDENCE_VERSION
@@ -183,7 +186,11 @@ class TimingEvidence:
         nominal = _finite(self.nominal_rate_hz, "nominal rate")
         minimum = _finite(self.minimum_rate_hz, "minimum rate")
         stale_stop = _finite(self.runtime_stale_stop_s, "runtime stale stop")
-        if nominal != NOMINAL_RATE_HZ or minimum != MIN_SUCCESS_RATE_HZ or stale_stop != RUNTIME_STALE_STOP_S:
+        accepted_policy = (
+            (minimum == MIN_SUCCESS_RATE_HZ and self.acceptance_protocol_id == "r004_460")
+            or (minimum == R013_RATE400_MIN_HZ and self.acceptance_protocol_id == R013_RATE400_ACCEPTANCE_ID)
+        )
+        if nominal != NOMINAL_RATE_HZ or not accepted_policy or stale_stop != RUNTIME_STALE_STOP_S:
             raise TimingError("r004 timing constants differ")
         for role in (
             "successful_writer_publishes",
@@ -320,7 +327,7 @@ class TimingEvidence:
     def as_dict(self) -> dict[str, Any]:
         feedback_p99 = self.feedback_age_p99_s if math.isfinite(self.feedback_age_p99_s) else None
         fresh_gap = self.max_fresh_gap_s if math.isfinite(self.max_fresh_gap_s) else None
-        return {
+        payload = {
             "schema": TIMING_EVIDENCE_SCHEMA,
             "version": self.version,
             "duration_s": self.duration_s,
@@ -338,6 +345,9 @@ class TimingEvidence:
             "max_fresh_gap_limit_s": MAX_FRESH_GAP_S,
             "successful": self.successful,
         }
+        if self.acceptance_protocol_id != "r004_460":
+            payload["acceptance_protocol_id"] = self.acceptance_protocol_id
+        return payload
 
     to_dict = as_dict
 
@@ -361,6 +371,7 @@ class TimingEvidence:
             max_fresh_gap_s=float("inf") if gap_value is None else gap_value,
             nominal_rate_hz=value.get("nominal_rate_hz", NOMINAL_RATE_HZ),
             minimum_rate_hz=value.get("minimum_rate_hz", MIN_SUCCESS_RATE_HZ),
+            acceptance_protocol_id=value.get("acceptance_protocol_id", "r004_460"),
             runtime_stale_stop_s=value.get("runtime_stale_stop_s", RUNTIME_STALE_STOP_S),
             layer_rates_hz=value.get("layer_rates_hz", value.get("layer_rates", {})),
             version=value.get("version", TIMING_EVIDENCE_VERSION),
@@ -381,6 +392,8 @@ class TimingEvidence:
         distinct_tp_consumed_packet_echoes: int | None = None,
         feedback_age_p99_s: float = float("inf"),
         max_fresh_gap_s: float = float("inf"),
+        minimum_rate_hz: float = MIN_SUCCESS_RATE_HZ,
+        acceptance_protocol_id: str = "r004_460",
     ) -> "TimingEvidence":
         return cls(
             duration_s=duration_s,
@@ -398,6 +411,8 @@ class TimingEvidence:
             ),
             feedback_age_p99_s=feedback_age_p99_s,
             max_fresh_gap_s=max_fresh_gap_s,
+            minimum_rate_hz=minimum_rate_hz,
+            acceptance_protocol_id=acceptance_protocol_id,
         )
 
 
@@ -413,12 +428,19 @@ class TimingEvidenceCollector:
         *,
         nominal_rate_hz: float = NOMINAL_RATE_HZ,
         minimum_rate_hz: float = MIN_SUCCESS_RATE_HZ,
+        acceptance_protocol_id: str = "r004_460",
         runtime_stale_stop_s: float = RUNTIME_STALE_STOP_S,
     ) -> None:
-        if float(nominal_rate_hz) != NOMINAL_RATE_HZ or float(minimum_rate_hz) != MIN_SUCCESS_RATE_HZ:
-            raise TimingError("r004 timing rates are immutable")
+        valid_policy = (
+            (float(minimum_rate_hz) == MIN_SUCCESS_RATE_HZ and acceptance_protocol_id == "r004_460")
+            or (float(minimum_rate_hz) == R013_RATE400_MIN_HZ and acceptance_protocol_id == R013_RATE400_ACCEPTANCE_ID)
+        )
+        if float(nominal_rate_hz) != NOMINAL_RATE_HZ or not valid_policy:
+            raise TimingError("timing threshold differs from declared acceptance protocol")
         if float(runtime_stale_stop_s) != RUNTIME_STALE_STOP_S:
             raise TimingError("runtime stale stop must remain 0.080 s")
+        self.minimum_rate_hz = float(minimum_rate_hz)
+        self.acceptance_protocol_id = acceptance_protocol_id
         self._layer_keys: dict[str, set[tuple[str, str]]] = {layer: set() for layer in TIMING_LAYERS}
         self._layer_times: dict[str, list[float]] = {layer: [] for layer in TIMING_LAYERS}
         self._layer_counts: dict[str, int] = {layer: 0 for layer in TIMING_LAYERS}
@@ -691,6 +713,8 @@ class TimingEvidenceCollector:
             distinct_tp_consumed_packet_echoes=counts[TP_ECHO_LAYER],
             feedback_age_p99_s=_p_quantile(self._feedback_ages, 0.99),
             max_fresh_gap_s=fresh_gap,
+            minimum_rate_hz=self.minimum_rate_hz,
+            acceptance_protocol_id=self.acceptance_protocol_id,
         )
 
 

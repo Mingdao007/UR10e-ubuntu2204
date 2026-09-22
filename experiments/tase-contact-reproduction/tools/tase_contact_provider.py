@@ -22,6 +22,7 @@ from tase_figure8_protocol import (
     DURATION_S as R013_COMPAT60_DURATION_S,
     Figure8Window60Task,
     PROTOCOL_ID as R013_COMPAT60_PROTOCOL_ID,
+    RATE400_PROTOCOL_ID as R013_RATE400_PROTOCOL_ID,
     SEAM_CONTINUATION_S as R013_COMPAT60_SEAM_CONTINUATION_S,
 )
 from contact_yield_task_frame import require_figure8_home
@@ -292,9 +293,9 @@ class TaseContactProvider(ContactCommandProvider):
         self.basis = require_figure8_home(pose)
         self.anchor = pose[:3].copy()
         selected_protocol = "contact_yield_full_period_v1" if protocol_id is None else str(protocol_id)
-        if selected_protocol == R013_COMPAT60_PROTOCOL_ID:
-            self.task = Figure8Window60Task()
-            self.protocol_id = R013_COMPAT60_PROTOCOL_ID
+        if selected_protocol in {R013_COMPAT60_PROTOCOL_ID, R013_RATE400_PROTOCOL_ID}:
+            self.task = Figure8Window60Task(protocol_id=selected_protocol)
+            self.protocol_id = selected_protocol
             self.path_duration_s = R013_COMPAT60_DURATION_S
             self.path_seam_continuation_s = R013_COMPAT60_SEAM_CONTINUATION_S
             # Keep the protocol's 4 ms reference seam, but accept the same
@@ -371,7 +372,7 @@ class TaseContactProvider(ContactCommandProvider):
             # strictly inside the selected metric window.
             ref = self.task.reference(
                 min(t, self.path_duration_s + self.path_seam_continuation_s),
-                **({"allow_seam": True} if self.protocol_id == R013_COMPAT60_PROTOCOL_ID else {}),
+                **({"allow_seam": True} if self.protocol_id in {R013_COMPAT60_PROTOCOL_ID, R013_RATE400_PROTOCOL_ID} else {}),
             )
         position = self.anchor + self.basis @ np.asarray(ref['position_m'])
         velocity = self.basis @ np.asarray(ref['velocity_m_s'])
@@ -398,7 +399,7 @@ class TaseContactProvider(ContactCommandProvider):
         upper = self.path_duration_s + seam
         if not math.isfinite(t) or not 0.0 <= t <= upper:
             raise ValueError('TASE formal reference clock is outside the bounded protocol seam')
-        kwargs = {"allow_seam": True} if self.protocol_id == R013_COMPAT60_PROTOCOL_ID else {}
+        kwargs = {"allow_seam": True} if self.protocol_id in {R013_COMPAT60_PROTOCOL_ID, R013_RATE400_PROTOCOL_ID} else {}
         ref = self.task.reference(t, **kwargs)
         return {'position_m': self.anchor + self.basis @ np.asarray(ref['position_m']),
                 'velocity_m_s': self.basis @ np.asarray(ref['velocity_m_s'])}
@@ -449,7 +450,9 @@ class TaseContactProvider(ContactCommandProvider):
         declared_duration = binding.get('duration_token')
         if declared_duration is not None and (
             (self.protocol_id == R013_COMPAT60_PROTOCOL_ID and declared_duration != 'r013_60')
-            or (self.protocol_id != R013_COMPAT60_PROTOCOL_ID and declared_duration == 'r013_60')
+            or (self.protocol_id == R013_RATE400_PROTOCOL_ID and declared_duration != 'r013_60_rate400')
+            or (self.protocol_id not in {R013_COMPAT60_PROTOCOL_ID, R013_RATE400_PROTOCOL_ID}
+                and declared_duration in {'r013_60', 'r013_60_rate400'})
         ):
             raise ValueError('TASE candidate duration differs from resident PATH')
         previous = (

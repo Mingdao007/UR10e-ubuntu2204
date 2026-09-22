@@ -866,6 +866,8 @@ class ResidentSession:
             parameter_binding=parameter_binding,
             parameter_file=parameter_file,
         )
+        if hasattr(self.writer, "_host_path_publish_count"):
+            self.writer._host_path_publish_count = 0
         end = getattr(self.writer, "_r013_path_early_end_controller", None)
         if end is not None:
             end.arm(sequence)
@@ -912,6 +914,7 @@ class ResidentSession:
             },
             "sequence": sequence,
             "phase": phase,
+            "host_path_publishes": getattr(self.writer, "_host_path_publish_count", None),
             "scheduler": scheduler,
             "evidence": evidence_payload,
             "state": self.provider.snapshot(),

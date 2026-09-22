@@ -3,7 +3,7 @@
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
-  echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60] [--run-dir RUN] [--prepared-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--resident-parameter-manifest FILE] [--video-policy required|evidence-only]'
+  echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60|r013_60_rate400] [--run-dir RUN] [--prepared-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--resident-parameter-manifest FILE] [--video-policy required|evidence-only]'
   echo '       figure8.sh --stop --run-dir RUN'
   echo 'Defaults: TASE_RNN_MATURE, CPU 2, one 60 s R013-compatible figure-eight, then stop/Home.'
   echo 'Use --duration full explicitly for the separate 62.831853 s full-period protocol.'
@@ -40,11 +40,15 @@ while (($#)); do
 done
 if (( offline_acceptance )); then
   [[ -n "$run_dir" ]] || { echo '--offline-acceptance requires --run-dir' >&2; exit 64; }
+  offline_args=(--run-dir "$run_dir" --attempts "$resident_attempts")
+  if [[ "$duration" == r013_60_rate400 ]]; then
+    offline_args+=(--rate400)
+  fi
   exec env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONNOUSERSITE=1 \
     PYTHONPATH="$ROOT/tools:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages" \
     OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
     "$ROOT/.venv-contact-six/bin/python" "$ROOT/tools/figure8_resident_acceptance.py" \
-    --run-dir "$run_dir" --attempts "$resident_attempts"
+    "${offline_args[@]}"
 fi
 case "$video_policy" in
   required|evidence-only) ;;
@@ -56,12 +60,13 @@ if (( stop_requested )); then
   exec "$ROOT/scripts/contact-yield-live.sh" stop --run-dir "$run_dir"
 fi
 case "$duration" in
-  full|full_period|period|r013_60|compat60|r013_compat_60) ;;
+  full|full_period|period|r013_60|compat60|r013_compat_60|r013_60_rate400) ;;
   *) echo "Unsupported Figure-eight duration: $duration" >&2; exit 64 ;;
 esac
 if [[ -z "$parameter_file" && -z "$resident_parameter_manifest" && "$method" == TASE_RNN_MATURE ]]; then
   case "$duration" in
     r013_60|compat60|r013_compat_60) parameter_file="$ROOT/config/tase_figure8_integral_0p1.json" ;;
+    r013_60_rate400) parameter_file="$ROOT/config/tase_figure8_integral_0p1_rate400.json" ;;
   esac
 fi
 

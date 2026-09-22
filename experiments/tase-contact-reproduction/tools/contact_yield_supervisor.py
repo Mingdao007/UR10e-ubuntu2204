@@ -519,8 +519,8 @@ def main(argv=None):
         p.error('resident attempts require a positive pilot count')
     parameter_files = None
     if a.resident_parameter_manifest is not None:
-        if a.action != 'pilot' or a.method != 'TASE_RNN_MATURE' or a.duration != 'r013_60':
-            p.error('resident parameter manifest requires TASE_RNN_MATURE r013_60 pilot')
+        if a.action != 'pilot' or a.method != 'TASE_RNN_MATURE' or a.duration not in {'r013_60', 'r013_60_rate400'}:
+            p.error('resident parameter manifest requires a 60 s TASE_RNN_MATURE pilot')
         manifest_path = a.resident_parameter_manifest.expanduser().resolve()
         manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
         if not isinstance(manifest, dict) or manifest.get('schema') != 'tase.resident-parameter-manifest-v1':
@@ -538,8 +538,12 @@ def main(argv=None):
         from tase_contact_provider import load_tase_outer_config
         for parameter_file in parameter_files:
             _, binding = load_tase_outer_config(parameter_file)
-            if (binding.get('protocol_id') != 'figure8_window60_r013_compat_v1'
-                or binding.get('duration_token') != 'r013_60'):
+            selected_protocol = (
+                'figure8_window60_r013_rate400_v1' if a.duration == 'r013_60_rate400'
+                else 'figure8_window60_r013_compat_v1'
+            )
+            if (binding.get('protocol_id') != selected_protocol
+                or binding.get('duration_token') != a.duration):
                 p.error(f'resident candidate protocol differs: {parameter_file}')
         a.parameter_file = parameter_files[0]
     # Resolve once at the process boundary so every receipt, observer and

@@ -10,6 +10,7 @@ from tase_figure8_protocol import (
     FORMAL_END_S,
     FORMAL_START_S,
     PROTOCOL_ID,
+    RATE400_PROTOCOL_ID,
     REQUIRED_BINS,
     Figure8Window60Task,
     TaseFigure8ProtocolError,
@@ -17,6 +18,7 @@ from tase_figure8_protocol import (
     score_formal_samples,
 )
 from contact_yield_live_path import parse_live_duration
+from step5d_autotune_v4_r004.timing import TimingEvidence, TimingError
 
 
 def test_60s_protocol_is_explicit_and_not_full_period() -> None:
@@ -41,6 +43,31 @@ def test_reference_rejects_full_period_clock_and_requires_separate_identity() ->
     assert request.kind == "r013_compat_60"
     assert request.path_duration_s == 60.0
     assert request.protocol_id == PROTOCOL_ID
+
+
+def test_rate400_is_a_separate_identity_without_reclassifying_460_hz_failure() -> None:
+    request = parse_live_duration("r013_60_rate400")
+    assert request.kind == "r013_compat_60"
+    assert request.protocol_id == RATE400_PROTOCOL_ID
+    assert Figure8Window60Task(protocol_id=RATE400_PROTOCOL_ID).as_dict()[
+        "minimum_data_rate_hz"
+    ] == 400.0
+    counts = dict(
+        duration_s=60.0,
+        successful_writer_publishes=26760,
+        distinct_rtde_frames=26760,
+        distinct_kunwei_frames=60000,
+        distinct_tp_consumed_packet_echoes=26760,
+        feedback_age_p99_s=0.009,
+        max_fresh_gap_s=0.008,
+    )
+    assert not TimingEvidence(**counts).successful
+    assert TimingEvidence(
+        **counts, minimum_rate_hz=400.0,
+        acceptance_protocol_id=RATE400_PROTOCOL_ID,
+    ).successful
+    with pytest.raises(TimingError):
+        TimingEvidence(**counts, minimum_rate_hz=400.0)
 
 
 def test_figure8_entry_defaults_to_r013_60() -> None:

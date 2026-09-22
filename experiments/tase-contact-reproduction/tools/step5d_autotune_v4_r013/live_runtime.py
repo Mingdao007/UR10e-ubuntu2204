@@ -78,7 +78,15 @@ class R013LightweightTimingEvidenceCollector:
     every 500 Hz tick.
     """
 
-    def __init__(self, **_: Any) -> None:
+    def __init__(self, *, minimum_rate_hz: float = 460.0,
+                 acceptance_protocol_id: str = "r004_460", **_: Any) -> None:
+        if not (
+            (minimum_rate_hz == 460.0 and acceptance_protocol_id == "r004_460")
+            or (minimum_rate_hz == 400.0 and acceptance_protocol_id == "figure8_window60_r013_rate400_v1")
+        ):
+            raise TimingError("R013 timing threshold differs from acceptance protocol")
+        self.minimum_rate_hz = minimum_rate_hz
+        self.acceptance_protocol_id = acceptance_protocol_id
         self._counts = {
             WRITER_PUBLISH_LAYER: 0,
             RTDE_FRAME_LAYER: 0,
@@ -201,6 +209,8 @@ class R013LightweightTimingEvidenceCollector:
             distinct_tp_consumed_packet_echoes=self._counts[TP_ECHO_LAYER],
             feedback_age_p99_s=p99,
             max_fresh_gap_s=max_gap,
+            minimum_rate_hz=self.minimum_rate_hz,
+            acceptance_protocol_id=self.acceptance_protocol_id,
             version=TIMING_EVIDENCE_VERSION,
         )
 

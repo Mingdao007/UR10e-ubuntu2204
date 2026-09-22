@@ -18,6 +18,7 @@ from typing import Any, Iterable, Mapping
 
 
 PROTOCOL_ID = "figure8_window60_r013_compat_v1"
+RATE400_PROTOCOL_ID = "figure8_window60_r013_rate400_v1"
 SCHEMA = "tase.figure8-window60-r013-compat-v1"
 DURATION_S = 60.0
 FORMAL_START_S = 5.0
@@ -50,7 +51,7 @@ class Figure8Window60Task:
     y_amplitude_m: float = Y_AMPLITUDE_M
 
     def __post_init__(self) -> None:
-        if self.protocol_id != PROTOCOL_ID:
+        if self.protocol_id not in {PROTOCOL_ID, RATE400_PROTOCOL_ID}:
             raise TaseFigure8ProtocolError("60 s task protocol identity differs")
         if self.duration_s != DURATION_S or self.entry_duration_s != ENTRY_DURATION_S:
             raise TaseFigure8ProtocolError("60 s task duration is immutable")
@@ -103,7 +104,7 @@ class Figure8Window60Task:
         }
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        identity = {
             "schema": SCHEMA,
             "protocol_id": self.protocol_id,
             "formal_window_s": list(FORMAL_WINDOW_S),
@@ -118,6 +119,10 @@ class Figure8Window60Task:
             "full_period_protocol": False,
             "historical_compatibility": "R013",
         }
+        if self.protocol_id == RATE400_PROTOCOL_ID:
+            identity["schema"] = "tase.figure8-window60-r013-rate400-v1"
+            identity["minimum_data_rate_hz"] = 400.0
+        return identity
 
     @property
     def identity_sha256(self) -> str:
@@ -163,7 +168,7 @@ def score_formal_samples(
     incomplete or qualification rows still receive diagnostic metrics with
     explicit coverage and stage labels.
     """
-    if protocol_id != PROTOCOL_ID:
+    if protocol_id not in {PROTOCOL_ID, RATE400_PROTOCOL_ID}:
         raise TaseFigure8ProtocolError("metric protocol identity differs")
     if not math.isfinite(float(target_force_n)):
         raise TaseFigure8ProtocolError("metric target is not finite")
@@ -234,6 +239,7 @@ __all__ = [
     "FORMAL_WINDOW_S",
     "Figure8Window60Task",
     "PROTOCOL_ID",
+    "RATE400_PROTOCOL_ID",
     "REQUIRED_BINS",
     "SCHEMA",
     "SEAM_CONTINUATION_S",

@@ -19,6 +19,7 @@ DIAGNOSTIC_DURATIONS_S = (2.0, 10.0)
 from contact_yield_protocol import PERIOD_S
 from tase_figure8_protocol import DURATION_S as R013_COMPAT60_DURATION_S
 from tase_figure8_protocol import PROTOCOL_ID as R013_COMPAT60_PROTOCOL_ID
+from tase_figure8_protocol import RATE400_PROTOCOL_ID as R013_RATE400_PROTOCOL_ID
 
 
 DIAGNOSTIC_CLAIM = (
@@ -33,6 +34,11 @@ R013_COMPAT60_CLAIM = (
     "historical R013-compatible 60 s measurement window; formal metric is "
     "[5,60) with 550 bins; not the 62.831853 s full-period protocol and not "
     "physical qualification by itself"
+)
+R013_RATE400_CLAIM = (
+    "separate R013 60 s rate400 acceptance protocol; formal metric is [5,60) "
+    "with 550 bins, nominal sending remains 500 Hz, and the data rate gate "
+    "is 400 Hz; historical 460 Hz failures are not reclassified"
 )
 
 
@@ -99,9 +105,11 @@ def require_live_path_request(value: Any) -> LivePathRequest:
             abs_tol=1e-12,
         ):
             raise LivePathRequestError("R013-compatible request is not exactly 60 s")
-        if value.claim_scope != R013_COMPAT60_CLAIM:
-            raise LivePathRequestError("R013-compatible claim scope differs")
-        if value.protocol_id != R013_COMPAT60_PROTOCOL_ID:
+        valid_identity = (
+            (value.protocol_id == R013_COMPAT60_PROTOCOL_ID and value.claim_scope == R013_COMPAT60_CLAIM)
+            or (value.protocol_id == R013_RATE400_PROTOCOL_ID and value.claim_scope == R013_RATE400_CLAIM)
+        )
+        if not valid_identity:
             raise LivePathRequestError("R013-compatible protocol identity differs")
         return value
     raise LivePathRequestError(f"unknown live path kind {value.kind!r}")
@@ -131,6 +139,15 @@ def parse_live_duration(value: Any) -> LivePathRequest:
                 formally_qualified=False,
                 full_cycle_acceptance=False,
                 protocol_id=R013_COMPAT60_PROTOCOL_ID,
+            )
+        if token == "r013_60_rate400":
+            return LivePathRequest(
+                kind="r013_compat_60",
+                path_duration_s=R013_COMPAT60_DURATION_S,
+                claim_scope=R013_RATE400_CLAIM,
+                formally_qualified=False,
+                full_cycle_acceptance=False,
+                protocol_id=R013_RATE400_PROTOCOL_ID,
             )
         value = token
     duration = _finite_duration(value)

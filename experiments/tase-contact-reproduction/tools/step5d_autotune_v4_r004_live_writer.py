@@ -1676,6 +1676,7 @@ class LiveR004Writer:
         if entry_aware and path_requested:
             from yield_contact_evidence import (
                 TaseR013Compat60PathEvidenceCollector,
+                TaseR013Rate400PathEvidenceCollector,
                 YieldPathEvidenceCollector,
             )
             from contact_yield_protocol import PERIOD_S
@@ -1683,6 +1684,9 @@ class LiveR004Writer:
             if selected_protocol == "figure8_window60_r013_compat_v1":
                 formal_duration_s = float(getattr(contact_provider, "path_duration_s", 60.0))
                 path_collector_type = TaseR013Compat60PathEvidenceCollector
+            elif selected_protocol == "figure8_window60_r013_rate400_v1":
+                formal_duration_s = float(getattr(contact_provider, "path_duration_s", 60.0))
+                path_collector_type = TaseR013Rate400PathEvidenceCollector
             else:
                 formal_duration_s = PERIOD_S
                 path_collector_type = YieldPathEvidenceCollector

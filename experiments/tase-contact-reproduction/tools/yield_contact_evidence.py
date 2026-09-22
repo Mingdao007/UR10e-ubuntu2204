@@ -12,6 +12,7 @@ from contact_yield_protocol import PATH_SEAM_CONTINUATION_S, PERIOD_S
 from tase_figure8_protocol import (
     DURATION_S as R013_COMPAT60_DURATION_S,
     PROTOCOL_ID as R013_COMPAT60_PROTOCOL_ID,
+    RATE400_PROTOCOL_ID as R013_RATE400_PROTOCOL_ID,
 )
 
 
@@ -300,3 +301,21 @@ class TaseR013Compat60PathEvidenceCollector(PathEvidenceCollector):
             evidence,
             metrics=metrics,
         )
+
+
+class TaseR013Rate400PathEvidenceCollector(TaseR013Compat60PathEvidenceCollector):
+    """Separate 400 Hz data-admission identity with unchanged PATH motion."""
+
+    PROTOCOL_ID = R013_RATE400_PROTOCOL_ID
+
+    def __init__(self, *args, **kwargs):
+        from step5d_autotune_v4_r013.live_runtime import (
+            R013LightweightTimingEvidenceCollector,
+        )
+        if kwargs.get("timing") is not None:
+            raise EvidenceError("rate400 collector owns its declared timing policy")
+        kwargs["timing"] = R013LightweightTimingEvidenceCollector(
+            minimum_rate_hz=400.0,
+            acceptance_protocol_id=R013_RATE400_PROTOCOL_ID,
+        )
+        super().__init__(*args, **kwargs)

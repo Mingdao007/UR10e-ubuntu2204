@@ -239,7 +239,7 @@ def _parameter_file(path: Path) -> Path:
 
 
 def run(*, run_dir: Path, attempts: int = 2,
-        vary_parameters: bool = False) -> dict[str, Any]:
+        vary_parameters: bool = False, rate400: bool = False) -> dict[str, Any]:
     if attempts < 2:
         raise ValueError("resident acceptance requires at least two attempts")
     run_dir = Path(run_dir).expanduser().resolve()
@@ -249,6 +249,12 @@ def run(*, run_dir: Path, attempts: int = 2,
     clock = OfflineClock()
     _write_receipts(run_dir, contract, clock.wall())
     parameter_file = _parameter_file(run_dir / "incumbent.json")
+    duration_token = "r013_60_rate400" if rate400 else "r013_60"
+    if rate400:
+        payload = json.loads(parameter_file.read_text(encoding="utf-8"))
+        payload["protocol_id"] = "figure8_window60_r013_rate400_v1"
+        payload["duration_token"] = duration_token
+        _write_json(parameter_file, payload)
     controller = OfflineResidentRTDE(contract, home_pose=contract.home_pose, home_q=contract.home_q, clock=clock)
     sensor = FakeLiveKunweiTransport(observed_clock=clock.mono,
                                    wrench_n_nm=(0., 0., -5., 0., 0., 0.))
@@ -308,7 +314,7 @@ def run(*, run_dir: Path, attempts: int = 2,
         parameter_files[1] = second_path
     bindings = [load_tase_outer_config(path)[1] for path in parameter_files]
     args = _parse_args([
-        "pilot", "--method", "TASE_RNN_MATURE", "--duration", "r013_60",
+        "pilot", "--method", "TASE_RNN_MATURE", "--duration", duration_token,
         "--run-dir", str(run_dir), "--qp-library", str(Path(__file__).resolve().parents[1] / "build/contact-qp/libcontact_qp.so"),
         "--route-id", "r006-yield-live", "--attempt-id", "r006-offline-resident-pilot",
         "--authority-root", str(run_dir / "authority"), "--control-cpu", "4",
@@ -335,9 +341,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--attempts", type=int, default=6)
     parser.add_argument("--vary-parameters", action="store_true")
+    parser.add_argument("--rate400", action="store_true")
     args = parser.parse_args(argv)
     receipt = run(run_dir=args.run_dir, attempts=args.attempts,
-                  vary_parameters=args.vary_parameters)
+                  vary_parameters=args.vary_parameters, rate400=args.rate400)
     print(json.dumps(receipt, indent=2, sort_keys=True, allow_nan=False))
     return 0 if receipt.get("success") is True else 1
 
