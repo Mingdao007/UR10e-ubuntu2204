@@ -7,7 +7,12 @@ import pytest
 
 from contact_yield_live_writer import NativeYieldLiveWriter, stop_and_confirm
 from step5d_autotune_v4_r004.fake_rtde import FakeLiveKunweiTransport, FakeLiveRTDETransport
-from step5d_autotune_v4_r004.transport import R004OutputSnapshot
+from step5d_autotune_v4_r004.transport import (
+    OUTPUT_FIELDS,
+    R004OutputSnapshot,
+    TransportError,
+    _validate_output_recipe,
+)
 from step5d_autotune_v4_r004.wire import SessionCommand
 from step5d_autotune_v4_r004_live_writer import LIVE_ACK, LiveWriterError
 from step5d_autotune_v4_r006.live_adapter import R006LiveWriter
@@ -123,6 +128,61 @@ def _writer(tmp_path, clock, rtde, kunwei, **kwargs):
 
 def _stop_packets(rtde) -> list:
     return [packet for packet in rtde.sent_packets if packet[1][3] == int(SessionCommand.STOP)]
+
+
+def test_rtde_snapshot_keeps_target_velocity_and_speed_scaling_separate():
+    target_qd = [0.01, -0.02, 0.03, -0.04, 0.005, -0.006]
+    raw = {
+        "timestamp": 1.0,
+        "payload": 1.0,
+        "payload_cog": [0.0] * 3,
+        "tcp_offset": [0.0] * 6,
+        "actual_TCP_speed": [0.0] * 6,
+        "actual_TCP_pose": [0.0] * 6,
+        "actual_q": [0.0] * 6,
+        "actual_qd": [0.0] * 6,
+        "target_qd": target_qd,
+        "speed_scaling": 0.72,
+        "safety_mode": "NORMAL",
+        "robot_mode": "RUNNING",
+        "runtime_state": 2,
+        "output_double_register_24": 0.0,
+    }
+    raw.update({f"output_int_register_{index}": 0 for index in range(24, 35)})
+
+    snapshot = R004OutputSnapshot.from_mapping(1.0, raw)
+
+    assert snapshot.qd_rad_s == (0.0,) * 6
+    assert snapshot.target_qd_rad_s == tuple(target_qd)
+    assert snapshot.speed_scaling == pytest.approx(0.72)
+
+    raw["speed_scaling"] = float("nan")
+    with pytest.raises(TransportError, match="scaling"):
+        R004OutputSnapshot.from_mapping(1.0, raw)
+
+
+def test_r004_output_recipe_validates_target_fields_and_their_types():
+    assert OUTPUT_FIELDS[8:10] == ("target_qd", "speed_scaling")
+    vector6_fields = {
+        "tcp_offset", "actual_TCP_speed", "actual_TCP_pose", "actual_q",
+        "actual_qd", "target_qd",
+    }
+    scalar_fields = {"timestamp", "payload", "speed_scaling"}
+    types = []
+    for field in OUTPUT_FIELDS:
+        if field in scalar_fields or field.startswith("output_double_register_"):
+            types.append("DOUBLE")
+        elif field == "payload_cog":
+            types.append("VECTOR3D")
+        elif field in vector6_fields:
+            types.append("VECTOR6D")
+        else:
+            types.append("INT32")
+    _validate_output_recipe(types)
+
+    types[8] = "DOUBLE"
+    with pytest.raises(TransportError, match="pose/EOAT"):
+        _validate_output_recipe(types)
 
 
 def test_warmup_safety_change_fails_distinctly_without_hold_or_arm(tmp_path):

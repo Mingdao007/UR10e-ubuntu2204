@@ -48,6 +48,8 @@ OUTPUT_FIELDS = (
     "actual_TCP_pose",
     "actual_q",
     "actual_qd",
+    "target_qd",
+    "speed_scaling",
     "safety_mode",
     "robot_mode",
     "runtime_state",
@@ -150,6 +152,10 @@ class R004OutputSnapshot:
     # Wall time remains for receipt identity. Freshness uses only this receive
     # clock, captured for a newly received frame, never when a cache is read.
     received_monotonic_s: float | None = None
+    # Controller target is retained separately from measured velocity for
+    # post-run speedj-tracking diagnosis; neither field feeds control.
+    target_qd_rad_s: tuple[float, float, float, float, float, float] = (0.0,) * 6
+    speed_scaling: float = 1.0
 
     @staticmethod
     def _vector(value: Any, size: int, role: str) -> tuple[float, ...]:
@@ -181,6 +187,8 @@ class R004OutputSnapshot:
             timestamp = float(value["timestamp"])
             payload = float(value["payload"])
             consumed_packet_sequence_raw = float(value["output_double_register_24"])
+            target_qd = cls._vector(value["target_qd"], 6, "target qd")
+            speed_scaling = float(value["speed_scaling"])
         except (KeyError, TypeError, ValueError, OverflowError) as exc:
             raise TransportError("RTDE r004 output omits a required field") from exc
         if (
@@ -190,8 +198,9 @@ class R004OutputSnapshot:
             or not math.isfinite(consumed_packet_sequence_raw)
             or consumed_packet_sequence_raw < -1.0
             or not consumed_packet_sequence_raw.is_integer()
+            or not math.isfinite(speed_scaling)
         ):
-            raise TransportError("RTDE payload or sample timestamp is invalid")
+            raise TransportError("RTDE payload, scaling, or sample timestamp is invalid")
         return cls(
             observed_at_s=observed,
             timestamp=timestamp,
@@ -202,6 +211,8 @@ class R004OutputSnapshot:
             tcp_pose_m_rad=cls._vector(value["actual_TCP_pose"], 6, "TCP pose"),
             q_rad=cls._vector(value["actual_q"], 6, "q"),
             qd_rad_s=cls._vector(value["actual_qd"], 6, "qd"),
+            target_qd_rad_s=target_qd,
+            speed_scaling=speed_scaling,
             safety_mode=value["safety_mode"],
             robot_mode=value["robot_mode"],
             runtime_state=value["runtime_state"],
@@ -282,14 +293,16 @@ def _validate_output_recipe(type_names: Sequence[str]) -> None:
         "VECTOR6D",
         "VECTOR6D",
         "VECTOR6D",
+        "VECTOR6D",
+        "DOUBLE",
     )
     if tuple(type_names[: len(expected_prefix)]) != expected_prefix:
         raise TransportError("r004 output pose/EOAT recipe types differ")
-    for index, name in enumerate(type_names[8:11], start=8):
+    for index, name in enumerate(type_names[10:13], start=10):
         _integer_recipe_type(name, f"r004 output runtime field {index}")
-    if type_names[11] != "DOUBLE":
+    if type_names[13] != "DOUBLE":
         raise TransportError("r004 consumed packet echo is not DOUBLE")
-    for register, name in zip(OUTPUT_INTEGER_FIELDS, type_names[12:], strict=True):
+    for register, name in zip(OUTPUT_INTEGER_FIELDS, type_names[14:], strict=True):
         _integer_recipe_type(name, f"r004 output integer register {register}")
 
 

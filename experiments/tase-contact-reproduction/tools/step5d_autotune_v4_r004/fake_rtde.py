@@ -143,6 +143,8 @@ class FakeLiveRTDETransport:
                 -0.9408276716815394,
             ],
             "actual_qd": [0.0] * 6,
+            "target_qd": [0.0] * 6,
+            "speed_scaling": 1.0,
             "safety_mode": "NORMAL",
             "robot_mode": "RUNNING",
             "runtime_state": "RUNNING",

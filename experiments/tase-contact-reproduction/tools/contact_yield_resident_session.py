@@ -1341,7 +1341,8 @@ def refresh_live_preparation(*, session, home, now_s):
            'tcp_offset': list(last.tcp_offset_m_rad),
            'actual_TCP_speed': list(last.tcp_speed_m_s_rad_s),
            'actual_TCP_pose': list(last.tcp_pose_m_rad), 'actual_q': list(last.q_rad),
-           'actual_qd': list(last.qd_rad_s), 'observed_at_s': last.observed_at_s,
+           'actual_qd': list(last.qd_rad_s), 'target_qd': list(last.target_qd_rad_s),
+           'speed_scaling': last.speed_scaling, 'observed_at_s': last.observed_at_s,
            'runtime_state': 2 if last.program_running else 1}
 
     def persist():

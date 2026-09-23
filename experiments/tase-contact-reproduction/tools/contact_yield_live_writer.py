@@ -964,6 +964,8 @@ class NativeYieldLiveWriter(R006LiveWriter):
                 "runtime_state": getattr(output, "runtime_state", None),
                 "tcp_speed_m_s_rad_s": getattr(output, "tcp_speed_m_s_rad_s", None),
                 "qd_rad_s": getattr(output, "qd_rad_s", None),
+                "target_qd_rad_s": getattr(output, "target_qd_rad_s", None),
+                "speed_scaling": getattr(output, "speed_scaling", None),
             }
             if getattr(self, "_first_output_error", None) is None:
                 self._first_output_error = evidence
@@ -1179,6 +1181,8 @@ class NativeYieldLiveWriter(R006LiveWriter):
                     "controller_timestamp": output.timestamp,
                     "received_monotonic_s": getattr(output, "received_monotonic_s", None),
                     "actual_qd": list(getattr(output, "qd_rad_s", ())),
+                    "target_qd": list(getattr(output, "target_qd_rad_s", ())),
+                    "speed_scaling": getattr(output, "speed_scaling", None),
                     "actual_tcp_speed": list(getattr(output, "tcp_speed_m_s_rad_s", ())),
                 })
                 if send_ok and fresh and identity and stationary and tp_ack:
@@ -1264,6 +1268,8 @@ def stop_and_confirm(writer, *, timeout_s=1.0):
                         'received_monotonic_s': received,
                         'state': 90, 'reason': 4,
                         'actual_qd': list(output.qd_rad_s),
+                        'target_qd': list(output.target_qd_rad_s),
+                        'speed_scaling': output.speed_scaling,
                         'actual_tcp_speed': list(output.tcp_speed_m_s_rad_s)}
         writer._sleep(.002)
     return {'stop_requested': True, 'stopped': False,
