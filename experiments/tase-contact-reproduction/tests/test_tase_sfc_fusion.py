@@ -152,7 +152,7 @@ def test_fusion_and_clamp_snapshot_replay_is_deterministic() -> None:
     assert replay_fusion == fusion.fuse((0.0, 0.0, 0.05, 0.0, 0.0, 0.0), (0.02, 0.01, 0.2, 0, 0, 0), normals[2], phase="PATH")
     assert replay_clamp.state_n_s == pytest.approx(clamp.state_n_s)
     assert replay_clamp.diagnostics == clamp._last.diagnostics  # noqa: SLF001
-    assert COMPOSITION_ID == "TASE_RNN_MATURE+SFC_TANGENTIAL"
+    assert COMPOSITION_ID == "TASE_NORMAL_ORIENTATION+SFC_TANGENTIAL_V1"
 
 
 def test_normal_jump_freezes_sfc_until_explicit_mode_reset() -> None:

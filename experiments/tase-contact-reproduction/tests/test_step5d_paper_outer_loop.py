@@ -23,6 +23,7 @@ from step5d_paper_outer_loop import (  # noqa: E402
     Step5dOuterLoopConfig,
     Step5dOuterLoopInputs,
     Step5dOuterLoopState,
+    CONTACT_GATED_LEAKY_POLICY,
     INTEGRAL_OFF_POLICY,
     compute_step5d_outer_loop,
     quaternion_orientation_error,
@@ -126,6 +127,18 @@ class Step5dPaperOuterLoopTest(unittest.TestCase):
         self.assertEqual(output.next_state.force_integral_n_s, 0.0)
         self.assertEqual(output.diagnostics["force_integral_policy"], "integral-off-v1")
         self.assertEqual(output.diagnostics["force_integral_n_s"], 0.0)
+
+    def test_contact_gated_policy_reports_no_final_output_feedback(self) -> None:
+        output = compute_step5d_outer_loop(
+            Step5dOuterLoopConfig(
+                force_integral_policy=CONTACT_GATED_LEAKY_POLICY,
+                force_normal_velocity_limit_m_s=0.01,
+            ),
+            Step5dOuterLoopState(force_integral_n_s=0.2),
+            self.make_inputs(),
+        )
+        self.assertFalse(output.diagnostics["integral_final_output_frozen"])
+        self.assertTrue(output.diagnostics["integral_contact_gated"])
 
     def test_contact_semantics_positive_load_and_press_direction(self) -> None:
         reaction_normal = np.array([0.0, 0.0, -1.0])

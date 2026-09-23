@@ -121,7 +121,7 @@ class ControllerHandle:
         try:
             if self.kind == 'yield':
                 result = self.backend.step(observation,{**reference,'force_n':target_force},elapsed)
-            elif self.kind in ('tase', 'tase_improved'):
+            elif self.kind in ('tase', 'tase_improved', 'tase_composed'):
                 # Rotate the shared base wrench back to TCP so the TASE
                 # adapters execute the same configured force-filter path.
                 measured = {'joint_position_rad':joints,
@@ -130,7 +130,7 @@ class ControllerHandle:
                     'wrench_tcp':np.concatenate((rotation.T@force,rotation.T@torque)),
                     'jacobian_base':jac,
                     'constraints':{'joint_velocity_lower':lower,'joint_velocity_upper':upper}}
-                if self.kind == 'tase_improved' and observation.get('local_normal_base') is not None:
+                if observation.get('local_normal_base') is not None:
                     measured['local_normal_base'] = observation['local_normal_base']
                 if self.kind == 'tase_improved' and 'integral_enabled' in observation:
                     measured['integral_enabled'] = observation['integral_enabled']
@@ -139,6 +139,10 @@ class ControllerHandle:
                 target = {'x_pd_base':reference['position_m'],
                     'xdot_pd_base':reference['velocity_m_s'],
                     'force_target_n':reference['reference_force_n']}
+                if observation.get('local_normal_base') is not None:
+                    target['control_reaction_normal_base'] = observation['local_normal_base']
+                if self.kind == 'tase_composed':
+                    target['phase'] = reference.get('phase', 'path')
                 result = asdict(self.backend.step(measured,target,elapsed))
             else:
                 result = self.backend.step(observation,reference,elapsed)
@@ -206,6 +210,52 @@ def _tase_improved_factory():
     return create
 
 
+def _tase_sfc_composition_factory(expected_normal_method):
+    def create(config=None, qp_library=None, outer_config=None):
+        from tase_method_adapters import create_tase_offline_adapter
+        from tase_sfc_composed_adapter import TaseSfcComposedOfflineAdapter
+
+        options = {} if config is None else dict(config)
+        if options.get('normal_controller') != expected_normal_method:
+            raise RegistryError('composition normal controller does not match its registered identity')
+        if options.get('tangential_controller') != 'SFC':
+            raise RegistryError('composition tangential controller must be SFC')
+        parameters = options.get('tangential_parameters')
+        if not isinstance(parameters, dict):
+            raise RegistryError('composition requires explicit tangential_parameters')
+        source = options.get('tangential_parameter_source')
+        if source != 'config/contact_benchmark_laws.json':
+            raise RegistryError('composition SFC parameters must use the frozen offline benchmark source')
+        solver_name, variant = (
+            ('qp', 'matched_outer_qp')
+            if expected_normal_method == 'TASE_QP'
+            else ('rnn', 'mature_minus')
+        )
+        base = create_tase_offline_adapter(
+            method_name=expected_normal_method,
+            solver_name=solver_name,
+            variant=variant,
+            config=options.get('normal_config'),
+            qp_library=qp_library,
+            outer_config=outer_config,
+        )
+        try:
+            adapter = TaseSfcComposedOfflineAdapter(
+                method_name=f'{expected_normal_method}+SFC',
+                tase_adapter=base,
+                sfc_parameters=parameters,
+                path_stiffness_n_per_m=options.get('path_stiffness_n_per_m', 120.0),
+                initial_normal=options.get('initial_normal', (0.0, 0.0, 1.0)),
+                dt_s=options.get('dt_s', 0.002),
+            )
+            return adapter, 'tase_composed'
+        except Exception:
+            base.close()
+            raise
+
+    return create
+
+
 def default_registry():
     registry = MethodRegistry()
     for name,role in [('SFC','baseline'),('SFC_RADIAL','geometry_ablation'),('DSFC','proposal'),('MSFC','proposal')]:
@@ -224,4 +274,14 @@ def default_registry():
         ),
         _tase_improved_factory(),
     )
+    for normal_method in ('TASE_RNN_MATURE', 'TASE_QP'):
+        method_name = f'{normal_method}+SFC'
+        registry.register(
+            MethodSpec(
+                method_name,
+                'offline_tangent_fusion',
+                'TaseSfcComposedOfflineAdapter',
+            ),
+            _tase_sfc_composition_factory(normal_method),
+        )
     return registry

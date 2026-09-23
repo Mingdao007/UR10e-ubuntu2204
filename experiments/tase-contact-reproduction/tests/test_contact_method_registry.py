@@ -50,9 +50,15 @@ def test_evaluator_truth_is_not_forwarded_to_any_method():
 
 def test_registry_names_keep_tase_sign_adaptation_separate():
     rows={r['name']:r for r in default_registry().describe()}
-    assert set(rows)=={'SFC','SFC_RADIAL','DSFC','MSFC','TASE_RNN','TASE_RNN_MATURE','TASE_RNN_MATURE_MINUS','TASE_QP','TASE_IMPROVED'}
+    assert set(rows)=={
+        'SFC','SFC_RADIAL','DSFC','MSFC','TASE_RNN','TASE_RNN_MATURE',
+        'TASE_RNN_MATURE_MINUS','TASE_QP','TASE_IMPROVED',
+        'TASE_RNN_MATURE+SFC','TASE_QP+SFC',
+    }
     assert 'printed_sign' in rows['TASE_RNN']['role']
     assert 'adaptation' in rows['TASE_RNN_MATURE_MINUS']['role']
+    assert rows['TASE_RNN_MATURE+SFC']['role']=='offline_tangent_fusion'
+    assert rows['TASE_QP+SFC']['role']=='offline_tangent_fusion'
     assert all(r['qualification']=='software_only' for r in rows.values())
 
 

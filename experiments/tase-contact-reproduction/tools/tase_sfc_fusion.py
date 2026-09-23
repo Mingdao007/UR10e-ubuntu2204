@@ -1,11 +1,11 @@
 """Offline TASE/RNN plus tangential SFC composition.
 
-This module is deliberately transport-free.  It provides the mathematical
-composition contract used by offline replays; it does not import a device,
-bridge, live writer, TP package, or native solver.  There is one command
-realization boundary, :class:`FinalBoundedJointVelocityQP`.  TASE and SFC
-produce Cartesian task components, and that boundary is the only place where
-joint velocity is produced.
+This module is deliberately transport-free. It provides the mathematical
+projection contract used by offline replays; it does not import a device,
+bridge, live writer, TP package, or native solver. A composed method passes its
+combined Cartesian task to its selected TASE RNN or QP solver exactly once.
+The standalone :class:`FinalBoundedJointVelocityQP` remains a bounded offline
+realization diagnostic and is not inserted after those solvers.
 
 The normal task owns force and posture.  SFC is projected into the tangent
 plane and is disabled outside PATH.  The conditional integral clamp is kept
@@ -22,7 +22,7 @@ from typing import Any, Mapping
 import numpy as np
 
 
-COMPOSITION_ID = "TASE_RNN_MATURE+SFC_TANGENTIAL"
+COMPOSITION_ID = "TASE_NORMAL_ORIENTATION+SFC_TANGENTIAL_V1"
 CLAMP_POLICY_ID = "conditional-double-clamp-v1"
 CLAMP_STATE_LIMIT_N_S = 1.0
 CLAMP_AUTHORITY_LIMIT_N = 0.5

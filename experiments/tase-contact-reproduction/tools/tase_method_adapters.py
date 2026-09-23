@@ -8,10 +8,10 @@ both methods.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 import math
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 import numpy as np
 
@@ -136,6 +136,8 @@ class TaseOfflineMethodAdapter:
             "method_name": self.method_name,
             "solver_name": self.solver_name,
             "variant": self.variant,
+            "offline_config": asdict(self.config),
+            "outer_config": asdict(self.outer_config),
             "offline_only": True,
             "live_eligible": False,
             "stopped": bool(self.stopped),
@@ -152,6 +154,8 @@ class TaseOfflineMethodAdapter:
             or state.get("method_name") != self.method_name
             or state.get("solver_name") != self.solver_name
             or state.get("variant") != self.variant
+            or state.get("offline_config") != asdict(self.config)
+            or state.get("outer_config") != asdict(self.outer_config)
             or state.get("offline_only") is not True
             or state.get("live_eligible") is not False
             or not isinstance(state.get("stopped"), bool)
@@ -229,6 +233,11 @@ class TaseOfflineMethodAdapter:
         measured: Mapping[str, Any],
         target: Mapping[str, Any],
         dt_s: float,
+        *,
+        twist_transform: Callable[
+            [np.ndarray, Step5dOuterLoopInputs, Mapping[str, Any], Mapping[str, Any], float],
+            tuple[Any, Mapping[str, Any]],
+        ] | None = None,
     ) -> TaseAdapterResult:
         if self.stopped:
             raise RuntimeError("TASE offline adapter is stopped")
@@ -243,9 +252,20 @@ class TaseOfflineMethodAdapter:
             )
             outer = compute_step5d_outer_loop(outer_config, self.outer_state, inputs)
             self.outer_state = outer.next_state
+            desired_twist = _finite_vector(outer.xdot_c, 6, "outer xdot_c")
+            transform_diagnostics: Mapping[str, Any] | None = None
+            if twist_transform is not None:
+                desired_twist, transform_diagnostics = twist_transform(
+                    desired_twist.copy(), inputs, measured, target, float(dt_s)
+                )
+                desired_twist = _finite_vector(
+                    desired_twist, 6, "transformed xdot_c"
+                )
+                if not isinstance(transform_diagnostics, Mapping):
+                    raise ValueError("twist transform diagnostics must be a mapping")
             sample = TaseJointSample(
                 jacobian=jacobian,
-                xdot_c=np.asarray(outer.xdot_c, dtype=float),
+                xdot_c=desired_twist,
                 omega_minus=lower,
                 omega_plus=upper,
                 dt_s=float(dt_s),
@@ -266,7 +286,7 @@ class TaseOfflineMethodAdapter:
             else:
                 if solver_result is None:
                     qdot = self.solver.qdot_state
-                    residual = float(np.linalg.norm(jacobian @ qdot - np.asarray(outer.xdot_c)))
+                    residual = float(np.linalg.norm(jacobian @ qdot - desired_twist))
                     status = 0.0
                     solver_diagnostics = {"invalid_sample": True}
                 else:
@@ -279,7 +299,7 @@ class TaseOfflineMethodAdapter:
                     }
             return TaseAdapterResult(
                 qdot_rad_s=_tuple6(qdot),
-                xdot_c=_tuple6(outer.xdot_c),
+                xdot_c=_tuple6(desired_twist),
                 residual_norm=residual,
                 solver_status=status,
                 diagnostics={
@@ -288,8 +308,15 @@ class TaseOfflineMethodAdapter:
                     "method_name": self.method_name,
                     "solver_name": self.solver_name,
                     "variant": self.variant,
+                    "offline_config": asdict(self.config),
+                    "outer_config": asdict(self.outer_config),
                     "outer": outer.diagnostics,
                     "solver": solver_diagnostics,
+                    **(
+                        {"composition": dict(transform_diagnostics)}
+                        if transform_diagnostics is not None
+                        else {}
+                    ),
                 },
             )
         except Exception:

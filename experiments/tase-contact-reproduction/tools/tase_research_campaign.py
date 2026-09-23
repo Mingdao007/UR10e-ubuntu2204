@@ -1,16 +1,17 @@
 """Offline TASE comparison and frozen holdout campaign.
 
-The campaign is deliberately separate from the live-entry registry.  Every
-method receives the same measured wrench/pose/Jacobian trace and the same
-joint-velocity box.  A small deterministic contact-plant proxy supplies
-response variation for software testing; it is never presented as a UR10e
-measurement or a surface model.  Unknown or unavailable compositions remain
-failed attempts in the denominator and are never substituted or sent to live.
+The campaign is deliberately separate from the live-entry registry. Every
+method uses the same measured-input schema, common online normal observer, and
+joint-velocity box; paired holdout methods also share the same seeded proxy
+disturbance. A small deterministic contact-plant proxy supplies response
+variation for software testing; it is never presented as a UR10e measurement
+or a surface model. Unknown or unavailable compositions remain failed attempts
+in the denominator and are never substituted or sent to live.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import hashlib
 import json
 import math
@@ -38,6 +39,7 @@ COMPOSITION_METHODS = (
     "TASE_RNN_MATURE+LAC",
     "TASE_RNN_MATURE+NAC",
     "TASE_RNN_MATURE+SFC",
+    "TASE_QP+SFC",
 )
 METHODS = EXECUTABLE_METHODS + COMPOSITION_METHODS
 CASES = ("plane", "incline", "low_curvature", "stiffness_change")
@@ -125,6 +127,12 @@ def _normal_for(case: SurfaceCase, index: int, horizon: int) -> np.ndarray:
     return _unit(np.asarray(case.nominal_normal, dtype=float))
 
 
+def _normal_observer_profile() -> tuple[str, dict[str, Any]]:
+    path = Path(__file__).resolve().parents[1] / "config" / "yield_normal_observer_v3.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return "yield_normal_observer_v3", dict(payload)
+
+
 def _disturbance(case: SurfaceCase, index: int, horizon: int, rng: random.Random) -> np.ndarray:
     if case.name == "plane":
         return np.zeros(3)
@@ -175,17 +183,54 @@ def _metrics(rows: list[dict[str, Any]], *, failed: bool, error: str | None) -> 
     }
 
 
+def _matched_rnn_best_outer_profile() -> tuple[str, dict[str, Any]]:
+    """Freeze the shared outer loop at the accepted RNN incumbent for this study."""
+    path = Path(__file__).resolve().parents[1] / "config" / "tase_figure8_integral_0p1_rate400.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    frozen = document["frozen"]
+    config = {
+        "kp": float(frozen["kp"]),
+        "ko": float(frozen["ko"]),
+        "kf": float(frozen["kf"]),
+        "Md_scalar": float(document["Md_scalar"]),
+        "Bd_scalar": float(document["Bd_scalar"]),
+        "force_target_n": float(frozen["force_target_n"]),
+        "force_integral_limit_n_s": float(frozen["force_integral_limit_n_s"]),
+        "force_integral_policy": str(frozen["force_integral_policy"]),
+        "force_integral_authority_error_n": float(frozen["force_integral_authority_error_n"]),
+        "force_sign_convention": str(frozen["force_sign_convention"]),
+        "delay_T_s": 0.004,
+    }
+    return str(document["candidate_id"]), config
+
+
 def _candidate(method: str, index: int) -> dict[str, Any]:
     """Return a deterministic point in the method's offline search space."""
+    outer_profile_id, outer_config = _matched_rnn_best_outer_profile()
     if method == "TASE_RNN":
-        return {"epsilon": 0.014 + 0.0015 * (index % 8), "sigr_exponent_r": 0.2 + 0.05 * ((index // 8) % 4), "lambda_update_sign": "plus"}
+        return {"epsilon": 0.014 + 0.0015 * (index % 8), "sigr_exponent_r": 0.2 + 0.05 * ((index // 8) % 4), "lambda_update_sign": "plus", "outer_profile_id": outer_profile_id, "normal_outer_config": outer_config}
     if method in {"TASE_RNN_MATURE", "TASE_RNN_MATURE_MINUS"}:
-        return {"epsilon": 0.014 + 0.0015 * (index % 8), "sigr_exponent_r": 0.2 + 0.05 * ((index // 8) % 4), "lambda_update_sign": "minus"}
+        return {"epsilon": 0.014 + 0.0015 * (index % 8), "sigr_exponent_r": 0.2 + 0.05 * ((index // 8) % 4), "lambda_update_sign": "minus", "outer_profile_id": outer_profile_id, "normal_outer_config": outer_config}
     if method == "TASE_QP":
-        return {"lambda_update_sign": "minus"}
+        return {"lambda_update_sign": "minus", "outer_profile_id": outer_profile_id, "normal_outer_config": outer_config}
     if method == "TASE_IMPROVED":
-        return {"force_integral_limit_n_s": 0.5 + 0.25 * (index % 5), "force_contact_gate_n": 0.25 + 0.25 * ((index // 5) % 3), "force_integral_leak_tau_s": 0.25 + 0.125 * ((index // 15) % 4), "normal_weight": 80.0 + 20.0 * ((index // 60) % 4)}
-    return {"normal_controller": "TASE_RNN_MATURE", "tangential_controller": method.split("+", 1)[1]}
+        return {"force_integral_limit_n_s": 0.5 + 0.25 * (index % 5), "force_contact_gate_n": 0.25 + 0.25 * ((index // 5) % 3), "force_integral_leak_tau_s": 0.25 + 0.125 * ((index // 15) % 4), "normal_weight": 80.0 + 20.0 * ((index // 60) % 4), "outer_profile_id": outer_profile_id, "normal_outer_config": outer_config}
+    normal_controller, tangential_controller = method.split("+", 1)
+    law_config_path = Path(__file__).resolve().parents[1] / "config" / "contact_benchmark_laws.json"
+    law_config = json.loads(law_config_path.read_text(encoding="utf-8"))
+    law = law_config["laws"][tangential_controller]
+    return {
+        "normal_controller": normal_controller,
+        "tangential_controller": tangential_controller,
+        "tangential_parameters": dict(law["parameters"]),
+        "tangential_parameter_source": "config/contact_benchmark_laws.json",
+        "tangential_parameter_status": law["parameter_status"],
+        "path_stiffness_n_per_m": 120.0,
+        "initial_normal": [0.0, 0.0, 1.0],
+        "dt_s": DT_S,
+        "outer_profile_id": outer_profile_id,
+        "normal_outer_config": outer_config,
+    }
 
 
 def _candidate_pool(method: str) -> list[dict[str, Any]]:
@@ -256,7 +301,7 @@ def _propose_bo(method: str, observed: list[dict[str, Any]], proposal_index: int
     return dict(min(available, key=acquisition))
 
 
-def _make_observation(*, case: SurfaceCase, position: np.ndarray, normal: np.ndarray, force_n: float, index: int, horizon: int, dt_s: float, stiffness: float, rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]]:
+def _make_observation(*, case: SurfaceCase, position: np.ndarray, normal: np.ndarray, force_n: float, index: int, horizon: int, dt_s: float, stiffness: float, rng: random.Random, linear_velocity: np.ndarray | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     task = Task()
     t = index * dt_s
     reference = task.reference(min(t, task.duration_s))
@@ -274,7 +319,7 @@ def _make_observation(*, case: SurfaceCase, position: np.ndarray, normal: np.nda
         "raw_force_base_n": tuple(float(x) for x in measured_force),
         "raw_torque_base_nm": (0.0, 0.0, 0.0), "joint_velocity_lower": (-QDOT_LIMIT_RAD_S,) * 6,
         "joint_velocity_upper": (QDOT_LIMIT_RAD_S,) * 6,
-        "linear_velocity_base_m_s": (0.0, 0.0, 0.0), "angular_velocity_base_rad_s": (0.0, 0.0, 0.0),
+        "linear_velocity_base_m_s": tuple(float(x) for x in (linear_velocity if linear_velocity is not None else np.zeros(3))), "angular_velocity_base_rad_s": (0.0, 0.0, 0.0),
         # This is a measured-wrench direction estimate, not supplied surface geometry.
         "local_normal_base": tuple(float(x) for x in _unit(measured_force)),
         "software_injection_base_n": (0.0, 0.0, 0.0),
@@ -288,16 +333,31 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
     registry = default_registry()
     rows: list[dict[str, Any]] = []
     position = np.zeros(3, dtype=float)
+    linear_velocity = np.zeros(3, dtype=float)
     force_n = FORCE_TARGET_N
     rng = random.Random(config.seed ^ int(_sha({"trial": trial_key or attempt_id})[:8], 16))
+    observer_profile_id, observer_parameters = _normal_observer_profile()
+    from contact_yield_normal import NormalEstimator
+    normal_estimator = NormalEstimator(
+        (0.0, 0.0, -1.0),
+        initial_inward_normal_base=(0.0, 0.0, -1.0),
+        **observer_parameters,
+    )
+    normal_updates: list[dict[str, Any]] = []
     handle = None
     error: str | None = None
+    composition_diagnostics: list[dict[str, Any]] = []
     try:
-        if method in COMPOSITION_METHODS:
-            raise RuntimeError("composition identity is offline-only but no executable common-realizer adapter is registered")
         options = {"qp_library": qp_library}
-        if method == "TASE_IMPROVED":
+        if method in EXECUTABLE_METHODS:
+            options["config"] = {
+                key: value for key, value in candidate.items()
+                if key not in {"normal_outer_config", "outer_profile_id"}
+            }
+            options["outer_config"] = candidate.get("normal_outer_config")
+        elif method in COMPOSITION_METHODS:
             options["config"] = dict(candidate)
+            options["outer_config"] = candidate.get("normal_outer_config")
         else:
             options["config"] = dict(candidate)
         handle = registry.initialize(method, **options)
@@ -306,8 +366,21 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
             stiffness = case.stiffness_initial_n_per_m
             if case_name == "stiffness_change" and index >= config.horizon_ticks // 2:
                 stiffness = case.stiffness_final_n_per_m or stiffness
-            observation, reference = _make_observation(case=case, position=position, normal=normal, force_n=force_n, index=index, horizon=config.horizon_ticks, dt_s=DT_S, stiffness=stiffness, rng=rng)
+            observation, reference = _make_observation(case=case, position=position, normal=normal, force_n=force_n, index=index, horizon=config.horizon_ticks, dt_s=DT_S, stiffness=stiffness, rng=rng, linear_velocity=linear_velocity)
+            raw_force = np.asarray(observation["raw_force_base_n"], dtype=float)
+            normal_update = normal_estimator.update(
+                dt_s=DT_S,
+                measured_linear_velocity_base_m_s=linear_velocity,
+                measured_force_base_n=raw_force,
+                in_contact=float(np.linalg.norm(raw_force)) >= 1.0,
+            )
+            estimated_outward_normal = -np.asarray(normal_update["inward_normal_base"], dtype=float)
+            observation["local_normal_base"] = tuple(float(value) for value in estimated_outward_normal)
+            normal_updates.append(dict(normal_update))
             result = handle.step(observation, reference, DT_S)
+            composition = result.get("diagnostics", {}).get("composition")
+            if isinstance(composition, Mapping):
+                composition_diagnostics.append(dict(composition))
             qdot = np.asarray(result["qdot_rad_s"], dtype=float)
             # The plant receives the final realized command J qdot.  The
             # proxy uses J=I, but computing it explicitly keeps the metric
@@ -326,15 +399,73 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
             force_n += DT_S * (-stiffness * normal_velocity - 0.7 * (force_n - FORCE_TARGET_N))
             force_n += 0.15 * math.sin(index * 0.11) if case_name != "plane" else 0.0
             force_n = float(np.clip(force_n, 0.0, RAW_FORCE_LIMIT_N - 1e-6))
-            rows.append({"time_s": index * DT_S, "dt_s": DT_S, "age_s": observation["state_age_s"], "normal_force_n": force_n, "normal_error_n": force_n - FORCE_TARGET_N, "force_norm_n": float(np.linalg.norm(observation["raw_force_base_n"])), "path_error_m": path_error, "qdot_norm_rad_s": float(np.linalg.norm(qdot)), "saturated": bool(np.any(np.isclose(np.abs(qdot), QDOT_LIMIT_RAD_S, atol=1e-8))), "normal_velocity_m_s": normal_velocity, "realization_residual_norm": realization_residual, "stiffness_n_per_m": stiffness})
+            rows.append({"time_s": index * DT_S, "dt_s": DT_S, "age_s": observation["state_age_s"], "normal_force_n": force_n, "normal_error_n": force_n - FORCE_TARGET_N, "force_norm_n": float(np.linalg.norm(observation["raw_force_base_n"])), "path_error_m": path_error, "qdot_norm_rad_s": float(np.linalg.norm(qdot)), "saturated": bool(np.any(np.isclose(np.abs(qdot), QDOT_LIMIT_RAD_S, atol=1e-8))), "normal_velocity_m_s": normal_velocity, "realization_residual_norm": realization_residual, "normal_estimate_base": estimated_outward_normal.tolist(), "normal_motion_update_applied": bool(normal_update["motion_update_applied"]), "normal_coplanarity_update_applied": bool(normal_update.get("coplanarity_update_applied", False)), "stiffness_n_per_m": stiffness})
             position = position + DT_S * actual_twist[:3]
+            linear_velocity = actual_twist[:3].copy()
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
     finally:
         if handle is not None:
             handle.close()
     metrics = _metrics(rows, failed=error is not None or len(rows) < config.horizon_ticks, error=error)
-    return {"schema": ATTEMPT_SCHEMA, "attempt_id": attempt_id, "method": method, "candidate": dict(candidate), "case": case_name, "trial_key": trial_key or attempt_id, "proxy_only": True, "surface_geometry_provided_to_controller": False, "metrics": metrics}
+    composition_summary = None
+    if composition_diagnostics:
+        normal_leaks = []
+        tangent_shadow_norms = []
+        for item in composition_diagnostics:
+            normal = np.asarray(item["normal"], dtype=float)
+            sfc_twist = np.asarray(item["sfc_tangent_twist_m_s_rad_s"], dtype=float)
+            tangent_shadow = np.asarray(item["tase_tangent_shadow_m_s"], dtype=float)
+            normal_leaks.append(abs(float(np.dot(normal, sfc_twist[:3]))))
+            tangent_shadow_norms.append(float(np.linalg.norm(tangent_shadow)))
+        composition_summary = {
+            "composition_id": composition_diagnostics[-1]["composition_id"],
+            "normal_solver": composition_diagnostics[-1]["normal_solver"],
+            "final_realizer": composition_diagnostics[-1]["final_realizer"],
+            "final_realization_calls_per_tick": sorted({int(item["final_realization_calls"]) for item in composition_diagnostics}),
+            "sfc_active_ticks": sum(bool(item["sfc_enabled"]) for item in composition_diagnostics),
+            "sfc_normal_leak_max_m_s": max(normal_leaks, default=0.0),
+            "tase_tangent_shadow_max_m_s": max(tangent_shadow_norms, default=0.0),
+            "tangential_force_input_max_n": max(
+                (float(np.linalg.norm(item["tangential_force_input_n"])) for item in composition_diagnostics),
+                default=0.0,
+            ),
+            "sfc_input_max_n": max(
+                (float(np.linalg.norm(item["sfc_input_n"])) for item in composition_diagnostics),
+                default=0.0,
+            ),
+            "sfc_law_velocity_max_m_s": max(
+                (float(np.linalg.norm(item["sfc_law_velocity_m_s"])) for item in composition_diagnostics),
+                default=0.0,
+            ),
+            "sfc_law_identity": composition_diagnostics[-1]["sfc_law_identity"],
+            "sfc_build_fingerprint": composition_diagnostics[-1]["sfc_build_fingerprint"],
+            "sfc_parameters": composition_diagnostics[-1]["sfc_parameters"],
+            "path_stiffness_n_per_m": composition_diagnostics[-1]["path_stiffness_n_per_m"],
+        }
+        metrics["composition"] = composition_summary
+    return {
+        "schema": ATTEMPT_SCHEMA,
+        "attempt_id": attempt_id,
+        "method": method,
+        "controller_identity": asdict(handle.spec) if handle is not None else None,
+        "candidate": dict(candidate),
+        "case": case_name,
+        "trial_key": trial_key or attempt_id,
+        "proxy_only": True,
+        "surface_geometry_provided_to_controller": False,
+        "normal_observer": {
+            "profile_id": observer_profile_id,
+            "parameters": observer_parameters,
+            "initial_outward_normal_base": [0.0, 0.0, 1.0],
+            "ticks": len(normal_updates),
+            "motion_update_ticks": sum(bool(item["motion_update_applied"]) for item in normal_updates),
+            "coplanarity_update_ticks": sum(bool(item.get("coplanarity_update_applied", False)) for item in normal_updates),
+            "final_outward_normal_base": rows[-1]["normal_estimate_base"] if rows else [0.0, 0.0, 1.0],
+        },
+        "composition_summary": composition_summary,
+        "metrics": metrics,
+    }
 
 
 def _ci95(values: list[tuple[str, float]], *, seed: int) -> dict[str, Any]:
@@ -360,6 +491,7 @@ def run_campaign(*, output_dir: Path, qp_library: Path, config: CampaignConfig =
     if out.exists() and any(out.iterdir()):
         raise FileExistsError(f"refusing to overwrite non-empty output: {out}")
     out.mkdir(parents=True, exist_ok=True)
+    observer_profile_id, observer_parameters = _normal_observer_profile()
     attempts: list[dict[str, Any]] = []
     frozen: dict[str, dict[str, Any]] = {}
 
@@ -468,6 +600,11 @@ def run_campaign(*, output_dir: Path, qp_library: Path, config: CampaignConfig =
             "ci_method": "stratified paired bootstrap percentile; 10000 resamples; equal case weight",
             "paired_holdout_seed_contract": "holdout:block:case shared across methods",
             "paired_holdout_units": config.holdout_rounds * len(CASES),
+            "common_normal_observer": {
+                "profile_id": observer_profile_id,
+                "parameters": observer_parameters,
+                "input": "measured force and realized Cartesian velocity only; no surface geometry or evaluator truth",
+            },
             "normal_force_target_n": FORCE_TARGET_N,
             "raw_force_limit_n": RAW_FORCE_LIMIT_N,
             "dt_s": DT_S,

@@ -162,6 +162,10 @@ class ContactGatedLeakyResult:
     velocity_saturated: bool
     integral_saturated: bool
     reset_reason: str = ""
+    # This policy has not yet consumed a final joint-output saturation
+    # feedback signal. Keep the shared diagnostic field explicit and false;
+    # ``conditional_frozen`` describes only its task-space velocity check.
+    output_feedback_frozen: bool = False
 
 
 def contact_gated_leaky_step(
