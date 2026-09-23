@@ -167,3 +167,47 @@ def test_small_campaign_seals_model_only_traces_and_denominators(tmp_path):
     assert "joint-bound-hit ticks (%)" in final_report
     assert "Same-input command replay and dual-space intent" in final_report
     assert "Historical trace replay boundary" in final_report
+
+
+def test_historical_audit_covers_all_selected_stream_families_and_keeps_reconstruction_separate(tmp_path):
+    runs = tmp_path / "runs"
+    comparison_dir = runs / "sfc-dsfc"
+    attempt = runs / "tase-resident-sample" / "attempts" / "0001"
+    attempt.mkdir(parents=True)
+    (attempt / "raw_sensor.jsonl").write_text(
+        json.dumps({"corrected_wrench_n_nm": [0] * 6, "packet_sequence": 1}) + "\n",
+        encoding="utf-8",
+    )
+    (attempt / "robot_frames.jsonl").write_text(
+        json.dumps({"q_rad": [0] * 6, "tcp_pose_m_rad": [0] * 6, "consumed_packet_sequence": 1}) + "\n",
+        encoding="utf-8",
+    )
+    (attempt / "published_packets.jsonl").write_text(
+        json.dumps([1.0, {"sequence": 1, "double_values": [0] * 24, "integer_values": [0] * 9}]) + "\n",
+        encoding="utf-8",
+    )
+    (attempt / "command_timeline.jsonl").write_text("", encoding="utf-8")
+    (attempt / "attempt-result.json").write_text("{}\n", encoding="utf-8")
+    (attempt / "seal.json").write_text("{}\n", encoding="utf-8")
+    unrelated = runs / "unrelated-run" / "attempts" / "0001"
+    unrelated.mkdir(parents=True)
+    (unrelated / "raw_sensor.jsonl").write_text(
+        json.dumps({"jacobian": [[0] * 6] * 6}) + "\n", encoding="utf-8"
+    )
+
+    audit = command_replay._audit_historical_recordings(comparison_dir)
+    assert audit["run_directories"] == 1
+    assert audit["stream_counts"] == {
+        "raw_sensor": 1,
+        "robot_frames": 1,
+        "published_packets": 1,
+        "command_timeline": 1,
+        "attempt_results": 1,
+        "seals": 1,
+    }
+    assert audit["same_input_alternate_controller_replay_eligible"] is False
+    missing = set(audit["fields_not_stored_under_required_names_in_sensor_or_rtde_first_records"])
+    assert {"jacobian", "reference_position_base_m", "reference_velocity_base_m_s"} <= missing
+    rendered = command_replay._render_historical_audit(audit)
+    assert "1 raw-sensor, 1 RTDE robot-frame, and 1 published-packet streams" in rendered
+    assert "reconstructed inputs" in rendered

@@ -107,40 +107,145 @@ def _trace_rows(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def _audit_representative_historical_trace(comparison_root: Path) -> dict[str, Any]:
-    attempt_dir = comparison_root.parent / "tase-resident-tune-rate400-b-20260923-01" / "session-03" / "attempts" / "0001"
-    sensor_path = attempt_dir / "raw_sensor.jsonl"
-    receipt_path = attempt_dir / "attempt-result.json"
-    required = {
-        "jacobian_base",
-        "joint_velocity_lower_rad_s",
-        "joint_velocity_upper_rad_s",
-        "reference_position_base_m",
-        "reference_velocity_base_m_s",
+HISTORICAL_RUN_PREFIXES = (
+    "tase-resident-",
+    "tase-integral-screen-rate400-",
+    "tase-r013-60-autotuner-",
+)
+HISTORICAL_REPLAY_INPUT_FIELDS = (
+    "raw_force_base_n",
+    "estimated_outward_normal_base",
+    "tcp_position_base_m",
+    "reference_position_base_m",
+    "reference_velocity_base_m_s",
+    "force_target_n",
+    "jacobian",
+    "joint_velocity_lower_rad_s",
+    "joint_velocity_upper_rad_s",
+    "state_age_s",
+)
+
+
+def _first_jsonl_record(path: Path) -> Any:
+    with path.open("r", encoding="utf-8") as stream:
+        for line in stream:
+            if line.strip():
+                return json.loads(line)
+    return None
+
+
+def _schema_counts(paths: list[Path]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for path in paths:
+        try:
+            first = _first_jsonl_record(path)
+        except (OSError, json.JSONDecodeError):
+            key = "<unreadable>"
+        else:
+            if isinstance(first, Mapping):
+                key = ",".join(sorted(str(name) for name in first))
+            elif isinstance(first, list) and len(first) == 2 and isinstance(first[1], Mapping):
+                key = "timestamp," + ",".join(sorted(str(name) for name in first[1]))
+            else:
+                key = f"<{type(first).__name__}>"
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _audit_historical_recordings(comparison_root: Path) -> dict[str, Any]:
+    """Audit historical TASE trace schemas without treating reconstruction as raw input."""
+    runs_root = comparison_root.parent
+    run_dirs = sorted(
+        path for path in runs_root.iterdir()
+        if path.is_dir() and path.name.startswith(HISTORICAL_RUN_PREFIXES)
+    ) if runs_root.is_dir() else []
+    sensor_paths = sorted(path for directory in run_dirs for path in directory.rglob("raw_sensor.jsonl"))
+    robot_paths = sorted(path for directory in run_dirs for path in directory.rglob("robot_frames.jsonl"))
+    packet_paths = sorted(path for directory in run_dirs for path in directory.rglob("published_packets.jsonl"))
+    command_paths = sorted(path for directory in run_dirs for path in directory.rglob("command_timeline.jsonl"))
+    required = set(HISTORICAL_REPLAY_INPUT_FIELDS)
+    sensor_schemas = _schema_counts(sensor_paths)
+    robot_schemas = _schema_counts(robot_paths)
+    packet_schemas = _schema_counts(packet_paths)
+    available_first_row_fields = {
+        field
+        for schema in (*sensor_schemas, *robot_schemas)
+        if not schema.startswith("<")
+        for field in schema.split(",")
     }
-    if not sensor_path.is_file():
-        return {
-            "scope": "one representative sealed rate400 resident attempt",
-            "attempt_dir": str(attempt_dir),
-            "raw_sensor_trace_exists": False,
-            "receipt_exists": receipt_path.is_file(),
-            "same_input_alternate_controller_replay_eligible": False,
-            "missing_required_fields": sorted(required),
-            "claim_limit": "absence at this selected path is not a survey of every historical trace",
-        }
-    with sensor_path.open("r", encoding="utf-8") as stream:
-        first = next((json.loads(line) for line in stream if line.strip()), None)
-    fields = sorted(first) if isinstance(first, Mapping) else []
     return {
-        "scope": "one representative sealed rate400 resident attempt",
-        "attempt_dir": str(attempt_dir),
-        "raw_sensor_trace_exists": True,
-        "receipt_exists": receipt_path.is_file(),
-        "raw_sensor_first_row_fields": fields,
-        "same_input_alternate_controller_replay_eligible": bool(required.issubset(fields)),
-        "missing_required_fields": sorted(required - set(fields)),
-        "claim_limit": "this audit covers the sampled raw-sensor stream; it does not assert that every separate artifact format lacks the fields",
+        "scope": "first non-empty record schema in every raw sensor, RTDE robot-frame, and published-packet stream under selected historical TASE run families",
+        "run_prefixes": list(HISTORICAL_RUN_PREFIXES),
+        "run_directories": len(run_dirs),
+        "stream_counts": {
+            "raw_sensor": len(sensor_paths),
+            "robot_frames": len(robot_paths),
+            "published_packets": len(packet_paths),
+            "command_timeline": len(command_paths),
+            "attempt_results": sum(1 for directory in run_dirs for _ in directory.rglob("attempt-result.json")),
+            "seals": sum(1 for directory in run_dirs for _ in directory.rglob("seal.json")),
+        },
+        "first_record_schema_counts": {
+            "raw_sensor": sensor_schemas,
+            "robot_frames": robot_schemas,
+            "published_packets": packet_schemas,
+        },
+        "required_controller_input_fields": sorted(required),
+        "fields_not_stored_under_required_names_in_sensor_or_rtde_first_records": sorted(
+            required - available_first_row_fields
+        ),
+        "same_input_alternate_controller_replay_eligible": False,
+        "reconstruction_boundary": (
+            "RTDE streams retain joint and TCP state and packet streams retain published commands, but they do not store the controller reference, estimated normal, Jacobian, or joint bounds as consumed inputs. "
+            "Recomputing these from robot state, firmware trajectory, or calibrated kinematics would create reconstructed inputs; it would not recover the original byte-identical controller input sequence."
+        ),
+        "claim_limit": (
+            "This audit classifies each stream by its first non-empty record schema; it does not scan every JSONL row for schema changes and does not assert that all other run families share these schemas."
+        ),
     }
+
+
+def _render_historical_audit(audit: Mapping[str, Any]) -> str:
+    counts = audit.get("stream_counts", {})
+    sensor_schemas = audit.get("first_record_schema_counts", {}).get("raw_sensor", {})
+    robot_schemas = audit.get("first_record_schema_counts", {}).get("robot_frames", {})
+    packet_schemas = audit.get("first_record_schema_counts", {}).get("published_packets", {})
+    return "\n".join([
+        "## Historical trace replay boundary",
+        "",
+        f"A scoped schema audit covered {audit.get('run_directories', 0)} run directories and {counts.get('raw_sensor', 0)} raw-sensor, {counts.get('robot_frames', 0)} RTDE robot-frame, and {counts.get('published_packets', 0)} published-packet streams under `{', '.join(audit.get('run_prefixes', []))}`.",
+        "",
+        f"First-record schemas were: raw sensor `{sensor_schemas}`; RTDE `{robot_schemas}`; published packets `{packet_schemas}`.",
+        "",
+        f"Same-input alternate-controller replay eligibility: **{audit.get('same_input_alternate_controller_replay_eligible')}**. Missing controller-input fields by their consumed-input names: `{audit.get('fields_not_stored_under_required_names_in_sensor_or_rtde_first_records', [])}`.",
+        "",
+        str(audit.get("reconstruction_boundary", "")),
+        "",
+        str(audit.get("claim_limit", "")),
+        "",
+        "New SFC/DSFC model traces include the fields needed for their explicitly model-only same-input replay. They remain separate from historical robot data and do not constitute live evidence.",
+    ])
+
+
+def refresh_historical_trace_audit(*, comparison_dir: Path) -> dict[str, Any]:
+    """Refresh only the historical schema audit in an existing sealed replay."""
+    root = Path(comparison_dir).resolve()
+    replay_path = root / "command-replay.json"
+    summary_path = root / "summary.json"
+    report_path = root / "report.md"
+    replay = json.loads(replay_path.read_text(encoding="utf-8"))
+    audit = _audit_historical_recordings(root)
+    replay["historical_trace_audit"] = audit
+    replay_path.write_text(json.dumps(replay, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+    report = report_path.read_text(encoding="utf-8")
+    marker = "## Historical trace replay boundary"
+    report = report.split(marker, 1)[0].rstrip() + "\n\n" + _render_historical_audit(audit) + "\n"
+    report_path.write_text(report, encoding="utf-8")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary.setdefault("artifacts", {})["command_replay_sha256"] = hashlib.sha256(replay_path.read_bytes()).hexdigest()
+    summary["artifacts"]["report_sha256"] = hashlib.sha256(report_path.read_bytes()).hexdigest()
+    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+    return audit
 
 
 def _observation(row: Mapping[str, Any], previous_source_twist: np.ndarray) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -353,7 +458,7 @@ def run_replay(*, comparison_dir: Path, output_path: Path | None = None) -> dict
     if not source_attempts:
         raise ValueError("comparison has no frozen SFC input traces to replay")
     profile = _load_frozen_profiles()
-    historical_audit = _audit_representative_historical_trace(root)
+    historical_audit = _audit_historical_recordings(root)
     results: list[dict[str, Any]] = []
     for source in source_attempts:
         source_trace = root / source["trace_path"]
@@ -466,9 +571,7 @@ def run_replay(*, comparison_dir: Path, output_path: Path | None = None) -> dict
                 "- Event-scoring and board-mark-detection interfaces are retained locally (`tase_joint_ee_apparatus_collision_v1`, `contact-board-marks.v1`). This run contains zero instrumented-apparatus trials and zero qualified image-mark trials.",
                 "- Joint-observer receipt, joint torque, and corridor error in this section are synthetic unit-test fixtures. No qualified instrumented observer, calibrated camera corridor, apparatus push, or human push was used.",
                 "",
-                "## Historical trace replay boundary",
-                "",
-                f"A scoped audit of `{historical_audit['attempt_dir']}` found raw-sensor fields `{historical_audit.get('raw_sensor_first_row_fields', [])}`. Same-input alternate-controller replay eligibility for that sampled raw-sensor stream is `{historical_audit['same_input_alternate_controller_replay_eligible']}`; missing required fields are `{historical_audit['missing_required_fields']}`. This single sampled stream is not a survey of every historical artifact. The new model traces include the fields needed for their explicitly model-only same-input replay.",
+                _render_historical_audit(historical_audit),
                 "",
             ])
             report_path.write_text(report, encoding="utf-8")
@@ -502,7 +605,20 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--comparison-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--refresh-historical-audit",
+        action="store_true",
+        help="refresh only the sealed historical trace schema audit without rerunning controller traces",
+    )
     args = parser.parse_args(argv)
+    if args.refresh_historical_audit:
+        audit = refresh_historical_trace_audit(comparison_dir=args.comparison_dir)
+        print(json.dumps({
+            "historical_trace_audit": audit,
+            "comparison_dir": str(args.comparison_dir.resolve()),
+            "controller_replay_rerun": False,
+        }, sort_keys=True))
+        return 0
     result = run_replay(comparison_dir=args.comparison_dir, output_path=args.output)
     print(json.dumps({
         "schema": result["schema"],
@@ -518,4 +634,7 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ["SCHEMA", "run_replay", "refresh_final_report"]
+__all__ = [
+    "SCHEMA", "run_replay", "refresh_final_report",
+    "refresh_historical_trace_audit",
+]
