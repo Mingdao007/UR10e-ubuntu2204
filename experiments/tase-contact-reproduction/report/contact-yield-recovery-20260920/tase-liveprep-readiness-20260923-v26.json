@@ -1,0 +1,165 @@
+{
+  "blockers": [],
+  "bridge_has_started": false,
+  "claims": {
+    "live_run_accepted": false,
+    "package_accepted": true,
+    "reproduction_complete": false
+  },
+  "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260923T170925+0800.json",
+  "controller_readback_manifest_sha256": "a5a8e749d1997728512ea2412d53c57bbb55c6c95e7facbf73a630fb31941b7f",
+  "controller_readback_verified": true,
+  "evidence": {
+    "baseline_no_contact": true,
+    "contact_six_status": "runs/tase-package-v27-20260922T/contact-six-status.json",
+    "current_provider_sha256": "0c20b3ae14bc4a6a4228fe1f836eea283fae03ff33eb83cfff0bfca3d963407c",
+    "current_recovery_sha256": "df400621bf5535104bc401d2dcef2d2fc094e490668ff3a18f1b581ea3798ce8",
+    "fresh_no_contact_baseline": "runs/tase-package-v26-20260922T/software-baseline-pending.json",
+    "fresh_resident_check": "runs/tase-package-v27-20260922T/resident-check-pending.json",
+    "package_binding_refresh": {
+      "created_at": "2026-09-23T11:13:54+00:00",
+      "current_selection": "report/yield-live-transition-v1/contact-readback-selection-20260923T170925+0800.json",
+      "current_selection_sha256": "a5a8e749d1997728512ea2412d53c57bbb55c6c95e7facbf73a630fb31941b7f",
+      "current_stage": "config/current_stage.json",
+      "derived_from_readiness": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260922-v25.json",
+      "live_authority_changed": false,
+      "matched_triplet_sha256": {
+        ".script": "b0ef95867caa0c351ead551a94dd62fec0f95a37f3bd2d42b573c4da881c4bba",
+        ".txt": "03ce5f9aabb16ce449c7b205cb39cf638d19fd0c4299ecdd3bbeb625653e194a",
+        ".urp": "15797dcc2ca6814da0b7b3a21a891c6274cc8c29b3c383b4b5dd6edbb9a747c5"
+      },
+      "motion_performed_by_refresh": false,
+      "scope": "package and timing evidence rebind only. Live owner must perform its own <=300 s read-back/baseline freshness check before any movement.",
+      "session_controller_receipt": "runs/tase-integral-corrected-db-confirmation-20260923-02/session-01/controller_receipt.json",
+      "session_readback_observed_at_s": 1790159608.9692802,
+      "session_readback_result": "runs/tase-integral-corrected-db-confirmation-20260923-02/session-01/readback-results.json",
+      "source_readiness_sha256": "28d761a475e394c780fd37c1919bf97ce0f1eb565e1f081217aca3f4fc1e663d"
+    },
+    "physical_qualification_current": false,
+    "prior_tase_qualification_receipts": [
+      "runs/tase-figure8-full-20260921T0646/qualification-1.json",
+      "runs/tase-figure8-full-20260921T0646/qualification-2.json",
+      "runs/tase-figure8-full-20260921T0646/qualification-3.json"
+    ],
+    "resident_check_interpretation": "pre_play_identity_pending_old_revision_24_observed; final Load/Play gate belongs to the single pilot supervisor",
+    "software_validation": "70 focused lifecycle/protocol tests; C++ tase_core 2/2 ctest"
+  },
+  "gates": {
+    "binding": {
+      "controller_readback_manifest": "report/yield-live-transition-v1/contact-readback-selection-20260923T170925+0800.json",
+      "ok": true,
+      "readback_triplet": {
+        ".script": "b0ef95867caa0c351ead551a94dd62fec0f95a37f3bd2d42b573c4da881c4bba",
+        ".txt": "03ce5f9aabb16ce449c7b205cb39cf638d19fd0c4299ecdd3bbeb625653e194a",
+        ".urp": "15797dcc2ca6814da0b7b3a21a891c6274cc8c29b3c383b4b5dd6edbb9a747c5"
+      },
+      "rebound_from_readiness": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260922-v25.json",
+      "scope": "package/readback identity; final resident Load/Play identity is a pilot gate",
+      "session_controller_receipt": "runs/tase-integral-corrected-db-confirmation-20260923-02/session-01/controller_receipt.json",
+      "source": "runs/tase-integral-corrected-db-confirmation-20260923-02/session-01/readback-results.json",
+      "wire_identity": [
+        606006,
+        25,
+        618001
+      ]
+    },
+    "cage": {
+      "ok": true,
+      "path_constraint": "native_task_basis",
+      "raw_force_guard_n": 20.0,
+      "raw_torque_guard_nm": 2.0,
+      "source": "config/yield_live_entry_v1.json"
+    },
+    "calibration": {
+      "calibrated_model": {
+        "calibration_hash": "calib_7367377276742883610",
+        "frames": {
+          "base": 5,
+          "flange": 21,
+          "tool0": 23
+        },
+        "nq": 6,
+        "nv": 6,
+        "ok": true,
+        "xacro_source": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro"
+      },
+      "ok": true,
+      "source": "runs/tase-liveprep-refresh-20260920T234325Z/contact-six-status.json"
+    },
+    "dls": {
+      "diagnostic_only": true,
+      "ok": true,
+      "runtime_fallback_allowed": false,
+      "source": "runs/tase-liveprep-refresh-20260920T234325Z/contact-six-status.json"
+    },
+    "package_readback": {
+      "controller_receipt": "runs/tase-integral-corrected-db-confirmation-20260923-02/session-01/controller_receipt.json",
+      "observed_at_s": 1790159608.9692802,
+      "ok": true,
+      "scope": "fresh controller GET and local/controller/readback byte validation at the recorded session time; runtime freshness is rechecked by the live owner before dispatch",
+      "source": "runs/tase-integral-corrected-db-confirmation-20260923-02/session-01/readback-results.json"
+    },
+    "review": {
+      "incremental_validation": {
+        "endpoint_lifecycle_tests": 33,
+        "experiment_commit": "c088b45e",
+        "formal_reviewer": "none; user instruction says no reviewer",
+        "live_owner_tests": 16,
+        "scope": "bounded R013 evidence closure and D/B follow-up accounting; no TP protection or controller package change"
+      },
+      "ok": true,
+      "scope": "TASE lifecycle, one-contact handoff, RNN provider binding, recovery owner, autotuner GP/confirmation",
+      "source_commit": "2bbcaacd",
+      "tests": "70 focused tests passed; C++ tase_core 2/2 ctest"
+    },
+    "timing": {
+      "claim_scope": "10 complete resident B/D follow-up PATHs under the r013_60_rate400 protocol; this rebinds timing evidence only and does not claim full-cycle qualification or an A-E result",
+      "current_refresh": "runs/tase-package-v26-20260922T/resident-check/supervisor-result.json",
+      "current_refresh_is_resident_only": true,
+      "formal_window_s": [
+        5.0,
+        60.0
+      ],
+      "maximum_fresh_gap_s": 0.008249895996414125,
+      "method": "TASE_RNN_MATURE",
+      "minimum_rate_hz": 448.18333333333334,
+      "ok": true,
+      "path_duration_s": 60.0,
+      "protocol_id": "figure8_window60_r013_rate400_v1",
+      "qualification_runs": 0,
+      "required_maximum_fresh_gap_s": 0.02,
+      "required_minimum_rate_hz": 400.0,
+      "source": "runs/tase-integral-corrected-db-confirmation-20260923-02/screening-results.json"
+    },
+    "tool_speed": {
+      "active_path_duration_s": 60.0,
+      "active_protocol_id": "figure8_window60_r013_rate400_v1",
+      "ok": true,
+      "path_period_s": 62.83185307179586,
+      "qdot_cap_rad_s": 0.05,
+      "search_speed_m_s": 0.0005,
+      "source": "config/yield_live_entry_v1.json and config/yield_live_contract_v1.json"
+    }
+  },
+  "generated_at": "2026-09-23T11:13:54+00:00",
+  "live_motion_authorized": false,
+  "package_hashes_match": true,
+  "package_sha256": {
+    ".script": "b0ef95867caa0c351ead551a94dd62fec0f95a37f3bd2d42b573c4da881c4bba",
+    ".txt": "03ce5f9aabb16ce449c7b205cb39cf638d19fd0c4299ecdd3bbeb625653e194a",
+    ".urp": "15797dcc2ca6814da0b7b3a21a891c6274cc8c29b3c383b4b5dd6edbb9a747c5"
+  },
+  "profile": "step5d_contact_six_qp_v1",
+  "program": "step5d_contact_six_qp_v1",
+  "ready_for_explicit_live_authorization": true,
+  "safety_boundary": [
+    "readiness is package/static admission only",
+    "resident-only check must be repeated after revision-25 Load/Play; prior revision-24 attempt was sealed failed and auto-Homed",
+    "final Load/Play identity and runtime timing are mandatory gates owned by the single pilot supervisor",
+    "this artifact does not start the bridge or press TP Play",
+    "live contact still requires the standing user authorization and runner gates",
+    "any commandable fault invokes monitored Home before BLOCKED"
+  ],
+  "schema_version": "ur10e_liveprep_readiness_v2",
+  "workflow_state": "awaiting_live_authorization"
+}

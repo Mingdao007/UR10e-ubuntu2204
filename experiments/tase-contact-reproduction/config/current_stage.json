@@ -17,7 +17,7 @@
   },
   "status": "fresh_controller_readback_verified_pending_liveprep_admission",
   "liveprep_status": "awaiting_live_authorization",
-  "liveprep_readiness_path": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260922-v25.json",
+  "liveprep_readiness_path": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260923-v26.json",
   "reproduction_status": "incomplete",
   "standing_task_authority": {
     "source": "User: 可live了, 2026-09-20",
@@ -100,7 +100,7 @@
         ".urp": "c42dfd9a62d71ddfa6b4b87d05d2cffbc1f5b002af5f3e8361a75307fb804ef5"
       }
     },
-    "liveprep_readiness": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260922-v25.json",
+    "liveprep_readiness": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260923-v26.json",
     "liveprep_readiness_schema": "ur10e_liveprep_readiness_v2",
     "fresh_liveprep_refresh": "runs/tase-package-v26-20260922T",
     "fresh_no_contact_baseline": "runs/tase-liveprep-refresh-20260920T234325Z/software_baseline_receipt.json",

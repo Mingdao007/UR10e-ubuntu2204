@@ -11634,7 +11634,7 @@
       },
       "liveprep_status": {
         "state": "awaiting_live_authorization",
-        "readiness_artifact": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260922-v25.json"
+        "readiness_artifact": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260923-v26.json"
       }
     }
   ],
