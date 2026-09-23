@@ -1,0 +1,96 @@
+{
+  "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-tune-rate400-b-20260923-01/confirmation-rate400-b-v1/session-02/attempts/0001",
+  "attempt_result_state": {
+    "last_result_actual_dt_s": 0.002001434000703739,
+    "last_result_sample_time_s": 14536.18902347,
+    "per_tick_result_history_fields_detected": [],
+    "per_tick_result_history_present": false,
+    "terminal_requested_outer_twist_present": true
+  },
+  "candidate_id": "confirm-s02-b00-A",
+  "claim_scope": "sealed_trace_completeness_audit_no_controller_replay",
+  "command_timeline_rows": 0,
+  "formal_path_origin_host_monotonic_s": 14476.183021091,
+  "formal_path_packet_rows": 29267,
+  "formal_path_sequences_joined_to_rtde": 27843,
+  "formal_path_sequences_joined_to_sensor": 29267,
+  "hardware_or_endpoint_action": false,
+  "missing_fields": [
+    "requested outer twist for each PATH packet after live caps and fixed-Home orientation adaptation",
+    "actual_dt_s supplied to each provider tick; only the terminal value is retained",
+    "reference_time_s/provider monotonic sample time for each packet; command_timeline has zero rows",
+    "RNN state at formal PATH origin and each force-preempt warm-start event",
+    "per-tick solver and full-provider elapsed times"
+  ],
+  "next_attempt_logging": [
+    "Append one sealed row per successful PATH publish with sample_monotonic_s, actual_dt_s and reference_phase/time_s.",
+    "Include requested outer twist, exact six lower/upper vectors, previous successfully published qdot and applied slew scale.",
+    "Record PATH-origin RNN state and each warm-start transition, plus solver and full-provider elapsed times."
+  ],
+  "not_computed": [
+    "per-sample calibrated J and static joint-position/velocity bounds; both are reconstructible from sealed q with the current calibrated model and live runtime formula, but were outside this missing-input audit",
+    "slew-adjusted live lower/upper vectors, because per-tick actual_dt_s is absent",
+    "matched RNN-versus-QP infeasibility/rejection counts and equality/bound residuals",
+    "QP solver timing and full-provider timing"
+  ],
+  "offline_only": true,
+  "packet_fields": {
+    "note": "wire packet carries sensor registers and published qdot; requested outer twist and provider dt/reference time are not packet fields",
+    "per_sample_outer_twist_or_actual_dt_or_reference_time_present": false,
+    "qdot_register_slice_13_19_present": true,
+    "replay_input_fields_detected": []
+  },
+  "parameters": {
+    "Bd_scalar": 693.6559295653944,
+    "Md_scalar": 9.565272137974492,
+    "force_integral_limit_n_s": 1.0
+  },
+  "protocol_id": "figure8_window60_r013_rate400_v1",
+  "replay_status": "blocked_by_missing_sealed_per_tick_inputs",
+  "schema": "tase.qp-replay-input-audit-v1",
+  "seal_verified": true,
+  "sealed_segments": {
+    "admission_robot_frames": {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-tune-rate400-b-20260923-01/confirmation-rate400-b-v1/session-02/attempts/0001/admission_robot_frames.jsonl",
+      "rows": 209,
+      "sha256": "bb73719e47f5a4a18209577f687853dd32776f9c010c17cf87f0e1fc1496c389"
+    },
+    "command_timeline": {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-tune-rate400-b-20260923-01/confirmation-rate400-b-v1/session-02/attempts/0001/command_timeline.jsonl",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "published_packets": {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-tune-rate400-b-20260923-01/confirmation-rate400-b-v1/session-02/attempts/0001/published_packets.jsonl",
+      "rows": 37800,
+      "sha256": "640cd345c90b0d8719e15e3a95fb787b8fbcc4742fefaa7d229e42aa505a5833"
+    },
+    "raw_sensor": {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-tune-rate400-b-20260923-01/confirmation-rate400-b-v1/session-02/attempts/0001/raw_sensor.jsonl",
+      "rows": 37801,
+      "sha256": "0e5bd76bb6751f15726f57dbb19d7875763ee17d4cc65a819ab3fa1854704bfe"
+    },
+    "rejected_robot_frames": {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-tune-rate400-b-20260923-01/confirmation-rate400-b-v1/session-02/attempts/0001/rejected_robot_frames.jsonl",
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "robot_frames": {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-tune-rate400-b-20260923-01/confirmation-rate400-b-v1/session-02/attempts/0001/robot_frames.jsonl",
+      "rows": 37802,
+      "sha256": "42dd5df1826fd68dd160531a515e6582babe747cbe86967638354dd4274ed734"
+    },
+    "service_observations": {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-tune-rate400-b-20260923-01/confirmation-rate400-b-v1/session-02/attempts/0001/service_observations.jsonl",
+      "rows": 4368,
+      "sha256": "b04685886c36370a34eb86b2580b0869097fa0515ba4c68e64542083d57d7706"
+    }
+  },
+  "service_observation_labels": {
+    "published_packets": 1456,
+    "raw_sensor": 1456,
+    "robot_frames": 1456
+  },
+  "service_observation_replay_fields_detected": [],
+  "service_observation_rows_without_outer_dt_reference_fields": 4368
+}
