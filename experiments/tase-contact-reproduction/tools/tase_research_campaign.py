@@ -41,6 +41,11 @@ COMPOSITION_METHODS = (
     "TASE_RNN_MATURE+SFC",
     "TASE_QP+SFC",
 )
+NATIVE_TANGENT_METHODS = (
+    "TASE_RNN_MATURE+SFC_YIELD_V1",
+    "TASE_RNN_MATURE+DSFC_YIELD_V1",
+)
+COMPOSED_RUN_METHODS = COMPOSITION_METHODS + NATIVE_TANGENT_METHODS
 METHODS = EXECUTABLE_METHODS + COMPOSITION_METHODS
 CASES = ("plane", "incline", "low_curvature", "stiffness_change")
 DT_S = 0.002
@@ -98,6 +103,8 @@ SURFACE_CASES = {
     "incline": SurfaceCase("incline", "10 degree nominal incline; no geometry input", (0.173648, 0.0, 0.984808), 120.0),
     "low_curvature": SurfaceCase("low_curvature", "slowly varying low-curvature normal proxy", (0.0, 0.0, 1.0), 120.0),
     "stiffness_change": SurfaceCase("stiffness_change", "piecewise stiffness change; no curvature input", (0.0, 0.0, 1.0), 120.0, 260.0),
+    "tangent_pulse": SurfaceCase("tangent_pulse", "synthetic 0.6 N tangent-plane pulse; model only", (0.0, 0.0, 1.0), 120.0),
+    "normal_pulse": SurfaceCase("normal_pulse", "synthetic 0.6 N normal-axis pulse; model only", (0.0, 0.0, 1.0), 120.0),
 }
 
 
@@ -133,13 +140,25 @@ def _normal_observer_profile() -> tuple[str, dict[str, Any]]:
     return "yield_normal_observer_v3", dict(payload)
 
 
-def _disturbance(case: SurfaceCase, index: int, horizon: int, rng: random.Random) -> np.ndarray:
+def _disturbance(case: SurfaceCase, index: int, horizon: int, rng: random.Random, normal: np.ndarray | None = None) -> np.ndarray:
     if case.name == "plane":
         return np.zeros(3)
     if case.name == "incline":
         return np.asarray((0.0, 0.10 * math.sin(2.0 * math.pi * index / horizon), 0.0))
     if case.name == "low_curvature":
         return np.asarray((0.0, 0.0, 0.25 * math.sin(4.0 * math.pi * index / horizon)))
+    if case.name in {"tangent_pulse", "normal_pulse"}:
+        if not int(0.35 * horizon) <= index < int(0.55 * horizon):
+            return np.zeros(3)
+        axis = _unit(np.asarray(normal if normal is not None else case.nominal_normal, dtype=float))
+        if case.name == "normal_pulse":
+            return 0.6 * axis
+        tangent = np.asarray((1.0, 0.0, 0.0)) - axis * float(np.dot((1.0, 0.0, 0.0), axis))
+        tangent_norm = float(np.linalg.norm(tangent))
+        if tangent_norm <= 1e-9:
+            tangent = np.asarray((0.0, 1.0, 0.0)) - axis * float(np.dot((0.0, 1.0, 0.0), axis))
+            tangent_norm = float(np.linalg.norm(tangent))
+        return 0.6 * tangent / tangent_norm
     # A deterministic stiffness case includes a short wrench disturbance; it
     # is a software proxy and is labelled as such in every result row.
     pulse = 0.6 if int(0.35 * horizon) <= index < int(0.55 * horizon) else 0.0
@@ -306,7 +325,7 @@ def _make_observation(*, case: SurfaceCase, position: np.ndarray, normal: np.nda
     t = index * dt_s
     reference = task.reference(min(t, task.duration_s))
     sensor_noise = np.asarray(tuple(0.015 * rng.uniform(-1.0, 1.0) for _ in range(3)))
-    disturbance = _disturbance(case, index, horizon, rng)
+    disturbance = _disturbance(case, index, horizon, rng, normal)
     if case.name == "stiffness_change" and stiffness < 200.0:
         disturbance = np.zeros(3)
     measured_force = normal * force_n + disturbance + sensor_noise
@@ -328,7 +347,7 @@ def _make_observation(*, case: SurfaceCase, position: np.ndarray, normal: np.nda
     return observation, ref
 
 
-def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, attempt_id: str, config: CampaignConfig, qp_library: Path, trial_key: str | None = None) -> dict[str, Any]:
+def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, attempt_id: str, config: CampaignConfig, qp_library: Path, trial_key: str | None = None, include_trace: bool = False) -> dict[str, Any]:
     case = SURFACE_CASES[case_name]
     registry = default_registry()
     rows: list[dict[str, Any]] = []
@@ -347,6 +366,7 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
     handle = None
     error: str | None = None
     composition_diagnostics: list[dict[str, Any]] = []
+    trace_rows: list[dict[str, Any]] = []
     try:
         options = {"qp_library": qp_library}
         if method in EXECUTABLE_METHODS:
@@ -355,7 +375,7 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
                 if key not in {"normal_outer_config", "outer_profile_id"}
             }
             options["outer_config"] = candidate.get("normal_outer_config")
-        elif method in COMPOSITION_METHODS:
+        elif method in COMPOSED_RUN_METHODS:
             options["config"] = dict(candidate)
             options["outer_config"] = candidate.get("normal_outer_config")
         else:
@@ -366,6 +386,7 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
             stiffness = case.stiffness_initial_n_per_m
             if case_name == "stiffness_change" and index >= config.horizon_ticks // 2:
                 stiffness = case.stiffness_final_n_per_m or stiffness
+            force_before = force_n
             observation, reference = _make_observation(case=case, position=position, normal=normal, force_n=force_n, index=index, horizon=config.horizon_ticks, dt_s=DT_S, stiffness=stiffness, rng=rng, linear_velocity=linear_velocity)
             raw_force = np.asarray(observation["raw_force_base_n"], dtype=float)
             normal_update = normal_estimator.update(
@@ -397,11 +418,41 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
             target_position = np.asarray(reference["position_m"], dtype=float)
             path_error = float(np.linalg.norm(position - target_position))
             force_n += DT_S * (-stiffness * normal_velocity - 0.7 * (force_n - FORCE_TARGET_N))
-            force_n += 0.15 * math.sin(index * 0.11) if case_name != "plane" else 0.0
+            force_n += 0.15 * math.sin(index * 0.11) if case_name not in {"plane", "tangent_pulse", "normal_pulse"} else 0.0
             force_n = float(np.clip(force_n, 0.0, RAW_FORCE_LIMIT_N - 1e-6))
             rows.append({"time_s": index * DT_S, "dt_s": DT_S, "age_s": observation["state_age_s"], "normal_force_n": force_n, "normal_error_n": force_n - FORCE_TARGET_N, "force_norm_n": float(np.linalg.norm(observation["raw_force_base_n"])), "path_error_m": path_error, "qdot_norm_rad_s": float(np.linalg.norm(qdot)), "saturated": bool(np.any(np.isclose(np.abs(qdot), QDOT_LIMIT_RAD_S, atol=1e-8))), "normal_velocity_m_s": normal_velocity, "realization_residual_norm": realization_residual, "normal_estimate_base": estimated_outward_normal.tolist(), "normal_motion_update_applied": bool(normal_update["motion_update_applied"]), "normal_coplanarity_update_applied": bool(normal_update.get("coplanarity_update_applied", False)), "stiffness_n_per_m": stiffness})
             position = position + DT_S * actual_twist[:3]
             linear_velocity = actual_twist[:3].copy()
+            if include_trace:
+                trace_rows.append({
+                    "sample_index": index,
+                    "time_s": float(index * DT_S),
+                    "dt_s": DT_S,
+                    "inputs": {
+                        "raw_force_base_n": list(observation["raw_force_base_n"]),
+                        "estimated_outward_normal_base": estimated_outward_normal.tolist(),
+                        "tcp_position_base_m": list(observation["position_m"]),
+                        "reference_position_base_m": list(reference["position_m"]),
+                        "reference_velocity_base_m_s": list(reference["velocity_m_s"]),
+                        "force_target_n": FORCE_TARGET_N,
+                        "jacobian": jacobian.tolist(),
+                        "joint_velocity_lower_rad_s": list(observation["joint_velocity_lower"]),
+                        "joint_velocity_upper_rad_s": list(observation["joint_velocity_upper"]),
+                        "state_age_s": observation["state_age_s"],
+                    },
+                    "output": {
+                        "qdot_rad_s": qdot.tolist(),
+                        "desired_twist_m_s_rad_s": desired_twist.tolist(),
+                        "realized_jqdot_m_s_rad_s": actual_twist.tolist(),
+                        "normal_velocity_m_s": normal_velocity,
+                    },
+                    "scoring_only_model_state": {
+                        "normal_force_before_n": force_before,
+                        "normal_force_after_n": force_n,
+                        "model_true_normal_base": normal.tolist(),
+                        "stiffness_n_per_m": stiffness,
+                    },
+                })
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
     finally:
@@ -414,37 +465,48 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
         tangent_shadow_norms = []
         for item in composition_diagnostics:
             normal = np.asarray(item["normal"], dtype=float)
-            sfc_twist = np.asarray(item["sfc_tangent_twist_m_s_rad_s"], dtype=float)
+            tangent_twist = np.asarray(item["tangential_tangent_twist_m_s_rad_s"], dtype=float)
             tangent_shadow = np.asarray(item["tase_tangent_shadow_m_s"], dtype=float)
-            normal_leaks.append(abs(float(np.dot(normal, sfc_twist[:3]))))
+            normal_leaks.append(abs(float(np.dot(normal, tangent_twist[:3]))))
             tangent_shadow_norms.append(float(np.linalg.norm(tangent_shadow)))
         composition_summary = {
             "composition_id": composition_diagnostics[-1]["composition_id"],
             "normal_solver": composition_diagnostics[-1]["normal_solver"],
             "final_realizer": composition_diagnostics[-1]["final_realizer"],
             "final_realization_calls_per_tick": sorted({int(item["final_realization_calls"]) for item in composition_diagnostics}),
-            "sfc_active_ticks": sum(bool(item["sfc_enabled"]) for item in composition_diagnostics),
-            "sfc_normal_leak_max_m_s": max(normal_leaks, default=0.0),
+            "tangential_law": composition_diagnostics[-1]["tangential_law"],
+            "tangential_law_active_ticks": sum(bool(item["sfc_enabled"]) for item in composition_diagnostics),
+            "tangential_normal_leak_max_m_s": max(normal_leaks, default=0.0),
             "tase_tangent_shadow_max_m_s": max(tangent_shadow_norms, default=0.0),
             "tangential_force_input_max_n": max(
                 (float(np.linalg.norm(item["tangential_force_input_n"])) for item in composition_diagnostics),
                 default=0.0,
             ),
-            "sfc_input_max_n": max(
-                (float(np.linalg.norm(item["sfc_input_n"])) for item in composition_diagnostics),
+            "tangential_law_input_max_n": max(
+                (float(np.linalg.norm(item["tangential_law_input_n"])) for item in composition_diagnostics),
                 default=0.0,
             ),
-            "sfc_law_velocity_max_m_s": max(
-                (float(np.linalg.norm(item["sfc_law_velocity_m_s"])) for item in composition_diagnostics),
+            "tangential_law_velocity_max_m_s": max(
+                (float(np.linalg.norm(item["tangential_law_velocity_m_s"])) for item in composition_diagnostics),
                 default=0.0,
             ),
-            "sfc_law_identity": composition_diagnostics[-1]["sfc_law_identity"],
-            "sfc_build_fingerprint": composition_diagnostics[-1]["sfc_build_fingerprint"],
-            "sfc_parameters": composition_diagnostics[-1]["sfc_parameters"],
+            "tangential_law_identity": composition_diagnostics[-1]["tangential_law_identity"],
+            "tangential_build_fingerprint": composition_diagnostics[-1]["tangential_build_fingerprint"],
+            "tangential_parameters": composition_diagnostics[-1]["tangential_parameters"],
             "path_stiffness_n_per_m": composition_diagnostics[-1]["path_stiffness_n_per_m"],
         }
+        if composition_diagnostics[-1]["identity_mode"] == "legacy_sfc":
+            composition_summary.update({
+                "sfc_active_ticks": composition_summary["tangential_law_active_ticks"],
+                "sfc_normal_leak_max_m_s": composition_summary["tangential_normal_leak_max_m_s"],
+                "sfc_input_max_n": composition_summary["tangential_law_input_max_n"],
+                "sfc_law_velocity_max_m_s": composition_summary["tangential_law_velocity_max_m_s"],
+                "sfc_law_identity": composition_summary["tangential_law_identity"],
+                "sfc_build_fingerprint": composition_summary["tangential_build_fingerprint"],
+                "sfc_parameters": composition_summary["tangential_parameters"],
+            })
         metrics["composition"] = composition_summary
-    return {
+    result_payload = {
         "schema": ATTEMPT_SCHEMA,
         "attempt_id": attempt_id,
         "method": method,
@@ -466,6 +528,9 @@ def run_attempt(*, method: str, candidate: Mapping[str, Any], case_name: str, at
         "composition_summary": composition_summary,
         "metrics": metrics,
     }
+    if include_trace:
+        result_payload["trace_rows"] = trace_rows
+    return result_payload
 
 
 def _ci95(values: list[tuple[str, float]], *, seed: int) -> dict[str, Any]:

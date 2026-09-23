@@ -322,6 +322,19 @@ def load_offline_composition_records() -> dict[str, OfflineCompositionRecord]:
     }
 
 
+def load_frozen_native_tangent_composition_records() -> dict[str, OfflineCompositionRecord]:
+    """Return the separately versioned source-frozen native SFC/DSFC studies."""
+
+    return {
+        f"TASE_RNN_MATURE+{law}_YIELD_V1": OfflineCompositionRecord(
+            name=f"TASE_RNN_MATURE+{law}_YIELD_V1",
+            normal_controller="TASE_RNN_MATURE",
+            tangential_controller=f"{law}_YIELD_V1",
+        )
+        for law in ("SFC", "DSFC")
+    }
+
+
 def resolve_offline_method(name: str) -> OfflineMethodRecord:
     records = load_offline_method_records()
     if name not in records:

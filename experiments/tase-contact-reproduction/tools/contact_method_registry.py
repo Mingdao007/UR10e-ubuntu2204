@@ -7,6 +7,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 import copy
 import hashlib
+import json
 import math
 import numpy as np
 
@@ -256,6 +257,68 @@ def _tase_sfc_composition_factory(expected_normal_method):
     return create
 
 
+def _frozen_native_tangent_parameters(law_name):
+    """Load the source-bound native SFC/DSFC profile used by the new study."""
+    root = Path(__file__).resolve().parents[1]
+    route_path = root / 'config' / 'yield_native_route_v1.json'
+    route = json.loads(route_path.read_text(encoding='utf-8'))
+    source_path = root / route['law_parameters_source']
+    source_bytes = source_path.read_bytes()
+    source_sha = hashlib.sha256(source_bytes).hexdigest()
+    if source_sha != route['law_parameters_source_sha256']:
+        raise RegistryError('frozen native-law source digest differs from yield_native_route_v1')
+    source = json.loads(source_bytes.decode('utf-8'))
+    parameters = route.get('law_parameters', {}).get(law_name)
+    if not isinstance(parameters, dict) or source.get('parameters', {}).get(law_name) != parameters:
+        raise RegistryError(f'frozen {law_name} parameters differ from their retained source')
+    return dict(parameters)
+
+
+def _tase_native_tangent_factory(expected_normal_method, expected_law):
+    def create(config=None, qp_library=None, outer_config=None):
+        from tase_method_adapters import create_tase_offline_adapter
+        from tase_sfc_composed_adapter import TaseNativeTangentComposedOfflineAdapter
+
+        options = {} if config is None else dict(config)
+        expected_source = f'config/yield_native_route_v1.json#law_parameters.{expected_law}'
+        if options.get('normal_controller') != expected_normal_method:
+            raise RegistryError('native composition normal controller differs from its method identity')
+        if options.get('tangential_controller') != expected_law:
+            raise RegistryError('native composition tangent law differs from its method identity')
+        if options.get('tangential_parameter_source') != expected_source:
+            raise RegistryError('native composition parameter source is not the frozen route profile')
+        frozen_parameters = _frozen_native_tangent_parameters(expected_law)
+        if options.get('tangential_parameters') != frozen_parameters:
+            raise RegistryError(f'{expected_law} parameters differ from the source-bound frozen profile')
+        solver_name, variant = ('rnn', 'mature_minus')
+        base = create_tase_offline_adapter(
+            method_name=expected_normal_method,
+            solver_name=solver_name,
+            variant=variant,
+            config=options.get('normal_config'),
+            qp_library=qp_library,
+            outer_config=outer_config,
+        )
+        method_name = f'{expected_normal_method}+{expected_law}_YIELD_V1'
+        try:
+            adapter = TaseNativeTangentComposedOfflineAdapter(
+                method_name=method_name,
+                tase_adapter=base,
+                tangential_method=expected_law,
+                identity_mode='frozen_native_yield_v1',
+                tangential_parameters=frozen_parameters,
+                path_stiffness_n_per_m=options.get('path_stiffness_n_per_m', 120.0),
+                initial_normal=options.get('initial_normal', (0.0, 0.0, 1.0)),
+                dt_s=options.get('dt_s', 0.002),
+            )
+            return adapter, 'tase_composed'
+        except Exception:
+            base.close()
+            raise
+
+    return create
+
+
 def default_registry():
     registry = MethodRegistry()
     for name,role in [('SFC','baseline'),('SFC_RADIAL','geometry_ablation'),('DSFC','proposal'),('MSFC','proposal')]:
@@ -283,5 +346,15 @@ def default_registry():
                 'TaseSfcComposedOfflineAdapter',
             ),
             _tase_sfc_composition_factory(normal_method),
+        )
+    for law_name in ('SFC', 'DSFC'):
+        method_name = f'TASE_RNN_MATURE+{law_name}_YIELD_V1'
+        registry.register(
+            MethodSpec(
+                method_name,
+                'offline_frozen_native_tangent_fusion',
+                'TaseNativeTangentComposedOfflineAdapter',
+            ),
+            _tase_native_tangent_factory('TASE_RNN_MATURE', law_name),
         )
     return registry

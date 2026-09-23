@@ -23,6 +23,13 @@ import numpy as np
 
 
 COMPOSITION_ID = "TASE_NORMAL_ORIENTATION+SFC_TANGENTIAL_V1"
+NATIVE_SFC_COMPOSITION_ID = "TASE_NORMAL_ORIENTATION+SFC_TANGENTIAL_YIELD_V1"
+NATIVE_DSFC_COMPOSITION_ID = "TASE_NORMAL_ORIENTATION+DSFC_TANGENTIAL_YIELD_V1"
+SUPPORTED_COMPOSITION_IDS = (
+    COMPOSITION_ID,
+    NATIVE_SFC_COMPOSITION_ID,
+    NATIVE_DSFC_COMPOSITION_ID,
+)
 CLAMP_POLICY_ID = "conditional-double-clamp-v1"
 CLAMP_STATE_LIMIT_N_S = 1.0
 CLAMP_AUTHORITY_LIMIT_N = 0.5
@@ -247,12 +254,16 @@ class TaseSfcFusion:
         self,
         normal: Any,
         *,
+        composition_id: str = COMPOSITION_ID,
         normal_jump_threshold_rad: float = NORMAL_JUMP_THRESHOLD_RAD,
     ):
+        if composition_id not in SUPPORTED_COMPOSITION_IDS:
+            raise FusionError("unsupported TASE/tangent composition identity")
         threshold = float(normal_jump_threshold_rad)
         if not math.isfinite(threshold) or not 0.0 < threshold <= math.pi:
             raise FusionError("normal_jump_threshold_rad must be in (0, pi]")
         self._basis = TransportedTangentBasis(normal)
+        self._composition_id = composition_id
         self._normal_jump_threshold_rad = threshold
         self._phase = "idle"
         self._sfc_enabled = False
@@ -262,7 +273,7 @@ class TaseSfcFusion:
 
     @property
     def composition_id(self) -> str:
-        return COMPOSITION_ID
+        return self._composition_id
 
     @property
     def phase(self) -> str:
@@ -368,7 +379,7 @@ class TaseSfcFusion:
             phase=self._phase,
             diagnostics={
                 "schema": "tase-sfc-fusion-result-v1",
-                "composition_id": COMPOSITION_ID,
+                "composition_id": self._composition_id,
                 "normal": list(projectors.normal),
                 "Pn": projectors.Pn.tolist(),
                 "Pt": projectors.Pt.tolist(),
@@ -386,7 +397,7 @@ class TaseSfcFusion:
     def snapshot(self) -> dict[str, Any]:
         return {
             "schema": "tase-sfc-fusion-state-v1",
-            "composition_id": COMPOSITION_ID,
+            "composition_id": self._composition_id,
             "phase": self._phase,
             "sfc_enabled": self._sfc_enabled,
             "sfc_frozen": self._sfc_frozen,
@@ -397,7 +408,7 @@ class TaseSfcFusion:
         }
 
     def restore(self, state: Mapping[str, Any]) -> None:
-        if state.get("schema") != "tase-sfc-fusion-state-v1" or state.get("composition_id") != COMPOSITION_ID:
+        if state.get("schema") != "tase-sfc-fusion-state-v1" or state.get("composition_id") != self._composition_id:
             raise FusionError("fusion snapshot identity differs")
         phase = state.get("phase")
         if not isinstance(phase, str) or not phase:
@@ -892,6 +903,9 @@ class FinalBoundedJointVelocityQP:
 
 __all__ = [
     "COMPOSITION_ID",
+    "NATIVE_SFC_COMPOSITION_ID",
+    "NATIVE_DSFC_COMPOSITION_ID",
+    "SUPPORTED_COMPOSITION_IDS",
     "CLAMP_POLICY_ID",
     "CLAMP_STATE_LIMIT_N_S",
     "CLAMP_AUTHORITY_LIMIT_N",
