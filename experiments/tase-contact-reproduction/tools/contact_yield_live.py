@@ -59,6 +59,118 @@ REMAINING_AFTER_ENTRY = (
 RESIDENT_CANDIDATE_WAIT_TIMEOUT_S = 120.0
 
 
+def _contact_ramp_probe_diagnostics(mature, ramp_duration_s: float | None) -> dict[str, Any] | None:
+    """Reduce already-collected probe traces after the writer has returned.
+
+    The primary QualificationEvidence remains unchanged. These additional
+    measurements are sensor-feedback diagnostics for the independent short
+    ramp experiment; they are not an independent task-force truth source.
+    """
+    if ramp_duration_s is None:
+        return None
+    owners = [mature, getattr(mature, "writer", None)]
+    nested = getattr(mature, "writer", None)
+    owners.append(getattr(nested, "writer", None))
+    control = next((
+        getattr(owner, "_qualification_control", None)
+        for owner in owners if owner is not None
+        and getattr(owner, "_qualification_control", None) is not None
+    ), None)
+    if control is None or getattr(control, "_probe_release_required", False) is not True:
+        return None
+    target_s = getattr(control, "_probe_release_started_s", None)
+    opened_s = getattr(control, "_probe_release_opened_s", None)
+    target_s = None if target_s is None else float(target_s)
+    opened_s = None if opened_s is None else float(opened_s)
+    ramp_duration_s = float(ramp_duration_s)
+    if not math.isfinite(ramp_duration_s) or ramp_duration_s not in (1.0, 2.0, 3.0, 4.0, 8.0):
+        raise YieldLiveError("contact-ramp probe diagnostic duration is invalid")
+    if target_s is not None and not math.isfinite(target_s):
+        raise YieldLiveError("contact-ramp probe target time is nonfinite")
+    if opened_s is not None and not math.isfinite(opened_s):
+        raise YieldLiveError("contact-ramp probe release time is nonfinite")
+    raw_rows = next((
+        getattr(owner, "raw_observations", None) for owner in owners
+        if owner is not None and getattr(owner, "raw_observations", None) is not None
+    ), ())
+    robot_rows = next((
+        getattr(owner, "robot_observations", None) for owner in owners
+        if owner is not None and getattr(owner, "robot_observations", None) is not None
+    ), ())
+    from dataclasses import asdict, is_dataclass
+
+    def mapping(row):
+        if isinstance(row, Mapping):
+            return row
+        if is_dataclass(row):
+            return asdict(row)
+        return None
+
+    force_rows: list[tuple[float | None, float, float]] = []
+    for row in raw_rows:
+        row = mapping(row)
+        if row is None:
+            continue
+        wrench = row.get("corrected_wrench_n_nm")
+        try:
+            vector = tuple(float(value) for value in wrench)
+            at = float(row.get("host_use_monotonic_s"))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if len(vector) != 6 or not all(math.isfinite(value) for value in (*vector, at)):
+            continue
+        force_norm = math.sqrt(sum(value * value for value in vector[:3]))
+        signed_normal = -vector[2]
+        force_rows.append((at, signed_normal, force_norm))
+    stable_rows = [
+        (normal, norm) for at, normal, norm in force_rows
+        if target_s is not None and opened_s is not None and target_s <= at <= opened_s
+    ]
+    force_norms = [norm for _at, _normal, norm in force_rows]
+    tcp_speeds: list[float] = []
+    joint_speeds: list[float] = []
+    for row in robot_rows:
+        row = mapping(row)
+        if row is None:
+            continue
+        try:
+            tcp = tuple(float(value) for value in row["tcp_speed_m_s_rad_s"])
+            qd = tuple(float(value) for value in row["qd_rad_s"])
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+        if len(tcp) == 6 and all(math.isfinite(value) for value in tcp):
+            tcp_speeds.append(math.sqrt(sum(value * value for value in tcp[:3])))
+        if len(qd) == 6 and all(math.isfinite(value) for value in qd):
+            joint_speeds.append(max(map(abs, qd)))
+    normals = [normal for normal, _norm in stable_rows]
+    opened_after_target = None if target_s is None or opened_s is None else max(0.0, opened_s - target_s)
+    return {
+        "schema": "contact-ramp-probe-measured-v1",
+        "measurement_scope": "corrected Kunwei feedback and RTDE samples; not independent task-force truth",
+        "ramp_duration_s": ramp_duration_s,
+        "ramp_started_monotonic_s": None if target_s is None else target_s - ramp_duration_s,
+        "target_5n_monotonic_s": target_s,
+        "release_gate_opened_monotonic_s": opened_s,
+        "release_gate_hold_s": float(getattr(getattr(control, "_path_entry_release_gate", None), "hold_s", 0.5)),
+        "release_gate_timeout_s": float(getattr(control, "_probe_release_timeout_s", 2.0)),
+        "target_to_stable_force_s": opened_after_target,
+        "ramp_start_to_stable_force_s": None if opened_after_target is None else ramp_duration_s + opened_after_target,
+        "force_norm_stop_n": float(getattr(control, "hard_force_norm_limit_n", 10.0)),
+        "raw_normal_definition": "negative corrected_wrench_n_nm[2], matching the live qualification normal_load_n channel",
+        "stable_window_sample_count": len(stable_rows),
+        "raw_normal_min_after_5n_n": min(normals) if normals else None,
+        "raw_normal_max_after_5n_n": max(normals) if normals else None,
+        "raw_normal_below_4n_fraction_after_5n": (
+            sum(value < 4.0 for value in normals) / len(normals) if normals else None
+        ),
+        "force_norm_peak_n": max(force_norms) if force_norms else None,
+        "max_tcp_linear_speed_m_s": max(tcp_speeds) if tcp_speeds else None,
+        "max_joint_speed_rad_s": max(joint_speeds) if joint_speeds else None,
+        "raw_sensor_sample_count": len(force_rows),
+        "robot_frame_sample_count": len(robot_rows),
+    }
+
+
 class YieldLiveError(RuntimeError):
     """Yield live entry failed closed."""
 
@@ -524,6 +636,9 @@ def run_live(
     refresh_readback=None,
     dashboard_stop_and_verify=None,
     deferred_seals=None,
+    identity_contract=None,
+    diagnostic_probe: bool = False,
+    probe_ramp_duration_s: float | None = None,
 ) -> dict[str, Any]:
     if args.command not in {"qualify", "pilot"}:
         raise YieldLiveError(f"unknown live command {args.command!r}")
@@ -572,6 +687,21 @@ def run_live(
     args.run_dir = Path(args.run_dir).expanduser().resolve()
     if getattr(args, "authority_root", None) is not None:
         args.authority_root = Path(args.authority_root).expanduser().resolve()
+    if type(diagnostic_probe) is not bool:
+        raise YieldLiveError("diagnostic probe flag must be bool")
+    contract = identity_contract or load_identity_contract()
+    if diagnostic_probe:
+        if (
+            args.command != "qualify"
+            or args.method != "TASE_RNN_MATURE"
+            or getattr(args, "duration", None) is not None
+            or not isinstance(getattr(contract, "raw", None), Mapping)
+            or contract.raw.get("diagnostic_probe") is not True
+            or contract.raw.get("qualification_only") is not True
+        ):
+            raise YieldLiveError("contact-ramp probe must use its qualification-only TP contract")
+    elif probe_ramp_duration_s is not None:
+        raise YieldLiveError("probe ramp duration requires diagnostic_probe")
     config = load_live_entry_config()
     if (controller_transport is None or kunwei_transport is None) and not config["user_standing_live_authority"]:
         raise YieldLiveError("further hardware execution was discontinued by the user; no endpoints opened")
@@ -587,7 +717,16 @@ def run_live(
     if controller_transport is None and getattr(args, "control_cpu", None) is None:
         raise YieldLiveError("hardware execution requires the selected --control-cpu")
     video_url = getattr(args, "video_url", "rtsp://127.0.0.1:8554/arm")
-    contract = load_identity_contract()
+    contract_program = str(getattr(contract, "program", CONTACT_PROGRAM))
+    contract_home_program = str(getattr(contract, "home_program", HOME_PROGRAM))
+    contract_readable_identity = tuple(
+        getattr(contract, "readable_runtime_identity", READABLE_RUNTIME_IDENTITY)
+    )
+    input_recipe = (
+        __import__('contact_yield_transport').CONTACT_RAMP_PROBE_INPUT_FIELDS
+        if diagnostic_probe
+        else __import__('contact_yield_transport').NATIVE_INPUT_FIELDS
+    )
     clock = time_clock(now_s)
     prerequisites, home_binding = load_run_dir_receipts(
         args.run_dir,
@@ -618,6 +757,8 @@ def run_live(
         wall_clock=wall_clock,
         mono_clock=mono_clock,
         sleep=sleep,
+        diagnostic_probe=diagnostic_probe,
+        probe_ramp_duration_s=probe_ramp_duration_s,
     )
     # All lifecycle marks use the writer's monotonic domain.  The preflight
     # Home check has completed at this boundary; no nominal receipt timestamp
@@ -644,12 +785,12 @@ def run_live(
         "research_campaign": bool(research_campaign),
         "attempt_id": args.attempt_id,
         "method": args.method,
-        "program": CONTACT_PROGRAM,
-        "home_program": HOME_PROGRAM,
+        "program": contract_program,
+        "home_program": contract_home_program,
         "runtime_protocol": RUNTIME_PROTOCOL,
-        "requested_input_recipe": list(__import__('contact_yield_transport').NATIVE_INPUT_FIELDS),
+        "requested_input_recipe": list(input_recipe),
         "controller_readback_triplet": dict(contract.triplet),
-        "readable_runtime_identity": list(READABLE_RUNTIME_IDENTITY),
+        "readable_runtime_identity": list(contract_readable_identity),
         "provider": type(provider).__name__,
         "provider_id": id(provider),
         "writer_id": id(mature.writer),
@@ -659,6 +800,8 @@ def run_live(
         "full_cycle_acceptance": False,
         "physical_qualification": False,
         "continuous_contact_path": bool(args.command == "pilot"),
+        "diagnostic_probe": diagnostic_probe,
+        "probe_ramp_duration_s": probe_ramp_duration_s,
         "rnn_hash_or_profile": provider.solver_profile.as_dict() if args.method == "TASE_RNN_MATURE" else False,
         "controller_identity": _controller_identity(method_record, provider),
         "tase_parameter_binding": getattr(provider, "parameter_binding", None),
@@ -713,6 +856,8 @@ def run_live(
         refresh_readback=refresh_readback,
         dashboard_stop_and_verify=dashboard_stop_and_verify,
         deferred_seals=deferred_seals,
+        diagnostic_probe=diagnostic_probe,
+        probe_ramp_duration_s=probe_ramp_duration_s,
     )
 
 
@@ -742,6 +887,8 @@ def _run_live_with_resident_session(
     refresh_readback: Any | None,
     dashboard_stop_and_verify: Any | None,
     deferred_seals: list | None,
+    diagnostic_probe: bool,
+    probe_ramp_duration_s: float | None,
 ) -> dict[str, Any]:
     from dataclasses import asdict, is_dataclass
     import os
@@ -815,6 +962,12 @@ def _run_live_with_resident_session(
                 parameter_binding=binding,
                 parameter_file=parameter_file,
             )
+            if diagnostic_probe:
+                diagnostics = _contact_ramp_probe_diagnostics(
+                    mature, probe_ramp_duration_s
+                )
+                if diagnostics is not None:
+                    item["contact_ramp_probe_diagnostics"] = diagnostics
             if resident_candidate_dir is not None:
                 item["resident_candidate"] = {
                     "ordinal": sequence,
@@ -916,6 +1069,12 @@ def _run_live_with_resident_session(
                         "sealed": False,
                     },
                 }
+                if diagnostic_probe:
+                    diagnostics = _contact_ramp_probe_diagnostics(
+                        mature, probe_ramp_duration_s
+                    )
+                    if diagnostics is not None:
+                        partial_item["contact_ramp_probe_diagnostics"] = diagnostics
             if physical_dispatch and session.last_completed_sequence == active_attempt[0]:
                 completed = session.last_completed_evidence
                 payload = asdict(completed) if is_dataclass(completed) else dict(completed)

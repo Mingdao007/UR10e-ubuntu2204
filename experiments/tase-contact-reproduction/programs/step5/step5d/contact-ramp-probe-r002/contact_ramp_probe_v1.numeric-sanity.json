@@ -1,0 +1,85 @@
+{
+  "schema": "contact-ramp-probe-numeric-sanity-v1",
+  "claim": "offline arithmetic only; no TP read-back or live qualification",
+  "program": "contact_ramp_probe_v1",
+  "controller_target": "/programs/andyl/kunwei/step5/contact_ramp_probe_v1.urp",
+  "readable_runtime_identity": [
+    26,
+    618002
+  ],
+  "ramp_durations_s": [
+    8,
+    4,
+    3,
+    2,
+    1
+  ],
+  "rungs": [
+    {
+      "duration_s": 8,
+      "setpoint_start_n": 1.0,
+      "setpoint_target_n": 5.0,
+      "slope_n_s": 0.5,
+      "nominal_delta_n_at_500_hz": 0.001,
+      "tp_max_delta_at_80ms_n": 0.05
+    },
+    {
+      "duration_s": 4,
+      "setpoint_start_n": 1.0,
+      "setpoint_target_n": 5.0,
+      "slope_n_s": 1.0,
+      "nominal_delta_n_at_500_hz": 0.002,
+      "tp_max_delta_at_80ms_n": 0.09
+    },
+    {
+      "duration_s": 3,
+      "setpoint_start_n": 1.0,
+      "setpoint_target_n": 5.0,
+      "slope_n_s": 1.3333333333333333,
+      "nominal_delta_n_at_500_hz": 0.0026666666666666666,
+      "tp_max_delta_at_80ms_n": 0.11666666666666665
+    },
+    {
+      "duration_s": 2,
+      "setpoint_start_n": 1.0,
+      "setpoint_target_n": 5.0,
+      "slope_n_s": 2.0,
+      "nominal_delta_n_at_500_hz": 0.004,
+      "tp_max_delta_at_80ms_n": 0.17
+    },
+    {
+      "duration_s": 1,
+      "setpoint_start_n": 1.0,
+      "setpoint_target_n": 5.0,
+      "slope_n_s": 4.0,
+      "nominal_delta_n_at_500_hz": 0.008,
+      "tp_max_delta_at_80ms_n": 0.33
+    }
+  ],
+  "probe_stop": {
+    "force_norm_n": 10.0
+  },
+  "retained_guards": {
+    "raw_normal_n": 20.0,
+    "raw_torque_norm_nm": 2.0,
+    "qdot_rad_s": 0.05,
+    "actual_joint_speed_rad_s": 0.06,
+    "speedj_acceleration_rad_s2": 5.0
+  },
+  "release": {
+    "path_commanded": false,
+    "existing_gate_hold_s": 0.5,
+    "post_5n_observation_max_s": 2.0,
+    "filtered_normal_window_n": [
+      4.0,
+      5.5
+    ],
+    "raw_normal_window_n": [
+      3.0,
+      7.0
+    ]
+  },
+  "figure8_commanded": false,
+  "bo_observation": false,
+  "return": "existing qualification RETRACT and canonical joint Home verification"
+}

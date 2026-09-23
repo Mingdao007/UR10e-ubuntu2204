@@ -4,6 +4,11 @@ The current task selects `step5d_contact_six_qp_v1` on the existing UR10e/Kunwei
 
 The task remains constant 5 N + unknown surface + attitude compliance. SFC and original TASE/RNN are required baselines; DSFC/MSFC and evidence-driven new controllers are proposals; TASE-QP changes only the solver. Native entry uses `scripts/contact-yield-live.sh supervise` with fresh read-back, state and capture evidence. Simulation is not a prerequisite.
 
+For resident Figure-eight attempts, raw evidence preseal begins while TP is in
+`RETURNING`. The session verifies joint Home and then atomically seals the
+attempt; the next ARM is blocked until the seal is durably verified. This is an
+evidence-finalization lifecycle rule and does not change TP motion semantics.
+
 The old governed release (`config/step5d/current.json`), its incomplete runs, and the historical preparation sections below are retained. They are not the selected native runtime and must not be dispatched for this task.
 
 ## Historical six-controller preparation
@@ -33,6 +38,26 @@ The resident caps joint speed at 0.05 rad/s and initial search at 0.2 mm/s;
 raw force/torque limits are 20 N/2 Nm. It carries protocol 618001, distinct
 from historical R013. Live owner integration and full writer timing remain
 pending; file delivery is not dispatch admission.
+
+## Contact-ramp probe diagnostic (2026-09-24)
+
+`contact_ramp_probe_v1` is a separate diagnostic identity derived from the
+existing single-writer contact and joint-Home path. Its TP binds the canonical
+Figure-eight TCP and joint Home in `config/figure8_home_v1.json`, allows only
+qualification attempts, and carries runtime identity `(26, 618002)`. It has
+five independent `1 N → 5 N` ramps with durations `8, 4, 3, 2, 1 s` and exact
+slopes `4/duration N/s`; the production 8 s contract is unchanged. Each attempt
+returns to joint Home, uses no PATH/Figure-eight/BO motion, and has a 10 N
+force-norm stop while retaining the 20 N raw-normal and 2 Nm torque limits.
+After 5 N, the host must use the existing continuous 0.5 s
+`PathEntryReleaseGate` and retract within a 2 s observation budget. On a rung
+failure, faster rungs stop; the fastest prior passing rung is repeated twice.
+
+The package builder is `tools/build_contact_ramp_probe.py`; the retained
+`r002` triplet is in `programs/step5/step5d/contact-ramp-probe-r002/`. The
+host runner is `tools/run_contact_ramp_probe.py` and dispatches each rung only
+through the existing supervisor. Package read-back and the ordered live ladder
+must both be recorded before this diagnostic stage is accepted.
 
 ## Retained historical governed Step5d route
 

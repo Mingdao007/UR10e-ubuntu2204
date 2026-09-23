@@ -8,7 +8,7 @@ physical wire echoes use the readable (25, 618001) pair.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 import json
 import math
@@ -164,6 +164,9 @@ class YieldLiveIdentityContract:
     home_pose: tuple[float, float, float, float, float, float]
     home_q: tuple[float, float, float, float, float, float]
     triplet: Mapping[str, str]
+    home_program: str = HOME_PROGRAM
+    package_dir: Path = PACKAGE_DIR
+    home_triplet: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def program(self) -> str:
@@ -176,10 +179,15 @@ def load_identity_contract(path: Path | str | None = None) -> YieldLiveIdentityC
     eoat = load_new_eoat_profile()
     triplet = package_triplet()
     home_sha = home_script_sha256()
+    home_triplet = {
+        role: _sha256_file(PACKAGE_DIR / f"{HOME_PROGRAM}.{role}")
+        for role in ("script", "txt", "urp")
+    }
     home_pose = _finite6(document["home_pose_m_rad"], "home_pose_m_rad")
     home_q = _finite6(document["home_q_rad"], "home_q_rad")
     raw = {
         "program": CONTACT_PROGRAM,
+        "home_program": HOME_PROGRAM,
         "script2": {
             "controller_target": document["controller_target"],
             "program": CONTACT_PROGRAM,
@@ -202,6 +210,7 @@ def load_identity_contract(path: Path | str | None = None) -> YieldLiveIdentityC
             "runtime_protocol": RUNTIME_PROTOCOL,
             "readable_runtime_identity": list(READABLE_RUNTIME_IDENTITY),
             "triplet": triplet,
+            "home_triplet": home_triplet,
             "home_script": home_sha,
             "home_pose": list(home_pose),
             "home_q": list(home_q),
@@ -218,6 +227,137 @@ def load_identity_contract(path: Path | str | None = None) -> YieldLiveIdentityC
         home_pose=home_pose,
         home_q=home_q,
         triplet=triplet,
+        home_program=HOME_PROGRAM,
+        package_dir=PACKAGE_DIR,
+        home_triplet=home_triplet,
+    )
+
+
+def load_contact_ramp_probe_identity_contract(
+    binding_path: Path | str,
+) -> YieldLiveIdentityContract:
+    """Bind the isolated qualification-only ramp package to its own triplets."""
+    from build_contact_ramp_probe import PROGRAM as PROBE_PROGRAM
+    from build_contact_ramp_probe import HOME_PROGRAM as PROBE_HOME_PROGRAM
+    from build_contact_ramp_probe import RAMP_DURATIONS_S, FORCE_NORM_PROBE_STOP_N
+    from figure8_home_config import load_canonical_figure8_home, load_canonical_figure8_home_q
+
+    path = Path(binding_path).expanduser().resolve()
+    if path.is_symlink() or not path.is_file():
+        raise YieldLiveContractError("contact-ramp probe binding is missing or symlinked")
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise YieldLiveContractError(f"contact-ramp probe binding is unreadable: {exc}") from exc
+    binding = dict(_require_mapping(document, "contact-ramp probe binding"))
+    if binding.get("schema") != "contact-ramp-probe-package-binding-v1":
+        raise YieldLiveContractError("contact-ramp probe binding schema differs")
+    if (
+        binding.get("program") != PROBE_PROGRAM
+        or binding.get("home_program") != PROBE_HOME_PROGRAM
+        or binding.get("controller_target") != f"/programs/andyl/kunwei/step5/{PROBE_PROGRAM}.urp"
+        or binding.get("controller_directory") != "/programs/andyl/kunwei/step5"
+    ):
+        raise YieldLiveContractError("contact-ramp probe package/program target identity differs")
+    if (
+        binding.get("runtime_protocol") != RUNTIME_PROTOCOL
+        or binding.get("runtime_revision") != 26
+        or binding.get("runtime_extension_protocol") != 618002
+        or tuple(binding.get("readable_runtime_identity") or ()) != (26, 618002)
+    ):
+        raise YieldLiveContractError("contact-ramp probe runtime identity differs")
+    if (
+        binding.get("path_commanded") is not False
+        or binding.get("figure8_commanded") is not False
+        or binding.get("bo_observation") is not False
+        or tuple(binding.get("ramp_durations_s") or ()) != tuple(RAMP_DURATIONS_S)
+        or float(binding.get("force_norm_probe_stop_n")) != float(FORCE_NORM_PROBE_STOP_N)
+    ):
+        raise YieldLiveContractError("contact-ramp probe behavior identity differs")
+    canonical_home_pose = load_canonical_figure8_home()
+    canonical_home_q = load_canonical_figure8_home_q()
+    home_pose = _finite6(binding.get("home_pose_m_rad"), "probe home_pose_m_rad")
+    home_q = _finite6(binding.get("home_q_rad"), "probe home_q_rad")
+    if home_pose != tuple(canonical_home_pose) or home_q != tuple(canonical_home_q):
+        raise YieldLiveContractError("contact-ramp probe Home differs from canonical Figure-eight joint Home")
+    profile = load_new_eoat_profile()
+    eoat = _require_mapping(binding.get("eoat"), "probe eoat")
+    if eoat.get("profile_id") != profile.profile_id or eoat.get("profile_sha256") != profile.profile_sha256:
+        raise YieldLiveContractError("contact-ramp probe EOAT identity differs")
+    package_dir = path.parent
+    triplet = dict(_require_mapping(binding.get("triplet_sha256"), "probe triplet_sha256"))
+    home_triplet = dict(_require_mapping(binding.get("home_triplet_sha256"), "probe home_triplet_sha256"))
+    expected_roles = {"script", "txt", "urp"}
+    if set(triplet) != expected_roles or set(home_triplet) != expected_roles:
+        raise YieldLiveContractError("contact-ramp probe package triplet is incomplete")
+    actual_triplet = {
+        role: _sha256_file(package_dir / f"{PROBE_PROGRAM}.{role}")
+        for role in ("script", "txt", "urp")
+    }
+    actual_home_triplet = {
+        role: _sha256_file(package_dir / f"{PROBE_HOME_PROGRAM}.{role}")
+        for role in ("script", "txt", "urp")
+    }
+    if actual_triplet != triplet or actual_home_triplet != home_triplet:
+        raise YieldLiveContractError("contact-ramp probe triplet bytes differ from its binding")
+    digest = _sha256_file(path)
+    fingerprint = _sha256_json({
+        "schema": binding["schema"],
+        "program": PROBE_PROGRAM,
+        "home_program": PROBE_HOME_PROGRAM,
+        "readable_runtime_identity": [26, 618002],
+        "triplet": triplet,
+        "home_triplet": home_triplet,
+        "home_q": list(home_q),
+        "home_pose": list(home_pose),
+        "eoat_profile_sha256": profile.profile_sha256,
+    })
+    # Reuse the mature qualification and recovery boundary fields, but bind
+    # the candidate identity to this exact probe triplet and unreadable
+    # production-compatible runtime protocol. The diagnostic marker below is
+    # the only code path allowed to use the probe identity.
+    production_contract = load_identity_contract()
+    raw = dict(production_contract.raw)
+    raw.update({
+        "program": PROBE_PROGRAM,
+        "home_program": PROBE_HOME_PROGRAM,
+        "diagnostic_probe": True,
+        "qualification_only": True,
+        "script2": {
+            "program": PROBE_PROGRAM,
+            "controller_target": binding["controller_target"],
+            "fixed_home_pose_m_rad": list(home_pose),
+        },
+        "guards": {
+            **dict(production_contract.raw["guards"]),
+            "raw_force_n": float(binding["raw_normal_guard_n"]),
+            "force_norm_probe_stop_n": float(binding["force_norm_probe_stop_n"]),
+            "raw_torque_nm": float(binding["raw_torque_guard_nm"]),
+            "qdot_cap_rad_s": float(binding["numeric_sanity"]["retained_guards"]["qdot_rad_s"]),
+            "actual_joint_speed_guard_rad_s": float(binding["numeric_sanity"]["retained_guards"]["actual_joint_speed_rad_s"]),
+        },
+        "runtime_protocol": RUNTIME_PROTOCOL,
+        "readable_runtime_identity": [26, 618002],
+        "identity_projection": {
+            "binding_schema": binding["schema"],
+            "ramp_durations_s": list(RAMP_DURATIONS_S),
+            "force_norm_probe_stop_n": float(FORCE_NORM_PROBE_STOP_N),
+        },
+    })
+    return YieldLiveIdentityContract(
+        path=path,
+        sha256=digest,
+        campaign_fingerprint=fingerprint,
+        eoat_sha256=profile.profile_sha256,
+        script1_sha256={"script": home_triplet["script"]},
+        raw=raw,
+        readable_runtime_identity=(26, 618002),
+        home_pose=home_pose,
+        home_q=home_q,
+        triplet=triplet,
+        home_program=PROBE_HOME_PROGRAM,
+        package_dir=package_dir,
+        home_triplet=home_triplet,
     )
 
 

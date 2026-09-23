@@ -11635,7 +11635,57 @@
       "liveprep_status": {
         "state": "awaiting_live_authorization",
         "readiness_artifact": "report/contact-yield-recovery-20260920/tase-liveprep-readiness-20260923-v26.json"
+      },
+      "resident_evidence_seal_policy": {
+        "preseal_starts": "during_RETURNING",
+        "final_seal": "after_Home_verified_then_atomic_seal",
+        "next_ARM_requires": "durable_seal_verified",
+        "if_persistence_unreliable": "block_next_ARM"
       }
+    },
+    {
+      "id": "contact_ramp_probe_v1",
+      "stage": "Step5d diagnostic",
+      "owner": "existing_single_writer+TP",
+      "active": false,
+      "blocked": true,
+      "complete": false,
+      "shape": "independent_joint_home_contact_qualification_return_home",
+      "frame": "config/figure8_home_v1.json",
+      "contact": true,
+      "bridge": false,
+      "strict_rnn": false,
+      "duration_s": null,
+      "program": "contact_ramp_probe_v1",
+      "controller_target": "/programs/andyl/kunwei/step5/contact_ramp_probe_v1.urp",
+      "runtime_identity": [
+        26,
+        618002
+      ],
+      "package_builder": "tools/build_contact_ramp_probe.py",
+      "ramp_durations_s": [
+        8,
+        4,
+        3,
+        2,
+        1
+      ],
+      "ramp_contract": "per_attempt 1 N to 5 N; slope exactly 4/duration N/s; TP and host use the same rung",
+      "after_5n_observation_max_s": 2.0,
+      "release_gate": "existing PathEntryReleaseGate; 0.5 s continuous; no PATH command",
+      "probe_stop_force_norm_n": 10.0,
+      "retained_guards": {
+        "raw_normal_n": 20.0,
+        "raw_torque_norm_nm": 2.0,
+        "qdot_rad_s": 0.05,
+        "actual_joint_speed_rad_s": 0.06
+      },
+      "retry_policy": "stop faster rungs on first failure; repeat fastest prior passing rung twice",
+      "path_commanded": false,
+      "figure8_commanded": false,
+      "bo_observation": false,
+      "evidence_scope": "contact/ramp/release/Home diagnostics only; no PATH MAE or CensoredPathEvidence",
+      "success_condition": "offline package and numeric sanity only; live entry/read-back and physical acceptance remain pending"
     }
   ],
   "startup_gate_profiles": {
@@ -11853,5 +11903,30 @@
     "retained_evidence": "contact-six fixed-attitude results retained as regression only; existing current_stage unchanged",
     "success_condition": "reproducible closed-loop benefit with costs and numerical verification, then fresh transport qualification and original-platform pilot; formal equal-budget holdout remains required",
     "superseded_by_live_task": "step5d_contact_six_qp_v1"
+  },
+  "contact_ramp_probe_diagnostic": {
+    "id": "contact_ramp_probe_v1",
+    "active": false,
+    "status": "r002_host_runner_ready_package_readback_pending",
+    "package_builder": "tools/build_contact_ramp_probe.py",
+    "package_dir": "programs/step5/step5d/contact-ramp-probe-r002",
+    "runtime_identity": [
+      26,
+      618002
+    ],
+    "canonical_home_config": "config/figure8_home_v1.json",
+    "entrypoint_status": "tools/run_contact_ramp_probe.py through contact_yield_supervisor.py",
+    "schedule_s": [
+      8,
+      4,
+      3,
+      2,
+      1
+    ],
+    "path_commanded": false,
+    "figure8_commanded": false,
+    "bo_observation": false,
+    "live_accepted": false,
+    "numeric_sanity": "programs/step5/step5d/contact-ramp-probe-r002/contact_ramp_probe_v1.numeric-sanity.json"
   }
 }

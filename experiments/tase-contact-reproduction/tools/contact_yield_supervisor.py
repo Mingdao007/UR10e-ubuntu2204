@@ -32,6 +32,7 @@ from tase_r013_timing_ledger import ledger_from_receipts
 
 
 MAX_AGE_S = .080
+LATEST_SAMPLE_REFRESH_WAIT_S = .020
 DASHBOARD_FIELDS = ['is in remote control', 'safetymode', 'robotmode',
                     'running', 'programState', 'get loaded program']
 RESIDENT_CANDIDATE_NAME = "candidate-{ordinal:04d}.json"
@@ -164,8 +165,38 @@ class ProcessObserver:
         # observer process to remain alive.
         if not self.process.is_alive() and not allow_fault:
             raise RuntimeError('observer process exited')
-        if self.row is None or not 0 <= time.monotonic()-self.row['received_monotonic_s'] < MAX_AGE_S:
-            raise RuntimeError('observer latest sample is stale')
+        if self.row is None:
+            raise RuntimeError('observer latest sample is missing')
+        # multiprocessing.Queue uses a feeder thread.  A healthy child can
+        # have written a fresh RTDE row to its bounded queue while a parent
+        # wake-up races the feeder flush.  If the cached row is stale, wait
+        # briefly for a *newer* row; never return stale data or change the
+        # producer's independent 80 ms RTDE-gap stop.
+        deadline = time.monotonic() + LATEST_SAMPLE_REFRESH_WAIT_S
+        while True:
+            age_s = time.monotonic() - float(self.row['received_monotonic_s'])
+            if 0.0 <= age_s < MAX_AGE_S:
+                return self.row
+            if age_s < 0.0:
+                raise RuntimeError(
+                    f'observer latest sample is from the future: age_s={age_s:.6f} '
+                    f'sample_count={self.sample_count}'
+                )
+            remaining_s = deadline - time.monotonic()
+            if remaining_s <= 0.0:
+                raise RuntimeError(
+                    f'observer latest sample is stale: age_s={age_s:.6f} '
+                    f'sample_count={self.sample_count} process_alive={self.process.is_alive()}'
+                )
+            try:
+                self.row = self.samples.get(timeout=min(.005, remaining_s))
+                self.sample_count += 1
+            except queue.Empty:
+                pass
+            self._drain()
+            if self.error and not allow_fault: raise RuntimeError(self.error)
+            if not self.process.is_alive() and not allow_fault:
+                raise RuntimeError('observer process exited')
         return self.row
 
     def close(self):
@@ -352,13 +383,44 @@ def _verified_stopped_joint_home(result, supervisor):
     return sample
 
 
+def _recovery_joint_home_pair(recovery):
+    """Find the final monitored joint-Home sample from the recovery receipt."""
+    if not isinstance(recovery, dict):
+        return None
+    home = recovery.get('home')
+    if not isinstance(home, dict):
+        return None
+    candidates = [home]
+    nested = home.get('joint_home_correction')
+    if isinstance(nested, dict):
+        candidates.insert(0, nested)
+    segments = home.get('segments')
+    if isinstance(segments, list):
+        for segment in reversed(segments):
+            if isinstance(segment, dict) and isinstance(segment.get('home_result'), dict):
+                candidates.insert(0, segment['home_result'])
+    for candidate in candidates:
+        if candidate.get('success') is not True:
+            continue
+        sample = candidate.get('final_sample')
+        dashboard = candidate.get('dashboard_after')
+        if isinstance(sample, dict) and isinstance(dashboard, dict):
+            return {'sample': sample, 'dashboard': dashboard}
+    return None
+
+
 class ResidentSupervisor:
     def __init__(self, *, observer, video, read_dashboard, writer, target,
-                 home_pose=None, home_q=None, clock=time.monotonic, sleep=time.sleep):
+                 home_pose=None, home_q=None,
+                 readable_runtime_identity=READABLE_RUNTIME_IDENTITY,
+                 clock=time.monotonic, sleep=time.sleep):
         self.observer, self.video = observer, video
         self.read_dashboard, self.writer, self.target = read_dashboard, writer, target
         self.home_pose = None if home_pose is None else tuple(float(value) for value in home_pose)
         self.home_q = None if home_q is None else tuple(float(value) for value in home_q)
+        self.wire_identity = (RUNTIME_PROTOCOL, *(int(value) for value in readable_runtime_identity))
+        if len(self.wire_identity) != 3:
+            raise ValueError('resident TP runtime identity must contain revision and extension')
         self.clock, self.sleep = clock, sleep
         self.audit = {
             'success': False,
@@ -398,7 +460,7 @@ class ResidentSupervisor:
             or any(abs(a-b)>.00005 for a,b in zip(row['payload_cog'],[.0011,.0031,.0163]))
             or any(abs(a-b)>.00005 for a,b in zip(row['tcp_offset'],[0,0,.0874,0,0,0]))):
             raise RuntimeError('observer EOAT binding differs')
-        if identity and [row[f'output_int_register_{i}'] for i in (32,33,34)] != [RUNTIME_PROTOCOL,*READABLE_RUNTIME_IDENTITY]:
+        if identity and [row[f'output_int_register_{i}'] for i in (32,33,34)] != list(self.wire_identity):
             raise RuntimeError('resident wire identity differs')
         return row
 
@@ -439,7 +501,7 @@ class ResidentSupervisor:
                 and row['received_monotonic_s'] >= after and stationary(row)
                 and (not require_home or self._at_home(row))
                 and (prior_timestamp is None or row['timestamp'] > prior_timestamp)):
-                if running and [row[f'output_int_register_{i}'] for i in (32,33,34)] != [RUNTIME_PROTOCOL,*READABLE_RUNTIME_IDENTITY]:
+                if running and [row[f'output_int_register_{i}'] for i in (32,33,34)] != list(self.wire_identity):
                     self.sleep(.02)
                     continue
                 return {'dashboard':dash,'sample':row}
@@ -477,7 +539,7 @@ class ResidentSupervisor:
             'requested_monotonic_s': requested_at,
         }
 
-    def run(self, body, before_load=None, *, execute_program=True):
+    def run(self, body, before_load=None, *, execute_program=True, load_only=False):
         play_attempted = False
         body_result = None
         try:
@@ -493,10 +555,17 @@ class ResidentSupervisor:
                 or initial['robotmode']!='Robotmode: RUNNING' or initial['running']!='Program running: false'
                 or not initial['programState'].startswith('STOPPED')):
                 raise RuntimeError(f'initial Remote/stopped gate failed: {initial}')
-            if execute_program:
+            if execute_program or load_only:
                 if before_load is not None: before_load(self)
                 at=self.clock(); self.writer.write('load '+self.target)
-                self._wait(running=False,after=at)
+                loaded = self._wait(
+                    running=False, after=at, require_home=bool(load_only),
+                )
+                if load_only:
+                    self.audit['dashboard_stop'] = loaded
+                    self.audit['program_stopped'] = True
+                    self._mark_lifecycle('PROGRAM_LOAD_ONLY', 'verified_stopped')
+            if execute_program:
                 play_attempted=True
                 at=self.clock(); self.writer.write('play')
                 self._wait(running=True,after=at)
@@ -587,7 +656,7 @@ def _write_receipts(directory, row, proof, contract, *, session_epoch=1,
         route_id='r006-yield-live',readback={'payload_kg':row['payload'],'payload_cog_m':row['payload_cog'],
         'tcp_offset_m_rad':row['tcp_offset'],'actual_TCP_speed':row['actual_TCP_speed']},
         provenance={'state':'supervisor-rtde.jsonl','triplet':'readback-results.json',
-                    'wire_identity':[RUNTIME_PROTOCOL,*READABLE_RUNTIME_IDENTITY]}))
+                    'wire_identity':[RUNTIME_PROTOCOL,*contract.readable_runtime_identity]}))
     write('home_start_receipt.json',{'schema':'yield-live-entry/home-start-receipt-v1',
         'script_sha256':contract.script1_sha256['script'],'observed_at_s':row['observed_at_s'],
         'final_pose':row['actual_TCP_pose'],'final_q':row['actual_q'],'stationary':stationary(row),
@@ -602,7 +671,7 @@ def _write_receipts(directory, row, proof, contract, *, session_epoch=1,
 
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--action',choices=['resident-check','qualify','pilot'],required=True)
+    p.add_argument('--action',choices=['resident-check','qualify','pilot','restore-package'],required=True)
     p.add_argument('--method',default='SFC'); p.add_argument('--duration',default='2')
     p.add_argument('--run-dir',type=Path,required=True); p.add_argument('--readback-dir',type=Path,required=True)
     p.add_argument('--parameter-file',type=Path)
@@ -613,11 +682,28 @@ def main(argv=None):
     p.add_argument('--control-cpu',type=int,required=True)
     p.add_argument('--video-url',default='rtsp://127.0.0.1:8554/arm')
     p.add_argument('--video-policy',choices=sorted(VideoRecorder.POLICIES),default='required')
+    p.add_argument('--contact-ramp-probe-binding',type=Path,
+                   help='bind the isolated qualification-only contact-ramp probe package')
+    p.add_argument('--ramp-duration-s',type=int,
+                   help='approved probe ramp rung: 8, 4, 3, 2, or 1 seconds')
     a=p.parse_args(argv)
     if a.resident_attempts < 1 or (a.action != 'pilot' and a.resident_attempts != 1):
         p.error('resident attempts require a positive pilot count')
     if a.resident_parameter_manifest is not None and a.resident_candidate_dir is not None:
         p.error('resident parameter manifest and candidate directory are mutually exclusive')
+    diagnostic_probe = a.contact_ramp_probe_binding is not None
+    if diagnostic_probe:
+        if (
+            a.action != 'qualify'
+            or a.method != 'TASE_RNN_MATURE'
+            or a.ramp_duration_s not in (8, 4, 3, 2, 1)
+            or a.resident_attempts != 1
+            or a.resident_parameter_manifest is not None
+            or a.resident_candidate_dir is not None
+        ):
+            p.error('contact-ramp probe requires one TASE_RNN_MATURE qualify action and an approved ramp rung')
+    elif a.ramp_duration_s is not None:
+        p.error('--ramp-duration-s requires --contact-ramp-probe-binding')
     parameter_files = None
     if a.resident_parameter_manifest is not None:
         if a.action != 'pilot' or a.method != 'TASE_RNN_MATURE' or a.duration not in {'r013_60', 'r013_60_rate400'}:
@@ -679,15 +765,19 @@ def main(argv=None):
     from contact_yield_live_path import parse_live_duration
     if a.action=='pilot': parse_live_duration(a.duration)
     if (a.run_dir/'supervisor-result.json').exists(): raise RuntimeError('run already completed')
-    contract=load_identity_contract()
+    if diagnostic_probe:
+        from contact_yield_live_contract import load_contact_ramp_probe_identity_contract
+        contract=load_contact_ramp_probe_identity_contract(a.contact_ramp_probe_binding)
+    else:
+        contract=load_identity_contract()
     from contact_yield_live_writer import resident_admission_max_age
     admission_max_age_s = resident_admission_max_age(method=a.method, duration=a.duration)
     proof=json.loads((a.run_dir/'readback-results.json').read_text())
     if proof.get('pass') is not True or not 0<=time.time()-proof['observed_at_s']<admission_max_age_s:
         raise RuntimeError('fresh verified read-back required')
-    for base in (CONTACT_PROGRAM,HOME_PROGRAM):
+    for base in (contract.program,contract.home_program):
         for ext in ('script','txt','urp'):
-            if (a.readback_dir/base/f'{base}.{ext}').read_bytes()!=(PACKAGE_DIR/f'{base}.{ext}').read_bytes():
+            if (a.readback_dir/base/f'{base}.{ext}').read_bytes()!=(contract.package_dir/f'{base}.{ext}').read_bytes():
                 raise RuntimeError('read-back triplet bytes differ')
     _prewarm(a.method)
     from contact_yield_live import _parse_args,run_live
@@ -716,7 +806,8 @@ def main(argv=None):
     supervisor=ResidentSupervisor(observer=observer,video=video,
         read_dashboard=lambda:dashboard_exchange(a.controller_host,DASHBOARD_FIELDS),
         writer=RemoteDashboardWriter(a.controller_host,load_target=target),target=target,
-        home_pose=contract.home_pose, home_q=contract.home_q)
+        home_pose=contract.home_pose, home_q=contract.home_q,
+        readable_runtime_identity=contract.readable_runtime_identity)
     deferred_seals = []
     from contact_yield_resident_session import refresh_live_preparation
     def body(s):
@@ -737,6 +828,26 @@ def main(argv=None):
                     'requested_input_recipe':list(__import__('contact_yield_transport').NATIVE_INPUT_FIELDS),
                     'wire_identity':[RUNTIME_PROTOCOL,*READABLE_RUNTIME_IDENTITY],
                     'readback_triplet':dict(contract.triplet)}
+        if a.action == 'restore-package':
+            row = s.check(idle=True)
+            dash = s.read_dashboard()
+            loaded_ok = dash.get('get loaded program') == 'Loaded program: ' + target
+            stopped_home = (
+                loaded_ok
+                and dash.get('running') == 'Program running: false'
+                and str(dash.get('programState', '')).startswith('STOPPED')
+                and s._at_home(row)
+            )
+            return {
+                'success': bool(stopped_home),
+                'evidence_eligible': bool(stopped_home),
+                'program_loaded': bool(loaded_ok),
+                'program_started': False,
+                'motion_dispatched': False,
+                'home_sample': row,
+                'dashboard': dash,
+                'readback_triplet': dict(contract.triplet),
+            }
         _write_receipts(a.run_dir,s.check(idle=True,identity=True),proof,contract)
         cli=[a.action,'--method',a.method,'--run-dir',str(a.run_dir),
              '--controller-host',a.controller_host,'--kunwei-host',a.kunwei_host,
@@ -760,12 +871,16 @@ def main(argv=None):
                 parameter_files is not None or a.resident_candidate_dir is not None
             ),
             refresh_readback=refresh_live_preparation,
+            identity_contract=contract,
+            diagnostic_probe=diagnostic_probe,
+            probe_ramp_duration_s=(None if not diagnostic_probe else float(a.ramp_duration_s)),
         )
     with WriterLock(INSTALLED_LOCK):
         result=supervisor.run(
             body,
             before_load=before_load if a.action != 'resident-check' else None,
-            execute_program=a.action != 'resident-check',
+            execute_program=a.action in ('qualify', 'pilot'),
+            load_only=a.action == 'restore-package',
         )
     result['video_policy'] = a.video_policy
     if a.action in ('qualify','pilot') and not result.get('success'):
@@ -837,6 +952,11 @@ def main(argv=None):
                         'home_blocked':True,
                         'home_blocked_reason':f'{type(fallback_exc).__name__}: {fallback_exc}',
                     }
+        recovered_pair = _recovery_joint_home_pair(
+            result.get('autonomous_home_recovery')
+        )
+        if recovered_pair is not None:
+            result['autonomous_home_verified_joint'] = recovered_pair
     # Fault recovery owns the robot before any potentially large serialization.
     for seal in deferred_seals:
         try:

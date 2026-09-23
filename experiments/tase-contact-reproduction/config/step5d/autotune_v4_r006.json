@@ -216,7 +216,7 @@
   "schema": "step5d.autotune-v4/r006-release-contract-v1",
   "source_closure": {
     "path": "config/step5d/autotune_v4_r006_offline_closure.json",
-    "sha256": "05d8993a80c12dee93814489225afcaa505a66624d0100151554d7dbfe615a2d"
+    "sha256": "94bb7c2dee320b9ea0df8fd2c8fd7feb76b791e37929d95596832d7b1199e0f6"
   },
   "warm_start": {
     "first_group_exact_trials": 25,

@@ -22,7 +22,7 @@ from contact_home_motion_profile import (
     HOME_VERTICAL_SPEED_M_S,
 )
 
-FIELDS=('timestamp','actual_TCP_pose','actual_TCP_speed','actual_q','actual_qd','tcp_offset','payload','payload_cog','safety_status_bits')
+FIELDS=('timestamp','actual_TCP_pose','actual_TCP_speed','actual_q','actual_qd','tcp_offset','payload','payload_cog','safety_status_bits','runtime_state','safety_mode','robot_mode')
 TARGET=f'{CONTROLLER_DIR}/{BASENAME}.urp'
 INSTALLED_LOCK=Path('/home/andy/.codex-worktrees/step5d-r014-fixed-confidence-20260821/experiments/tase-contact-reproduction/runs/r014_autotuner/live-writer.lock')
 # UR RTDE ``safety_status_bits`` reports NORMAL as 1, optionally combined with
@@ -127,6 +127,12 @@ class Observer:
 
 def run(args):
     home=json.loads(args.home_receipt.read_text());validation=json.loads(args.validation.read_text())
+    home_q = np.asarray(home.get('home_q'), dtype=float)
+    if home_q.shape != (6,) or not np.isfinite(home_q).all():
+        raise ValueError('joint-authoritative Home receipt must include six finite home_q values')
+    q_tolerance = float(home.get('q_tolerance_rad', 0.02))
+    if not np.isfinite(q_tolerance) or q_tolerance <= 0.0 or q_tolerance > 0.02:
+        raise ValueError('Home joint tolerance must be finite and no looser than 0.02 rad')
     if validation.get('pass') is not True or validation.get('state')!='controller read-back verified' or validation.get('basename')!=BASENAME:raise ValueError('Home package read-back validation required')
     for suffix in ('script','urp','txt'):
         local=args.package_dir/f'{BASENAME}.{suffix}';remote=args.readback_dir/f'{BASENAME}.{suffix}'
@@ -194,10 +200,27 @@ def run(args):
                 if state['safetymode']!='Safetymode: NORMAL' or state['is in remote control']!='true':raise ValueError('Home live safety/mode changed')
                 target=np.asarray(home['home_pose']);actual=np.asarray(row['actual_TCP_pose']);pe=np.linalg.norm(actual[:3]-target[:3]);ae=np.linalg.norm(pin.log3(rotvec_to_matrix(actual[3:])@rotvec_to_matrix(target[3:]).T))
                 stopped=state['running']=='Program running: false' and state['programState'].startswith('STOPPED')
+                q_error = float(np.max(np.abs(np.asarray(row['actual_q'], dtype=float) - home_q)))
                 if stopped and pe<.001 and ae<.005 and np.linalg.norm(row['actual_TCP_speed'])<.0005 and max(abs(x) for x in row['actual_qd'])<.001:
                     if stationary_since is None:stationary_since=time.monotonic()
                     if time.monotonic()-stationary_since>=.5:
-                        result.update(success=True,final_position_error_m=float(pe),final_orientation_error_rad=float(ae),dashboard_after=state);break
+                        result.update(
+                            final_position_error_m=float(pe),
+                            final_orientation_error_rad=float(ae),
+                            final_joint_max_error_rad=q_error,
+                            final_q=list(row['actual_q']),
+                            final_sample=dict(row),
+                            dashboard_after=state,
+                        )
+                        if q_error > q_tolerance:
+                            result['failure'] = (
+                                f'home_joint_mismatch: max joint error {q_error:.9f} rad '
+                                f'exceeds {q_tolerance:.9f} rad'
+                            )
+                            result['success'] = False
+                        else:
+                            result['success'] = True
+                        break
                 else:stationary_since=None
                 time.sleep(.04)
             else:raise ValueError(f'Home did not finish within geometry-derived {motion_timeout:.3f}s')

@@ -22,7 +22,7 @@ from step5d_autotune_v4_r004.qualification import (  # noqa: E402
 )
 from step5d_autotune_v4_r004.motion_profile import R004_MOTION_PROFILE  # noqa: E402
 from step5d_autotune_v4_r004.transport import R004OutputSnapshot  # noqa: E402
-from step5d_autotune_v4_r004.wire import SensorPacket  # noqa: E402
+from step5d_autotune_v4_r004.wire import CommandMode, SensorPacket  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -228,7 +228,7 @@ def _control(provider, *, path_requested: bool = True) -> CanonicalQualification
     return control
 
 
-def _run(control, monkeypatch, *, state: int = 25):
+def _run(control, monkeypatch, *, state: int = 25, sensor=None):
     monkeypatch.setattr(baseline_runtime, "step_baseline", _successful_baseline)
     calibrated_runtime_stub = SimpleNamespace(CalibratedCommand=CalibratedCommand)
     monkeypatch.setitem(
@@ -238,7 +238,7 @@ def _run(control, monkeypatch, *, state: int = 25):
     )
     return control.step(
         output=_output(state=state),
-        sensor=_sensor(),
+        sensor=_sensor() if sensor is None else sensor,
         monotonic_s=0.002,
         command_sequence=1,
     )
@@ -354,6 +354,43 @@ def test_contact_provider_is_not_called_at_state21_zero_command_seam(monkeypatch
     assert provider.pause_calls[0]["reason"] == "path_entry_release_open"
 
 
+def test_r013_keeps_baseline_force_control_active_while_release_dwell_is_pending(monkeypatch) -> None:
+    from step5d_autotune_v4_r013.baseline_policy import R013BaselineTransitionProfileV1
+
+    provider = _Provider()
+    control = _control(provider)
+    control.r013_baseline_transition_profile = R013BaselineTransitionProfileV1()
+    control._baseline_state = baseline_runtime.BaselineState(
+        phase=baseline_runtime.BaselinePhase.SUCCESS,
+        after_latch_s=8.0,
+    )
+    control._sticky_latched = 1
+    control._path_entry_release_state = baseline_runtime.PathEntryReleaseState()
+    low_force = SensorPacket(
+        normal_load_n=0.5,
+        force_norm_n=0.6,
+        heartbeat=2.0,
+        sensor_fresh=True,
+        stop_request=False,
+        eoat_get_ack=True,
+        torque_norm_nm=0.0,
+        wrench=(0.0, 0.0, -0.5, 0.0, 0.0, 0.0),
+        filtered_normal_n=0.5,
+        observed_at_s=0.001,
+    )
+
+    result = _run(control, monkeypatch, state=21, sensor=low_force)
+
+    assert control.last_baseline_transition["path_request_allowed"] is True
+    assert control.last_baseline_transition["narrow_path_release_opened"] is False
+    assert control._path_entry_release_state.opened is False
+    assert provider.pause_calls == []
+    assert len(provider.command_calls) == 1
+    assert provider.command_calls[0]["mode"] == "baseline"
+    assert result.command_mode is CommandMode.BASELINE
+    assert result.qdot == pytest.approx(provider.qdot)
+
+
 def test_contact_provider_late_cycle_bypasses_readiness_and_returns_zero_hold(monkeypatch) -> None:
     provider = _Provider()
     control = _control(provider)
@@ -387,18 +424,17 @@ def test_contact_provider_late_cycle_bypasses_readiness_and_returns_zero_hold(mo
     assert control._previous_qdot == (0.0,) * 6
 
 
-def test_contact_provider_pauses_while_path_release_dwell_is_pending(monkeypatch) -> None:
+def test_contact_provider_holds_normal_force_while_path_release_dwell_is_pending(monkeypatch) -> None:
     provider = _Provider()
     control = _control(provider)
     control._path_entry_release_state = baseline_runtime.PathEntryReleaseState()
 
     result = _run(control, monkeypatch)
 
-    assert result.qdot == (0.0,) * 6
-    assert result.canonical_reason == "path_entry_release_dwell_pending"
-    assert provider.command_calls == []
-    assert len(provider.pause_calls) == 1
-    assert provider.pause_calls[0]["reason"] == "path_entry_release_dwell_pending"
+    assert result.command_mode is CommandMode.BASELINE
+    assert result.qdot == pytest.approx(provider.qdot)
+    assert provider.command_calls[0]["mode"] == "baseline"
+    assert provider.pause_calls == []
 
 
 def test_contact_provider_pauses_during_startup_without_command(monkeypatch) -> None:

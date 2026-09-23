@@ -1,0 +1,170 @@
+{
+  "schema": "contact-ramp-probe-package-binding-v1",
+  "program": "contact_ramp_probe_v1",
+  "home_program": "step5d_contact_home_v1",
+  "version": "2026-09-23T2044Z_CONTACT_RAMP_PROBE_V1_618002",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_target": "/programs/andyl/kunwei/step5/contact_ramp_probe_v1.urp",
+  "runtime_protocol": 606006,
+  "runtime_revision": 26,
+  "runtime_extension_protocol": 618002,
+  "readable_runtime_identity": [
+    26,
+    618002
+  ],
+  "home_config": "config/figure8_home_v1.json",
+  "home_config_sha256": "d4da4bce6f3874c58be7871a883138ffb2ba598af4e439366534b058317e9790",
+  "home_pose_m_rad": [
+    0.4620551816,
+    0.1778825964,
+    0.03408876139925415,
+    3.120752062,
+    0.0,
+    0.068626833
+  ],
+  "home_q_rad": [
+    0.7451654076576233,
+    -1.8181091747679652,
+    -2.5626940727233887,
+    -0.3122711938670655,
+    1.5276236534118652,
+    -0.8238123098956507
+  ],
+  "source_sha256": "b0ef95867caa0c351ead551a94dd62fec0f95a37f3bd2d42b573c4da881c4bba",
+  "eoat": {
+    "profile_id": "new-3d-printed-eoat-v4",
+    "profile_sha256": "1979482cd8377b92555fcee72f120928838ed8d57fda8af1e6c1aaebc3ebccf4",
+    "payload_kg": 0.413,
+    "cog_m": [
+      0.0011,
+      0.0031,
+      0.0163
+    ],
+    "controller_tcp_m_rad": [
+      0.0,
+      0.0,
+      0.0874,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "program_z_delta_m": 0.0
+  },
+  "triplet_sha256": {
+    "script": "c3dec769bf2639abc41bbe2555abbb0929977c253f0ec9b3ec421ddc2eea9d0b",
+    "txt": "af9679aa11e2125e89cef0c46b6198bb3903a4fa71c2f048af23b65afe66fecb",
+    "urp": "420be40f43a9d2cd46df16fc1823ca4d1b5c57c4960e12c28cae49b430d6c440"
+  },
+  "home_triplet_sha256": {
+    "script": "717f25df4e880dec1a0dcb0c0a95dac715fc8732cfe6c77c32ceea82cc256bf0",
+    "txt": "5a6439994f93dd5b92f0455063e5f09ce1536a45df963fe63f1474d728ed2298",
+    "urp": "3d32c17d934cd8998add04d9f5c168b5a6568ddb5dd2a0b6365f5843afedeade"
+  },
+  "ramp_durations_s": [
+    8,
+    4,
+    3,
+    2,
+    1
+  ],
+  "ramp_slope_n_s": {
+    "8": 0.5,
+    "4": 1.0,
+    "3": 1.3333333333333333,
+    "2": 2.0,
+    "1": 4.0
+  },
+  "force_norm_probe_stop_n": 10.0,
+  "raw_normal_guard_n": 20.0,
+  "raw_torque_guard_nm": 2.0,
+  "path_commanded": false,
+  "figure8_commanded": false,
+  "bo_observation": false,
+  "live_qualified": false,
+  "numeric_sanity": {
+    "schema": "contact-ramp-probe-numeric-sanity-v1",
+    "claim": "offline arithmetic only; no TP read-back or live qualification",
+    "program": "contact_ramp_probe_v1",
+    "controller_target": "/programs/andyl/kunwei/step5/contact_ramp_probe_v1.urp",
+    "readable_runtime_identity": [
+      26,
+      618002
+    ],
+    "ramp_durations_s": [
+      8,
+      4,
+      3,
+      2,
+      1
+    ],
+    "rungs": [
+      {
+        "duration_s": 8,
+        "setpoint_start_n": 1.0,
+        "setpoint_target_n": 5.0,
+        "slope_n_s": 0.5,
+        "nominal_delta_n_at_500_hz": 0.001,
+        "tp_max_delta_at_80ms_n": 0.05
+      },
+      {
+        "duration_s": 4,
+        "setpoint_start_n": 1.0,
+        "setpoint_target_n": 5.0,
+        "slope_n_s": 1.0,
+        "nominal_delta_n_at_500_hz": 0.002,
+        "tp_max_delta_at_80ms_n": 0.09
+      },
+      {
+        "duration_s": 3,
+        "setpoint_start_n": 1.0,
+        "setpoint_target_n": 5.0,
+        "slope_n_s": 1.3333333333333333,
+        "nominal_delta_n_at_500_hz": 0.0026666666666666666,
+        "tp_max_delta_at_80ms_n": 0.11666666666666665
+      },
+      {
+        "duration_s": 2,
+        "setpoint_start_n": 1.0,
+        "setpoint_target_n": 5.0,
+        "slope_n_s": 2.0,
+        "nominal_delta_n_at_500_hz": 0.004,
+        "tp_max_delta_at_80ms_n": 0.17
+      },
+      {
+        "duration_s": 1,
+        "setpoint_start_n": 1.0,
+        "setpoint_target_n": 5.0,
+        "slope_n_s": 4.0,
+        "nominal_delta_n_at_500_hz": 0.008,
+        "tp_max_delta_at_80ms_n": 0.33
+      }
+    ],
+    "probe_stop": {
+      "force_norm_n": 10.0
+    },
+    "retained_guards": {
+      "raw_normal_n": 20.0,
+      "raw_torque_norm_nm": 2.0,
+      "qdot_rad_s": 0.05,
+      "actual_joint_speed_rad_s": 0.06,
+      "speedj_acceleration_rad_s2": 5.0
+    },
+    "release": {
+      "path_commanded": false,
+      "existing_gate_hold_s": 0.5,
+      "post_5n_observation_max_s": 2.0,
+      "filtered_normal_window_n": [
+        4.0,
+        5.5
+      ],
+      "raw_normal_window_n": [
+        3.0,
+        7.0
+      ]
+    },
+    "figure8_commanded": false,
+    "bo_observation": false,
+    "return": "existing qualification RETRACT and canonical joint Home verification"
+  },
+  "stamp": "2026-09-23T2044Z_CONTACT_RAMP_PROBE_V1_618002"
+}

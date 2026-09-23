@@ -57,22 +57,41 @@ def validate_sample(output, wrench, received, now, contract, profile, *, residen
         raise ValueError('baseline EOAT identity differs')
 
 
-def prepare(run_dir, method, video_policy="required"):
+def prepare(run_dir, method, video_policy="required", *, identity_contract=None,
+            ramp_duration_s=None):
     resolve_method(method)  # Reject unsupported methods before any device access.
     out = Path(run_dir).expanduser().resolve()
     if out.exists():
         raise FileExistsError(
             f"run directory already exists; choose a new path: {out}"
         )
-    contract = load_identity_contract()
+    contract = identity_contract or load_identity_contract()
+    diagnostic_probe = bool(contract.raw.get("diagnostic_probe"))
+    if diagnostic_probe:
+        if (
+            contract.raw.get("qualification_only") is not True
+            or isinstance(ramp_duration_s, bool)
+            or ramp_duration_s not in (8, 4, 3, 2, 1)
+        ):
+            raise ValueError("probe preparation requires its qualification-only contract and one approved rung")
+        from contact_yield_transport import ContactRampProbeRTDETransport
+        rtde = ContactRampProbeRTDETransport('192.168.1.18', ramp_duration_s=int(ramp_duration_s))
+    else:
+        if ramp_duration_s is not None:
+            raise ValueError("ramp duration is only valid for the isolated contact-ramp probe")
+        from contact_yield_transport import NativeYieldRTDETransport
+        rtde = NativeYieldRTDETransport('192.168.1.18')
     profile = load_new_eoat_profile()
     rows = []
     with WriterLock(INSTALLED_LOCK):
         check_dashboard('192.168.1.18')
-        fetch_recovery_readback(out, basenames=(CONTACT_PROGRAM, HOME_PROGRAM))
+        fetch_recovery_readback(
+            out,
+            package_dir=contract.package_dir,
+            basenames=(contract.program, contract.home_program),
+        )
         # Use the same logical24 -> physical36 allocation as the live writer;
         # the OnRobot installation owns physical input register 24.
-        rtde = NativeYieldRTDETransport('192.168.1.18')
         sensor = LiveR004KunweiTransport('192.168.50.25', port=5152)
         video_dir = out/'baseline-video'
         video_dir.mkdir()
@@ -92,6 +111,7 @@ def prepare(run_dir, method, video_policy="required"):
                 'session_command_name': 'HOLD',
                 'attempt_dispatched': False,
                 'physical_input_allocation': 'logical24->physical36',
+                'contact_ramp_probe_duration_s': ramp_duration_s,
                 'observed_at_s': time.time(),
             }, indent=2) + '\n')
             started = time.monotonic()
@@ -194,8 +214,18 @@ def main():
     parser.add_argument('--run-dir', type=Path, required=True)
     parser.add_argument('--method', default='TASE_RNN_MATURE')
     parser.add_argument('--video-policy', choices=sorted(VideoRecorder.POLICIES), default='required')
+    parser.add_argument('--contact-ramp-probe-binding', type=Path)
+    parser.add_argument('--ramp-duration-s', type=int)
     args = parser.parse_args()
-    prepare(args.run_dir, args.method, args.video_policy)
+    if args.contact_ramp_probe_binding is not None:
+        from contact_yield_live_contract import load_contact_ramp_probe_identity_contract
+        contract = load_contact_ramp_probe_identity_contract(args.contact_ramp_probe_binding)
+        prepare(args.run_dir, args.method, args.video_policy,
+                identity_contract=contract, ramp_duration_s=args.ramp_duration_s)
+    else:
+        if args.ramp_duration_s is not None:
+            parser.error('--ramp-duration-s requires --contact-ramp-probe-binding')
+        prepare(args.run_dir, args.method, args.video_policy)
 
 if __name__ == '__main__':
     main()

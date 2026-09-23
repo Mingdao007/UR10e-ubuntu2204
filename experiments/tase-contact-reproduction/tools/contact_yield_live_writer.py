@@ -140,6 +140,12 @@ class YieldLivePrerequisites:
     admission_max_age_s: float = CONTROLLER_READBACK_MAX_AGE_S
 
     def validate(self, *, now_s: float) -> None:
+        program = str(self.contract.raw.get("program") or "")
+        controller_target = str(
+            (self.contract.raw.get("script2") or {}).get("controller_target") or ""
+        )
+        if not program or not controller_target:
+            raise YieldLiveWriterError("native contact package identity is incomplete")
         maximum_age = float(self.admission_max_age_s)
         if not math.isfinite(maximum_age) or maximum_age <= 0:
             raise YieldLiveWriterError("admission maximum age is invalid")
@@ -163,24 +169,24 @@ class YieldLivePrerequisites:
         home_observed = float(getattr(self.script1, "observed_at_s", now_s))
         if now_s - home_observed > SCRIPT1_RECEIPT_MAX_AGE_S:
             raise YieldLiveWriterError("Home-start receipt is stale")
-        if self.controller.program != CONTACT_PROGRAM:
-            raise YieldLiveWriterError("controller receipt program is not step5d_contact_six_qp_v1")
-        if self.controller.controller_target != self.contract.raw["script2"]["controller_target"]:
-            raise YieldLiveWriterError("controller receipt target is not the contact-six package")
+        if self.controller.program != program:
+            raise YieldLiveWriterError("controller receipt program differs from the native contact package")
+        if self.controller.controller_target != controller_target:
+            raise YieldLiveWriterError("controller receipt target differs from the native contact package")
         if dict(self.expected_triplet) != dict(self.contract.triplet):
-            raise YieldLiveWriterError("controller triplet is not the local contact-six package")
+            raise YieldLiveWriterError("controller triplet differs from the local native contact package")
         if {
             "script": self.controller.script_sha256,
             "txt": self.controller.txt_sha256,
             "urp": self.controller.urp_sha256,
         } != dict(self.contract.triplet):
-            raise YieldLiveWriterError("controller readback triplet differs from the native package")
+            raise YieldLiveWriterError("controller readback triplet differs from the native contact package")
         hi, lo = software_identity_limbs(self.contract)
         if (
             self.controller.runtime_protocol != RUNTIME_PROTOCOL
             or self.runtime.runtime_protocol != RUNTIME_PROTOCOL
             or self.runtime.script_sha256 != self.controller.script_sha256
-            or self.runtime.program != CONTACT_PROGRAM
+            or self.runtime.program != program
             or not self.runtime.program_running
             or not self.runtime.uninterrupted
             or self.runtime.session_epoch != self.session_epoch
@@ -612,9 +618,44 @@ def build_native_yield_owner(
     sleep: Callable[[float], None] | None = None,
     path_sample_sink: Callable[..., Any] | None = None,
     capture_command_timing: bool = False,
+    writer_class: type | None = None,
+    controller_transport_class: type | None = None,
+    controller_transport_kwargs: Mapping[str, Any] | None = None,
+    diagnostic_probe: bool = False,
+    probe_ramp_duration_s: float | None = None,
 ) -> tuple[R006MatureWriter, Any, Any, LivePathRequest | None]:
     if type(capture_command_timing) is not bool:
         raise YieldLiveWriterError("capture_command_timing must be bool")
+    if type(diagnostic_probe) is not bool:
+        raise YieldLiveWriterError("diagnostic_probe must be bool")
+    if diagnostic_probe:
+        from step5d_autotune_v4_r004.baseline_runtime import CONTACT_RAMP_DURATIONS_S
+        if (
+            command != "qualify"
+            or method != "TASE_RNN_MATURE"
+            or duration is not None
+            or not isinstance(prerequisites.contract.raw, Mapping)
+            or prerequisites.contract.raw.get("diagnostic_probe") is not True
+            or prerequisites.contract.raw.get("qualification_only") is not True
+            or isinstance(probe_ramp_duration_s, bool)
+            or not isinstance(probe_ramp_duration_s, (int, float))
+            or not math.isfinite(float(probe_ramp_duration_s))
+            or float(probe_ramp_duration_s) not in CONTACT_RAMP_DURATIONS_S
+        ):
+            raise YieldLiveWriterError("contact-ramp probe is outside its qualification-only identity")
+        if controller_transport_class is None:
+            from contact_yield_transport import ContactRampProbeRTDETransport
+            controller_transport_class = ContactRampProbeRTDETransport
+        transport_kwargs = dict(controller_transport_kwargs or {})
+        configured_duration = transport_kwargs.get("ramp_duration_s", int(probe_ramp_duration_s))
+        if configured_duration != int(probe_ramp_duration_s):
+            raise YieldLiveWriterError("probe transport duration differs from the contact control")
+        transport_kwargs["ramp_duration_s"] = int(probe_ramp_duration_s)
+        controller_transport_kwargs = transport_kwargs
+    elif probe_ramp_duration_s is not None:
+        raise YieldLiveWriterError("probe ramp duration requires diagnostic_probe")
+    elif controller_transport_class is not None or controller_transport_kwargs is not None:
+        raise YieldLiveWriterError("custom controller transport is reserved for diagnostic probe")
     if R006_RUNTIME_PROTOCOL != RUNTIME_PROTOCOL:
         raise YieldLiveWriterError("R006 runtime protocol is not 606006")
     record = resolve_method(method)
@@ -704,12 +745,23 @@ def build_native_yield_owner(
             kwargs["mono_clock"] = mono_clock
         if sleep is not None:
             kwargs["sleep"] = sleep
-        writer = NativeYieldLiveWriter(prerequisites, **kwargs)
+        selected_writer_class = NativeYieldLiveWriter if writer_class is None else writer_class
+        if not isinstance(selected_writer_class, type) or not issubclass(
+            selected_writer_class, NativeYieldLiveWriter
+        ):
+            raise YieldLiveWriterError("native writer class must extend NativeYieldLiveWriter")
+        writer = selected_writer_class(prerequisites, **kwargs)
         from contact_yield_transport import install_native_yield_transport
-        controller_transport = install_native_yield_transport(writer)
+        controller_transport = install_native_yield_transport(
+            writer,
+            transport_class=controller_transport_class,
+            transport_kwargs=controller_transport_kwargs,
+        )
         writer.live_path_request = request
         writer.session.identity = _R005SessionIdentityGate(prerequisites.contract)
-        writer._readable_runtime_identity = READABLE_RUNTIME_IDENTITY
+        writer._readable_runtime_identity = tuple(
+            getattr(prerequisites.contract, "readable_runtime_identity", READABLE_RUNTIME_IDENTITY)
+        )
         writer._r013_path_early_end_controller = PathEarlyEndController(
             writer=controller_transport
         )
@@ -718,6 +770,8 @@ def build_native_yield_owner(
             path_reference=r006_runtime_path_reference,
             contact_command_provider_factory=factory,
             home_binding=home_binding,
+            diagnostic_probe=diagnostic_probe,
+            probe_ramp_duration_s=probe_ramp_duration_s,
         )
         mature = R006MatureWriter(writer, injection=injection)
     except Exception:

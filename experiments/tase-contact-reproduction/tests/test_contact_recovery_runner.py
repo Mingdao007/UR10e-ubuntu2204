@@ -55,7 +55,7 @@ def test_only_released_stopped_lift_can_reach_home(tmp_path,monkeypatch,failure)
         return {'safetymode':'Safetymode: NORMAL',
                 'running':'Program running: true' if events.count('terminal_read') < 3 else 'Program running: false'}
     monkeypatch.setattr(runner,'dashboard_exchange',terminal_read)
-    monkeypatch.setattr(runner,'load_identity_contract',lambda:SimpleNamespace(home_pose=HOME,eoat_sha256='tool'))
+    monkeypatch.setattr(runner,'load_identity_contract',lambda:SimpleNamespace(home_pose=HOME,home_q=[0.]*6,eoat_sha256='tool'))
     monkeypatch.setattr(runner,'check_geometry',lambda *_:{'home_q':[0.]*6,'pass':True})
     class Lock:
         def __init__(self,*_):pass
@@ -343,7 +343,7 @@ def test_staged_home_package_is_pose_bound_and_readback_gated(tmp_path, monkeypa
         'safety_status_bits': 1,
         'timestamp': 1.,
     }
-    contract = SimpleNamespace(home_pose=HOME)
+    contract = SimpleNamespace(home_pose=HOME, home_q=[0.] * 6)
     geometry = {'home_q': [0.] * 6}
     calls = []
 
@@ -421,7 +421,7 @@ def test_preflight_fault_attempts_direct_home_when_clearance_is_commandable(tmp_
         'pass': True, 'state': 'controller read-back verified', 'basename': runner.BASENAME,
     }))
 
-    monkeypatch.setattr(runner, 'load_identity_contract', lambda: SimpleNamespace(home_pose=HOME))
+    monkeypatch.setattr(runner, 'load_identity_contract', lambda: SimpleNamespace(home_pose=HOME, home_q=[0.] * 6))
     monkeypatch.setattr(runner, 'check_dashboard', lambda *_, **__: {
         'safetymode': 'Safetymode: NORMAL', 'running': 'Program running: false',
         'robotmode': 'Robotmode: RUNNING', 'is in remote control': 'true',
@@ -477,7 +477,7 @@ def test_preflight_fault_records_blocked_when_direct_home_corridor_is_impossible
     }))
     low_pose = HOME[:]
     low_pose[2] -= .010
-    monkeypatch.setattr(runner, 'load_identity_contract', lambda: SimpleNamespace(home_pose=HOME))
+    monkeypatch.setattr(runner, 'load_identity_contract', lambda: SimpleNamespace(home_pose=HOME, home_q=[0.] * 6))
     monkeypatch.setattr(runner, 'check_dashboard', lambda *_, **__: {
         'safetymode': 'Safetymode: NORMAL', 'running': 'Program running: false',
         'robotmode': 'Robotmode: RUNNING', 'is in remote control': 'true',
@@ -513,3 +513,80 @@ def test_preflight_fault_records_blocked_when_direct_home_corridor_is_impossible
     assert result['home_attempted'] is False
     assert 'below the clearance-entry Home floor' in result['home_blocked_reason']
     assert home_calls == []
+
+
+def test_joint_home_correction_is_bound_readback_gated_and_returns_joint_proof(tmp_path, monkeypatch):
+    import build_joint_home
+    import run_joint_home
+
+    target_q = list(build_joint_home.HOME_Q)
+    start_q = list(target_q)
+    start_q[0] += .1
+    sample = {
+        'actual_q': start_q,
+        'actual_TCP_pose': list(build_joint_home.HOME_POSE),
+        'actual_qd': [0.] * 6,
+        'actual_TCP_speed': [0.] * 6,
+        'runtime_state': 1,
+        'safety_mode': 1,
+        'robot_mode': 7,
+    }
+    dashboard = {
+        'is in remote control': 'true',
+        'safetymode': 'Safetymode: NORMAL',
+        'running': 'Program running: false',
+        'programState': 'STOPPED',
+    }
+    captured = {}
+
+    def fake_build(output, initial_q):
+        output = Path(output)
+        output.mkdir(parents=True)
+        captured['initial_q'] = list(initial_q)
+        for suffix in ('script', 'txt', 'urp'):
+            (output / f'{build_joint_home.PROGRAM}.{suffix}').write_bytes(b'package')
+        return {'program': build_joint_home.PROGRAM, 'stamp': '2026-09-24T0000Z_TEST'}
+
+    monkeypatch.setattr(build_joint_home, 'build', fake_build)
+    calls = []
+
+    def fake_subprocess(command, **kwargs):
+        calls.append(list(command))
+        if '--compare-dir' in command:
+            return SimpleNamespace(
+                stdout=json.dumps({'pass': True, 'state': 'controller read-back verified'}),
+                stderr='',
+            )
+        if len(command) > 2 and command[2] == 'deploy-readback-triplet':
+            return SimpleNamespace(stdout='fresh deployment/read-back', stderr='')
+        return SimpleNamespace(stdout=json.dumps({'pass': True, 'state': 'local package verified'}), stderr='')
+
+    monkeypatch.setattr(runner.subprocess, 'run', fake_subprocess)
+
+    def fake_joint_run(args):
+        assert args.validation.exists()
+        assert args.readback_dir.name == build_joint_home.PROGRAM
+        return {
+            'success': True,
+            'final_q': target_q,
+            'final_joint_max_error_rad': 0.0,
+            'final_pose': list(build_joint_home.HOME_POSE),
+            'final_sample': {**sample, 'actual_q': target_q},
+            'dashboard_after': dashboard,
+        }
+
+    monkeypatch.setattr(run_joint_home, 'run', fake_joint_run)
+    result = runner._run_joint_home_correction(
+        home_result={
+            'success': False,
+            'failure': 'home_joint_mismatch: max joint error 0.1 rad',
+            'final_sample': sample,
+            'dashboard_after': dashboard,
+        },
+        output=tmp_path / 'joint-correction',
+        host='fake',
+    )
+    assert result['success'] is True
+    assert captured['initial_q'] == start_q
+    assert result['route'] == 'joint_home_correction_after_pose_only_joint_mismatch'
+    assert sum(command[2] == 'deploy-readback-triplet' for command in calls) == 1

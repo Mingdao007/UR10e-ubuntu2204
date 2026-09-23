@@ -567,6 +567,48 @@ class _R006NativeCanonicalQualificationControl(_R004CanonicalQualificationContro
             ) from exc
 
 
+def _bind_r006_contact_ramp_probe_control(
+    control: Any,
+    *,
+    release_contract: Any,
+    path_requested: bool,
+    ramp_duration_s: float,
+) -> None:
+    """Apply the fixed qualification-only ramp profile to one prepared control."""
+    from step5d_autotune_v4_r004.baseline_runtime import (
+        CONTACT_RAMP_DURATIONS_S,
+        PATH_ENTRY_RELEASE_HOLD_S,
+        PathEntryReleaseGate,
+        PathEntryReleaseState,
+    )
+    raw = getattr(release_contract, "raw", None)
+    if (
+        not isinstance(raw, Mapping)
+        or raw.get("program") != "contact_ramp_probe_v1"
+        or raw.get("diagnostic_probe") is not True
+        or raw.get("qualification_only") is not True
+        or getattr(release_contract, "readable_runtime_identity", None) != (26, 618002)
+        or float(raw.get("guards", {}).get("force_norm_probe_stop_n", -1.0)) != 10.0
+        or path_requested
+        or float(ramp_duration_s) not in CONTACT_RAMP_DURATIONS_S
+    ):
+        raise R006LiveAdapterError("r006 probe control binding differs from its fixed qualification profile")
+    if (
+        float(control.ramp_duration_s) != float(ramp_duration_s)
+        or float(control.hard_force_norm_limit_n) != 10.0
+    ):
+        raise R006LiveAdapterError("r006 probe ramp or host force-norm stop was not installed")
+    control._required_hold_s = 0.1
+    control._probe_release_required = True
+    control._probe_release_timeout_s = 2.0
+    control._probe_release_started_s = None
+    control._probe_release_opened_s = None
+    control._path_entry_release_gate = PathEntryReleaseGate(
+        hold_s=PATH_ENTRY_RELEASE_HOLD_S,
+    )
+    control._path_entry_release_state = PathEntryReleaseState()
+
+
 _R006_V3_POLICY_LOCK = threading.RLock()
 _R006_NATIVE_OVERLAY_SCHEMA = "step5d.autotune-v4/r006-native-overlay-v1"
 
@@ -2207,6 +2249,8 @@ class _R006ScopedRuntimeInjection:
             home_binding: R006HomeBindingV1 | None = None,
             qualification_profile: Any | None = None,
             contact_command_provider_factory: Callable[..., Any] | None = None,
+            diagnostic_probe: bool = False,
+            probe_ramp_duration_s: float | None = None,
     ) -> None:
         self.motion_profile = motion_profile
         self.path_reference = path_reference
@@ -2229,6 +2273,23 @@ class _R006ScopedRuntimeInjection:
             raise R006LiveAdapterError("r006 Home binding is not typed")
         self.home_binding = home_binding
         self.qualification_profile = qualification_profile
+        if type(diagnostic_probe) is not bool:
+            raise R006LiveAdapterError("r006 diagnostic probe flag must be bool")
+        if diagnostic_probe:
+            from step5d_autotune_v4_r004.baseline_runtime import CONTACT_RAMP_DURATIONS_S
+            if (
+                isinstance(probe_ramp_duration_s, bool)
+                or not isinstance(probe_ramp_duration_s, (int, float))
+                or not math.isfinite(float(probe_ramp_duration_s))
+                or float(probe_ramp_duration_s) not in CONTACT_RAMP_DURATIONS_S
+            ):
+                raise R006LiveAdapterError("r006 probe ramp duration is not an approved rung")
+            self.probe_ramp_duration_s = float(probe_ramp_duration_s)
+        elif probe_ramp_duration_s is not None:
+            raise R006LiveAdapterError("r006 probe ramp duration requires diagnostic probe identity")
+        else:
+            self.probe_ramp_duration_s = None
+        self.diagnostic_probe = diagnostic_probe
         if contact_command_provider_factory is not None and not callable(contact_command_provider_factory):
             raise R006LiveAdapterError('contact command provider factory must be callable')
         self.contact_command_provider_factory=contact_command_provider_factory
@@ -2367,8 +2428,32 @@ class _R006ScopedRuntimeInjection:
             else self._original_control
         )
         contact_provider=None
+        is_probe_contract = (
+            isinstance(getattr(release_contract, "raw", None), Mapping)
+            and release_contract.raw.get("diagnostic_probe") is True
+            and release_contract.raw.get("qualification_only") is True
+        )
+        if is_probe_contract != self.diagnostic_probe:
+            raise R006LiveAdapterError("r006 diagnostic probe and TP contract identity differ")
+        probe_kwargs: dict[str, Any] = {}
+        if self.diagnostic_probe:
+            if (
+                path_requested
+                or release_contract.raw.get("program") != "contact_ramp_probe_v1"
+                or release_contract.readable_runtime_identity != (26, 618002)
+                or float(release_contract.raw.get("guards", {}).get("force_norm_probe_stop_n", -1.0)) != 10.0
+                or self.contact_command_provider_factory is None
+            ):
+                raise R006LiveAdapterError("r006 probe contract is outside its qualification-only boundary")
+            probe_kwargs = {
+                "ramp_duration_s": float(self.probe_ramp_duration_s),
+                "hard_force_norm_limit_n": 10.0,
+            }
         if self.contact_command_provider_factory is not None:
-            if release_contract.raw.get('program')!='step5d_contact_six_qp_v1':
+            if (
+                release_contract.raw.get('program') != 'step5d_contact_six_qp_v1'
+                and not is_probe_contract
+            ):
                 raise R006LiveAdapterError('contact provider requires its dedicated TP contract')
             from contact_benchmark_provider import ContactCommandProvider
             from yield_contact_provider import YieldContactProvider
@@ -2385,8 +2470,16 @@ class _R006ScopedRuntimeInjection:
             canonical_runtime_only=canonical_runtime_only,
             force_integral_limit_n_s=float(self.force_integral_limit_n_s),
             r013_baseline_transition_profile=self.qualification_profile,
+            **probe_kwargs,
             **({"contact_command_provider":contact_provider} if contact_provider is not None else {}),
         )
+        if self.diagnostic_probe:
+            _bind_r006_contact_ramp_probe_control(
+                control,
+                release_contract=release_contract,
+                path_requested=path_requested,
+                ramp_duration_s=float(self.probe_ramp_duration_s),
+            )
         if getattr(control,'contact_command_provider',None) is not contact_provider:
             raise R006LiveAdapterError('prepared control lost its exact contact provider')
         self._require_qualification_profile_binding(control)

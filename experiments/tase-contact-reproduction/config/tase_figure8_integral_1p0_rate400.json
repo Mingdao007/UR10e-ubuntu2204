@@ -1,0 +1,21 @@
+{
+  "schema": "tase.outer-parameters-v1",
+  "candidate_id": "figure8-rate400-integral-1p0-engineering-acceptance",
+  "stage": "engineering_acceptance",
+  "index": 0,
+  "Md_scalar": 9.565272137974492,
+  "Bd_scalar": 693.6559295653944,
+  "protocol_id": "figure8_window60_r013_rate400_v1",
+  "duration_token": "r013_60_rate400",
+  "path_duration_s": 60.0,
+  "frozen": {
+    "kp": 4.0,
+    "ko": 5.0,
+    "kf": 1.0,
+    "force_target_n": 5.0,
+    "force_integral_limit_n_s": 1.0,
+    "force_integral_policy": "legacy-clamp-v1",
+    "force_integral_authority_error_n": 0.5,
+    "force_sign_convention": "step5_step6_positive_normal_load"
+  }
+}

@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from contact_yield_supervisor import (
     ResidentSupervisor,
+    ProcessObserver,
     READABLE_RUNTIME_IDENTITY,
     VideoRecorder,
     _verified_stopped_joint_home,
@@ -136,6 +137,25 @@ def test_idle_resident_check_never_loads_plays_or_stops():
     assert not any(event == 'play' or event == 'stop' or event.startswith('load ') for event in events)
 
 
+def test_load_only_restoration_loads_but_never_plays_or_moves():
+    s, _body, _t, events = rig()
+
+    def restore(_supervisor):
+        return {
+            'success': True,
+            'evidence_eligible': True,
+            'program_loaded': True,
+            'program_started': False,
+            'motion_dispatched': False,
+        }
+
+    result = s.run(restore, execute_program=False, load_only=True)
+    assert result['success'] is True
+    assert result['program_stopped'] is True
+    assert 'load /programs/test.urp' in events
+    assert 'play' not in events and 'stop' not in events
+
+
 def test_returning_state_has_independent_joint_home_speed_guard():
     s, body, t, events = rig()
     latest = s.observer.latest
@@ -203,6 +223,52 @@ def test_observer_start_failure_never_plays():
     s.observer.start=fail
     result=s.run(body)
     assert not result['success'] and 'play' not in events
+
+
+def test_process_observer_refreshes_stale_cached_row_from_live_queue():
+    import queue
+    import threading
+    import time
+
+    observer = object.__new__(ProcessObserver)
+    observer.samples = queue.Queue(maxsize=4)
+    observer.errors = queue.Queue(maxsize=1)
+    observer.process = NS(is_alive=lambda: True)
+    observer.row = {'received_monotonic_s': time.monotonic() - .081, 'sequence': 1}
+    observer.sample_count = 1
+    observer.error = None
+
+    def publish_fresh():
+        observer.samples.put({
+            'received_monotonic_s': time.monotonic(),
+            'sequence': 2,
+        })
+
+    timer = threading.Timer(.004, publish_fresh)
+    timer.start()
+    try:
+        row = observer.latest()
+    finally:
+        timer.join()
+
+    assert row['sequence'] == 2
+    assert 0 <= time.monotonic() - row['received_monotonic_s'] < .080
+
+
+def test_process_observer_keeps_stale_gate_when_no_fresh_row_arrives():
+    import queue
+    import time
+
+    observer = object.__new__(ProcessObserver)
+    observer.samples = queue.Queue(maxsize=4)
+    observer.errors = queue.Queue(maxsize=1)
+    observer.process = NS(is_alive=lambda: True)
+    observer.row = {'received_monotonic_s': time.monotonic() - .081, 'sequence': 1}
+    observer.sample_count = 1
+    observer.error = None
+
+    with pytest.raises(RuntimeError, match=r'observer latest sample is stale: age_s=.*sample_count=1'):
+        observer.latest()
 
 
 def test_resident_candidate_directory_prevalidates_only_the_initial_file(tmp_path):

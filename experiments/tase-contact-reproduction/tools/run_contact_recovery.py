@@ -186,6 +186,116 @@ def _blocked_recovery_result(source, error, *, phase, output=None, previous_outp
     return payload
 
 
+def _run_joint_home_correction(*, home_result, output, host):
+    """Finish a pose-only recovery with a fresh, verified movej to home_q.
+
+    This path is admitted only after the existing monitored Home owner has
+    stopped at the canonical TCP pose and explicitly reported a joint-branch
+    mismatch. It binds a one-shot package to that fresh actual_q, fetches the
+    complete triplet back, then delegates motion and final read-back to the
+    joint-Home owner.
+    """
+    from build_joint_home import (
+        CONTROLLER_DIR as JOINT_HOME_CONTROLLER_DIR,
+        HOME_POSE as JOINT_HOME_POSE,
+        HOME_Q as JOINT_HOME_Q,
+        PROGRAM as JOINT_HOME_PROGRAM,
+        build as build_joint_home_package,
+    )
+    from contact_yield_math import so3_exp, so3_log
+    from step5d_remote_startup import dashboard_exchange
+
+    sample = home_result.get('final_sample')
+    dashboard = home_result.get('dashboard_after')
+    if not isinstance(sample, dict) or not isinstance(dashboard, dict):
+        raise ValueError('joint-Home correction requires fresh final sample and Dashboard state')
+    actual_q = np.asarray(sample.get('actual_q'), dtype=float)
+    actual_pose = np.asarray(sample.get('actual_TCP_pose'), dtype=float)
+    actual_qd = np.asarray(sample.get('actual_qd'), dtype=float)
+    actual_tcp_speed = np.asarray(sample.get('actual_TCP_speed'), dtype=float)
+    if any(value.shape != (6,) or not np.isfinite(value).all() for value in
+           (actual_q, actual_pose, actual_qd, actual_tcp_speed)):
+        raise ValueError('joint-Home correction sample is invalid')
+    if (dashboard.get('is in remote control') != 'true'
+        or dashboard.get('safetymode') != 'Safetymode: NORMAL'
+        or dashboard.get('running') != 'Program running: false'
+        or not str(dashboard.get('programState', '')).startswith('STOPPED')):
+        raise ValueError('joint-Home correction requires fresh STOPPED/NORMAL/Remote Dashboard')
+    current_joint_error = float(np.max(np.abs(actual_q - np.asarray(JOINT_HOME_Q))))
+    current_position_error = float(np.linalg.norm(actual_pose[:3] - np.asarray(JOINT_HOME_POSE[:3])))
+    current_orientation_error = float(np.linalg.norm(
+        so3_log(so3_exp(actual_pose[3:]) @ so3_exp(JOINT_HOME_POSE[3:]).T)
+    ))
+    if (current_position_error > .001 or current_orientation_error > .005
+        or np.max(np.abs(actual_qd)) > .001
+        or np.linalg.norm(actual_tcp_speed[:3]) > .0005):
+        raise ValueError('joint-Home correction requires stationary canonical TCP pose')
+    if current_joint_error <= .020:
+        raise ValueError('joint-Home correction was requested without a joint mismatch')
+
+    output = Path(output)
+    output.mkdir(parents=True, exist_ok=False)
+    package_dir = output / 'package'
+    binding = build_joint_home_package(package_dir, actual_q.tolist())
+    owner = Path('/home/andy/codex-private-skills-shared-main/skills')
+    validator = owner / 'ur10e-tp-package-delivery/scripts/validate_ur_tp_package.py'
+    local_cmd = [
+        '/usr/bin/python3', str(validator), '--package-dir', str(package_dir),
+        '--basename', JOINT_HOME_PROGRAM, '--controller-dir', JOINT_HOME_CONTROLLER_DIR,
+        '--expected-stamp', binding['stamp'], '--expected-installation',
+        '/programs/default.installation', '--expected-grep', 'movej(',
+        '--expected-grep', 'TARGET_JOINTS_RAD',
+    ]
+    local = subprocess.run(local_cmd, check=True, capture_output=True, text=True, timeout=30)
+    local_path = output / 'local-validation.json'
+    local_path.write_text(local.stdout, encoding='utf-8')
+    if json.loads(local.stdout).get('pass') is not True:
+        raise ValueError('joint-Home correction package local validation failed')
+
+    readback_root = output / 'readback'
+    deploy_cmd = [
+        '/usr/bin/python3',
+        str(owner / 'ur10e-controller-access/scripts/ur10e_controller_ssh.py'),
+        'deploy-readback-triplet', '--local-directory', str(package_dir),
+        '--basename', JOINT_HOME_PROGRAM, '--controller-directory',
+        JOINT_HOME_CONTROLLER_DIR, '--readback-directory', str(readback_root),
+        '--confirm-deploy',
+    ]
+    deployed = subprocess.run(
+        deploy_cmd, check=True, capture_output=True, text=True, timeout=60,
+    )
+    readback_dir = readback_root / JOINT_HOME_PROGRAM
+    validate_cmd = local_cmd + ['--compare-dir', str(readback_dir)]
+    verified = subprocess.run(
+        validate_cmd, check=True, capture_output=True, text=True, timeout=30,
+    )
+    validation_path = output / 'readback-validation.json'
+    validation_path.write_text(verified.stdout, encoding='utf-8')
+    validation = json.loads(verified.stdout)
+    if validation.get('pass') is not True or validation.get('state') != 'controller read-back verified':
+        raise ValueError('joint-Home correction controller read-back failed')
+
+    from run_joint_home import run as run_joint_home
+    correction = run_joint_home(SimpleNamespace(
+        host=host,
+        package_dir=package_dir,
+        readback_dir=readback_dir,
+        validation=validation_path,
+        output=output / 'joint-home-run',
+    ))
+    correction.update({
+        'route': 'joint_home_correction_after_pose_only_joint_mismatch',
+        'initial_joint_error_rad': current_joint_error,
+        'package': str(package_dir),
+        'readback_dir': str(readback_dir),
+        'readback_validation': str(validation_path),
+        'deploy_stdout': deployed.stdout,
+        'command_writer_count': 1,
+    })
+    (output / 'result.json').write_text(json.dumps(correction, indent=2, default=str) + '\n')
+    return correction
+
+
 def _emergency_home_when_commandable(source, output, host, packages, *, reason,
                                      previous_output=None, video_url=None,
                                      video_policy='required'):
@@ -376,6 +486,7 @@ def _emergency_home_when_commandable(source, output, host, packages, *, reason,
         preserved.update(
             rtde=row,
             home_pose=list(contract.home_pose),
+            home_q=list(contract.home_q),
             clearance_entry=True,
             fallback_reason=str(reason),
         )
@@ -405,6 +516,18 @@ def _emergency_home_when_commandable(source, output, host, packages, *, reason,
             lease.__exit__(None, None, None)
             lease_held = False
         home_result = run_home(home_args)
+        if (
+            home_result.get('success') is not True
+            and str(home_result.get('failure', '')).startswith('home_joint_mismatch:')
+        ):
+            correction = _run_joint_home_correction(
+                home_result=home_result,
+                output=output / 'joint-home-correction',
+                host=host,
+            )
+            payload['joint_home_correction'] = correction
+            if correction.get('success') is True:
+                home_result = correction
         payload['home'] = home_result
         payload['motion'] = bool(
             home_result.get('success') is True or home_result.get('play') is not None
@@ -614,7 +737,7 @@ def _prepare_staged_home_package(output, current, geometry, contract, packages):
     preserved.update(
         rtde=current,
         home_pose=list(contract.home_pose),
-        home_q=geometry['home_q'],
+        home_q=list(contract.home_q),
         clearance_entry=True,
         bounded_recovery=True,
         bounded_withdrawal=False,
@@ -799,7 +922,7 @@ def run(args):
         home.update(
             rtde=current,
             home_pose=list(contract.home_pose),
-            home_q=geometry['home_q'],
+            home_q=list(contract.home_q),
             clearance_entry=True,
             bounded_recovery=bool(plan.get('staged_recovery', False)),
             recovery_route=plan.get('route', 'direct'),
@@ -843,6 +966,18 @@ def run(args):
             home_result=run_home(home_args)
         except BaseException as exc:
             home_result={'success':False,'error':f'{type(exc).__name__}: {exc}'}
+        if (
+            home_result.get('success') is not True
+            and str(home_result.get('failure', '')).startswith('home_joint_mismatch:')
+        ):
+            correction = _run_joint_home_correction(
+                home_result=home_result,
+                output=out / 'joint-home-correction',
+                host=args.host,
+            )
+            result['joint_home_correction'] = correction
+            if correction.get('success') is True:
+                home_result = correction
         result['home']=home_result
         result['success']=home_result.get('success') is True
         result['home_blocked']=not result['success']

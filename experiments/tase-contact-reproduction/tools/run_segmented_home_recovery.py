@@ -385,8 +385,39 @@ def run(args: argparse.Namespace) -> dict:
         angle = float(np.linalg.norm(so3_log(so3_exp(final_target[3:]) @ so3_exp(current[3:]).T)))
         position_error = float(np.linalg.norm(current[:3] - final_target[:3]))
         if lateral < 0.0005 and angle < 0.003 and position_error < 0.001:
+            current_q = np.asarray(fresh["actual_q"], dtype=float)
+            joint_error = float(np.max(np.abs(current_q - np.asarray(contract.home_q))))
+            dashboard = _dashboard(args.host)
+            if joint_error > 0.020:
+                from run_contact_recovery import _run_joint_home_correction
+
+                correction = _run_joint_home_correction(
+                    home_result={
+                        "success": False,
+                        "failure": f"home_joint_mismatch: max joint error {joint_error:.9f} rad",
+                        "final_sample": fresh,
+                        "dashboard_after": dashboard,
+                    },
+                    output=output / "joint-home-correction",
+                    host=args.host,
+                )
+                result["joint_home_correction"] = correction
+                if correction.get("success") is not True:
+                    result["state"] = "BLOCKED"
+                    result["failure"] = correction.get("failure", "joint-Home correction failed")
+                    break
+                result["final_sample"] = correction.get("final_sample")
+                result["dashboard_after"] = correction.get("dashboard_after")
+                result["final_q"] = correction.get("final_q")
+                result["final_pose"] = correction.get("final_pose")
+                result["joint_max_error_rad"] = correction.get("final_joint_max_error_rad")
+            else:
+                result["final_sample"] = fresh
+                result["dashboard_after"] = dashboard
+                result["final_q"] = list(current_q)
+                result["joint_max_error_rad"] = joint_error
+                result["final_pose"] = current.tolist()
             result["success"] = True
-            result["final_pose"] = current.tolist()
             result["final_position_error_m"] = position_error
             result["final_orientation_error_rad"] = angle
             break

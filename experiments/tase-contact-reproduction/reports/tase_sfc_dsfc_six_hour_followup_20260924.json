@@ -1,0 +1,150 @@
+{
+  "schema": "tase.six-hour-followup-summary-v1",
+  "date": "2026-09-24",
+  "status": "partial",
+  "decision": "short_contact_and_offline_comparison_complete; four_unit_live_acceptance_incomplete",
+  "short_contact_probe": {
+    "protocol_id": "contact_ramp_probe_r002",
+    "planned_ramps_s": [8, 4, 3, 2, 1],
+    "attempt_count": 7,
+    "passed_count": 7,
+    "fastest_ramp_s": 1,
+    "fastest_ramp_repeats_passed": 2,
+    "release_hold_s": 0.5,
+    "post_target_timeout_s": 2.0,
+    "force_norm_stop_n": 10.0,
+    "all_peak_force_norm_below_stop": true,
+    "home_verified_each_attempt": true,
+    "timing_from_ramp_start_to_release_s": [
+      8.59789431898389,
+      4.600023259001318,
+      3.600164328003302,
+      2.60014649599907,
+      1.964151709995349,
+      1.9579697729932377,
+      1.9878128629934508
+    ],
+    "peak_force_norm_n": [
+      7.514978699543534,
+      7.6988414121225786,
+      8.467075113939062,
+      7.844632697777522,
+      7.375491155685925,
+      7.011051113031365,
+      8.039426144651765
+    ],
+    "run_dir": "runs/contact-ramp-probe-ladder-20260924-r2-retry3",
+    "video_recorded_in_these_runs": false,
+    "evidence_class": "contact-qualification-feedback-and-RTDE; not independent task-force truth"
+  },
+  "engineering_acceptance": {
+    "protocol_id": "figure8_window60_r013_rate400_v1",
+    "controller": "TASE_RNN_MATURE",
+    "path_duration_s": 60.0,
+    "formal_window_s": [5.0, 60.0],
+    "target_force_n": 5.0,
+    "parameter_arm": "A",
+    "Md": 9.565272137974492,
+    "Bd": 693.6559295653944,
+    "integral_cap_n_s": 1.0,
+    "ramp_s": 8.0,
+    "planned_units": 4,
+    "complete_path_units": 0,
+    "physical_contact_attempts": 2,
+    "no_motion_freshness_rejections": 1,
+    "state21_watchdog_s": 30.0,
+    "latest_attempt_release_gate_max_continuous_s": 0.4356,
+    "required_release_gate_s": 0.5,
+    "latest_attempt_force_norm_peak_n": 10.526047457756249,
+    "median_full_turnaround_s": null,
+    "recovery_home_verified_after_motion_failures": true,
+    "acceptance_passed": false,
+    "failure_attempts": [
+      "runs/tase-a-four-unit-engineering-20260924T0515Z/attempts/0001/attempt-result.json",
+      "runs/tase-a-four-unit-engineering-fixed-20260924T0600HKT/attempts/0001/attempt-result.json"
+    ]
+  },
+  "historical_rate400_integral_campaign": {
+    "screening_attempts": 25,
+    "screening_selected_arm": "B",
+    "screening_complete_by_arm": {
+      "A": 4,
+      "B": 5,
+      "C": 3,
+      "D": 5,
+      "E": 3
+    },
+    "tuning_attempts": 24,
+    "tuning_complete": 22,
+    "tuning_failed": 2,
+    "valid_confirmation_pairs": 5,
+    "mean_improvement_a_minus_b_n": 0.03470115217066232,
+    "paired_ci95_n": [-0.17669382268800132, 0.24609612702932593],
+    "improvement_supported": false,
+    "claim_scope": "sensor-feedback normal-force MAE; no independent task-force truth"
+  },
+  "sfc_dsfc_offline": {
+    "evidence_class": "offline_closed_loop_model_proxy_only",
+    "controller_ids": [
+      "TASE_RNN_MATURE+SFC_YIELD_V1",
+      "TASE_RNN_MATURE+DSFC_YIELD_V1"
+    ],
+    "attempts": 30,
+    "failed_attempts": 0,
+    "matched_command_replay_inputs": 15,
+    "command_replay_controller_runs": 30,
+    "realization_calls_per_tick": [1],
+    "max_tangential_to_normal_leakage_m_s": 8.44e-19,
+    "results": {
+      "plane": {
+        "SFC_model_mae_n": 0.0001671413901999891,
+        "DSFC_model_mae_n": 0.00016774986986142234,
+        "DSFC_minus_SFC_n": 6.084796614332229e-07,
+        "SFC_path_rms_m": 7.26918813383875e-05,
+        "DSFC_path_rms_m": 2.311540457471168e-05
+      },
+      "tangent_pulse": {
+        "SFC_model_mae_n": 0.0014092996338617892,
+        "DSFC_model_mae_n": 0.0016751228838280913,
+        "DSFC_minus_SFC_n": 0.00026582324996630253,
+        "SFC_path_rms_m": 0.0024658197023647755,
+        "DSFC_path_rms_m": 0.002475161821469345
+      },
+      "normal_pulse": {
+        "SFC_model_mae_n": 0.10213880642913167,
+        "DSFC_model_mae_n": 0.11021637568359291,
+        "DSFC_minus_SFC_n": 0.00807756925446125,
+        "SFC_path_rms_m": 0.016053379523888894,
+        "DSFC_path_rms_m": 0.015360702307489416
+      }
+    },
+    "physical_evidence": false,
+    "human_or_apparatus_push_trials": 0
+  },
+  "dual_space_collision_policy": {
+    "policy_id": "tase-dual-space-collision-offline-v1",
+    "authority": "offline_intent_only",
+    "out_of_corridor_requests_recovery_owner": true,
+    "qualified_joint_observer": false,
+    "qualified_visual_corridor": false,
+    "apparatus_trials": 0,
+    "human_push_trials": 0
+  },
+  "fresh_read_only_bench_state": {
+    "checked_at": "2026-09-24T06:41:31.314+08:00",
+    "approved_joint_home_max_error_rad_approx": 7e-05,
+    "tcp_linear_speed_m_s": 0.0,
+    "safety_mode": "NORMAL",
+    "dashboard_program_state": "STOPPED step5d_contact_home_v1.urp",
+    "kunwei_tcp_connect_only": true,
+    "active_writers": 0,
+    "motion_performed_by_check": false
+  },
+  "verification": {
+    "focused_regression_tests_passed": 142,
+    "board_mark_detection_tests_passed": 6,
+    "git_diff_check": "passed",
+    "report_json_parse": "passed"
+  },
+  "next_action": "analyze the fresh raw sensor, RTDE and published-packet timeline around the 0.4356 s release-gate failure before selecting the next physical protocol"
+}

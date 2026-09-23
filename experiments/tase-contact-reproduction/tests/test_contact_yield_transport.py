@@ -64,3 +64,27 @@ def test_native_entry_rejects_old_physical_input24_transport():
     writer=SimpleNamespace(_controller_transport=R012LiveRTDETransport('injected'))
     with pytest.raises(TransportError,match='conflicts'):
         native.install_native_yield_transport(writer)
+
+
+def test_probe_recipe_binds_only_duration_34_before_sequence_35(monkeypatch):
+    client=Client()
+    monkeypatch.setattr(native,'WritableRTDEClient',lambda *a,**kw:client)
+    monkeypatch.setattr(native,'_validate_output_recipe',lambda types:None)
+    transport=native.ContactRampProbeRTDETransport('injected',ramp_duration_s=3)
+    transport.open()
+    assert len(client.fields)==len(set(client.fields))==35
+    assert client.fields[24]=='input_int_register_36'
+    assert client.fields[33]=='input_int_register_34'
+    assert client.fields[34]=='input_int_register_35'
+    transport.write_input_integer_register(35,17)
+    transport.send_packet([.5]*24,[0,0,0,0,0,1,0,1,23])
+    assert client.sent['input_int_register_34']==3
+    assert client.sent['input_int_register_35']==17
+    assert 'input_int_register_34' not in native.NATIVE_INPUT_FIELDS
+    transport.close()
+
+
+@pytest.mark.parametrize('duration',[0,-1,1.5,True,9])
+def test_probe_recipe_rejects_unapproved_duration(duration):
+    with pytest.raises(TransportError,match='duration'):
+        native.ContactRampProbeRTDETransport('injected',ramp_duration_s=duration)

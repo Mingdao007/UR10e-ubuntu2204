@@ -23,6 +23,18 @@ class QualificationControlError(RuntimeError):
     """The canonical qualification stack failed closed."""
 
 
+def _contact_ramp_target_time_s(
+    *, now_s: float, after_latch_s: float, ramp_duration_s: float,
+) -> float | None:
+    """Recover the sampled 1-to-5 N target boundary without starting late."""
+    values = (float(now_s), float(after_latch_s), float(ramp_duration_s))
+    if not all(math.isfinite(value) for value in values) or values[1] < 0.0 or values[2] <= 0.0:
+        raise QualificationControlError("contact ramp target timing inputs are invalid")
+    if values[1] < values[2]:
+        return None
+    return values[0] - max(0.0, values[1] - values[2])
+
+
 BASELINE_TANGENTIAL_NUMERIC_TOLERANCE_M_S = 2e-6
 BASELINE_ANGULAR_NUMERIC_TOLERANCE_RAD_S = 2e-6
 
@@ -53,6 +65,8 @@ class CanonicalQualificationControl:
     motion_profile: V4MotionProfile | None = R004_MOTION_PROFILE
     canonical_runtime_only: bool = False
     force_integral_limit_n_s: float = 1.0
+    ramp_duration_s: float = 8.0
+    hard_force_norm_limit_n: float = 100.0
     r013_baseline_transition_profile: Any | None = field(default=None, kw_only=True)
     contact_command_provider: Any | None = field(default=None, kw_only=True)
     _setpoint_n: float = 1.0
@@ -74,6 +88,10 @@ class CanonicalQualificationControl:
     _readiness_gate: Any = field(init=False, repr=False)
     _path_entry_release_gate: Any = field(init=False, repr=False)
     _path_entry_release_state: Any = field(init=False, repr=False)
+    _probe_release_required: bool = field(default=False, init=False, repr=False)
+    _probe_release_timeout_s: float = field(default=2.0, init=False, repr=False)
+    _probe_release_started_s: float | None = field(default=None, init=False, repr=False)
+    _probe_release_opened_s: float | None = field(default=None, init=False, repr=False)
     _qualification_retract_issued: bool = field(default=False, init=False, repr=False)
     _previous_qdot: tuple[float, float, float, float, float, float] = field(
         default=(0.0,) * 6, init=False, repr=False
@@ -108,6 +126,14 @@ class CanonicalQualificationControl:
             raise QualificationControlError("qualification attempt identity is missing")
         if not isinstance(self.canonical_runtime_only, bool):
             raise QualificationControlError("canonical runtime-only policy is not typed")
+        from step5d_autotune_v4_r004.baseline_runtime import CONTACT_RAMP_DURATIONS_S
+        if (
+            isinstance(self.ramp_duration_s, bool)
+            or not math.isfinite(float(self.ramp_duration_s))
+            or float(self.ramp_duration_s) not in CONTACT_RAMP_DURATIONS_S
+        ):
+            raise QualificationControlError("contact ramp duration is not an approved probe rung")
+        self.ramp_duration_s = float(self.ramp_duration_s)
         if self.motion_profile is not None and not isinstance(self.motion_profile, V4MotionProfile):
             raise QualificationControlError("qualification motion profile is not typed")
         if self.r013_baseline_transition_profile is not None:
@@ -269,6 +295,8 @@ class CanonicalQualificationControl:
         previous_previous_qdot = self._previous_qdot
         previous_readiness_hold_start = self._readiness_hold_start_monotonic_s
         previous_readiness_hold_end = self._readiness_hold_end_monotonic_s
+        previous_probe_release_started_s = self._probe_release_started_s
+        previous_probe_release_opened_s = self._probe_release_opened_s
         previous_baseline_state = getattr(self, "_baseline_state", None)
         previous_path_entry_release_state = getattr(
             self, "_path_entry_release_state", None
@@ -307,6 +335,8 @@ class CanonicalQualificationControl:
             self._previous_qdot = previous_previous_qdot
             self._readiness_hold_start_monotonic_s = previous_readiness_hold_start
             self._readiness_hold_end_monotonic_s = previous_readiness_hold_end
+            self._probe_release_started_s = previous_probe_release_started_s
+            self._probe_release_opened_s = previous_probe_release_opened_s
             self._baseline_state = previous_baseline_state
             self._path_entry_release_state = previous_path_entry_release_state
             self.last_pre_path_late_cycle = previous_last_pre_path_late_cycle
@@ -526,10 +556,28 @@ class CanonicalQualificationControl:
                 readiness_gate=self._readiness_gate,
                 hard_limits=BaselineHardLimits(
                     max_abs_normal_n=60.0,
-                    max_force_norm_n=100.0,
+                    max_force_norm_n=float(self.hard_force_norm_limit_n),
                     max_torque_norm_nm=3.0,
                 ),
+                ramp_duration_s=self.ramp_duration_s,
             )
+            if self._probe_release_required and self._probe_release_started_s is None:
+                # Start the observation budget at the actual 1-to-5 N ramp
+                # boundary, not after baseline qualification or release dwell.
+                self._probe_release_started_s = _contact_ramp_target_time_s(
+                    now_s=now,
+                    after_latch_s=self._baseline_state.after_latch_s,
+                    ramp_duration_s=self.ramp_duration_s,
+                )
+            if (
+                self._probe_release_required
+                and self._probe_release_started_s is not None
+                and self._probe_release_opened_s is None
+                and now - self._probe_release_started_s > self._probe_release_timeout_s
+            ):
+                raise QualificationControlError(
+                    "contact-ramp probe did not satisfy its 0.5 s release gate within 2 s of the 5 N target"
+                )
             if self._baseline_state.readiness_dwell_s <= 0.0:
                 # A failed readiness sample restarts the hold clock.  Never
                 # retain a stale timestamp across a broken dwell.
@@ -588,6 +636,44 @@ class CanonicalQualificationControl:
             if self._baseline_state.phase is BaselinePhase.SUCCESS:
                 if not self.path_requested:
                     self._previous_qdot = (0.0,) * 6
+                    if self._probe_release_required:
+                        if self._path_entry_release_gate is None:
+                            raise QualificationControlError(
+                                "contact-ramp probe release gate is missing"
+                            )
+                        if self._probe_release_started_s is None:
+                            self._probe_release_started_s = now
+                        self._path_entry_release_state = step_path_entry_release(
+                            self._path_entry_release_state,
+                            baseline_observation,
+                            gate=self._path_entry_release_gate,
+                        )
+                        if (
+                            self._path_entry_release_state.opened
+                            and self._probe_release_opened_s is None
+                        ):
+                            self._probe_release_opened_s = now
+                        if not self._path_entry_release_state.opened:
+                            if now - self._probe_release_started_s > self._probe_release_timeout_s:
+                                raise QualificationControlError(
+                                    "contact-ramp probe PATH-entry release gate did not open within 2 s"
+                                )
+                            self._pause_contact_provider(
+                                output=output,
+                                sensor=sensor,
+                                monotonic_s=now,
+                                actual_dt_s=actual_dt_s,
+                                reason="contact_ramp_probe_release_dwell_pending",
+                            )
+                            return make_command(
+                                command_mode=CommandMode.BASELINE,
+                                qdot=(0.0,) * 6,
+                                internal_setpoint_n=self._setpoint_n,
+                                filtered_normal_n=tick_log.filtered_normal_n,
+                                sticky_one_newton_latched=self._sticky_latched,
+                                canonical_phase="contact_ramp_probe_release",
+                                canonical_reason="path_entry_release_dwell_pending",
+                            )
                     if self._qualification_retract_issued:
                         return make_command(
                             command_mode=CommandMode.RETRACT,
@@ -637,28 +723,36 @@ class CanonicalQualificationControl:
                                 "narrow_path_release_opened": self._path_entry_release_state.opened,
                             }
                         )
-                # R013's hard transition is a readiness result, not a motion
-                # waiver.  Reuse the same fresh force/stationary release dwell
-                # for every PATH request, including the R013 profile.
+                # R013 may admit the transition after its hard ramp/timing
+                # checks, but the force/stationary release dwell remains a
+                # separate gate. Keep TASE in baseline mode while that dwell
+                # is pending; freezing qdot here lets compliant contact relax
+                # below the gate before the TP can enter PATH.
                 if not self._path_entry_release_state.opened:
-                    self._pause_contact_provider(
-                        output=output,
-                        sensor=sensor,
-                        monotonic_s=now,
-                        actual_dt_s=actual_dt_s,
-                        reason="path_entry_release_dwell_pending",
-                    )
-                    self._previous_qdot = (0.0,) * 6
-                    return make_command(
-                        command_mode=CommandMode.BASELINE,
-                        qdot=(0.0,) * 6,
-                        internal_setpoint_n=self._setpoint_n,
-                        filtered_normal_n=tick_log.filtered_normal_n,
-                        sticky_one_newton_latched=self._sticky_latched,
-                        canonical_phase="success_path_release",
-                        canonical_reason="path_entry_release_dwell_pending",
-                    )
-                if tp_state != 25:
+                    if self.contact_command_provider is None:
+                        self._pause_contact_provider(
+                            output=output,
+                            sensor=sensor,
+                            monotonic_s=now,
+                            actual_dt_s=actual_dt_s,
+                            reason="path_entry_release_dwell_pending",
+                        )
+                        self._previous_qdot = (0.0,) * 6
+                        return make_command(
+                            command_mode=CommandMode.BASELINE,
+                            qdot=(0.0,) * 6,
+                            internal_setpoint_n=self._setpoint_n,
+                            filtered_normal_n=tick_log.filtered_normal_n,
+                            sticky_one_newton_latched=self._sticky_latched,
+                            canonical_phase="success_path_release",
+                            canonical_reason="path_entry_release_dwell_pending",
+                        )
+                    # TASE owns this baseline loop. Continue correcting the
+                    # normal force while the existing 0.5 s stationary gate
+                    # accumulates; do not turn the pending gate into a hold.
+                    mode = "baseline"
+                    path_time_s = 0.0
+                elif tp_state != 25:
                     self._pause_contact_provider(
                         output=output,
                         sensor=sensor,
@@ -684,10 +778,10 @@ class CanonicalQualificationControl:
                             else "path_entry_release_open"
                         ),
                     )
-                # State 21 is only the zero-tangential transition command. The
-                # PATH controller starts here, after the TP reports state 25.
-                # Preserve the path-clock origin owned by PathEvidenceCollector.
-                if tp_state == 25:
+                else:
+                    # State 21 is only the zero-tangential transition command.
+                    # PATH starts after the TP reports state 25. Preserve the
+                    # path-clock origin owned by PathEvidenceCollector.
                     if self._path_origin_monotonic_s is None:
                         self._path_origin_monotonic_s = now
                     path_time_s = now - self._path_origin_monotonic_s
@@ -698,36 +792,34 @@ class CanonicalQualificationControl:
                         # then owns the 60 s clock origin.
                         self._path_origin_monotonic_s = now - 1.0
                         path_time_s = 1.0
-                else:
-                    path_time_s = 0.0
-                if self.contact_command_provider is None:
-                    tangential_error, orientation_error = self._runtime.path_errors(
-                        actual_tcp_pose=output.tcp_pose_m_rad,
-                        path_time_s=path_time_s,
-                        motion_kp=self.candidate.motion_kp,
-                    )
-                else:
-                    # An entry-aware provider maps the state-25 execution
-                    # clock to entry/formal PATH without moving the TP seam.
-                    error_provider = getattr(self.contact_command_provider,
-                        "execution_path_errors", self.contact_command_provider.path_errors)
-                    tangential_error, orientation_error = (
-                        error_provider(
+                    if self.contact_command_provider is None:
+                        tangential_error, orientation_error = self._runtime.path_errors(
                             actual_tcp_pose=output.tcp_pose_m_rad,
                             path_time_s=path_time_s,
                             motion_kp=self.candidate.motion_kp,
                         )
-                    )
-                if self.contact_command_provider is None:
-                    tick_log = self._path_controller.step(
-                        actual_dt_s=actual_dt_s,
-                        raw_normal_n=sensor.normal_load_n,
-                        setpoint_n=self._setpoint_n,
-                        mode="path",
-                        orientation_error_rad=orientation_error,
-                        tangential_error_m=tangential_error,
-                    )
-                mode = "path"
+                    else:
+                        # An entry-aware provider maps the state-25 execution
+                        # clock to entry/formal PATH without moving the TP seam.
+                        error_provider = getattr(self.contact_command_provider,
+                            "execution_path_errors", self.contact_command_provider.path_errors)
+                        tangential_error, orientation_error = (
+                            error_provider(
+                                actual_tcp_pose=output.tcp_pose_m_rad,
+                                path_time_s=path_time_s,
+                                motion_kp=self.candidate.motion_kp,
+                            )
+                        )
+                    if self.contact_command_provider is None:
+                        tick_log = self._path_controller.step(
+                            actual_dt_s=actual_dt_s,
+                            raw_normal_n=sensor.normal_load_n,
+                            setpoint_n=self._setpoint_n,
+                            mode="path",
+                            orientation_error_rad=orientation_error,
+                            tangential_error_m=tangential_error,
+                        )
+                    mode = "path"
             else:
                 path_time_s = 0.0
                 mode = "baseline"

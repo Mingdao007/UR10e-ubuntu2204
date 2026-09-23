@@ -159,6 +159,8 @@ def test_runtime_path_snapshot_is_bound_and_consumed_by_calibrated_runtime() -> 
     if V4CalibratedRuntime is not None:
         runtime = object.__new__(V4CalibratedRuntime)
         runtime.path_reference = injected
+        runtime._feedforward_enabled = False
+        runtime.target_rotvec = (0.0, 0.0, 0.0)
         runtime.path_errors(
             actual_tcp_pose=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
             path_time_s=3.0,

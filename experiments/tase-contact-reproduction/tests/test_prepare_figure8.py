@@ -6,11 +6,13 @@ from prepare_figure8 import validate_sample
 
 def sample():
     pose=(.46,.17,.033,2.03,2.39,0.)
+    home_q=(.7,-1.8,-2.5,-.4,1.5,-.8)
     profile=SimpleNamespace(payload_kg=.413,cog_m=(.0011,.0031,.0163),controller_tcp_m_rad=(0,0,.0874,0,0,0))
-    output=SimpleNamespace(safety_normal=True,runtime_state=1,received_monotonic_s=1.,
+    output=SimpleNamespace(safety_normal=True,runtime_state=1,program_running=False,
+        integer_echoes={},received_monotonic_s=1.,q_rad=home_q,
         tcp_pose_m_rad=pose,qd_rad_s=(0,)*6,tcp_speed_m_s_rad_s=(0,)*6,
         payload_kg=profile.payload_kg,payload_cog_m=profile.cog_m,tcp_offset_m_rad=profile.controller_tcp_m_rad)
-    return output,SimpleNamespace(home_pose=pose),profile
+    return output,SimpleNamespace(home_pose=pose,home_q=home_q),profile
 
 
 def test_fresh_stationary_clearance_sample():

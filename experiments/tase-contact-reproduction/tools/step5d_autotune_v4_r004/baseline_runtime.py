@@ -61,6 +61,7 @@ class BaselineReadinessGate:
 
 
 PATH_ENTRY_RELEASE_HOLD_S = 0.5
+CONTACT_RAMP_DURATIONS_S = (8.0, 4.0, 3.0, 2.0, 1.0)
 
 
 @dataclass(frozen=True)
@@ -222,8 +223,11 @@ def _hard_reason(observation: BaselineObservation, limits: BaselineHardLimits) -
     return ""
 
 
-def _setpoint(after_latch_s: float) -> float:
-    return min(TARGET_FORCE_N, 1.0 + 0.5 * min(max(after_latch_s, 0.0), 8.0))
+def _setpoint(after_latch_s: float, *, ramp_duration_s: float = 8.0) -> float:
+    duration = float(ramp_duration_s)
+    if duration not in CONTACT_RAMP_DURATIONS_S:
+        raise ValueError("contact ramp duration is not an approved probe rung")
+    return min(TARGET_FORCE_N, 1.0 + (4.0 / duration) * min(max(after_latch_s, 0.0), duration))
 
 
 def step_baseline(
@@ -234,11 +238,19 @@ def step_baseline(
     required_hold_s: float = 10.0,
     readiness_gate: BaselineReadinessGate | None = None,
     hard_limits: BaselineHardLimits | None = None,
+    ramp_duration_s: float = 8.0,
 ) -> tuple[BaselineState, BaselineCommand]:
     """Advance one actual-dt sample; no wall-clock or robot side effects."""
     assert_runtime_target(candidate, TARGET_FORCE_N)
     if not math.isfinite(required_hold_s) or not 0.1 <= required_hold_s <= 10.0:
         raise ValueError("required baseline hold must be within [0.1,10] seconds")
+    if (
+        isinstance(ramp_duration_s, bool)
+        or not math.isfinite(float(ramp_duration_s))
+        or float(ramp_duration_s) not in CONTACT_RAMP_DURATIONS_S
+    ):
+        raise ValueError("contact ramp duration is not an approved probe rung")
+    ramp_duration_s = float(ramp_duration_s)
     gate = readiness_gate if readiness_gate is not None else BaselineReadinessGate()
     if not isinstance(gate, BaselineReadinessGate):
         raise TypeError("readiness_gate must be BaselineReadinessGate")
@@ -246,11 +258,11 @@ def step_baseline(
     if not isinstance(limits, BaselineHardLimits):
         raise TypeError("hard_limits must be BaselineHardLimits")
     if state.phase in {BaselinePhase.SUCCESS, BaselinePhase.FAILED}:
-        return state, _command(candidate, state, observation)
+        return state, _command(candidate, state, observation, ramp_duration_s=ramp_duration_s)
     hard_reason = _hard_reason(observation, limits)
     if hard_reason:
         failed = replace(state, phase=BaselinePhase.FAILED, stop_reason=hard_reason)
-        return failed, _command(candidate, failed, observation)
+        return failed, _command(candidate, failed, observation, ramp_duration_s=ramp_duration_s)
     dt = observation.dt_s
     if state.phase is BaselinePhase.WAIT_ONE_NEWTON:
         if not observation.one_newton_latched:
@@ -268,7 +280,7 @@ def step_baseline(
     phase = state.phase
     readiness_dwell = state.readiness_dwell_s
     hold_s = state.hold_s
-    if phase is BaselinePhase.RAMP and after_latch >= 8.0:
+    if phase is BaselinePhase.RAMP and after_latch >= ramp_duration_s:
         phase = BaselinePhase.ACQUIRE
     if phase is BaselinePhase.ACQUIRE:
         if _readiness(observation, gate):
@@ -295,18 +307,22 @@ def step_baseline(
         hold_s=hold_s,
         stop_reason="",
     )
-    return next_state, _command(candidate, next_state, observation)
+    return next_state, _command(
+        candidate, next_state, observation, ramp_duration_s=ramp_duration_s
+    )
 
 
 def _command(
     candidate: V4Candidate,
     state: BaselineState,
     observation: BaselineObservation,
+    *,
+    ramp_duration_s: float = 8.0,
 ) -> BaselineCommand:
     setpoint = (
         1.0
         if state.phase is BaselinePhase.WAIT_ONE_NEWTON
-        else _setpoint(state.after_latch_s)
+        else _setpoint(state.after_latch_s, ramp_duration_s=ramp_duration_s)
     )
     error = setpoint - observation.filtered_normal_n
     approach_speed = max(
