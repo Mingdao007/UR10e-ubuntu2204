@@ -430,6 +430,9 @@ class V4CalibratedRuntime:
         task_command = _finite_vector(
             pending.get("task_space_command_twist"), 6, "task-space command twist"
         )
+        explicit_velocity_limit = pending.get("explicit_velocity_limit_active", False)
+        if type(explicit_velocity_limit) is not bool:
+            raise CalibratedRuntimeError("published velocity-limit flag is invalid")
         force_axis = _finite_vector(pending.get("force_normal_base"), 3, "force-normal axis")
         axis_norm = float(np.linalg.norm(force_axis))
         if axis_norm <= 1e-12:
@@ -445,7 +448,8 @@ class V4CalibratedRuntime:
         realization_residual = task_normal - achieved_normal
         total_shortfall = requested_normal - achieved_normal
         task_space_saturated = bool(
-            abs(task_residual) > OUTER_OUTPUT_SATURATION_TOL_M_S
+            explicit_velocity_limit
+            and abs(task_residual) > OUTER_OUTPUT_SATURATION_TOL_M_S
         )
         realization_saturated = bool(
             explicit_realization_limit
@@ -478,6 +482,7 @@ class V4CalibratedRuntime:
             "total_directional_shortfall_m_s": total_shortfall,
             "task_space_saturated": task_space_saturated,
             "realization_saturated": realization_saturated,
+            "explicit_velocity_limit_active": explicit_velocity_limit,
             "explicit_realization_limit": explicit_realization_limit,
             "same_direction_freeze_sign": saturation_sign,
         }
@@ -878,6 +883,31 @@ class V4CalibratedRuntime:
         twist = tuple(float(value) for value in raw_twist)
         if len(twist) != 6 or not all(math.isfinite(value) for value in twist):
             raise CalibratedRuntimeError("paper outer loop returned invalid twist")
+        force_normal_base = _finite_vector(
+            output.diagnostics.get("approach_normal_base"), 3, "outer force-normal axis"
+        )
+        force_normal_norm = float(np.linalg.norm(force_normal_base))
+        if force_normal_norm <= 1e-12:
+            raise CalibratedRuntimeError("outer force-normal axis is degenerate")
+        force_normal_base /= force_normal_norm
+        requested_twist = raw_twist.copy()
+        explicit_velocity_limit = bool(
+            output.diagnostics.get("integral_velocity_saturated", False)
+        )
+        if explicit_velocity_limit:
+            raw_normal_velocity = float(
+                output.diagnostics["integral_raw_normal_velocity_m_s"]
+            )
+            applied_normal_velocity = float(
+                output.diagnostics["integral_applied_normal_velocity_m_s"]
+            )
+            if not math.isfinite(raw_normal_velocity) or not math.isfinite(
+                applied_normal_velocity
+            ):
+                raise CalibratedRuntimeError("outer normal velocity limit feedback is invalid")
+            requested_twist[:3] += (
+                raw_normal_velocity - applied_normal_velocity
+            ) * force_normal_base
         # Bound the task-space proposal before strict RNN; the independent
         # Jacobian gate repeats the authoritative cap after solving qdot.
         linear = np.asarray(twist[:3], dtype=float)
@@ -910,16 +940,24 @@ class V4CalibratedRuntime:
         if angular_norm > angular_cap:
             angular *= angular_cap / angular_norm
         task_space_command = np.r_[linear, angular]
-        force_normal_base = _finite_vector(
-            output.diagnostics.get("approach_normal_base"), 3, "outer force-normal axis"
+        explicit_velocity_limit = bool(
+            explicit_velocity_limit
+            or (
+                mode == "path"
+                and np.any(
+                    np.abs(task_space_command - raw_twist)
+                    > OUTER_OUTPUT_SATURATION_TOL_M_S
+                )
+            )
         )
         self._pending_outer_feedback = {
             "schema": OUTER_OUTPUT_FEEDBACK_SCHEMA,
             "policy": outer_config.force_integral_policy,
             "force_error_n": float(output.diagnostics.get("e_f", current_force_error)),
             "force_normal_base": tuple(float(value) for value in force_normal_base),
-            "requested_twist": tuple(float(value) for value in raw_twist),
+            "requested_twist": tuple(float(value) for value in requested_twist),
             "task_space_command_twist": tuple(float(value) for value in task_space_command),
+            "explicit_velocity_limit_active": explicit_velocity_limit,
             "previous_output_freeze_applied": freeze_integral_same_direction,
             "integral_state_n_s": float(output.next_state.force_integral_n_s),
             "integral_policy": outer_config.force_integral_policy,

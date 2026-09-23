@@ -358,6 +358,60 @@ def test_conditional_policy_uses_published_taskspace_saturation_for_next_tick(pr
     assert runtime._outer_state.force_integral_n_s < integral_after_first
 
 
+def test_conditional_policy_publishes_inner_velocity_limit_feedback(provider):
+    runtime = provider.runtime
+    runtime.outer_loop_config = replace(
+        TASE_LIVE_OUTER_CONFIG,
+        force_integral_policy='conditional-double-clamp-v1',
+    )
+    runtime.force_integral_policy = 'conditional-double-clamp-v1'
+    runtime.reset_outer_loop_state()
+    home_pose = load_identity_contract().home_pose
+    requested_command = runtime.desired_twist(
+        actual_tcp_pose=home_pose,
+        actual_tcp_speed=(0.0,) * 6,
+        force_tcp_n=(0.0, 0.0, 0.0),
+        filtered_normal_n=0.0,
+        internal_setpoint_n=5.0,
+        actual_dt_s=0.01,
+        mode='path',
+        path_time_s=0.0,
+    )
+    pending = runtime._pending_outer_feedback
+    assert pending['explicit_velocity_limit_active'] is True
+    force_axis = np.asarray(pending['force_normal_base'])
+    requested_normal = float(np.asarray(pending['requested_twist'][:3]) @ force_axis)
+    task_normal = float(
+        np.asarray(pending['task_space_command_twist'][:3]) @ force_axis
+    )
+    assert abs(requested_normal - task_normal) > 1e-12
+
+    feedback = runtime.record_published_outer_output(
+        final_qdot=requested_command,
+        jacobian_6x6=np.eye(6),
+        explicit_realization_limit=False,
+        packet_sequence=12,
+        published_at_s=1.0,
+    )
+    assert feedback['explicit_velocity_limit_active'] is True
+    assert feedback['task_space_saturated'] is True
+    assert feedback['same_direction_freeze_sign'] == 1
+
+    integral_after_limited_output = runtime._outer_state.force_integral_n_s
+    runtime.desired_twist(
+        actual_tcp_pose=home_pose,
+        actual_tcp_speed=(0.0,) * 6,
+        force_tcp_n=(0.0, 0.0, -6.0),
+        filtered_normal_n=6.0,
+        internal_setpoint_n=5.0,
+        actual_dt_s=0.002,
+        mode='path',
+        path_time_s=0.002,
+    )
+    assert runtime._pending_outer_feedback['previous_output_freeze_applied'] is False
+    assert runtime._outer_state.force_integral_n_s < integral_after_limited_output
+
+
 def test_conditional_policy_does_not_freeze_on_plain_rnn_tracking_residual(provider):
     runtime = provider.runtime
     runtime.outer_loop_config = replace(
@@ -423,6 +477,41 @@ def test_published_feedback_uses_actual_native_joint_cap(provider):
     assert feedback['explicit_realization_limit'] is True
     assert feedback['realization_saturated'] is True
     assert feedback['same_direction_freeze_sign'] == 1
+
+
+def test_rejected_path_calculation_restores_output_feedback_state(provider, monkeypatch):
+    runtime = provider.runtime
+    runtime.outer_loop_config = replace(
+        TASE_LIVE_OUTER_CONFIG,
+        force_integral_policy='conditional-double-clamp-v1',
+    )
+    runtime.force_integral_policy = 'conditional-double-clamp-v1'
+    runtime._last_published_outer_feedback = {
+        'schema': 'step5d-outer-output-feedback-v1',
+        'same_direction_freeze_sign': 1,
+    }
+    runtime._pending_outer_feedback = {
+        'schema': 'step5d-outer-output-feedback-v1',
+        'explicit_velocity_limit_active': True,
+    }
+    before = provider.snapshot()
+
+    def reject_command(**_kwargs):
+        raise ValueError('synthetic solver calculation rejection')
+
+    monkeypatch.setattr(runtime, 'command', reject_command)
+    output, sensor = tick(provider, .002, force=1.0)
+    with pytest.raises(ValueError, match='synthetic solver calculation rejection'):
+        provider.command(
+            output=output,
+            sensor=sensor,
+            monotonic_s=.002,
+            actual_dt_s=.002,
+            mode='path',
+            path_time_s=1.0,
+            internal_setpoint_n=5.0,
+        )
+    assert provider.snapshot() == before
 
 
 def test_live_path_keeps_confirmed_home_orientation_velocity_zero(provider):
