@@ -124,6 +124,102 @@ def test_stopped_session_seal_never_reopens_or_services_transport(tmp_path):
     assert persisted['timing']['sealed_monotonic_s'] >= persisted['timing']['started_monotonic_s']
 
 
+def _replay_capture_row(capture, *, sequence, reference_time_s=0.0):
+    zero = (0.0,) * 6
+    capture.begin_command()
+    capture.stage_transition(
+        1, 0, NS(lambda_state=[1.0] * 6, theta_dot_state=[2.0] * 6),
+    )
+    capture.stage_sample(
+        host_monotonic_s=123.4, actual_dt_s=.002,
+        desired_twist=(.1, .2, .3, .4, .5, .6),
+        jacobian=[[float(row == col) for col in range(6)] for row in range(6)],
+        solver_lower=(-.15,) * 6, solver_upper=(.15,) * 6,
+        previous_qdot=zero, host_slew_scale=.5,
+        host_slew_delta_limit=.03, packet_qdot=zero,
+        solver_elapsed_s=.0001,
+    )
+    capture.set_provider_elapsed(.0002)
+    capture.commit_published(
+        packet_sequence=sequence, published_at_s=123.5,
+        reference_phase='path', reference_time_s=reference_time_s,
+        packet_qdot=(.01, .02, .03, .04, .05, .06),
+    )
+
+
+def test_resident_seal_serializes_and_reads_back_exact_tase_replay_join(tmp_path):
+    from tase_contact_provider import _TaseReplayEvidenceBuffer
+
+    capture = _TaseReplayEvidenceBuffer(capacity=4, path_duration_s=60.0)
+    capture.reset_attempt(1)
+    _replay_capture_row(capture, sequence=17, reference_time_s=5.0)
+    writer = NS(
+        raw_observations=[], robot_observations=[],
+        admission_robot_observations=[], rejected_robot_observations=[],
+        command_observations=[(123.5, {'sequence': 17, 'double_values': [0.0] * 13 +
+                                       [.01, .02, .03, .04, .05, .06] + [0.0] * 5})],
+        _service_observations={}, _host_formal_path_publish_count=1,
+    )
+    provider = NS(replay_evidence=capture, command_timeline=[])
+    session = ResidentSession(
+        mature=NS(writer=writer), runtime=None, provider=provider,
+        prerequisites=None, run_dir=tmp_path,
+    )
+    session.closed = True
+    item = {'sequence': 1, 'lifecycle': {'path_complete': True}}
+
+    sealed = session.seal_attempt(item, service=False)
+    attempt = tmp_path / 'attempts' / '0001'
+    trace_rows = [json.loads(line) for line in
+                  (attempt / 'command_timeline.jsonl').read_text().splitlines()]
+    published_rows = [json.loads(line) for line in
+                      (attempt / 'published_packets.jsonl').read_text().splitlines()]
+    seal = json.loads((attempt / 'seal.json').read_text())
+    result = json.loads((attempt / 'attempt-result.json').read_text())
+
+    assert len(trace_rows) == 1
+    trace = trace_rows[0]
+    assert trace['packet_sequence'] == published_rows[0][1]['sequence'] == 17
+    assert trace['reference_time_s'] == 5.0
+    assert trace['host_monotonic_s'] == 123.4
+    assert trace['jacobian_6x6'][0] == [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    assert trace['published_packet_qdot_rad_s'] == [.01, .02, .03, .04, .05, .06]
+    assert trace['transition_events'][0]['event_type'] == 'path_origin'
+    assert trace['transition_events'][0]['lambda_state'] == [1.0] * 6
+    assert seal['replay_evidence']['complete'] is True
+    assert seal['replay_evidence']['packet_sequence_join_passed'] is True
+    assert result['lifecycle']['replay_evidence_complete'] is True
+    assert sealed['sealed_evidence']['segments']['command_timeline']['count'] == 1
+
+
+def test_resident_seal_marks_replay_capture_failed_on_sequence_join_miss(tmp_path):
+    from tase_contact_provider import _TaseReplayEvidenceBuffer
+
+    capture = _TaseReplayEvidenceBuffer(capacity=2, path_duration_s=60.0)
+    capture.reset_attempt(1)
+    _replay_capture_row(capture, sequence=18, reference_time_s=1.0)
+    writer = NS(
+        raw_observations=[], robot_observations=[],
+        admission_robot_observations=[], rejected_robot_observations=[],
+        command_observations=[(123.5, {'sequence': 17, 'double_values': [0.0] * 24})],
+        _service_observations={}, _host_formal_path_publish_count=1,
+    )
+    provider = NS(replay_evidence=capture, command_timeline=[])
+    session = ResidentSession(
+        mature=NS(writer=writer), runtime=None, provider=provider,
+        prerequisites=None, run_dir=tmp_path,
+    )
+    session.closed = True
+    item = {'sequence': 1, 'lifecycle': {'path_complete': True}}
+
+    sealed = session.seal_attempt(item, service=False)
+    assert sealed['sealed_evidence']['replay_evidence']['complete'] is False
+    assert sealed['lifecycle']['replay_evidence_complete'] is False
+    assert 'published_packet_sequence_join_failed' in (
+        sealed['sealed_evidence']['replay_evidence']['failure_reasons']
+    )
+
+
 def test_rate400_refresh_is_hourly_or_event_triggered(tmp_path):
     from figure8_resident_acceptance import _write_receipts
     from contact_yield_live_contract import load_identity_contract

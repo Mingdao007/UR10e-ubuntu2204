@@ -14,6 +14,7 @@ import hashlib
 import json
 import math
 import time
+from typing import Any, Mapping
 import numpy as np
 
 from contact_benchmark_provider import ContactCommandProvider, ContactReadinessObserver, ContactForceObservation
@@ -40,6 +41,392 @@ from step5d_paper_outer_loop import (
 )
 
 TASE_COMPUTE_BUCKETS_S = (.00025, .0005, .001, .0015, .002, .004)
+
+# The selected resident protocol is at most 60 s and the writer publishes at
+# 500 Hz. This fixed buffer holds the whole declared clock, including the
+# non-metric [0, 5) prefix and bounded final seam exclusion.
+TASE_REPLAY_MAX_PATH_TICKS = 60 * 500
+TASE_REPLAY_TRACE_SCHEMA = 'tase.qp-replay-command-timeline-v1'
+_TRACE_TWIST = slice(8, 14)
+_TRACE_LOWER = slice(14, 20)
+_TRACE_UPPER = slice(20, 26)
+_TRACE_JACOBIAN = slice(26, 62)
+_TRACE_PREVIOUS_QDOT = slice(62, 68)
+_TRACE_SLEW_LOWER = slice(68, 74)
+_TRACE_SLEW_UPPER = slice(74, 80)
+_TRACE_PUBLISHED_QDOT = slice(80, 86)
+_TRACE_WIDTH = 86
+_TRACE_TRANSITION_NAMES = {
+    1: 'path_origin',
+    2: 'force_preempt_warm_start',
+    3: 'force_preempt_direction_retry',
+}
+
+
+class _TaseReplayEvidenceBuffer:
+    """Fixed numeric resident trace; all JSON work happens in the seal worker."""
+
+    _OVERFLOW = 1
+    _TRANSITION_OVERFLOW = 2
+    _INVALID_SAMPLE = 4
+    _DUPLICATE_SEQUENCE = 8
+    _MISSING_EXPECTED_COUNT = 16
+    _COUNT_MISMATCH = 32
+    _PACKET_JOIN_FAILURE = 64
+    _INVALID_TRANSITION_STATE = 128
+
+    def __init__(self, *, capacity: int = TASE_REPLAY_MAX_PATH_TICKS,
+                 path_duration_s: float = R013_COMPAT60_DURATION_S):
+        self.capacity = int(capacity)
+        self.path_duration_s = float(path_duration_s)
+        self.transition_capacity = 2 * self.capacity + 1
+        self.samples = np.empty((self.capacity, _TRACE_WIDTH), dtype=np.float64)
+        self.packet_sequences = np.full(self.capacity, -1, dtype=np.int64)
+        self.transition_sequences = np.full(self.transition_capacity, -1, dtype=np.int64)
+        self.transition_times_s = np.empty(self.transition_capacity, dtype=np.float64)
+        self.transition_kinds = np.empty(self.transition_capacity, dtype=np.int8)
+        self.transition_identities = np.empty(self.transition_capacity, dtype=np.int64)
+        self.transition_states = np.empty((self.transition_capacity, 12), dtype=np.float64)
+        self.pending_values = np.empty(_TRACE_WIDTH, dtype=np.float64)
+        self.pending_transition_kinds = np.empty(3, dtype=np.int8)
+        self.pending_transition_identities = np.empty(3, dtype=np.int64)
+        self.pending_transition_states = np.empty((3, 12), dtype=np.float64)
+        self.attempt_sequence: int | None = None
+        self.count = 0
+        self.transition_count = 0
+        self.expected_count: int | None = None
+        self.dropped_count = 0
+        self.missing_capture_count = 0
+        self.failure_flags = 0
+        self.pending_ready = False
+        self.pending_transition_count = 0
+        self.path_origin_committed = False
+        self._last_packet_sequence = -1
+
+    def reset_attempt(self, attempt_sequence: int) -> None:
+        self.attempt_sequence = int(attempt_sequence)
+        self.count = 0
+        self.transition_count = 0
+        self.expected_count = None
+        self.dropped_count = 0
+        self.missing_capture_count = 0
+        self.failure_flags = 0
+        self.pending_ready = False
+        self.pending_transition_count = 0
+        self.path_origin_committed = False
+        self._last_packet_sequence = -1
+
+    def begin_command(self) -> None:
+        self.pending_ready = False
+        self.pending_transition_count = 0
+
+    def _copy_pending_vector(self, span: slice, values: Any) -> None:
+        if len(values) != 6:
+            raise ValueError('invalid replay vector width')
+        for offset in range(6):
+            value = float(values[offset])
+            if not math.isfinite(value):
+                raise ValueError('nonfinite replay vector')
+            self.pending_values[span.start + offset] = value
+
+    def stage_transition(self, kind: int, identity: int, solver: Any) -> None:
+        if self.attempt_sequence is None:
+            return
+        if self.pending_transition_count >= len(self.pending_transition_kinds):
+            self.failure_flags |= self._TRANSITION_OVERFLOW
+            return
+        theta = getattr(solver, 'theta_dot_state', None)
+        lambd = getattr(solver, 'lambda_state', None)
+        if theta is None or lambd is None or len(theta) != 6 or len(lambd) != 6:
+            self.failure_flags |= self._INVALID_TRANSITION_STATE
+            return
+        index = self.pending_transition_count
+        try:
+            for joint in range(6):
+                lambda_value = float(lambd[joint])
+                theta_value = float(theta[joint])
+                if not math.isfinite(lambda_value) or not math.isfinite(theta_value):
+                    raise ValueError('nonfinite recurrent state')
+                self.pending_transition_states[index, joint] = lambda_value
+                self.pending_transition_states[index, joint + 6] = theta_value
+        except (TypeError, ValueError, IndexError):
+            self.failure_flags |= self._INVALID_TRANSITION_STATE
+            return
+        self.pending_transition_kinds[index] = int(kind)
+        self.pending_transition_identities[index] = int(identity)
+        self.pending_transition_count += 1
+
+    def stage_sample(self, *, host_monotonic_s: float, actual_dt_s: float,
+                     desired_twist: Any, jacobian: Any, solver_lower: Any,
+                     solver_upper: Any, previous_qdot: Any, host_slew_scale: float,
+                     host_slew_delta_limit: float | None, packet_qdot: Any,
+                     solver_elapsed_s: float) -> None:
+        if self.attempt_sequence is None:
+            return
+        try:
+            host_time = float(host_monotonic_s)
+            actual_dt = float(actual_dt_s)
+            slew_scale = float(host_slew_scale)
+            slew_delta = (
+                -1.0 if host_slew_delta_limit is None
+                else float(host_slew_delta_limit)
+            )
+            solver_elapsed = float(solver_elapsed_s)
+            if (
+                not math.isfinite(host_time)
+                or not math.isfinite(actual_dt)
+                or not math.isfinite(slew_scale)
+                or not math.isfinite(slew_delta)
+                or not math.isfinite(solver_elapsed)
+            ):
+                raise ValueError('nonfinite scalar')
+            self.pending_values[0] = math.nan  # reference time is bound by the writer
+            self.pending_values[1] = host_time
+            self.pending_values[2] = math.nan  # publish time is bound by the writer
+            self.pending_values[3] = actual_dt
+            self.pending_values[4] = solver_elapsed
+            self.pending_values[5] = 0.0  # full-provider time is filled on return
+            self.pending_values[6] = slew_scale
+            self.pending_values[7] = slew_delta
+            self._copy_pending_vector(_TRACE_TWIST, desired_twist)
+            self._copy_pending_vector(_TRACE_LOWER, solver_lower)
+            self._copy_pending_vector(_TRACE_UPPER, solver_upper)
+            self._copy_pending_vector(_TRACE_PREVIOUS_QDOT, previous_qdot)
+            self._copy_pending_vector(_TRACE_PUBLISHED_QDOT, packet_qdot)
+            if len(jacobian) != 6:
+                raise ValueError('invalid replay Jacobian shape')
+            flat = _TRACE_JACOBIAN.start
+            for row in range(6):
+                if len(jacobian[row]) != 6:
+                    raise ValueError('invalid replay Jacobian shape')
+                for column in range(6):
+                    value = float(jacobian[row][column])
+                    if not math.isfinite(value):
+                        raise ValueError('nonfinite replay Jacobian')
+                    self.pending_values[flat] = value
+                    flat += 1
+            lower_slew_limit = slew_delta
+            if lower_slew_limit >= 0.0:
+                for joint in range(6):
+                    previous = self.pending_values[_TRACE_PREVIOUS_QDOT.start + joint]
+                    lower = self.pending_values[_TRACE_LOWER.start + joint]
+                    upper = self.pending_values[_TRACE_UPPER.start + joint]
+                    self.pending_values[_TRACE_SLEW_LOWER.start + joint] = max(
+                        lower, previous - lower_slew_limit
+                    )
+                    self.pending_values[_TRACE_SLEW_UPPER.start + joint] = min(
+                        upper, previous + lower_slew_limit
+                    )
+            else:
+                for joint in range(6):
+                    self.pending_values[_TRACE_SLEW_LOWER.start + joint] = (
+                        self.pending_values[_TRACE_LOWER.start + joint]
+                    )
+                    self.pending_values[_TRACE_SLEW_UPPER.start + joint] = (
+                        self.pending_values[_TRACE_UPPER.start + joint]
+                    )
+            # The packet qdot is deliberately not the provider proposal: the
+            # writer overwrites this vector from the exact successfully sent packet.
+            self.pending_ready = True
+        except (TypeError, ValueError, IndexError, OverflowError):
+            self.failure_flags |= self._INVALID_SAMPLE
+            self.missing_capture_count += 1
+            self.pending_ready = False
+
+    def set_provider_elapsed(self, elapsed_s: float) -> None:
+        if self.pending_ready:
+            value = float(elapsed_s)
+            if math.isfinite(value) and value >= 0.0:
+                self.pending_values[5] = value
+            else:
+                self.failure_flags |= self._INVALID_SAMPLE
+                self.missing_capture_count += 1
+                self.pending_ready = False
+
+    @staticmethod
+    def is_formal_path_time(reference_phase: str | None, reference_time_s: Any,
+                            duration_s: float) -> bool:
+        if reference_phase != 'path' or reference_time_s is None:
+            return False
+        try:
+            value = float(reference_time_s)
+        except (TypeError, ValueError):
+            return False
+        return math.isfinite(value) and 0.0 <= value < float(duration_s)
+
+    def commit_published(self, *, packet_sequence: int, published_at_s: float,
+                         reference_phase: str | None, reference_time_s: Any,
+                         packet_qdot: Any) -> None:
+        if not self.is_formal_path_time(reference_phase, reference_time_s,
+                                        self.path_duration_s):
+            if reference_phase == 'path' and reference_time_s is not None:
+                try:
+                    value = float(reference_time_s)
+                except (TypeError, ValueError):
+                    value = math.nan
+                if not math.isfinite(value) or value < 0.0:
+                    self.failure_flags |= self._INVALID_SAMPLE
+            self.pending_ready = False
+            return
+        if self.attempt_sequence is None:
+            self.failure_flags |= self._MISSING_EXPECTED_COUNT
+            self.missing_capture_count += 1
+            self.pending_ready = False
+            return
+        if not self.pending_ready:
+            self.missing_capture_count += 1
+            self.failure_flags |= self._INVALID_SAMPLE
+            return
+        sequence = int(packet_sequence)
+        if sequence <= self._last_packet_sequence:
+            self.failure_flags |= self._DUPLICATE_SEQUENCE
+            self.missing_capture_count += 1
+            self.pending_ready = False
+            return
+        if self.count >= self.capacity:
+            self.failure_flags |= self._OVERFLOW
+            self.dropped_count += 1
+            self.pending_ready = False
+            return
+        try:
+            ref_time = float(reference_time_s)
+            publish_time = float(published_at_s)
+            if not math.isfinite(ref_time) or not math.isfinite(publish_time):
+                raise ValueError('nonfinite publish reference')
+            if len(packet_qdot) != 6:
+                raise ValueError('invalid packet qdot width')
+            for joint in range(6):
+                value = float(packet_qdot[joint])
+                if not math.isfinite(value):
+                    raise ValueError('nonfinite packet qdot')
+                self.pending_values[_TRACE_PUBLISHED_QDOT.start + joint] = value
+        except (TypeError, ValueError, IndexError, OverflowError):
+            self.failure_flags |= self._INVALID_SAMPLE
+            self.missing_capture_count += 1
+            self.pending_ready = False
+            return
+        self.pending_values[0] = ref_time
+        self.pending_values[2] = publish_time
+        self.packet_sequences[self.count] = sequence
+        self.samples[self.count, :] = self.pending_values
+        for event_index in range(self.pending_transition_count):
+            if self.transition_count >= self.transition_capacity:
+                self.failure_flags |= self._TRANSITION_OVERFLOW
+                break
+            target = self.transition_count
+            self.transition_sequences[target] = sequence
+            self.transition_times_s[target] = ref_time
+            self.transition_kinds[target] = self.pending_transition_kinds[event_index]
+            self.transition_identities[target] = self.pending_transition_identities[event_index]
+            self.transition_states[target, :] = self.pending_transition_states[event_index, :]
+            if self.pending_transition_kinds[event_index] == 1:
+                self.path_origin_committed = True
+            self.transition_count += 1
+        self._last_packet_sequence = sequence
+        self.count += 1
+        self.pending_ready = False
+
+    def set_expected_count(self, count: int) -> None:
+        self.expected_count = int(count)
+
+    def iter_rows(self):
+        """Build serializable rows lazily in the child seal process."""
+        event_index = 0
+        for row_index in range(self.count):
+            sequence = int(self.packet_sequences[row_index])
+            values = self.samples[row_index]
+            events = []
+            while (event_index < self.transition_count
+                   and int(self.transition_sequences[event_index]) == sequence):
+                state = self.transition_states[event_index]
+                events.append({
+                    'event_type': _TRACE_TRANSITION_NAMES.get(
+                        int(self.transition_kinds[event_index]), 'unknown'
+                    ),
+                    'event_identity': int(self.transition_identities[event_index]),
+                    'reference_time_s': float(self.transition_times_s[event_index]),
+                    'lambda_state': state[:6].tolist(),
+                    'theta_dot_state': state[6:12].tolist(),
+                })
+                event_index += 1
+            yield {
+                'schema': TASE_REPLAY_TRACE_SCHEMA,
+                'attempt_sequence': self.attempt_sequence,
+                'packet_sequence': sequence,
+                'reference_phase': 'path',
+                'reference_time_s': float(values[0]),
+                'host_monotonic_s': float(values[1]),
+                'published_monotonic_s': float(values[2]),
+                'actual_dt_s': float(values[3]),
+                'solver_elapsed_s': float(values[4]),
+                'provider_elapsed_s': float(values[5]),
+                'host_slew_scale': float(values[6]),
+                'host_slew_delta_limit_rad_s': (
+                    None if values[7] < 0.0 else float(values[7])
+                ),
+                'requested_outer_twist_m_s_rad_s': values[_TRACE_TWIST].tolist(),
+                'solver_qdot_lower_rad_s': values[_TRACE_LOWER].tolist(),
+                'solver_qdot_upper_rad_s': values[_TRACE_UPPER].tolist(),
+                'jacobian_6x6': values[_TRACE_JACOBIAN].reshape(6, 6).tolist(),
+                'previous_published_qdot_rad_s': values[_TRACE_PREVIOUS_QDOT].tolist(),
+                'slew_adjusted_qdot_lower_rad_s': values[_TRACE_SLEW_LOWER].tolist(),
+                'slew_adjusted_qdot_upper_rad_s': values[_TRACE_SLEW_UPPER].tolist(),
+                'published_packet_qdot_rad_s': values[_TRACE_PUBLISHED_QDOT].tolist(),
+                'transition_events': events,
+            }
+
+    def validate_published_packets(self, published_packets: Any) -> dict[str, Any]:
+        captured = {int(self.packet_sequences[index]) for index in range(self.count)}
+        found: set[int] = set()
+        duplicate_published = 0
+        for entry in published_packets:
+            packet = entry[1] if isinstance(entry, (tuple, list)) and len(entry) == 2 else entry
+            if isinstance(packet, Mapping):
+                raw_sequence = packet.get('sequence', packet.get('packet_sequence'))
+            else:
+                raw_sequence = getattr(packet, 'sequence', None)
+            if raw_sequence is None:
+                continue
+            packet_sequence = int(raw_sequence)
+            if packet_sequence in found:
+                duplicate_published += 1
+            if packet_sequence in captured:
+                found.add(packet_sequence)
+        missing_join = len(captured - found)
+        if missing_join or duplicate_published:
+            self.failure_flags |= self._PACKET_JOIN_FAILURE
+        if self.expected_count is None:
+            self.failure_flags |= self._MISSING_EXPECTED_COUNT
+        elif self.count != self.expected_count:
+            self.failure_flags |= self._COUNT_MISMATCH
+        names = []
+        for flag, name in (
+            (self._OVERFLOW, 'tick_capacity_overflow'),
+            (self._TRANSITION_OVERFLOW, 'transition_capacity_overflow'),
+            (self._INVALID_SAMPLE, 'invalid_or_missing_sample'),
+            (self._DUPLICATE_SEQUENCE, 'duplicate_or_regressed_packet_sequence'),
+            (self._MISSING_EXPECTED_COUNT, 'expected_publish_count_missing'),
+            (self._COUNT_MISMATCH, 'published_tick_count_mismatch'),
+            (self._PACKET_JOIN_FAILURE, 'published_packet_sequence_join_failed'),
+            (self._INVALID_TRANSITION_STATE, 'invalid_recurrent_transition_state'),
+        ):
+            if self.failure_flags & flag:
+                names.append(name)
+        return {
+            'schema': TASE_REPLAY_TRACE_SCHEMA,
+            'attempt_sequence': self.attempt_sequence,
+            'capacity_ticks': self.capacity,
+            'record_count': self.count,
+            'expected_formal_path_publish_count': self.expected_count,
+            'transition_event_count': self.transition_count,
+            'dropped_record_count': self.dropped_count,
+            'missing_capture_count': self.missing_capture_count,
+            'missing_packet_sequence_joins': missing_join,
+            'duplicate_published_packet_sequences': duplicate_published,
+            'packet_sequence_join_passed': missing_join == 0 and duplicate_published == 0,
+            'complete': not names,
+            'failure_reasons': names,
+        }
 
 
 # A live safety transition, not a change to the paper gains.  The canonical
@@ -355,6 +742,10 @@ class TaseContactProvider(ContactCommandProvider):
         self.model_hashes = dict(self.runtime.model_hashes)
         self.solver_profile = solver_profile
         self.command_timeline = []
+        self.replay_evidence = _TaseReplayEvidenceBuffer(
+            capacity=max(1, int(math.ceil(self.path_duration_s * 500.0))),
+            path_duration_s=self.path_duration_s,
+        )
         self.reset_command_diagnostics()
         self.parameter_binding = (dict(parameter_binding) if parameter_binding is not None
                                   else {'schema': TASE_PARAMETER_SCHEMA,
@@ -371,6 +762,10 @@ class TaseContactProvider(ContactCommandProvider):
             raise ValueError("TASE parameter protocol identity differs from live request")
         self.parameter_binding.setdefault("protocol_id", self.protocol_id)
         self.parameter_binding.setdefault("path_duration_s", self.path_duration_s)
+
+    def reset_replay_evidence(self, attempt_sequence: int) -> None:
+        """Start a fresh fixed-capacity trace at the resident attempt boundary."""
+        self.replay_evidence.reset_attempt(attempt_sequence)
 
     def reference(self, stage_id, pose_xy, elapsed_s):
         if stage_id != 'step5d_strict_rnn_autotune_v1':
@@ -576,7 +971,8 @@ class TaseContactProvider(ContactCommandProvider):
         self.last_result['qdot_rad_s'] = values
 
     def confirm_published_packet(
-        self, qdot, *, packet_sequence: int, published_at_s: float
+        self, qdot, *, packet_sequence: int, published_at_s: float,
+        reference_phase: str | None = None, reference_time_s: float | None = None,
     ):
         """Commit output anti-windup only after the writer successfully sends."""
 
@@ -625,6 +1021,15 @@ class TaseContactProvider(ContactCommandProvider):
         self.last_result['published_packet_sequence'] = int(packet_sequence)
         self.last_result['published_at_s'] = float(published_at_s)
         self.last_result['published_output_feedback'] = copy.deepcopy(feedback)
+        replay_evidence = getattr(self, 'replay_evidence', None)
+        if replay_evidence is not None:
+            replay_evidence.commit_published(
+                packet_sequence=packet_sequence,
+                published_at_s=published_at_s,
+                reference_phase=reference_phase,
+                reference_time_s=reference_time_s,
+                packet_qdot=qdot,
+            )
 
     def pause(self, *, output, sensor, monotonic_s, actual_dt_s, reason):
         obs = self._observe(output, sensor, monotonic_s, actual_dt_s)
@@ -654,8 +1059,10 @@ class TaseContactProvider(ContactCommandProvider):
 
     def execution_command(self, **kwargs):
         started = time.perf_counter()
+        succeeded = False
         try:
             result = self.command(**kwargs)
+            succeeded = True
         except BaseException:
             self.command_diagnostics['failed_calls'] += 1
             raise
@@ -668,6 +1075,9 @@ class TaseContactProvider(ContactCommandProvider):
             )
             if elapsed > .002:
                 self.command_diagnostics['over_2ms_calls'] += 1
+        replay_evidence = getattr(self, 'replay_evidence', None)
+        if succeeded and replay_evidence is not None:
+            replay_evidence.set_provider_elapsed(elapsed)
         detail = self.last_result or {}
         if detail.get('phase') == 'path':
             self.command_diagnostics['path_calls'] += 1
@@ -726,6 +1136,7 @@ class TaseContactProvider(ContactCommandProvider):
         if mode not in ('baseline', 'path'):
             raise ValueError('unknown TASE phase')
         checkpoint = self.snapshot()
+        self.replay_evidence.begin_command()
         try:
             obs = self._observe(
                 output, sensor, monotonic_s, actual_dt_s,
@@ -735,6 +1146,12 @@ class TaseContactProvider(ContactCommandProvider):
             phase = 'baseline' if mode == 'baseline' else ('entry' if elapsed < 1. else 'path')
             t = elapsed-1. if phase == 'path' else elapsed
             self.reference_phase = phase
+            if phase == 'path' and not self.replay_evidence.path_origin_committed:
+                # The first successful formal PATH packet owns this origin
+                # snapshot; a failed send leaves the transition pending.
+                self.replay_evidence.stage_transition(
+                    1, 0, self.runtime.solver,
+                )
             if phase in ('entry', 'path'):
                 ref = self.reference('step5d_strict_rnn_autotune_v1', output.tcp_pose_m_rad[:2], t)
                 error_base = np.array((*ref['path_error_xy'], 0.))
@@ -769,6 +1186,7 @@ class TaseContactProvider(ContactCommandProvider):
             force_preempt_direction_retry = False
             force_preempt_approach_before_retry = None
             baseline_primitive_speed_m_s = 0.0
+            solver_elapsed_s = 0.0
             # Hysteresis is deliberately based on the measured full-force
             # channel.  The canonical filtered channel remains the evidence
             # signal, while this conservative transition prevents an already
@@ -831,12 +1249,18 @@ class TaseContactProvider(ContactCommandProvider):
                         mode=mode,
                     ))
                     if force_preempt_warm_start:
+                        self.replay_evidence.stage_transition(
+                            2, self.force_preempt_episode + 1, self.runtime.solver,
+                        )
                         self.force_preempt_warm_started = True
                         self.force_preempt_armed = False
                         self.force_preempt_episode += 1
                 command = self.runtime.command(actual_q=output.q_rad, actual_qd=output.qd_rad_s,
                     actual_tcp_pose=output.tcp_pose_m_rad, desired_twist=twist,
                     actual_dt_s=actual_dt_s, mode=mode, path_time_s=t)
+                solver_elapsed_s = (self.runtime.last_solver_diagnostics or {}).get(
+                    'solve_wall_s', math.nan,
+                )
                 # A warm-start at the force threshold fixes the initial RNN
                 # transient, but the recurrent state can drift back into contact
                 # while a high load persists.  Inspect the actual solved J*qdot;
@@ -854,6 +1278,10 @@ class TaseContactProvider(ContactCommandProvider):
                             mode=mode,
                         ))
                         if direction_warm_start:
+                            self.replay_evidence.stage_transition(
+                                3, self.force_preempt_direction_retry_count + 1,
+                                self.runtime.solver,
+                            )
                             command = self.runtime.command(
                                 actual_q=output.q_rad,
                                 actual_qd=output.qd_rad_s,
@@ -863,6 +1291,16 @@ class TaseContactProvider(ContactCommandProvider):
                                 mode=mode,
                                 path_time_s=t,
                             )
+                            retry_elapsed_s = (self.runtime.last_solver_diagnostics or {}).get(
+                                'solve_wall_s', math.nan,
+                            )
+                            if (isinstance(solver_elapsed_s, (int, float))
+                                and math.isfinite(solver_elapsed_s)
+                                and isinstance(retry_elapsed_s, (int, float))
+                                and math.isfinite(retry_elapsed_s)):
+                                solver_elapsed_s += retry_elapsed_s
+                            else:
+                                solver_elapsed_s = math.nan
                             force_preempt_direction_retry = True
                             self.force_preempt_direction_retry_count += 1
                             self.force_preempt_warm_started = True
@@ -1012,6 +1450,23 @@ class TaseContactProvider(ContactCommandProvider):
                 command.qdot, dtype=float
             )
             approach_normal_velocity = float(-predicted_twist[2])
+            if phase == 'path':
+                previous_published_qdot = (
+                    (self.command_history or {}).get('previous_qdot') or (0.0,) * 6
+                )
+                self.replay_evidence.stage_sample(
+                    host_monotonic_s=monotonic_s,
+                    actual_dt_s=actual_dt_s,
+                    desired_twist=twist,
+                    jacobian=command.jacobian_6x6,
+                    solver_lower=self.runtime.last_solver_qdot_lower,
+                    solver_upper=self.runtime.last_solver_qdot_upper,
+                    previous_qdot=previous_published_qdot,
+                    host_slew_scale=host_slew_scale,
+                    host_slew_delta_limit=host_slew_limit,
+                    packet_qdot=command.qdot,
+                    solver_elapsed_s=solver_elapsed_s,
+                )
             self.last_result = {'phase': phase, 'sample_time_s': monotonic_s,
                 'qdot_rad_s': command.qdot,
                 'actual_q_rad': tuple(float(value) for value in output.q_rad),

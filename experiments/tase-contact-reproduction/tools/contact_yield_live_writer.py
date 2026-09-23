@@ -684,6 +684,7 @@ class NativeYieldLiveWriter(R006LiveWriter):
         self._service_lock = threading.Lock()
         self._first_output_error = None
         self._host_path_publish_count = 0
+        self._host_formal_path_publish_count = 0
         self.reset_path_timing_stats()
 
     def _reopen_prearm_rtde(self) -> None:
@@ -763,6 +764,45 @@ class NativeYieldLiveWriter(R006LiveWriter):
             raise YieldLiveWriterError("four-attempt run evidence capacity reached")
         buffer.append(value)
 
+    def _after_transport_send_success(
+        self,
+        packet,
+        *,
+        command_mode,
+        reference_phase,
+        reference_time_s,
+        published_at_s,
+    ):
+        """Count path commands at RTDE success, before fallible post-send work."""
+
+        if command_mode is not CommandMode.PATH or reference_phase != "path":
+            return
+        self._host_path_publish_count = getattr(self, "_host_path_publish_count", 0) + 1
+        phase_time = None if reference_time_s is None else float(reference_time_s)
+        qualification = getattr(self, "_qualification_control", None)
+        provider = getattr(qualification, "contact_command_provider", None)
+        duration = float(getattr(provider, "path_duration_s", 60.0))
+        if phase_time is not None and 0.0 <= phase_time < duration:
+            # This count is the expected evidence denominator. If packet
+            # history or another later hook fails, the absent trace row makes
+            # the seal explicitly incomplete instead of dropping the packet.
+            self._host_formal_path_publish_count = (
+                getattr(self, "_host_formal_path_publish_count", 0) + 1
+            )
+        stats = getattr(self, "_path_timing_stats", None)
+        if stats is None or not math.isfinite(float(published_at_s)):
+            return
+        previous = stats["last_publish_s"]
+        stats["path_publishes"] += 1
+        if previous is not None and published_at_s > previous:
+            gap = float(published_at_s - previous)
+            stats["interpublish_intervals"] += 1
+            stats["max_interpublish_s"] = max(stats["max_interpublish_s"], gap)
+            if gap > .002:
+                stats["over_2ms_intervals"] += 1
+            stats["missed_2ms_slots_proxy"] += max(0, int(gap / .002) - 1)
+        stats["last_publish_s"] = float(published_at_s)
+
     def _send_packet(self, sensor, **kwargs):
         output = getattr(self, '_last_output', None)
         if (output is not None and output.integer_echoes.get(26) == 40
@@ -775,27 +815,14 @@ class NativeYieldLiveWriter(R006LiveWriter):
         if len(proposed) != 6 or any(not math.isfinite(x) or abs(x) > .05 for x in proposed):
             raise YieldLiveWriterError("native joint velocity limit exceeded (0.05 rad/s)")
         packet = super()._send_packet(sensor, **kwargs)
-        stats = getattr(self, "_path_timing_stats", None)
-        if (stats is not None and kwargs.get("command_mode") is CommandMode.PATH
-                and kwargs.get("reference_phase") == "path"):
-            published = self._last_writer_publish_mono_s
-            if published is not None:
-                previous = stats["last_publish_s"]
-                stats["path_publishes"] += 1
-                if previous is not None and published > previous:
-                    gap = float(published - previous)
-                    stats["interpublish_intervals"] += 1
-                    stats["max_interpublish_s"] = max(stats["max_interpublish_s"], gap)
-                    if gap > .002:
-                        stats["over_2ms_intervals"] += 1
-                    stats["missed_2ms_slots_proxy"] += max(0, int(gap / .002) - 1)
-                stats["last_publish_s"] = float(published)
+        qualification = getattr(self, "_qualification_control", None)
+        provider = getattr(qualification, "contact_command_provider", None)
+        phase = kwargs.get("reference_phase")
+        phase_time = kwargs.get("reference_time_s")
         if (
             kwargs.get("command_mode") is CommandMode.PATH
             and kwargs.get("reference_phase") in {"entry", "path"}
         ):
-            qualification = getattr(self, "_qualification_control", None)
-            provider = getattr(qualification, "contact_command_provider", None)
             confirm = getattr(provider, "confirm_published_packet", None)
             if callable(confirm):
                 # Use the qdot values in the packet that was sent, after all
@@ -805,14 +832,11 @@ class NativeYieldLiveWriter(R006LiveWriter):
                     tuple(float(value) for value in packet.double_values[13:19]),
                     packet_sequence=int(packet.sequence),
                     published_at_s=float(self._last_writer_publish_mono_s),
+                    reference_phase=kwargs.get("reference_phase"),
+                    reference_time_s=kwargs.get("reference_time_s"),
                 )
-        if (kwargs.get("reference_phase") == "path"
-            and kwargs.get("command_mode") is CommandMode.PATH):
-            self._host_path_publish_count += 1
         self._record(self.command_observations, (self._mono_clock(), packet))
         request = getattr(self, "live_path_request", None)
-        phase = kwargs.get("reference_phase")
-        phase_time = kwargs.get("reference_time_s")
         end = self._r013_path_early_end_controller
         # The TP consumes the end register on a later 500 Hz tick.  Requesting
         # it at the exact formal endpoint lets controller/host clock skew end

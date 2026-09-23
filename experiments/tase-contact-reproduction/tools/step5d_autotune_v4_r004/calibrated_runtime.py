@@ -269,6 +269,8 @@ class V4CalibratedRuntime:
                 )
             )
         self.last_solver_diagnostics: dict[str, Any] = {}
+        self.last_solver_qdot_lower: np.ndarray | None = None
+        self.last_solver_qdot_upper: np.ndarray | None = None
         self._active_mode: str | None = None
         self._outer_state = Step5dOuterLoopState()
         self._last_published_outer_feedback: dict[str, Any] | None = None
@@ -544,6 +546,10 @@ class V4CalibratedRuntime:
         upper = np.minimum(self.model.model.upperPositionLimit - q, qdot_limit)
         if np.any(lower > upper):
             raise CalibratedRuntimeError("joint velocity bounds are inverted")
+        # Retain the exact arrays supplied to the solver so the resident TASE
+        # trace does not reconstruct bounds from rounded report values.
+        self.last_solver_qdot_lower = lower
+        self.last_solver_qdot_upper = upper
         if mode in {"hold", "retract", "stop"}:
             if isinstance(self.solver_profile, QpSolverProfile):
                 self.solver.reset()

@@ -84,16 +84,26 @@ def _resident_service_task(
     run_dir: str,
     sequence: int,
     context: Mapping[str, Any],
-    buffers: Mapping[str, list[Any]],
+    buffers: Mapping[str, Any],
     frozen_service: Mapping[str, list[Any]],
 ) -> dict[str, Any]:
     """Serialize one immutable attempt snapshot outside the RTDE owner."""
 
     attempt_dir = Path(run_dir) / "attempts" / f"{int(sequence):04d}"
-    segments = {
-        name: _atomic_jsonl(attempt_dir / f"{name}.jsonl", list(rows))
-        for name, rows in buffers.items()
-    }
+    segments = {}
+    replay_evidence_status = None
+    for name, rows in buffers.items():
+        if name == "command_timeline" and callable(getattr(rows, "iter_rows", None)):
+            segments[name] = _atomic_jsonl(
+                attempt_dir / f"{name}.jsonl", rows.iter_rows()
+            )
+            replay_evidence_status = rows.validate_published_packets(
+                buffers.get("published_packets", ())
+            )
+        else:
+            segments[name] = _atomic_jsonl(
+                attempt_dir / f"{name}.jsonl", rows
+            )
     service_rows: list[dict[str, Any]] = []
     for label, rows in frozen_service.items():
         for row in rows:
@@ -120,6 +130,7 @@ def _resident_service_task(
         "service_segment": service_segment,
         "service_context": dict(context),
         "tp_stage_observations": stages,
+        "replay_evidence_status": replay_evidence_status,
     }
 
 
@@ -199,7 +210,7 @@ def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
         raise
 
 
-def _atomic_jsonl(path: Path, rows: list[Any]) -> dict[str, Any]:
+def _atomic_jsonl(path: Path, rows: Any) -> dict[str, Any]:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(
         prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
@@ -915,6 +926,11 @@ class ResidentSession:
         )
         if hasattr(self.writer, "_host_path_publish_count"):
             self.writer._host_path_publish_count = 0
+        if hasattr(self.writer, "_host_formal_path_publish_count"):
+            self.writer._host_formal_path_publish_count = 0
+        reset_replay = getattr(self.provider, "reset_replay_evidence", None)
+        if callable(reset_replay):
+            reset_replay(sequence)
         end = getattr(self.writer, "_r013_path_early_end_controller", None)
         if end is not None:
             end.arm(sequence)
@@ -1028,13 +1044,21 @@ class ResidentSession:
     def seal_attempt(self, item: dict[str, Any], *, service: bool = True) -> dict[str, Any]:
         sequence = int(item["sequence"])
         writer = self.writer
+        replay_evidence = getattr(self.provider, "replay_evidence", None)
+        if callable(getattr(replay_evidence, "iter_rows", None)):
+            replay_evidence.set_expected_count(
+                int(getattr(writer, "_host_formal_path_publish_count", 0))
+            )
+            command_timeline = replay_evidence
+        else:
+            command_timeline = list(getattr(self.provider, "command_timeline", ()))
         buffers = {
             "raw_sensor": list(getattr(writer, "raw_observations", ())),
             "robot_frames": list(getattr(writer, "robot_observations", ())),
             "admission_robot_frames": list(getattr(writer, "admission_robot_observations", ())),
             "rejected_robot_frames": list(getattr(writer, "rejected_robot_observations", ())),
             "published_packets": list(getattr(writer, "command_observations", ())),
-            "command_timeline": list(getattr(self.provider, "command_timeline", ())),
+            "command_timeline": command_timeline,
         }
         frozen_service, service_context = self._rotate_service_observations()
         # Once this immutable snapshot is forked, service observations belong
@@ -1059,6 +1083,11 @@ class ResidentSession:
         service_segment = dict(snapshot["service_segment"])
         service_counts = {name: len(rows) for name, rows in frozen_service.items()}
         sealed_lifecycle = {**dict(item.get("lifecycle") or {}), "sealed": True}
+        replay_status = snapshot.get("replay_evidence_status")
+        if isinstance(replay_status, Mapping):
+            sealed_lifecycle["replay_evidence_complete"] = bool(
+                replay_status.get("complete") is True
+            )
         seal = {
             "schema": RESIDENT_SEAL_SCHEMA,
             "session_schema": RESIDENT_SESSION_SCHEMA,
@@ -1071,6 +1100,8 @@ class ResidentSession:
             "service_buffer_rotated": True,
             "lifecycle": sealed_lifecycle,
         }
+        if isinstance(replay_status, Mapping):
+            seal["replay_evidence"] = dict(replay_status)
         timing = dict(item.get("timing") or {})
         timing["tp_stage_observations"] = snapshot["tp_stage_observations"]
         # The segment worker has finished and returned immutable digests. The

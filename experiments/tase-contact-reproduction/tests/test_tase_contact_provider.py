@@ -719,8 +719,13 @@ def test_native_writer_commits_output_feedback_only_after_successful_send(
         '_last_output': None,
         '_stopped': False,
         '_host_path_publish_count': 0,
+        '_host_formal_path_publish_count': 0,
+        '_path_timing_stats': None,
         '_last_writer_publish_mono_s': None,
         '_r013_path_early_end_controller': None,
+        'live_path_request': SimpleNamespace(
+            kind='r013_compat_60', path_duration_s=60.0
+        ),
         '_service_mode': False,
         '_mono_clock': lambda: 123.5,
         'command_observations': [],
@@ -728,10 +733,18 @@ def test_native_writer_commits_output_feedback_only_after_successful_send(
     packet_qdot = (0.01, 0.02, 0.03, 0.04, 0.05, 0.049)
     proposed_qdot = (0.011, 0.021, 0.031, 0.041, 0.048, 0.049)
 
-    def send_success(self, _sensor, **_kwargs):
+    def send_success(self, _sensor, **kwargs):
         self._last_writer_publish_mono_s = 123.5
         doubles = (0.0,) * 13 + packet_qdot + (0.0,) * 5
-        return SimpleNamespace(sequence=17, double_values=doubles)
+        packet = SimpleNamespace(sequence=17, double_values=doubles)
+        self._after_transport_send_success(
+            packet,
+            command_mode=kwargs['command_mode'],
+            reference_phase=kwargs['reference_phase'],
+            reference_time_s=kwargs['reference_time_s'],
+            published_at_s=123.5,
+        )
+        return packet
 
     def send_failure(self, _sensor, **_kwargs):
         raise OSError('synthetic packet send failure')
@@ -752,13 +765,350 @@ def test_native_writer_commits_output_feedback_only_after_successful_send(
         with pytest.raises(OSError, match='synthetic packet send failure'):
             send()
         assert calls == []
+        assert writer._host_formal_path_publish_count == 0
     else:
         packet = send()
         assert packet.sequence == 17
+        assert writer._host_path_publish_count == 1
+        assert writer._host_formal_path_publish_count == 1
         assert calls == [(
             packet_qdot,
-            {'packet_sequence': 17, 'published_at_s': 123.5},
+            {'packet_sequence': 17, 'published_at_s': 123.5,
+             'reference_phase': 'path', 'reference_time_s': 0.0},
         )]
+
+
+@pytest.mark.parametrize('send_fails', [False, True])
+def test_tase_replay_trace_commits_only_after_successful_path_send(
+    provider, monkeypatch, send_fails
+):
+    from types import SimpleNamespace
+
+    from contact_yield_live_writer import NativeYieldLiveWriter, R006LiveWriter
+    from step5d_autotune_v4_r004.wire import CommandMode
+
+    provider.reset_replay_evidence(1)
+    provider.bind_command_history((0.0,) * 6, 15.0)
+    output, sensor = tick(provider, .002, force=1.0)
+    command = provider.execution_command(
+        output=output, sensor=sensor, monotonic_s=.002, actual_dt_s=.002,
+        mode='path', path_time_s=1.25, internal_setpoint_n=1.0,
+    )
+    packet_qdot = tuple(command.qdot)
+    assert provider.replay_evidence.count == 0
+    assert provider.replay_evidence.pending_ready is True
+
+    writer = object.__new__(NativeYieldLiveWriter)
+    writer.__dict__.update({
+        '_qualification_control': SimpleNamespace(contact_command_provider=provider),
+        '_last_output': None,
+        '_stopped': False,
+        '_host_path_publish_count': 0,
+        '_host_formal_path_publish_count': 0,
+        '_path_timing_stats': None,
+        '_last_writer_publish_mono_s': None,
+        '_r013_path_early_end_controller': None,
+        'live_path_request': SimpleNamespace(
+            kind='r013_compat_60', path_duration_s=60.0
+        ),
+        '_service_mode': False,
+        '_mono_clock': lambda: 123.5,
+        'command_observations': [],
+    })
+
+    def send_success(self, _sensor, **kwargs):
+        self._last_writer_publish_mono_s = 123.5
+        doubles = (0.0,) * 13 + packet_qdot + (0.0,) * 5
+        packet = SimpleNamespace(sequence=17, double_values=doubles)
+        self._after_transport_send_success(
+            packet,
+            command_mode=kwargs['command_mode'],
+            reference_phase=kwargs['reference_phase'],
+            reference_time_s=kwargs['reference_time_s'],
+            published_at_s=123.5,
+        )
+        return packet
+
+    def send_failure(self, _sensor, **_kwargs):
+        raise OSError('synthetic packet send failure')
+
+    monkeypatch.setattr(
+        R006LiveWriter, '_send_packet',
+        send_failure if send_fails else send_success,
+    )
+    send = lambda: writer._send_packet(
+        None,
+        command_mode=CommandMode.PATH,
+        proposed_qdot=packet_qdot,
+        reference_phase='path',
+        reference_time_s=.25,
+    )
+    if send_fails:
+        with pytest.raises(OSError, match='synthetic packet send failure'):
+            send()
+        assert provider.replay_evidence.count == 0
+        assert writer._host_formal_path_publish_count == 0
+    else:
+        packet = send()
+        assert packet.sequence == 17
+        assert provider.replay_evidence.count == 1
+        assert writer._host_path_publish_count == 1
+        assert writer._host_formal_path_publish_count == 1
+        row = next(provider.replay_evidence.iter_rows())
+        assert row['packet_sequence'] == 17
+        assert row['reference_phase'] == 'path'
+        assert row['reference_time_s'] == pytest.approx(.25)
+        assert row['host_monotonic_s'] == pytest.approx(.002)
+        assert row['actual_dt_s'] == pytest.approx(.002)
+        assert row['published_packet_qdot_rad_s'] == pytest.approx(packet_qdot)
+        assert row['solver_qdot_lower_rad_s'] == pytest.approx(
+            provider.runtime.last_solver_qdot_lower
+        )
+        assert row['solver_qdot_upper_rad_s'] == pytest.approx(
+            provider.runtime.last_solver_qdot_upper
+        )
+        np.testing.assert_allclose(
+            row['jacobian_6x6'], provider.last_result['jacobian_6x6']
+        )
+        assert row['previous_published_qdot_rad_s'] == pytest.approx((0.0,) * 6)
+        assert row['host_slew_scale'] == pytest.approx(
+            provider.last_result['host_slew_scale']
+        )
+        slew_delta = row['host_slew_delta_limit_rad_s']
+        np.testing.assert_allclose(
+            row['slew_adjusted_qdot_lower_rad_s'],
+            np.maximum(provider.runtime.last_solver_qdot_lower, -slew_delta),
+        )
+        np.testing.assert_allclose(
+            row['slew_adjusted_qdot_upper_rad_s'],
+            np.minimum(provider.runtime.last_solver_qdot_upper, slew_delta),
+        )
+        assert row['requested_outer_twist_m_s_rad_s'] == pytest.approx(
+            provider.last_result['outer_output_feedback_pending'][
+                'task_space_command_twist'
+            ]
+        )
+        assert row['solver_elapsed_s'] >= 0.0
+        assert row['provider_elapsed_s'] > 0.0
+        assert row['transition_events'][0]['event_type'] == 'path_origin'
+
+
+def test_replay_trace_fails_closed_when_history_fails_after_transport_success(
+    provider, monkeypatch
+):
+    from types import SimpleNamespace
+
+    import step5d_autotune_v4_r004_live_writer as base_writer_module
+    from contact_yield_live_writer import NativeYieldLiveWriter
+    from step5d_autotune_v4_r004.wire import CommandMode
+
+    provider.reset_replay_evidence(9)
+    provider.bind_command_history((0.0,) * 6, 15.0)
+    output, sensor = tick(provider, .002, force=1.0)
+    command = provider.execution_command(
+        output=output, sensor=sensor, monotonic_s=.002, actual_dt_s=.002,
+        mode='path', path_time_s=1.25, internal_setpoint_n=1.0,
+    )
+    packet_qdot = tuple(command.qdot)
+    sent = []
+
+    class FakeTransport:
+        def send_packet(self, doubles, integers):
+            sent.append((doubles, integers))
+
+    class FailingHistory:
+        def record(self, *args, **kwargs):
+            raise RuntimeError('synthetic post-send history failure')
+
+    packet = SimpleNamespace(
+        sequence=17,
+        double_values=(0.0,) * 13 + packet_qdot + (0.0,) * 5,
+        integer_values=(0,) * 10,
+    )
+    monkeypatch.setattr(
+        base_writer_module, 'build_wire_packet', lambda *args, **kwargs: packet
+    )
+    writer = object.__new__(NativeYieldLiveWriter)
+    writer.__dict__.update({
+        '_qualification_control': SimpleNamespace(contact_command_provider=provider),
+        '_controller_transport': FakeTransport(),
+        '_kunwei_transport': object(),
+        'contract': object(),
+        'candidate': object(),
+        '_packet_sequence': 17,
+        '_session_input': lambda _mode: object(),
+        '_hot_path_mark': lambda *args, **kwargs: None,
+        '_packet_history': FailingHistory(),
+        '_stopped': False,
+        '_host_path_publish_count': 0,
+        '_host_formal_path_publish_count': 0,
+        '_path_timing_stats': None,
+        '_last_writer_publish_mono_s': None,
+        '_r013_path_early_end_controller': None,
+        '_service_mode': False,
+        '_mono_clock': lambda: 123.5,
+        'command_observations': [],
+    })
+    with pytest.raises(RuntimeError, match='synthetic post-send history failure'):
+        writer._send_packet(
+            sensor,
+            command_mode=CommandMode.PATH,
+            proposed_qdot=packet_qdot,
+            reference_phase='path',
+            reference_time_s=.25,
+        )
+
+    assert len(sent) == 1
+    assert writer._host_path_publish_count == 1
+    assert writer._host_formal_path_publish_count == 1
+    assert provider.replay_evidence.count == 0
+    provider.replay_evidence.set_expected_count(
+        writer._host_formal_path_publish_count
+    )
+    status = provider.replay_evidence.validate_published_packets([])
+    assert status['complete'] is False
+    assert 'published_tick_count_mismatch' in status['failure_reasons']
+
+
+def test_tase_replay_trace_captures_force_preempt_state_after_warm_start(provider):
+    provider.reset_replay_evidence(4)
+    provider.bind_command_history((0.0,) * 6, 15.0)
+    output, sensor = tick(provider, .002, force=8.0)
+    sensor = replace(sensor, normal_load_n=8.0, force_norm_n=8.0)
+    command = provider.execution_command(
+        output=output, sensor=sensor, monotonic_s=.002, actual_dt_s=.002,
+        mode='path', path_time_s=1.0, internal_setpoint_n=1.0,
+    )
+    assert provider.last_result['force_preempt_warm_start'] is True
+    provider.confirm_published_packet(
+        command.qdot, packet_sequence=28, published_at_s=.004,
+        reference_phase='path', reference_time_s=0.0,
+    )
+    events = next(provider.replay_evidence.iter_rows())['transition_events']
+    assert [event['event_type'] for event in events][:2] == [
+        'path_origin', 'force_preempt_warm_start',
+    ]
+    assert events[1]['event_identity'] == 1
+    assert len(events[1]['lambda_state']) == 6
+    assert len(events[1]['theta_dot_state']) == 6
+
+
+def test_tase_replay_trace_attempt_reset_discards_prior_sequences(provider):
+    capture = provider.replay_evidence
+    capture.reset_attempt(2)
+    capture.begin_command()
+    capture.stage_sample(
+        host_monotonic_s=1.0, actual_dt_s=.002,
+        desired_twist=(0.0,) * 6, jacobian=np.eye(6),
+        solver_lower=(-.15,) * 6, solver_upper=(.15,) * 6,
+        previous_qdot=(0.0,) * 6, host_slew_scale=1.0,
+        host_slew_delta_limit=.03, packet_qdot=(0.0,) * 6,
+        solver_elapsed_s=.0001,
+    )
+    capture.set_provider_elapsed(.0002)
+    capture.commit_published(
+        packet_sequence=81, published_at_s=1.001,
+        reference_phase='path', reference_time_s=4.0,
+        packet_qdot=(0.0,) * 6,
+    )
+    assert capture.count == 1
+
+    capture.reset_attempt(3)
+    assert capture.attempt_sequence == 3
+    assert capture.count == capture.transition_count == 0
+    assert capture.expected_count is None
+    assert capture._last_packet_sequence == -1
+    assert list(capture.iter_rows()) == []
+
+
+def test_tase_replay_trace_indexes_complete_metric_window_and_excludes_sixty():
+    from tase_contact_provider import _TaseReplayEvidenceBuffer
+
+    capture = _TaseReplayEvidenceBuffer(capacity=30_000, path_duration_s=60.0)
+    capture.reset_attempt(1)
+    zero = (0.0,) * 6
+    identity = np.eye(6)
+    lower, upper = (-.15,) * 6, (.15,) * 6
+    for index in range(30_000):
+        reference_time = index * .002
+        capture.begin_command()
+        capture.stage_sample(
+            host_monotonic_s=100.0 + reference_time,
+            actual_dt_s=.002,
+            desired_twist=zero,
+            jacobian=identity,
+            solver_lower=lower,
+            solver_upper=upper,
+            previous_qdot=zero,
+            host_slew_scale=1.0,
+            host_slew_delta_limit=.03,
+            packet_qdot=zero,
+            solver_elapsed_s=.0001,
+        )
+        capture.set_provider_elapsed(.0002)
+        capture.commit_published(
+            packet_sequence=index,
+            published_at_s=100.001 + reference_time,
+            reference_phase='path',
+            reference_time_s=reference_time,
+            packet_qdot=zero,
+        )
+    assert capture.count == 30_000
+    metric_times = capture.samples[:capture.count, 0]
+    metric_window = metric_times[(metric_times >= 5.0) & (metric_times < 60.0)]
+    assert len(metric_window) == 27_500
+    assert metric_window[0] == pytest.approx(5.0)
+    assert metric_window[-1] == pytest.approx(59.998)
+    capture.begin_command()
+    capture.stage_sample(
+        host_monotonic_s=160.0, actual_dt_s=.002,
+        desired_twist=zero, jacobian=identity,
+        solver_lower=lower, solver_upper=upper,
+        previous_qdot=zero, host_slew_scale=1.0,
+        host_slew_delta_limit=.03, packet_qdot=zero,
+        solver_elapsed_s=.0001,
+    )
+    capture.set_provider_elapsed(.0002)
+    capture.commit_published(
+        packet_sequence=30_000, published_at_s=160.001,
+        reference_phase='path', reference_time_s=60.0,
+        packet_qdot=zero,
+    )
+    assert capture.count == 30_000
+
+
+def test_tase_replay_trace_overflow_is_explicit_evidence_failure():
+    from tase_contact_provider import _TaseReplayEvidenceBuffer
+
+    capture = _TaseReplayEvidenceBuffer(capacity=1, path_duration_s=60.0)
+    capture.reset_attempt(1)
+    zero = (0.0,) * 6
+    identity = np.eye(6)
+    lower, upper = (-.15,) * 6, (.15,) * 6
+    for sequence in (1, 2):
+        capture.begin_command()
+        capture.stage_sample(
+            host_monotonic_s=float(sequence), actual_dt_s=.002,
+            desired_twist=zero, jacobian=identity,
+            solver_lower=lower, solver_upper=upper,
+            previous_qdot=zero, host_slew_scale=1.0,
+            host_slew_delta_limit=.03, packet_qdot=zero,
+            solver_elapsed_s=.0001,
+        )
+        capture.set_provider_elapsed(.0002)
+        capture.commit_published(
+            packet_sequence=sequence, published_at_s=float(sequence),
+            reference_phase='path', reference_time_s=(sequence - 1) * .002,
+            packet_qdot=zero,
+        )
+    capture.set_expected_count(2)
+    status = capture.validate_published_packets([
+        (1.0, {'sequence': 1}), (2.0, {'sequence': 2}),
+    ])
+    assert capture.count == 1
+    assert capture.dropped_count == 1
+    assert status['complete'] is False
+    assert 'tick_capacity_overflow' in status['failure_reasons']
 
 
 def test_live_tase_force_rise_guard_keeps_fixed_baseline_primitive_bounded(provider):

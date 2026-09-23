@@ -862,6 +862,24 @@ class LiveR004Writer:
             candidate_token=self._candidate_token,
         )
 
+    def _after_transport_send_success(
+        self,
+        packet: WirePacket,
+        *,
+        command_mode: CommandMode,
+        reference_phase: str | None,
+        reference_time_s: float | None,
+        published_at_s: float,
+    ) -> None:
+        """Hook the exact boundary where RTDE accepted a complete packet.
+
+        Subclasses may update bounded in-memory publication counters here.
+        This runs before any diagnostic hook or packet-history write that can
+        fail after the controller command has already been sent.
+        """
+
+        return None
+
     def _send_packet(
         self,
         sensor: SensorPacket,
@@ -893,10 +911,34 @@ class LiveR004Writer:
         # A partial send has an uncertain wire outcome; never reuse its id.
         self._packet_sequence += 1
         rtde.send_packet(packet.double_values, packet.integer_values)
-        self._hot_path_mark("transport_send_exit")
+        post_send_mark_error = None
+        try:
+            self._hot_path_mark("transport_send_exit")
+        except BaseException as exc:
+            # Preserve the original timing boundary, but still record a packet
+            # that has already crossed the transport success boundary below.
+            post_send_mark_error = exc
         published_at = self._mono_clock()
         self._last_writer_publish_mono_s = published_at
         self._last_writer_sequence = packet.sequence
+        # Record successful publication before fallible diagnostics/history.
+        # If later work fails, attempt sealing can fail closed against this
+        # count instead of silently omitting a command already on the wire.
+        self._after_transport_send_success(
+            packet,
+            command_mode=mode,
+            reference_phase=(
+                reference_phase if mode not in {CommandMode.HOLD, CommandMode.STOP}
+                else None
+            ),
+            reference_time_s=(
+                reference_time_s if mode not in {CommandMode.HOLD, CommandMode.STOP}
+                else None
+            ),
+            published_at_s=float(published_at),
+        )
+        if post_send_mark_error is not None:
+            raise post_send_mark_error
         self._hot_path_mark("publish_timestamp", published_monotonic_s=published_at)
         self._hot_path_mark("packet_history_enter")
         self._packet_history.record(
