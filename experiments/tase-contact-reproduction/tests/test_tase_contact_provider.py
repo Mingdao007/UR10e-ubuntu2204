@@ -1324,6 +1324,57 @@ def test_live_solver_profile_is_qp_only_for_tase_qp(tmp_path):
         )
 
 
+def test_qp_path_trace_does_not_require_rnn_recurrent_transitions():
+    from contact_qp import QpSolverProfile
+    from contact_yield_live_writer import QP_LIBRARY_PATH
+
+    profile = QpSolverProfile(
+        library=QP_LIBRARY_PATH,
+        qdot_limit_rad_s=.05,
+        deadline_s=.001,
+    )
+    p = TaseContactProvider(
+        contract=current_model_binding(),
+        candidate=V4Candidate(),
+        motion_profile=native_motion_profile(),
+        home_pose=load_identity_contract().home_pose,
+        solver_profile=profile,
+    )
+    try:
+        assert p._uses_recurrent_solver_state is False
+        assert p.force_preempt_armed is False
+        p.reset_replay_evidence(1)
+        output, sensor = tick(p, .002, force=6.0)
+        command = p.command(
+            output=output,
+            sensor=sensor,
+            monotonic_s=.002,
+            actual_dt_s=.002,
+            mode='path',
+            path_time_s=1.002,
+            internal_setpoint_n=5.0,
+        )
+        assert p.last_result['force_preempt_warm_start'] is False
+        assert p.last_result['force_preempt_direction_retry'] is False
+        assert p.last_result['outer_loop_binding'][
+            'force_preemptive_rnn_warm_start']['enabled'] is False
+        p.confirm_published_packet(
+            command.qdot,
+            packet_sequence=1,
+            published_at_s=.004,
+            reference_phase='path',
+            reference_time_s=.002,
+        )
+        p.replay_evidence.set_expected_count(1)
+        status = p.replay_evidence.validate_published_packets([{'sequence': 1}])
+        assert status['complete'] is True, status
+        assert status['transition_event_count'] == 0
+        assert p.replay_evidence.path_origin_committed is True
+        assert 'invalid_recurrent_transition_state' not in status['failure_reasons']
+    finally:
+        p.close()
+
+
 @pytest.mark.parametrize('dt', [.006, .012, .019])
 def test_mature_actual_dt_uses_existing_twenty_ms_timing_bound(provider, dt):
     o,s=tick(provider,.002)

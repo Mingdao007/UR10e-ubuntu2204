@@ -720,7 +720,10 @@ class TaseContactProvider(ContactCommandProvider):
         self.last_result = self.last_pause = None
         self.command_history = None
         self.force_preempt_warm_started = False
-        self.force_preempt_armed = True
+        self._uses_recurrent_solver_state = (
+            solver_profile.as_dict().get('backend') in {'numpy', 'cupy'}
+        )
+        self.force_preempt_armed = self._uses_recurrent_solver_state
         self.force_preempt_episode = 0
         self.force_preempt_direction_retry_count = 0
         self.last_measured_force_norm = None
@@ -1031,6 +1034,12 @@ class TaseContactProvider(ContactCommandProvider):
                 reference_time_s=reference_time_s,
                 packet_qdot=qdot,
             )
+            if (not self._uses_recurrent_solver_state
+                and reference_phase == 'path'
+                and replay_evidence.count > 0):
+                # QP has no recurrent lambda/theta transition to capture. Its
+                # controller-state origin is the first successful PATH packet.
+                replay_evidence.path_origin_committed = True
 
     def pause(self, *, output, sensor, monotonic_s, actual_dt_s, reason):
         obs = self._observe(output, sensor, monotonic_s, actual_dt_s)
@@ -1147,7 +1156,8 @@ class TaseContactProvider(ContactCommandProvider):
             phase = 'baseline' if mode == 'baseline' else ('entry' if elapsed < 1. else 'path')
             t = elapsed-1. if phase == 'path' else elapsed
             self.reference_phase = phase
-            if phase == 'path' and not self.replay_evidence.path_origin_committed:
+            if (phase == 'path' and not self.replay_evidence.path_origin_committed
+                and self._uses_recurrent_solver_state):
                 # The first successful formal PATH packet owns this origin
                 # snapshot; a failed send leaves the transition pending.
                 self.replay_evidence.stage_transition(
@@ -1193,7 +1203,8 @@ class TaseContactProvider(ContactCommandProvider):
             # signal, while this conservative transition prevents an already
             # rising load from being hidden by filter lag.  A low-force
             # observation re-arms exactly one warm-start for the next episode.
-            if measured_force_norm < TASE_FORCE_PREEMPT_REARM_N:
+            if (self._uses_recurrent_solver_state
+                and measured_force_norm < TASE_FORCE_PREEMPT_REARM_N):
                 self.force_preempt_armed = True
             # The early rate guard is deliberately projection-only.  It must
             # not repeatedly reset the recurrent state on noisy rise ticks;
@@ -1241,6 +1252,8 @@ class TaseContactProvider(ContactCommandProvider):
                 )
                 self.runtime.bind_command_twist(twist)
                 if (
+                    self._uses_recurrent_solver_state
+                    and
                     self.force_preempt_armed
                     and measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N
                 ):
@@ -1267,7 +1280,8 @@ class TaseContactProvider(ContactCommandProvider):
                 # while a high load persists.  Inspect the actual solved J*qdot;
                 # if it is still pressing during a high-force observation, reset
                 # once for this tick and solve the same desired twist again.
-                if measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N:
+                if (self._uses_recurrent_solver_state
+                    and measured_force_norm >= TASE_FORCE_PREEMPT_THRESHOLD_N):
                     preliminary_twist = np.asarray(command.jacobian_6x6, dtype=float) @ np.asarray(
                         command.qdot, dtype=float
                     )
@@ -1468,6 +1482,16 @@ class TaseContactProvider(ContactCommandProvider):
                     packet_qdot=command.qdot,
                     solver_elapsed_s=solver_elapsed_s,
                 )
+            outer_loop_binding = copy.deepcopy(TASE_PAPER_OUTER_BINDING)
+            if not self._uses_recurrent_solver_state:
+                outer_loop_binding['live_adaptations'] = [
+                    item for item in outer_loop_binding['live_adaptations']
+                    if 'RNN warm-start' not in item
+                ]
+                outer_loop_binding['force_preemptive_rnn_warm_start']['enabled'] = False
+                primitive = outer_loop_binding['fixed_baseline_contact_primitive']
+                primitive.pop('rnn_state', None)
+                primitive['solver_state'] = 'frozen_until_path'
             self.last_result = {'phase': phase, 'sample_time_s': monotonic_s,
                 'qdot_rad_s': command.qdot,
                 'actual_q_rad': tuple(float(value) for value in output.q_rad),
@@ -1520,7 +1544,7 @@ class TaseContactProvider(ContactCommandProvider):
                 'outer_output_feedback_pending': copy.deepcopy(
                     self.runtime._pending_outer_feedback
                 ),
-                'outer_loop_binding': copy.deepcopy(TASE_PAPER_OUTER_BINDING)}
+                'outer_loop_binding': outer_loop_binding}
             self.last_measured_force_norm = measured_force_norm
             return command
         except BaseException:

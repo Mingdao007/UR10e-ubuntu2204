@@ -953,10 +953,24 @@ def _run_live_with_resident_session(
             receipt['infrastructure_acceptance'] = infrastructure_report(
                 receipt, session_started_s=session_started_s,
                 finished_s=lifecycle_clock(), live=controller_transport is None)
+        first_home_check = next((
+            row for row in session.lifecycle_events
+            if row.get('stage') == 'HOME_CHECK'
+            and row.get('event') == 'verified'
+            and row.get('reason') == 'attempt_reset'
+        ), None)
+        home_check_s = (
+            None if first_home_check is None
+            else first_home_check.get('monotonic_s')
+        )
         try:
             receipt["lifecycle_events"] = lifecycle_events_from_writer(
                 mature.writer,
-                home_check_s=float(lifecycle_clock()),
+                # Use the observed Home-check event itself.  Calling the clock
+                # here would stamp HOME_CHECK at seal time after PATH/Home;
+                # falling back to a missing timestamp is safer than inventing
+                # one from the seal boundary.
+                home_check_s=home_check_s,
                 contact_search_s=None,
                 stop_s=float(lifecycle_clock()),
                 home_verified=bool(receipt.get("stop", {}).get("home_verified")),

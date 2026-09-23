@@ -343,7 +343,13 @@ def test_supervisor_owned_writer_lock_defers_home_until_lock_release(tmp_path, m
         "load_live_entry_config",
         lambda: {"user_standing_live_authority": True},
     )
-    monkeypatch.setattr(entry, "resolve_method", lambda _method: None)
+    monkeypatch.setattr(
+        entry,
+        "resolve_method",
+        lambda method: SimpleNamespace(
+            name=method, family="tase_mature", source_binding="test"
+        ),
+    )
     monkeypatch.setattr(
         entry,
         "load_identity_contract",
@@ -601,6 +607,20 @@ def test_pilot_diagnostic_is_not_full_period_acceptance(tmp_path: Path, lib):
     assert receipt['continuous_contact_path'] is True
     assert rtde.closed
     assert rtde._early_end_sequence == 1, receipt.get('error')
+    lifecycle = receipt['lifecycle_events']
+    from tase_r013_timing_ledger import ledger_from_receipts
+    ledger = ledger_from_receipts('timing-homecheck', lifecycle_events=lifecycle)
+    home_check_s = next(row['timestamp_s'] for row in lifecycle
+                        if row['stage'] == 'HOME_CHECK')
+    session_home_check_s = next(
+        row['monotonic_s'] for row in receipt['session']['lifecycle_events']
+        if row.get('stage') == 'HOME_CHECK'
+        and row.get('event') == 'verified'
+        and row.get('reason') == 'attempt_reset'
+    )
+    assert home_check_s == pytest.approx(session_home_check_s)
+    assert not any(row.get('reason') == 'timestamp_regressed_across_owner_boundaries'
+                   for row in ledger.missing_events)
     assert code == 0, receipt.get('error')
 
 
