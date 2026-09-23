@@ -299,6 +299,59 @@ def stationary(row):
             and max(abs(v) for v in row['actual_qd']) <= .001)
 
 
+def _verified_stopped_joint_home(result, supervisor):
+    """Return a fresh supervisor-owned Home sample, or None if it is not proven.
+
+    A completed TASE attempt can fail an evidence gate after the TP has already
+    returned to joint Home.  In that case Dashboard STOP plus the same fresh
+    RTDE sample is the recovery result; loading the Cartesian Home helper would
+    add an unnecessary second motion.
+    """
+    if result.get('program_stopped') is not True:
+        return None
+    stopped = result.get('dashboard_stop')
+    if not isinstance(stopped, dict):
+        return None
+    dashboard = stopped.get('dashboard')
+    sample = stopped.get('sample')
+    if not isinstance(dashboard, dict) or not isinstance(sample, dict):
+        return None
+    if (dashboard.get('is in remote control') != 'true'
+        or dashboard.get('safetymode') != 'Safetymode: NORMAL'
+        or dashboard.get('running') != 'Program running: false'
+        or not str(dashboard.get('programState', '')).startswith('STOPPED')):
+        return None
+    if (sample.get('safety_mode') != 1 or sample.get('robot_mode') != 7
+        or sample.get('runtime_state') != 1 or not stationary(sample)):
+        return None
+    if supervisor.home_q is None or supervisor.home_pose is None:
+        return None
+    try:
+        actual_q = [float(value) for value in sample['actual_q']]
+        actual_pose = [float(value) for value in sample['actual_TCP_pose']]
+        if (len(actual_q) != 6 or len(actual_pose) != 6
+            or not all(math.isfinite(value) for value in (*actual_q, *actual_pose))):
+            return None
+        joint_error = max(
+            abs(actual - target)
+            for actual, target in zip(actual_q, supervisor.home_q, strict=True)
+        )
+        position_error = math.dist(actual_pose[:3], supervisor.home_pose[:3])
+        import numpy as np
+        from contact_yield_math import so3_exp, so3_log
+        orientation_error = float(np.linalg.norm(
+            so3_log(so3_exp(actual_pose[3:]) @ so3_exp(supervisor.home_pose[3:]).T)
+        ))
+        if joint_error > .020 or position_error > .001 or orientation_error > .005:
+            return None
+        observed_at_s = float(sample['observed_at_s'])
+        if not math.isfinite(observed_at_s) or observed_at_s <= 0.0:
+            return None
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return None
+    return sample
+
+
 class ResidentSupervisor:
     def __init__(self, *, observer, video, read_dashboard, writer, target,
                  home_pose=None, home_q=None, clock=time.monotonic, sleep=time.sleep):
@@ -716,53 +769,74 @@ def main(argv=None):
         )
     result['video_policy'] = a.video_policy
     if a.action in ('qualify','pilot') and not result.get('success'):
-        try:
-            from run_contact_recovery import recover_failed_contact_run
-            result['autonomous_home_recovery']=recover_failed_contact_run(
-                a.run_dir, a.controller_host, a.video_url,
-                video_policy=a.video_policy,
-            )
-        except BaseException as exc:
-            # A recovery-owner exception is itself a commandable recovery
-            # event.  Give the Home module one last direct, monitored attempt
-            # before recording BLOCKED; only its communication/safety/
-            # geometry denial may leave the robot without a verified Home.
+        already_home = _verified_stopped_joint_home(result, supervisor)
+        if already_home is not None:
+            result['autonomous_home_recovery'] = {
+                'success': True,
+                'motion': False,
+                'state': 'HOME_ALREADY_VERIFIED',
+                'source_attempt': str(a.run_dir),
+                'trial_stays_failed': True,
+                'recovery_policy': 'AUTO_HOME_WHEN_COMMANDABLE',
+                'home_required': True,
+                'recovery_owner_invoked': False,
+                'home_commandability_checked': True,
+                'home_attempted': True,
+                'home_commandable': True,
+                'home_motion_dispatched': False,
+                'home_verified': True,
+                'verification_source': 'fresh Dashboard STOP plus stationary RTDE joint Home sample',
+                'sample': already_home,
+                'additional_motion_reason': 'attempt already reached approved joint Home',
+            }
+        else:
             try:
-                from run_contact_recovery import _emergency_home_when_commandable
-                import inspect
-                fallback_kwargs = {
-                    'video_url': a.video_url,
-                    'video_policy': a.video_policy,
-                }
-                if 'video_url' not in inspect.signature(_emergency_home_when_commandable).parameters:
-                    fallback_kwargs = {}
-                result['autonomous_home_recovery'] = _emergency_home_when_commandable(
-                    a.run_dir,
-                    a.run_dir.with_name(a.run_dir.name + '-autonomous-home-fallback'),
-                    a.controller_host,
-                    PACKAGE_DIR,
-                    reason=exc,
-                    **fallback_kwargs,
+                from run_contact_recovery import recover_failed_contact_run
+                result['autonomous_home_recovery']=recover_failed_contact_run(
+                    a.run_dir, a.controller_host, a.video_url,
+                    video_policy=a.video_policy,
                 )
-            except BaseException as fallback_exc:
-                result['autonomous_home_recovery']={
-                    'success':False,
-                    'motion':False,
-                    'state':'BLOCKED',
-                    'phase':'recovery-dispatch',
-                    'error':f'{type(fallback_exc).__name__}: {fallback_exc}',
-                    'source_attempt':str(a.run_dir),
-                    'trial_stays_failed':True,
-                    'recovery_policy':'AUTO_HOME_WHEN_COMMANDABLE',
-                    'home_required':True,
-                    'recovery_owner_invoked':True,
-                    'home_commandability_checked':False,
-                    'home_attempted':False,
-                    'home_commandable':False,
-                    'home_motion_dispatched':False,
-                    'home_blocked':True,
-                    'home_blocked_reason':f'{type(fallback_exc).__name__}: {fallback_exc}',
-                }
+            except BaseException as exc:
+                # A recovery-owner exception is itself a commandable recovery
+                # event.  Give the Home module one last direct, monitored attempt
+                # before recording BLOCKED; only its communication/safety/
+                # geometry denial may leave the robot without a verified Home.
+                try:
+                    from run_contact_recovery import _emergency_home_when_commandable
+                    import inspect
+                    fallback_kwargs = {
+                        'video_url': a.video_url,
+                        'video_policy': a.video_policy,
+                    }
+                    if 'video_url' not in inspect.signature(_emergency_home_when_commandable).parameters:
+                        fallback_kwargs = {}
+                    result['autonomous_home_recovery'] = _emergency_home_when_commandable(
+                        a.run_dir,
+                        a.run_dir.with_name(a.run_dir.name + '-autonomous-home-fallback'),
+                        a.controller_host,
+                        PACKAGE_DIR,
+                        reason=exc,
+                        **fallback_kwargs,
+                    )
+                except BaseException as fallback_exc:
+                    result['autonomous_home_recovery']={
+                        'success':False,
+                        'motion':False,
+                        'state':'BLOCKED',
+                        'phase':'recovery-dispatch',
+                        'error':f'{type(fallback_exc).__name__}: {fallback_exc}',
+                        'source_attempt':str(a.run_dir),
+                        'trial_stays_failed':True,
+                        'recovery_policy':'AUTO_HOME_WHEN_COMMANDABLE',
+                        'home_required':True,
+                        'recovery_owner_invoked':True,
+                        'home_commandability_checked':False,
+                        'home_attempted':False,
+                        'home_commandable':False,
+                        'home_motion_dispatched':False,
+                        'home_blocked':True,
+                        'home_blocked_reason':f'{type(fallback_exc).__name__}: {fallback_exc}',
+                    }
     # Fault recovery owns the robot before any potentially large serialization.
     for seal in deferred_seals:
         try:

@@ -1110,6 +1110,56 @@ def test_tase_replay_trace_attempt_reset_discards_prior_sequences(provider):
     assert list(capture.iter_rows()) == []
 
 
+def test_live_tase_replay_buffer_covers_the_bounded_path_end_handshake(provider):
+    import math
+    from contact_yield_protocol import PATH_END_HANDSHAKE_MARGIN_S
+
+    capture = provider.replay_evidence
+    expected_capacity = math.ceil(
+        (provider.path_duration_s + PATH_END_HANDSHAKE_MARGIN_S) * 500.0
+    )
+    assert capture.capacity == expected_capacity
+    assert capture.capacity >= 30_003
+    capture.reset_attempt(1)
+    zero = (0.0,) * 6
+    identity = np.eye(6)
+    lower, upper = (-.15,) * 6, (.15,) * 6
+    for sequence in range(30_003):
+        reference_time = sequence * .002
+        capture.begin_command()
+        capture.stage_sample(
+            host_monotonic_s=100.0 + reference_time,
+            actual_dt_s=.002,
+            desired_twist=zero,
+            jacobian=identity,
+            solver_lower=lower,
+            solver_upper=upper,
+            previous_qdot=zero,
+            host_slew_scale=1.0,
+            host_slew_delta_limit=.03,
+            packet_qdot=zero,
+            solver_elapsed_s=.0001,
+        )
+        capture.set_provider_elapsed(.0002)
+        capture.commit_published(
+            packet_sequence=sequence,
+            published_at_s=100.001 + reference_time,
+            reference_phase='path',
+            reference_time_s=reference_time,
+            packet_qdot=zero,
+        )
+    capture.set_expected_count(30_003)
+    status = capture.validate_published_packets([
+        (100.001 + sequence * .002, {'sequence': sequence})
+        for sequence in range(30_003)
+    ])
+
+    assert capture.count == 30_003
+    assert capture.dropped_count == 0
+    assert status['complete'] is True
+    assert status['record_count'] == status['expected_formal_path_publish_count']
+
+
 def test_tase_replay_trace_indexes_complete_metric_window_and_excludes_sixty():
     from tase_contact_provider import _TaseReplayEvidenceBuffer
 

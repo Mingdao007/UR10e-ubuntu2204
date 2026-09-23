@@ -21,7 +21,12 @@ import numpy as np
 from contact_benchmark_provider import ContactCommandProvider, ContactReadinessObserver, ContactForceObservation
 from contact_benchmark_protocol import SensorFreshnessTracker
 from contact_benchmark_runtime import validate_measured_observation
-from contact_yield_protocol import PATH_SEAM_CONTINUATION_S, Task, PERIOD_S
+from contact_yield_protocol import (
+    PATH_END_HANDSHAKE_MARGIN_S,
+    PATH_SEAM_CONTINUATION_S,
+    Task,
+    PERIOD_S,
+)
 from tase_figure8_protocol import (
     DURATION_S as R013_COMPAT60_DURATION_S,
     Figure8Window60Task,
@@ -44,9 +49,12 @@ from step5d_paper_outer_loop import (
 TASE_COMPUTE_BUCKETS_S = (.00025, .0005, .001, .0015, .002, .004)
 
 # The selected resident protocol is at most 60 s and the writer publishes at
-# 500 Hz. This fixed buffer holds the whole declared clock, including the
-# non-metric [0, 5) prefix and bounded final seam exclusion.
-TASE_REPLAY_MAX_PATH_TICKS = 60 * 500
+# 500 Hz. Reserve the existing 50 ms PATH-end handshake margin as trace space;
+# those samples remain outside the formal [5, 60) score window.
+TASE_REPLAY_TICK_RATE_HZ = 500.0
+TASE_REPLAY_MAX_PATH_TICKS = int(math.ceil(
+    (60.0 + PATH_END_HANDSHAKE_MARGIN_S) * TASE_REPLAY_TICK_RATE_HZ
+))
 TASE_REPLAY_TRACE_SCHEMA = 'tase.qp-replay-command-timeline-v1'
 _TRACE_TWIST = slice(8, 14)
 _TRACE_LOWER = slice(14, 20)
@@ -747,7 +755,10 @@ class TaseContactProvider(ContactCommandProvider):
         self.solver_profile = solver_profile
         self.command_timeline = []
         self.replay_evidence = _TaseReplayEvidenceBuffer(
-            capacity=max(1, int(math.ceil(self.path_duration_s * 500.0))),
+            capacity=max(1, int(math.ceil(
+                (self.path_duration_s + PATH_END_HANDSHAKE_MARGIN_S)
+                * TASE_REPLAY_TICK_RATE_HZ
+            ))),
             path_duration_s=self.path_duration_s,
         )
         self.reset_command_diagnostics()

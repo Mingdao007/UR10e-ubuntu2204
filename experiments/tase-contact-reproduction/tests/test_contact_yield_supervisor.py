@@ -7,6 +7,7 @@ from contact_yield_supervisor import (
     ResidentSupervisor,
     READABLE_RUNTIME_IDENTITY,
     VideoRecorder,
+    _verified_stopped_joint_home,
     validate_resident_candidate_directory,
 )
 from contact_yield_live import ObservedTransport
@@ -52,6 +53,68 @@ def rig(*, body_error=False, stop_delay=.1, safety_fault_at=None):
         read_dashboard=dashboard,writer=NS(write=write),target='/programs/test.urp',
         clock=lambda:t.now,sleep=lambda dt:setattr(t,'now',t.now+dt))
     return supervisor,body,t,events
+
+
+def test_fresh_stopped_joint_home_proof_suppresses_second_recovery_motion():
+    supervisor, _body, _time, _events = rig()
+    supervisor.home_q = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6)
+    supervisor.home_pose = (0.4, 0.2, 0.1, 0.0, 0.0, 0.0)
+    sample = supervisor.observer.latest()
+    sample.update(
+        actual_q=list(supervisor.home_q),
+        actual_TCP_pose=list(supervisor.home_pose),
+        safety_mode=1,
+        robot_mode=7,
+        runtime_state=1,
+        observed_at_s=100.5,
+    )
+    result = {
+        'success': False,
+        'program_stopped': True,
+        'dashboard_stop': {
+            'dashboard': {
+                'is in remote control': 'true',
+                'safetymode': 'Safetymode: NORMAL',
+                'running': 'Program running: false',
+                'programState': 'STOPPED test.urp',
+            },
+            'sample': sample,
+        },
+    }
+
+    assert _verified_stopped_joint_home(result, supervisor) is sample
+
+
+@pytest.mark.parametrize('change', [
+    lambda result, sample: result.update(program_stopped=False),
+    lambda result, sample: sample.update(safety_mode=3),
+    lambda result, sample: sample.update(actual_q=[0.2] * 6),
+    lambda result, sample: sample.update(actual_TCP_pose=[0.4, 0.2, 0.1, 0.0, 0.0, 0.006]),
+    lambda result, sample: sample.update(actual_qd=[0.02] * 6),
+])
+def test_stopped_home_shortcut_rejects_unverified_state(change):
+    supervisor, _body, _time, _events = rig()
+    supervisor.home_q = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6)
+    supervisor.home_pose = (0.4, 0.2, 0.1, 0.0, 0.0, 0.0)
+    sample = supervisor.observer.latest()
+    sample.update(actual_q=list(supervisor.home_q), actual_TCP_pose=list(supervisor.home_pose),
+                  safety_mode=1, robot_mode=7, runtime_state=1, observed_at_s=100.5)
+    result = {
+        'success': False,
+        'program_stopped': True,
+        'dashboard_stop': {
+            'dashboard': {
+                'is in remote control': 'true',
+                'safetymode': 'Safetymode: NORMAL',
+                'running': 'Program running: false',
+                'programState': 'STOPPED test.urp',
+            },
+            'sample': sample,
+        },
+    }
+    change(result, sample)
+
+    assert _verified_stopped_joint_home(result, supervisor) is None
 
 
 def test_ack_is_not_completion_and_observers_span_body_and_stop():
