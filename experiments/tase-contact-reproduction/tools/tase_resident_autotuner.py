@@ -285,7 +285,12 @@ def summarize(campaign_dir: Path, config: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def run_campaign(config_path: Path, campaign_dir: Path, *, resume: bool = False) -> dict[str, Any]:
+def run_campaign(
+    config_path: Path, campaign_dir: Path, *, resume: bool = False,
+    max_new_attempts: int | None = None,
+) -> dict[str, Any]:
+    if max_new_attempts is not None and max_new_attempts < 1:
+        raise ValueError("max_new_attempts must be positive")
     config = load_config(config_path)
     campaign_dir = Path(campaign_dir).expanduser().resolve()
     if campaign_dir.exists() and not resume:
@@ -317,13 +322,14 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, resume: bool = False)
     candidate_dir = campaign_dir / f"session-{generation:02d}-candidates"
     candidate_dir.mkdir(exist_ok=False)
     start_ordinal = len(rows)
+    end_ordinal = min(TOTAL, start_ordinal + max_new_attempts) if max_new_attempts else TOTAL
     first = _candidate_for(config, rows, start_ordinal)
     _atomic_json(candidate_dir / "candidate-0001.json", candidate_payload(first, config))
     command = [
         str(ROOT / "scripts/figure8.sh"), "--method", "TASE_RNN_MATURE",
         "--duration", "r013_60_rate400", "--control-cpu", str(config["control_cpu"]),
         "--video-policy", config["video_policy"],
-        "--resident-attempts", str(TOTAL - start_ordinal),
+        "--resident-attempts", str(end_ordinal - start_ordinal),
         "--resident-candidate-dir", str(candidate_dir),
         "--run-dir", str(session_dir),
     ]
@@ -331,7 +337,7 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, resume: bool = False)
     ordinal = start_ordinal
     sequence = 1
     try:
-        while ordinal < TOTAL:
+        while ordinal < end_ordinal:
             candidate = _candidate_for(config, rows, ordinal)
             path = session_dir / "attempts" / f"{sequence:04d}" / "attempt-result.json"
             while not (path.is_file() and path.with_name("seal.json").is_file()):
@@ -347,7 +353,7 @@ def run_campaign(config_path: Path, campaign_dir: Path, *, resume: bool = False)
             ordinal += 1
             sequence += 1
             summarize(campaign_dir, config)
-            if ordinal >= TOTAL or not row["safe_to_continue"] or process.poll() is not None:
+            if ordinal >= end_ordinal or not row["safe_to_continue"] or process.poll() is not None:
                 break
             next_candidate = _candidate_for(config, rows, ordinal)
             _atomic_json(
@@ -376,8 +382,10 @@ def main() -> int:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--campaign-dir", type=Path, required=True)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--max-new-attempts", type=int)
     args = parser.parse_args()
-    print(json.dumps(run_campaign(args.config, args.campaign_dir, resume=args.resume),
+    print(json.dumps(run_campaign(args.config, args.campaign_dir, resume=args.resume,
+                                  max_new_attempts=args.max_new_attempts),
                      sort_keys=True, allow_nan=False))
     return 0
 

@@ -226,6 +226,52 @@ def test_tuner_proposes_next_candidate_after_prior_seal(monkeypatch, tmp_path):
     assert [row["candidate_id"] for row in events] == ["initial-01", "initial-02"]
 
 
+def test_tuner_checkpoint_closes_owner_after_one_new_attempt(monkeypatch, tmp_path):
+    import tase_resident_autotuner as tuner
+
+    monkeypatch.setattr(tuner, "TOTAL", 3)
+    config = load_config()
+    monkeypatch.setattr(tuner, "_screening_initial", lambda _: _initial_row(config))
+
+    class FakeOwner:
+        def __init__(self, command, **_kwargs):
+            assert command[command.index("--resident-attempts") + 1] == "1"
+            self.returncode = None
+            self.thread = threading.Thread(target=self.run)
+            self.thread.start()
+
+        def run(self):
+            session = tmp_path / "campaign" / "session-01"
+            source = tmp_path / "campaign" / "session-01-candidates"
+            candidate_file = source / "candidate-0001.json"
+            until = time.monotonic() + 3
+            while not candidate_file.is_file():
+                assert time.monotonic() < until
+                time.sleep(0.005)
+            candidate = _candidate_for(config, [_initial_row(config)], 1)
+            _write_result(session / "attempts" / "0001" / "attempt-result.json", candidate, config)
+            (session / "dispatch_receipt.json").write_text(json.dumps({
+                "attempts": [{"sequence": 1}],
+                "stop": {"home_verified": True, "program_stopped": True},
+            }))
+            self.returncode = 0
+
+        def poll(self):
+            return self.returncode
+
+        def wait(self):
+            self.thread.join(timeout=4)
+            assert not self.thread.is_alive()
+            return self.returncode
+
+    monkeypatch.setattr(tuner.subprocess, "Popen", FakeOwner)
+    result = run_campaign(tuner.DEFAULT_CONFIG, tmp_path / "campaign", max_new_attempts=1)
+    assert result["attempted"] == 2  # initial-00 is the already sealed screening unit
+    assert result["status"] == "incomplete"
+    assert result["resident_sessions_closed"] is True
+    assert not (tmp_path / "campaign" / "session-01-candidates" / "candidate-0002.json").exists()
+
+
 def test_tuner_dispatches_next_candidate_after_sealed_rate_only_failure(monkeypatch, tmp_path):
     import tase_resident_autotuner as tuner
 
