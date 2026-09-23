@@ -1,8 +1,8 @@
 import json
 
 from tase_integral_screening import (
-    build_schedule, execute_campaign, load_screening_config, prepare_campaign,
-    score_campaign,
+    _session_verified_closed, build_schedule, execute_campaign,
+    load_screening_config, prepare_campaign, score_campaign,
 )
 import pytest
 
@@ -210,6 +210,35 @@ def test_later_blocked_recovery_overrides_earlier_home_stop(tmp_path):
     }))
     with pytest.raises(RuntimeError, match="verified joint Home and STOPPED"):
         execute_campaign(campaign, resume=True)
+
+
+def test_current_recovery_receipt_accepts_fresh_home_and_dashboard_stop(tmp_path):
+    session = tmp_path / "session-01"
+    attempt = session / "attempts" / "0001"
+    attempt.mkdir(parents=True)
+    (attempt / "attempt-result.json").write_text("{}\n")
+    (session / "dispatch_receipt.json").write_text(json.dumps({
+        "attempts": [{}],
+        "stop": {
+            "home_verified": True,
+            "observed_stationary": True,
+            "program_stopped": True,
+            "safety_mode": 1,
+            "dashboard_stop": {
+                "program_stopped": True,
+                "dashboard": {
+                    "running": "Program running: false",
+                    "programState": "STOPPED step5d_contact_six_qp_v1.urp",
+                    "safetymode": "Safetymode: NORMAL",
+                },
+            },
+        },
+    }), encoding="utf-8")
+    (session / "supervisor-result.json").write_text(json.dumps({
+        "autonomous_home_recovery": {"success": True, "home_verified": True},
+    }), encoding="utf-8")
+
+    assert _session_verified_closed(session) is True
 
 
 def test_recovery_evidence_directories_are_not_candidate_sessions(monkeypatch, tmp_path):

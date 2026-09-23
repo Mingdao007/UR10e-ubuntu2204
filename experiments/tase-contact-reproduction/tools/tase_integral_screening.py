@@ -150,11 +150,27 @@ def _session_verified_closed(session: Path) -> bool:
     recovery = supervisor.get("autonomous_home_recovery") or dispatch.get("automatic_home_recovery")
     if recovery is not None:
         # Recovery happens after the original stop. A later BLOCKED recovery
-        # supersedes an earlier Home/STOP observation.
+        # supersedes an earlier Home/STOP observation. Accept both the older
+        # nested dashboard_after receipt and the current typed recovery result,
+        # which carries home_verified separately from the final STOP receipt.
+        if recovery.get("success") is not True:
+            return False
+        if ((recovery.get("home") or {}).get("dashboard_after", {}).get("running")
+                == "Program running: false"):
+            return True
+        stop = dispatch.get("stop") or {}
+        dashboard_stop = stop.get("dashboard_stop") or {}
+        dashboard = dashboard_stop.get("dashboard") or {}
         return bool(
-            recovery.get("success") is True
-            and (recovery.get("home") or {}).get("dashboard_after", {}).get("running")
-            == "Program running: false"
+            recovery.get("home_verified") is True
+            and stop.get("home_verified") is True
+            and stop.get("observed_stationary") is True
+            and stop.get("program_stopped") is True
+            and dashboard_stop.get("program_stopped") is True
+            and dashboard.get("running") == "Program running: false"
+            and str(dashboard.get("programState", "")).startswith("STOPPED")
+            and dashboard.get("safetymode") == "Safetymode: NORMAL"
+            and stop.get("safety_mode") == 1
         )
     stop = dispatch.get("stop") or {}
     return stop.get("home_verified") is True and stop.get("program_stopped") is True

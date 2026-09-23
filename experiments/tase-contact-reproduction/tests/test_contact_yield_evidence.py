@@ -8,7 +8,11 @@ from yield_contact_evidence import (
     TaseR013Compat60PathEvidenceCollector,
     YieldPathEvidenceCollector,
 )
-from step5d_autotune_v4_r004_live_writer import BoundedPacketHistory, LiveWriterError
+from step5d_autotune_v4_r004_live_writer import (
+    BoundedPacketHistory,
+    LiveWriterError,
+    _r013_terminal_reference_in_seam,
+)
 from step5d_autotune_v4_r004.evidence import EvidenceError
 from test_step5d_autotune_v4_r004_evidence_ledger import _motion_sample
 
@@ -116,6 +120,60 @@ def test_r013_terminal_seam_closes_one_missing_rtde_frame():
     assert c._validated_path_coverage_interval_s() == pytest.approx(0.004)
     assert c._endpoint_closure_applied is True
     assert c._endpoint_closure_deficit_s == pytest.approx(0.002)
+
+
+def test_r013_returning_echo_closes_exclusive_60s_grid_endpoint():
+    history = BoundedPacketHistory()
+    history.record(0, published_at_s=100.0, qdot=(0.0,) * 6,
+                   reference_phase="path", reference_time_s=0.0)
+    c = TaseR013Compat60PathEvidenceCollector(
+        require_path_boundary=True,
+        published_reference_lookup=history.consumed,
+    )
+    c.mark_path_start(observed_at_s=100.0, rtde_timestamp_s=0.0, tp_sequence=0)
+    c._last_common_clock = (59.996, 1)
+    c._rtde_intervals_s.append(0.002)
+    terminal_clock = 60.0 - 0.000183360993105
+    history.record(1, published_at_s=160.0, qdot=(0.0,) * 6,
+                   reference_phase="path", reference_time_s=terminal_clock)
+
+    c.observe_terminal_reference(sequence=1)
+
+    assert terminal_clock < c.REQUIRED_DURATION_S
+    assert c._endpoint_closure_applied is True
+    interval = c._validated_path_coverage_interval_s()
+    assert c._endpoint_closure_deficit_s == pytest.approx(0.002)
+    assert interval == pytest.approx(0.004)
+    assert 59.996 + interval == pytest.approx(60.0)
+
+
+def test_r013_terminal_echo_cannot_close_more_than_one_measured_interval():
+    history = BoundedPacketHistory()
+    history.record(0, published_at_s=100.0, qdot=(0.0,) * 6,
+                   reference_phase="path", reference_time_s=0.0)
+    c = TaseR013Compat60PathEvidenceCollector(
+        require_path_boundary=True,
+        published_reference_lookup=history.consumed,
+    )
+    c.mark_path_start(observed_at_s=100.0, rtde_timestamp_s=0.0, tp_sequence=0)
+    c._last_common_clock = (59.996, 1)
+    c._rtde_intervals_s.append(0.002)
+    history.record(1, published_at_s=160.0, qdot=(0.0,) * 6,
+                   reference_phase="path", reference_time_s=59.996)
+
+    c.observe_terminal_reference(sequence=1)
+
+    assert c._endpoint_closure_applied is False
+    assert c._validated_path_coverage_interval_s() == pytest.approx(0.002)
+    assert 59.996 + c._validated_path_coverage_interval_s() < 60.0
+
+
+def test_returning_endpoint_gate_accepts_only_the_existing_bounded_seam():
+    assert _r013_terminal_reference_in_seam(59.999816639006895, 60.0)
+    assert _r013_terminal_reference_in_seam(60.0039, 60.0)
+    assert not _r013_terminal_reference_in_seam(59.995999, 60.0)
+    assert not _r013_terminal_reference_in_seam(60.004, 60.0)
+    assert not _r013_terminal_reference_in_seam(float("nan"), 60.0)
 
 
 def test_reference_endpoint_tolerance_is_sub_frame_and_explicit():

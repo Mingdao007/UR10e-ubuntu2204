@@ -32,6 +32,7 @@ class YieldPathEvidenceCollector(PathEvidenceCollector):
         self._published_reference_lookup = published_reference_lookup
         self._first_reference_time_s = None
         self._last_reference_time_s = None
+        self._terminal_reference_time_s = None
         self._endpoint_closure_applied = False
         self._endpoint_closure_deficit_s = 0.0
 
@@ -212,13 +213,34 @@ class TaseR013Compat60PathEvidenceCollector(PathEvidenceCollector):
         )
 
     def observe_terminal_reference(self, *, sequence):
-        """Record a consumed bounded seam packet without adding a metric sample."""
+        """Record a consumed end-frame PATH packet without adding a metric sample.
+
+        The exclusive 60 s grid need not contain a sample exactly at 60.  A
+        RETURNING-state echo of the last PATH reference closes the endpoint
+        only when that reference is within one measured RTDE interval of 60 s
+        and the independently measured physical-span deficit is also at most
+        one such interval.
+        """
 
         clock = self._reference(sequence)
         if self._last_reference_time_s is not None and clock < self._last_reference_time_s:
             raise EvidenceError("R013 consumed reference clock regressed")
         self._last_reference_time_s = clock
-        if clock >= self.REQUIRED_DURATION_S:
+        self._terminal_reference_time_s = clock
+        if self._path_start_rtde_timestamp_s is None or self._last_common_clock is None:
+            return clock
+        interval = PathEvidenceCollector._validated_path_coverage_interval_s(self)
+        physical_span = self._last_common_clock[0] - self._path_start_rtde_timestamp_s
+        duration = physical_span + interval
+        rounding = self._duration_rounding_bound(
+            physical_span=physical_span,
+            coverage_interval_s=interval,
+            duration=duration,
+        )
+        one_frame_bound = min(interval, PATH_SEAM_CONTINUATION_S) + rounding
+        terminal_gap = max(0.0, self.REQUIRED_DURATION_S - clock)
+        physical_deficit = self.REQUIRED_DURATION_S - duration
+        if terminal_gap <= one_frame_bound and 0.0 < physical_deficit <= one_frame_bound:
             self._endpoint_closure_applied = True
         return clock
 
@@ -230,7 +252,12 @@ class TaseR013Compat60PathEvidenceCollector(PathEvidenceCollector):
             return interval
         physical_span = self._last_common_clock[0] - self._path_start_rtde_timestamp_s
         deficit = self.REQUIRED_DURATION_S - (physical_span + interval)
-        if 0.0 < deficit <= PATH_SEAM_CONTINUATION_S:
+        rounding = self._duration_rounding_bound(
+            physical_span=physical_span,
+            coverage_interval_s=interval,
+            duration=physical_span + interval,
+        )
+        if 0.0 < deficit <= min(interval, PATH_SEAM_CONTINUATION_S) + rounding:
             self._endpoint_closure_deficit_s = deficit
             return interval + deficit
         return interval
@@ -275,6 +302,7 @@ class TaseR013Compat60PathEvidenceCollector(PathEvidenceCollector):
             "historical_compatibility": "R013",
             "endpoint_closure_applied": self._endpoint_closure_applied,
             "endpoint_closure_deficit_s": self._endpoint_closure_deficit_s,
+            "terminal_reference_time_s": self._terminal_reference_time_s,
             "path_seam_first_reference_s": self._first_reference_time_s,
             "path_seam_continuation_s": PATH_SEAM_CONTINUATION_S,
         }

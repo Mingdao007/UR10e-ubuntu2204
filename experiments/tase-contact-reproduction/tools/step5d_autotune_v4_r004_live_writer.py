@@ -106,6 +106,21 @@ PACKET_HISTORY_LIMIT = 2048
 DEFAULT_PATH_DURATION_S = 60.0
 
 
+def _r013_terminal_reference_in_seam(reference_time_s: Any, duration_s: float) -> bool:
+    """Identify the bounded endpoint reference consumed on RETURNING."""
+    try:
+        reference = float(reference_time_s)
+        duration = float(duration_s)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return bool(
+        math.isfinite(reference)
+        and math.isfinite(duration)
+        and duration - PATH_SEAM_CONTINUATION_S <= reference
+        and reference < duration + PATH_SEAM_CONTINUATION_S
+    )
+
+
 @dataclass(frozen=True)
 class WriterTick:
     packet_sequence: int
@@ -2050,10 +2065,10 @@ class LiveR004Writer:
                     source_ages["tp"] = max(0.0, now - consumed_entry.published_at_s)
                 elif state == 40 and path_collector is not None and entry_aware:
                     # The TP announces RETURNING before it starts the
-                    # bounded return motion. Its consumed echo is therefore
-                    # the final place where a PATH seam reference can be
-                    # proved when the last state-25 RTDE frame was one tick
-                    # early. It never contributes a metric sample.
+                    # bounded return motion. Its consumed echo is the final
+                    # place to prove the exclusive endpoint when the sampled
+                    # 500 Hz reference grid ends just before exactly 60 s. It
+                    # never contributes a force or motion metric sample.
                     consumed_entry = self._packet_history.consumed(consumed_sequence)
                     terminal_reference = getattr(
                         path_collector, "observe_terminal_reference", None
@@ -2061,9 +2076,9 @@ class LiveR004Writer:
                     if (
                         callable(terminal_reference)
                         and consumed_entry.reference_phase == "path"
-                        and formal_duration_s <= float(consumed_entry.reference_time_s)
-                        and float(consumed_entry.reference_time_s)
-                        < formal_duration_s + PATH_SEAM_CONTINUATION_S
+                        and _r013_terminal_reference_in_seam(
+                            consumed_entry.reference_time_s, formal_duration_s
+                        )
                     ):
                         terminal_reference(sequence=consumed_sequence)
 
