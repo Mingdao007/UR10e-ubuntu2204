@@ -96,6 +96,47 @@ def test_segmented_clearance_home_binds_intermediate_target_to_final_home(tmp_pa
     assert result['home_pose'] == pytest.approx(intermediate.tolist())
 
 
+def test_low_clearance_recovery_replans_vertical_steps_within_existing_15mm_bound():
+    from run_segmented_home_recovery import _next_clearance_target_z
+
+    first = _next_clearance_target_z(0.017412645)
+    assert first == pytest.approx(0.032412645)
+    second = _next_clearance_target_z(first)
+    assert second == pytest.approx(0.033)
+    assert first - 0.017412645 <= 0.015
+    assert second - first <= 0.015
+    assert _next_clearance_target_z(second) is None
+
+
+def test_bounded_withdrawal_package_stays_on_its_monitored_step_target(tmp_path):
+    h = receipt()
+    final_home = list(h['home_pose'])
+    final_home[:3] = list(FIGURE8_CONTACT_HOME_XYZ_M)
+    start = list(h['rtde']['actual_TCP_pose'])
+    start[2] = 0.017412645
+    target = list(start)
+    from run_segmented_home_recovery import _next_clearance_target_z
+    target[2] = _next_clearance_target_z(start[2])
+    h['rtde']['actual_TCP_pose'] = start
+    h['home_pose'] = target
+    h['final_home_pose'] = final_home
+    h['original_home_pose'] = final_home
+    h['clearance_entry'] = False
+    h['bounded_recovery'] = False
+    h['bounded_withdrawal'] = True
+    h['segmented_recovery'] = True
+    source = tmp_path / 'vertical-withdrawal.json'
+    source.write_text(json.dumps(h))
+
+    build(source, tmp_path / 'package')
+    text = (tmp_path / 'package' / f'{BASENAME}.script').read_text()
+    binding = json.loads((tmp_path / 'package' / f'{BASENAME}.binding.json').read_text())
+    assert 'local safe_transfer_z = 0.032412645' in text
+    assert 'local safe_transfer_z = 0.033000000' not in text
+    assert binding['bounded_withdrawal'] is True
+    assert binding['numeric_sanity']['contact'] is True
+
+
 def test_relief_reuses_historical_vertical_motion(tmp_path):
     h=recovery();p=tmp_path/'home.json';p.write_text(json.dumps(h));out=tmp_path/'recovery-package'
     build_recovery(p,out)

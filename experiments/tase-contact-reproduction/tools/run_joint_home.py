@@ -22,6 +22,13 @@ from step5c_calibrated_kinematics_audit import rotvec_to_matrix
 TARGET = f"{CONTROLLER_DIR}/{PROGRAM}.urp"
 
 
+def _require_readback_validation(validation: dict) -> None:
+    """Accept the canonical package validator's state field and legacy status."""
+    state = validation.get("state", validation.get("status"))
+    if validation.get("pass") is not True or state != "controller read-back verified":
+        raise RuntimeError("fresh controller read-back manifest required")
+
+
 def _errors(pose: list[float] | np.ndarray, q: list[float] | np.ndarray) -> tuple[float, float, float]:
     actual_pose = np.asarray(pose, dtype=float)
     actual_q = np.asarray(q, dtype=float)
@@ -35,8 +42,7 @@ def _errors(pose: list[float] | np.ndarray, q: list[float] | np.ndarray) -> tupl
 
 def run(args: argparse.Namespace) -> dict:
     validation = json.loads(args.validation.read_text(encoding="utf-8"))
-    if validation.get("status") != "controller read-back verified":
-        raise RuntimeError("fresh controller read-back manifest required")
+    _require_readback_validation(validation)
     for suffix in ("script", "txt", "urp"):
         if (args.package_dir / f"{PROGRAM}.{suffix}").read_bytes() != (args.readback_dir / f"{PROGRAM}.{suffix}").read_bytes():
             raise RuntimeError(f"controller read-back differs for .{suffix}")

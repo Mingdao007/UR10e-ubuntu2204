@@ -144,7 +144,18 @@ def build(receipt,output):
   end
 '''
     if text.count(marker)!=1:raise ValueError('Home helper source differs')
-    text=text.replace(marker,guard+marker+target_clearance)
+    if withdrawal is not None:
+        # A bounded withdrawal is one monitored vertical segment, capped by
+        # withdrawal_geometry at 15 mm.  Do not route it through the later
+        # 33 mm clearance plane: that would overshoot a partial segment and
+        # then descend to its intermediate target.  Later segments replan
+        # from fresh RTDE until the clearance floor is actually reached.
+        segment_z = max(float(observed[2]), float(target[2]))
+        transfer_marker = f'  local safe_transfer_z = {segment_z:.9f}\n'
+        clearance = transfer_marker
+    else:
+        clearance = marker + target_clearance
+    text=text.replace(marker,guard+clearance)
     text='\n'.join(l for l in text.splitlines() if not l.startswith(('# MOTION_SEGMENT_', '# GEOMETRY_BASIS_')))+'\n'
     text=text.replace(
         '# BLEND_RADIUS_M:',

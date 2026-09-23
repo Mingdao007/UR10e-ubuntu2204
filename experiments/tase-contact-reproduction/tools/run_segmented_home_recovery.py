@@ -25,6 +25,7 @@ from build_contact_home import BASENAME, build as build_home
 from build_contact_benchmark_triplet import CONTROLLER_DIR
 from contact_yield_live_contract import load_identity_contract
 from contact_yield_math import so3_exp, so3_log
+from contact_home_recovery_policy import MAX_RISE_M
 from run_contact_home import Observer, run as run_home
 from step5d_remote_startup import dashboard_exchange
 
@@ -44,6 +45,8 @@ MAX_SEGMENT_ANGLE_RAD = 0.012
 MAX_SEGMENTS = 40
 STATIONARY_SPEED_M_S = 0.0005
 STATIONARY_QD_RAD_S = 0.001
+CLEARANCE_FLOOR_Z_M = 0.033
+CLEARANCE_TOLERANCE_M = 0.0001
 
 
 def _stationary(row: dict) -> bool:
@@ -116,6 +119,22 @@ def _segment_count(start: np.ndarray, target: np.ndarray) -> int:
     if count > MAX_SEGMENTS:
         raise RuntimeError(f"segmented Home needs {count} segments, exceeds bound {MAX_SEGMENTS}")
     return count
+
+
+def _next_clearance_target_z(start_z: float) -> float | None:
+    """Return one vertical-only clearance step within the existing rise bound."""
+    start = float(start_z)
+    if not math.isfinite(start):
+        raise ValueError("vertical clearance start Z is nonfinite")
+    remaining = CLEARANCE_FLOOR_Z_M - start
+    if remaining <= CLEARANCE_TOLERANCE_M:
+        return None
+    if remaining <= MAX_RISE_M:
+        return CLEARANCE_FLOOR_Z_M
+    step_target = start + MAX_RISE_M
+    if step_target - start > MAX_RISE_M:
+        step_target = math.nextafter(step_target, start)
+    return step_target
 
 
 def _home_receipt(start: dict, target: np.ndarray, final_target: np.ndarray, q: list[float], index: int) -> dict:
@@ -211,11 +230,12 @@ def _run_vertical_clearance_withdrawal(
 
     start_pose = np.asarray(fresh["actual_TCP_pose"], dtype=float)
     target = start_pose.copy()
-    target[2] = 0.033
-    rise = float(target[2] - start_pose[2])
-    if rise <= 0.0001:
+    next_z = _next_clearance_target_z(float(start_pose[2]))
+    if next_z is None:
         return {"skipped": True, "reason": "already_at_clearance_floor", "start_pose": start_pose.tolist()}
-    if rise > 0.015:
+    target[2] = next_z
+    rise = float(target[2] - start_pose[2])
+    if rise > MAX_RISE_M + 1e-12:
         raise RuntimeError(f"vertical clearance rise {rise:g}m exceeds 15mm bound")
     from run_contact_recovery import check_geometry
 
@@ -336,7 +356,7 @@ def run(args: argparse.Namespace) -> dict:
         observer, fresh = _fresh_stationary(args.host)
         observer.close()
         current = np.asarray(fresh["actual_TCP_pose"], dtype=float)
-        if current[2] < 0.032:
+        if current[2] < CLEARANCE_FLOOR_Z_M - CLEARANCE_TOLERANCE_M:
             try:
                 vertical = _run_vertical_clearance_withdrawal(
                     host=args.host,
@@ -352,10 +372,15 @@ def run(args: argparse.Namespace) -> dict:
                 result["failure"] = f"{type(exc).__name__}: {exc}"
                 break
             result["vertical_clearance_withdrawal"] = vertical
+            result.setdefault("vertical_clearance_withdrawals", []).append(vertical)
             observer2, fresh2 = _fresh_stationary(args.host)
             observer2.close()
             current = np.asarray(fresh2["actual_TCP_pose"], dtype=float)
             fresh = fresh2
+            if current[2] < CLEARANCE_FLOOR_Z_M - CLEARANCE_TOLERANCE_M:
+                # The next bounded vertical step gets a new RTDE sample,
+                # geometry proof, package read-back, and force monitor.
+                continue
         lateral = float(np.linalg.norm(current[:2] - final_target[:2]))
         angle = float(np.linalg.norm(so3_log(so3_exp(final_target[3:]) @ so3_exp(current[3:]).T)))
         position_error = float(np.linalg.norm(current[:3] - final_target[:3]))

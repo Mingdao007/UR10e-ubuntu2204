@@ -1,7 +1,18 @@
 import gzip
 import xml.etree.ElementTree as ET
+import pytest
 
 from build_joint_home import CONTROLLER_DIR, HOME_POSE, HOME_Q, PROGRAM, build
+from run_joint_home import _require_readback_validation
+
+
+def test_joint_home_accepts_canonical_readback_state_and_rejects_invalid_report():
+    _require_readback_validation({"pass": True, "state": "controller read-back verified"})
+    _require_readback_validation({"pass": True, "status": "controller read-back verified"})
+    with pytest.raises(RuntimeError, match="read-back"):
+        _require_readback_validation({"pass": False, "state": "controller read-back verified"})
+    with pytest.raises(RuntimeError, match="read-back"):
+        _require_readback_validation({"pass": True, "state": "read-back invalid"})
 
 
 def test_joint_home_binds_historical_joint_target(tmp_path):
