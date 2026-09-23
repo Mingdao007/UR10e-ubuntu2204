@@ -68,7 +68,16 @@ def test_screening_score_keeps_failed_diagnostic_out_of_selection(tmp_path):
                 "complete_bins": 550,
                 "protocol_id": parameter["protocol_id"],
                 "timing_gate_passed": eligible,
-                "timing_evidence": {"acceptance_protocol_id": parameter["protocol_id"]},
+                "timing_evidence": {
+                    "acceptance_protocol_id": parameter["protocol_id"],
+                    "minimum_rate_hz": 400.0,
+                    "layer_rates_hz": {
+                        "writer_publishes": 369.4,
+                        "rtde_frames": 369.4,
+                        "kunwei_frames": 999.95,
+                        "tp_consumed_packet_echoes": 369.4,
+                    },
+                },
                 "normal_force_mae_n": 1.0 if eligible else 0.1,
             }},
         }))
@@ -77,6 +86,11 @@ def test_screening_score_keeps_failed_diagnostic_out_of_selection(tmp_path):
     assert [row["status"] for row in result["attempts"]] == ["complete", "failed"]
     assert result["attempts"][1]["mae_n"] is None
     assert result["attempts"][1]["diagnostic_mae_n"] == 0.1
+    assert result["attempts"][1]["failure"] == (
+        "rate_below_minimum:rtde_frames=369.4<400.0Hz,"
+        "tp_consumed_packet_echoes=369.4<400.0Hz,"
+        "writer_publishes=369.4<400.0Hz"
+    )
 
 
 def test_screening_execute_uses_one_resident_manifest(monkeypatch, tmp_path):

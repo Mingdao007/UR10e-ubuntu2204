@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 import sys
 import time
@@ -301,21 +302,75 @@ def request_process_stop(run_dir):
 
 
 def resident_candidate_can_continue(item: Mapping[str, Any], *, research_campaign: bool) -> bool:
-    """A failed score may consume budget only after sealed Home and sound timing."""
+    """Allow a safely sealed rate-shortfall attempt to consume research budget.
+
+    A rate miss is an ineligible observation, not a controller/runtime fault.
+    Continue only when all non-rate timing predicates and physical lifecycle
+    gates passed; other failed evidence remains fail-closed.
+    """
 
     if item.get("evidence_eligible") is True:
         return True
-    metrics = (item.get("evidence") or {}).get("metrics") or {}
+    evidence = item.get("evidence") or {}
+    metrics = evidence.get("metrics") or {}
     lifecycle = item.get("lifecycle") or {}
-    return bool(
+    if not (
         research_campaign
         and lifecycle.get("path_complete") is True
         and metrics.get("complete_bins") == 550
-        and metrics.get("timing_gate_passed") is True
         and lifecycle.get("home_verified") is True
         and lifecycle.get("ready_for_next") is True
         and lifecycle.get("sealed") is True
+        and evidence.get("safety_gate_passed") is True
+        and evidence.get("contact_gate_passed") is True
+        and evidence.get("return_gate_passed") is True
+        and metrics.get("motion_gate_passed") is True
+        and metrics.get("timing_gate_passed") is False
+    ):
+        return False
+
+    timing = metrics.get("timing_evidence") or evidence.get("timing_evidence") or {}
+    rates = timing.get("layer_rates_hz") or {}
+    minimum_rate_hz = timing.get("minimum_rate_hz")
+    duration_s = timing.get("duration_s")
+    required_rates = (
+        "writer_publishes", "rtde_frames", "kunwei_frames",
+        "tp_consumed_packet_echoes",
     )
+    if (not isinstance(minimum_rate_hz, (int, float))
+            or isinstance(minimum_rate_hz, bool)
+            or not math.isfinite(float(minimum_rate_hz))
+            or not isinstance(duration_s, (int, float))
+            or isinstance(duration_s, bool)
+            or not math.isfinite(float(duration_s))
+            or duration_s <= 0
+            or not all(isinstance(rates.get(key), (int, float))
+                       and not isinstance(rates.get(key), bool)
+                       and math.isfinite(float(rates[key]))
+                       and rates[key] >= 0 for key in required_rates)):
+        return False
+    if not any(rates[key] < minimum_rate_hz for key in required_rates):
+        return False
+
+    # The rate floor must be the only timing predicate that failed. Preserve
+    # existing strict freshness and feedback-age limits unchanged.
+    max_gap = timing.get("max_fresh_gap_s")
+    max_gap_limit = timing.get("max_fresh_gap_limit_s")
+    stale_stop = timing.get("runtime_stale_stop_s")
+    p99_age = timing.get("feedback_age_p99_s")
+    p99_limit = timing.get("feedback_age_p99_max_s")
+    values = (max_gap, max_gap_limit, stale_stop, p99_age, p99_limit)
+    if any(not isinstance(value, (int, float)) or isinstance(value, bool)
+           or not math.isfinite(float(value)) for value in values):
+        return False
+    if not (max_gap < max_gap_limit and max_gap < stale_stop and p99_age <= p99_limit):
+        return False
+
+    expected_protocol = metrics.get("protocol_id")
+    if (not isinstance(expected_protocol, str)
+            or timing.get("acceptance_protocol_id") != expected_protocol):
+        return False
+    return True
 
 
 def resident_candidate_path(candidate_dir: Path, ordinal: int) -> Path:

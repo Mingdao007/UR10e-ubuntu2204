@@ -236,6 +236,27 @@ def score_campaign(campaign_dir: Path) -> dict[str, Any]:
             and math.isfinite(float(metrics["normal_force_mae_n"]))
         )
         mae = float(metrics["normal_force_mae_n"]) if eligible else None
+        failure = None
+        if not eligible:
+            failure = (
+                item.get("failed_after_collector")
+                or (item.get("evidence") or {}).get("failure")
+                or metrics.get("failure")
+            )
+            if failure is None and metrics.get("timing_gate_passed") is False:
+                minimum_rate = timing.get("minimum_rate_hz")
+                rates = timing.get("layer_rates_hz") or {}
+                if isinstance(minimum_rate, (int, float)) and not isinstance(minimum_rate, bool):
+                    slow_layers = [
+                        f"{name}={float(rate):.1f}<{float(minimum_rate):.1f}Hz"
+                        for name, rate in sorted(rates.items())
+                        if isinstance(rate, (int, float)) and not isinstance(rate, bool)
+                        and float(rate) < float(minimum_rate)
+                    ]
+                    if slow_layers:
+                        failure = "rate_below_minimum:" + ",".join(slow_layers)
+            if failure is None:
+                failure = "evidence_ineligible"
         attempts.append({
             "ordinal": index, "arm_id": row["arm_id"],
             "candidate_id": row["candidate_id"],
@@ -247,11 +268,7 @@ def score_campaign(campaign_dir: Path) -> dict[str, Any]:
             "complete_bins": metrics.get("complete_bins"),
             "home_verified": item.get("lifecycle", {}).get("home_verified") is True,
             "sealed": sealed,
-            "failure": None if eligible else (
-                item.get("failed_after_collector")
-                or (item.get("evidence") or {}).get("failure")
-                or metrics.get("failure") or "evidence_ineligible"
-            ),
+            "failure": failure,
         })
     arms: dict[str, dict[str, Any]] = {}
     for arm_id in "ABCDE":

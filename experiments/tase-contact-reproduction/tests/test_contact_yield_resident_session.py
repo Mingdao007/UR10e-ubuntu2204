@@ -266,28 +266,74 @@ def test_reacquired_home_triggers_refresh_after_measured_settle(tmp_path, monkey
     assert session._refresh_reasons == {'home_reacquired'}
 
 
-def test_failed_candidate_consumes_budget_only_after_sound_home_and_timing():
+def test_research_candidate_continues_after_only_rate_floor_failure():
     from contact_yield_live import resident_candidate_can_continue
     row = {
         'evidence_eligible': False,
-        'evidence': {'metrics': {'timing_gate_passed': True, 'complete_bins': 550}},
+        'evidence': {
+            'safety_gate_passed': True,
+            'contact_gate_passed': True,
+            'return_gate_passed': True,
+            'metrics': {
+                'timing_gate_passed': False,
+                'complete_bins': 550,
+                'motion_gate_passed': True,
+                'protocol_id': 'figure8_window60_r013_rate400_v1',
+                'timing_evidence': {
+                    'acceptance_protocol_id': 'figure8_window60_r013_rate400_v1',
+                    'duration_s': 60.0,
+                    'minimum_rate_hz': 400.0,
+                    'layer_rates_hz': {
+                        'writer_publishes': 369.4,
+                        'rtde_frames': 369.4,
+                        'kunwei_frames': 999.95,
+                        'tp_consumed_packet_echoes': 369.4,
+                    },
+                    'max_fresh_gap_s': .0084,
+                    'max_fresh_gap_limit_s': .02,
+                    'runtime_stale_stop_s': .08,
+                    'feedback_age_p99_s': .009,
+                    'feedback_age_p99_max_s': .01,
+                },
+            },
+        },
         'lifecycle': {'path_complete': True, 'home_verified': True,
                       'ready_for_next': True, 'sealed': True},
     }
     assert resident_candidate_can_continue(row, research_campaign=True)
     assert not resident_candidate_can_continue(row, research_campaign=False)
-    for section, key in (('evidence', 'timing_gate_passed'),
-                         ('evidence', 'complete_bins'),
-                         ('lifecycle', 'path_complete'),
-                         ('lifecycle', 'home_verified'),
-                         ('lifecycle', 'ready_for_next'),
-                         ('lifecycle', 'sealed')):
+
+    unsafe_mutations = (
+        lambda d: d['evidence'].__setitem__('safety_gate_passed', False),
+        lambda d: d['evidence'].__setitem__('contact_gate_passed', False),
+        lambda d: d['evidence'].__setitem__('return_gate_passed', False),
+        lambda d: d['evidence']['metrics'].__setitem__('motion_gate_passed', False),
+        lambda d: d['evidence']['metrics'].__setitem__('complete_bins', 549),
+        lambda d: d['evidence']['metrics']['timing_evidence'].__setitem__(
+            'max_fresh_gap_s', .02),
+        lambda d: d['evidence']['metrics']['timing_evidence'].__setitem__(
+            'feedback_age_p99_s', .010001),
+        lambda d: d['evidence']['metrics']['timing_evidence']['layer_rates_hz'].update({
+            'writer_publishes': 400.0,
+            'rtde_frames': 400.0,
+            'kunwei_frames': 400.0,
+            'tp_consumed_packet_echoes': 400.0,
+        }),
+        lambda d: d['lifecycle'].__setitem__('path_complete', False),
+        lambda d: d['lifecycle'].__setitem__('home_verified', False),
+        lambda d: d['lifecycle'].__setitem__('ready_for_next', False),
+        lambda d: d['lifecycle'].__setitem__('sealed', False),
+    )
+    for mutate in unsafe_mutations:
         changed = json.loads(json.dumps(row))
-        if section == 'evidence':
-            changed[section]['metrics'][key] = False
-        else:
-            changed[section][key] = False
+        mutate(changed)
         assert not resident_candidate_can_continue(changed, research_campaign=True)
+
+    # An unrelated evidence failure cannot be treated as the approved rate-only
+    # budget-consuming case.
+    changed = json.loads(json.dumps(row))
+    changed['evidence']['metrics']['timing_gate_passed'] = True
+    assert not resident_candidate_can_continue(changed, research_campaign=True)
 
 
 def test_real_refresh_callback_captures_ten_seconds_and_fetches_files(tmp_path, monkeypatch):
