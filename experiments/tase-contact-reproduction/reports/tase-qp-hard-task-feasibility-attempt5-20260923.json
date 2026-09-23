@@ -1,0 +1,1640 @@
+{
+  "schema": "tase.qp-hard-task-feasibility-v1",
+  "status": "offline_feasibility_diagnostic_only",
+  "live_eligible": false,
+  "hardware_or_endpoint_action": false,
+  "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-qp-live-targetqd-20260923T072327794Z/attempts/0001",
+  "protocol_id": "figure8_window60_r013_rate400_v1",
+  "candidate_id": "bo-10",
+  "formal_window_s": [
+    5.0,
+    60.0
+  ],
+  "normal_basis": {
+    "reaction_normal_base": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "tangent_basis_base_3x2": [
+      [
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        0.0
+      ]
+    ],
+    "source_note": "explicit existing TASE control basis; not terrain geometry"
+  },
+  "source_command_timeline": {
+    "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-qp-live-targetqd-20260923T072327794Z/attempts/0001/command_timeline.jsonl",
+    "sha256": "1fc53a4208b22138b1e7a5c8d2c0c8dc6727482d5cec28e41ad85e50d23ce454",
+    "rows": 30003
+  },
+  "row_counts": {
+    "formal_path_rows": 27499,
+    "hard_normal_orientation_feasible_with_captured_joint_and_slew_bounds": 27040,
+    "infeasible_even_with_unbounded_tangent_slack": 459,
+    "infeasible_only_after_intersecting_slew_box": 459,
+    "infeasible_with_joint_box_alone": 0,
+    "host_slew_scaled_rows": 541,
+    "infeasible_rows_also_slew_scaled": 459
+  },
+  "hard_task_infeasible_sequence_clusters": [
+    {
+      "start_reference_time_s": 40.94400035899889,
+      "end_reference_time_s": 40.94400035899889,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.8133513477986639
+    },
+    {
+      "start_reference_time_s": 41.0161260399982,
+      "end_reference_time_s": 41.0161260399982,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7899304069283053
+    },
+    {
+      "start_reference_time_s": 41.08802974400169,
+      "end_reference_time_s": 41.09002793700347,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5913083806362298
+    },
+    {
+      "start_reference_time_s": 41.1600299480051,
+      "end_reference_time_s": 41.16202876400348,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6827973213069466
+    },
+    {
+      "start_reference_time_s": 41.232094594000955,
+      "end_reference_time_s": 41.23403152300307,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6830224591367823
+    },
+    {
+      "start_reference_time_s": 41.30602872199961,
+      "end_reference_time_s": 41.308030833002704,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5624697618660549
+    },
+    {
+      "start_reference_time_s": 41.37822563500231,
+      "end_reference_time_s": 41.38202963200456,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.6777509663556959
+    },
+    {
+      "start_reference_time_s": 41.45223416299996,
+      "end_reference_time_s": 41.454030077002244,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5478880327862393
+    },
+    {
+      "start_reference_time_s": 41.52610788700258,
+      "end_reference_time_s": 41.52813550700375,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.516758069415254
+    },
+    {
+      "start_reference_time_s": 41.5980287420025,
+      "end_reference_time_s": 41.60002716699819,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6078309208652543
+    },
+    {
+      "start_reference_time_s": 41.67202987600467,
+      "end_reference_time_s": 41.67402807000326,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5963205183477476
+    },
+    {
+      "start_reference_time_s": 41.74402809700405,
+      "end_reference_time_s": 41.7480275400012,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.6154130260484199
+    },
+    {
+      "start_reference_time_s": 41.820031742005085,
+      "end_reference_time_s": 41.820031742005085,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6490533682739864
+    },
+    {
+      "start_reference_time_s": 41.89214353600255,
+      "end_reference_time_s": 41.89402562200121,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.4970908845590199
+    },
+    {
+      "start_reference_time_s": 42.04204712500359,
+      "end_reference_time_s": 42.04410844800441,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5548219686375525
+    },
+    {
+      "start_reference_time_s": 42.11603241899866,
+      "end_reference_time_s": 42.11803014200268,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5206834900217125
+    },
+    {
+      "start_reference_time_s": 42.18803163099801,
+      "end_reference_time_s": 42.19203238699993,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.5007742194957947
+    },
+    {
+      "start_reference_time_s": 42.262030149002385,
+      "end_reference_time_s": 42.264028063000296,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.56542827966173
+    },
+    {
+      "start_reference_time_s": 42.33603073099948,
+      "end_reference_time_s": 42.340029373001016,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.5645719142540823
+    },
+    {
+      "start_reference_time_s": 42.41002869800286,
+      "end_reference_time_s": 42.41222175800067,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5846280531124233
+    },
+    {
+      "start_reference_time_s": 42.48417761800374,
+      "end_reference_time_s": 42.486089409998385,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6678443545338459
+    },
+    {
+      "start_reference_time_s": 42.56004548800411,
+      "end_reference_time_s": 42.5621644089988,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5574963969115859
+    },
+    {
+      "start_reference_time_s": 42.63202745799936,
+      "end_reference_time_s": 42.63602956600516,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.646123564089727
+    },
+    {
+      "start_reference_time_s": 42.706029562003096,
+      "end_reference_time_s": 42.708028628003376,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5354485208056693
+    },
+    {
+      "start_reference_time_s": 42.78002725900296,
+      "end_reference_time_s": 42.78202690499893,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6073225536415964
+    },
+    {
+      "start_reference_time_s": 42.85608492499887,
+      "end_reference_time_s": 42.85802884700388,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5983373543428757
+    },
+    {
+      "start_reference_time_s": 42.928062256003614,
+      "end_reference_time_s": 42.93022516900237,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.618413022446292
+    },
+    {
+      "start_reference_time_s": 43.00218846400094,
+      "end_reference_time_s": 43.00617558399972,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.588165343498986
+    },
+    {
+      "start_reference_time_s": 43.07805336800084,
+      "end_reference_time_s": 43.07805336800084,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6859247042942674
+    },
+    {
+      "start_reference_time_s": 43.150028584997926,
+      "end_reference_time_s": 43.15202856199903,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5787279402681507
+    },
+    {
+      "start_reference_time_s": 43.2240313900038,
+      "end_reference_time_s": 43.226029172998096,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5951489295622057
+    },
+    {
+      "start_reference_time_s": 43.29808449900156,
+      "end_reference_time_s": 43.30002937300014,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5149159383162504
+    },
+    {
+      "start_reference_time_s": 43.37202756199986,
+      "end_reference_time_s": 43.37402941300388,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5342439313650916
+    },
+    {
+      "start_reference_time_s": 43.446027552003216,
+      "end_reference_time_s": 43.44808108000143,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5541297890790752
+    },
+    {
+      "start_reference_time_s": 43.52019019800355,
+      "end_reference_time_s": 43.52210711900261,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5579126888177429
+    },
+    {
+      "start_reference_time_s": 43.59415569300472,
+      "end_reference_time_s": 43.596058528004505,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7406537526487712
+    },
+    {
+      "start_reference_time_s": 43.670027970001684,
+      "end_reference_time_s": 43.670027970001684,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6301211479921722
+    },
+    {
+      "start_reference_time_s": 43.74403074500151,
+      "end_reference_time_s": 43.746030080998025,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.838736533551575
+    },
+    {
+      "start_reference_time_s": 43.81802698800311,
+      "end_reference_time_s": 43.820026815003075,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6742330866408167
+    },
+    {
+      "start_reference_time_s": 43.89202919200034,
+      "end_reference_time_s": 43.89402916000108,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.589260834671243
+    },
+    {
+      "start_reference_time_s": 43.96602853100194,
+      "end_reference_time_s": 43.968030212003214,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5949305699446142
+    },
+    {
+      "start_reference_time_s": 44.040191918000346,
+      "end_reference_time_s": 44.04211058199871,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.520490275267766
+    },
+    {
+      "start_reference_time_s": 44.11606110000139,
+      "end_reference_time_s": 44.11606110000139,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6530136738352611
+    },
+    {
+      "start_reference_time_s": 44.18802966300427,
+      "end_reference_time_s": 44.190028458004235,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5959684232460121
+    },
+    {
+      "start_reference_time_s": 44.26202969199949,
+      "end_reference_time_s": 44.264028898003744,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6346922576157389
+    },
+    {
+      "start_reference_time_s": 44.336028439000074,
+      "end_reference_time_s": 44.338029407997965,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6184908593916686
+    },
+    {
+      "start_reference_time_s": 44.410031163002714,
+      "end_reference_time_s": 44.41203079999832,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7542044959336532
+    },
+    {
+      "start_reference_time_s": 44.4840303710007,
+      "end_reference_time_s": 44.4860281240035,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5522114034691538
+    },
+    {
+      "start_reference_time_s": 44.55799726799887,
+      "end_reference_time_s": 44.55999996000173,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7114111249183735
+    },
+    {
+      "start_reference_time_s": 44.63212066900451,
+      "end_reference_time_s": 44.634065974001714,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6095263522202817
+    },
+    {
+      "start_reference_time_s": 44.70602954700007,
+      "end_reference_time_s": 44.70803235000494,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7122615530524633
+    },
+    {
+      "start_reference_time_s": 44.78002965699852,
+      "end_reference_time_s": 44.78002965699852,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6012874526547458
+    },
+    {
+      "start_reference_time_s": 44.852030881003884,
+      "end_reference_time_s": 44.854027651999786,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6702945434858932
+    },
+    {
+      "start_reference_time_s": 44.92602856599842,
+      "end_reference_time_s": 44.9280304060012,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6608759331324786
+    },
+    {
+      "start_reference_time_s": 45.000029216003895,
+      "end_reference_time_s": 45.002031939002336,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7135220294268243
+    },
+    {
+      "start_reference_time_s": 45.07400167400192,
+      "end_reference_time_s": 45.07600100000127,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.71074205644434
+    },
+    {
+      "start_reference_time_s": 45.14608541299822,
+      "end_reference_time_s": 45.14812848099973,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7169602595510569
+    },
+    {
+      "start_reference_time_s": 45.22002877500199,
+      "end_reference_time_s": 45.22212172699801,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7002342601046546
+    },
+    {
+      "start_reference_time_s": 45.29403060700133,
+      "end_reference_time_s": 45.29603041399969,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6638035031536339
+    },
+    {
+      "start_reference_time_s": 45.368021989001136,
+      "end_reference_time_s": 45.37002877899795,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7148238544634651
+    },
+    {
+      "start_reference_time_s": 45.442030322999926,
+      "end_reference_time_s": 45.44402855700173,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6502798996551616
+    },
+    {
+      "start_reference_time_s": 45.516029831000196,
+      "end_reference_time_s": 45.51802870599931,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7196487136211726
+    },
+    {
+      "start_reference_time_s": 45.590112044003035,
+      "end_reference_time_s": 45.590112044003035,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7283915807233553
+    },
+    {
+      "start_reference_time_s": 45.66210338900419,
+      "end_reference_time_s": 45.66408899900125,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.556536063052093
+    },
+    {
+      "start_reference_time_s": 45.736029298001085,
+      "end_reference_time_s": 45.7380507859998,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6876469251326857
+    },
+    {
+      "start_reference_time_s": 45.81003035900358,
+      "end_reference_time_s": 45.81202987500001,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.718243469407731
+    },
+    {
+      "start_reference_time_s": 45.884031929999765,
+      "end_reference_time_s": 45.88602941299905,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6784648009651553
+    },
+    {
+      "start_reference_time_s": 45.956030649998866,
+      "end_reference_time_s": 45.96002863000467,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.6368375718246914
+    },
+    {
+      "start_reference_time_s": 46.03008590199897,
+      "end_reference_time_s": 46.03202913200221,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6613314261846491
+    },
+    {
+      "start_reference_time_s": 46.104105297003116,
+      "end_reference_time_s": 46.1062230450043,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6193499107935659
+    },
+    {
+      "start_reference_time_s": 46.17821024200384,
+      "end_reference_time_s": 46.18019065200497,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7443208007281501
+    },
+    {
+      "start_reference_time_s": 46.25202817800164,
+      "end_reference_time_s": 46.25412216200493,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8087824296575659
+    },
+    {
+      "start_reference_time_s": 46.324028178001754,
+      "end_reference_time_s": 46.32808566099993,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.5521004367289052
+    },
+    {
+      "start_reference_time_s": 46.39802918799978,
+      "end_reference_time_s": 46.40002905500296,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5984006873712107
+    },
+    {
+      "start_reference_time_s": 46.47203140000056,
+      "end_reference_time_s": 46.47403063600359,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6330308755303923
+    },
+    {
+      "start_reference_time_s": 46.54602936399897,
+      "end_reference_time_s": 46.54602936399897,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6817590281894157
+    },
+    {
+      "start_reference_time_s": 46.620222363999346,
+      "end_reference_time_s": 46.620222363999346,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7640579703025773
+    },
+    {
+      "start_reference_time_s": 46.69211744800123,
+      "end_reference_time_s": 46.69411844700517,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7158488862295662
+    },
+    {
+      "start_reference_time_s": 46.76611135400162,
+      "end_reference_time_s": 46.76611135400162,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7031152395491008
+    },
+    {
+      "start_reference_time_s": 46.838029400998494,
+      "end_reference_time_s": 46.8420302270024,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.8363131578260425
+    },
+    {
+      "start_reference_time_s": 46.914031400003296,
+      "end_reference_time_s": 46.914031400003296,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.8209197111341358
+    },
+    {
+      "start_reference_time_s": 46.98803046600369,
+      "end_reference_time_s": 46.99002980200021,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7214746670313337
+    },
+    {
+      "start_reference_time_s": 47.06202965199918,
+      "end_reference_time_s": 47.06202965199918,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.665447711145473
+    },
+    {
+      "start_reference_time_s": 47.136102567004855,
+      "end_reference_time_s": 47.136102567004855,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7938772189865588
+    },
+    {
+      "start_reference_time_s": 47.206112208004924,
+      "end_reference_time_s": 47.20812055100396,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.723023320484593
+    },
+    {
+      "start_reference_time_s": 47.28202990700083,
+      "end_reference_time_s": 47.28202990700083,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7964070558105036
+    },
+    {
+      "start_reference_time_s": 47.35603117699793,
+      "end_reference_time_s": 47.35603117699793,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7300135835008116
+    },
+    {
+      "start_reference_time_s": 47.4280276999998,
+      "end_reference_time_s": 47.43002557300497,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6340521282499637
+    },
+    {
+      "start_reference_time_s": 47.50202563399944,
+      "end_reference_time_s": 47.50402920700435,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.633245026766317
+    },
+    {
+      "start_reference_time_s": 47.574082961000386,
+      "end_reference_time_s": 47.57602357699943,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7168962291980054
+    },
+    {
+      "start_reference_time_s": 47.64822205900418,
+      "end_reference_time_s": 47.650120406004135,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6370323638708328
+    },
+    {
+      "start_reference_time_s": 47.72225844499917,
+      "end_reference_time_s": 47.72416455599887,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8266886866898381
+    },
+    {
+      "start_reference_time_s": 47.79611880000448,
+      "end_reference_time_s": 47.79803017999802,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8232184288566282
+    },
+    {
+      "start_reference_time_s": 47.868023931005155,
+      "end_reference_time_s": 47.87008431200229,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8036801492691694
+    },
+    {
+      "start_reference_time_s": 47.94203109200316,
+      "end_reference_time_s": 47.94403046800289,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7497047803593613
+    },
+    {
+      "start_reference_time_s": 48.016086201998405,
+      "end_reference_time_s": 48.016086201998405,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7266879951691158
+    },
+    {
+      "start_reference_time_s": 48.09002796000277,
+      "end_reference_time_s": 48.09002796000277,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.9113232117688013
+    },
+    {
+      "start_reference_time_s": 48.16423106900038,
+      "end_reference_time_s": 48.16423106900038,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6869576833625154
+    },
+    {
+      "start_reference_time_s": 48.23612736300129,
+      "end_reference_time_s": 48.238147629002924,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7183251907493575
+    },
+    {
+      "start_reference_time_s": 48.31012087700219,
+      "end_reference_time_s": 48.31012087700219,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6843084121723314
+    },
+    {
+      "start_reference_time_s": 48.38202691000333,
+      "end_reference_time_s": 48.38402695699915,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6835699661843624
+    },
+    {
+      "start_reference_time_s": 48.45602960100223,
+      "end_reference_time_s": 48.45808663600474,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7282162250439707
+    },
+    {
+      "start_reference_time_s": 48.53003024899954,
+      "end_reference_time_s": 48.53003024899954,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.8263812770639479
+    },
+    {
+      "start_reference_time_s": 48.60209143300017,
+      "end_reference_time_s": 48.604027610999765,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6826296395204684
+    },
+    {
+      "start_reference_time_s": 48.676029683003435,
+      "end_reference_time_s": 48.67822707199957,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.79597354196359
+    },
+    {
+      "start_reference_time_s": 48.74828730700392,
+      "end_reference_time_s": 48.75018484100292,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8472831942125801
+    },
+    {
+      "start_reference_time_s": 48.822116502000426,
+      "end_reference_time_s": 48.822116502000426,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7226392695551472
+    },
+    {
+      "start_reference_time_s": 48.89602809200005,
+      "end_reference_time_s": 48.898083924003004,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7696230017339484
+    },
+    {
+      "start_reference_time_s": 48.968026779002685,
+      "end_reference_time_s": 48.97002909100411,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7213336664411895
+    },
+    {
+      "start_reference_time_s": 49.04202999200061,
+      "end_reference_time_s": 49.04402814600326,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8582068950898302
+    },
+    {
+      "start_reference_time_s": 49.11603031800041,
+      "end_reference_time_s": 49.11802810100198,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8569572750863426
+    },
+    {
+      "start_reference_time_s": 49.19033052799932,
+      "end_reference_time_s": 49.19212269499985,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7936629561272865
+    },
+    {
+      "start_reference_time_s": 49.262188560998766,
+      "end_reference_time_s": 49.26412158200401,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6247264845126954
+    },
+    {
+      "start_reference_time_s": 49.33612136000011,
+      "end_reference_time_s": 49.3381533569991,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.728289707656145
+    },
+    {
+      "start_reference_time_s": 49.408029785998224,
+      "end_reference_time_s": 49.41003144700517,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.656894622010428
+    },
+    {
+      "start_reference_time_s": 49.4820297519982,
+      "end_reference_time_s": 49.4820297519982,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.8776896286968595
+    },
+    {
+      "start_reference_time_s": 49.55408640699898,
+      "end_reference_time_s": 49.55603249300475,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6931204811092238
+    },
+    {
+      "start_reference_time_s": 49.62603045000287,
+      "end_reference_time_s": 49.62803096800053,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8165173394576792
+    },
+    {
+      "start_reference_time_s": 49.70202915000118,
+      "end_reference_time_s": 49.70202915000118,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7203847755007463
+    },
+    {
+      "start_reference_time_s": 49.77409716699913,
+      "end_reference_time_s": 49.77618905700365,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8674943561631318
+    },
+    {
+      "start_reference_time_s": 49.846096093002416,
+      "end_reference_time_s": 49.84806600400043,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6454192408672528
+    },
+    {
+      "start_reference_time_s": 49.92003102700255,
+      "end_reference_time_s": 49.92003102700255,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7936058085402663
+    },
+    {
+      "start_reference_time_s": 49.99202754900034,
+      "end_reference_time_s": 49.99402716500481,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7970267412663044
+    },
+    {
+      "start_reference_time_s": 50.064031545000034,
+      "end_reference_time_s": 50.066029448003974,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.619885638793051
+    },
+    {
+      "start_reference_time_s": 50.136029620000045,
+      "end_reference_time_s": 50.13803034800367,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6823501357777261
+    },
+    {
+      "start_reference_time_s": 50.21008423699823,
+      "end_reference_time_s": 50.21203008299926,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8657517738856303
+    },
+    {
+      "start_reference_time_s": 50.28421313500439,
+      "end_reference_time_s": 50.28421313500439,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7458609175991733
+    },
+    {
+      "start_reference_time_s": 50.35609309699794,
+      "end_reference_time_s": 50.358110376000695,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5818288684421319
+    },
+    {
+      "start_reference_time_s": 50.43010496399802,
+      "end_reference_time_s": 50.43010496399802,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7049860651646462
+    },
+    {
+      "start_reference_time_s": 50.50208599599864,
+      "end_reference_time_s": 50.50208599599864,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7210661289602205
+    },
+    {
+      "start_reference_time_s": 50.57402991900017,
+      "end_reference_time_s": 50.57402991900017,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.747897560656451
+    },
+    {
+      "start_reference_time_s": 50.646029897005064,
+      "end_reference_time_s": 50.646029897005064,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.8023032997387315
+    },
+    {
+      "start_reference_time_s": 50.718028852003044,
+      "end_reference_time_s": 50.72002934000193,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5999005420228144
+    },
+    {
+      "start_reference_time_s": 50.79210059199977,
+      "end_reference_time_s": 50.794221396005014,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8282809415381787
+    },
+    {
+      "start_reference_time_s": 50.86609345400211,
+      "end_reference_time_s": 50.86609345400211,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.8381080385854557
+    },
+    {
+      "start_reference_time_s": 50.93810529400071,
+      "end_reference_time_s": 50.940028486998926,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6906489348929127
+    },
+    {
+      "start_reference_time_s": 51.00802936200489,
+      "end_reference_time_s": 51.01002944900392,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5862129120225819
+    },
+    {
+      "start_reference_time_s": 51.08203032799793,
+      "end_reference_time_s": 51.084032038997975,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7141120899959444
+    },
+    {
+      "start_reference_time_s": 51.15403160900314,
+      "end_reference_time_s": 51.1560296020034,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7034575947705143
+    },
+    {
+      "start_reference_time_s": 51.22803214400483,
+      "end_reference_time_s": 51.22803214400483,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7594101133688478
+    },
+    {
+      "start_reference_time_s": 51.29807078700105,
+      "end_reference_time_s": 51.29807078700105,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7557781996849959
+    },
+    {
+      "start_reference_time_s": 51.37013933200069,
+      "end_reference_time_s": 51.372183783001674,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.625560226347669
+    },
+    {
+      "start_reference_time_s": 51.44202979400143,
+      "end_reference_time_s": 51.44411944899912,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5721492915623375
+    },
+    {
+      "start_reference_time_s": 51.51602935700066,
+      "end_reference_time_s": 51.51803045599809,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7831802160353861
+    },
+    {
+      "start_reference_time_s": 51.59003064400167,
+      "end_reference_time_s": 51.59003064400167,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.708620256739405
+    },
+    {
+      "start_reference_time_s": 51.66203156299889,
+      "end_reference_time_s": 51.66203156299889,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7416568841398988
+    },
+    {
+      "start_reference_time_s": 51.73402882400114,
+      "end_reference_time_s": 51.73402882400114,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7729509695189445
+    },
+    {
+      "start_reference_time_s": 51.80622587200196,
+      "end_reference_time_s": 51.8080903240043,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7847025420553454
+    },
+    {
+      "start_reference_time_s": 51.87816117700277,
+      "end_reference_time_s": 51.88014018499962,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6570445580086989
+    },
+    {
+      "start_reference_time_s": 51.95412178499828,
+      "end_reference_time_s": 51.95412178499828,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.892454223247599
+    },
+    {
+      "start_reference_time_s": 52.02408610700513,
+      "end_reference_time_s": 52.0260286470002,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8166823337890158
+    },
+    {
+      "start_reference_time_s": 52.17003031299828,
+      "end_reference_time_s": 52.17203267500008,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6729186145468161
+    },
+    {
+      "start_reference_time_s": 52.24403089800035,
+      "end_reference_time_s": 52.24603042400122,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7532633304050336
+    },
+    {
+      "start_reference_time_s": 52.31607688100485,
+      "end_reference_time_s": 52.31802902799973,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7257640895371721
+    },
+    {
+      "start_reference_time_s": 52.39005293000082,
+      "end_reference_time_s": 52.39207054999861,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7309435583649907
+    },
+    {
+      "start_reference_time_s": 52.46205186400039,
+      "end_reference_time_s": 52.46412667199911,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6820895379574222
+    },
+    {
+      "start_reference_time_s": 52.53602860400133,
+      "end_reference_time_s": 52.53602860400133,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7577743152191008
+    },
+    {
+      "start_reference_time_s": 52.60803238800145,
+      "end_reference_time_s": 52.610028727998724,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6628839857284451
+    },
+    {
+      "start_reference_time_s": 52.68402935300401,
+      "end_reference_time_s": 52.68402935300401,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7985657301836074
+    },
+    {
+      "start_reference_time_s": 52.75603088200296,
+      "end_reference_time_s": 52.75803066899971,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7278612350362715
+    },
+    {
+      "start_reference_time_s": 52.828030508004304,
+      "end_reference_time_s": 52.830030534998514,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7797501581116062
+    },
+    {
+      "start_reference_time_s": 52.90220137200231,
+      "end_reference_time_s": 52.90220137200231,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.8155653560789002
+    },
+    {
+      "start_reference_time_s": 52.97611625499849,
+      "end_reference_time_s": 52.97611625499849,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7311187893607399
+    },
+    {
+      "start_reference_time_s": 53.04803211399849,
+      "end_reference_time_s": 53.050030969003274,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7935663929055157
+    },
+    {
+      "start_reference_time_s": 53.122027709003305,
+      "end_reference_time_s": 53.12402823699813,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8525098828260231
+    },
+    {
+      "start_reference_time_s": 53.196029576,
+      "end_reference_time_s": 53.19802871099819,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7177617045723582
+    },
+    {
+      "start_reference_time_s": 53.26802932099963,
+      "end_reference_time_s": 53.270031011001265,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6950180007914525
+    },
+    {
+      "start_reference_time_s": 53.3420321290032,
+      "end_reference_time_s": 53.3420321290032,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7689887048379849
+    },
+    {
+      "start_reference_time_s": 53.41620468600013,
+      "end_reference_time_s": 53.41620468600013,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.9064024942011787
+    },
+    {
+      "start_reference_time_s": 53.48807865499839,
+      "end_reference_time_s": 53.48807865499839,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.8149109337402146
+    },
+    {
+      "start_reference_time_s": 53.5620278330025,
+      "end_reference_time_s": 53.5620278330025,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7322472270089441
+    },
+    {
+      "start_reference_time_s": 53.63403043300059,
+      "end_reference_time_s": 53.6360848530021,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7555381329218261
+    },
+    {
+      "start_reference_time_s": 53.708030656998744,
+      "end_reference_time_s": 53.708030656998744,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.8135888330843043
+    },
+    {
+      "start_reference_time_s": 53.782030469003075,
+      "end_reference_time_s": 53.782030469003075,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6552259466370979
+    },
+    {
+      "start_reference_time_s": 53.85603102300229,
+      "end_reference_time_s": 53.85603102300229,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.8732093905339858
+    },
+    {
+      "start_reference_time_s": 53.92820579700492,
+      "end_reference_time_s": 53.93014008099999,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7793107722767587
+    },
+    {
+      "start_reference_time_s": 54.00210074200004,
+      "end_reference_time_s": 54.00409402700461,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8116338151082005
+    },
+    {
+      "start_reference_time_s": 54.078159292002965,
+      "end_reference_time_s": 54.078159292002965,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.804915314144533
+    },
+    {
+      "start_reference_time_s": 54.1500332420037,
+      "end_reference_time_s": 54.15202781800326,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.751063585735226
+    },
+    {
+      "start_reference_time_s": 54.22403062900412,
+      "end_reference_time_s": 54.22403062900412,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6893612674016258
+    },
+    {
+      "start_reference_time_s": 54.29603373000282,
+      "end_reference_time_s": 54.29802999000094,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7370353403304227
+    },
+    {
+      "start_reference_time_s": 54.37003081700095,
+      "end_reference_time_s": 54.37202899000113,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.876783751102232
+    },
+    {
+      "start_reference_time_s": 54.44410897500347,
+      "end_reference_time_s": 54.44410897500347,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7498218807843251
+    },
+    {
+      "start_reference_time_s": 54.516105905000586,
+      "end_reference_time_s": 54.518110160002834,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6694452664727254
+    },
+    {
+      "start_reference_time_s": 54.592030412000895,
+      "end_reference_time_s": 54.592030412000895,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7566228848365438
+    },
+    {
+      "start_reference_time_s": 54.66402881400427,
+      "end_reference_time_s": 54.66602731800231,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8033181416922679
+    },
+    {
+      "start_reference_time_s": 54.73602876900259,
+      "end_reference_time_s": 54.73808454100072,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8202889936860455
+    },
+    {
+      "start_reference_time_s": 54.810027439001715,
+      "end_reference_time_s": 54.81202915900212,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7439391571456079
+    },
+    {
+      "start_reference_time_s": 54.884031469002366,
+      "end_reference_time_s": 54.88602980200085,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7314993521332062
+    },
+    {
+      "start_reference_time_s": 54.95808667399979,
+      "end_reference_time_s": 54.96022556200478,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6898796619304853
+    },
+    {
+      "start_reference_time_s": 55.03012066300289,
+      "end_reference_time_s": 55.03410450700176,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.7045251323522215
+    },
+    {
+      "start_reference_time_s": 55.106031755000004,
+      "end_reference_time_s": 55.106031755000004,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.8182667366744902
+    },
+    {
+      "start_reference_time_s": 55.178028724003525,
+      "end_reference_time_s": 55.18002906200127,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6624476534343201
+    },
+    {
+      "start_reference_time_s": 55.25203248300386,
+      "end_reference_time_s": 55.25402788100473,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7712051214439821
+    },
+    {
+      "start_reference_time_s": 55.32602993000182,
+      "end_reference_time_s": 55.32602993000182,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7322933802529388
+    },
+    {
+      "start_reference_time_s": 55.39802849099942,
+      "end_reference_time_s": 55.400084934000915,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7382179937443714
+    },
+    {
+      "start_reference_time_s": 55.47222927000257,
+      "end_reference_time_s": 55.47222927000257,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.895112232182266
+    },
+    {
+      "start_reference_time_s": 55.54412777299876,
+      "end_reference_time_s": 55.54616082300345,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6107529036525176
+    },
+    {
+      "start_reference_time_s": 55.61602928300272,
+      "end_reference_time_s": 55.61810762700043,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.612565042510095
+    },
+    {
+      "start_reference_time_s": 55.69208740100294,
+      "end_reference_time_s": 55.69208740100294,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.669538846976322
+    },
+    {
+      "start_reference_time_s": 55.76402910500474,
+      "end_reference_time_s": 55.766031166000175,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7268660233817558
+    },
+    {
+      "start_reference_time_s": 55.83602880900435,
+      "end_reference_time_s": 55.83803042000363,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6884772707429633
+    },
+    {
+      "start_reference_time_s": 55.910028300000704,
+      "end_reference_time_s": 55.91202858700126,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7576258080585992
+    },
+    {
+      "start_reference_time_s": 55.98222609599907,
+      "end_reference_time_s": 55.98408995700447,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6647060237194476
+    },
+    {
+      "start_reference_time_s": 56.05809382600273,
+      "end_reference_time_s": 56.05809382600273,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.8058402010057922
+    },
+    {
+      "start_reference_time_s": 56.13202965700475,
+      "end_reference_time_s": 56.13202965700475,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.608056125688062
+    },
+    {
+      "start_reference_time_s": 56.20202950300154,
+      "end_reference_time_s": 56.20602979799878,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.666585064698771
+    },
+    {
+      "start_reference_time_s": 56.27803307800059,
+      "end_reference_time_s": 56.27803307800059,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7262887933646355
+    },
+    {
+      "start_reference_time_s": 56.350031478003075,
+      "end_reference_time_s": 56.35203042300418,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7761987002925191
+    },
+    {
+      "start_reference_time_s": 56.42202928799816,
+      "end_reference_time_s": 56.4240861319995,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.673362852985017
+    },
+    {
+      "start_reference_time_s": 56.49806138600252,
+      "end_reference_time_s": 56.49806138600252,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6438145556004958
+    },
+    {
+      "start_reference_time_s": 56.57011191500351,
+      "end_reference_time_s": 56.572151426000346,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7587623261232151
+    },
+    {
+      "start_reference_time_s": 56.64211938199878,
+      "end_reference_time_s": 56.64402505200269,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6208112319593864
+    },
+    {
+      "start_reference_time_s": 56.718005966999044,
+      "end_reference_time_s": 56.718005966999044,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6659657713942922
+    },
+    {
+      "start_reference_time_s": 56.79002654999931,
+      "end_reference_time_s": 56.79002654999931,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7628607004208184
+    },
+    {
+      "start_reference_time_s": 56.864030438002374,
+      "end_reference_time_s": 56.864030438002374,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7778519399273076
+    },
+    {
+      "start_reference_time_s": 56.936026273004245,
+      "end_reference_time_s": 56.93803069899877,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6148288353713113
+    },
+    {
+      "start_reference_time_s": 57.010328782002034,
+      "end_reference_time_s": 57.01220013800048,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7342402554447314
+    },
+    {
+      "start_reference_time_s": 57.08417089700379,
+      "end_reference_time_s": 57.086088319003466,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7027214606045983
+    },
+    {
+      "start_reference_time_s": 57.15817262099881,
+      "end_reference_time_s": 57.16004926599999,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7171401489934529
+    },
+    {
+      "start_reference_time_s": 57.230028623002,
+      "end_reference_time_s": 57.232031004998134,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5992498196626393
+    },
+    {
+      "start_reference_time_s": 57.30402849300299,
+      "end_reference_time_s": 57.30602568500035,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6633862862395984
+    },
+    {
+      "start_reference_time_s": 57.37603024900454,
+      "end_reference_time_s": 57.37803096800053,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5909602248551433
+    },
+    {
+      "start_reference_time_s": 57.4500278350024,
+      "end_reference_time_s": 57.4500278350024,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7813123677976709
+    },
+    {
+      "start_reference_time_s": 57.522112587001175,
+      "end_reference_time_s": 57.52403813400451,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5575463951835007
+    },
+    {
+      "start_reference_time_s": 57.59619102400029,
+      "end_reference_time_s": 57.59810045100312,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7147931497966857
+    },
+    {
+      "start_reference_time_s": 57.67009008500463,
+      "end_reference_time_s": 57.67009008500463,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7178928545728734
+    },
+    {
+      "start_reference_time_s": 57.74203219899937,
+      "end_reference_time_s": 57.744030772999395,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6814422182016092
+    },
+    {
+      "start_reference_time_s": 57.816029503999744,
+      "end_reference_time_s": 57.81802895999863,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.796868720924687
+    },
+    {
+      "start_reference_time_s": 57.88802963800117,
+      "end_reference_time_s": 57.89002936400357,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6354643646631544
+    },
+    {
+      "start_reference_time_s": 57.9620300280003,
+      "end_reference_time_s": 57.9640304659988,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7850706796368544
+    },
+    {
+      "start_reference_time_s": 58.03603164100059,
+      "end_reference_time_s": 58.038029875002394,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7263890265004858
+    },
+    {
+      "start_reference_time_s": 58.11019886500435,
+      "end_reference_time_s": 58.1121301029998,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7313954634611335
+    },
+    {
+      "start_reference_time_s": 58.186130113004765,
+      "end_reference_time_s": 58.186130113004765,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.906661381458092
+    },
+    {
+      "start_reference_time_s": 58.256031472999894,
+      "end_reference_time_s": 58.260039212000265,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.6834281022865836
+    },
+    {
+      "start_reference_time_s": 58.33003285500308,
+      "end_reference_time_s": 58.33202942600474,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6550977272298861
+    },
+    {
+      "start_reference_time_s": 58.40402924799855,
+      "end_reference_time_s": 58.4060289140034,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5998617538331191
+    },
+    {
+      "start_reference_time_s": 58.48002996500145,
+      "end_reference_time_s": 58.48002996500145,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6322710626823027
+    },
+    {
+      "start_reference_time_s": 58.55218699200486,
+      "end_reference_time_s": 58.55400987699977,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5854155909005931
+    },
+    {
+      "start_reference_time_s": 58.62421293400257,
+      "end_reference_time_s": 58.626094528000976,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5105668582112237
+    },
+    {
+      "start_reference_time_s": 58.69810601200152,
+      "end_reference_time_s": 58.70007670400082,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6585621626191722
+    },
+    {
+      "start_reference_time_s": 58.77203097099846,
+      "end_reference_time_s": 58.77203097099846,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.7104556601638703
+    },
+    {
+      "start_reference_time_s": 58.84402894900268,
+      "end_reference_time_s": 58.84602883600019,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7716241730414116
+    },
+    {
+      "start_reference_time_s": 58.91803039100341,
+      "end_reference_time_s": 58.92008524099947,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6450970043555662
+    },
+    {
+      "start_reference_time_s": 58.992031162000785,
+      "end_reference_time_s": 58.994028934997914,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7333879212610775
+    },
+    {
+      "start_reference_time_s": 59.06402961099957,
+      "end_reference_time_s": 59.06603172200266,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5540159954046949
+    },
+    {
+      "start_reference_time_s": 59.13809701699938,
+      "end_reference_time_s": 59.14021944400156,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.5981401705354314
+    },
+    {
+      "start_reference_time_s": 59.21209823900426,
+      "end_reference_time_s": 59.21209823900426,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6476647356081568
+    },
+    {
+      "start_reference_time_s": 59.28610525000113,
+      "end_reference_time_s": 59.28610525000113,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.5883084453079637
+    },
+    {
+      "start_reference_time_s": 59.35803121299978,
+      "end_reference_time_s": 59.36008531200059,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6793764884710563
+    },
+    {
+      "start_reference_time_s": 59.430029822004144,
+      "end_reference_time_s": 59.43203044999973,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6454161676773899
+    },
+    {
+      "start_reference_time_s": 59.50203016400337,
+      "end_reference_time_s": 59.506032762998075,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.6223696693817198
+    },
+    {
+      "start_reference_time_s": 59.57603118500265,
+      "end_reference_time_s": 59.57802988900221,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.8081258198232539
+    },
+    {
+      "start_reference_time_s": 59.64822524099873,
+      "end_reference_time_s": 59.65203387600195,
+      "packet_count": 3,
+      "host_slew_scale_min": 0.6985440358469774
+    },
+    {
+      "start_reference_time_s": 59.72211741700448,
+      "end_reference_time_s": 59.72413560800487,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.7507277732208448
+    },
+    {
+      "start_reference_time_s": 59.796236198999395,
+      "end_reference_time_s": 59.796236198999395,
+      "packet_count": 1,
+      "host_slew_scale_min": 0.6303327658714754
+    },
+    {
+      "start_reference_time_s": 59.86802767900372,
+      "end_reference_time_s": 59.87003339700459,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6660211312148511
+    },
+    {
+      "start_reference_time_s": 59.940028793003876,
+      "end_reference_time_s": 59.94202831900475,
+      "packet_count": 2,
+      "host_slew_scale_min": 0.6934088705912419
+    }
+  ],
+  "first_hard_task_infeasible": {
+    "packet_sequence": 27351,
+    "reference_time_s": 40.94400035899889,
+    "host_slew_scale": 0.8133513477986639,
+    "infeasibility_source": "introduced_by_slew_box",
+    "solver_status": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is Infeasible)"
+  },
+  "host_slew_scale_on_infeasible_quantiles_min_median_p95_max": [
+    0.4970908845590199,
+    0.7587623261232151,
+    0.90642838292687,
+    0.9417408761738943
+  ],
+  "minimum_slack_for_otherwise_feasible_rows_m_s": {
+    "quantile_levels": [
+      0.5,
+      0.9,
+      0.95,
+      0.99,
+      1.0
+    ],
+    "componentwise_linf_values": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.002448030390970037
+    ],
+    "interpretation": "Per-row minimum tangent slack for feasibility only; not a selected controller bound and not a smoothing/trajectory acceptance result."
+  },
+  "numerical_method": {
+    "solver": "scipy.optimize.linprog(method=highs)",
+    "objective": "minimize nonnegative componentwise tangent slack",
+    "hard_equalities": "normal velocity and three orientation rates",
+    "hard_bounds": "intersection of captured joint-qdot box and captured host-slew box",
+    "post_solve_equality_tolerance": 1e-06,
+    "post_solve_box_tolerance": 1e-07,
+    "seal_verified": true,
+    "seal_sha256": "1f52924937c905b6021f168a254cd68cb53b522eaf3b9b62ab5afce763997908"
+  },
+  "interpretation": "Tangent slack cannot resolve samples infeasible in the hard normal/orientation tasks under the unchanged joint/slew bounds. The separate joint-only replay attributes each such row either to the slew-box intersection or to infeasibility already present under joint bounds. Such rows remain QP failures; this audit selects no slack value and does not authorize live use."
+}
