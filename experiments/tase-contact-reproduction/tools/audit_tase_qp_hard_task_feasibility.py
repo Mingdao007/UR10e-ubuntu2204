@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Offline feasibility audit for prioritized TASE-QP tasks under captured bounds.
+"""Offline feasibility and task-priority sensitivity audits for TASE-QP.
 
-This computes the smallest componentwise tangent-velocity slack that makes
-hard normal/orientation rows feasible under the captured joint/slew bounds. It
-does not choose a controller slack limit or run a live solver.
+The audit uses sealed command traces to test prioritized tasks under captured
+joint/slew bounds. It reports per-row slack lower bounds, not selected
+controller tolerances, and never runs a live solver or hardware endpoint.
 """
 from __future__ import annotations
 
