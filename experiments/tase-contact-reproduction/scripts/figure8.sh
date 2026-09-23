@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
   echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60|r013_60_rate400] [--run-dir RUN] [--prepared-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--resident-parameter-manifest FILE | --resident-candidate-dir DIR] [--resident-attempts N] [--video-policy required|evidence-only]'
-  echo '       figure8.sh --autotune [--campaign-dir CAMPAIGN] [--checkpoint-after N]'
+  echo '       figure8.sh --autotune [--campaign-dir CAMPAIGN]'
   echo '       figure8.sh --resume --campaign-dir CAMPAIGN'
   echo 'Adaptive resident mode reads candidate-0001.json before launch, then waits up to 120 s at verified joint Home for each next candidate.'
   echo '       figure8.sh --stop --run-dir RUN'
@@ -29,7 +29,6 @@ offline_acceptance=0
 autotune_requested=0
 resume_requested=0
 campaign_dir=''
-checkpoint_after=''
 autotuner_mixed_options=0
 while (($#)); do
   case "$1" in
@@ -48,16 +47,11 @@ while (($#)); do
     --autotune) (( autotune_requested == 0 )) || { echo '--autotune may only be specified once' >&2; exit 64; }; autotune_requested=1; shift ;;
     --resume) (( resume_requested == 0 )) || { echo '--resume may only be specified once' >&2; exit 64; }; resume_requested=1; shift ;;
     --campaign-dir) [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { echo '--campaign-dir requires a non-option path' >&2; exit 64; }; [[ -z "$campaign_dir" ]] || { echo '--campaign-dir may only be specified once' >&2; exit 64; }; campaign_dir="$2"; shift 2 ;;
-    --checkpoint-after) [[ $# -ge 2 && "$2" =~ ^[1-9][0-9]*$ ]] || { echo '--checkpoint-after requires a positive attempt count' >&2; exit 64; }; checkpoint_after="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 64 ;;
   esac
 done
 if (( autotune_requested && resume_requested )); then
   echo '--autotune and --resume are separate campaign actions' >&2
-  exit 64
-fi
-if [[ -n "$checkpoint_after" ]] && (( ! autotune_requested )); then
-  echo '--checkpoint-after requires --autotune' >&2
   exit 64
 fi
 if (( autotune_requested || resume_requested )); then
@@ -96,8 +90,6 @@ if (( autotune_requested || resume_requested )); then
   if (( resume_requested )); then
     action='resume'
     tuner_args+=(--resume)
-  elif [[ -n "$checkpoint_after" ]]; then
-    tuner_args+=(--max-new-attempts "$checkpoint_after")
   fi
   printf 'Resident autotuner campaign (%s): %s\n' "$action" "$campaign_dir" >&2
   exec env -u VIRTUAL_ENV -u PYTHONHOME PYTHONNOUSERSITE=1 \
