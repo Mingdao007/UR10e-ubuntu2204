@@ -1,8 +1,9 @@
-"""Mature local TASE outer/RNN adapter for the existing contact writer.
+"""Mature local TASE outer-loop adapters for the existing contact writer.
 
-No endpoints. Keeps the historical local RNN sign/discretization explicitly;
-this is not the printed-plus offline variant. The shared writer still owns
-raw-wrench limits, command slew/Jacobian checks and physical stopping.
+The historical local RNN sign/discretization remains an explicit method; the
+standalone OSQP QP is a separate profile. This module opens no endpoints. The
+shared writer still owns raw-wrench limits, command slew/Jacobian checks and
+physical stopping.
 """
 from __future__ import annotations
 
@@ -1509,7 +1510,11 @@ class TaseContactProvider(ContactCommandProvider):
                     if phase == 'path' else None
                 ),
                 'actual_dt_s': actual_dt_s, 'solver': copy.deepcopy(self.runtime.last_solver_diagnostics),
-                'implementation': 'mature_local_tase_rnn',
+                'implementation': (
+                    'standalone_tase_outer_loop_osqp_qp'
+                    if self.solver_profile.as_dict().get('backend') == 'osqp-codegen-c'
+                    else 'mature_local_tase_rnn'
+                ),
                 'parameter_binding': copy.deepcopy(self.parameter_binding),
                 'applied_runtime_parameters': self.runtime.actual_runtime_config(),
                 'outer_output_feedback_pending': copy.deepcopy(
@@ -1523,4 +1528,7 @@ class TaseContactProvider(ContactCommandProvider):
             raise
 
     def close(self):
-        self.runtime.solver.freeze()
+        if self.runtime.solver_profile.as_dict().get('backend') == 'osqp-codegen-c':
+            self.runtime.solver.reset()
+        else:
+            self.runtime.solver.freeze()

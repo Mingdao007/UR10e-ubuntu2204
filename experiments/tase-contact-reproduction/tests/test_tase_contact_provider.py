@@ -1280,6 +1280,50 @@ def test_mature_owner_factory_restores_real_solver_before_endpoints(tmp_path):
         runtime.close()
 
 
+def test_live_solver_profile_is_qp_only_for_tase_qp(tmp_path):
+    from contact_qp import QpSolverProfile
+    from contact_yield_live_writer import (
+        YieldLiveWriterError,
+        _select_tase_solver_profile,
+        _validate_tase_qp_starting_profile,
+    )
+    from types import SimpleNamespace
+
+    library = tmp_path / 'libcontact_qp.so'
+    library.write_bytes(b'profile identity fixture')
+    qp = _select_tase_solver_profile(family='tase_qp', library=library)
+    rnn = _select_tase_solver_profile(family='tase_mature', library=library)
+    assert isinstance(qp, QpSolverProfile)
+    assert qp.as_dict()['backend'] == 'osqp-codegen-c'
+    assert qp.qdot_limit_rad_s == pytest.approx(.05)
+    assert qp.deadline_s == pytest.approx(.001)
+    assert rnn is LEGACY_R1
+    with pytest.raises(YieldLiveWriterError, match='unsupported live TASE family'):
+        _select_tase_solver_profile(family='tase_rnn', library=library)
+    expected_parameters = SimpleNamespace(
+        Md_scalar=8.592659656558919,
+        Bd_scalar=772.1473715259434,
+        kp=4.0,
+        ko=5.0,
+        kf=1.0,
+        force_target_n=5.0,
+        force_integral_limit_n_s=.5,
+        force_integral_policy='legacy-clamp-v1',
+        force_integral_authority_error_n=.5,
+    )
+    _validate_tase_qp_starting_profile(
+        parameter_file=library,
+        outer_config=expected_parameters,
+        parameter_binding={'candidate_id': 'bo-10', 'stage': 'bo'},
+    )
+    with pytest.raises(YieldLiveWriterError, match='explicit sealed bo-10'):
+        _validate_tase_qp_starting_profile(
+            parameter_file=None,
+            outer_config=expected_parameters,
+            parameter_binding={'candidate_id': 'bo-10', 'stage': 'bo'},
+        )
+
+
 @pytest.mark.parametrize('dt', [.006, .012, .019])
 def test_mature_actual_dt_uses_existing_twenty_ms_timing_bound(provider, dt):
     o,s=tick(provider,.002)

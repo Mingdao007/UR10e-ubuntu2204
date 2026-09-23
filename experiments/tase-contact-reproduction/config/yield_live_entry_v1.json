@@ -1,6 +1,6 @@
 {
   "schema": "yield-live-entry-v1",
-  "claim_scope": "public live entry over the mature sole writer with native YieldContactProvider or historical local TASE_RNN_MATURE; parameters are seeds, not physical qualification; short rungs are diagnostic; hardware admission remains main/liveowner",
+  "claim_scope": "public live entry over the mature sole writer with native YieldContactProvider, historical local TASE_RNN_MATURE, or standalone TASE_QP using the same TASE outer loop; parameters are seeds, not physical qualification; short rungs are diagnostic; hardware admission remains main/liveowner",
   "program": "step5d_contact_six_qp_v1",
   "home_program": "step5d_contact_home_v1",
   "native_route_config": "config/yield_native_route_v1.json",
@@ -71,8 +71,10 @@
     },
     "TASE_QP": {
       "family": "tase_qp",
-      "available": false,
-      "reason": "registered for a later owner; not implemented by yield-live-entry; not a native stub"
+      "available": true,
+      "provider": "TaseContactProvider",
+      "source_binding": "tase-qp-osqp-codegen-c-v1",
+      "implementation": "standalone TASE outer loop with exact equality and box-constrained OSQP codegen C QP; 0.05 rad/s joint limit; 1 ms solve deadline; no RNN fallback"
     }
   },
   "guards": {

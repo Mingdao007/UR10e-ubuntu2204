@@ -66,14 +66,17 @@ def reference(observation_row: dict[str, object], *, force_n: float = 5.0) -> di
     }
 
 
-def test_live_registry_stays_unavailable_while_offline_discovery_is_explicit() -> None:
+def test_live_registry_separates_rnn_unavailability_from_executable_qp() -> None:
     live_records = load_method_records()
     assert live_records["TASE_RNN"].available is False
-    assert live_records["TASE_QP"].available is False
+    qp_record = live_records["TASE_QP"]
+    assert qp_record.available is True
+    assert qp_record.family == "tase_qp"
+    assert qp_record.provider == "TaseContactProvider"
+    assert qp_record.source_binding == "tase-qp-osqp-codegen-c-v1"
     with pytest.raises(MethodUnavailableError):
         resolve_method("TASE_RNN")
-    with pytest.raises(MethodUnavailableError):
-        resolve_method("TASE_QP")
+    assert resolve_method("TASE_QP") == qp_record
 
     offline = load_offline_method_records()
     assert set(offline) == {

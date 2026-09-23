@@ -173,6 +173,19 @@ def remaining_machine_gates() -> list[str]:
     return list(REMAINING_AFTER_ENTRY)
 
 
+def _controller_identity(method_record, provider) -> dict[str, Any]:
+    profile = getattr(provider, "solver_profile", None)
+    profile_payload = profile.as_dict() if profile is not None else None
+    return {
+        "method": method_record.name,
+        "family": method_record.family,
+        "provider": type(provider).__name__,
+        "source_binding": method_record.source_binding,
+        "solver_backend": None if profile_payload is None else profile_payload.get("backend"),
+        "solver_profile": profile_payload,
+    }
+
+
 def status_payload() -> dict[str, Any]:
     config = load_live_entry_config()
     contract = load_identity_contract()
@@ -507,7 +520,7 @@ def run_live(
     config = load_live_entry_config()
     if (controller_transport is None or kunwei_transport is None) and not config["user_standing_live_authority"]:
         raise YieldLiveError("further hardware execution was discontinued by the user; no endpoints opened")
-    resolve_method(args.method)
+    method_record = resolve_method(args.method)
     if args.command == "pilot":
         parse_live_duration(args.duration)
     if controller_transport is None and not args.controller_host:
@@ -592,6 +605,7 @@ def run_live(
         "physical_qualification": False,
         "continuous_contact_path": bool(args.command == "pilot"),
         "rnn_hash_or_profile": provider.solver_profile.as_dict() if args.method == "TASE_RNN_MATURE" else False,
+        "controller_identity": _controller_identity(method_record, provider),
         "tase_parameter_binding": getattr(provider, "parameter_binding", None),
         "resident_candidate_dir": (
             None if candidate_directory is None else str(candidate_directory)

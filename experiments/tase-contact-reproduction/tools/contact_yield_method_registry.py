@@ -1,8 +1,8 @@
 """Typed live-method registry for the yield live entry.
 
-Native SFC/DSFC/MSFC keep the current yield-native source binding.  TASE_RNN
-and TASE_QP are registered as unavailable; they are not executable stubs and
-do not borrow native hashes, RNN campaign fingerprints, or a fake runtime.
+Native SFC/DSFC/MSFC keep the current yield-native source binding. Mature TASE
+RNN and the matched outer-loop TASE_QP have distinct executable identities;
+the printed TASE_RNN remains unavailable in this entry.
 """
 from __future__ import annotations
 
@@ -24,7 +24,9 @@ CONTACT_PROGRAM = "step5d_contact_six_qp_v1"
 HOME_PROGRAM = "step5d_contact_home_v1"
 NATIVE_FAMILY = "native_yield"
 TASE_MATURE_METHOD = "TASE_RNN_MATURE"
-REGISTERED_UNAVAILABLE = ("TASE_RNN", "TASE_QP")
+TASE_QP_METHOD = "TASE_QP"
+REGISTERED_UNAVAILABLE = ("TASE_RNN",)
+LIVE_METHOD_ORDER = NATIVE_METHODS + (TASE_MATURE_METHOD, "TASE_RNN", TASE_QP_METHOD)
 OFFLINE_TASE_METHODS = (
     "TASE_RNN",
     "TASE_RNN_MATURE",
@@ -156,7 +158,7 @@ def load_live_entry_config(path: Path | str | None = None) -> dict[str, Any]:
     if not math_isclose(float(durations.get("full_period_s")), PERIOD_S):
         raise MethodRegistryError("live-entry full duration is not the formal PATH period")
     methods = _require_mapping(payload.get("methods"), "methods")
-    if tuple(methods) != NATIVE_METHODS + (TASE_MATURE_METHOD,) + REGISTERED_UNAVAILABLE:
+    if tuple(methods) != LIVE_METHOD_ORDER:
         raise MethodRegistryError("live-entry method set differs")
     guards = _require_mapping(payload.get("guards"), "guards")
     if (
@@ -226,6 +228,14 @@ def load_method_records(config: Mapping[str, Any] | None = None) -> dict[str, Me
             records[name] = MethodRecord(name, family, True, "TaseContactProvider",
                 "tase-mature-current-model-v1", None)
             continue
+        if name == TASE_QP_METHOD:
+            if (family != "tase_qp" or available is not True
+                or item.get("provider") != "TaseContactProvider"
+                or item.get("source_binding") != "tase-qp-osqp-codegen-c-v1"):
+                raise MethodRegistryError("TASE_QP OSQP binding differs")
+            records[name] = MethodRecord(name, family, True, "TaseContactProvider",
+                "tase-qp-osqp-codegen-c-v1", None)
+            continue
         if name not in REGISTERED_UNAVAILABLE:
             raise MethodRegistryError(f"unknown live method {name}")
         if available is not False:
@@ -243,8 +253,8 @@ def load_method_records(config: Mapping[str, Any] | None = None) -> dict[str, Me
             source_binding=None,
             reason=reason,
         )
-    if records["TASE_RNN"].family != "tase_rnn" or records["TASE_QP"].family != "tase_qp":
-        raise MethodRegistryError("unavailable TASE families were erased")
+    if records["TASE_RNN"].family != "tase_rnn" or records[TASE_QP_METHOD].family != "tase_qp":
+        raise MethodRegistryError("TASE method families were erased")
     return records
 
 
@@ -257,7 +267,7 @@ def resolve_method(name: str, *, config: Mapping[str, Any] | None = None) -> Met
         raise MethodUnavailableError(
             f"{name} is registered but unavailable: {record.reason}"
         )
-    if record.family not in (NATIVE_FAMILY, "tase_mature"):
+    if record.family not in (NATIVE_FAMILY, "tase_mature", "tase_qp"):
         raise MethodUnavailableError(f"{name} is not a native yield method")
     return record
 
@@ -324,6 +334,7 @@ def native_status_payload(records: Mapping[str, MethodRecord] | None = None) -> 
     return {
         "native_methods": [loaded[name].as_dict() for name in NATIVE_METHODS],
         "tase_mature": loaded[TASE_MATURE_METHOD].as_dict(),
+        "tase_qp": loaded[TASE_QP_METHOD].as_dict(),
         "registered_unavailable": [loaded[name].as_dict() for name in REGISTERED_UNAVAILABLE],
         "native_route_schema": NATIVE_SCHEMA,
         "native_claim_scope": NATIVE_CLAIM_SCOPE,

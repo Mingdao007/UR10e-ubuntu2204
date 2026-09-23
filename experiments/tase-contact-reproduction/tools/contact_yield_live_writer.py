@@ -72,6 +72,63 @@ def resident_admission_max_age(*, method: str, duration: str | None) -> float:
     return CONTROLLER_READBACK_MAX_AGE_S
 
 
+def _select_tase_solver_profile(*, family: str, library: Path | str):
+    """Keep the historical RNN profile and the standalone QP profile distinct."""
+    if family == "tase_qp":
+        from contact_qp import QpSolverProfile
+
+        return QpSolverProfile(
+            library=Path(library),
+            qdot_limit_rad_s=0.05,
+            deadline_s=0.001,
+        )
+    if family == "tase_mature":
+        from step5d_autotune_v4_r014.solver_profile import LEGACY_R1
+
+        return LEGACY_R1
+    raise YieldLiveWriterError(f"unsupported live TASE family: {family}")
+
+
+def _validate_tase_qp_starting_profile(*, parameter_file, outer_config, parameter_binding) -> None:
+    """Require the frozen bo-10 + B integral seed for the first live QP path."""
+    if parameter_file is None:
+        raise YieldLiveWriterError(
+            "TASE_QP requires the explicit sealed bo-10 + B integral parameter file"
+        )
+    if (
+        not isinstance(parameter_binding, Mapping)
+        or parameter_binding.get("candidate_id") != "bo-10"
+        or parameter_binding.get("stage") != "bo"
+    ):
+        raise YieldLiveWriterError("TASE_QP requires the sealed bo-10 candidate identity")
+    expected = {
+        "Md_scalar": 8.592659656558919,
+        "Bd_scalar": 772.1473715259434,
+        "kp": 4.0,
+        "ko": 5.0,
+        "kf": 1.0,
+        "force_target_n": 5.0,
+        "force_integral_limit_n_s": 0.5,
+        "force_integral_policy": "legacy-clamp-v1",
+        "force_integral_authority_error_n": 0.5,
+    }
+    actual = {
+        "Md_scalar": outer_config.Md_scalar,
+        "Bd_scalar": outer_config.Bd_scalar,
+        "kp": outer_config.kp,
+        "ko": outer_config.ko,
+        "kf": outer_config.kf,
+        "force_target_n": outer_config.force_target_n,
+        "force_integral_limit_n_s": outer_config.force_integral_limit_n_s,
+        "force_integral_policy": outer_config.force_integral_policy,
+        "force_integral_authority_error_n": outer_config.force_integral_authority_error_n,
+    }
+    if actual != expected:
+        raise YieldLiveWriterError(
+            "TASE_QP parameter file differs from the frozen bo-10 + B integral profile"
+        )
+
+
 @dataclass(frozen=True)
 class YieldLivePrerequisites:
     contract: YieldLiveIdentityContract
@@ -387,11 +444,12 @@ def _prewarm_native_provider(provider, *, pose, q) -> dict[str, Any]:
 
 
 def _prewarm_tase_provider(provider, *, pose, q):
-    """Warm the real local RNN at Home; restore control and observation state."""
+    """Warm the selected TASE solver at Home; restore control and observation state."""
     import copy
     state = provider.snapshot()
     freshness = copy.deepcopy(vars(provider.freshness))
     times = []
+    is_qp = provider.solver_profile.as_dict().get("backend") == "osqp-codegen-c"
     try:
         for index in range(16):
             now = .002*(index+1)
@@ -402,12 +460,32 @@ def _prewarm_tase_provider(provider, *, pose, q):
             times.append(time.perf_counter()-start)
             if not all(math.isfinite(x) and abs(x)<=.05 for x in command.qdot):
                 raise YieldLiveWriterError("TASE prewarm command exceeds current limits")
+        if is_qp:
+            # Baseline acquisition uses the shared fixed-normal primitive and
+            # does not exercise the QP. Run the real path command twice so the
+            # generated solver is ready before any endpoint is opened. Its
+            # live 1 ms deadline remains active during this prewarm.
+            for index in range(2):
+                now = .032 + .002 * float(index + 1)
+                output, sensor = _prewarm_observation(pose=pose, q=q, monotonic_s=now)
+                started = time.perf_counter()
+                command = provider.command(output=output, sensor=sensor,
+                    monotonic_s=now, actual_dt_s=.002, mode="path",
+                    path_time_s=1.0 + .002 * float(index + 1), internal_setpoint_n=1.)
+                elapsed = time.perf_counter() - started
+                times.append(elapsed)
+                if (not all(math.isfinite(x) and abs(x)<=.05 for x in command.qdot)
+                    or provider.runtime.last_solver_diagnostics.get("backend") != "osqp-codegen-c"):
+                    raise YieldLiveWriterError("TASE_QP prewarm did not use the bounded OSQP solver")
     finally:
         provider.restore(state)
         provider.freshness.__dict__.update(freshness)
-    provider.prewarm_record = {"purpose":"transport-free mature TASE RNN warmup",
+    provider.prewarm_record = {"purpose":(
+            "transport-free TASE_QP/OSQP path warmup" if is_qp
+            else "transport-free mature TASE RNN warmup"),
         "command_count":len(times),"command_times_s":times,
-        "solver_profile":provider.solver_profile.as_dict(),"state_restored":True}
+        "solver_profile":provider.solver_profile.as_dict(),"state_restored":True,
+        "solver_backend":provider.solver_profile.as_dict().get("backend")}
     return provider.prewarm_record
 
 
@@ -547,7 +625,7 @@ def build_native_yield_owner(
     record = resolve_method(method)
     request = None if command == "qualify" else parse_live_duration(duration)
     library = Path(qp_library) if qp_library is not None else QP_LIBRARY_PATH
-    if record.family != "tase_mature":
+    if record.family not in {"tase_mature", "tase_qp"}:
         _prewarm_qp(library)
     import numpy as np
 
@@ -555,17 +633,26 @@ def build_native_yield_owner(
     rotation = rotvec_to_matrix(np.array(pose[3:], dtype=float))
     from contact_yield_task_frame import require_figure8_home
     task_basis = require_figure8_home(pose)
-    tase = record.family == "tase_mature"
+    tase = record.family in {"tase_mature", "tase_qp"}
     if tase:
         from tase_contact_provider import (
             TaseContactProvider,
             current_model_binding,
             load_tase_outer_config,
         )
-        from step5d_autotune_v4_r014.solver_profile import LEGACY_R1
+        solver_profile = _select_tase_solver_profile(
+            family=record.family,
+            library=library,
+        )
         outer_config, parameter_binding = load_tase_outer_config(parameter_file)
+        if record.family == "tase_qp":
+            _validate_tase_qp_starting_profile(
+                parameter_file=parameter_file,
+                outer_config=outer_config,
+                parameter_binding=parameter_binding,
+            )
         provider = TaseContactProvider(contract=current_model_binding(), candidate=R006Candidate(),
-            motion_profile=native_motion_profile(), home_pose=pose, solver_profile=LEGACY_R1,
+            motion_profile=native_motion_profile(), home_pose=pose, solver_profile=solver_profile,
             outer_loop_config=outer_config, parameter_binding=parameter_binding,
             protocol_id=(None if request is None else request.protocol_id))
         runtime = provider
