@@ -15,6 +15,7 @@ import subprocess
 import time
 from typing import Any
 
+from contact_yield_live import resident_candidate_can_continue
 from tase_autotuner import Candidate, _candidate_for
 from tase_integral_screening import _campaign_sessions, _session_verified_closed
 
@@ -197,13 +198,19 @@ def _score_item(path: Path, candidate: Candidate, ordinal: int,
         and math.isfinite(float(metrics["normal_force_mae_n"]))
     )
     lifecycle = item.get("lifecycle") or {}
-    safe_to_continue = bool(
+    safe_closure = bool(
         lifecycle.get("path_complete") is True
         and lifecycle.get("home_verified") is True
         and lifecycle.get("ready_for_next") is True
         and path.with_name("seal.json").is_file()
         and metrics.get("complete_bins") == 550
-        and metrics.get("timing_gate_passed") is True
+    )
+    safe_to_continue = bool(
+        safe_closure
+        and (
+            item.get("evidence_eligible") is True
+            or resident_candidate_can_continue(item, research_campaign=True)
+        )
     )
     return {
         "ordinal": ordinal, "candidate_id": candidate.candidate_id,

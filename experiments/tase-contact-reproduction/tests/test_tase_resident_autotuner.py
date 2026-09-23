@@ -40,14 +40,20 @@ def _write_result(path, candidate, config, *, eligible=True):
         },
         "evidence_eligible": eligible,
         "lifecycle": {"path_complete": True, "home_verified": True,
-                      "ready_for_next": True},
-        "evidence": {"metrics": {
-            "complete_bins": 550,
-            "protocol_id": PROTOCOL,
-            "timing_gate_passed": True,
-            "timing_evidence": {"acceptance_protocol_id": PROTOCOL},
-            "normal_force_mae_n": 1.25,
-        }},
+                      "ready_for_next": True, "sealed": True},
+        "evidence": {
+            "safety_gate_passed": True,
+            "contact_gate_passed": True,
+            "return_gate_passed": True,
+            "metrics": {
+                "complete_bins": 550,
+                "protocol_id": PROTOCOL,
+                "motion_gate_passed": True,
+                "timing_gate_passed": True,
+                "timing_evidence": {"acceptance_protocol_id": PROTOCOL},
+                "normal_force_mae_n": 1.25,
+            },
+        },
     }))
 
 
@@ -78,11 +84,43 @@ def test_sealed_result_recovers_an_unwritten_ledger_row(tmp_path):
     assert len(ledger.read_text().splitlines()) == 1
 
 
-def test_ineligible_full_path_keeps_diagnostic_out_of_bo(tmp_path):
+def test_ineligible_full_path_keeps_diagnostic_out_of_bo_and_pauses_unknown_failure(tmp_path):
     config = load_config()
     candidate = _candidate_for(config, [_initial_row(config)], 1)
     result_path = tmp_path / "attempt-result.json"
     _write_result(result_path, candidate, config, eligible=False)
+    row = _score_item(result_path, candidate, 1, config)
+    assert row["status"] == "failed"
+    assert row["mae_n"] is None
+    assert row["diagnostic_mae_n"] == 1.25
+    assert row["safe_to_continue"] is False
+
+
+def test_rate_floor_failure_keeps_diagnostic_and_allows_safe_budget_continuation(tmp_path):
+    config = load_config()
+    candidate = _candidate_for(config, [_initial_row(config)], 1)
+    result_path = tmp_path / "attempt-result.json"
+    _write_result(result_path, candidate, config, eligible=False)
+    item = json.loads(result_path.read_text())
+    metrics = item["evidence"]["metrics"]
+    metrics["timing_gate_passed"] = False
+    metrics["timing_evidence"] = {
+        "acceptance_protocol_id": PROTOCOL,
+        "duration_s": 60.0,
+        "minimum_rate_hz": 400.0,
+        "layer_rates_hz": {
+            "writer_publishes": 369.4,
+            "rtde_frames": 369.4,
+            "kunwei_frames": 999.95,
+            "tp_consumed_packet_echoes": 369.4,
+        },
+        "max_fresh_gap_s": .0083,
+        "max_fresh_gap_limit_s": .02,
+        "runtime_stale_stop_s": .08,
+        "feedback_age_p99_s": .009,
+        "feedback_age_p99_max_s": .01,
+    }
+    result_path.write_text(json.dumps(item))
     row = _score_item(result_path, candidate, 1, config)
     assert row["status"] == "failed"
     assert row["mae_n"] is None
@@ -185,4 +223,85 @@ def test_tuner_proposes_next_candidate_after_prior_seal(monkeypatch, tmp_path):
     result = run_campaign(tuner.DEFAULT_CONFIG, tmp_path / "campaign")
     assert result["attempted"] == 3
     assert result["status"] == "complete"
+    assert [row["candidate_id"] for row in events] == ["initial-01", "initial-02"]
+
+
+def test_tuner_dispatches_next_candidate_after_sealed_rate_only_failure(monkeypatch, tmp_path):
+    import tase_resident_autotuner as tuner
+
+    monkeypatch.setattr(tuner, "TOTAL", 3)
+    config = load_config()
+    monkeypatch.setattr(tuner, "_screening_initial", lambda _: _initial_row(config))
+    events = []
+
+    class FakeOwner:
+        def __init__(self, command, **_kwargs):
+            self.returncode = None
+            self.thread = threading.Thread(target=self.run)
+            self.thread.start()
+
+        def run(self):
+            session = tmp_path / "campaign" / "session-01"
+            source = tmp_path / "campaign" / "session-01-candidates"
+            for sequence in (1, 2):
+                candidate_file = source / f"candidate-{sequence:04d}.json"
+                until = time.monotonic() + 3
+                while not candidate_file.is_file():
+                    assert time.monotonic() < until
+                    time.sleep(0.005)
+                payload = json.loads(candidate_file.read_text())
+                candidate = _candidate_for(config, [_initial_row(config)] + events, sequence)
+                assert payload["candidate_id"] == candidate.candidate_id
+                result_path = session / "attempts" / f"{sequence:04d}" / "attempt-result.json"
+                _write_result(result_path, candidate, config, eligible=sequence != 1)
+                if sequence == 1:
+                    item = json.loads(result_path.read_text())
+                    metrics = item["evidence"]["metrics"]
+                    metrics["timing_gate_passed"] = False
+                    metrics["timing_evidence"] = {
+                        "acceptance_protocol_id": PROTOCOL,
+                        "duration_s": 60.0,
+                        "minimum_rate_hz": 400.0,
+                        "layer_rates_hz": {
+                            "writer_publishes": 369.4,
+                            "rtde_frames": 369.4,
+                            "kunwei_frames": 999.95,
+                            "tp_consumed_packet_echoes": 369.4,
+                        },
+                        "max_fresh_gap_s": .0083,
+                        "max_fresh_gap_limit_s": .02,
+                        "runtime_stale_stop_s": .08,
+                        "feedback_age_p99_s": .009,
+                        "feedback_age_p99_max_s": .01,
+                    }
+                    result_path.write_text(json.dumps(item))
+                events.append({
+                    "candidate_id": candidate.candidate_id,
+                    "Md_scalar": candidate.Md_scalar,
+                    "Bd_scalar": candidate.Bd_scalar,
+                    "status": "failed" if sequence == 1 else "complete",
+                    "mae_n": None if sequence == 1 else 1.2,
+                    "ordinal": sequence,
+                    "stage": candidate.stage,
+                    "index": candidate.index,
+                })
+            (session / "dispatch_receipt.json").write_text(json.dumps({
+                "attempts": [{"sequence": 1}, {"sequence": 2}],
+                "stop": {"home_verified": True, "program_stopped": True},
+            }))
+            self.returncode = 0
+
+        def poll(self):
+            return self.returncode
+
+        def wait(self):
+            self.thread.join(timeout=4)
+            assert not self.thread.is_alive()
+            return self.returncode
+
+    monkeypatch.setattr(tuner.subprocess, "Popen", FakeOwner)
+    result = run_campaign(tuner.DEFAULT_CONFIG, tmp_path / "campaign")
+    assert result["attempted"] == 3
+    assert result["failed"] == 1
+    assert result["complete"] == 2
     assert [row["candidate_id"] for row in events] == ["initial-01", "initial-02"]
