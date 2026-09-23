@@ -120,6 +120,7 @@ class OfflineResidentRTDE(FakeLiveRTDETransport):
         now = self.clock.mono()
         if previous != 20 and self._state == 20:
             self._contact_search_start = now
+            self._return_started_s = None
         if previous == 20 and self._state == 21:
             if now - getattr(self, "_contact_search_start", now) < .080:
                 self._state = 20
@@ -131,8 +132,12 @@ class OfflineResidentRTDE(FakeLiveRTDETransport):
             self._state = 78
             self._return_guard = 127
         if self._state == 25 and self._early_end_sequence is not None:
-            self._state = 78
-            self._return_guard = 127
+            self._state = 40
+            self._return_started_s = now
+        elif self._state == 40 and self._return_started_s is not None:
+            if now - self._return_started_s >= 3.6:
+                self._state = 78
+                self._return_guard = 127
         if session_command == 3:
             self._state = 90
             self._reason = 4

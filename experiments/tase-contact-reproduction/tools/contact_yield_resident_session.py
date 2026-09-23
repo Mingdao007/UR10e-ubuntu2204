@@ -44,7 +44,10 @@ class ResidentSessionError(RuntimeError):
     """A resident lifecycle transition failed closed."""
 
 
-def _resident_process_task(task: Callable[[], Any], sender: Any) -> None:
+def _resident_process_task(
+    task: Callable[[], Any], sender: Any, evidence_cpu: int | None = None,
+    transport_sockets: tuple[Any, ...] = (),
+) -> None:
     """Run a read-only evidence task in a forked child.
 
     The live writer is deliberately not reconstructed in this child.  On the
@@ -57,13 +60,19 @@ def _resident_process_task(task: Callable[[], Any], sender: Any) -> None:
         # fork inherits the live owner's FIFO policy. Evidence work must
         # never compete with its parent at the same realtime priority.
         os.sched_setscheduler(0, os.SCHED_OTHER, os.sched_param(0))
+        # A forked evidence process must not keep RTDE/Kunwei connections
+        # alive if the parent enters fault recovery and closes its transports.
+        for sock in transport_sockets:
+            sock.close()
+        if evidence_cpu is not None:
+            os.sched_setaffinity(0, {evidence_cpu})
         scheduler = {"policy": os.sched_getscheduler(0),
                      "priority": os.sched_getparam(0).sched_priority,
                      "affinity": sorted(os.sched_getaffinity(0))}
         if scheduler["policy"] != os.SCHED_OTHER or scheduler["priority"] != 0:
             raise ResidentSessionError("evidence worker retained realtime scheduling")
         result = task()
-        sender.send(("ok", result, scheduler))
+        sender.send(("ok", result, scheduler, time.monotonic()))
     except BaseException as exc:  # pragma: no cover - exercised through parent
         try:
             sender.send(
@@ -78,6 +87,24 @@ def _resident_process_task(task: Callable[[], Any], sender: Any) -> None:
             pass
     finally:
         sender.close()
+
+
+def _inherited_transport_sockets(writer: Any) -> tuple[Any, ...]:
+    sockets = []
+    seen = set()
+    for transport in (
+        getattr(writer, "_controller_transport", None),
+        getattr(writer, "_kunwei_transport", None),
+    ):
+        for holder in (transport, getattr(transport, "client", None)):
+            sock = getattr(holder, "sock", None)
+            if sock is None or not callable(getattr(sock, "fileno", None)):
+                continue
+            fd = sock.fileno()
+            if fd >= 0 and fd not in seen:
+                sockets.append(sock)
+                seen.add(fd)
+    return tuple(sockets)
 
 
 def _resident_service_task(
@@ -132,6 +159,21 @@ def _resident_service_task(
         "tp_stage_observations": stages,
         "replay_evidence_status": replay_evidence_status,
     }
+
+
+def _merge_return_stages(
+    prefix: Mapping[str, Any], service_rows: Mapping[str, list[Any]],
+) -> dict[str, dict[str, Any]]:
+    stages = {str(key): dict(value) for key, value in prefix.items()}
+    for frame in service_rows.get("robot_frames", ()):
+        state = str(frame.integer_echoes.get(26))
+        stamp = float(frame.received_monotonic_s)
+        stage = stages.setdefault(
+            state, {"first_observed_monotonic_s": stamp, "samples": 0}
+        )
+        stage["last_observed_monotonic_s"] = stamp
+        stage["samples"] += 1
+    return stages
 
 
 def _resident_service_tail_task(
@@ -355,11 +397,22 @@ class ResidentSession:
         self._stationary_home_verified_mono_s: float | None = None
         self._terminal_finalize_start_mono_s: float | None = None
         self._terminal_finalize_end_mono_s: float | None = None
+        self._preseal_job: tuple[Any, Any] | None = None
+        self._preseal_result: dict[str, Any] | None = None
+        self._preseal_error: str | None = None
+        self._preseal_sequence: int | None = None
+        self._preseal_start_mono_s: float | None = None
+        self._preseal_end_mono_s: float | None = None
+        self._preseal_start_real_mono_s: float | None = None
+        self._preseal_worker_elapsed_s: float | None = None
+        self._preseal_fork_elapsed_s: float | None = None
         self._service_context: dict[str, Any] = {
             "attempt_sequence": 0,
             "stage": "session",
         }
         self._service_capacity = 4096
+        self._available_evidence_cpus = tuple(sorted(os.sched_getaffinity(0)))
+        self._evidence_cpu: int | None = None
 
     @property
     def writer(self) -> Any:
@@ -374,6 +427,7 @@ class ResidentSession:
         self.mature.open(live_ack=live_ack)
         self.writer._terminal_finalize_service = self._run_terminal_finalize
         self.writer._terminal_settle_service = self._wait_home_settle
+        self.writer._terminal_preseal_service = self._start_returning_preseal
         self.seed_state = copy.deepcopy(self.provider.snapshot())
         self.prepared = True
         self.transport_trace.append(
@@ -515,10 +569,12 @@ class ResidentSession:
         ctx = mp.get_context("fork")
         receiver, sender = ctx.Pipe(duplex=False)
         writer = self.writer
+        previous_service_mode = getattr(writer, "_service_mode", False)
         writer._service_mode = True
         process = ctx.Process(
             target=_resident_process_task,
-            args=(task, sender),
+            args=(task, sender, self._evidence_cpu,
+                  _inherited_transport_sockets(writer)),
             name=f"tase-resident-{reason}",
         )
         _event(self, "SERVICE", "start", reason=reason, worker="fork")
@@ -574,7 +630,7 @@ class ResidentSession:
         finally:
             sender.close()
             receiver.close()
-            writer._service_mode = False
+            writer._service_mode = previous_service_mode
             _event(
                 self,
                 "SERVICE",
@@ -585,10 +641,117 @@ class ResidentSession:
                 exitcode=process.exitcode,
             )
 
+    def _start_returning_preseal(self) -> None:
+        """Persist immutable pre-return observations while TP moves Home."""
+
+        if self._preseal_job is not None or self._preseal_result is not None:
+            raise ResidentSessionError("attempt preseal was started twice")
+        sequence = self.next_sequence
+        writer = self.writer
+        buffers = {
+            "raw_sensor": writer.raw_observations,
+            "robot_frames": writer.robot_observations,
+            "admission_robot_frames": writer.admission_robot_observations,
+            "rejected_robot_frames": writer.rejected_robot_observations,
+            "published_packets": writer.command_observations,
+            "command_timeline": getattr(self.provider, "replay_evidence", None)
+            or getattr(self.provider, "command_timeline", ()),
+        }
+        replay_evidence = buffers["command_timeline"]
+        if callable(getattr(replay_evidence, "set_expected_count", None)):
+            replay_evidence.set_expected_count(
+                int(getattr(writer, "_host_formal_path_publish_count", 0))
+            )
+        ctx = mp.get_context("fork")
+        receiver, sender = ctx.Pipe(duplex=False)
+        context = dict(self._service_context)
+        task = lambda: _resident_service_task(
+            str(self.run_dir), sequence, context, buffers, {}
+        )
+        process = ctx.Process(
+            target=_resident_process_task,
+            args=(task, sender, self._evidence_cpu,
+                  _inherited_transport_sockets(writer)),
+            name="tase-resident-returning-preseal",
+        )
+        previous_mode = getattr(writer, "_service_mode", False)
+        writer._service_mode = True
+        self._preseal_start_mono_s = float(self.mono_clock())
+        self._preseal_start_real_mono_s = time.monotonic()
+        try:
+            process.start()
+        except BaseException:
+            writer._service_mode = previous_mode
+            receiver.close()
+            sender.close()
+            raise
+        self._preseal_fork_elapsed_s = time.monotonic() - self._preseal_start_real_mono_s
+        sender.close()
+        self._preseal_job = (process, receiver)
+        self._preseal_sequence = sequence
+        _event(self, "PRESEAL", "started", sequence=sequence,
+               evidence_cpu=self._evidence_cpu,
+               fork_elapsed_s=self._preseal_fork_elapsed_s)
+
+    def _await_returning_preseal(self, *, service: bool = True) -> None:
+        job = self._preseal_job
+        if job is None:
+            if self._preseal_error:
+                raise ResidentSessionError(self._preseal_error)
+            return
+        process, receiver = job
+        try:
+            while True:
+                if receiver.poll(0.0):
+                    message = receiver.recv()
+                    while process.is_alive():
+                        if service and not self.closed:
+                            self._service_tick()
+                        else:
+                            process.join(timeout=0.01)
+                    process.join()
+                    if message[0] != "ok" or process.exitcode != 0:
+                        raise ResidentSessionError(
+                            f"returning preseal failed: {message[1:3]!r}; "
+                            f"exitcode={process.exitcode}"
+                        )
+                    self._preseal_result = dict(message[1])
+                    # The synthetic acceptance clock can advance faster than
+                    # Linux monotonic time while the parent services RTDE.
+                    # Keep the receipt's timestamps on one clock, and report
+                    # the worker's real elapsed duration separately.
+                    self._preseal_end_mono_s = float(self.mono_clock())
+                    self._preseal_worker_elapsed_s = max(
+                        0.0, float(message[3]) - float(self._preseal_start_real_mono_s)
+                    )
+                    _event(self, "PRESEAL", "complete", sequence=self._preseal_sequence,
+                           scheduler=message[2])
+                    return
+                if not process.is_alive():
+                    if receiver.poll(0.0):
+                        continue
+                    raise ResidentSessionError(
+                        f"returning preseal exited without result: {process.exitcode}"
+                    )
+                if service and not self.closed:
+                    self._service_tick()
+                else:
+                    process.join(timeout=0.01)
+        except BaseException as exc:
+            self._preseal_error = f"{type(exc).__name__}: {exc}"
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=0.2)
+            raise
+        finally:
+            receiver.close()
+            self._preseal_job = None
+
     def _run_terminal_finalize(self, finalizer):
         """Finalize evidence in a fork while this owner services RTDE."""
 
         self._terminal_finalize_start_mono_s = float(self.mono_clock())
+        self._await_returning_preseal()
         result = self._run_process_work(reason="terminal_finalize", task=finalizer)
         self.last_completed_evidence = result
         self.last_completed_sequence = self.next_sequence
@@ -611,6 +774,7 @@ class ResidentSession:
             elif isinstance(value, (list, set)):
                 self._clear_serviced(value)
 
+        self._retirement_last_tick_s = -math.inf
         for cell in getattr(finalizer, '__closure__', ()) or ():
             value = cell.cell_contents
             if isinstance(value, collectors):
@@ -621,7 +785,6 @@ class ResidentSession:
     def _clear_serviced(self, buffer):
         previous_mode = getattr(self.writer, '_service_mode', False)
         self.writer._service_mode = True
-        self._retirement_last_tick_s = -math.inf
         try:
             while buffer:
                 if isinstance(buffer, set):
@@ -912,11 +1075,28 @@ class ResidentSession:
         self._stationary_home_verified_mono_s = None
         self._terminal_finalize_start_mono_s = None
         self._terminal_finalize_end_mono_s = None
+        if self._preseal_job is not None or self._preseal_result is not None:
+            raise ResidentSessionError("previous preseal was not retired")
+        self._preseal_error = None
+        self._preseal_sequence = None
+        self._preseal_start_mono_s = None
+        self._preseal_end_mono_s = None
+        self._preseal_start_real_mono_s = None
+        self._preseal_worker_elapsed_s = None
+        self._preseal_fork_elapsed_s = None
         refresh_count = len(self.refreshes)
         if sequence != self.next_sequence:
             raise ResidentSessionError(
                 f"attempt sequence {sequence} is not the next resident sequence {self.next_sequence}"
             )
+        if control_cpu is not None and not self.injected_endpoints:
+            available = self._available_evidence_cpus
+            if int(control_cpu) not in available:
+                raise ResidentSessionError("control CPU is outside the session affinity")
+            workers = [cpu for cpu in available if cpu != int(control_cpu)]
+            if not workers:
+                raise ResidentSessionError("resident evidence needs a CPU outside the control loop")
+            self._evidence_cpu = min(workers, key=lambda cpu: (abs(cpu - int(control_cpu)), cpu))
         self._set_service_context(attempt_sequence=sequence, stage="attempt")
         self.reset_at_home(
             parameter_binding=parameter_binding,
@@ -976,6 +1156,10 @@ class ResidentSession:
                 "stationary_home_verified_monotonic_s": self._stationary_home_verified_mono_s,
                 "terminal_finalize_start_monotonic_s": self._terminal_finalize_start_mono_s,
                 "terminal_finalize_end_monotonic_s": self._terminal_finalize_end_mono_s,
+                "preseal_start_monotonic_s": self._preseal_start_mono_s,
+                "preseal_end_monotonic_s": self._preseal_end_mono_s,
+                "preseal_worker_elapsed_s": self._preseal_worker_elapsed_s,
+                "preseal_fork_elapsed_s": self._preseal_fork_elapsed_s,
                 "path_started_monotonic_s": getattr(self.writer, "_path_command_started_mono_s", None),
                 "preparation_refreshed": len(self.refreshes) != refresh_count,
                 "cycle_kind": ("cold" if sequence == 1 else
@@ -1042,6 +1226,20 @@ class ResidentSession:
     def seal_attempt(self, item: dict[str, Any], *, service: bool = True) -> dict[str, Any]:
         sequence = int(item["sequence"])
         writer = self.writer
+        if self._preseal_job is not None:
+            try:
+                self._await_returning_preseal(service=service)
+            except ResidentSessionError:
+                # The physical attempt already failed. Retain its raw prefix
+                # through the ordinary seal path after recovery.
+                pass
+        prefix_snapshot = self._preseal_result
+        if prefix_snapshot is not None and sequence != self._preseal_sequence:
+            raise ResidentSessionError("preseal attempt identity differs")
+        if self._preseal_error is not None:
+            item["evidence_eligible"] = False
+            item["preseal_error"] = self._preseal_error
+            prefix_snapshot = None
         replay_evidence = getattr(self.provider, "replay_evidence", None)
         if callable(getattr(replay_evidence, "iter_rows", None)):
             replay_evidence.set_expected_count(
@@ -1050,7 +1248,7 @@ class ResidentSession:
             command_timeline = replay_evidence
         else:
             command_timeline = list(getattr(self.provider, "command_timeline", ()))
-        buffers = {
+        buffers = {} if prefix_snapshot is not None else {
             "raw_sensor": list(getattr(writer, "raw_observations", ())),
             "robot_frames": list(getattr(writer, "robot_observations", ())),
             "admission_robot_frames": list(getattr(writer, "admission_robot_observations", ())),
@@ -1067,7 +1265,7 @@ class ResidentSession:
             "stage": "prearm",
         }
         work = self._run_process_work if service else self._closed_work
-        snapshot = work(
+        tail_snapshot = work(
             reason="attempt_seal",
             task=lambda: _resident_service_task(
                 str(self.run_dir), sequence, service_context, buffers, frozen_service
@@ -1077,8 +1275,13 @@ class ResidentSession:
                 stage=next_context["stage"],
             ),
         )
+        snapshot = prefix_snapshot or tail_snapshot
         segments = dict(snapshot["segments"])
-        service_segment = dict(snapshot["service_segment"])
+        service_segment = dict(tail_snapshot["service_segment"])
+        stage_observations = (
+            _merge_return_stages(snapshot["tp_stage_observations"], frozen_service)
+            if prefix_snapshot is not None else snapshot["tp_stage_observations"]
+        )
         service_counts = {name: len(rows) for name, rows in frozen_service.items()}
         sealed_lifecycle = {**dict(item.get("lifecycle") or {}), "sealed": True}
         replay_status = snapshot.get("replay_evidence_status")
@@ -1101,7 +1304,11 @@ class ResidentSession:
         if isinstance(replay_status, Mapping):
             seal["replay_evidence"] = dict(replay_status)
         timing = dict(item.get("timing") or {})
-        timing["tp_stage_observations"] = snapshot["tp_stage_observations"]
+        timing["tp_stage_observations"] = stage_observations
+        timing["preseal_start_monotonic_s"] = self._preseal_start_mono_s
+        timing["preseal_end_monotonic_s"] = self._preseal_end_mono_s
+        timing["preseal_worker_elapsed_s"] = self._preseal_worker_elapsed_s
+        timing["preseal_fork_elapsed_s"] = self._preseal_fork_elapsed_s
         # The segment worker has finished and returned immutable digests. The
         # timestamp is captured before the small atomic metadata write so the
         # persisted receipt can include its own through-seal duration.
@@ -1130,6 +1337,7 @@ class ResidentSession:
             "rejected_robot_frames": "rejected_robot_observations",
             "published_packets": "command_observations",
         }
+        self._retirement_last_tick_s = -math.inf
         for name, attribute in buffer_names.items():
             buffer = getattr(writer, attribute, None)
             if isinstance(buffer, list):
@@ -1137,6 +1345,10 @@ class ResidentSession:
         timeline = getattr(self.provider, "command_timeline", None)
         if isinstance(timeline, list):
             self._clear_serviced(timeline)
+        self._preseal_result = None
+        self._preseal_sequence = None
+        self._preseal_error = None
+        writer._service_mode = False
         _event(self, "SEAL", "complete", sequence=sequence, segment_count=len(segments))
         return item
 

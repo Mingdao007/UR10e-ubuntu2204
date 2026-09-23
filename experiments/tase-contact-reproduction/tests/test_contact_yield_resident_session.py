@@ -1,6 +1,6 @@
 """Resident failure regressions. Every endpoint here is synthetic/offline."""
 import json
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import multiprocessing as mp
 import socket
 import struct
@@ -79,6 +79,25 @@ def test_cpu_json_finalizer_keeps_independent_rtde_peer_serviced(tmp_path):
     assert max(b - a for a, b in zip([start] + ticks, ticks)) < .080
 
 
+def test_evidence_worker_closes_only_its_inherited_transport_descriptors(tmp_path):
+    controller, sensor = socket.socketpair()
+    try:
+        owner = NS(
+            _controller_transport=NS(client=NS(sock=controller)),
+            _kunwei_transport=NS(sock=sensor), _service_mode=False,
+        )
+        session = ResidentSession(mature=NS(writer=owner), runtime=None,
+                                  provider=None, prerequisites=None, run_dir=tmp_path)
+        session._service_tick = lambda: time.sleep(.002)
+        assert session._run_process_work(reason='descriptor_probe', task=lambda: 42) == 42
+        assert controller.fileno() >= 0 and sensor.fileno() >= 0
+        controller.sendall(b'ok')
+        assert sensor.recv(2) == b'ok'
+    finally:
+        controller.close()
+        sensor.close()
+
+
 def test_observer_failure_stops_before_evidence_cleanup(tmp_path):
     events = []
     owner = NS(stop=lambda reason: events.append(('stop', reason)))
@@ -102,6 +121,91 @@ def test_service_rotation_retains_all_rows_over_old_4096_limit(tmp_path):
     frozen, _ = session._rotate_service_observations()
     assert frozen['robot_frames'] == rows
     assert owner._service_observations == {'robot_frames': []}
+
+
+def test_returning_preseal_overlaps_home_and_keeps_return_frames(tmp_path):
+    @dataclass(frozen=True)
+    class Frame:
+        integer_echoes: dict[int, int]
+        received_monotonic_s: float
+
+    owner = NS(
+        _service_mode=False, _service_observations={},
+        raw_observations=[{'packet_sequence': 1}],
+        robot_observations=[Frame({26: 40}, 1.0)],
+        admission_robot_observations=[], rejected_robot_observations=[],
+        command_observations=[{'sequence': 1}],
+        _host_formal_path_publish_count=0,
+    )
+    session = ResidentSession(
+        mature=NS(writer=owner), runtime=None,
+        provider=NS(command_timeline=[]), prerequisites=None, run_dir=tmp_path,
+    )
+    session._set_service_context(attempt_sequence=1, stage='attempt')
+    session._service_tick = lambda: time.sleep(.002)
+    if len(session._available_evidence_cpus) > 1:
+        session._evidence_cpu = session._available_evidence_cpus[1]
+    session._start_returning_preseal()
+    assert owner._service_mode is True
+    owner._service_observations['robot_frames'] = [Frame({26: 78}, 4.5)]
+    owner._service_observations['raw_sensor'] = [{'packet_sequence': 2}]
+    assert session._run_terminal_finalize(lambda: 'complete') == 'complete'
+    assert owner._service_mode is True
+    if session._evidence_cpu is not None:
+        preseal_events = [event for event in session.lifecycle_events
+                          if event['stage'] == 'PRESEAL' and event['event'] == 'complete']
+        assert preseal_events[0]['scheduler']['affinity'] == [session._evidence_cpu]
+    item = {'sequence': 1, 'timing': {'started_monotonic_s': time.monotonic() - 1},
+            'lifecycle': {'path_complete': True, 'home_verified': True}}
+    session.seal_attempt(item)
+    assert owner._service_mode is False
+    assert item['timing']['preseal_end_monotonic_s'] >= item['timing']['preseal_start_monotonic_s']
+    assert item['timing']['tp_stage_observations']['40']['samples'] == 1
+    assert item['timing']['tp_stage_observations']['78']['samples'] == 1
+    attempt = tmp_path / 'attempts' / '0001'
+    assert len((attempt / 'raw_sensor.jsonl').read_text().splitlines()) == 1
+    service = [json.loads(line) for line in
+               (attempt / 'service_observations.jsonl').read_text().splitlines()]
+    assert {(row['label'], row['row'].get('packet_sequence')) for row in service
+            if row['label'] == 'raw_sensor'} == {('raw_sensor', 2)}
+    assert any(row['label'] == 'robot_frames' and row['row']['integer_echoes']['26'] == 78
+               for row in service)
+
+
+def test_failed_returning_preseal_seals_raw_attempt_as_failure(tmp_path, monkeypatch):
+    import contact_yield_resident_session as resident
+
+    owner = NS(
+        _service_mode=False, _service_observations={},
+        raw_observations=[{'packet_sequence': 1}], robot_observations=[],
+        admission_robot_observations=[], rejected_robot_observations=[],
+        command_observations=[], _host_formal_path_publish_count=0,
+    )
+    session = ResidentSession(
+        mature=NS(writer=owner), runtime=None,
+        provider=NS(command_timeline=[]), prerequisites=None, run_dir=tmp_path,
+    )
+    session._service_tick = lambda: time.sleep(.002)
+    original = resident._resident_service_task
+
+    def fail(*args):
+        raise OSError('recording unavailable')
+
+    monkeypatch.setattr(resident, '_resident_service_task', fail)
+    session._start_returning_preseal()
+    owner._service_observations['raw_sensor'] = [{'packet_sequence': 2}]
+    with pytest.raises(ResidentSessionError, match='preseal failed'):
+        session._run_terminal_finalize(lambda: 'complete')
+    monkeypatch.setattr(resident, '_resident_service_task', original)
+    session.closed = True
+    item = {'sequence': 1, 'lifecycle': {'path_complete': False}}
+    session.seal_attempt(item, service=False)
+    assert item['evidence_eligible'] is False
+    assert 'recording unavailable' in item['preseal_error']
+    assert item['lifecycle']['sealed'] is True
+    attempt = tmp_path / 'attempts' / '0001'
+    assert len((attempt / 'raw_sensor.jsonl').read_text().splitlines()) == 1
+    assert len((attempt / 'service_observations.jsonl').read_text().splitlines()) == 1
 
 
 def test_stopped_session_seal_never_reopens_or_services_transport(tmp_path):
@@ -486,6 +590,26 @@ def test_real_path_collector_retired_while_new_service_frames_survive(tmp_path):
     assert not owner.raw_observations
     assert owner._service_observations['robot_frames']
     assert not owner._service_mode
+
+
+def test_collector_retirement_does_not_wait_once_per_small_bin(tmp_path):
+    from step5d_autotune_v4_r004.evidence import PathEvidenceCollector
+
+    collector = PathEvidenceCollector()
+    collector._bins = {index: [float(index)] for index in range(550)}
+    owner = NS(_service_mode=False)
+    session = ResidentSession(mature=NS(writer=owner), runtime=None,
+                              provider=None, prerequisites=None, run_dir=tmp_path)
+    ticks = []
+    session._service_tick = lambda: ticks.append(time.monotonic())
+    session._run_process_work = lambda **kw: kw['task']()
+
+    def finalize():
+        return len(collector._bins)
+
+    assert session._run_terminal_finalize(finalize) == 550
+    assert all(not values for values in collector._bins.values())
+    assert 1 <= len(ticks) < 20
 
 
 def test_home_settle_restarts_dwell_after_actual_joint_motion(tmp_path, monkeypatch):

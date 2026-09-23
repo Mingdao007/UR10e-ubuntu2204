@@ -76,6 +76,17 @@ def _stages(path: Path, path_start: float | None,
         if (state == 78 and first_ready_after_return is None
                 and 40 in first and timestamp >= first[40]):
             first_ready_after_return = timestamp
+    if first_ready_after_return is None and 40 in first and service_path is not None and service_path.is_file():
+        for entry in _rows(service_path):
+            if entry.get("label") != "robot_frames":
+                continue
+            row = entry.get("row") or {}
+            echoes = row.get("integer_echoes") or {}
+            state = int(echoes.get("26", echoes.get(26, -1)))
+            timestamp = float(row.get("received_monotonic_s", -math.inf))
+            if state == 78 and timestamp >= first[40]:
+                first_ready_after_return = timestamp
+                break
     if first_ready_after_return is not None and expected_q is not None and expected_pose is not None:
         home_frames = [
             row for row in _rows(path)
@@ -103,7 +114,7 @@ def _stages(path: Path, path_start: float | None,
                 state == 78 and expected_q is not None and expected_pose is not None
                 and len(q) == len(expected_q) == 6 and len(qd) == len(speed) == 6
                 and len(pose) == len(expected_pose) == 6
-                and row.get("safety_mode") == 1
+                and row.get("safety_mode") in (1, "NORMAL")
                 and max(abs(a - b) for a, b in zip(q, expected_q)) <= .02
                 and math.dist(pose[:3], expected_pose[:3]) <= .0005
                 and math.dist(pose[3:], expected_pose[3:]) <= .01

@@ -16,7 +16,6 @@ def test_sealed_attempt_reduction_separates_return_and_force_windows(tmp_path):
             {"received_monotonic_s": 6.0, "integer_echoes": {"26": 21}},
             {"received_monotonic_s": 14.0, "integer_echoes": {"26": 25}},
             {"received_monotonic_s": 75.0, "integer_echoes": {"26": 40}},
-            {"received_monotonic_s": 78.6, "integer_echoes": {"26": 78}},
         ],
         "raw_sensor": [
             {"host_use_monotonic_s": 15.0, "corrected_wrench_n_nm": [0, 0, -4, 0, 0, 0]},
@@ -32,7 +31,15 @@ def test_sealed_attempt_reduction_separates_return_and_force_windows(tmp_path):
         content = path.read_bytes()
         segments[name] = {"path": str(path), "count": len(rows),
                           "sha256": hashlib.sha256(content).hexdigest()}
-    seal = {"segments": segments, "lifecycle": {"sealed": True}}
+    service_path = attempt / "service_observations.jsonl"
+    service_path.write_text(json.dumps({
+        "label": "robot_frames",
+        "row": {"received_monotonic_s": 78.6, "integer_echoes": {"26": 78}},
+    }) + "\n")
+    service = {"path": str(service_path), "count": 1,
+               "sha256": hashlib.sha256(service_path.read_bytes()).hexdigest()}
+    seal = {"segments": segments, "service_observations": service,
+            "lifecycle": {"sealed": True}}
     (attempt / "seal.json").write_text(json.dumps(seal))
     item = {
         "sequence": 1,

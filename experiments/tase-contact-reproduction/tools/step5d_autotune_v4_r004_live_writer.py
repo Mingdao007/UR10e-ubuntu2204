@@ -1719,7 +1719,10 @@ class LiveR004Writer:
         self.candidate = attempt.candidate
         self.record_arm_transition_marker("execute_attempt_entered")
         path_requested = attempt.kind is not AttemptKind.QUALIFICATION
-        self._qualification_control = CanonicalQualificationControl(
+        qualification_control_factory = getattr(
+            self, "_qualification_control_factory", CanonicalQualificationControl
+        )
+        self._qualification_control = qualification_control_factory(
             self.candidate,
             attempt_id=f"{self.attempt_id}-e{self.session_epoch}-o{attempt.ordinal}",
             release_contract=self.contract,
@@ -1784,6 +1787,7 @@ class LiveR004Writer:
         seen_states: set[int] = set()
         terminal: R004OutputSnapshot | None = None
         first_hot_loop_poll = True
+        returning_preseal_started = False
         try:
             while True:
                 if self._mono_clock() - start >= timeout_s:
@@ -2222,6 +2226,11 @@ class LiveR004Writer:
                     ):
                         terminal_reference(sequence=consumed_sequence)
                 self._hot_path_mark("packet_evidence_exit")
+                if state == 40 and path_requested and not returning_preseal_started:
+                    preseal = getattr(self, "_terminal_preseal_service", None)
+                    if callable(preseal):
+                        preseal()
+                    returning_preseal_started = True
                 if state in {78, 80, 90}:
                     terminal = output
                     break
