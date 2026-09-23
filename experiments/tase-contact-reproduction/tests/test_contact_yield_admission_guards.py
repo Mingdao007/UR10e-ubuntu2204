@@ -16,42 +16,43 @@ def load(tmp_path, contract):
                                 attempt_id="r006-test", now_s=100.)
 
 
-def test_rate400_preparation_age_is_route_scoped_and_home_start_stays_fresh(tmp_path):
-    contract = _prepare(tmp_path)
+def test_rate400_preparation_keeps_original_300s_freshness(tmp_path):
+    contract = _prepare(tmp_path, observed=3500.0)
     home = tmp_path / "home_start_receipt.json"
     document = json.loads(home.read_text())
     document["observed_at_s"] = 3689.0
     home.write_text(json.dumps(document))
-    assert resident_admission_max_age(method="TASE_RNN_MATURE", duration="r013_60_rate400") == 3600.0
+    maximum_age = resident_admission_max_age(
+        method="TASE_RNN_MATURE", duration="r013_60_rate400"
+    )
+    assert maximum_age == 300.0
     assert resident_admission_max_age(method="TASE_RNN_MATURE", duration="r013_60") == 300.0
-    for now in (3689.0, 3690.0):
+    for now in (3689.0, 3799.999):
         prerequisites, _ = load_run_dir_receipts(
             tmp_path, contract=contract, route_id="r006-yield-live",
-            attempt_id="r006-test", now_s=now, admission_max_age_s=3600.0,
+            attempt_id="r006-test", now_s=now, admission_max_age_s=maximum_age,
         )
-        assert prerequisites.admission_max_age_s == 3600.0
+        assert prerequisites.admission_max_age_s == 300.0
     with pytest.raises(YieldLiveWriterError, match="stale"):
         load_run_dir_receipts(tmp_path, contract=contract, route_id="r006-yield-live",
-                              attempt_id="r006-test", now_s=3690.001,
-                              admission_max_age_s=3600.0)
+                              attempt_id="r006-test", now_s=3800.001,
+                              admission_max_age_s=maximum_age)
     with pytest.raises(YieldLiveWriterError, match="stale"):
         load_run_dir_receipts(tmp_path, contract=contract, route_id="r006-yield-live",
                               attempt_id="r006-test", now_s=4000.0,
-                              admission_max_age_s=3600.0)
+                              admission_max_age_s=maximum_age)
 
 
-def test_rate400_prearm_reconnect_forces_new_preparation(monkeypatch):
+def test_prearm_reconnect_forces_new_preparation_for_all_freshness_profiles(monkeypatch):
     from types import SimpleNamespace as NS
     calls = []
     monkeypatch.setattr(R006LiveWriter, '_reopen_prearm_rtde',
                         lambda self: calls.append('reopened'))
     writer = object.__new__(NativeYieldLiveWriter)
-    writer.prerequisites = NS(admission_max_age_s=3600.0)
-    with pytest.raises(YieldLiveWriterError, match='fresh preparation'):
-        writer._reopen_prearm_rtde()
-    assert calls == ['reopened']
-    writer.prerequisites = NS(admission_max_age_s=300.0)
-    writer._reopen_prearm_rtde()
+    for freshness_age in (300.0, 3600.0):
+        writer.prerequisites = NS(admission_max_age_s=freshness_age)
+        with pytest.raises(YieldLiveWriterError, match='fresh preparation'):
+            writer._reopen_prearm_rtde()
     assert calls == ['reopened', 'reopened']
 
 
@@ -132,7 +133,8 @@ def test_stop_needs_fresh_stationary_controller_observation(fresh,state,stationa
     output = NS(timestamp=2., received_monotonic_s=1. if fresh else .1,
         stationary=stationary, safety_normal=True,
         integer_echoes={26:state,28:4,32:606006,33:25,34:618001},
-        qd_rad_s=(0.,)*6, tcp_speed_m_s_rad_s=(0.,)*6)
+        qd_rad_s=(0.,)*6, target_qd_rad_s=(0.,)*6,
+        speed_scaling=1.0, tcp_speed_m_s_rad_s=(0.,)*6)
     writer = NS(_mono_clock=lambda:clock.now, _last_output=NS(timestamp=1.),
         stop=lambda reason:None, _opened=True,
         _controller_transport=NS(poll_output=lambda **kw:output),

@@ -220,7 +220,7 @@ def test_resident_seal_marks_replay_capture_failed_on_sequence_join_miss(tmp_pat
     )
 
 
-def test_rate400_refresh_is_hourly_or_event_triggered(tmp_path):
+def test_rate400_refresh_uses_original_300s_expiry_or_event_triggered(tmp_path):
     from figure8_resident_acceptance import _write_receipts
     from contact_yield_live_contract import load_identity_contract
     from contact_yield_live_writer import load_run_dir_receipts
@@ -228,9 +228,9 @@ def test_rate400_refresh_is_hourly_or_event_triggered(tmp_path):
     _write_receipts(tmp_path, contract, 100.)
     prerequisites, _ = load_run_dir_receipts(
         tmp_path, contract=contract, route_id='r006-yield-live', attempt_id='old',
-        now_s=100., admission_max_age_s=3600.,
+        now_s=100., admission_max_age_s=300.,
     )
-    now = [3699.]
+    now = [399.]
     session = ResidentSession(mature=NS(writer=NS()), runtime=None, provider=None,
                               prerequisites=prerequisites, run_dir=tmp_path,
                               wall_clock=lambda: now[0])
@@ -240,7 +240,7 @@ def test_rate400_refresh_is_hourly_or_event_triggered(tmp_path):
         session.require_refresh(reason)
         assert session._refresh_needed() is True
         session._refresh_reasons.clear()
-    now[0] = 3700.
+    now[0] = 400.
     assert session._refresh_needed() is True
     with pytest.raises(ResidentSessionError, match='unknown'):
         session.require_refresh('arbitrary')
@@ -251,7 +251,7 @@ def test_reacquired_home_triggers_refresh_after_measured_settle(tmp_path, monkey
     now = [0.]
     writer = NS(_service_mode=False)
     session = ResidentSession(mature=NS(writer=writer), runtime=None, provider=None,
-                              prerequisites=NS(admission_max_age_s=3600.),
+                              prerequisites=NS(admission_max_age_s=300.),
                               run_dir=tmp_path, mono_clock=lambda: now[0])
     session._home_settle_dirty = True
     def tick(*, settling=False):

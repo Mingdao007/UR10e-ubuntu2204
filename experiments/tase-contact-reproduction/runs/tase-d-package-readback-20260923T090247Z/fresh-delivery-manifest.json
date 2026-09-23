@@ -1,0 +1,54 @@
+{
+  "schema": "ur10e-contact-tp-delivery-manifest-v1",
+  "status": "controller read-back verified",
+  "delivery_mode": "content_addressed_reuse",
+  "fresh_controller_sha_verified": true,
+  "fresh_controller_checked_at": "2026-09-23T17:09:25+08:00",
+  "readback_source": "prior_full_readback",
+  "fresh_readback_observation": "controller_get",
+  "skip_basis_manifest": "runs/tase-resident-infra-20260923-settled-06/step5d_contact_six_qp_v1-validation.json",
+  "skip_basis_manifest_sha256": "25cb91af8089827af954ec06875e17f1236a71d3fb074ed3a28fad19c99a264c",
+  "program": "step5d_contact_six_qp_v1",
+  "local_dir": "programs/step5/step5d/contact-six-qp",
+  "readback_directory": "runs/tase-d-package-readback-20260923T090247Z/controller-readback-fresh",
+  "validation": {
+    "program": "step5d_contact_six_qp_v1",
+    "target_dir": "/programs/andyl/kunwei/step5",
+    "script_node_path": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script",
+    "installation_relative_path": "../../../default",
+    "script_sha256": "b0ef95867caa0c351ead551a94dd62fec0f95a37f3bd2d42b573c4da881c4bba",
+    "txt_sha256": "03ce5f9aabb16ce449c7b205cb39cf638d19fd0c4299ecdd3bbeb625653e194a",
+    "urp_sha256": "15797dcc2ca6814da0b7b3a21a891c6274cc8c29b3c383b4b5dd6edbb9a747c5",
+    "expected_stamp": "2026-09-22T0810Z_CONTACT_SIX_QP_V1_618001",
+    "package_validator": "/home/andy/codex-private-skills-shared-main/skills/ur10e-tp-package-delivery/scripts/validate_ur_tp_package.py",
+    "package_validation_receipt": "runs/tase-d-package-readback-20260923T090247Z/controller-readback-validation.json"
+  },
+  "sha256": {
+    "local": {
+      ".script": "b0ef95867caa0c351ead551a94dd62fec0f95a37f3bd2d42b573c4da881c4bba",
+      ".txt": "03ce5f9aabb16ce449c7b205cb39cf638d19fd0c4299ecdd3bbeb625653e194a",
+      ".urp": "15797dcc2ca6814da0b7b3a21a891c6274cc8c29b3c383b4b5dd6edbb9a747c5"
+    },
+    "controller": {
+      ".script": "b0ef95867caa0c351ead551a94dd62fec0f95a37f3bd2d42b573c4da881c4bba",
+      ".txt": "03ce5f9aabb16ce449c7b205cb39cf638d19fd0c4299ecdd3bbeb625653e194a",
+      ".urp": "15797dcc2ca6814da0b7b3a21a891c6274cc8c29b3c383b4b5dd6edbb9a747c5"
+    },
+    "readback": {
+      ".script": "b0ef95867caa0c351ead551a94dd62fec0f95a37f3bd2d42b573c4da881c4bba",
+      ".txt": "03ce5f9aabb16ce449c7b205cb39cf638d19fd0c4299ecdd3bbeb625653e194a",
+      ".urp": "15797dcc2ca6814da0b7b3a21a891c6274cc8c29b3c383b4b5dd6edbb9a747c5"
+    }
+  },
+  "target_resolution": {
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
+    "controller_directory": "/programs/andyl/kunwei/step5"
+  },
+  "safety_boundary": [
+    "read-only controller package GET",
+    "no upload",
+    "no Load/Play",
+    "no bridge",
+    "no motion"
+  ]
+}

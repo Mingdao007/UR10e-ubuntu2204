@@ -467,9 +467,7 @@ class ResidentSession:
                     stable_since = now if stable_since is None else stable_since
                     if now - stable_since >= 0.5:
                         self._stationary_home_verified_mono_s = float(self.mono_clock())
-                        if (self._home_settle_dirty
-                                and self.prerequisites is not None
-                                and self.prerequisites.admission_max_age_s > 300.0):
+                        if self._home_settle_dirty:
                             self.require_refresh("home_reacquired")
                         self._home_settle_dirty = False
                         _event(self, 'HOME_SETTLE', 'verified', sequence=self.next_sequence,

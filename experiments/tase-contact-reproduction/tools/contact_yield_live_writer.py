@@ -61,14 +61,9 @@ class YieldLiveWriterError(RuntimeError):
     """Native live writer admission or lifecycle failed closed."""
 
 
-# The resident rate400 route keeps its own preparation policy.  The legacy
-# R004 contract retains its 300 s read-back limit.
-R013_RATE400_RESIDENT_ADMISSION_MAX_AGE_S = 3600.0
-
-
 def resident_admission_max_age(*, method: str, duration: str | None) -> float:
-    if method == "TASE_RNN_MATURE" and duration == "r013_60_rate400":
-        return R013_RATE400_RESIDENT_ADMISSION_MAX_AGE_S
+    # Rate400 changes the timing data-admission threshold, not preparation
+    # evidence freshness. Keep the established 300 s bound for every route.
     return CONTROLLER_READBACK_MAX_AGE_S
 
 
@@ -776,13 +771,12 @@ class NativeYieldLiveWriter(R006LiveWriter):
 
     def _reopen_prearm_rtde(self) -> None:
         super()._reopen_prearm_rtde()
-        # A reconnect breaks the continuity asserted by the resident rate400
-        # preparation receipt.  Stop before ARM; the recovery owner returns
-        # Home and a new session obtains fresh read-back and baseline evidence.
-        if self.prerequisites.admission_max_age_s > CONTROLLER_READBACK_MAX_AGE_S:
-            raise YieldLiveWriterError(
-                "resident rate400 pre-ARM reconnect requires fresh preparation"
-            )
+        # A reconnect breaks the continuity asserted by the read-back and
+        # baseline receipts. Stop before ARM so the recovery owner can return
+        # Home and the next session can obtain fresh preparation evidence.
+        raise YieldLiveWriterError(
+            "pre-ARM RTDE reconnect requires fresh preparation"
+        )
 
     def reset_path_timing_stats(self) -> None:
         self._path_timing_stats = {

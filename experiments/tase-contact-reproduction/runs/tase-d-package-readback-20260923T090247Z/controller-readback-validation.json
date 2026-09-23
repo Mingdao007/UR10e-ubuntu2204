@@ -1,0 +1,320 @@
+{
+  "pass": true,
+  "state": "controller read-back verified",
+  "basename": "step5d_contact_six_qp_v1",
+  "controller_dir": "/programs/andyl/kunwei/step5",
+  "expected_stamp": "2026-09-22T0810Z_CONTACT_SIX_QP_V1_618001",
+  "results": [
+    {
+      "label": "local",
+      "pass": true,
+      "package_dir": "programs/step5/step5d/contact-six-qp",
+      "files": {
+        "script": "programs/step5/step5d/contact-six-qp/step5d_contact_six_qp_v1.script",
+        "txt": "programs/step5/step5d/contact-six-qp/step5d_contact_six_qp_v1.txt",
+        "urp": "programs/step5/step5d/contact-six-qp/step5d_contact_six_qp_v1.urp"
+      },
+      "parsed": {
+        "label": "local",
+        "basename": "step5d_contact_six_qp_v1",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "program_name": "step5d_contact_six_qp_v1",
+        "directory": "/programs/andyl/kunwei/step5",
+        "installationRelativePath": "../../../default",
+        "script_file_paths": [
+          "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script"
+        ],
+        "cachedContents_chars": 44323,
+        "urp_xml_chars": 46064
+      },
+      "checks": [
+        {
+          "name": "local.script_exists",
+          "pass": true,
+          "path": "programs/step5/step5d/contact-six-qp/step5d_contact_six_qp_v1.script"
+        },
+        {
+          "name": "local.txt_exists",
+          "pass": true,
+          "path": "programs/step5/step5d/contact-six-qp/step5d_contact_six_qp_v1.txt"
+        },
+        {
+          "name": "local.urp_exists",
+          "pass": true,
+          "path": "programs/step5/step5d/contact-six-qp/step5d_contact_six_qp_v1.urp"
+        },
+        {
+          "name": "local.triplet_basename_match",
+          "pass": true,
+          "basenames": {
+            "script": "step5d_contact_six_qp_v1",
+            "txt": "step5d_contact_six_qp_v1",
+            "urp": "step5d_contact_six_qp_v1"
+          }
+        },
+        {
+          "name": "local.urp_gzip_xml_readable",
+          "pass": true,
+          "error": null
+        },
+        {
+          "name": "local.program_name",
+          "pass": true,
+          "actual": "step5d_contact_six_qp_v1",
+          "expected": "step5d_contact_six_qp_v1"
+        },
+        {
+          "name": "local.directory",
+          "pass": true,
+          "actual": "/programs/andyl/kunwei/step5",
+          "expected": "/programs/andyl/kunwei/step5"
+        },
+        {
+          "name": "local.script_node_file_path",
+          "pass": true,
+          "actual": [
+            "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script"
+          ],
+          "expected": [
+            "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script"
+          ]
+        },
+        {
+          "name": "local.installation_relative_path",
+          "pass": true,
+          "actual": "../../../default",
+          "resolved": [
+            "/programs/default",
+            "/programs/default.installation"
+          ],
+          "expected": "/programs/default.installation"
+        },
+        {
+          "name": "local.stamp_has_date_time_timezone",
+          "pass": true,
+          "expected_stamp": "2026-09-22T0810Z_CONTACT_SIX_QP_V1_618001"
+        },
+        {
+          "name": "local.stamp_in_cachedContents",
+          "pass": true,
+          "expected_stamp": "2026-09-22T0810Z_CONTACT_SIX_QP_V1_618001"
+        },
+        {
+          "name": "local.stamp_in_script",
+          "pass": true,
+          "expected_stamp": "2026-09-22T0810Z_CONTACT_SIX_QP_V1_618001"
+        },
+        {
+          "name": "local.expected_grep_1_cachedContents",
+          "pass": true,
+          "grep": "stopj(20.000000000)"
+        },
+        {
+          "name": "local.expected_grep_1_script",
+          "pass": true,
+          "grep": "stopj(20.000000000)"
+        },
+        {
+          "name": "local.expected_grep_2_cachedContents",
+          "pass": true,
+          "grep": "write_output_integer_register(32, 606006)"
+        },
+        {
+          "name": "local.expected_grep_2_script",
+          "pass": true,
+          "grep": "write_output_integer_register(32, 606006)"
+        },
+        {
+          "name": "local.expected_grep_3_cachedContents",
+          "pass": true,
+          "grep": "write_output_integer_register(34, 618001)"
+        },
+        {
+          "name": "local.expected_grep_3_script",
+          "pass": true,
+          "grep": "write_output_integer_register(34, 618001)"
+        }
+      ]
+    },
+    {
+      "label": "readback",
+      "pass": true,
+      "package_dir": "runs/tase-d-package-readback-20260923T090247Z/controller-readback-fresh",
+      "files": {
+        "script": "runs/tase-d-package-readback-20260923T090247Z/controller-readback-fresh/step5d_contact_six_qp_v1.script",
+        "txt": "runs/tase-d-package-readback-20260923T090247Z/controller-readback-fresh/step5d_contact_six_qp_v1.txt",
+        "urp": "runs/tase-d-package-readback-20260923T090247Z/controller-readback-fresh/step5d_contact_six_qp_v1.urp"
+      },
+      "parsed": {
+        "label": "readback",
+        "basename": "step5d_contact_six_qp_v1",
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "program_name": "step5d_contact_six_qp_v1",
+        "directory": "/programs/andyl/kunwei/step5",
+        "installationRelativePath": "../../../default",
+        "script_file_paths": [
+          "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script"
+        ],
+        "cachedContents_chars": 44323,
+        "urp_xml_chars": 46064
+      },
+      "checks": [
+        {
+          "name": "readback.script_exists",
+          "pass": true,
+          "path": "runs/tase-d-package-readback-20260923T090247Z/controller-readback-fresh/step5d_contact_six_qp_v1.script"
+        },
+        {
+          "name": "readback.txt_exists",
+          "pass": true,
+          "path": "runs/tase-d-package-readback-20260923T090247Z/controller-readback-fresh/step5d_contact_six_qp_v1.txt"
+        },
+        {
+          "name": "readback.urp_exists",
+          "pass": true,
+          "path": "runs/tase-d-package-readback-20260923T090247Z/controller-readback-fresh/step5d_contact_six_qp_v1.urp"
+        },
+        {
+          "name": "readback.triplet_basename_match",
+          "pass": true,
+          "basenames": {
+            "script": "step5d_contact_six_qp_v1",
+            "txt": "step5d_contact_six_qp_v1",
+            "urp": "step5d_contact_six_qp_v1"
+          }
+        },
+        {
+          "name": "readback.urp_gzip_xml_readable",
+          "pass": true,
+          "error": null
+        },
+        {
+          "name": "readback.program_name",
+          "pass": true,
+          "actual": "step5d_contact_six_qp_v1",
+          "expected": "step5d_contact_six_qp_v1"
+        },
+        {
+          "name": "readback.directory",
+          "pass": true,
+          "actual": "/programs/andyl/kunwei/step5",
+          "expected": "/programs/andyl/kunwei/step5"
+        },
+        {
+          "name": "readback.script_node_file_path",
+          "pass": true,
+          "actual": [
+            "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script"
+          ],
+          "expected": [
+            "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.script"
+          ]
+        },
+        {
+          "name": "readback.installation_relative_path",
+          "pass": true,
+          "actual": "../../../default",
+          "resolved": [
+            "/programs/default",
+            "/programs/default.installation"
+          ],
+          "expected": "/programs/default.installation"
+        },
+        {
+          "name": "readback.stamp_has_date_time_timezone",
+          "pass": true,
+          "expected_stamp": "2026-09-22T0810Z_CONTACT_SIX_QP_V1_618001"
+        },
+        {
+          "name": "readback.stamp_in_cachedContents",
+          "pass": true,
+          "expected_stamp": "2026-09-22T0810Z_CONTACT_SIX_QP_V1_618001"
+        },
+        {
+          "name": "readback.stamp_in_script",
+          "pass": true,
+          "expected_stamp": "2026-09-22T0810Z_CONTACT_SIX_QP_V1_618001"
+        },
+        {
+          "name": "readback.expected_grep_1_cachedContents",
+          "pass": true,
+          "grep": "stopj(20.000000000)"
+        },
+        {
+          "name": "readback.expected_grep_1_script",
+          "pass": true,
+          "grep": "stopj(20.000000000)"
+        },
+        {
+          "name": "readback.expected_grep_2_cachedContents",
+          "pass": true,
+          "grep": "write_output_integer_register(32, 606006)"
+        },
+        {
+          "name": "readback.expected_grep_2_script",
+          "pass": true,
+          "grep": "write_output_integer_register(32, 606006)"
+        },
+        {
+          "name": "readback.expected_grep_3_cachedContents",
+          "pass": true,
+          "grep": "write_output_integer_register(34, 618001)"
+        },
+        {
+          "name": "readback.expected_grep_3_script",
+          "pass": true,
+          "grep": "write_output_integer_register(34, 618001)"
+        }
+      ]
+    }
+  ],
+  "sha": {
+    "pass": true,
+    "pairs": {
+      "script": {
+        "local": "b0ef95867caa0c351ead551a94dd62fec0f95a37f3bd2d42b573c4da881c4bba",
+        "readback": "b0ef95867caa0c351ead551a94dd62fec0f95a37f3bd2d42b573c4da881c4bba"
+      },
+      "txt": {
+        "local": "03ce5f9aabb16ce449c7b205cb39cf638d19fd0c4299ecdd3bbeb625653e194a",
+        "readback": "03ce5f9aabb16ce449c7b205cb39cf638d19fd0c4299ecdd3bbeb625653e194a"
+      },
+      "urp": {
+        "local": "15797dcc2ca6814da0b7b3a21a891c6274cc8c29b3c383b4b5dd6edbb9a747c5",
+        "readback": "15797dcc2ca6814da0b7b3a21a891c6274cc8c29b3c383b4b5dd6edbb9a747c5"
+      }
+    },
+    "checks": [
+      {
+        "name": "sha.script.both_exist",
+        "pass": true
+      },
+      {
+        "name": "sha.script.match",
+        "pass": true,
+        "local": "b0ef95867caa0c351ead551a94dd62fec0f95a37f3bd2d42b573c4da881c4bba",
+        "readback": "b0ef95867caa0c351ead551a94dd62fec0f95a37f3bd2d42b573c4da881c4bba"
+      },
+      {
+        "name": "sha.txt.both_exist",
+        "pass": true
+      },
+      {
+        "name": "sha.txt.match",
+        "pass": true,
+        "local": "03ce5f9aabb16ce449c7b205cb39cf638d19fd0c4299ecdd3bbeb625653e194a",
+        "readback": "03ce5f9aabb16ce449c7b205cb39cf638d19fd0c4299ecdd3bbeb625653e194a"
+      },
+      {
+        "name": "sha.urp.both_exist",
+        "pass": true
+      },
+      {
+        "name": "sha.urp.match",
+        "pass": true,
+        "local": "15797dcc2ca6814da0b7b3a21a891c6274cc8c29b3c383b4b5dd6edbb9a747c5",
+        "readback": "15797dcc2ca6814da0b7b3a21a891c6274cc8c29b3c383b4b5dd6edbb9a747c5"
+      }
+    ]
+  }
+}
