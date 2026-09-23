@@ -58,11 +58,14 @@ def _make_attempt(root):
             "Md_scalar": 9.565272137974492,
             "Bd_scalar": 693.6559295653944,
             "force_integral_limit_n_s": 1.0,
+            "force_integral_policy": "legacy-clamp-v1",
             "protocol_id": "figure8_window60_r013_rate400_v1",
         },
         "evidence": {"metrics": {"protocol_id": PROTOCOL_ID}},
         "timing": {"path_started_monotonic_s": 5.0},
+        "sequence": 1,
         "state": {"last_result": {"actual_dt_s": 0.002,
+            "implementation": "mature_local_tase_rnn",
             "outer_output_feedback_pending": {"requested_twist": [0.0] * 6}}},
         "sealed_evidence": {
             "schema": seal["schema"],
@@ -90,6 +93,26 @@ def test_input_audit_refuses_matched_replay_when_per_tick_fields_are_absent(tmp_
     assert report["command_timeline_rows"] == 0
     assert report["replay_status"] == "blocked_by_missing_sealed_per_tick_inputs"
     assert report["packet_fields"]["per_sample_outer_twist_or_actual_dt_or_reference_time_present"] is False
+
+
+def test_input_audit_accepts_complete_sealed_rnn_inputs_for_offline_qp(tmp_path):
+    report = inspect_attempt(_add_complete_trace(_make_attempt(tmp_path / "attempt")))
+    assert report["replay_status"] == "ready_for_offline_qp_solver_comparison"
+    assert report["offline_qp_solver_run"] is False
+    assert report["command_timeline_rows"] == 1
+    assert report["formal_path_sequences_joined_to_rtde"] == 1
+    assert report["formal_path_sequences_joined_to_sensor"] == 1
+    assert report["parameters"]["Md_scalar"] == 9.565272137974492
+
+
+def test_input_audit_rejects_successfully_sealed_but_incomplete_trace(tmp_path):
+    attempt = _add_complete_trace(_make_attempt(tmp_path / "attempt"))
+    seal_path = attempt / "seal.json"
+    seal = json.loads(seal_path.read_text(encoding="utf-8"))
+    seal["replay_evidence"]["complete"] = False
+    seal_path.write_text(json.dumps(seal), encoding="utf-8")
+    with pytest.raises(AuditError, match="receipt is incomplete"):
+        inspect_attempt(attempt)
 
 
 def test_verify_seal_rejects_changed_source_bytes(tmp_path):
@@ -126,6 +149,70 @@ def _rewrite_seal_copy(attempt, name, *, service=False):
         result["sealed_evidence"]["segments"][name] = manifest
     seal_path.write_text(json.dumps(seal), encoding="utf-8")
     result_path.write_text(json.dumps(result), encoding="utf-8")
+
+
+def _add_complete_trace(attempt):
+    row = {
+        "schema": "tase.qp-replay-command-timeline-v1",
+        "attempt_sequence": 1,
+        "packet_sequence": 1,
+        "reference_phase": "path",
+        "reference_time_s": 0.0,
+        "host_monotonic_s": 10.001,
+        "published_monotonic_s": 10.002,
+        "actual_dt_s": 0.002,
+        "solver_elapsed_s": 0.0004,
+        "provider_elapsed_s": 0.0006,
+        "host_slew_scale": 1.0,
+        "host_slew_delta_limit_rad_s": 0.005,
+        "requested_outer_twist_m_s_rad_s": [0.0] * 6,
+        "solver_qdot_lower_rad_s": [-0.1] * 6,
+        "solver_qdot_upper_rad_s": [0.1] * 6,
+        "jacobian_6x6": [[0.0] * 6 for _ in range(6)],
+        "previous_published_qdot_rad_s": [0.0] * 6,
+        "slew_adjusted_qdot_lower_rad_s": [-0.005] * 6,
+        "slew_adjusted_qdot_upper_rad_s": [0.005] * 6,
+        "published_packet_qdot_rad_s": [0.0] * 6,
+        "transition_events": [{
+            "event_type": "path_origin",
+            "event_identity": 0,
+            "reference_time_s": 0.0,
+            "lambda_state": [0.0] * 6,
+            "theta_dot_state": [0.0] * 6,
+        }],
+    }
+    timeline = attempt / "command_timeline.jsonl"
+    timeline.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    _rewrite_seal_copy(attempt, "command_timeline")
+    seal_path = attempt / "seal.json"
+    result_path = attempt / "attempt-result.json"
+    seal = json.loads(seal_path.read_text(encoding="utf-8"))
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    seal["replay_evidence"] = {
+        "schema": "tase.qp-replay-command-timeline-v1",
+        "attempt_sequence": 1,
+        "capacity_ticks": 30000,
+        "complete": True,
+        "record_count": 1,
+        "expected_formal_path_publish_count": 1,
+        "transition_event_count": 1,
+        "dropped_record_count": 0,
+        "missing_capture_count": 0,
+        "missing_packet_sequence_joins": 0,
+        "duplicate_published_packet_sequences": 0,
+        "packet_sequence_join_passed": True,
+    }
+    seal["lifecycle"].update({"path_complete": True, "home_verified": True})
+    result["lifecycle"] = {"replay_evidence_complete": True}
+    result["evidence"]["metrics"].update({
+        "path_duration_s": 60.0,
+        "complete_bins": 550,
+        "required_bins": 550,
+        "normal_force_mae_n": 1.1,
+    })
+    seal_path.write_text(json.dumps(seal), encoding="utf-8")
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+    return attempt
 
 
 def test_input_audit_rejects_unrelated_protocol_in_binding_or_metrics(tmp_path):
@@ -179,7 +266,7 @@ def test_input_audit_fails_closed_when_per_tick_fields_or_history_appear(tmp_pat
         path = attempt / "command_timeline.jsonl"
         path.write_text(json.dumps({"reference_time_s": 0.0}) + "\n", encoding="utf-8")
         _rewrite_seal_copy(attempt, "command_timeline")
-        expected_error = "command_timeline contains"
+        expected_error = "sealed replay-evidence"
     else:
         result_path = attempt / "attempt-result.json"
         result = json.loads(result_path.read_text(encoding="utf-8"))
