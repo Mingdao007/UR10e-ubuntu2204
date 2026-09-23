@@ -115,14 +115,47 @@ def _validate_manifest(root: Path, manifest_path: Path) -> tuple[dict[str, str],
     manifest = _load(manifest_path)
     required = {
         "status": "controller read-back verified",
-        "delivery_mode": "full_upload_readback",
-        "fresh_controller_sha_verified": True,
-        "readback_source": "fresh_controller_get",
     }
     for key, expected in required.items():
         if manifest.get(key) != expected:
             raise RegistrationError(f"fresh manifest {key!r} is not {expected!r}")
+    delivery_mode = manifest.get("delivery_mode")
+    if delivery_mode not in {"full_upload_readback", "content_addressed_reuse"}:
+        raise RegistrationError("fresh manifest delivery_mode is unsupported")
+    if manifest.get("fresh_controller_sha_verified") is not True:
+        raise RegistrationError("fresh controller SHA verification is missing")
+    if not isinstance(manifest.get("fresh_controller_checked_at"), str) or not manifest.get("fresh_controller_checked_at"):
+        raise RegistrationError("fresh controller check time is missing")
+    if delivery_mode == "full_upload_readback":
+        if manifest.get("readback_source") != "fresh_controller_get":
+            raise RegistrationError("full upload read-back must use fresh_controller_get")
     triplet, _ = _triplet_from_manifest(root, manifest)
+    if delivery_mode == "content_addressed_reuse":
+        if manifest.get("readback_source") != "prior_full_readback":
+            raise RegistrationError("content-addressed reuse must cite prior_full_readback")
+        basis_rel = manifest.get("skip_basis_manifest")
+        basis_sha = manifest.get("skip_basis_manifest_sha256")
+        if not isinstance(basis_rel, str) or not basis_rel:
+            raise RegistrationError("content-addressed reuse basis manifest is missing")
+        basis_path = (root / basis_rel).resolve()
+        try:
+            basis_path.relative_to(root.resolve())
+        except ValueError as exc:
+            raise RegistrationError("reuse basis manifest escapes experiment root") from exc
+        unresolved_basis = root / basis_rel
+        if unresolved_basis.is_symlink() or not basis_path.is_file():
+            raise RegistrationError("reuse basis manifest is missing or unsafe")
+        if not isinstance(basis_sha, str) or _sha(basis_path) != basis_sha:
+            raise RegistrationError("reuse basis manifest SHA differs")
+        basis = _load(basis_path)
+        basis_pairs = (basis.get("sha") or {}).get("pairs")
+        extension_by_role = {"script": ".script", "txt": ".txt", "urp": ".urp"}
+        if basis.get("pass") is not True or basis.get("state") != "controller read-back verified":
+            raise RegistrationError("reuse basis is not a successful controller read-back validation")
+        for role, extension in extension_by_role.items():
+            pair = basis_pairs.get(role) if isinstance(basis_pairs, Mapping) else None
+            if not isinstance(pair, Mapping) or pair.get("local") != triplet[extension] or pair.get("readback") != triplet[extension]:
+                raise RegistrationError(f"reuse basis does not prove matching {role} bytes")
     target_resolution = manifest.get("target_resolution")
     if not isinstance(target_resolution, Mapping):
         raise RegistrationError("fresh manifest target resolution is missing")
@@ -151,7 +184,10 @@ def _selection_payload(
         "program": PROGRAM,
         "source_delivery_manifest": _relative(root, manifest_path),
         "source_delivery_manifest_sha256": _sha(manifest_path),
-        "readback_directory": _relative(root, manifest_path.parent),
+        "readback_directory": _relative(
+            root,
+            root / str(manifest.get("readback_directory") or _relative(root, manifest_path.parent)),
+        ),
         "readback_time_policy": "fresh controller GET captured at the recorded check time; this selection does not assert runtime freshness or task qualification",
         "sha256": {
             "local": dict(triplet),
@@ -163,6 +199,8 @@ def _selection_payload(
         "fresh_controller_checked_at": checked_at,
         "readback_source": manifest["readback_source"],
         "safety_boundary": list(manifest.get("safety_boundary") or []),
+        "skip_basis_manifest": manifest.get("skip_basis_manifest"),
+        "skip_basis_manifest_sha256": manifest.get("skip_basis_manifest_sha256"),
         "supersedes": {
             "path": _relative(root, old_selection_path),
             "sha256": old_sha,
@@ -267,7 +305,10 @@ def register(
         "bridge_started": False,
         "claim_boundary": "fresh package identity only; no Home observation, resolver readiness, qualification, or figure-eight acceptance",
     }
-    report_path = root / "report/yield-live-transition-v1/contact-readback-registration-20260921.json"
+    report_stamp = datetime.now().astimezone().strftime("%Y%m%dT%H%M%S%f%z")
+    report_path = root / "report/yield-live-transition-v1" / f"contact-readback-registration-{report_stamp}.json"
+    registration_rel = _relative(root, report_path)
+    registration["registration_receipt"] = registration_rel
     _write_atomic(selection_path, selection)
     _write_atomic(current_path, current)
     _write_atomic(table_path, table)
