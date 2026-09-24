@@ -38,13 +38,22 @@ def test_triplet_preserves_home_xyz_and_has_narrow_common_caps(tmp_path):
     assert r['numeric_sanity']['tp_actual_joint_speed_guard_rad_s'] == pytest.approx(.06)
     assert 'local force_fuse_n = 20.000000000' in s
     assert 'travel >= 0.015000000' in s
-    assert 'STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1' in s
-    assert 'local d_near_start_travel_m = 0.011029311' in s
+    assert 'STEP5D_R008_WAVE4_FAR_NEAR_EARLY_BRAKE_008MM_V1' in s
+    assert 'local d_near_start_travel_m = 0.008000000' in s
+    assert 'local f_far_n = 0.300000000' in s
     assert 'local v_far_m_s = 0.005000000' in s
     assert 'local v_near_m_s = 0.000500000' in s
+    assert 'local far_accel_m_s2 = 0.010000000' in s
+    assert 'local near_accel_m_s2 = 0.005000000' in s
+    assert 'if normal_force >= 0.500000000 or force_norm >= 0.700000000:' in s
     assert r['contact_search']['admittance_enabled'] is False
     assert r['contact_search']['far_speed_m_s'] == pytest.approx(0.005)
     assert r['contact_search']['near_speed_m_s'] == pytest.approx(0.0005)
+    assert r['contact_search']['near_start_travel_m'] == pytest.approx(0.008)
+    assert r['contact_search']['force_based_early_switch_n'] == pytest.approx(0.3)
+    assert r['contact_search']['force_fuse_n'] == pytest.approx(20.0)
+    assert r['contact_search']['max_travel_m'] == pytest.approx(0.015)
+    assert '8 mm as an offline early-braking candidate' in r['contact_search']['current_native_adaptation']
     assert 'read_input_integer_register(36) < 1 or read_input_integer_register(25) != 2' in s
     assert 'read_input_integer_register(25) != 2 or read_input_integer_register(36) < 1' in s
     assert 'read_input_integer_register(36) < 3 or read_input_integer_register(25) != 2' not in s

@@ -18,15 +18,18 @@ PROTOCOL=618001
 # readable runtime revision and a fresh controller read-back.
 REVISION=25
 
-# Historical Step5d/R008 Wave-4 final contact-search schedule. This is a
-# bounded open-loop FAR/NEAR velocity schedule; it deliberately has no scalar
-# admittance or force-to-velocity law. The current native package keeps its
-# tighter 20 N / 15 mm envelope while reusing the validated speed schedule.
-CONTACT_SEARCH_STRATEGY_ID='STEP5D_R008_WAVE4_FAR_NEAR_NO_ADMITTANCE_V1'
+# Trace-driven adaptation of the Step5d/R008 Wave-4 schedule. It retains the
+# bounded open-loop FAR/NEAR speeds and accelerations, but moves the
+# distance-triggered FAR/NEAR transition to 8 mm after the 2026-09-24 trace
+# showed 4.91 mm/s at the old 11.03 mm transition. The independent force-based
+# early switch remains unchanged. This is an offline candidate until a matching
+# TP read-back and live contact acceptance are completed.
+CONTACT_SEARCH_STRATEGY_ID='STEP5D_R008_WAVE4_FAR_NEAR_EARLY_BRAKE_008MM_V1'
 CONTACT_SEARCH_SOURCE='config/step5d/autotune_v4_r008_contact_search_schedule.json'
 SEARCH_FAR_SPEED_M_S=0.005
 SEARCH_NEAR_SPEED_M_S=0.0005
-SEARCH_NEAR_START_TRAVEL_M=0.011029311
+SEARCH_NEAR_START_TRAVEL_M=0.008
+SEARCH_FAR_FORCE_SWITCH_N=0.3
 SEARCH_FAR_ACCELERATION_M_S2=0.01
 SEARCH_NEAR_ACCELERATION_M_S2=0.005
 SEARCH_MAX_TRAVEL_M=0.015
@@ -208,6 +211,7 @@ def transform(source,home,stamp):
     body=body.replace('speedj(baseline_qdot, 40.000000000,','speedj(baseline_qdot, 5.000000000,')
     body=body.replace('speedj(path_qdot, 40.000000000,','speedj(path_qdot, 5.000000000,')
     body=body.replace('local d_near_start_travel_m = 0.011029311',f'local d_near_start_travel_m = {SEARCH_NEAR_START_TRAVEL_M:.9f}')
+    body=body.replace('local f_far_n = 0.300000000',f'local f_far_n = {SEARCH_FAR_FORCE_SWITCH_N:.9f}')
     body=body.replace('local v_far_m_s = 0.005000000',f'local v_far_m_s = {SEARCH_FAR_SPEED_M_S:.9f}')
     body=body.replace('local v_near_m_s = 0.000500000',f'local v_near_m_s = {SEARCH_NEAR_SPEED_M_S:.9f}')
     body=body.replace('local force_fuse_n = 50.000000000',f'local force_fuse_n = {SEARCH_FORCE_FUSE_N:.9f}')
@@ -504,12 +508,13 @@ def build(home_path,output):
                   'far_speed_m_s':SEARCH_FAR_SPEED_M_S,
                   'near_speed_m_s':SEARCH_NEAR_SPEED_M_S,
                   'near_start_travel_m':SEARCH_NEAR_START_TRAVEL_M,
+                  'force_based_early_switch_n':SEARCH_FAR_FORCE_SWITCH_N,
                   'max_travel_m':SEARCH_MAX_TRAVEL_M,
                   'timeout_s':SEARCH_TIMEOUT_S,
                   'far_acceleration_m_s2':SEARCH_FAR_ACCELERATION_M_S2,
                   'near_acceleration_m_s2':SEARCH_NEAR_ACCELERATION_M_S2,
                   'force_fuse_n':SEARCH_FORCE_FUSE_N,
-                  'current_native_adaptation':'20 N force/torque envelope and 15 mm travel cap are retained; only the bounded speed schedule is reused',
+                  'current_native_adaptation':'20 N force/torque envelope, 15 mm travel cap, speeds, accelerations and force-based early switch are retained; distance-triggered FAR-to-NEAR transition moves from 11.029311 mm to 8 mm as an offline early-braking candidate',
               }}
     manifest['numeric_sanity']={'duration_s':Task().duration_s,'resident_entry_s':ENTRY_DURATION_S,
         'path_end_handshake_margin_s':PATH_END_HANDSHAKE_MARGIN_S,'span_m':[.08,.02],

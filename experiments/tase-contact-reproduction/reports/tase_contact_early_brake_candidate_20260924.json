@@ -1,0 +1,60 @@
+{
+  "schema": "tase.contact-search-early-brake-candidate-v1",
+  "source_attempt": "runs/tase-a-four-unit-engineering-fixed-20260924T0600HKT/attempts/0001",
+  "source_tp_program": "step5d_contact_six_qp_v1",
+  "source_attempt_status": "failed_before_path",
+  "trace_evidence": {
+    "distance_trigger_m_original": 0.011029311,
+    "force_based_early_switch_n": 0.3,
+    "candidate_distance_sample": {
+      "travel_m": 0.008003950576565416,
+      "normal_force_n": 0.21850057554085334,
+      "force_norm_n": 0.23964880188168497,
+      "tcp_z_speed_m_s": -0.004911920531475804
+    },
+    "original_sustained_near_sample": {
+      "elapsed_from_state20_s": 2.772307731,
+      "travel_m": 0.011066012478,
+      "normal_force_n": 0.505879886,
+      "force_norm_n": 0.536983208,
+      "tcp_speed_mm_s": 4.911517919
+    },
+    "sustained_contact_sample": {
+      "elapsed_from_state20_s": 3.642340647,
+      "travel_m": 0.013465753506
+    },
+    "ideal_deceleration_to_near_speed": {
+      "initial_speed_m_s": 0.004911517919,
+      "target_speed_m_s": 0.0005,
+      "acceleration_m_s2": 0.005,
+      "time_s": 0.882303584,
+      "distance_m": 0.0023873
+    },
+    "command_stream_limitation": "The exact native speedl command sequence was not captured; these are synchronized TP-source and RTDE pose/speed observations. The force-based branch may issue earlier transient near commands."
+  },
+  "candidate": {
+    "strategy_id": "STEP5D_R008_WAVE4_FAR_NEAR_EARLY_BRAKE_008MM_V1",
+    "distance_trigger_m": 0.008,
+    "force_based_early_switch_n": 0.3,
+    "far_speed_m_s": 0.005,
+    "near_speed_m_s": 0.0005,
+    "far_acceleration_m_s2": 0.01,
+    "near_acceleration_m_s2": 0.005,
+    "travel_limit_m": 0.015,
+    "force_fuse_n": 20.0,
+    "home_profile": "figure8_home_v1 joint-authoritative",
+    "local_package_stamp": "2026-09-24T0200Z_CONTACT_SIX_QP_V1_618001",
+    "local_package_artifact": "runs/tase-contact-near-brake-candidate-20260924T1000HKT/package",
+    "local_package_validation": "passed",
+    "controller_upload_or_readback": false,
+    "live_qualified": false
+  },
+  "separate_unresolved_gate": {
+    "stop_reason": 48,
+    "baseline_wait_s": 30.008,
+    "max_continuous_joint_release_s": 0.4356,
+    "required_release_s": 0.5,
+    "interpretation": "Earlier distance-based braking may reduce contact overshoot, but does not establish that the separate baseline release gate will pass."
+  },
+  "evidence_boundary": "One synchronized Kunwei/RTDE/TP failure trace; no Figure-eight PATH; no independent task-force truth; offline candidate only."
+}

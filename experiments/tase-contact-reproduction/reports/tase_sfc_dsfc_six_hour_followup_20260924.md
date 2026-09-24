@@ -57,6 +57,10 @@
 
 这项证据可以解释初始压入过大，但没有直接记录 TP 原生 `speedl` 命令，速度轨迹是用运行包源码与 RTDE 实际 TCP 速度/位置交叉核对；因此因果级别是“强证据支持”，不是独立执行器轨迹测量。它也**没有单独证明**后续 0.5 秒 release gate 失败全由该过压造成：`reason=48` 的首个正式失败仍是 baseline 阶段等待 30.008 秒未得到连续 0.5 秒放行（最长 0.4356 秒）。baseline 反馈振荡需要作为独立问题继续处理。TP force-fuse 为 20 N；短 probe 的 10 N 停试线属于另一个包，不能把 10.651 N 写作短 probe 触发了 10 N 停试。
 
+据此生成了单独的 **8 mm distance-trigger early-brake 离线候选**，没有改 force-based `0.3 N` 早切换、5/0.5 mm/s 速度、两档加速度、20 N fuse、15 mm travel cap 或 joint Home。trace 中 travel 到 `8.004 mm` 时 normal/force norm 为 `0.219/0.240 N`，仍低于力触发值，TCP 仍以约 `4.912 mm/s` 下探；同期旧 distance trigger 是 `11.029 mm`。旧轨迹从 8 mm 样本到持续接触判据有约 `1.488 s`、`5.462 mm`，而理想减速到 0.5 mm/s 需 `0.882 s`、`2.387 mm`。这是基于旧轨迹的运动学可行性依据，不是新候选的实测结果；候选输出会改变后续轨迹，且原生 `speedl` 命令流未记录。
+
+候选 triplet 已用批准 Figure-eight Home receipt 本地生成并通过 URP/XML/cache、Home、关键速度和 20 N fuse 检查，stamp 为 `2026-09-24T0200Z_CONTACT_SIX_QP_V1_618001`。它仍是 `live_qualified=false`：没有上传或 fresh read-back，当前生产包未改变。即使早刹车减少初始过压，也不能替代解决独立 `reason=48` release gate；该候选需等 direct Ethernet 恢复后走 package owner read-back，再作为独立软件版本试验。
+
 计算和阶段字段保存在 `reports/tase_contact_acquisition_revisit_20260924.json`。provider 的 normal 速度命令在测力穿越目标时会换向；TASE RNN 与积分在 baseline 阶段冻结，因此 PATH 阶段的 `Md/Bd` 或积分 windup 不能解释这次接触前失败。05:15 暴露的“release dwell 零输出”已修复，但 06:00 证明仅修此软件缺陷仍不足以让 8 秒正式接触流程稳定放行。
 
 旧 TASE attempt 的 force-only 比例是 raw-record 诊断，不能直接替代 supervisor 的联合 gate。05:15 和 06:00 的反馈均来自 Kunwei，不是独立 task-force 真值；也没有依据把 10.526 N 写作短 probe 的 10 N 停试事件。
@@ -120,4 +124,4 @@
 
 09:29 HKT 的最新只读预检详见 `reports/tase_readonly_bench_preflight_failure_20260924.json`。本机 `enp3s0` 为 `DOWN/NO-CARRIER` 且无 IPv4；到 UR 与 Kunwei 的路由走 `surfshark_wg`，Dashboard/RTDE/各目标端口和 Kunwei TCP connect-only 均超时。direct NIC / physical link 是首个失败条件，具体是线缆、交换机还是设备端未能区分。此检查没有发送 motion、sensor write/zero 或 TP 命令；本地 writer 数为 0。需先恢复有线 link，再 fresh 读取安全态、joint Home 与 program STOPPED，才可继续 live work。
 
-按最新方向，接下来的主线转到 **TASE＋SFC／DSFC**：SFC/DSFC 的 30 条 matched model replay 和双空间 synthetic-event 覆盖已完成，继续开发限于离线候选与事件评分。只有在连杆外力观测器、独立施力记录和标定视觉 corridor 等物理证据到位后，才讨论碰撞/推扰 live 验证；本轮不运行装置或真人推扰。TASE 8 秒正式接触链的首次过压机制已有强证据，但后续 release gate 失败尚未修复；四圈完整 PATH 仍是 0/4。两者保持独立，不把 1 秒 probe 合并进旧协议。
+按最新方向，接下来的主线转到 **TASE＋SFC／DSFC**：SFC/DSFC 的 30 条 matched model replay 和双空间 synthetic-event 覆盖已完成，继续开发限于离线候选与事件评分。只有在连杆外力观测器、独立施力记录和标定视觉 corridor 等物理证据到位后，才讨论碰撞/推扰 live 验证；本轮不运行装置或真人推扰。四圈完整 PATH 仍是 0/4；8 秒正式接触链已生成较早减速的 8 mm 离线 TP 候选，但未部署；baseline release gate 仍未修复。1 秒 probe 不合并进旧 Figure-eight 协议。
