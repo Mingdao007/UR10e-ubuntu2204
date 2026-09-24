@@ -1,0 +1,39 @@
+{
+  "schema": "step5d.autotune-v4/register-wire-v1",
+  "program": "step5d_strict_rnn_autotune_v4_r001",
+  "double_inputs": {
+    "24": "raw positive normal_load_n from Kunwei",
+    "25": "Kunwei translational force norm N",
+    "26": "monotonic heartbeat",
+    "27": "fresh finite Kunwei flag",
+    "28": "fail-closed stop request",
+    "29": "fresh EOAT controller GET acknowledgement",
+    "30": "Kunwei torque norm Nm",
+    "31_to_36": "Kunwei zeroed Fx Fy Fz Mx My Mz",
+    "37_to_42": "hash-gated qdot0..qdot5 rad/s",
+    "43": "qdot command valid",
+    "44": "internal 1-to-5 N ramp setpoint evidence",
+    "45": "filtered positive normal_load_n",
+    "46": "monotonic command sequence",
+    "47": "V4 layout code 604"
+  },
+  "integer_inputs": {
+    "24": "completed consecutive 5 N baseline holds; full path requires at least 3"
+  },
+  "double_outputs": {
+    "24_to_47": "input echoes except register 30 terminal reason, 34 TP internal setpoint, 35 stage"
+  },
+  "constants": {
+    "layout_code": 604.0,
+    "target_force_n_not_transported": 5.0,
+    "qdot_cap_rad_s": 0.15,
+    "speedj_acceleration_rad_s2": 2.5,
+    "stopj_acceleration_rad_s2": 2.5
+  },
+  "invariants": [
+    "Target force is construction/decode/runtime asserted at 5 N and is not a tunable wire field.",
+    "Registers 37..42 are written only after the bound model/Jacobian Cartesian gate passes.",
+    "Any stale, nonfinite, safety, structural, layout, or sequence failure publishes zero qdot and stop_request.",
+    "Kunwei is the sole wrench authority; UR built-in force is absent."
+  ]
+}

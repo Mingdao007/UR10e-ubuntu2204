@@ -1,0 +1,10 @@
+{
+  "schema": "step5d.program-revocation/v1",
+  "basename": "step5d_autotune_start_hover_r002",
+  "status": "REVOKED_PROTECTIVE_STOP",
+  "load_or_play_allowed": false,
+  "incident": "config/step5d/incidents/20260730_r002_protective_stop.json",
+  "script_sha256": "7da4892eeffe05fad4d4cb52b594d9eaaae2b582da987ee20828d956e6657e04",
+  "txt_sha256": "7ae22c675ce65d5c5e059a4b88e3cfae12aa063bf09e48dbaa2640d071f7af39",
+  "urp_sha256": "c5182d92b46e5a24976bc3a193ab3f44810abd29777dc9ffbde294f26e87cd37"
+}

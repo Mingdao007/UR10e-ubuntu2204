@@ -1,0 +1,7 @@
+{
+  "schema": "step5d.force-search-candidate-block/v1",
+  "program": "step5d_force_search_canary_r002",
+  "status": "SUPERSEDED_NOT_FOR_LOAD_OR_PLAY",
+  "reason": "Fresh live preflight measured a no-contact UR internal TCP-force norm of approximately 2.0 to 2.2 N, above r002's 2.0 N entry gate. r003 retains the Kunwei 3 N hard guard and adds entry-relative UR internal wrench guards so payload and CoG residual does not create a false entry failure.",
+  "replacement": "step5d_force_search_canary_r003"
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "basename": "step5d_autotune_start_hover_r002",
+  "controller_directory": "/programs/andyl/kunwei/step5/archive_revoked_20260730",
+  "artifacts": [
+    {
+      "filename": "step5d_autotune_start_hover_r002.urp",
+      "source": "step5d_autotune_start_hover_r002.urp",
+      "sha256": "c5182d92b46e5a24976bc3a193ab3f44810abd29777dc9ffbde294f26e87cd37"
+    },
+    {
+      "filename": "step5d_autotune_start_hover_r002.txt",
+      "source": "step5d_autotune_start_hover_r002.txt",
+      "sha256": "7ae22c675ce65d5c5e059a4b88e3cfae12aa063bf09e48dbaa2640d071f7af39"
+    },
+    {
+      "filename": "step5d_autotune_start_hover_r002.script",
+      "source": "step5d_autotune_start_hover_r002.script",
+      "sha256": "7da4892eeffe05fad4d4cb52b594d9eaaae2b582da987ee20828d956e6657e04"
+    }
+  ]
+}

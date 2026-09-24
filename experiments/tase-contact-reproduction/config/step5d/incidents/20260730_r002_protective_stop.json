@@ -1,0 +1,37 @@
+{
+  "schema": "step5d.live-incident/v1",
+  "incident_id": "new-eoat-r002-protective-stop-20260730",
+  "status": "CONFIRMED_BY_OPERATOR_AND_FAILED_CLOSED",
+  "affected_program": {
+    "basename": "step5d_autotune_start_hover_r002",
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_autotune_start_hover_r002.urp",
+    "script_sha256": "7da4892eeffe05fad4d4cb52b594d9eaaae2b582da987ee20828d956e6657e04",
+    "txt_sha256": "7ae22c675ce65d5c5e059a4b88e3cfae12aa063bf09e48dbaa2640d071f7af39",
+    "urp_sha256": "c5182d92b46e5a24976bc3a193ab3f44810abd29777dc9ffbde294f26e87cd37"
+  },
+  "observed": {
+    "operator_report": "protective stop occurred during the r002 run",
+    "post_incident_dashboard_normal_is_not_negative_evidence": true,
+    "post_incident_program_state": "STOPPED",
+    "post_incident_tcp_speed_m_s": 0.0,
+    "post_incident_active_live_writers": 0
+  },
+  "root_cause": {
+    "incorrect_embedded_tcp_z_mm": 59.14,
+    "corrected_tcp_z_mm": 87.4,
+    "tcp_position_error_mm": 28.26,
+    "stale_absolute_home_reused": true,
+    "unsafe_motion_segments_m_s": [
+      0.04,
+      0.09,
+      0.04
+    ],
+    "conclusion": "The wrong TCP was applied before reusing the prior EOAT absolute Home geometry, so the controller's TCP-based route did not represent the new large rigid contact face."
+  },
+  "revocation": {
+    "load_or_play_allowed": false,
+    "current_release_pointer_changed": false,
+    "controller_readback_manifest": "runs/controller_readback_step5d_autotune_start_hover_r002_20260730_025832/manifest.json",
+    "replacement_rule": "Do not reuse r002 or the old absolute XY/Home. Requalify only with a no-lateral, low-speed force-search primitive."
+  }
+}

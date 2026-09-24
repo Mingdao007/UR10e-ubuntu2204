@@ -1,0 +1,27 @@
+Step5d one-shot campaign Home positioning TP package
+
+Controller target:
+  /programs/andyl/kunwei/step5/step5d_autotune_start_hover_r002.urp
+
+Version:
+  2026-07-30T0310HKT_STEP5D_AUTOTUNE_START_HOVER_R002
+
+Role:
+  Standalone no-contact positioning helper for the new 3D-printed EOAT.
+  On Play it initializes payload, CoG, and TCP before the first TCP observation
+  and before any motion.
+
+EOAT:
+  contract_id=new-3d-printed-eoat-20260730
+  contract_sha256=fd57dce175a88563c08bbed4bd333cc503e68999d73cf110acf76bbefd4fa147
+  payload_kg=0.413
+  cog_m=[0.0011, 0.0031, 0.0163]
+  tcp_pose_m_rad=[0.0, 0.0, 0.05914, 0.0, 0.0, 0.0]
+
+Motion geometry:
+  Unchanged from r001: final target p[0.487834547, 0.129337053, 0.033000000, 3.120752062, 0.000000000, 0.068626833],
+  three bounded movel segments with r=0.0 and stationary final verification.
+
+Safety scope:
+  No contact, force mode, sensor zero/tare, bridge/register protocol, or
+  external runtime command path.

@@ -3,11 +3,12 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
+
+import pytest
+
+from step5d_force_search_canary_shared import ForceSearchCanaryAxisReturnPolicy
 
 import build_step5d_force_search_canary_r006 as builder  # noqa: E402
 import step5d_force_search_canary_r006 as canary  # noqa: E402
@@ -16,6 +17,7 @@ import step5d_force_search_canary_r006 as canary  # noqa: E402
 def test_r006_fixed_contract() -> None:
     contract = canary.load_contract()
 
+    assert contract.axis is ForceSearchCanaryAxisReturnPolicy.NEGATIVE_Z_SEARCH_POSITIVE_Z_RETRACT
     assert contract.search_speed_m_s == pytest.approx(0.0005)
     assert contract.search_acceleration_m_s2 == pytest.approx(0.01)
     assert contract.max_travel_m == pytest.approx(0.025)
@@ -128,6 +130,12 @@ def test_script_monitors_deceleration_and_requires_stationary_before_retract() -
     assert "movej(" not in script
     assert "movel(" not in script
     assert "0.059140000" not in script
+
+
+def test_r006_script_body_remains_immutable() -> None:
+    checked = (ROOT / "programs/step5/step5d/step5d_force_search_canary_r006.script").read_bytes()
+    _, _, expected_body = checked.partition(b"\n")
+    assert canary.render_script().encode("utf-8") == expected_body
 
 
 def test_r006_triplet_round_trip_and_numeric_sanity(tmp_path: Path) -> None:
