@@ -1,0 +1,73 @@
+{
+  "schema": "tase.readonly-bench-preflight-failure-v1",
+  "created_at_hkt": "2026-09-24T09:29:43.572",
+  "completed_at_hkt": "2026-09-24T09:29:49.605",
+  "elapsed_s": 6.032371459004935,
+  "ok": false,
+  "read_only": true,
+  "live_motion_executed": false,
+  "source_raw_preflight": "runs/preflight-post-sfc-dsfc-20260924T093500HKT/preflight_readonly.json",
+  "first_concrete_blocker": {
+    "kind": "direct_ethernet_no_carrier",
+    "interface": "enp3s0",
+    "interface_state": "unavailable",
+    "link_flags": "DOWN/NO-CARRIER",
+    "ipv4_addresses": [],
+    "interpretation": "direct bench link is physically unavailable at the host interface; cause within cable/switch/controller-side link is not distinguished"
+  },
+  "route_observations": {
+    "robot_route": "192.168.1.18 dev surfshark_wg table 300000 src 10.14.0.2 uid 1000 \n    cache",
+    "kunwei_route": "192.168.50.25 dev surfshark_wg table 300000 src 10.14.0.2 uid 1000 \n    cache",
+    "bench_network_gate_issues": [
+      "direct_link_has_no_ipv4",
+      "robot_ping_failed",
+      "kunwei_host_ipv4_missing",
+      "kunwei_route_uses_vpn",
+      "kunwei_tcp_connect_failed"
+    ]
+  },
+  "remote_connectivity": {
+    "dashboard_ok": false,
+    "rtde_ok": false,
+    "robot_ports": {
+      "29999": {
+        "error": "TimeoutError: timed out",
+        "open": false,
+        "port": 29999
+      },
+      "30002": {
+        "error": "TimeoutError: timed out",
+        "open": false,
+        "port": 30002
+      },
+      "30004": {
+        "error": "TimeoutError: timed out",
+        "open": false,
+        "port": 30004
+      }
+    },
+    "kunwei_tcp_connect_only": {
+      "error": "TimeoutError: timed out",
+      "host": "192.168.50.25",
+      "open": false,
+      "port": 5152
+    }
+  },
+  "local_writer_processes": [],
+  "robot_home_status": "unverified_at_this_preflight",
+  "last_verified_home_snapshot": {
+    "time_hkt": "2026-09-24 06:41",
+    "source": "reports/tase_sfc_dsfc_six_hour_followup_20260924.md",
+    "actual_q_rad": [
+      0.7452082,
+      -1.81808819,
+      -2.56270456,
+      -0.31234105,
+      1.52763081,
+      -0.8238619
+    ],
+    "safety_normal": true,
+    "dashboard": "STOPPED step5d_contact_home_v1.urp"
+  },
+  "required_before_live_work": "restore direct enp3s0 link and pass fresh read-only dashboard, RTDE, Kunwei connect-only and writer checks; then verify joint Home"
+}

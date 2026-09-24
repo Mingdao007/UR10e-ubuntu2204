@@ -7,7 +7,7 @@
 - 独立短接触入口完成了 8、4、3、2、1 秒 ramp，并把 1 秒档重复两次。七次都满足现有 0.5 秒接触放行条件并自动回 joint Home；1 秒是最快通过档。该入口有独立 10 N force-norm 停试线，实测峰值 7.01–8.47 N。它是短接触资格数据，不是 Figure-eight 或 autotuner 数据。
 - 冻结 A 参数的四圈工程验收没有完成：尝试在正式 PATH 前因 5 N 接触放行窗口不稳定而失败。另一轮在运动前被 observer 新鲜度门槛拦住。**完整 60 秒 PATH 为 0/4，故无四圈真实周转中位数，也不能宣称 ≤81 秒。** 失败记录保留，两个实际运动故障都由 recovery owner 自动回到 Home。
 - 同条件 SFC/DSFC 比较完成 30/30 个 identity-J 模型代理单元、30 次原始命令重放，并完成 30 次 fixed-Home calibrated-Jacobian 命令替换。新增敏感性重放中，每条输入 99.987% 的采样至少有一个关节达到 ±0.05 rad/s 上限、无越界；它显示 identity-J 输入映射会低估关节限速压力，不能据此排 SFC/DSFC 优胜或推断真实 task-force。
-- 最后记录的只读 bench 检查时间为 2026-09-24 06:41 HKT；当时机械臂在批准 joint Home、静止、Safety NORMAL、Dashboard STOPPED，且没有 active writer。这是带时间戳的历史状态证据，不代表本次报告更新时重新读取了硬件。尚未完成四圈实机门槛，因此本 goal 保持未完成。
+- 最后一次成功的 joint Home 读回在 2026-09-24 06:41 HKT。09:29 HKT 的最新只读预检因 direct Ethernet `enp3s0` 无 carrier 而无法读取 Dashboard/RTDE/Kunwei；它也确认没有本地 writer。**当前 joint Home 未能重新验证**，不能把 06:41 读数当作现在的硬件状态。四圈 PATH 仍 0/4，因此 goal 未完成。
 
 ## 短接触阶梯
 
@@ -116,6 +116,8 @@
 
 相关测试结果：本次合并 focused regression **142 passed**，覆盖 qualification/provider、recovery、supervisor、transport、ramp probe、R006、SFC/DSFC 和 dual-space；板面标记检测另有 **6 passed**。`git diff --cached --check` 通过。离线 CPU preflight `scripts/contact-six.sh status` 为 `ok=true`，`device_io=false`，`motion_authorized=false`。
 
-最后一次 fresh read-only hardware preflight（2026-09-24 06:41 HKT）：`actual_q=[0.74520820,-1.81808819,-2.56270456,-0.31234105,1.52763081,-0.82386190] rad`，相对批准 joint Home 最大误差约 `7.0e-5 rad`；TCP 线速度为 0，Safety NORMAL，Dashboard `STOPPED step5d_contact_home_v1.urp`，Kunwei TCP connect-only 成功，active writer 数为 0。此检查无 motion、无传感器控制命令；本轮诊断没有再次读取实时机械臂状态。
+最后一次成功的 fresh read-only hardware preflight（2026-09-24 06:41 HKT）：`actual_q=[0.74520820,-1.81808819,-2.56270456,-0.31234105,1.52763081,-0.82386190] rad`，相对批准 joint Home 最大误差约 `7.0e-5 rad`；TCP 线速度为 0，Safety NORMAL，Dashboard `STOPPED step5d_contact_home_v1.urp`，Kunwei TCP connect-only 成功，active writer 数为 0。
+
+09:29 HKT 的最新只读预检详见 `reports/tase_readonly_bench_preflight_failure_20260924.json`。本机 `enp3s0` 为 `DOWN/NO-CARRIER` 且无 IPv4；到 UR 与 Kunwei 的路由走 `surfshark_wg`，Dashboard/RTDE/各目标端口和 Kunwei TCP connect-only 均超时。direct NIC / physical link 是首个失败条件，具体是线缆、交换机还是设备端未能区分。此检查没有发送 motion、sensor write/zero 或 TP 命令；本地 writer 数为 0。需先恢复有线 link，再 fresh 读取安全态、joint Home 与 program STOPPED，才可继续 live work。
 
 按最新方向，接下来的主线转到 **TASE＋SFC／DSFC**：SFC/DSFC 的 30 条 matched model replay 和双空间 synthetic-event 覆盖已完成，继续开发限于离线候选与事件评分。只有在连杆外力观测器、独立施力记录和标定视觉 corridor 等物理证据到位后，才讨论碰撞/推扰 live 验证；本轮不运行装置或真人推扰。TASE 8 秒正式接触链的首次过压机制已有强证据，但后续 release gate 失败尚未修复；四圈完整 PATH 仍是 0/4。两者保持独立，不把 1 秒 probe 合并进旧协议。
