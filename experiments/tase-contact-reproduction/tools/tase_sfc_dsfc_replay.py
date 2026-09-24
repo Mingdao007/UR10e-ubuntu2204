@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
+import copy
 import gzip
 import hashlib
 import json
@@ -255,8 +256,8 @@ def _observation(row: Mapping[str, Any], previous_source_twist: np.ndarray) -> t
         "time_s": float(row["time_s"]),
         "state_age_s": float(inputs["state_age_s"]),
         "position_m": tuple(float(value) for value in inputs["tcp_position_base_m"]),
-        "rotation": FIXED_PROXY_ROTATION.copy(),
-        "joint_position_rad": (0.0,) * 6,
+        "rotation": np.asarray(inputs.get("tcp_rotation_base", FIXED_PROXY_ROTATION), dtype=float),
+        "joint_position_rad": tuple(float(value) for value in inputs.get("joint_position_rad", (0.0,) * 6)),
         "jacobian": np.asarray(inputs["jacobian"], dtype=float),
         "raw_force_base_n": tuple(float(value) for value in inputs["raw_force_base_n"]),
         "raw_torque_base_nm": (0.0, 0.0, 0.0),
@@ -279,6 +280,103 @@ def _observation(row: Mapping[str, Any], previous_source_twist: np.ndarray) -> t
     return observation, reference
 
 
+def _transform_trace_fixed_home_jacobian(
+    rows: list[dict[str, Any]], profile: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    """Substitute a calibrated fixed-Home Jacobian into retained model inputs.
+
+    The original model input trace stays immutable.  This transformation
+    rebases its relative TCP/reference positions at the approved Figure-eight
+    Home and substitutes q_Home, the calibrated Home rotation, and the
+    calibrated TCP Jacobian.  Wrenches, estimated normals, velocity references,
+    bounds, timing and all model-generated force samples remain unchanged.
+    This is a command-level kinematic sensitivity replay, not a resimulated
+    robot or a live qualification.
+    """
+    home_position = np.asarray(profile.get("home_position_m"), dtype=float)
+    home_q = np.asarray(profile.get("home_q_rad"), dtype=float)
+    home_rotation = np.asarray(profile.get("home_rotation_base"), dtype=float)
+    jacobian = np.asarray(profile.get("tcp_jacobian_base"), dtype=float)
+    if home_position.shape != (3,) or not np.isfinite(home_position).all():
+        raise ValueError("fixed-Home profile has invalid Home position")
+    if home_q.shape != (6,) or not np.isfinite(home_q).all():
+        raise ValueError("fixed-Home profile has invalid joint vector")
+    if home_rotation.shape != (3, 3) or not np.isfinite(home_rotation).all():
+        raise ValueError("fixed-Home profile has invalid rotation")
+    if jacobian.shape != (6, 6) or not np.isfinite(jacobian).all():
+        raise ValueError("fixed-Home profile has invalid TCP Jacobian")
+    transformed: list[dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        inputs = row.get("inputs")
+        if not isinstance(inputs, Mapping):
+            raise ValueError(f"input trace row {index} has no input mapping")
+        local_tcp = np.asarray(inputs.get("tcp_position_base_m"), dtype=float)
+        local_reference = np.asarray(inputs.get("reference_position_base_m"), dtype=float)
+        if local_tcp.shape != (3,) or not np.isfinite(local_tcp).all():
+            raise ValueError(f"input trace row {index} has invalid TCP position")
+        if local_reference.shape != (3,) or not np.isfinite(local_reference).all():
+            raise ValueError(f"input trace row {index} has invalid reference position")
+        rewritten = copy.deepcopy(dict(row))
+        rewritten_inputs = dict(rewritten["inputs"])
+        rewritten_inputs["tcp_position_base_m"] = (home_position + local_tcp).tolist()
+        rewritten_inputs["reference_position_base_m"] = (home_position + local_reference).tolist()
+        rewritten_inputs["joint_position_rad"] = home_q.tolist()
+        rewritten_inputs["tcp_rotation_base"] = home_rotation.tolist()
+        rewritten_inputs["jacobian"] = jacobian.tolist()
+        rewritten["inputs"] = rewritten_inputs
+        transformed.append(rewritten)
+    return transformed
+
+
+def load_fixed_home_ur10e_jacobian_profile() -> dict[str, Any]:
+    """Load the existing calibrated UR10e FK/Jacobian at canonical Figure-eight Home."""
+    root = comparison._repo_root()
+    home_path = root / "config" / "figure8_home_v1.json"
+    home = json.loads(home_path.read_text(encoding="utf-8"))
+    if home.get("status") != "canonical_for_figure8_and_autotuner":
+        raise ValueError("Figure-eight Home profile is not canonical")
+    home_q = np.asarray(home.get("joint_positions_rad"), dtype=float)
+    expected_pose = np.asarray(home.get("pose_m_rad"), dtype=float)
+    if home_q.shape != (6,) or expected_pose.shape != (6,):
+        raise ValueError("Figure-eight Home profile has invalid dimensions")
+    from contact_yield_kinematics import load_kinematics
+
+    kinematics = load_kinematics(require_ur10e=True)
+    pose = kinematics.pose_and_jacobian(home_q)
+    home_position = np.asarray(pose["position_m"], dtype=float)
+    home_rotation = np.asarray(pose["rotation"], dtype=float)
+    jacobian = np.asarray(pose["jacobian"], dtype=float)
+    if (
+        home_position.shape != (3,)
+        or home_rotation.shape != (3, 3)
+        or jacobian.shape != (6, 6)
+        or not np.isfinite(home_position).all()
+        or not np.isfinite(home_rotation).all()
+        or not np.isfinite(jacobian).all()
+    ):
+        raise ValueError("calibrated Home kinematics returned an invalid state")
+    singular_values = np.linalg.svd(jacobian, compute_uv=False)
+    return {
+        "profile_id": "ur10e-calibrated-fixed-figure8-home-jacobian-v1",
+        "kinematics_kind": kinematics.kind,
+        "calibration_hash": kinematics.calibration_hash,
+        "home_profile_id": home["home_profile_id"],
+        "home_q_rad": home_q.tolist(),
+        "approved_home_pose_m_rad": expected_pose.tolist(),
+        "fk_home_position_m": home_position.tolist(),
+        "fk_position_error_mm": float(np.linalg.norm(home_position - expected_pose[:3]) * 1000.0),
+        "home_position_m": home_position.tolist(),
+        "home_rotation_base": home_rotation.tolist(),
+        "tcp_jacobian_base": jacobian.tolist(),
+        "jacobian_singular_values": singular_values.tolist(),
+        "jacobian_condition_number": float(np.linalg.cond(jacobian)),
+        "joint_velocity_bounds_rad_s": [-0.05, 0.05],
+        "tcp_offset_tool0_m": list(kinematics.tcp_offset_tool0),
+        "model_claim_scope": kinematics.claim_scope,
+        "linearization": "fixed at canonical Home for all replay samples; q is not integrated and no robot dynamics or servo are simulated",
+    }
+
+
 def _replay_one(rows: list[dict[str, Any]], *, method: str, law: str, profile: dict[str, Any]) -> dict[str, Any]:
     candidate = _candidate(profile, law)
     handle = default_registry().initialize(
@@ -292,6 +390,10 @@ def _replay_one(rows: list[dict[str, Any]], *, method: str, law: str, profile: d
     normal_twist_rows: list[np.ndarray] = []
     tangent_twist_rows: list[np.ndarray] = []
     qdot_norms: list[float] = []
+    qdot_abs_maxima: list[float] = []
+    realization_residuals: list[float] = []
+    qdot_bound_hit_ticks = 0
+    qdot_bound_violation_ticks = 0
     normal_leak_max = 0.0
     realization_counts: set[int] = set()
     selected_for_collision: dict[str, Any] | None = None
@@ -309,11 +411,30 @@ def _replay_one(rows: list[dict[str, Any]], *, method: str, law: str, profile: d
             qdot = np.asarray(result["qdot_rad_s"], dtype=float)
             if tase_twist.shape != (6,) or tangent_twist.shape != (6,) or qdot.shape != (6,):
                 raise ValueError("replay output dimensions differ from the six-axis contract")
+            lower = np.asarray(observation["joint_velocity_lower"], dtype=float)
+            upper = np.asarray(observation["joint_velocity_upper"], dtype=float)
+            if lower.shape != (6,) or upper.shape != (6,):
+                raise ValueError("replay joint-velocity bounds differ from the six-axis contract")
+            bound_tolerance = 1e-8
+            if np.any(qdot < lower - bound_tolerance) or np.any(qdot > upper + bound_tolerance):
+                qdot_bound_violation_ticks += 1
+            if np.any(np.isclose(qdot, lower, atol=bound_tolerance, rtol=0.0)) or np.any(
+                np.isclose(qdot, upper, atol=bound_tolerance, rtol=0.0)
+            ):
+                qdot_bound_hit_ticks += 1
+            realized_twist = np.asarray(observation["jacobian"], dtype=float) @ qdot
+            desired_twist = np.asarray(result["xdot_c"], dtype=float)
+            if realized_twist.shape != (6,) or desired_twist.shape != (6,) or not (
+                np.isfinite(realized_twist).all() and np.isfinite(desired_twist).all()
+            ):
+                raise ValueError("replay final Jqdot or desired twist is invalid")
+            realization_residuals.append(float(np.linalg.norm(realized_twist - desired_twist)))
             realization_counts.add(int(diagnostic["final_realization_calls"]))
             normal_leak_max = max(normal_leak_max, abs(float(np.dot(normal, tangent_twist[:3]))))
             normal_twist_rows.append(tase_twist)
             tangent_twist_rows.append(tangent_twist)
             qdot_norms.append(float(np.linalg.norm(qdot)))
+            qdot_abs_maxima.append(float(np.max(np.abs(qdot))))
             encoded = json.dumps(
                 {"qdot_rad_s": qdot.tolist(), "desired_twist": result["xdot_c"]},
                 sort_keys=True,
@@ -350,6 +471,11 @@ def _replay_one(rows: list[dict[str, Any]], *, method: str, law: str, profile: d
         "tase_orientation_rms_rad_s": float(np.sqrt(np.mean(np.square(normal_values[:, 3:])))),
         "tangential_translation_rms_m_s": float(np.sqrt(np.mean(np.square(tangent_values[:, :3])))),
         "max_joint_speed_norm_rad_s": max(qdot_norms, default=0.0),
+        "max_abs_joint_velocity_rad_s": max(qdot_abs_maxima, default=0.0),
+        "joint_velocity_bound_hit_ticks": qdot_bound_hit_ticks,
+        "joint_velocity_bound_violation_ticks": qdot_bound_violation_ticks,
+        "max_final_jqdot_residual_norm_m_s_rad_s": max(realization_residuals, default=0.0),
+        "rms_final_jqdot_residual_norm_m_s_rad_s": float(np.sqrt(np.mean(np.square(realization_residuals)))) if realization_residuals else 0.0,
         "collision_intents": collision,
     }
 
@@ -532,7 +658,12 @@ def _dual_space_coverage(results: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def run_replay(*, comparison_dir: Path, output_path: Path | None = None) -> dict[str, Any]:
+def run_replay(
+    *,
+    comparison_dir: Path,
+    output_path: Path | None = None,
+    fixed_home_jacobian_profile: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     root = Path(comparison_dir).resolve()
     attempts_path = root / "attempts.jsonl"
     if not attempts_path.is_file():
@@ -547,6 +678,9 @@ def run_replay(*, comparison_dir: Path, output_path: Path | None = None) -> dict
     for source in source_attempts:
         source_trace = root / source["trace_path"]
         rows = _trace_rows(source_trace)
+        source_input_sha = _replay_input_digest(rows)
+        if fixed_home_jacobian_profile is not None:
+            rows = _transform_trace_fixed_home_jacobian(rows, fixed_home_jacobian_profile)
         shared_input_sha = _replay_input_digest(rows)
         for method, law in zip(METHODS, ("SFC", "DSFC")):
             replay = _replay_one(rows, method=method, law=law, profile=profile)
@@ -558,14 +692,25 @@ def run_replay(*, comparison_dir: Path, output_path: Path | None = None) -> dict
                 "source_trace_sha256": source["trace_sha256"],
                 "scenario": source["case"],
                 "trial_key": source["trial_key"],
+                "source_model_input_sha256": source_input_sha,
                 **replay,
             })
+    transformed = fixed_home_jacobian_profile is not None
+    if transformed and output_path is None:
+        raise ValueError("a separate output path is required for a transformed kinematics replay")
     outputs_path = Path(output_path).resolve() if output_path is not None else root / "command-replay.json"
     document = {
         "schema": SCHEMA,
-        "evidence_class": "same_input_command_replay_of_model_generated_traces",
+        "evidence_class": (
+            "fixed_home_calibrated_jacobian_command_substitution_of_model_traces"
+            if transformed else "same_input_command_replay_of_model_generated_traces"
+        ),
         "physical_evidence": False,
-        "input_trace_source": "SFC closed-loop model trace for each matched block and scenario; the exact same recorded input sequence is supplied to both laws",
+        "input_trace_source": (
+            "SFC closed-loop model trace for each matched block and scenario; raw feedback, estimated normal, reference, bounds and timing are retained, while pose is rebased at canonical Figure-eight Home and q, rotation and Jacobian are substituted from the calibrated fixed-Home kinematic profile"
+            if transformed else "SFC closed-loop model trace for each matched block and scenario; the exact same recorded input sequence is supplied to both laws"
+        ),
+        "input_transform": dict(fixed_home_jacobian_profile) if transformed else None,
         "methods": list(METHODS),
         "same_input_replay_units": len(source_attempts),
         "controller_replays": len(results),
@@ -592,7 +737,7 @@ def run_replay(*, comparison_dir: Path, output_path: Path | None = None) -> dict
     }
     outputs_path.write_text(json.dumps(document, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
     summary_path = root / "summary.json"
-    if summary_path.is_file():
+    if summary_path.is_file() and not transformed:
         summary = json.loads(summary_path.read_text(encoding="utf-8"))
         summary["same_input_command_replay"] = {
             "artifact": outputs_path.name,
@@ -666,6 +811,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--comparison-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path)
     parser.add_argument(
+        "--fixed-home-ur10e-jacobian",
+        action="store_true",
+        help="replay the same model-generated feedback with calibrated Jacobian/q at fixed canonical Figure-eight Home; requires --output",
+    )
+    parser.add_argument(
         "--refresh-historical-audit",
         action="store_true",
         help="refresh only the sealed historical trace schema audit without rerunning controller traces",
@@ -679,7 +829,14 @@ def main(argv: list[str] | None = None) -> int:
             "controller_replay_rerun": False,
         }, sort_keys=True))
         return 0
-    result = run_replay(comparison_dir=args.comparison_dir, output_path=args.output)
+    if args.fixed_home_ur10e_jacobian and args.output is None:
+        parser.error("--fixed-home-ur10e-jacobian requires --output to preserve the source replay")
+    fixed_profile = load_fixed_home_ur10e_jacobian_profile() if args.fixed_home_ur10e_jacobian else None
+    result = run_replay(
+        comparison_dir=args.comparison_dir,
+        output_path=args.output,
+        fixed_home_jacobian_profile=fixed_profile,
+    )
     print(json.dumps({
         "schema": result["schema"],
         "same_input_replay_units": result["same_input_replay_units"],

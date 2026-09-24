@@ -3,6 +3,7 @@ import gzip
 import json
 import sys
 
+import numpy as np
 import pytest
 
 
@@ -164,6 +165,9 @@ def test_small_campaign_seals_model_only_traces_and_denominators(tmp_path):
         for result in pair:
             assert result["final_realization_calls"] == [1]
             assert result["tangential_normal_leak_max_m_s"] < 1e-12
+            assert result["joint_velocity_bound_violation_ticks"] == 0
+            assert result["max_abs_joint_velocity_rad_s"] <= 0.05 + 1e-8
+            assert result["max_final_jqdot_residual_norm_m_s_rad_s"] >= 0.0
             intents = result["collision_intents"]
             assert intents["tool_contact"]["tangent_frozen"] is True
             assert intents["qualified_link_contact_fixture"]["normal_intent_error_m_s"] < 1e-12
@@ -177,6 +181,52 @@ def test_small_campaign_seals_model_only_traces_and_denominators(tmp_path):
     assert "joint-bound-hit ticks (%)" in final_report
     assert "Same-input command replay and dual-space intent" in final_report
     assert "Historical trace replay boundary" in final_report
+
+
+def test_fixed_home_jacobian_transform_preserves_model_feedback_and_is_separate():
+    row = {
+        "time_s": 0.0,
+        "dt_s": 0.002,
+        "inputs": {
+            "state_age_s": 0.01,
+            "tcp_position_base_m": [0.0, 0.0, 0.0],
+            "reference_position_base_m": [0.01, -0.02, 0.0],
+            "reference_velocity_base_m_s": [0.004, 0.002, 0.0],
+            "force_target_n": 5.0,
+            "jacobian": np.eye(6).tolist(),
+            "joint_velocity_lower_rad_s": [-0.05] * 6,
+            "joint_velocity_upper_rad_s": [0.05] * 6,
+            "raw_force_base_n": [0.0, 0.0, 5.0],
+            "estimated_outward_normal_base": [0.0, 0.0, 1.0],
+        },
+        "output": {"realized_jqdot_m_s_rad_s": [0.0] * 6},
+    }
+    source_digest = command_replay._replay_input_digest([row])
+    profile = {
+        "profile_id": "test-fixed-home-jacobian",
+        "home_q_rad": [0.1] * 6,
+        "home_position_m": [0.4, 0.2, 0.03],
+        "home_rotation_base": np.diag([1.0, -1.0, -1.0]).tolist(),
+        "tcp_jacobian_base": (2.0 * np.eye(6)).tolist(),
+    }
+
+    transformed_left = command_replay._transform_trace_fixed_home_jacobian([row], profile)
+    transformed_right = command_replay._transform_trace_fixed_home_jacobian([row], profile)
+
+    assert row["inputs"]["jacobian"] == np.eye(6).tolist()
+    assert transformed_left == transformed_right
+    inputs = transformed_left[0]["inputs"]
+    assert inputs["jacobian"] == (2.0 * np.eye(6)).tolist()
+    assert inputs["joint_position_rad"] == [0.1] * 6
+    assert inputs["tcp_position_base_m"] == pytest.approx([0.4, 0.2, 0.03])
+    assert inputs["reference_position_base_m"] == pytest.approx([0.41, 0.18, 0.03])
+    assert inputs["raw_force_base_n"] == [0.0, 0.0, 5.0]
+    assert inputs["reference_velocity_base_m_s"] == [0.004, 0.002, 0.0]
+    assert command_replay._replay_input_digest(transformed_left) != source_digest
+    assert command_replay._replay_input_digest(transformed_left) == command_replay._replay_input_digest(transformed_right)
+    observation, _reference = command_replay._observation(transformed_left[0], np.zeros(6))
+    assert np.asarray(observation["jacobian"]) == pytest.approx(2.0 * np.eye(6))
+    assert np.asarray(observation["rotation"]) == pytest.approx(np.diag([1.0, -1.0, -1.0]))
 
 
 def test_historical_audit_covers_all_selected_stream_families_and_keeps_reconstruction_separate(tmp_path):

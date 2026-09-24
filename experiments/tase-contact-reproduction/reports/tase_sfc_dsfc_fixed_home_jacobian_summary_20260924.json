@@ -1,0 +1,185 @@
+{
+  "schema": "tase.sfc-dsfc-fixed-home-jacobian-replay-summary-v1",
+  "evidence_class": "fixed_home_calibrated_jacobian_command_substitution_of_model_traces",
+  "physical_evidence": false,
+  "run_dir": "runs/tase-sfc-dsfc-fixed-home-jacobian-replay-20260924T0900HKT",
+  "raw_receipt": "command-replay.json",
+  "raw_receipt_sha256": "dcc56bc45f592e3d4684aa8c4eb9b7be226a8ba779cccc995f4cf78fb9cbecff",
+  "source_comparison_run": "runs/tase-sfc-dsfc-offline-20260924T0558HKT",
+  "matched_source_trace_count": 15,
+  "controller_replays": 30,
+  "methods": [
+    "TASE_RNN_MATURE+SFC_YIELD_V1",
+    "TASE_RNN_MATURE+DSFC_YIELD_V1"
+  ],
+  "scenarios": [
+    "normal_pulse",
+    "plane",
+    "tangent_pulse"
+  ],
+  "ticks_per_replay": [
+    30000
+  ],
+  "pairing": {
+    "same_transformed_input_sha256_per_sfc_dsfc_pair": true,
+    "one_final_realization_per_tick": true
+  },
+  "kinematics": {
+    "profile_id": "ur10e-calibrated-fixed-figure8-home-jacobian-v1",
+    "kinematics_kind": "ur10e_calibrated_pinocchio",
+    "calibration_hash": "calib_7367377276742883610",
+    "home_profile_id": "step6.autotune/figure8-contact-derived-home-v1",
+    "fk_position_error_mm": 0.023514190853481606,
+    "jacobian_condition_number": 8.446446634033123,
+    "joint_velocity_bounds_rad_s": [
+      -0.05,
+      0.05
+    ],
+    "linearization": "fixed at canonical Home for all replay samples; q is not integrated and no robot dynamics or servo are simulated"
+  },
+  "overall": {
+    "joint_velocity_bound_hit_ticks": 899880,
+    "joint_velocity_bound_total_ticks": 900000,
+    "joint_velocity_bound_hit_fraction": 0.9998666666666667,
+    "joint_velocity_bound_violation_ticks": 0,
+    "max_abs_joint_velocity_rad_s": 0.05,
+    "max_tangential_normal_leak_m_s": 8.563346706714271e-19,
+    "force_mae_scored": false
+  },
+  "by_scenario": {
+    "normal_pulse": {
+      "TASE_RNN_MATURE+SFC_YIELD_V1": {
+        "trials": 5,
+        "ticks_per_trial": [
+          30000
+        ],
+        "bound_hit_ticks_per_trial_min_mean_max": [
+          29996,
+          29996,
+          29996
+        ],
+        "bound_hit_fraction_mean": 0.9998666666666667,
+        "bound_violation_ticks_total": 0,
+        "max_abs_joint_velocity_rad_s": 0.05,
+        "tangential_command_rms_m_s_mean": 0.001984689683317167,
+        "tase_normal_command_rms_m_s_mean": 0.0004442401500121944,
+        "tangential_normal_leak_max_m_s": 8.428717476006313e-19,
+        "final_realization_calls": [
+          1
+        ]
+      },
+      "TASE_RNN_MATURE+DSFC_YIELD_V1": {
+        "trials": 5,
+        "ticks_per_trial": [
+          30000
+        ],
+        "bound_hit_ticks_per_trial_min_mean_max": [
+          29996,
+          29996,
+          29996
+        ],
+        "bound_hit_fraction_mean": 0.9998666666666667,
+        "bound_violation_ticks_total": 0,
+        "max_abs_joint_velocity_rad_s": 0.05,
+        "tangential_command_rms_m_s_mean": 0.002079225193183792,
+        "tase_normal_command_rms_m_s_mean": 0.0004442401500121944,
+        "tangential_normal_leak_max_m_s": 8.563346706714271e-19,
+        "final_realization_calls": [
+          1
+        ]
+      }
+    },
+    "plane": {
+      "TASE_RNN_MATURE+SFC_YIELD_V1": {
+        "trials": 5,
+        "ticks_per_trial": [
+          30000
+        ],
+        "bound_hit_ticks_per_trial_min_mean_max": [
+          29996,
+          29996,
+          29996
+        ],
+        "bound_hit_fraction_mean": 0.9998666666666667,
+        "bound_violation_ticks_total": 0,
+        "max_abs_joint_velocity_rad_s": 0.05,
+        "tangential_command_rms_m_s_mean": 0.0017856336085586727,
+        "tase_normal_command_rms_m_s_mean": 3.0246103112758965e-06,
+        "tangential_normal_leak_max_m_s": 1.2044769772405222e-21,
+        "final_realization_calls": [
+          1
+        ]
+      },
+      "TASE_RNN_MATURE+DSFC_YIELD_V1": {
+        "trials": 5,
+        "ticks_per_trial": [
+          30000
+        ],
+        "bound_hit_ticks_per_trial_min_mean_max": [
+          29996,
+          29996,
+          29996
+        ],
+        "bound_hit_fraction_mean": 0.9998666666666667,
+        "bound_violation_ticks_total": 0,
+        "max_abs_joint_velocity_rad_s": 0.05,
+        "tangential_command_rms_m_s_mean": 0.0017832794607639455,
+        "tase_normal_command_rms_m_s_mean": 3.0246103112758965e-06,
+        "tangential_normal_leak_max_m_s": 1.1374217293914709e-21,
+        "final_realization_calls": [
+          1
+        ]
+      }
+    },
+    "tangent_pulse": {
+      "TASE_RNN_MATURE+SFC_YIELD_V1": {
+        "trials": 5,
+        "ticks_per_trial": [
+          30000
+        ],
+        "bound_hit_ticks_per_trial_min_mean_max": [
+          29996,
+          29996,
+          29996
+        ],
+        "bound_hit_fraction_mean": 0.9998666666666667,
+        "bound_violation_ticks_total": 0,
+        "max_abs_joint_velocity_rad_s": 0.05,
+        "tangential_command_rms_m_s_mean": 0.002032679156836799,
+        "tase_normal_command_rms_m_s_mean": 8.60767411394556e-06,
+        "tangential_normal_leak_max_m_s": 8.471330503434065e-20,
+        "final_realization_calls": [
+          1
+        ]
+      },
+      "TASE_RNN_MATURE+DSFC_YIELD_V1": {
+        "trials": 5,
+        "ticks_per_trial": [
+          30000
+        ],
+        "bound_hit_ticks_per_trial_min_mean_max": [
+          29996,
+          29996,
+          29996
+        ],
+        "bound_hit_fraction_mean": 0.9998666666666667,
+        "bound_violation_ticks_total": 0,
+        "max_abs_joint_velocity_rad_s": 0.05,
+        "tangential_command_rms_m_s_mean": 0.002150506199200897,
+        "tase_normal_command_rms_m_s_mean": 8.60767411394556e-06,
+        "tangential_normal_leak_max_m_s": 9.730856171760945e-20,
+        "final_realization_calls": [
+          1
+        ]
+      }
+    }
+  },
+  "limitations": [
+    "Inputs originate from closed-loop identity-J model traces; the fixed-Home Jacobian, joint position and Home pose are explicit substitutions.",
+    "The Jacobian is held fixed at canonical Home; q is not integrated and robot inertia, contact dynamics, latency and inner servo are not simulated.",
+    "Force samples remain the source model trace; this replay is not a new closed-loop force-response simulation and no force MAE is scored.",
+    "The bound-hit fraction is a command-feasibility diagnostic, not a measured physical saturation rate or live result.",
+    "No human or apparatus push and no independent task-force truth are included."
+  ],
+  "interpretation": "At the calibrated fixed-Home Jacobian, both compositions drive at least one joint to the existing velocity cap on nearly every sample, without exceeding the cap. SFC and DSFC remain distinct but this sensitivity replay cannot rank their force performance or authorize live use."
+}

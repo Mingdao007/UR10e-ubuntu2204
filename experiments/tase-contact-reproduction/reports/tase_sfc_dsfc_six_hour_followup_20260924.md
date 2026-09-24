@@ -6,7 +6,7 @@
 
 - 独立短接触入口完成了 8、4、3、2、1 秒 ramp，并把 1 秒档重复两次。七次都满足现有 0.5 秒接触放行条件并自动回 joint Home；1 秒是最快通过档。该入口有独立 10 N force-norm 停试线，实测峰值 7.01–8.47 N。它是短接触资格数据，不是 Figure-eight 或 autotuner 数据。
 - 冻结 A 参数的四圈工程验收没有完成：尝试在正式 PATH 前因 5 N 接触放行窗口不稳定而失败。另一轮在运动前被 observer 新鲜度门槛拦住。**完整 60 秒 PATH 为 0/4，故无四圈真实周转中位数，也不能宣称 ≤81 秒。** 失败记录保留，两个实际运动故障都由 recovery owner 自动回到 Home。
-- 同条件 SFC/DSFC 比较完成 30/30 个模型代理单元，另完成 30 次固定输入命令重放。它们支持代码路径和仿真诊断，不支持实机优胜或真实 task-force 结论。
+- 同条件 SFC/DSFC 比较完成 30/30 个 identity-J 模型代理单元、30 次原始命令重放，并完成 30 次 fixed-Home calibrated-Jacobian 命令替换。新增敏感性重放中，每条输入 99.987% 的采样至少有一个关节达到 ±0.05 rad/s 上限、无越界；它显示 identity-J 输入映射会低估关节限速压力，不能据此排 SFC/DSFC 优胜或推断真实 task-force。
 - 最后记录的只读 bench 检查时间为 2026-09-24 06:41 HKT；当时机械臂在批准 joint Home、静止、Safety NORMAL、Dashboard STOPPED，且没有 active writer。这是带时间戳的历史状态证据，不代表本次报告更新时重新读取了硬件。尚未完成四圈实机门槛，因此本 goal 保持未完成。
 
 ## 短接触阶梯
@@ -87,6 +87,20 @@
 简化模型使用 identity Jacobian。切向脉冲 joint-bound 命中约为 SFC 21.39%、DSFC 20.24%；法向脉冲均为 64.24%。这说明代理已较多处于速度边界，数据不足以排序真实力控优劣。仿真中 SFC MAE 较低是描述性结果，不是实机改善结论。
 
 同输入命令 replay 使用 15 条固定模型输入轨迹，每条分别回放两个 law，共 30 次；配对输入 digest 一致，切向泄漏至估计法向的最大值 `8.44e-19 m/s`，最终 joint realization 调用数为 `[1]`。它是模型 trace 的 command counterfactual，不是 UR 历史 trace 重放，也不是 live replay。
+
+### 固定 Home 校准 Jacobian 的命令敏感性复核
+
+新增收据：`runs/tase-sfc-dsfc-fixed-home-jacobian-replay-20260924T0900HKT/command-replay.json`；可复算汇总：`reports/tase_sfc_dsfc_fixed_home_jacobian_summary_20260924.json`。从原 15 条完整 60 秒 model trace 逐条取相同的 30,000 个输入样本，分别重放 SFC 与 DSFC。只替换 joint position、Home pose rebasing 与在批准 joint Home 计算的 UR10e calibrated TCP Jacobian；法向力输入、estimated normal、参考速度、时序和 ±0.05 rad/s bounds 沿用原 trace。Jacobain 固定在线性化 Home，不更新 q，也不模拟 robot dynamics 或 inner servo。
+
+| 场景 | SFC tangent command RMS (m/s) | DSFC tangent command RMS (m/s) | 关节到界比例：SFC / DSFC | 越界：SFC / DSFC |
+|---|---:|---:|---:|---:|
+| 平面 | 0.00178563 | 0.00178328 | 99.987% / 99.987% | 0 / 0 |
+| 切向脉冲 | 0.00203268 | 0.00215051 | 99.987% / 99.987% | 0 / 0 |
+| 法向脉冲 | 0.00198469 | 0.00207923 | 99.987% / 99.987% | 0 / 0 |
+
+每个 replay 有 `29,996/30,000` 个 tick 至少一个关节达到边界，30 次合计 `899,880/900,000`，没有超界。Calibrated Home FK 与批准 TCP position 差 `0.0235 mm`，Home Jacobian 条件数 `8.446`。这些是命令输入替换结果；源 trace 的 synthetic force 不会被候选输出重新驱动，所以**不计算力 MAE，也不把到界比例称为真实伺服饱和率**。原始 trace 下 identity-J closed-loop MAE 与这组固定 Jacobian command response 属于不同证据，不合并、不排名。
+
+输出 JSON 还保留了 6 维 `Jqdot - desired_twist` 未加权范数。该向量混合 `m/s` 与 `rad/s`，本报告不把它解释为具有单一物理单位的 tracking error。
 
 双空间 policy 已按**候选输出分别**覆盖这 30 次 replay：SFC 与 DSFC 各 15 次，并且每个控制器在 plane、tangent-pulse、normal-pulse 场景各有 5 次；每个 replay 的中点切向命令分别进入离线 collision intent policy。tool/link fixture 均冻结切向并保持 TASE normal/orientation 意图；synthetic link fixture 另外生成关节让步 preference；loaded corridor 越界时清空 Cartesian intent 并请求同一个 recovery owner。候选 command replay 每 tick 仍只有一次 final realization；collision policy 结果是 intent，没有向机器人发送第二份 `qdot`。这些是合成事件夹具的代码路径检查，不是碰撞传感器验收、装置推扰或真人推扰结果。
 
