@@ -1108,8 +1108,8 @@ def prepare_next_dispatch(root: Path) -> dict[str, Any] | None:
             )
             if not search_candidate_allowed(_request_candidate(inflight["request"])):
                 raise ParameterQueueError(
-                    "inflight dispatch violates the current force_damping search "
-                    "floor and cannot be replayed; reconcile it before continuing"
+                    "inflight dispatch violates the current finite-positive "
+                    "force_damping rule and cannot be replayed; reconcile it before continuing"
                 )
             return inflight
         _quarantine_policy_violations_locked(root, state)

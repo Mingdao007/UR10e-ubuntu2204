@@ -52,6 +52,34 @@ def test_default_profile_exposes_broad_launch_surface_and_exact_trial_overlay() 
     assert profile.document["hard_tube_policy"] == {"enabled": False}
 
 
+def test_force_damping_source_policy_is_finite_positive_unbounded() -> None:
+    profile = load_launch_profile(expected_tp_program_id=PROGRAM)
+    rule = profile.document["trial_overlay_policy"]["force_damping"]
+    assert rule == {"finite_positive": True, "unbounded": True}
+    assert "min" not in rule
+    assert "max" not in rule
+
+
+@pytest.mark.parametrize("damping", [0.0546875, 7.0, 56.0])
+def test_normalize_accepts_any_finite_positive_lattice_damping(damping: float) -> None:
+    profile = load_launch_profile(expected_tp_program_id=PROGRAM)
+    overlay = dict(DEFAULT_OVERLAY)
+    overlay["force_damping"] = damping
+    overlay.pop("control_candidate_uid")
+    normalized = normalize_trial_overlay(overlay, profile=profile)
+    assert normalized["force_damping"] == pytest.approx(damping)
+
+
+@pytest.mark.parametrize("damping", [0.0, -1.0, float("nan"), float("inf"), float("-inf")])
+def test_normalize_rejects_nonpositive_or_nonfinite_damping(damping: float) -> None:
+    profile = load_launch_profile(expected_tp_program_id=PROGRAM)
+    overlay = dict(DEFAULT_OVERLAY)
+    overlay["force_damping"] = damping
+    overlay.pop("control_candidate_uid")
+    with pytest.raises(ContractViolation):
+        normalize_trial_overlay(overlay, profile=profile)
+
+
 def test_default_tau_preserves_v2_identity_and_nondefault_tau_uses_v3() -> None:
     legacy_material = {
         "force_p_gain": 0.001,

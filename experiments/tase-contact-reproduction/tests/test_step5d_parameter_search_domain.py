@@ -57,8 +57,25 @@ def test_candidate_below_point_one_is_searchable_without_a_hard_floor() -> None:
 def test_observed_boundary_expands_damping_without_a_new_floor() -> None:
     boundary = min(production_candidate_catalog(), key=lambda row: row.force_damping)
     lower = min(damping_variants(boundary), key=lambda row: row.force_damping)
+    upper_boundary = max(production_candidate_catalog(), key=lambda row: row.force_damping)
+    upper = max(damping_variants(upper_boundary), key=lambda row: row.force_damping)
     assert lower.force_damping < boundary.force_damping
+    assert upper.force_damping > upper_boundary.force_damping
     assert require_search_candidate(lower, role="expanded candidate") is lower
+    assert require_search_candidate(upper, role="expanded candidate") is upper
+
+
+def test_adaptive_damping_expansion_is_not_bounded_by_bootstrap_catalog_edges() -> None:
+    lower = ForceCandidate.from_log2(p=0.0, damping=-40.0, i=0.0)
+    upper = ForceCandidate.from_log2(p=0.0, damping=40.0, i=0.0)
+    lower_previous, lower_next = damping_variants(lower)
+    upper_previous, upper_next = damping_variants(upper)
+    assert lower_previous.force_damping < lower.force_damping
+    assert lower_next.force_damping > lower.force_damping
+    assert upper_previous.force_damping < upper.force_damping
+    assert upper_next.force_damping > upper.force_damping
+    assert require_search_candidate(lower_previous, role="lower boundary") is lower_previous
+    assert require_search_candidate(upper_next, role="upper boundary") is upper_next
 
 
 def test_orientation_k_is_a_bounded_quarter_octave_axis() -> None:

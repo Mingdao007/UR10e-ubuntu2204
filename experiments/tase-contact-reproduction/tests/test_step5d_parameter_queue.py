@@ -45,6 +45,10 @@ from step5d_parameter_queue import (  # noqa: E402
     terminalize_consumed_guard_abort,
     terminalize_consumed_infra_abort,
 )
+from step5d_autotune_v3.runtime_profile import (  # noqa: E402
+    load_launch_profile,
+    normalized_overlay_sha256,
+)
 
 
 PROFILE = ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
@@ -167,6 +171,36 @@ def test_receiver_accepts_candidate_above_new_point_one_damping_floor(
     assert request["overlay"]["force_damping"] == pytest.approx(
         4.949747468305833
     )
+
+
+@pytest.mark.parametrize("damping", [0.0546875, 56.0])
+def test_receiver_round_trips_low_and_high_damping_without_identity_or_sha_drift(
+    tmp_path: Path, damping: float
+) -> None:
+    root = _queue(tmp_path)
+    profile = load_launch_profile(expected_tp_program_id="step5d_strict_rnn_autotune_v3_r034")
+    request = submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.001,
+        force_i=0.00001,
+        force_damping=damping,
+        source=f"boundary-{damping}",
+    )
+    bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(root)
+    assert dispatch is not None
+    overlay = dispatch["request"]["overlay"]
+    assert overlay["force_damping"] == pytest.approx(damping)
+    assert dispatch["request"]["normalized_overlay_sha256"] == normalized_overlay_sha256(
+        profile, overlay
+    )
+    assert dispatch["request"]["request_uid"] == request["request_uid"]
+    assert dispatch["request_identity"]["normalized_overlay_sha256"] == dispatch[
+        "request"
+    ]["normalized_overlay_sha256"]
+    assert dispatch["request_identity"]["occurrence_uid"]
+    assert dispatch["request_identity"]["transport_candidate_uid"]
 
 
 def test_formerly_legacy_pending_candidate_is_not_quarantined(

@@ -11099,7 +11099,10 @@
           "capacity": null,
           "data_failure_policy": "record_terminal_and_continue",
           "empty_queue_behavior": "safe_home_infinite_wait",
-          "force_damping_search_min": 5.0,
+          "force_damping_search_policy": {
+            "finite_positive": true,
+            "unbounded": true
+          },
           "inflight_limit": 1,
           "legacy_search_floor_violation": "durable_policy_quarantine_no_physical_attempt",
           "optimizer_required": false,

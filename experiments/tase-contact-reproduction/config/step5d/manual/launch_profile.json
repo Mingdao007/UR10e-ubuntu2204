@@ -16,8 +16,8 @@
       ]
     },
     "force_damping": {
-      "max": 28.0,
-      "min": 1.75
+      "finite_positive": true,
+      "unbounded": true
     },
     "force_i_gain": {
       "max": 0.01,

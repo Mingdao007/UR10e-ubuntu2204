@@ -18,6 +18,7 @@ from step5d_physics_soft_prior import (  # noqa: E402
     physics_log_weight,
     rank_degraded_bootstrap_candidates,
 )
+from step5d_parameter_search_domain import search_candidate_allowed  # noqa: E402
 
 
 def test_default_seed_matches_butterworth_ratio_at_implied_stiffness() -> None:
@@ -67,6 +68,13 @@ def test_prior_mapping_rejects_unknown_or_nonpositive_values() -> None:
         PhysicsSoftPrior.from_mapping({"mystery": 1})
     with pytest.raises(ValueError, match="finite and positive"):
         PhysicsSoftPrior.from_mapping({"strength": 0.0})
+
+
+def test_physics_prior_is_not_a_candidate_acceptance_gate() -> None:
+    prior = PhysicsSoftPrior(contact_stiffness_n_m=24_500.0)
+    far_candidate = ForceCandidate.from_log2(p=0.0, damping=-40.0, i=0.0)
+    assert search_candidate_allowed(far_candidate)
+    assert math.isfinite(physics_log_weight(far_candidate, prior))
 
 
 def test_degraded_bootstrap_starts_at_baseline_then_uses_prior_within_local_shell(

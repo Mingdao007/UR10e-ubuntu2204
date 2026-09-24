@@ -330,6 +330,16 @@ def load_launch_profile(
         elif field == "control_candidate_uid":
             if rule != {"derived": "sha256"}:
                 raise ContractViolation("control candidate UID policy differs")
+        elif field == "force_damping":
+            if (
+                not isinstance(rule, dict)
+                or set(rule) != {"finite_positive", "unbounded"}
+                or rule["finite_positive"] is not True
+                or rule["unbounded"] is not True
+            ):
+                raise ContractViolation(
+                    "force_damping policy must declare finite_positive/unbounded"
+                )
         else:
             if not isinstance(rule, dict) or set(rule) != {"min", "max"}:
                 raise ContractViolation(f"trial overlay policy differs for {field}")
@@ -415,6 +425,13 @@ def normalize_trial_overlay(
             result[field] = matches[0]
             continue
         numeric = _finite(field, value)
+        if field == "force_damping":
+            if numeric <= 0.0:
+                raise ContractViolation(
+                    "trial force_damping must be finite and positive"
+                )
+            result[field] = numeric
+            continue
         if numeric < float(rule["min"]) or numeric > float(rule["max"]):
             raise ContractViolation(f"trial overlay {field} is outside the launch envelope")
         result[field] = numeric
