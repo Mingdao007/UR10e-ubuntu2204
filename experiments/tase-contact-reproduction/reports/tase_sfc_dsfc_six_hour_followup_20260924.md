@@ -43,6 +43,20 @@
 
 因此本轮冷启动加三次 resident 复用的四个完整单元没有完成，完整 PATH 计数为 0/4；≤81 秒普通复用周转目标无可计算结果。没有按同一失败原因重复继续派发实机尝试。应先用这批 raw trace 定位接触阶段的输出与传感时间关系；若改用已经通过的 1 秒 ramp，必须建立新的、明确独立的 Figure-eight 协议身份，不能追认到原 8 秒协议或拿 probe 结果代替 PATH。
 
+### 接触门控时间线诊断
+
+可复算诊断：`reports/tase_contact_gate_timeline_20260924.json`，由三个已封存 attempt 的 `published_packets.jsonl` 与 receipt 生成。下表中的“力阈值占比”只按每包 normal/force-norm/torque 门槛统计，不含连续 dwell、freshness、stationarity、timing 或 velocity 条件，**不是正式 0.5 秒放行判定**。
+
+| 数据段 | 首个 baseline 包（normal / setpoint） | 首个 5 N 包（raw / filtered） | 目标后 0.5 s 力阈值占比 | 观察 |
+|---|---:|---:|---:|---|
+| 独立 8 s probe | 7.47 / 1 N | 5.06 / 4.76 N | 100% | 目标后的窗口总体稳定，随后约 0.598 s 通过 release gate；probe 会 retract，不检验正式 TASE path hold |
+| TASE 05:15，provider 修复前 | 6.14 / 1 N | 5.01 / 5.28 N | 38.2% | 目标后 raw normal 中位数 0.53 N；release dwell 期间 packet qdot 中位数为 0，符合当时 provider 未继续输出的缺陷 |
+| TASE 06:00，provider 修复后 | 10.36 / 1 N | 4.28 / 5.17 N | 56.0% | provider 持续输出，但 raw/filtered 力反复越过目标；最长联合连续窗口 0.4356 s，state 21 等待 30.008 s 后停止 |
+
+06:00 的首个 baseline 包已经是 **10.36 N**，而 host 此时的 baseline setpoint 仍是 1 N；整个 attempt 的反馈 force-norm 峰值为 **10.526 N**。这把怀疑重点指向 TP 接触 acquisition 到 host baseline 的交接和初始压入量，但目前不能据此认定根因。provider 的 normal 速度命令在测力穿越目标时会换向；TASE RNN 与积分在 baseline 阶段冻结，因此这次 gate 失败不应归因于 PATH 阶段的 `Md/Bd` 或积分 windup。05:15 暴露的“release dwell 零输出”已修复，但 06:00 证明仅修此软件缺陷仍不足以让 8 秒正式接触流程稳定放行。
+
+旧 TASE attempt 的 force-only 比例是 raw-record 诊断，不能直接替代 supervisor 的联合 gate。05:15 和 06:00 的反馈均来自 Kunwei，不是独立 task-force 真值；也没有依据把 10.526 N 写作短 probe 的 10 N 停试事件。
+
 ## rate400 历史结果：保留、不重跑
 
 这些结果属于前一批已封存的 `figure8_window60_r013_rate400_v1`，不属于本轮 8 秒接触验收。
@@ -70,6 +84,8 @@
 
 同输入命令 replay 使用 15 条固定模型输入轨迹，每条分别回放两个 law，共 30 次；配对输入 digest 一致，切向泄漏至估计法向的最大值 `8.44e-19 m/s`，最终 joint realization 调用数为 `[1]`。它是模型 trace 的 command counterfactual，不是 UR 历史 trace 重放，也不是 live replay。
 
+双空间 policy 已按**候选输出分别**覆盖这 30 次 replay：SFC 与 DSFC 各 15 次，并且每个控制器在 plane、tangent-pulse、normal-pulse 场景各有 5 次；每个 replay 的中点切向命令分别进入离线 collision intent policy。tool/link fixture 均冻结切向并保持 TASE normal/orientation 意图；synthetic link fixture 另外生成关节让步 preference；loaded corridor 越界时清空 Cartesian intent 并请求同一个 recovery owner。候选 command replay 每 tick 仍只有一次 final realization；collision policy 结果是 intent，没有向机器人发送第二份 `qdot`。这些是合成事件夹具的代码路径检查，不是碰撞传感器验收、装置推扰或真人推扰结果。
+
 历史 TASE trace 审计了 45 个目录中的 148 个 raw sensor、148 个 RTDE、148 个 packet stream 的首条非空 schema。缺少控制器实际消费字段：estimated normal、force target、Jacobian、joint bounds、raw normal force、参考位置/速度、state age、TCP position。故历史实机 trace 不满足替代 controller 的 byte-identical input replay 条件；补算这些字段会变成重建输入。
 
 ## 关节＋末端双空间离线意图
@@ -84,4 +100,4 @@
 
 2026-09-24 06:41 HKT 的 fresh read-only hardware preflight：`actual_q=[0.74520820,-1.81808819,-2.56270456,-0.31234105,1.52763081,-0.82386190] rad`，相对批准 joint Home 最大误差约 `7.0e-5 rad`；TCP 线速度为 0，Safety NORMAL，Dashboard `STOPPED step5d_contact_home_v1.urp`，Kunwei TCP connect-only 成功，active writer 数为 0。此检查无 motion、无传感器控制命令。
 
-下一项物理工作不应直接开四圈重复旧配置：先基于 06:00 state 21 的 raw sensor、RTDE 和 published packet 时间线定位 release gate 未连续通过 0.5 秒的原因，并与 1 秒 probe 的固定 ramp primitive 做代码级差异对照。然后由独立协议决定是否用 1 秒接触建立流程进入完整 60 秒 PATH；此前四圈基建门槛仍未通过。
+按最新方向，接下来的主线转到 **TASE＋SFC／DSFC**：保留当前冻结参数与 30 条 matched replay 结果，继续完善双空间候选的离线可行性与事件评分。只有在连杆外力观测器、独立施力记录和标定视觉 corridor 等物理证据到位后，才重新讨论碰撞/推扰 live 验证；本轮不运行装置或真人推扰。TASE 8 秒接触放行失败仍未查明，四圈完整 PATH 仍是 0/4；它作为独立遗留项封存，不把 1 秒 probe 合并进旧协议，也不在当前 SFC/DSFC 阶段重跑。

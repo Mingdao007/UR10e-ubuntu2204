@@ -1,0 +1,36 @@
+{
+  "candidate_coverage_complete": true,
+  "candidate_scenario_replay_counts": {
+    "TASE_RNN_MATURE+DSFC_YIELD_V1": {
+      "normal_pulse": 5,
+      "plane": 5,
+      "tangent_pulse": 5
+    },
+    "TASE_RNN_MATURE+SFC_YIELD_V1": {
+      "normal_pulse": 5,
+      "plane": 5,
+      "tangent_pulse": 5
+    }
+  },
+  "candidate_specific_sample": "midpoint output from each frozen native-law replay",
+  "collision_intents_dispatched_as_qdot": false,
+  "command_authority": "offline_intent_only",
+  "evidence_boundary": "candidate-specific policy intents derived from model-generated input traces and synthetic collision fixtures; no physical observer or visual corridor was qualified",
+  "final_realization_once_per_candidate_tick": true,
+  "human_or_apparatus_push_trials": 0,
+  "identical_input_digests_per_sfc_dsfc_pair": true,
+  "link_collision_preserves_normal_and_orientation_for_all_replays": true,
+  "link_collision_tangent_frozen_for_all_replays": true,
+  "link_yield_preferences_are_intents_only": true,
+  "matched_source_input_pairs": 15,
+  "out_of_corridor_requests_recovery_owner_for_all_replays": true,
+  "physical_joint_observer_qualified": false,
+  "policy_id": "tase-dual-space-collision-offline-v1",
+  "source_command_replay": "runs/tase-sfc-dsfc-offline-20260924T0558HKT/command-replay.json",
+  "source_evidence_class": "same_input_command_replay_of_model_generated_traces",
+  "source_sha256": "551102fea445e75ee236bcdb201ae600394119c1690ef5a482ddf5c644ee6614",
+  "tool_collision_max_normal_intent_error_m_s": 2.068214550064332e-19,
+  "tool_collision_max_orientation_intent_error_rad_s": 0.0,
+  "tool_collision_tangent_frozen_for_all_replays": true,
+  "visual_corridor_qualified": false
+}

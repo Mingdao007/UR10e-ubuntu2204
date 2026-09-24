@@ -9,6 +9,7 @@ become hardware commands.
 from __future__ import annotations
 
 import argparse
+from collections import Counter, defaultdict
 import gzip
 import hashlib
 import json
@@ -448,6 +449,89 @@ def _collision_intents(sample: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _dual_space_coverage(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Summarize candidate-specific dual-space fixture coverage."""
+    if not results:
+        raise ValueError("dual-space policy coverage requires replay results")
+    scenarios = tuple(comparison.SCENARIOS)
+    counts = Counter((str(item.get("method")), str(item.get("scenario"))) for item in results)
+    pairs: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for item in results:
+        pairs[str(item.get("source_attempt_id"))].append(item)
+    if any(not key for key in pairs):
+        raise ValueError("dual-space replay is missing a matched source attempt identity")
+    for pair in pairs.values():
+        if (
+            len(pair) != 2
+            or {str(item.get("method")) for item in pair} != set(METHODS)
+            or len({str(item.get("scenario")) for item in pair}) != 1
+            or len({str(item.get("common_input_sha256")) for item in pair}) != 1
+        ):
+            raise ValueError("each dual-space coverage unit must be one identical-input SFC/DSFC pair")
+    expected_methods = set(METHODS)
+    observed_methods = {method for method, _ in counts}
+    if observed_methods != expected_methods:
+        raise ValueError("dual-space replay must cover both frozen SFC and DSFC candidates")
+    if any(scenario not in scenarios for _, scenario in counts):
+        raise ValueError("dual-space replay contains an unknown comparison scenario")
+    coverage = {
+        method: {scenario: counts.get((method, scenario), 0) for scenario in scenarios}
+        for method in METHODS
+    }
+    intents = [item["collision_intents"] for item in results]
+    all_offline_only = all(
+        intent["nominal"]["command_authority"] == "offline_intent_only"
+        and intent["tool_contact"]["command_authority"] == "offline_intent_only"
+        and intent["qualified_link_contact_fixture"]["command_authority"] == "offline_intent_only"
+        for intent in intents
+    )
+    all_link_preferences = all(
+        intent["qualified_link_contact_fixture"]["joint_yield_preference_rad_s"] is not None
+        and intent["qualified_link_contact_fixture"]["mode"] == "LINK_YIELD"
+        and intent["qualified_link_contact_fixture"]["tangent_frozen"] is True
+        for intent in intents
+    )
+    complete = all(count > 0 for row in coverage.values() for count in row.values())
+    if not complete:
+        raise ValueError("dual-space replay must include both candidates in every disturbance scenario")
+    return {
+        "policy_id": "tase-dual-space-collision-offline-v1",
+        "command_authority": "offline_intent_only",
+        "candidate_specific_sample": "midpoint output from each frozen native-law replay",
+        "matched_input_pair_count": len(pairs),
+        "candidate_scenario_replay_counts": coverage,
+        "candidate_coverage_complete": complete,
+        "tool_collision_tangent_frozen_for_all_replays": all(
+            intent["tool_contact"]["tangent_frozen"] is True for intent in intents
+        ),
+        "tool_collision_max_normal_intent_error_m_s": max(
+            float(intent["tool_contact"]["normal_intent_error_m_s"]) for intent in intents
+        ),
+        "tool_collision_max_orientation_intent_error_rad_s": max(
+            float(intent["tool_contact"]["orientation_intent_error_rad_s"]) for intent in intents
+        ),
+        "link_collision_tangent_frozen_for_all_replays": all(
+            intent["qualified_link_contact_fixture"]["tangent_frozen"] is True
+            for intent in intents
+        ),
+        "link_collision_preserves_normal_and_orientation_for_all_replays": all(
+            float(intent["qualified_link_contact_fixture"]["normal_intent_error_m_s"]) <= 1e-12
+            and float(intent["qualified_link_contact_fixture"]["orientation_intent_error_rad_s"]) <= 1e-12
+            for intent in intents
+        ),
+        "link_yield_preferences_are_intents_only": all_link_preferences and all_offline_only,
+        "out_of_corridor_requests_recovery_owner_for_all_replays": all(
+            intent["loaded_out_of_corridor_fixture"]["recovery_requested"] is True
+            and intent["loaded_out_of_corridor_fixture"]["recovery_owner_required"] is True
+            and intent["loaded_out_of_corridor_fixture"]["cartesian_twist"] is None
+            for intent in intents
+        ),
+        "physical_joint_observer_qualified": False,
+        "visual_corridor_qualified": False,
+        "collision_intents_dispatched_as_qdot": False,
+    }
+
+
 def run_replay(*, comparison_dir: Path, output_path: Path | None = None) -> dict[str, Any]:
     root = Path(comparison_dir).resolve()
     attempts_path = root / "attempts.jsonl"
@@ -490,8 +574,7 @@ def run_replay(*, comparison_dir: Path, output_path: Path | None = None) -> dict
         "historical_trace_audit": historical_audit,
         "offline_analysis_interfaces": OFFLINE_ANALYSIS_INTERFACES,
         "collision_policy": {
-            "policy_id": "tase-dual-space-collision-offline-v1",
-            "command_authority": "offline_intent_only",
+            **_dual_space_coverage(results),
             "physical_observer_qualified": False,
             "visual_corridor_qualified": False,
             "synthetic_test_fixture": SYNTHETIC_COLLISION_FIXTURE,
@@ -527,32 +610,7 @@ def run_replay(*, comparison_dir: Path, output_path: Path | None = None) -> dict
             "evidence_class": document["evidence_class"],
         }
         summary["offline_analysis_interfaces"] = OFFLINE_ANALYSIS_INTERFACES
-        summary["dual_space_collision_policy"] = {
-            "policy_id": "tase-dual-space-collision-offline-v1",
-            "tool_collision_tangent_frozen_for_all_replays": all(
-                item["collision_intents"]["tool_contact"]["tangent_frozen"]
-                for item in results
-            ),
-            "tool_collision_max_normal_intent_error_m_s": max((
-                float(item["collision_intents"]["tool_contact"]["normal_intent_error_m_s"])
-                for item in results
-            ), default=0.0),
-            "tool_collision_max_orientation_intent_error_rad_s": max((
-                float(item["collision_intents"]["tool_contact"]["orientation_intent_error_rad_s"])
-                for item in results
-            ), default=0.0),
-            "link_yield_preferences_are_intents_only": all(
-                item["collision_intents"]["qualified_link_contact_fixture"]["command_authority"] == "offline_intent_only"
-                and item["collision_intents"]["qualified_link_contact_fixture"]["joint_yield_preference_rad_s"] is not None
-                for item in results
-            ),
-            "out_of_corridor_requests_recovery_owner_for_all_replays": all(
-                item["collision_intents"]["loaded_out_of_corridor_fixture"]["recovery_owner_required"] is True
-                for item in results
-            ),
-            "physical_joint_observer_qualified": False,
-            "visual_corridor_qualified": False,
-        }
+        summary["dual_space_collision_policy"] = _dual_space_coverage(results)
         report_path = root / "report.md"
         if report_path.is_file():
             report = report_path.read_text(encoding="utf-8")
@@ -567,7 +625,9 @@ def run_replay(*, comparison_dir: Path, output_path: Path | None = None) -> dict
                 f"- Maximum tangential command leakage into the estimated normal direction: {summary['same_input_command_replay']['max_tangential_normal_leak_m_s']:.3g} m/s.",
                 f"- Final joint-velocity realization calls observed: {summary['same_input_command_replay']['final_realization_calls']} per tick.",
                 f"- Dual-space policy preserved the TASE normal/orientation intent under tool-contact fixture; maximum normal difference {summary['dual_space_collision_policy']['tool_collision_max_normal_intent_error_m_s']:.3g} m/s and orientation difference {summary['dual_space_collision_policy']['tool_collision_max_orientation_intent_error_rad_s']:.3g} rad/s.",
-                "- The existing dual-space policy returned link-yield preferences as offline intents and requested the single recovery owner when the synthetic loaded lateral error exceeded its test-fixture corridor.",
+                f"- Candidate-specific dual-space coverage: {summary['dual_space_collision_policy']['candidate_scenario_replay_counts']} (both frozen methods across every disturbance scenario).",
+                f"- Across all {len(results)} candidate replays, tool/link fixtures froze tangent motion while preserving TASE normal/orientation intent; link yield remained an offline preference and no collision output was dispatched as qdot.",
+                "- The policy requested the single recovery owner on every synthetic loaded out-of-corridor fixture.",
                 "- Event-scoring and board-mark-detection interfaces are retained locally (`tase_joint_ee_apparatus_collision_v1`, `contact-board-marks.v1`). This run contains zero instrumented-apparatus trials and zero qualified image-mark trials.",
                 "- Joint-observer receipt, joint torque, and corridor error in this section are synthetic unit-test fixtures. No qualified instrumented observer, calibrated camera corridor, apparatus push, or human push was used.",
                 "",

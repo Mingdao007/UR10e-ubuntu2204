@@ -5,7 +5,13 @@
   "decision": "short_contact_and_offline_comparison_complete; four_unit_live_acceptance_incomplete",
   "short_contact_probe": {
     "protocol_id": "contact_ramp_probe_r002",
-    "planned_ramps_s": [8, 4, 3, 2, 1],
+    "planned_ramps_s": [
+      8,
+      4,
+      3,
+      2,
+      1
+    ],
     "attempt_count": 7,
     "passed_count": 7,
     "fastest_ramp_s": 1,
@@ -41,7 +47,10 @@
     "protocol_id": "figure8_window60_r013_rate400_v1",
     "controller": "TASE_RNN_MATURE",
     "path_duration_s": 60.0,
-    "formal_window_s": [5.0, 60.0],
+    "formal_window_s": [
+      5.0,
+      60.0
+    ],
     "target_force_n": 5.0,
     "parameter_arm": "A",
     "Md": 9.565272137974492,
@@ -79,7 +88,10 @@
     "tuning_failed": 2,
     "valid_confirmation_pairs": 5,
     "mean_improvement_a_minus_b_n": 0.03470115217066232,
-    "paired_ci95_n": [-0.17669382268800132, 0.24609612702932593],
+    "paired_ci95_n": [
+      -0.17669382268800132,
+      0.24609612702932593
+    ],
     "improvement_supported": false,
     "claim_scope": "sensor-feedback normal-force MAE; no independent task-force truth"
   },
@@ -93,7 +105,9 @@
     "failed_attempts": 0,
     "matched_command_replay_inputs": 15,
     "command_replay_controller_runs": 30,
-    "realization_calls_per_tick": [1],
+    "realization_calls_per_tick": [
+      1
+    ],
     "max_tangential_to_normal_leakage_m_s": 8.44e-19,
     "results": {
       "plane": {
@@ -128,7 +142,28 @@
     "qualified_joint_observer": false,
     "qualified_visual_corridor": false,
     "apparatus_trials": 0,
-    "human_push_trials": 0
+    "human_push_trials": 0,
+    "candidate_specific_coverage_artifact": "reports/tase_sfc_dsfc_dualspace_coverage_20260924.json",
+    "candidate_scenario_replay_counts": {
+      "TASE_RNN_MATURE+DSFC_YIELD_V1": {
+        "normal_pulse": 5,
+        "plane": 5,
+        "tangent_pulse": 5
+      },
+      "TASE_RNN_MATURE+SFC_YIELD_V1": {
+        "normal_pulse": 5,
+        "plane": 5,
+        "tangent_pulse": 5
+      }
+    },
+    "candidate_coverage_complete": true,
+    "identical_input_digests_per_sfc_dsfc_pair": true,
+    "final_realization_once_per_candidate_tick": true,
+    "tool_collision_tangent_frozen_for_all_replays": true,
+    "link_collision_preserves_normal_and_orientation_for_all_replays": true,
+    "link_yield_preferences_are_intents_only": true,
+    "collision_intents_dispatched_as_qdot": false,
+    "source_command_replay_sha256": "551102fea445e75ee236bcdb201ae600394119c1690ef5a482ddf5c644ee6614"
   },
   "fresh_read_only_bench_state": {
     "checked_at": "2026-09-24T06:41:31.314+08:00",
@@ -144,7 +179,44 @@
     "focused_regression_tests_passed": 142,
     "board_mark_detection_tests_passed": 6,
     "git_diff_check": "passed",
-    "report_json_parse": "passed"
+    "report_json_parse": "passed",
+    "sfc_dsfc_focused_tests_passed": 25,
+    "dual_space_candidate_coverage": "passed: both methods x all three scenarios, five replays per cell"
   },
-  "next_action": "analyze the fresh raw sensor, RTDE and published-packet timeline around the 0.4356 s release-gate failure before selecting the next physical protocol"
+  "next_action": "continue offline SFC/DSFC dual-space feasibility and event-scoring review; require qualified link-force observation, independent push-force evidence, and calibrated visual corridor before any live collision or push trial",
+  "contact_gate_timeline_diagnosis": {
+    "artifact": "reports/tase_contact_gate_timeline_20260924.json",
+    "evidence_class": "recorded TASE command and sensor feedback timeline; descriptive, not a changed-plant prediction",
+    "force_only_gate_fraction_is_official_release_gate": false,
+    "cause_established": false,
+    "rnn_and_integral_active_during_failed_baseline_stage": false,
+    "runs": {
+      "probe_r013_60_ramp8": {
+        "baseline_packet_count": 4297,
+        "first_baseline_normal_n": 7.470317452018171,
+        "first_baseline_setpoint_n": 1.0,
+        "first_target_raw_normal_n": 5.059088961476296,
+        "first_target_filtered_normal_n": 4.756355065312087,
+        "target_plus_0p5_s_force_only_fraction": 1.0
+      },
+      "tase_a_before_release_fix": {
+        "baseline_packet_count": 15003,
+        "first_baseline_normal_n": 6.1425527037931555,
+        "first_baseline_setpoint_n": 1.0,
+        "first_target_raw_normal_n": 5.007198135793018,
+        "first_target_filtered_normal_n": 5.282176199318165,
+        "target_plus_0p5_s_force_only_fraction": 0.38247011952191234
+      },
+      "tase_a_after_release_fix": {
+        "baseline_packet_count": 14917,
+        "first_baseline_normal_n": 10.362965941595924,
+        "first_baseline_setpoint_n": 1.0,
+        "first_target_raw_normal_n": 4.2835441749713254,
+        "first_target_filtered_normal_n": 5.167676495702819,
+        "target_plus_0p5_s_force_only_fraction": 0.56
+      }
+    },
+    "interpretation": "The 0515 capture predates the baseline-provider continuation fix. The 0600 run still failed the 0.5 s joint release dwell with provider output active; its first baseline packet was already above 10 N. Contact handoff is a lead for further diagnosis, not an established root cause."
+  },
+  "current_direction": "TASE+SFC/DSFC offline candidate and dual-space evaluation; the 8 s TASE contact-gate failure remains sealed and is not being rerun in this phase."
 }

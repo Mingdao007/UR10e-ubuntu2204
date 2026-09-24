@@ -1,0 +1,487 @@
+{
+  "schema": "tase.baseline-contact-gate-timeline-v1",
+  "evidence_class": "recorded TASE command and sensor feedback timeline; descriptive, not a changed-plant prediction",
+  "source_fields": {
+    "normal_n": "layout-606 packet double register 24",
+    "force_norm_n": "layout-606 packet double register 25",
+    "qdot_rad_s": "layout-606 packet double registers 37-42",
+    "setpoint_n": "layout-606 packet double register 44",
+    "filtered_normal_n": "layout-606 packet double register 45"
+  },
+  "provider_baseline_law": {
+    "gain_m_s_per_n": 0.0001767766953,
+    "normal_speed_cap_m_s": 0.00025,
+    "formula": "clip(gain * (setpoint - max(filtered_normal, raw_normal)), -cap, +cap)",
+    "rnn_and_integral_state": "frozen until PATH"
+  },
+  "metric_scope": {
+    "force_only_gate_pass_fraction": "descriptive per-packet force/torque threshold fraction only; not the official continuous release gate and excludes dwell, freshness, timing, stationarity, and velocity predicates"
+  },
+  "runs": {
+    "probe_r013_60_ramp8": {
+      "run_id": "probe_r013_60_ramp8",
+      "run_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/contact-ramp-probe-ladder-20260924-r2-retry3/ramp-08s/initial/attempts/0001",
+      "metric_scope": {
+        "force_only_gate_pass_fraction": "descriptive per-packet force/torque threshold fraction only; not the official continuous release gate and excludes dwell, freshness, timing, stationarity, and velocity predicates"
+      },
+      "controller": "TASE_RNN_MATURE",
+      "attempt_failure": null,
+      "tp_state21_observation": {
+        "first_observed_monotonic_s": 93395.860090445,
+        "last_observed_monotonic_s": 93406.47004928,
+        "samples": 5282
+      },
+      "baseline_packet_count": 4297,
+      "baseline_duration_s": 8.60095542599447,
+      "first_baseline_packet": {
+        "time_s": 93395.86161443,
+        "sequence": 2030,
+        "normal_n": 7.470317452018171,
+        "filtered_normal_n": 7.470317452018171,
+        "force_norm_n": 7.470346314119539,
+        "setpoint_n": 1.0,
+        "command_qdot_rad_s": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "provider_speed_reconstructed_m_s": -0.00025
+      },
+      "first_target_packet": {
+        "time_s": 93403.869357279,
+        "sequence": 6031,
+        "normal_n": 5.059088961476296,
+        "filtered_normal_n": 4.756355065312087,
+        "force_norm_n": 5.1466253551802215,
+        "command_qdot_rad_s": [
+          2.5832040910542904e-08,
+          2.9958171955992126e-05,
+          2.1938139042193228e-06,
+          -3.215049628007491e-05,
+          1.37618214935071e-07,
+          -3.3516909888436125e-08
+        ]
+      },
+      "target_windows": {
+        "0.5s": {
+          "sample_count": 249,
+          "normal_n": {
+            "min": 4.352099799028247,
+            "median": 4.989420089705497,
+            "max": 5.588871837498456
+          },
+          "filtered_normal_n": {
+            "min": 4.756355065312087,
+            "median": 4.8818049910395445,
+            "max": 4.927312973663508
+          },
+          "force_norm_n": {
+            "min": 4.449817983598256,
+            "median": 5.075251729756357,
+            "max": 5.671538110187571
+          },
+          "force_only_gate_pass_fraction": 1.0,
+          "command_qdot_norm_rad_s": {
+            "min": 0.0,
+            "median": 0.0,
+            "max": 0.000423215070168642
+          },
+          "provider_baseline_speed_reconstructed_m_s": {
+            "min": -0.0001040988173882156,
+            "median": 1.8702815784326513e-06,
+            "max": 4.262592990703521e-05
+          }
+        },
+        "1s": {
+          "sample_count": 296,
+          "normal_n": {
+            "min": 4.352099799028247,
+            "median": 4.970573934938222,
+            "max": 5.588871837498456
+          },
+          "filtered_normal_n": {
+            "min": 4.756355065312087,
+            "median": 4.894898095268646,
+            "max": 4.927788575064189
+          },
+          "force_norm_n": {
+            "min": 4.449817983598256,
+            "median": 5.058310642587914,
+            "max": 5.671538110187571
+          },
+          "force_only_gate_pass_fraction": 1.0,
+          "command_qdot_norm_rad_s": {
+            "min": 0.0,
+            "median": 0.0,
+            "max": 0.000423215070168642
+          },
+          "provider_baseline_speed_reconstructed_m_s": {
+            "min": -0.0001040988173882156,
+            "median": 5.20184253730393e-06,
+            "max": 4.262592990703521e-05
+          }
+        },
+        "2s": {
+          "sample_count": 296,
+          "normal_n": {
+            "min": 4.352099799028247,
+            "median": 4.970573934938222,
+            "max": 5.588871837498456
+          },
+          "filtered_normal_n": {
+            "min": 4.756355065312087,
+            "median": 4.894898095268646,
+            "max": 4.927788575064189
+          },
+          "force_norm_n": {
+            "min": 4.449817983598256,
+            "median": 5.058310642587914,
+            "max": 5.671538110187571
+          },
+          "force_only_gate_pass_fraction": 1.0,
+          "command_qdot_norm_rad_s": {
+            "min": 0.0,
+            "median": 0.0,
+            "max": 0.000423215070168642
+          },
+          "provider_baseline_speed_reconstructed_m_s": {
+            "min": -0.0001040988173882156,
+            "median": 5.20184253730393e-06,
+            "max": 4.262592990703521e-05
+          }
+        }
+      },
+      "last_provider_result": {
+        "sample_time_s": 93403.964182216,
+        "measured_normal_n": 5.5382265228884515,
+        "filtered_normal_n": 4.816267917671516,
+        "measured_force_norm_n": 5.619576284736833,
+        "baseline_primitive_speed_m_s": -9.514590603903027e-05,
+        "provider_qdot_rad_s": [
+          2.3531275724885976e-07,
+          0.00027288585291741053,
+          1.99827550520157e-05,
+          -0.0002928550337992376,
+          1.2535410866036909e-06,
+          -3.0532935827984173e-07
+        ],
+        "phase": "baseline"
+      }
+    },
+    "tase_a_before_release_fix": {
+      "run_id": "tase_a_before_release_fix",
+      "run_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-a-four-unit-engineering-20260924T0515Z/attempts/0001",
+      "metric_scope": {
+        "force_only_gate_pass_fraction": "descriptive per-packet force/torque threshold fraction only; not the official continuous release gate and excludes dwell, freshness, timing, stationarity, and velocity predicates"
+      },
+      "controller": "TASE_RNN_MATURE",
+      "attempt_failure": "resident TP is STOPPED: reason=48 return_guard=0; baseline_diag={\"filtered_max_n\": 6.146227527120332, \"filtered_min_n\": 0.2039412809260522, \"force_norm_max_n\": 7.881990153071317, \"last\": {\"filtered_normal_n\": 0.5511560152552111, \"force_norm_n\": 0.5385617269581003, \"mode\": 1, \"raw_normal_n\": 0.5384409031165718, \"setpoint_n\": 5.0, \"torque_norm_nm\": 0.0017070789961884816}, \"raw_max_n\": 7.8747102586431375, \"raw_min_n\": -0.5576685729490638, \"readiness_samples\": 717, \"samples\": 15003, \"torque_norm_max_nm\": 0.04851196934473325}",
+      "tp_state21_observation": {
+        "first_observed_monotonic_s": 93832.403077113,
+        "last_observed_monotonic_s": 93862.411161739,
+        "samples": 15003
+      },
+      "baseline_packet_count": 15003,
+      "baseline_duration_s": 30.00748822200694,
+      "first_baseline_packet": {
+        "time_s": 93832.404225879,
+        "sequence": 2029,
+        "normal_n": 6.1425527037931555,
+        "filtered_normal_n": 6.1425527037931555,
+        "force_norm_n": 6.2134647106046526,
+        "setpoint_n": 1.0,
+        "command_qdot_rad_s": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "provider_speed_reconstructed_m_s": -0.00025
+      },
+      "first_target_packet": {
+        "time_s": 93840.406266497,
+        "sequence": 6028,
+        "normal_n": 5.007198135793018,
+        "filtered_normal_n": 5.282176199318165,
+        "force_norm_n": 5.040573837941192,
+        "command_qdot_rad_s": [
+          1.2342449961724523e-07,
+          0.00014309762730147125,
+          1.0480156294944612e-05,
+          -0.00015357066021223726,
+          6.573298859089037e-07,
+          -1.6018559359669899e-07
+        ]
+      },
+      "target_windows": {
+        "0.5s": {
+          "sample_count": 251,
+          "normal_n": {
+            "min": 0.31944349353517887,
+            "median": 0.5332085554210424,
+            "max": 5.007198135793018
+          },
+          "filtered_normal_n": {
+            "min": 2.36076177222072,
+            "median": 4.338185056928121,
+            "max": 5.282176199318165
+          },
+          "force_norm_n": {
+            "min": 0.33905613548378216,
+            "median": 0.534206290530151,
+            "max": 5.040573837941192
+          },
+          "force_only_gate_pass_fraction": 0.38247011952191234,
+          "command_qdot_norm_rad_s": {
+            "min": 0.0,
+            "median": 0.0,
+            "max": 0.00021016942039438108
+          },
+          "provider_baseline_speed_reconstructed_m_s": {
+            "min": -4.988217600777937e-05,
+            "median": 0.00011699345853640439,
+            "max": 0.00025
+          }
+        },
+        "1s": {
+          "sample_count": 501,
+          "normal_n": {
+            "min": 0.12195064427535529,
+            "median": 0.41220258738379467,
+            "max": 5.007198135793018
+          },
+          "filtered_normal_n": {
+            "min": 0.759203530473493,
+            "median": 2.36076177222072,
+            "max": 5.282176199318165
+          },
+          "force_norm_n": {
+            "min": 0.12683420389427277,
+            "median": 0.4282143424489974,
+            "max": 5.040573837941192
+          },
+          "force_only_gate_pass_fraction": 0.19161676646706588,
+          "command_qdot_norm_rad_s": {
+            "min": 0.0,
+            "median": 0.0,
+            "max": 0.00021016942039438108
+          },
+          "provider_baseline_speed_reconstructed_m_s": {
+            "min": -4.988217600777937e-05,
+            "median": 0.00025,
+            "max": 0.00025
+          }
+        },
+        "2s": {
+          "sample_count": 1001,
+          "normal_n": {
+            "min": 0.12195064427535529,
+            "median": 0.3842966355873225,
+            "max": 5.007198135793018
+          },
+          "filtered_normal_n": {
+            "min": 0.41294450439133135,
+            "median": 0.759203530473493,
+            "max": 5.282176199318165
+          },
+          "force_norm_n": {
+            "min": 0.12683420389427277,
+            "median": 0.38772871301583406,
+            "max": 5.040573837941192
+          },
+          "force_only_gate_pass_fraction": 0.0959040959040959,
+          "command_qdot_norm_rad_s": {
+            "min": 0.0,
+            "median": 0.0,
+            "max": 0.00021016942039438108
+          },
+          "provider_baseline_speed_reconstructed_m_s": {
+            "min": -4.988217600777937e-05,
+            "median": 0.00025,
+            "max": 0.00025
+          }
+        }
+      },
+      "last_provider_result": {
+        "sample_time_s": 93840.501347082,
+        "measured_normal_n": 4.21993950484376,
+        "filtered_normal_n": 5.176700014696822,
+        "measured_force_norm_n": 4.296437094703986,
+        "baseline_primitive_speed_m_s": -3.1236444657565594e-05,
+        "provider_qdot_rad_s": [
+          7.727741437713813e-08,
+          8.960189221989478e-05,
+          6.566181115233753e-06,
+          -9.616361259545493e-05,
+          4.115983423489138e-07,
+          -1.003104245473682e-07
+        ],
+        "phase": "baseline"
+      }
+    },
+    "tase_a_after_release_fix": {
+      "run_id": "tase_a_after_release_fix",
+      "run_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-a-four-unit-engineering-fixed-20260924T0600HKT/attempts/0001",
+      "metric_scope": {
+        "force_only_gate_pass_fraction": "descriptive per-packet force/torque threshold fraction only; not the official continuous release gate and excludes dwell, freshness, timing, stationarity, and velocity predicates"
+      },
+      "controller": "TASE_RNN_MATURE",
+      "attempt_failure": "resident TP is STOPPED: reason=48 return_guard=0; baseline_diag={\"filtered_max_n\": 10.363101969898425, \"filtered_min_n\": 0.17772761307801624, \"force_norm_max_n\": 10.526047457756249, \"last\": {\"filtered_normal_n\": 4.376202777252996, \"force_norm_n\": 5.103383616046498, \"mode\": 1, \"raw_normal_n\": 5.085618243867052, \"setpoint_n\": 5.0, \"torque_norm_nm\": 0.016083221069005074}, \"raw_max_n\": 10.386163277310025, \"raw_min_n\": -0.5520331305788031, \"readiness_samples\": 6370, \"samples\": 14917, \"torque_norm_max_nm\": 0.08708583922896058}",
+      "tp_state21_observation": {
+        "first_observed_monotonic_s": 96104.189784738,
+        "last_observed_monotonic_s": 96134.197787322,
+        "samples": 14917
+      },
+      "baseline_packet_count": 14917,
+      "baseline_duration_s": 30.008130564005114,
+      "first_baseline_packet": {
+        "time_s": 96104.190970274,
+        "sequence": 2002,
+        "normal_n": 10.362965941595924,
+        "filtered_normal_n": 10.362965941595924,
+        "force_norm_n": 10.498615342816024,
+        "setpoint_n": 1.0,
+        "command_qdot_rad_s": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "provider_speed_reconstructed_m_s": -0.00025
+      },
+      "first_target_packet": {
+        "time_s": 96112.223096256,
+        "sequence": 6004,
+        "normal_n": 4.2835441749713254,
+        "filtered_normal_n": 5.167676495702819,
+        "force_norm_n": 4.285989353251486,
+        "command_qdot_rad_s": [
+          7.33298093719363e-08,
+          8.501996514583032e-05,
+          6.228418386048435e-06,
+          -9.124415419221764e-05,
+          3.9054187431985687e-07,
+          -9.518440413992121e-08
+        ]
+      },
+      "target_windows": {
+        "0.5s": {
+          "sample_count": 250,
+          "normal_n": {
+            "min": 0.38573258044113,
+            "median": 3.211915863885251,
+            "max": 5.4799922402291426
+          },
+          "filtered_normal_n": {
+            "min": 3.2624637304333044,
+            "median": 4.502136297415655,
+            "max": 5.167676495702819
+          },
+          "force_norm_n": {
+            "min": 0.38921919685938017,
+            "median": 3.2559118490245256,
+            "max": 5.510454049390673
+          },
+          "force_only_gate_pass_fraction": 0.56,
+          "command_qdot_norm_rad_s": {
+            "min": 1.9157244324750428e-07,
+            "median": 0.0003707942238387193,
+            "max": 0.0010531600120520766
+          },
+          "provider_baseline_speed_reconstructed_m_s": {
+            "min": -8.485144199735152e-05,
+            "median": 8.801070005268251e-05,
+            "max": 0.00025
+          }
+        },
+        "1s": {
+          "sample_count": 498,
+          "normal_n": {
+            "min": 0.38573258044113,
+            "median": 4.404433019434926,
+            "max": 9.552648506620418
+          },
+          "filtered_normal_n": {
+            "min": 3.2624637304333044,
+            "median": 4.305379160097138,
+            "max": 5.167676495702819
+          },
+          "force_norm_n": {
+            "min": 0.38921919685938017,
+            "median": 4.460044642492436,
+            "max": 9.609334789056435
+          },
+          "force_only_gate_pass_fraction": 0.5301204819277109,
+          "command_qdot_norm_rad_s": {
+            "min": 1.9157244324750428e-07,
+            "median": 0.0003138069756049081,
+            "max": 0.0010533850155195236
+          },
+          "provider_baseline_speed_reconstructed_m_s": {
+            "min": -0.00025,
+            "median": 2.189843796148249e-05,
+            "max": 0.00025
+          }
+        },
+        "2s": {
+          "sample_count": 990,
+          "normal_n": {
+            "min": -0.25026493719975873,
+            "median": 4.216432805663613,
+            "max": 9.552648506620418
+          },
+          "filtered_normal_n": {
+            "min": 3.229296445406127,
+            "median": 4.2971226657019805,
+            "max": 5.551042850698894
+          },
+          "force_norm_n": {
+            "min": 0.01839098903398768,
+            "median": 4.253824768042783,
+            "max": 9.609334789056435
+          },
+          "force_only_gate_pass_fraction": 0.4707070707070707,
+          "command_qdot_norm_rad_s": {
+            "min": 1.9157244324750428e-07,
+            "median": 0.00038080406533173763,
+            "max": 0.0010534688086323981
+          },
+          "provider_baseline_speed_reconstructed_m_s": {
+            "min": -0.00025,
+            "median": 1.6442974580177833e-05,
+            "max": 0.00025
+          }
+        }
+      },
+      "last_provider_result": {
+        "sample_time_s": 96134.19808559,
+        "measured_normal_n": 5.085618243867052,
+        "filtered_normal_n": 4.376202777252996,
+        "measured_force_norm_n": 5.103383616046498,
+        "baseline_primitive_speed_m_s": -1.513531020820696e-05,
+        "provider_qdot_rad_s": [
+          3.742133203016142e-08,
+          4.3404443528634155e-05,
+          3.179048756849879e-06,
+          -4.658133379100365e-05,
+          1.993890705574092e-07,
+          -4.85517549187522e-08
+        ],
+        "phase": "baseline"
+      }
+    }
+  },
+  "interpretation_boundary": [
+    "The 0515 packet shows zero qdot while path-entry release dwell is pending; that recorded run predates the later fix that keeps the TASE baseline provider active in this branch.",
+    "The 0600 packet shows active baseline commands that reverse direction as raw and filtered normal load move around the setpoint; it still fails the release dwell.",
+    "The isolated 8 s diagnostic probe exits to retract after its 0.5 s release gate and therefore does not test the longer TASE baseline hold or a formal Figure-eight path.",
+    "The force values are Kunwei feedback, not independent task-force truth. The command replay does not predict a changed physical response."
+  ]
+}

@@ -150,9 +150,17 @@ def test_small_campaign_seals_model_only_traces_and_denominators(tmp_path):
     assert replay["controller_replays"] == 6
     assert replay["collision_policy"]["physical_observer_qualified"] is False
     assert replay["collision_policy"]["visual_corridor_qualified"] is False
+    assert replay["collision_policy"]["candidate_coverage_complete"] is True
+    assert replay["collision_policy"]["collision_intents_dispatched_as_qdot"] is False
+    assert replay["collision_policy"]["candidate_scenario_replay_counts"] == {
+        method: {scenario: 1 for scenario in comparison.SCENARIOS}
+        for method in comparison.METHODS
+    }
     for offset in range(0, len(replay["results"]), 2):
         pair = replay["results"][offset:offset + 2]
         assert pair[0]["common_input_sha256"] == pair[1]["common_input_sha256"]
+        assert {item["method"] for item in pair} == set(comparison.METHODS)
+        assert pair[0]["scenario"] == pair[1]["scenario"]
         for result in pair:
             assert result["final_realization_calls"] == [1]
             assert result["tangential_normal_leak_max_m_s"] < 1e-12
@@ -160,6 +168,8 @@ def test_small_campaign_seals_model_only_traces_and_denominators(tmp_path):
             assert intents["tool_contact"]["tangent_frozen"] is True
             assert intents["qualified_link_contact_fixture"]["normal_intent_error_m_s"] < 1e-12
             assert intents["qualified_link_contact_fixture"]["orientation_intent_error_rad_s"] < 1e-12
+            assert intents["qualified_link_contact_fixture"]["joint_yield_preference_rad_s"] is not None
+            assert intents["qualified_link_contact_fixture"]["command_authority"] == "offline_intent_only"
             assert intents["loaded_out_of_corridor_fixture"]["recovery_requested"] is True
             assert intents["loaded_out_of_corridor_fixture"]["recovery_owner_required"] is True
     report_path = command_replay.refresh_final_report(comparison_dir=tmp_path / "sfc-dsfc")
