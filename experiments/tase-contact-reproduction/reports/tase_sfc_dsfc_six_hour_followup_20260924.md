@@ -7,7 +7,7 @@
 - 独立短接触入口完成了 8、4、3、2、1 秒 ramp，并把 1 秒档重复两次。七次都满足现有 0.5 秒接触放行条件并自动回 joint Home；1 秒是最快通过档。该入口有独立 10 N force-norm 停试线，实测峰值 7.01–8.47 N。它是短接触资格数据，不是 Figure-eight 或 autotuner 数据。
 - 冻结 A 参数的四圈工程验收没有完成：尝试在正式 PATH 前因 5 N 接触放行窗口不稳定而失败。另一轮在运动前被 observer 新鲜度门槛拦住。**完整 60 秒 PATH 为 0/4，故无四圈真实周转中位数，也不能宣称 ≤81 秒。** 失败记录保留，两个实际运动故障都由 recovery owner 自动回到 Home。
 - 同条件 SFC/DSFC 比较完成 30/30 个模型代理单元，另完成 30 次固定输入命令重放。它们支持代码路径和仿真诊断，不支持实机优胜或真实 task-force 结论。
-- 最新只读 bench 检查确认机械臂位于批准 joint Home、静止、Safety NORMAL、Dashboard STOPPED，且没有 active writer。尚未完成四圈实机门槛，因此本 goal 保持未完成。
+- 最后记录的只读 bench 检查时间为 2026-09-24 06:41 HKT；当时机械臂在批准 joint Home、静止、Safety NORMAL、Dashboard STOPPED，且没有 active writer。这是带时间戳的历史状态证据，不代表本次报告更新时重新读取了硬件。尚未完成四圈实机门槛，因此本 goal 保持未完成。
 
 ## 短接触阶梯
 
@@ -37,7 +37,7 @@
 |---|---|---|
 | `runs/tase-a-four-unit-engineering-20260924T0515Z/` | 实际开始接触；provider 在 release gate 等待时未形成足够稳定的放行窗口，TP state 21 到 30 s watchdog 后停止，未进入 PATH | recovery owner 自动 Home；attempt 失败 |
 | `runs/tase-a-four-unit-engineering-fixed-20260924T0548HKT/` | 起始准备的 observer 样本已过期，未 ARM、未发生机械臂运动 | 不是物理试验单元；安全留在/恢复至 Home |
-| `runs/tase-a-four-unit-engineering-fixed-20260924T0600HKT/attempts/0001/` | sensor 和 RTDE 样本均 fresh；state 21 接触等待 30.008 s 后 reason 48。最长连续联合放行窗口 0.4356 s，小于要求的 0.5 s；filtered normal 4–5.5 N 占 64.97%，raw normal 3–7 N 占 74.71%，torque/freshness 条件占 100% | 未开始正式 PATH。force-norm 峰值 10.526 N 是诊断值；该次不是短 probe 的 10 N 停试协议。recovery owner 自动 Home |
+| `runs/tase-a-four-unit-engineering-fixed-20260924T0600HKT/attempts/0001/` | sensor 和 RTDE 样本均 fresh；state 21 接触等待 30.008 s 后 reason 48。最长连续联合放行窗口 0.4356 s，小于要求的 0.5 s；filtered normal 4–5.5 N 占 64.97%，raw normal 3–7 N 占 74.71%，torque/freshness 条件占 100% | 未开始正式 PATH。baseline 阶段 force-norm 峰值 10.526 N；接触搜索/刹停阶段按同步包流重算峰值 10.651 N，二者是不同时间窗。该次不是短 probe 的 10 N 停试协议。recovery owner 自动 Home |
 
 失败先发生在**接触放行**：力反馈振荡/低谷不断重置联合计时。state 21 停留 30 秒是 watchdog 超时，不是完整 PATH，也不能计入成功圈。前一次失败曾表现为 release gate 期间 TASE 输出停滞；后续 observer 新鲜度修复使 06:00 轮进入实际接触，但并未使接触 gate 通过。当前证据说明修掉 observer/零输出问题仍不足以解决接触稳定性。
 
@@ -53,7 +53,11 @@
 | TASE 05:15，provider 修复前 | 6.14 / 1 N | 5.01 / 5.28 N | 38.2% | 目标后 raw normal 中位数 0.53 N；release dwell 期间 packet qdot 中位数为 0，符合当时 provider 未继续输出的缺陷 |
 | TASE 06:00，provider 修复后 | 10.36 / 1 N | 4.28 / 5.17 N | 56.0% | provider 持续输出，但 raw/filtered 力反复越过目标；最长联合连续窗口 0.4356 s，state 21 等待 30.008 s 后停止 |
 
-06:00 的首个 baseline 包已经是 **10.36 N**，而 host 此时的 baseline setpoint 仍是 1 N；整个 attempt 的反馈 force-norm 峰值为 **10.526 N**。这把怀疑重点指向 TP 接触 acquisition 到 host baseline 的交接和初始压入量，但目前不能据此认定根因。provider 的 normal 速度命令在测力穿越目标时会换向；TASE RNN 与积分在 baseline 阶段冻结，因此这次 gate 失败不应归因于 PATH 阶段的 `Md/Bd` 或积分 windup。05:15 暴露的“release dwell 零输出”已修复，但 06:00 证明仅修此软件缺陷仍不足以让 8 秒正式接触流程稳定放行。
+复核实机 read-back 包和逐帧 trace 后，接触 acquisition 的过压机制已能定位到较具体的控制边界：TP/local read-back hash 完全一致。包里近段切换条件是下探达到 11.029 mm 或 normal/force-norm 到 0.3 N；该分支把速度从 5 mm/s 降到 0.5 mm/s，但加速度只有 0.005 m/s²。06:00 trace 在持续近段分支开始时已经下探 11.066 mm、normal 0.506 N、force norm 0.537 N，实际 TCP 仍以 4.912 mm/s 运动。以该速度和加速度计算，减到 0.5 mm/s 理想上还要约 0.882 s、移动约 2.387 mm；RTDE 实测从这一近段分支到持续接触判据稳定约 1.030 s、再移动约 2.400 mm。接触判据随后连续 0.386 s，TP 在 state 20 刹停/静止确认期间 force norm 最高 10.651 N。首个 state 21 baseline 包仍是 10.499 N，而 setpoint 只有 1 N。这组数值强烈支持“近段减速启动得太晚，机器人在降到近段速度前已压入接触面”是首轮过压的重要原因。
+
+这项证据可以解释初始压入过大，但没有直接记录 TP 原生 `speedl` 命令，速度轨迹是用运行包源码与 RTDE 实际 TCP 速度/位置交叉核对；因此因果级别是“强证据支持”，不是独立执行器轨迹测量。它也**没有单独证明**后续 0.5 秒 release gate 失败全由该过压造成：`reason=48` 的首个正式失败仍是 baseline 阶段等待 30.008 秒未得到连续 0.5 秒放行（最长 0.4356 秒）。baseline 反馈振荡需要作为独立问题继续处理。TP force-fuse 为 20 N；短 probe 的 10 N 停试线属于另一个包，不能把 10.651 N 写作短 probe 触发了 10 N 停试。
+
+计算和阶段字段保存在 `reports/tase_contact_acquisition_revisit_20260924.json`。provider 的 normal 速度命令在测力穿越目标时会换向；TASE RNN 与积分在 baseline 阶段冻结，因此 PATH 阶段的 `Md/Bd` 或积分 windup 不能解释这次接触前失败。05:15 暴露的“release dwell 零输出”已修复，但 06:00 证明仅修此软件缺陷仍不足以让 8 秒正式接触流程稳定放行。
 
 旧 TASE attempt 的 force-only 比例是 raw-record 诊断，不能直接替代 supervisor 的联合 gate。05:15 和 06:00 的反馈均来自 Kunwei，不是独立 task-force 真值；也没有依据把 10.526 N 写作短 probe 的 10 N 停试事件。
 
@@ -98,6 +102,6 @@
 
 相关测试结果：本次合并 focused regression **142 passed**，覆盖 qualification/provider、recovery、supervisor、transport、ramp probe、R006、SFC/DSFC 和 dual-space；板面标记检测另有 **6 passed**。`git diff --cached --check` 通过。离线 CPU preflight `scripts/contact-six.sh status` 为 `ok=true`，`device_io=false`，`motion_authorized=false`。
 
-2026-09-24 06:41 HKT 的 fresh read-only hardware preflight：`actual_q=[0.74520820,-1.81808819,-2.56270456,-0.31234105,1.52763081,-0.82386190] rad`，相对批准 joint Home 最大误差约 `7.0e-5 rad`；TCP 线速度为 0，Safety NORMAL，Dashboard `STOPPED step5d_contact_home_v1.urp`，Kunwei TCP connect-only 成功，active writer 数为 0。此检查无 motion、无传感器控制命令。
+最后一次 fresh read-only hardware preflight（2026-09-24 06:41 HKT）：`actual_q=[0.74520820,-1.81808819,-2.56270456,-0.31234105,1.52763081,-0.82386190] rad`，相对批准 joint Home 最大误差约 `7.0e-5 rad`；TCP 线速度为 0，Safety NORMAL，Dashboard `STOPPED step5d_contact_home_v1.urp`，Kunwei TCP connect-only 成功，active writer 数为 0。此检查无 motion、无传感器控制命令；本轮诊断没有再次读取实时机械臂状态。
 
-按最新方向，接下来的主线转到 **TASE＋SFC／DSFC**：保留当前冻结参数与 30 条 matched replay 结果，继续完善双空间候选的离线可行性与事件评分。只有在连杆外力观测器、独立施力记录和标定视觉 corridor 等物理证据到位后，才重新讨论碰撞/推扰 live 验证；本轮不运行装置或真人推扰。TASE 8 秒接触放行失败仍未查明，四圈完整 PATH 仍是 0/4；它作为独立遗留项封存，不把 1 秒 probe 合并进旧协议，也不在当前 SFC/DSFC 阶段重跑。
+按最新方向，接下来的主线转到 **TASE＋SFC／DSFC**：SFC/DSFC 的 30 条 matched model replay 和双空间 synthetic-event 覆盖已完成，继续开发限于离线候选与事件评分。只有在连杆外力观测器、独立施力记录和标定视觉 corridor 等物理证据到位后，才讨论碰撞/推扰 live 验证；本轮不运行装置或真人推扰。TASE 8 秒正式接触链的首次过压机制已有强证据，但后续 release gate 失败尚未修复；四圈完整 PATH 仍是 0/4。两者保持独立，不把 1 秒 probe 合并进旧协议。
