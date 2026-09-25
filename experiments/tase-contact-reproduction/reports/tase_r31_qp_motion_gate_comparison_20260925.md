@@ -154,3 +154,21 @@ The same output-event partition was applied to the two RNN A baselines and match
 The RNN controls retain high correlation in flagged rows (`0.978` and `0.981`), while the matched QP flagged subset falls to `0.801`; its unflagged subset is `0.907`. Within QP, task-space-saturated rows are `0.799` and realization-feedback-flagged rows `0.807`. The event itself therefore does not explain the miss across methods. The evidence supports a **QP-by-output-event interaction** as a focused diagnostic branch, but a single-run conditional partition cannot identify causality. The official gate still uses all joined samples, and no rows were removed from its score.
 
 The next offline check is to inspect the exact QP task request, final published `Jqdot`, active bounds, and subsequent RTDE `actual_qd` around the flagged transitions, against the same rows from RNN A. Do not repeat the live QP profile unchanged. Full grouped metrics are in `reports/tase_r31_qdot_event_condition_20260925.json`.
+
+### Setpoint transitions inside flagged episodes
+
+The flagged-row difference is accompanied by a QP-specific increase in commanded setpoint changes. For the absolute difference between consecutive published qdot values divided by actual_dt (a setpoint-change rate, not measured mechanical acceleration), J2/J4 p95 values are:
+
+| Trace group | J2 p95 (rad/s²) | J4 p95 (rad/s²) |
+|---|---:|---:|
+| RNN A1, task-space output changed | 0.02927 | 0.02491 |
+| RNN A2, task-space output changed | 0.02899 | 0.02433 |
+| Matched QP, no output flags | 0.72060 | 0.82369 |
+| Matched QP, task-space output changed | 1.96485 | 2.11306 |
+| Matched QP, task-space and realization flags | 2.28955 | 2.50000 |
+
+This pattern is consistent with abrupt QP command changes during clipped task episodes, while RNN commands remain much smoother under the same task-space flag. It still does not identify whether the initiating source is QP inverse mapping, host/output projection, sample timing, or UR servo response. No new QP parameter or bound was introduced.
+
+### Normal-axis output residual cross-check — 2026-09-25T17:12:54+08:00 HKT
+
+For QP task-space-changed rows without a separate realization-feedback flag (n=1,411), the same-sequence joint qd correlation is 0.795. On those rows, the 95th-percentile absolute difference between the stored task-normal command and final published Jqdot normal component is approximately zero, while requested-to-task normal clipping is 4.671 mm/s p95. This means the QP's final joint command realizes the clipped normal task component in the provider trace, yet the robot's measured joint velocities still correlate poorly with that command. The corresponding RNN task-space-changed rows have qd correlations 0.978 and 0.981, despite larger task-to-realized normal differences in their provider traces. This strengthens the QP-by-command-profile interaction hypothesis, but it does not establish the robot-side cause or a remedy.

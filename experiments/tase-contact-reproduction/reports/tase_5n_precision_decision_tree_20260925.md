@@ -152,3 +152,13 @@ A sealed v2 timeline may still support labeled diagnostics when a failed receipt
 
 - The output flags alone do not explain the QP miss: RNN A flagged-row correlations are `0.978/0.981`, but matched QP flagged rows are `0.801`; its unflagged rows are `0.907`.
 - Continue with same-row, same-sequence inspection of requested twist, final published `Jqdot`, active constraints and RTDE actual qd. Treat this as an association to diagnose, not a causal result. No physical rerun or gate relaxation.
+
+## QP setpoint-transition discriminator — 2026-09-25T17:11+08:00 HKT
+
+- Within QP, task-space-output-changed rows have larger J2/J4 setpoint-change rates than its no-flag rows; the same flags do not make the RNN A setpoints jagged. This points to a method-specific command/output interaction.
+- Root cause remains unresolved. Next inspect each flagged sequence's requested twist, final Jqdot, constraints, and following RTDE qd; do not change the frozen QP profile or live gate.
+
+## QP task-only residual check — 2026-09-25T17:12:54+08:00
+
+- QP task-only flagged rows have near-zero provider task-normal versus final Jqdot normal residual, but only 0.795 actual_qd correlation. RNN task-flagged rows stay at 0.978/0.981. This narrows the discrepancy to QP command/robot tracking behavior in those episodes, without proving a cause.
+- Continue by inspecting the exact per-row joint command transitions and measured qd; preserve the complete official sample set and the 0.900 gate.

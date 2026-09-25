@@ -1,7 +1,7 @@
 {
   "schema": "tase-5n-precision-evidence-index-v1",
-  "checkpoint_at": "2026-09-25T17:07:30+08:00",
-  "primary_experiment": "R31 rate460 TASE_RNN_MATURE A: two eligible complete 60 s units (MAE 1.282720 and 1.006797 N); two complete TASE_QP units fail frozen actual_qd correlation gate (0.840132, 0.848607 versus 0.900); the new R31-parameter-aligned SFC/DSFC 30-attempt model proxy is complete with zero simulation failures but is not physical evidence. Robot already powered, Safety NORMAL, TP STOPPED at joint Home; no extra power command or motion sent. Extended QP offset scan did not find a causal sequence delay that restores qd correlation; higher J2/J4 setpoint changes and more output-limit feedback are candidate contributors, not confirmed cause. Event-conditioned comparison further narrows the qd diagnostic: RNN A flagged rows remain at 0.978/0.981 correlation, while matched QP flagged rows are 0.801 and QP unflagged rows 0.907; this is not causal proof.",
+  "checkpoint_at": "2026-09-25T17:12:54+08:00",
+  "primary_experiment": "R31 rate460 TASE_RNN_MATURE A: two eligible complete 60 s units (MAE 1.282720 and 1.006797 N); two complete TASE_QP units fail frozen actual_qd correlation gate (0.840132, 0.848607 versus 0.900); the new R31-parameter-aligned SFC/DSFC 30-attempt model proxy is complete with zero simulation failures but is not physical evidence. Robot already powered, Safety NORMAL, TP STOPPED at joint Home; no extra power command or motion sent. Extended QP offset scan did not find a causal sequence delay that restores qd correlation; higher J2/J4 setpoint changes and more output-limit feedback are candidate contributors, not confirmed cause. Event-conditioned comparison further narrows the qd diagnostic: RNN A flagged rows remain at 0.978/0.981 correlation, while matched QP flagged rows are 0.801 and QP unflagged rows 0.907; this is not causal proof. Output-event conditioning shows low qd correlation concentrated in QP flagged rows (0.801 vs 0.907 unflagged), while RNN flagged rows remain 0.978/0.981. QP J2/J4 setpoint-change rates are much larger in those rows; this is a candidate method/output interaction, not confirmed cause. QP task-only flagged rows retain near-zero provider task-normal to final Jqdot normal residual but only 0.795 actual_qd correlation; corresponding RNN flagged rows remain 0.978/0.981. This is further diagnostic localization only.",
   "claim_boundary": "Kunwei is controller feedback, not independent task-force truth. RPSFC/SFC/DSFC drift evidence is a different experiment.",
   "report": "reports/tase_5n_precision_recovery_20260925.md",
   "decision_tree": "reports/tase_5n_precision_decision_tree_20260925.md",
@@ -912,9 +912,30 @@
         "qp_flagged_corr": 0.8005752347221807,
         "qp_unflagged_corr": 0.9069486521213135,
         "qp_task_space_saturated_corr": 0.7985455110149194,
-        "qp_realization_feedback_corr": 0.8069156042437755
+        "qp_realization_feedback_corr": 0.8069156042437755,
+        "qp_task_space_saturated_j2_p95_setpoint_change_rad_s2": 1.9648491642137982,
+        "qp_task_space_saturated_j4_p95_setpoint_change_rad_s2": 2.113062276236069,
+        "qp_unflagged_j2_p95_setpoint_change_rad_s2": 0.7205999827456302,
+        "qp_unflagged_j4_p95_setpoint_change_rad_s2": 0.8236879095550657,
+        "a1_task_flagged_j2_p95_setpoint_change_rad_s2": 0.02926535547145257,
+        "a2_task_flagged_j4_p95_setpoint_change_rad_s2": 0.024325229943660598
       },
-      "limitations": "observational partition does not prove causality; official score includes all rows and gate remains unchanged"
+      "limitations": "setpoint difference/dt is not measured mechanical acceleration; event partition is observational and does not prove causality; official score retains all rows; gate unchanged"
+    },
+    {
+      "id": "tase-r31-qdot-event-residuals-20260925",
+      "path": "reports/tase_r31_qdot_event_residuals_20260925.json",
+      "kind": "sealed per-event provider task-normal/final Jqdot-normal residuals cross-checked against consumed-frame actual qd for R31 A1/A2 and matched QP",
+      "status": "source hashes verified; matched QP task-only rows show near-zero provider normal realization residual but low actual_qd correlation",
+      "key_values": {
+        "qp_task_only_rows": 1411,
+        "qp_task_only_qd_correlation": 0.794522415658855,
+        "qp_task_only_task_to_realized_normal_abs_p95_m_s": 1.0757312475691283e-09,
+        "qp_task_only_requested_to_task_normal_abs_p95_m_s": 0.004671093983876196,
+        "a1_task_only_qd_correlation": 0.9780250965214476,
+        "a2_task_only_qd_correlation": 0.9811627995281728
+      },
+      "limitations": "provider normal-axis residual is not the full six-dimensional robot tracking error; observational group comparison is not causal"
     }
   ],
   "not_yet_observed": [

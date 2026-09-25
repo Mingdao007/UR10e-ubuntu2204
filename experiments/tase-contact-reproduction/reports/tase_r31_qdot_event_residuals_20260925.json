@@ -1,0 +1,199 @@
+{
+  "claim_class": "offline sealed-trace diagnostic only",
+  "limitations": "normal-axis residuals are reconstructed from provider output-feedback fields; they do not identify physical cause and do not change the official all-sample gate",
+  "runs": {
+    "R31_A1": {
+      "groups": {
+        "all": {
+          "flattened_qd_correlation": 0.970082941208728,
+          "per_joint_qdot_tracking_rmse_rad_s": [
+            0.0004250597381260068,
+            0.0013275901089575034,
+            0.0007495565721564884,
+            0.0010332749714784691,
+            0.0009924927692093939,
+            0.0005175523240117127
+          ],
+          "requested_minus_task_normal_abs_p95_m_s": 0.002503255158026521,
+          "rows": 28564,
+          "task_minus_realized_normal_abs_p95_m_s": 0.002902049038513896
+        },
+        "no_output_flag": {
+          "flattened_qd_correlation": 0.9665218290840488,
+          "per_joint_qdot_tracking_rmse_rad_s": [
+            0.0004418186015698955,
+            0.0014681655543916392,
+            0.0007357968314927814,
+            0.0011000581404662481,
+            0.0009463860630803537,
+            0.0005311233393211556
+          ],
+          "requested_minus_task_normal_abs_p95_m_s": 0.0,
+          "rows": 19985,
+          "task_minus_realized_normal_abs_p95_m_s": 0.002737176144704774
+        },
+        "task_and_realization": {
+          "flattened_qd_correlation": 0.8965494354872813,
+          "per_joint_qdot_tracking_rmse_rad_s": [
+            0.00025862897090900207,
+            0.0026158928154070555,
+            0.0010462371995832917,
+            0.0052507308617220005,
+            0.00010335946844058612,
+            0.0006358716826372805
+          ],
+          "requested_minus_task_normal_abs_p95_m_s": 0.0013964153963402183,
+          "rows": 3,
+          "task_minus_realized_normal_abs_p95_m_s": 0.0002822263407843348
+        },
+        "task_only": {
+          "flattened_qd_correlation": 0.9780250965214476,
+          "per_joint_qdot_tracking_rmse_rad_s": [
+            0.0003832593848306532,
+            0.0009176380906128861,
+            0.000780570463155094,
+            0.0008456492584392675,
+            0.0010909354603229288,
+            0.00048434983852050983
+          ],
+          "requested_minus_task_normal_abs_p95_m_s": 0.003211661294423791,
+          "rows": 8572,
+          "task_minus_realized_normal_abs_p95_m_s": 0.0031017038741429975
+        }
+      },
+      "sources": {
+        "command_timeline": "f2db9842e9f340d9335d8088e69306957ed9ed95f10d766439502f1902097836",
+        "robot_frames": "3ebc7fa2a747f87b5e0300218dd7365e5e86d9e5aabe438c91afb9de93ffe819"
+      }
+    },
+    "R31_A2": {
+      "groups": {
+        "all": {
+          "flattened_qd_correlation": 0.9720796033573575,
+          "per_joint_qdot_tracking_rmse_rad_s": [
+            0.00039947784340460985,
+            0.0010486120203681195,
+            0.0006514912882126728,
+            0.0009334591589057718,
+            0.001248741550261716,
+            0.0005141608503314971
+          ],
+          "requested_minus_task_normal_abs_p95_m_s": 0.002089835277196997,
+          "rows": 28845,
+          "task_minus_realized_normal_abs_p95_m_s": 0.002807476721095947
+        },
+        "no_output_flag": {
+          "flattened_qd_correlation": 0.9689584136680247,
+          "per_joint_qdot_tracking_rmse_rad_s": [
+            0.00040669852414403903,
+            0.001127777645897018,
+            0.0006536630600647945,
+            0.0009458106078611533,
+            0.0012154769992557529,
+            0.0005177502132526537
+          ],
+          "requested_minus_task_normal_abs_p95_m_s": 0.0,
+          "rows": 23093,
+          "task_minus_realized_normal_abs_p95_m_s": 0.0025230528833042744
+        },
+        "task_and_realization": {
+          "flattened_qd_correlation": null,
+          "per_joint_qdot_tracking_rmse_rad_s": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "requested_minus_task_normal_abs_p95_m_s": null,
+          "rows": 0,
+          "task_minus_realized_normal_abs_p95_m_s": null
+        },
+        "task_only": {
+          "flattened_qd_correlation": 0.9811627995281728,
+          "per_joint_qdot_tracking_rmse_rad_s": [
+            0.00036892658206169447,
+            0.0006362143104316316,
+            0.0006425325515648038,
+            0.0008790171833334835,
+            0.0013745575749978117,
+            0.0004994396172333987
+          ],
+          "requested_minus_task_normal_abs_p95_m_s": 0.00306085057556537,
+          "rows": 5749,
+          "task_minus_realized_normal_abs_p95_m_s": 0.0031687390555999763
+        }
+      },
+      "sources": {
+        "command_timeline": "149ecd21b9722d07d0fa3df1c49702d5a885c6944980679ffc47f4d7e8942507",
+        "robot_frames": "df8a9125a42527c5f5301d857c9a49378d37bd9993a3d91c4df67019e27b113a"
+      }
+    },
+    "R31_QP_A": {
+      "groups": {
+        "all": {
+          "flattened_qd_correlation": 0.8486271490045678,
+          "per_joint_qdot_tracking_rmse_rad_s": [
+            0.0013920664745085765,
+            0.005639348336670205,
+            0.001269076031727835,
+            0.004711777506808531,
+            0.0009235244582342599,
+            0.0007214876433426275
+          ],
+          "requested_minus_task_normal_abs_p95_m_s": 0.0024168018333380423,
+          "rows": 28808,
+          "task_minus_realized_normal_abs_p95_m_s": 2.999999999999531e-06
+        },
+        "no_output_flag": {
+          "flattened_qd_correlation": 0.9069486521213135,
+          "per_joint_qdot_tracking_rmse_rad_s": [
+            0.0010644691269985063,
+            0.00320229825325245,
+            0.0009434868788596198,
+            0.00288588949652998,
+            0.0009481266940455782,
+            0.0007214615575044289
+          ],
+          "requested_minus_task_normal_abs_p95_m_s": 0.0,
+          "rows": 25617,
+          "task_minus_realized_normal_abs_p95_m_s": 1.014180629532518e-09
+        },
+        "task_and_realization": {
+          "flattened_qd_correlation": 0.8030562583827181,
+          "per_joint_qdot_tracking_rmse_rad_s": [
+            0.0029590511163660096,
+            0.01507396880678653,
+            0.002763642874609973,
+            0.01208203698426661,
+            0.0006841758943515577,
+            0.0007179482988630794
+          ],
+          "requested_minus_task_normal_abs_p95_m_s": 0.004572927598105771,
+          "rows": 1385,
+          "task_minus_realized_normal_abs_p95_m_s": 0.00022074452242210442
+        },
+        "task_only": {
+          "flattened_qd_correlation": 0.794522415658855,
+          "per_joint_qdot_tracking_rmse_rad_s": [
+            0.00283375831112453,
+            0.014601742659919252,
+            0.0024793027779437377,
+            0.011192143882409751,
+            0.0007325631919983495,
+            0.0007146943178209009
+          ],
+          "requested_minus_task_normal_abs_p95_m_s": 0.004671093983876196,
+          "rows": 1411,
+          "task_minus_realized_normal_abs_p95_m_s": 1.0757312475691283e-09
+        }
+      },
+      "sources": {
+        "command_timeline": "f9bfa7cfbdc3e910685ce8f92a15f18f25791b1ae9e2754afb670e862cac33d4",
+        "robot_frames": "aa2bb923f3fb468f63e50d28f0c6f78d7f4dd92c549894395f3235086e466b8d"
+      }
+    }
+  },
+  "schema": "tase.r31-qdot-event-residuals-v1"
+}
