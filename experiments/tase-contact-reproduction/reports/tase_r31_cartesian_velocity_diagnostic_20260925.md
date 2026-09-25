@@ -1,6 +1,6 @@
 # R31 command-to-Cartesian velocity diagnostic
 
-**Checkpoint:** 2026-09-25, 17:55 HKT
+**Checkpoint:** 2026-09-25, 18:01 HKT
 **Claim class:** sealed live telemetry diagnostic; not a controller acceptance score
 **Experiment:** `TASE_RNN_MATURE` versus matched-outer-loop `TASE_QP`, Figure-eight `r013_60_rate460`, 5 N, A profile `Md=9.565272137974492`, `Bd=693.6559295653944`, legacy integral limit `1.0 N·s`.
 
@@ -83,3 +83,11 @@ The replay verified the matched attempt's sealed command-timeline and robot-fram
 - The official actual-qdot correlation remains `0.848607`, below the frozen `0.900` gate. The run remains failed for method eligibility; this replay changes neither its classification nor denominator.
 
 This confirms the solver-plus-host-slew command reconstruction, and quantifies that post-solve rescaling can move a row off the exact Cartesian equality. It does **not** show that the rescale caused the robot-side actual-qdot mismatch, nor predict a closed-loop force/path result. Next offline branch: compare representing the existing slew envelope inside QP bounds against current post-solve rescaling, recording infeasibility and task residual without changing the live profile. Any live numerical profile change remains separately discussed first. Replay details are in [`summary.json`](../runs/tase-r31-qp-matched-a-fixed-input-replay-20260925T1748HKT/summary.json).
+
+## Hard equality plus embedded slew feasibility probe — 18:01 HKT
+
+A sequential counterfactual intersected the recorded joint-speed box with each joint's previous-candidate-qdot ± the exact captured slew delta, while retaining the original hard `J qdot = twist` equality. It stopped at the first PATH tick (`packet_sequence=9676`, `reference_time_s=0`, `actual_dt=2.2147 ms`). OSQP returned **status 3 (primal infeasible)**, restored its warm state, and an independent SciPy/HiGHS linear-program feasibility check also returned infeasible for that same Jacobian, twist and six-joint box.
+
+At that tick, the existing envelope width is `0.00553669 rad/s`; the live path instead used the shared scalar slew factor **0.588094**, whose recorded command has Cartesian task residual `0.00163985 m/s`. This is direct evidence that a strict exact-task-plus-current-slew-box formulation rejects the first PATH command; it is not evidence that relaxing either constraint is appropriate. No live profile or guard was changed. The full frozen-input result is [`embedded-slew counterfactual summary`](../runs/tase-r31-qp-embedded-slew-counterfactual-20260925T1801HKT/summary.json).
+
+The next method branch remains offline SFC+TASE composition review. Existing R31-aligned SFC/DSFC results are model-only and the live registry still has no composed method; do not infer physical benefit or admit motion from this infeasibility probe.
