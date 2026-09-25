@@ -1,0 +1,837 @@
+{
+  "claim_class": "offline sealed-trace diagnostic only",
+  "limitations": "single-attempt observational statistics; correlation does not establish causality or authorize a live parameter change",
+  "metrics": {
+    "correlation": "Pearson correlation between absolute setpoint-change rate and absolute joint tracking error within the same event group",
+    "setpoint_change_rate": "absolute difference between consecutive sent qdot setpoints divided by actual_dt_s",
+    "tracking_error": "absolute difference between RTDE actual_qd and sent packet qdot on the same consumed packet sequence"
+  },
+  "runs": {
+    "R31_A1": {
+      "attempt_path": "runs/tase-r31-a-baseline-20260925T1510HKT/attempts/0001",
+      "groups": {
+        "all": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": 0.13551192079385158,
+              "joint_1_based": 1,
+              "n": 28564,
+              "one_sequence_later_tracking_rmse_rad_s": 0.00042421658495877087,
+              "setpoint_change_p95_rad_s2": 0.007822184751172006,
+              "tracking_rmse_rad_s": 0.0004250597381260068
+            },
+            {
+              "abs_error_change_rate_pearson": 0.267182726471272,
+              "joint_1_based": 2,
+              "n": 28564,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0013075674159734117,
+              "setpoint_change_p95_rad_s2": 0.03039324790898463,
+              "tracking_rmse_rad_s": 0.0013275901089575034
+            },
+            {
+              "abs_error_change_rate_pearson": 0.10257658303635717,
+              "joint_1_based": 3,
+              "n": 28564,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0007474430059482449,
+              "setpoint_change_p95_rad_s2": 0.012270922212545644,
+              "tracking_rmse_rad_s": 0.0007495565721564884
+            },
+            {
+              "abs_error_change_rate_pearson": 0.3419028088754628,
+              "joint_1_based": 4,
+              "n": 28564,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0010079553283432066,
+              "setpoint_change_p95_rad_s2": 0.025128149657687147,
+              "tracking_rmse_rad_s": 0.0010332749714784691
+            },
+            {
+              "abs_error_change_rate_pearson": 0.04547974735436377,
+              "joint_1_based": 5,
+              "n": 28564,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0009968749145107347,
+              "setpoint_change_p95_rad_s2": 0.01137003830101344,
+              "tracking_rmse_rad_s": 0.0009924927692093939
+            },
+            {
+              "abs_error_change_rate_pearson": 0.13119771057872232,
+              "joint_1_based": 6,
+              "n": 28564,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0005143678603174652,
+              "setpoint_change_p95_rad_s2": 0.007680657317801912,
+              "tracking_rmse_rad_s": 0.0005175523240117127
+            }
+          ],
+          "rows": 28564
+        },
+        "host_slew": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": 0.155638546392387,
+              "joint_1_based": 1,
+              "n": 7,
+              "one_sequence_later_tracking_rmse_rad_s": 0.000279437120203984,
+              "setpoint_change_p95_rad_s2": 0.18528236746067034,
+              "tracking_rmse_rad_s": 0.0002817506813795532
+            },
+            {
+              "abs_error_change_rate_pearson": -0.16481277215034768,
+              "joint_1_based": 2,
+              "n": 7,
+              "one_sequence_later_tracking_rmse_rad_s": 0.006137456862143195,
+              "setpoint_change_p95_rad_s2": 1.9866597182370032,
+              "tracking_rmse_rad_s": 0.0026163411159055698
+            },
+            {
+              "abs_error_change_rate_pearson": 0.49143454685920157,
+              "joint_1_based": 3,
+              "n": 7,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0007631060946647027,
+              "setpoint_change_p95_rad_s2": 0.46338273408449776,
+              "tracking_rmse_rad_s": 0.0008945798406941952
+            },
+            {
+              "abs_error_change_rate_pearson": null,
+              "joint_1_based": 4,
+              "n": 7,
+              "one_sequence_later_tracking_rmse_rad_s": 0.012542289212529385,
+              "setpoint_change_p95_rad_s2": 2.4999999975000002,
+              "tracking_rmse_rad_s": 0.005100720776291353
+            },
+            {
+              "abs_error_change_rate_pearson": 0.4696334415402509,
+              "joint_1_based": 5,
+              "n": 7,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0030256270403557525,
+              "setpoint_change_p95_rad_s2": 0.11322352355472756,
+              "tracking_rmse_rad_s": 0.002247481891559709
+            },
+            {
+              "abs_error_change_rate_pearson": -0.0336163661795282,
+              "joint_1_based": 6,
+              "n": 7,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0006463079814107474,
+              "setpoint_change_p95_rad_s2": 0.19049219876522946,
+              "tracking_rmse_rad_s": 0.0006105864250929928
+            }
+          ],
+          "rows": 7
+        },
+        "none": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": 0.14849111183526126,
+              "joint_1_based": 1,
+              "n": 19985,
+              "one_sequence_later_tracking_rmse_rad_s": 0.00044171043473645744,
+              "setpoint_change_p95_rad_s2": 0.013299171294523652,
+              "tracking_rmse_rad_s": 0.0004418186015698955
+            },
+            {
+              "abs_error_change_rate_pearson": 0.2848284990152081,
+              "joint_1_based": 2,
+              "n": 19985,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0014460557572366585,
+              "setpoint_change_p95_rad_s2": 0.033286088460883594,
+              "tracking_rmse_rad_s": 0.0014681655543916392
+            },
+            {
+              "abs_error_change_rate_pearson": 0.11767243018640122,
+              "joint_1_based": 3,
+              "n": 19985,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0007360253600433864,
+              "setpoint_change_p95_rad_s2": 0.014438987205712054,
+              "tracking_rmse_rad_s": 0.0007357968314927814
+            },
+            {
+              "abs_error_change_rate_pearson": 0.3577336073381569,
+              "joint_1_based": 4,
+              "n": 19985,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0010388463972723452,
+              "setpoint_change_p95_rad_s2": 0.027292247328419558,
+              "tracking_rmse_rad_s": 0.0011000581404662481
+            },
+            {
+              "abs_error_change_rate_pearson": 0.04956498809377885,
+              "joint_1_based": 5,
+              "n": 19985,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0009404503970492535,
+              "setpoint_change_p95_rad_s2": 0.013464151382899574,
+              "tracking_rmse_rad_s": 0.0009463860630803537
+            },
+            {
+              "abs_error_change_rate_pearson": 0.14922251821373425,
+              "joint_1_based": 6,
+              "n": 19985,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0005262852178369091,
+              "setpoint_change_p95_rad_s2": 0.014756098983017241,
+              "tracking_rmse_rad_s": 0.0005311233393211556
+            }
+          ],
+          "rows": 19985
+        },
+        "task_and_realization": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": 0.8922182568452185,
+              "joint_1_based": 1,
+              "n": 3,
+              "one_sequence_later_tracking_rmse_rad_s": 0.00022681800110794687,
+              "setpoint_change_p95_rad_s2": 0.18528236746067034,
+              "tracking_rmse_rad_s": 0.00025862897090900207
+            },
+            {
+              "abs_error_change_rate_pearson": 0.6554317519820977,
+              "joint_1_based": 2,
+              "n": 3,
+              "one_sequence_later_tracking_rmse_rad_s": 0.006646019369739633,
+              "setpoint_change_p95_rad_s2": 1.90981159624142,
+              "tracking_rmse_rad_s": 0.0026158928154070555
+            },
+            {
+              "abs_error_change_rate_pearson": 0.08671017959531403,
+              "joint_1_based": 3,
+              "n": 3,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0009663651039044722,
+              "setpoint_change_p95_rad_s2": 0.46338273408449776,
+              "tracking_rmse_rad_s": 0.0010462371995832917
+            },
+            {
+              "abs_error_change_rate_pearson": null,
+              "joint_1_based": 4,
+              "n": 3,
+              "one_sequence_later_tracking_rmse_rad_s": 0.01280668047911816,
+              "setpoint_change_p95_rad_s2": 2.4999999975000002,
+              "tracking_rmse_rad_s": 0.0052507308617220005
+            },
+            {
+              "abs_error_change_rate_pearson": 0.9172877156460463,
+              "joint_1_based": 5,
+              "n": 3,
+              "one_sequence_later_tracking_rmse_rad_s": 0.00010388178923994668,
+              "setpoint_change_p95_rad_s2": 0.1057637868205957,
+              "tracking_rmse_rad_s": 0.00010335946844058612
+            },
+            {
+              "abs_error_change_rate_pearson": 0.18752800430119432,
+              "joint_1_based": 6,
+              "n": 3,
+              "one_sequence_later_tracking_rmse_rad_s": 0.00043802053924604475,
+              "setpoint_change_p95_rad_s2": 0.19049219876522946,
+              "tracking_rmse_rad_s": 0.0006358716826372805
+            }
+          ],
+          "rows": 3
+        },
+        "task_only": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": 0.06598558321226294,
+              "joint_1_based": 1,
+              "n": 8572,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0003805102759409306,
+              "setpoint_change_p95_rad_s2": 0.0055527520634098305,
+              "tracking_rmse_rad_s": 0.0003832593848306532
+            },
+            {
+              "abs_error_change_rate_pearson": 0.08136265402048024,
+              "joint_1_based": 2,
+              "n": 8572,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0008896709656574806,
+              "setpoint_change_p95_rad_s2": 0.029227332144237884,
+              "tracking_rmse_rad_s": 0.0009176380906128861
+            },
+            {
+              "abs_error_change_rate_pearson": 0.08890673558515569,
+              "joint_1_based": 3,
+              "n": 8572,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0007733524445197225,
+              "setpoint_change_p95_rad_s2": 0.009991855475317939,
+              "tracking_rmse_rad_s": 0.000780570463155094
+            },
+            {
+              "abs_error_change_rate_pearson": 0.1253435265766278,
+              "joint_1_based": 4,
+              "n": 8572,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0008577274784050814,
+              "setpoint_change_p95_rad_s2": 0.024898255786463187,
+              "tracking_rmse_rad_s": 0.0008456492584392675
+            },
+            {
+              "abs_error_change_rate_pearson": 0.07888395696830666,
+              "joint_1_based": 5,
+              "n": 8572,
+              "one_sequence_later_tracking_rmse_rad_s": 0.001114108682768678,
+              "setpoint_change_p95_rad_s2": 0.007644572919862722,
+              "tracking_rmse_rad_s": 0.0010909354603229288
+            },
+            {
+              "abs_error_change_rate_pearson": -0.010579201242446736,
+              "joint_1_based": 6,
+              "n": 8572,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0004853639662395091,
+              "setpoint_change_p95_rad_s2": 0.005217351781490232,
+              "tracking_rmse_rad_s": 0.00048434983852050983
+            }
+          ],
+          "rows": 8572
+        }
+      },
+      "official_qd_correlation": 0.9700722532882486,
+      "source_hashes": {
+        "command_timeline": "f2db9842e9f340d9335d8088e69306957ed9ed95f10d766439502f1902097836",
+        "robot_frames": "3ebc7fa2a747f87b5e0300218dd7365e5e86d9e5aabe438c91afb9de93ffe819"
+      }
+    },
+    "R31_A2": {
+      "attempt_path": "runs/tase-r31-a-baseline-repeat-evidenceonly-20260925T1530HKT/attempts/0001",
+      "groups": {
+        "all": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": 0.11978105481130064,
+              "joint_1_based": 1,
+              "n": 28845,
+              "one_sequence_later_tracking_rmse_rad_s": 0.00040006509140851613,
+              "setpoint_change_p95_rad_s2": 0.00864046424751697,
+              "tracking_rmse_rad_s": 0.00039947784340460985
+            },
+            {
+              "abs_error_change_rate_pearson": 0.2600903494853387,
+              "joint_1_based": 2,
+              "n": 28845,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0010421503384183694,
+              "setpoint_change_p95_rad_s2": 0.029634202977219644,
+              "tracking_rmse_rad_s": 0.0010486120203681195
+            },
+            {
+              "abs_error_change_rate_pearson": 0.10340608831646782,
+              "joint_1_based": 3,
+              "n": 28845,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0006479078761648977,
+              "setpoint_change_p95_rad_s2": 0.012367938142566228,
+              "tracking_rmse_rad_s": 0.0006514912882126728
+            },
+            {
+              "abs_error_change_rate_pearson": 0.2848787305527935,
+              "joint_1_based": 4,
+              "n": 28845,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0009155562760864798,
+              "setpoint_change_p95_rad_s2": 0.02438405028005658,
+              "tracking_rmse_rad_s": 0.0009334591589057718
+            },
+            {
+              "abs_error_change_rate_pearson": 0.04383993150334926,
+              "joint_1_based": 5,
+              "n": 28845,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0012495331268521518,
+              "setpoint_change_p95_rad_s2": 0.013358016832665128,
+              "tracking_rmse_rad_s": 0.001248741550261716
+            },
+            {
+              "abs_error_change_rate_pearson": 0.10876991826585983,
+              "joint_1_based": 6,
+              "n": 28845,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0005118752025704535,
+              "setpoint_change_p95_rad_s2": 0.00825734853119797,
+              "tracking_rmse_rad_s": 0.0005141608503314971
+            }
+          ],
+          "rows": 28845
+        },
+        "host_slew": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": -0.2560339043053891,
+              "joint_1_based": 1,
+              "n": 3,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0008315042347277867,
+              "setpoint_change_p95_rad_s2": 0.21487150092663584,
+              "tracking_rmse_rad_s": 0.000581105613995054
+            },
+            {
+              "abs_error_change_rate_pearson": -0.8065097515330223,
+              "joint_1_based": 2,
+              "n": 3,
+              "one_sequence_later_tracking_rmse_rad_s": 0.007440186011789103,
+              "setpoint_change_p95_rad_s2": 1.8882935334415416,
+              "tracking_rmse_rad_s": 0.002516362652445211
+            },
+            {
+              "abs_error_change_rate_pearson": 0.11445645920227622,
+              "joint_1_based": 3,
+              "n": 3,
+              "one_sequence_later_tracking_rmse_rad_s": 0.000765518340410095,
+              "setpoint_change_p95_rad_s2": 0.3804456413126498,
+              "tracking_rmse_rad_s": 0.0009061618211632215
+            },
+            {
+              "abs_error_change_rate_pearson": null,
+              "joint_1_based": 4,
+              "n": 3,
+              "one_sequence_later_tracking_rmse_rad_s": 0.01173551271168964,
+              "setpoint_change_p95_rad_s2": 2.4999999975000002,
+              "tracking_rmse_rad_s": 0.0033599368668882587
+            },
+            {
+              "abs_error_change_rate_pearson": -0.051612183359584216,
+              "joint_1_based": 5,
+              "n": 3,
+              "one_sequence_later_tracking_rmse_rad_s": 0.00022882529282457803,
+              "setpoint_change_p95_rad_s2": 0.09327082752884666,
+              "tracking_rmse_rad_s": 0.00023247834648217514
+            },
+            {
+              "abs_error_change_rate_pearson": 0.895390449081344,
+              "joint_1_based": 6,
+              "n": 3,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0011380257798725888,
+              "setpoint_change_p95_rad_s2": 0.1707752234405766,
+              "tracking_rmse_rad_s": 0.0005894217177178656
+            }
+          ],
+          "rows": 3
+        },
+        "none": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": 0.1283408606783611,
+              "joint_1_based": 1,
+              "n": 23093,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0004067193512086456,
+              "setpoint_change_p95_rad_s2": 0.013288045121753862,
+              "tracking_rmse_rad_s": 0.00040669852414403903
+            },
+            {
+              "abs_error_change_rate_pearson": 0.26524866717985646,
+              "joint_1_based": 2,
+              "n": 23093,
+              "one_sequence_later_tracking_rmse_rad_s": 0.001121946104822839,
+              "setpoint_change_p95_rad_s2": 0.03137756670458656,
+              "tracking_rmse_rad_s": 0.001127777645897018
+            },
+            {
+              "abs_error_change_rate_pearson": 0.10949175616563726,
+              "joint_1_based": 3,
+              "n": 23093,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0006508110033517864,
+              "setpoint_change_p95_rad_s2": 0.01445163476376862,
+              "tracking_rmse_rad_s": 0.0006536630600647945
+            },
+            {
+              "abs_error_change_rate_pearson": 0.3065712448866257,
+              "joint_1_based": 4,
+              "n": 23093,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0009117299569726019,
+              "setpoint_change_p95_rad_s2": 0.02451267648084332,
+              "tracking_rmse_rad_s": 0.0009458106078611533
+            },
+            {
+              "abs_error_change_rate_pearson": 0.04816015918141504,
+              "joint_1_based": 5,
+              "n": 23093,
+              "one_sequence_later_tracking_rmse_rad_s": 0.001211235349641197,
+              "setpoint_change_p95_rad_s2": 0.014464453215919154,
+              "tracking_rmse_rad_s": 0.0012154769992557529
+            },
+            {
+              "abs_error_change_rate_pearson": 0.11980611315298649,
+              "joint_1_based": 6,
+              "n": 23093,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0005144562447251741,
+              "setpoint_change_p95_rad_s2": 0.015843072439300325,
+              "tracking_rmse_rad_s": 0.0005177502132526537
+            }
+          ],
+          "rows": 23093
+        },
+        "task_and_realization": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": null,
+              "joint_1_based": 1,
+              "n": 0,
+              "one_sequence_later_tracking_rmse_rad_s": null,
+              "setpoint_change_p95_rad_s2": null,
+              "tracking_rmse_rad_s": null
+            },
+            {
+              "abs_error_change_rate_pearson": null,
+              "joint_1_based": 2,
+              "n": 0,
+              "one_sequence_later_tracking_rmse_rad_s": null,
+              "setpoint_change_p95_rad_s2": null,
+              "tracking_rmse_rad_s": null
+            },
+            {
+              "abs_error_change_rate_pearson": null,
+              "joint_1_based": 3,
+              "n": 0,
+              "one_sequence_later_tracking_rmse_rad_s": null,
+              "setpoint_change_p95_rad_s2": null,
+              "tracking_rmse_rad_s": null
+            },
+            {
+              "abs_error_change_rate_pearson": null,
+              "joint_1_based": 4,
+              "n": 0,
+              "one_sequence_later_tracking_rmse_rad_s": null,
+              "setpoint_change_p95_rad_s2": null,
+              "tracking_rmse_rad_s": null
+            },
+            {
+              "abs_error_change_rate_pearson": null,
+              "joint_1_based": 5,
+              "n": 0,
+              "one_sequence_later_tracking_rmse_rad_s": null,
+              "setpoint_change_p95_rad_s2": null,
+              "tracking_rmse_rad_s": null
+            },
+            {
+              "abs_error_change_rate_pearson": null,
+              "joint_1_based": 6,
+              "n": 0,
+              "one_sequence_later_tracking_rmse_rad_s": null,
+              "setpoint_change_p95_rad_s2": null,
+              "tracking_rmse_rad_s": null
+            }
+          ],
+          "rows": 0
+        },
+        "task_only": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": 0.0008703989196099251,
+              "joint_1_based": 1,
+              "n": 5749,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0003716990455305356,
+              "setpoint_change_p95_rad_s2": 0.005542058480813052,
+              "tracking_rmse_rad_s": 0.00036892658206169447
+            },
+            {
+              "abs_error_change_rate_pearson": 0.07256941618296599,
+              "joint_1_based": 2,
+              "n": 5749,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0006013880051485033,
+              "setpoint_change_p95_rad_s2": 0.028988681254900662,
+              "tracking_rmse_rad_s": 0.0006362143104316316
+            },
+            {
+              "abs_error_change_rate_pearson": 0.15034545565168728,
+              "joint_1_based": 3,
+              "n": 5749,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0006360208311025229,
+              "setpoint_change_p95_rad_s2": 0.009462103108005323,
+              "tracking_rmse_rad_s": 0.0006425325515648038
+            },
+            {
+              "abs_error_change_rate_pearson": 0.14157291465471453,
+              "joint_1_based": 4,
+              "n": 5749,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0008898819453972318,
+              "setpoint_change_p95_rad_s2": 0.024325229943660598,
+              "tracking_rmse_rad_s": 0.0008790171833334835
+            },
+            {
+              "abs_error_change_rate_pearson": 0.07905508983783513,
+              "joint_1_based": 5,
+              "n": 5749,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0013933335907213048,
+              "setpoint_change_p95_rad_s2": 0.010639312969199167,
+              "tracking_rmse_rad_s": 0.0013745575749978117
+            },
+            {
+              "abs_error_change_rate_pearson": -0.001615291384512341,
+              "joint_1_based": 6,
+              "n": 5749,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0005007939745640698,
+              "setpoint_change_p95_rad_s2": 0.005274146128442538,
+              "tracking_rmse_rad_s": 0.0004994396172333987
+            }
+          ],
+          "rows": 5749
+        }
+      },
+      "official_qd_correlation": 0.9720695642595333,
+      "source_hashes": {
+        "command_timeline": "149ecd21b9722d07d0fa3df1c49702d5a885c6944980679ffc47f4d7e8942507",
+        "robot_frames": "df8a9125a42527c5f5301d857c9a49378d37bd9993a3d91c4df67019e27b113a"
+      }
+    },
+    "R31_QP_A": {
+      "attempt_path": "runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001",
+      "groups": {
+        "all": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": 0.03304981780088783,
+              "joint_1_based": 1,
+              "n": 28808,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0013817763307277656,
+              "setpoint_change_p95_rad_s2": 0.13616561787623827,
+              "tracking_rmse_rad_s": 0.0013920664745085765
+            },
+            {
+              "abs_error_change_rate_pearson": 0.328395721276211,
+              "joint_1_based": 2,
+              "n": 28808,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0059717629898361595,
+              "setpoint_change_p95_rad_s2": 0.8921347863895035,
+              "tracking_rmse_rad_s": 0.005639348336670205
+            },
+            {
+              "abs_error_change_rate_pearson": 0.14294120192965692,
+              "joint_1_based": 3,
+              "n": 28808,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0012735053328422233,
+              "setpoint_change_p95_rad_s2": 0.15656966056958535,
+              "tracking_rmse_rad_s": 0.001269076031727835
+            },
+            {
+              "abs_error_change_rate_pearson": 0.3452801486503371,
+              "joint_1_based": 4,
+              "n": 28808,
+              "one_sequence_later_tracking_rmse_rad_s": 0.005175594205952291,
+              "setpoint_change_p95_rad_s2": 1.0181614457878256,
+              "tracking_rmse_rad_s": 0.004711777506808531
+            },
+            {
+              "abs_error_change_rate_pearson": 0.032655513251832885,
+              "joint_1_based": 5,
+              "n": 28808,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0009174437173435034,
+              "setpoint_change_p95_rad_s2": 0.17519341116208637,
+              "tracking_rmse_rad_s": 0.0009235244582342599
+            },
+            {
+              "abs_error_change_rate_pearson": 0.18771771343964958,
+              "joint_1_based": 6,
+              "n": 28808,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0006664306040569504,
+              "setpoint_change_p95_rad_s2": 0.19324300839357908,
+              "tracking_rmse_rad_s": 0.0007214876433426275
+            }
+          ],
+          "rows": 28808
+        },
+        "host_slew": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": 0.06047943855156705,
+              "joint_1_based": 1,
+              "n": 493,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0037536039890118792,
+              "setpoint_change_p95_rad_s2": 0.12185432682816108,
+              "tracking_rmse_rad_s": 0.003155395824823262
+            },
+            {
+              "abs_error_change_rate_pearson": 0.22463844135416253,
+              "joint_1_based": 2,
+              "n": 493,
+              "one_sequence_later_tracking_rmse_rad_s": 0.02461545143811558,
+              "setpoint_change_p95_rad_s2": 2.4634380478205387,
+              "tracking_rmse_rad_s": 0.012385002280612938
+            },
+            {
+              "abs_error_change_rate_pearson": -0.10707059695763523,
+              "joint_1_based": 3,
+              "n": 493,
+              "one_sequence_later_tracking_rmse_rad_s": 0.004975223434842635,
+              "setpoint_change_p95_rad_s2": 0.2569581369870702,
+              "tracking_rmse_rad_s": 0.0036482479269938834
+            },
+            {
+              "abs_error_change_rate_pearson": 0.06358018817890419,
+              "joint_1_based": 4,
+              "n": 493,
+              "one_sequence_later_tracking_rmse_rad_s": 0.021932323380671585,
+              "setpoint_change_p95_rad_s2": 2.4999999975000007,
+              "tracking_rmse_rad_s": 0.012574481464850204
+            },
+            {
+              "abs_error_change_rate_pearson": 0.02263630157228786,
+              "joint_1_based": 5,
+              "n": 493,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0005461872641901822,
+              "setpoint_change_p95_rad_s2": 0.15749544731665818,
+              "tracking_rmse_rad_s": 0.0005869390827442933
+            },
+            {
+              "abs_error_change_rate_pearson": 0.45012132180932857,
+              "joint_1_based": 6,
+              "n": 493,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0010643531234214858,
+              "setpoint_change_p95_rad_s2": 0.17107307541655678,
+              "tracking_rmse_rad_s": 0.0007492518453695429
+            }
+          ],
+          "rows": 493
+        },
+        "none": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": 0.05039848249165333,
+              "joint_1_based": 1,
+              "n": 25617,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0010713911830972029,
+              "setpoint_change_p95_rad_s2": 0.13612115809141978,
+              "tracking_rmse_rad_s": 0.0010644691269985063
+            },
+            {
+              "abs_error_change_rate_pearson": 0.41869664175889776,
+              "joint_1_based": 2,
+              "n": 25617,
+              "one_sequence_later_tracking_rmse_rad_s": 0.003533416970388901,
+              "setpoint_change_p95_rad_s2": 0.7205999827456302,
+              "tracking_rmse_rad_s": 0.00320229825325245
+            },
+            {
+              "abs_error_change_rate_pearson": 0.08846690188690443,
+              "joint_1_based": 3,
+              "n": 25617,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0009667695839789561,
+              "setpoint_change_p95_rad_s2": 0.1498106204903898,
+              "tracking_rmse_rad_s": 0.0009434868788596198
+            },
+            {
+              "abs_error_change_rate_pearson": 0.2571352322632209,
+              "joint_1_based": 4,
+              "n": 25617,
+              "one_sequence_later_tracking_rmse_rad_s": 0.003454035735573104,
+              "setpoint_change_p95_rad_s2": 0.8236879095550657,
+              "tracking_rmse_rad_s": 0.00288588949652998
+            },
+            {
+              "abs_error_change_rate_pearson": 0.029111771164109315,
+              "joint_1_based": 5,
+              "n": 25617,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0009407658715680521,
+              "setpoint_change_p95_rad_s2": 0.1751132760384348,
+              "tracking_rmse_rad_s": 0.0009481266940455782
+            },
+            {
+              "abs_error_change_rate_pearson": 0.1792909683482147,
+              "joint_1_based": 6,
+              "n": 25617,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0006581376150505427,
+              "setpoint_change_p95_rad_s2": 0.19323629217877877,
+              "tracking_rmse_rad_s": 0.0007214615575044289
+            }
+          ],
+          "rows": 25617
+        },
+        "task_and_realization": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": -0.013525292842920339,
+              "joint_1_based": 1,
+              "n": 1385,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0027698643700094366,
+              "setpoint_change_p95_rad_s2": 0.14132286709177652,
+              "tracking_rmse_rad_s": 0.0029590511163660096
+            },
+            {
+              "abs_error_change_rate_pearson": 0.3846076721848332,
+              "joint_1_based": 2,
+              "n": 1385,
+              "one_sequence_later_tracking_rmse_rad_s": 0.014424138430777956,
+              "setpoint_change_p95_rad_s2": 2.289554627127985,
+              "tracking_rmse_rad_s": 0.01507396880678653
+            },
+            {
+              "abs_error_change_rate_pearson": 0.25047392432615434,
+              "joint_1_based": 3,
+              "n": 1385,
+              "one_sequence_later_tracking_rmse_rad_s": 0.00232182616234872,
+              "setpoint_change_p95_rad_s2": 0.1771311117943525,
+              "tracking_rmse_rad_s": 0.002763642874609973
+            },
+            {
+              "abs_error_change_rate_pearson": 0.4420982629082342,
+              "joint_1_based": 4,
+              "n": 1385,
+              "one_sequence_later_tracking_rmse_rad_s": 0.01097270327389087,
+              "setpoint_change_p95_rad_s2": 2.4999999975000002,
+              "tracking_rmse_rad_s": 0.01208203698426661
+            },
+            {
+              "abs_error_change_rate_pearson": 0.09874963763821218,
+              "joint_1_based": 5,
+              "n": 1385,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0006894074534827483,
+              "setpoint_change_p95_rad_s2": 0.17470970160234878,
+              "tracking_rmse_rad_s": 0.0006841758943515577
+            },
+            {
+              "abs_error_change_rate_pearson": 0.1562590367148735,
+              "joint_1_based": 6,
+              "n": 1385,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0006540186272385176,
+              "setpoint_change_p95_rad_s2": 0.19891637011862628,
+              "tracking_rmse_rad_s": 0.0007179482988630794
+            }
+          ],
+          "rows": 1385
+        },
+        "task_only": {
+          "per_joint": [
+            {
+              "abs_error_change_rate_pearson": -0.029374021869402845,
+              "joint_1_based": 1,
+              "n": 1411,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0026204744823007204,
+              "setpoint_change_p95_rad_s2": 0.13751413718160838,
+              "tracking_rmse_rad_s": 0.00283375831112453
+            },
+            {
+              "abs_error_change_rate_pearson": 0.3709933300185784,
+              "joint_1_based": 2,
+              "n": 1411,
+              "one_sequence_later_tracking_rmse_rad_s": 0.012157750785076353,
+              "setpoint_change_p95_rad_s2": 0.9832971001563134,
+              "tracking_rmse_rad_s": 0.014601742659919252
+            },
+            {
+              "abs_error_change_rate_pearson": 0.1434909306956628,
+              "joint_1_based": 3,
+              "n": 1411,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0019473851115956269,
+              "setpoint_change_p95_rad_s2": 0.1546116467853489,
+              "tracking_rmse_rad_s": 0.0024793027779437377
+            },
+            {
+              "abs_error_change_rate_pearson": 0.3610578282604746,
+              "joint_1_based": 4,
+              "n": 1411,
+              "one_sequence_later_tracking_rmse_rad_s": 0.009101469348414812,
+              "setpoint_change_p95_rad_s2": 1.083475662802518,
+              "tracking_rmse_rad_s": 0.011192143882409751
+            },
+            {
+              "abs_error_change_rate_pearson": 0.05901575089667884,
+              "joint_1_based": 5,
+              "n": 1411,
+              "one_sequence_later_tracking_rmse_rad_s": 0.000746879370517065,
+              "setpoint_change_p95_rad_s2": 0.1800893304642962,
+              "tracking_rmse_rad_s": 0.0007325631919983495
+            },
+            {
+              "abs_error_change_rate_pearson": 0.18509259983868243,
+              "joint_1_based": 6,
+              "n": 1411,
+              "one_sequence_later_tracking_rmse_rad_s": 0.0006498171175069001,
+              "setpoint_change_p95_rad_s2": 0.19475941114754575,
+              "tracking_rmse_rad_s": 0.0007146943178209009
+            }
+          ],
+          "rows": 1411
+        }
+      },
+      "official_qd_correlation": 0.8486068681812743,
+      "source_hashes": {
+        "command_timeline": "f9bfa7cfbdc3e910685ce8f92a15f18f25791b1ae9e2754afb670e862cac33d4",
+        "robot_frames": "aa2bb923f3fb468f63e50d28f0c6f78d7f4dd92c549894395f3235086e466b8d"
+      }
+    }
+  },
+  "schema": "tase.r31-qdot-row-linkage-v1"
+}

@@ -172,3 +172,17 @@ This pattern is consistent with abrupt QP command changes during clipped task ep
 ### Normal-axis output residual cross-check — 2026-09-25T17:12:54+08:00 HKT
 
 For QP task-space-changed rows without a separate realization-feedback flag (n=1,411), the same-sequence joint qd correlation is 0.795. On those rows, the 95th-percentile absolute difference between the stored task-normal command and final published Jqdot normal component is approximately zero, while requested-to-task normal clipping is 4.671 mm/s p95. This means the QP's final joint command realizes the clipped normal task component in the provider trace, yet the robot's measured joint velocities still correlate poorly with that command. The corresponding RNN task-space-changed rows have qd correlations 0.978 and 0.981, despite larger task-to-realized normal differences in their provider traces. This strengthens the QP-by-command-profile interaction hypothesis, but it does not establish the robot-side cause or a remedy.
+
+### Same-row joint tracking error and setpoint-change linkage — 2026-09-25T17:15:54+08:00 HKT
+
+Same-consumed-sequence joint error is much larger in the QP task-space-changed rows than in the corresponding RNN rows. J2/J4 qdot tracking RMSE is 0.01460/0.01119 rad/s for QP task-only rows versus 0.00064–0.00092/0.00085–0.00088 rad/s for the two RNN task-only rows. In QP, one-sequence-later pairing improves the task-only RMSE only to 0.01216/0.00910 rad/s; a one-packet timing shift does not close the gap. Setpoint-change magnitude is positively associated with absolute qdot error in QP flagged rows (r=0.37/0.36 for task-only J2/J4 and r=0.38/0.44 with task plus realization flags); the corresponding RNN task-only associations are only 0.07–0.14.
+
+| Group | Attempt | J2 qd tracking RMSE (rad/s) | J4 qd tracking RMSE (rad/s) | J2 setpoint-change/error r | J4 setpoint-change/error r |
+|---|---|---:|---:|---:|---:|
+| Task-space changed, no slew/realization flag | R31 A1 RNN | 0.000918 | 0.000846 | 0.081363 | 0.125344 |
+| Task-space changed, no slew/realization flag | R31 A2 RNN | 0.000636 | 0.000879 | 0.072569 | 0.141573 |
+| No output flag | Matched QP | 0.003202 | 0.002886 | 0.418697 | 0.257135 |
+| Task-space changed, no slew/realization flag | Matched QP | 0.014602 | 0.011192 | 0.370993 | 0.361058 |
+| Task-space and realization flags | Matched QP | 0.015074 | 0.012082 | 0.384608 | 0.442098 |
+
+This is consistent with QP joint commands changing in ways the arm follows less closely during clipped task episodes. It still cannot distinguish solver inverse mapping, output limiting, servo dynamics, or other synchronized disturbances. The complete row-level summaries and source hashes are in reports/tase_r31_qdot_row_linkage_20260925.json.

@@ -220,3 +220,7 @@ The event-conditioned qd comparison against both RNN A traces shows a solver-spe
 ## QP task-only residual check — 2026-09-25T17:12:54+08:00
 
 QP task-only rows almost completely realize the clipped normal task in the provider's Jqdot feedback, yet actual joint-velocity correlation is low; RNN task-limited rows do not show the same drop. This is a stronger diagnostic localization to QP command/servo tracking, not a confirmed root cause. No live profile or acceptance gate changed.
+
+## QP row-linkage checkpoint — 2026-09-25T17:15:54+08:00
+
+Row-level analysis confirms large QP J2/J4 tracking errors in the flagged task-space episodes, with only partial reduction from a one-sequence delay; RNN A does not show the same pattern. Command-change/error association is descriptive, not causal. Keep the motion gate and frozen QP profile unchanged.

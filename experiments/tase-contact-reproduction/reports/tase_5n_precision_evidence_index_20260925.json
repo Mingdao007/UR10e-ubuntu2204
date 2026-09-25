@@ -1,7 +1,7 @@
 {
   "schema": "tase-5n-precision-evidence-index-v1",
-  "checkpoint_at": "2026-09-25T17:12:54+08:00",
-  "primary_experiment": "R31 rate460 TASE_RNN_MATURE A: two eligible complete 60 s units (MAE 1.282720 and 1.006797 N); two complete TASE_QP units fail frozen actual_qd correlation gate (0.840132, 0.848607 versus 0.900); the new R31-parameter-aligned SFC/DSFC 30-attempt model proxy is complete with zero simulation failures but is not physical evidence. Robot already powered, Safety NORMAL, TP STOPPED at joint Home; no extra power command or motion sent. Extended QP offset scan did not find a causal sequence delay that restores qd correlation; higher J2/J4 setpoint changes and more output-limit feedback are candidate contributors, not confirmed cause. Event-conditioned comparison further narrows the qd diagnostic: RNN A flagged rows remain at 0.978/0.981 correlation, while matched QP flagged rows are 0.801 and QP unflagged rows 0.907; this is not causal proof. Output-event conditioning shows low qd correlation concentrated in QP flagged rows (0.801 vs 0.907 unflagged), while RNN flagged rows remain 0.978/0.981. QP J2/J4 setpoint-change rates are much larger in those rows; this is a candidate method/output interaction, not confirmed cause. QP task-only flagged rows retain near-zero provider task-normal to final Jqdot normal residual but only 0.795 actual_qd correlation; corresponding RNN flagged rows remain 0.978/0.981. This is further diagnostic localization only.",
+  "checkpoint_at": "2026-09-25T17:15:54+08:00",
+  "primary_experiment": "R31 rate460 TASE_RNN_MATURE A: two eligible complete 60 s units (MAE 1.282720 and 1.006797 N); two complete TASE_QP units fail frozen actual_qd correlation gate (0.840132, 0.848607 versus 0.900); the new R31-parameter-aligned SFC/DSFC 30-attempt model proxy is complete with zero simulation failures but is not physical evidence. Robot already powered, Safety NORMAL, TP STOPPED at joint Home; no extra power command or motion sent. Extended QP offset scan did not find a causal sequence delay that restores qd correlation; higher J2/J4 setpoint changes and more output-limit feedback are candidate contributors, not confirmed cause. Event-conditioned comparison further narrows the qd diagnostic: RNN A flagged rows remain at 0.978/0.981 correlation, while matched QP flagged rows are 0.801 and QP unflagged rows 0.907; this is not causal proof. Output-event conditioning shows low qd correlation concentrated in QP flagged rows (0.801 vs 0.907 unflagged), while RNN flagged rows remain 0.978/0.981. QP J2/J4 setpoint-change rates are much larger in those rows; this is a candidate method/output interaction, not confirmed cause. QP task-only flagged rows retain near-zero provider task-normal to final Jqdot normal residual but only 0.795 actual_qd correlation; corresponding RNN flagged rows remain 0.978/0.981. This is further diagnostic localization only. Row-level diagnostics show QP task-space-flagged J2/J4 qdot tracking RMSE is 0.01460/0.01119 rad/s; one-packet lag improves but does not close it. Setpoint-change/error correlation is observational, not causal.",
   "claim_boundary": "Kunwei is controller feedback, not independent task-force truth. RPSFC/SFC/DSFC drift evidence is a different experiment.",
   "report": "reports/tase_5n_precision_recovery_20260925.md",
   "decision_tree": "reports/tase_5n_precision_decision_tree_20260925.md",
@@ -936,6 +936,21 @@
         "a2_task_only_qd_correlation": 0.9811627995281728
       },
       "limitations": "provider normal-axis residual is not the full six-dimensional robot tracking error; observational group comparison is not causal"
+    },
+    {
+      "id": "tase-r31-qdot-row-linkage-20260925",
+      "path": "reports/tase_r31_qdot_row_linkage_20260925.json",
+      "kind": "same-consumed-packet per-joint qdot tracking error and command-change linkage for R31 A1/A2 and matched QP",
+      "status": "seal hashes verified; QP flagged J2/J4 tracking error remains substantially above RNN A; one-packet delay does not resolve it",
+      "key_values": {
+        "qp_task_only_j2_rmse_rad_s": 0.014601742659919252,
+        "qp_task_only_j4_rmse_rad_s": 0.011192143882409751,
+        "qp_task_realization_j2_rmse_rad_s": 0.01507396880678653,
+        "qp_task_realization_j4_rmse_rad_s": 0.01208203698426661,
+        "qp_task_only_j2_change_error_r": 0.3709933300185784,
+        "qp_task_only_j4_change_error_r": 0.3610578282604746
+      },
+      "limitations": "one-sequence pairing and Pearson associations are diagnostics; they do not identify root cause or justify a controller change"
     }
   ],
   "not_yet_observed": [

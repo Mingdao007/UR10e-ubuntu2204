@@ -162,3 +162,9 @@ A sealed v2 timeline may still support labeled diagnostics when a failed receipt
 
 - QP task-only flagged rows have near-zero provider task-normal versus final Jqdot normal residual, but only 0.795 actual_qd correlation. RNN task-flagged rows stay at 0.978/0.981. This narrows the discrepancy to QP command/robot tracking behavior in those episodes, without proving a cause.
 - Continue by inspecting the exact per-row joint command transitions and measured qd; preserve the complete official sample set and the 0.900 gate.
+
+## QP row-linkage checkpoint — 2026-09-25T17:15:54+08:00
+
+- QP flagged J2/J4 rows have much larger same-sequence qdot tracking RMSE than RNN A under matching flags; one-sample delay only partly improves QP.
+- Error magnitude covaries with QP setpoint-change rate. Treat this as a narrowed diagnostic hypothesis, not a confirmed physical root cause.
+- Next offline task: inspect command transition / final Jqdot shortfall rows and distinguish solver mapping from host-output bounds and robot servo behavior. No live retry until that evidence changes the hypothesis.
