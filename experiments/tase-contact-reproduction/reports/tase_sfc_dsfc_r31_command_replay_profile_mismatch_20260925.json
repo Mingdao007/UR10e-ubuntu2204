@@ -1,0 +1,38 @@
+{
+  "audited_at": "2026-09-25T23:56:18+08:00",
+  "checks": {
+    "15_matched_input_units": true,
+    "all_candidate_normal_profiles_same": true,
+    "all_rows_are_model_only": true,
+    "candidate_normal_profile_is_not_R31": true,
+    "dual_space_fixtures_offline_only": true,
+    "identical_input_within_each_law_pair": true,
+    "result_count_30": true,
+    "velocity_bounds_and_single_realization_pass": true
+  },
+  "controller_replays": 30,
+  "corrected_replay": {
+    "audit_path": "reports/tase_sfc_dsfc_r31_aligned_command_replay_audit_20260926.json",
+    "fix_commit": "a2067adc",
+    "path": "runs/tase-sfc-dsfc-r31-aligned-command-replay-20260925T2356HKT/command-replay.json"
+  },
+  "disposition": "retain the first 30 replay results unchanged as exploratory output under epsilon=0.014/r=0.2; do not use as R31-aligned. A separate corrected 15-pair R31-aligned replay is now sealed.",
+  "evidence_class": "same_input_command_replay_of_model_generated_traces",
+  "expected_r31_normal_config": {
+    "epsilon": 0.022,
+    "lambda_update_sign": "minus",
+    "sigr_exponent_r": 1.0
+  },
+  "observed_normal_config": {
+    "epsilon": 0.014,
+    "lambda_update_sign": "minus",
+    "sigr_exponent_r": 0.2
+  },
+  "physical_evidence": false,
+  "reason": "all replay candidates used the generic research default normal RNN profile, epsilon=0.014 and r=0.2, while the source R31 A method identity requires epsilon=0.022 and r=1.0; the A outer profile and paired input hashes were correct.",
+  "schema": "tase.sfc-dsfc-command-replay-profile-audit-v1",
+  "source_replay": "runs/tase-sfc-dsfc-r31-command-replay-20260925T2340HKT/command-replay.json",
+  "source_replay_sha256": "d0dbf20864d362cbff162cdbb988c4f5a981cb9e2ab03ee8d5940282f01d55f4",
+  "status": "preserved_but_ineligible_for_r31_aligned_claim",
+  "units": 15
+}

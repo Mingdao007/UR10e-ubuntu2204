@@ -1,0 +1,65 @@
+{
+  "audit": {
+    "claim_limit": "This audit classifies each stream by its first non-empty record schema; it does not scan every JSONL row for schema changes and does not assert that all other run families share these schemas.",
+    "fields_not_stored_under_required_names_in_sensor_or_rtde_first_records": [
+      "estimated_outward_normal_base",
+      "force_target_n",
+      "jacobian",
+      "joint_velocity_lower_rad_s",
+      "joint_velocity_upper_rad_s",
+      "raw_force_base_n",
+      "reference_position_base_m",
+      "reference_velocity_base_m_s",
+      "state_age_s",
+      "tcp_position_base_m"
+    ],
+    "first_record_schema_counts": {
+      "published_packets": {
+        "timestamp,command_mode,double_values,integer_values,reason,reason_code,sequence,stop_dominant": 228
+      },
+      "raw_sensor": {
+        "corrected_wrench_n_nm,host_use_monotonic_s,packet_sequence,raw_wrench_n_nm,received_monotonic_s,sensor_fresh": 228
+      },
+      "robot_frames": {
+        "consumed_packet_sequence,integer_echoes,observed_at_s,payload_cog_m,payload_kg,q_rad,qd_rad_s,received_monotonic_s,robot_mode,runtime_state,safety_mode,speed_scaling,target_qd_rad_s,tcp_offset_m_rad,tcp_pose_m_rad,tcp_speed_m_s_rad_s,timestamp": 80,
+        "consumed_packet_sequence,integer_echoes,observed_at_s,payload_cog_m,payload_kg,q_rad,qd_rad_s,received_monotonic_s,robot_mode,runtime_state,safety_mode,tcp_offset_m_rad,tcp_pose_m_rad,tcp_speed_m_s_rad_s,timestamp": 148
+      }
+    },
+    "reconstruction_boundary": "RTDE streams retain joint and TCP state and packet streams retain published commands, but they do not store the controller reference, estimated normal, Jacobian, or joint bounds as consumed inputs. Recomputing these from robot state, firmware trajectory, or calibrated kinematics would create reconstructed inputs; it would not recover the original byte-identical controller input sequence.",
+    "required_controller_input_fields": [
+      "estimated_outward_normal_base",
+      "force_target_n",
+      "jacobian",
+      "joint_velocity_lower_rad_s",
+      "joint_velocity_upper_rad_s",
+      "raw_force_base_n",
+      "reference_position_base_m",
+      "reference_velocity_base_m_s",
+      "state_age_s",
+      "tcp_position_base_m"
+    ],
+    "run_directories": 89,
+    "run_prefixes": [
+      "tase-resident-",
+      "tase-integral-screen-rate400-",
+      "tase-r013-60-autotuner-",
+      "tase-r31-",
+      "tase-a-"
+    ],
+    "same_input_alternate_controller_replay_eligible": false,
+    "scope": "first non-empty record schema in every raw sensor, RTDE robot-frame, and published-packet stream under selected historical TASE run families",
+    "stream_counts": {
+      "attempt_results": 193,
+      "command_timeline": 193,
+      "published_packets": 228,
+      "raw_sensor": 228,
+      "robot_frames": 228,
+      "seals": 193
+    }
+  },
+  "audited_at": "2026-09-26T00:15:50+08:00",
+  "claim_scope": "first non-empty record schema across selected TASE run-family streams only",
+  "replay_eligibility": "same-input alternate-controller replay is false; historical streams omit consumed estimated-normal/reference/Jacobian/bounds fields",
+  "schema": "tase.historical-trace-schema-audit-v1",
+  "source_function": "tools/tase_sfc_dsfc_replay.py::_audit_historical_recordings"
+}

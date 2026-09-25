@@ -1,7 +1,7 @@
 {
   "schema": "tase-5n-precision-evidence-index-v1",
-  "checkpoint_at": "2026-09-25T23:35:04+08:00",
-  "primary_experiment": "The R31 rate460 independent A-versus-E confirmation is complete: 5/5 valid pairs, 22 physical attempts, 7 failed attempts retained, all sessions closed. A averaged 0.987131 N and E 1.748434 N; paired A-minus-E was -0.761304 N (95% CI [-0.893456, -0.629151] N), so no E improvement is supported and A remains incumbent. Two complete TASE-QP paths still fail the frozen actual_qd correlation gate (0.840132 and 0.848607 versus 0.900); their MAEs are diagnostics only. The R31 SFC/DSFC model proxy is simulation only, with 120 N/m path stiffness not approved for live use. KWR75 remains controller feedback, not independent task-force truth. Fresh read-only preflight at 22:30 HKT again found the controller already powered, Remote Control, Safety NORMAL, TP STOPPED, zero TCP speed, and joint Home max error 2.69e-5 rad; no power or motion command was sent. The SFC+TASE live method remains unavailable pending a reviewed K_path binding; 120 N/m is still offline-only. A fresh 22:50 HKT RTDE sample added active payload inertia; a reproducible URDF/Pinocchio operational-mass calculation gives 3.529 kg with tangent/orientation axes free and 23.982 kg with those axes constrained. This is model-derived robot inertia only; the local 5 N environment/contact K/B/M model remains empirically unidentified and no zeta sweep is authorized. Fresh Dashboard-only check at 2026-09-25T23:31:14+08:00: RUNNING, Safety NORMAL, TP STOPPED step5d_contact_six_qp_v1; no writer/bridge process or write/motion command. This is not a complete fresh live preflight. A fresh full read-only preflight at 23:35 HKT again found the controller powered, Safety NORMAL, TP STOPPED, zero sampled TCP speed, short-EOAT payload/CoG/TCP matched, and no active writer; actual_q was within 2.885e-5 rad of the approved joint Home. UR RTDE TCP-force norm was 1.062 N (diagnostic only); Kunwei was connect-only and no motion was issued. The 30 SFC/DSFC model attempts are verified against R31 rate460 A; the generic loader fix is committed as c851f899 and remains offline-only.",
+  "checkpoint_at": "2026-09-26T00:18:06+08:00",
+  "primary_experiment": "The R31 rate460 independent A-versus-E confirmation is complete: 5/5 valid pairs, 22 physical attempts, 7 failed attempts retained, all sessions closed. A averaged 0.987131 N and E 1.748434 N; paired A-minus-E was -0.761304 N (95% CI [-0.893456, -0.629151] N), so no E improvement is supported and A remains incumbent. Two complete TASE-QP paths still fail the frozen actual_qd correlation gate (0.840132 and 0.848607 versus 0.900); their MAEs are diagnostics only. The R31 SFC/DSFC model proxy is simulation only, with 120 N/m path stiffness not approved for live use. KWR75 remains controller feedback, not independent task-force truth. Fresh read-only preflight at 22:30 HKT again found the controller already powered, Remote Control, Safety NORMAL, TP STOPPED, zero TCP speed, and joint Home max error 2.69e-5 rad; no power or motion command was sent. The SFC+TASE live method remains unavailable pending a reviewed K_path binding; 120 N/m is still offline-only. A fresh 22:50 HKT RTDE sample added active payload inertia; a reproducible URDF/Pinocchio operational-mass calculation gives 3.529 kg with tangent/orientation axes free and 23.982 kg with those axes constrained. This is model-derived robot inertia only; the local 5 N environment/contact K/B/M model remains empirically unidentified and no zeta sweep is authorized. Fresh Dashboard-only check at 2026-09-25T23:31:14+08:00: RUNNING, Safety NORMAL, TP STOPPED step5d_contact_six_qp_v1; no writer/bridge process or write/motion command. This is not a complete fresh live preflight. A fresh full read-only preflight at 23:35 HKT again found the controller powered, Safety NORMAL, TP STOPPED, zero sampled TCP speed, short-EOAT payload/CoG/TCP matched, and no active writer; actual_q was within 2.885e-5 rad of the approved joint Home. UR RTDE TCP-force norm was 1.062 N (diagnostic only); Kunwei was connect-only and no motion was issued. The 30 SFC/DSFC model attempts are verified against R31 rate460 A; the generic loader fix is committed as c851f899 and remains offline-only. The first 30-row SFC/DSFC command replay was preserved but excluded from R31 conclusions because it used the generic normal RNN epsilon=0.014/r=0.2; the corrected replay now uses R31 epsilon=0.022/r=1.0/minus and passes 15/15 identical-input pairs and composition checks (model-only). A corrected historical trace schema audit covered 89 TASE run directories and confirms the physical streams do not contain all controller-consumed inputs needed for byte-identical alternate-controller replay. Fresh read-only preflight at 00:16 HKT again found the controller powered, Safety NORMAL, TP STOPPED, zero sampled TCP speed, and no active writer; no motion was sent.",
   "claim_boundary": "Kunwei is controller feedback, not independent task-force truth. RPSFC/SFC/DSFC drift evidence is a different experiment.",
   "report": "reports/tase_5n_precision_recovery_20260925.md",
   "decision_tree": "reports/tase_5n_precision_decision_tree_20260925.md",
@@ -1423,6 +1423,71 @@
         "shared_lock_marker": "pid=862536; no PID/OS holder; left untouched"
       },
       "limitations": "The 1.062 N value is from UR RTDE, not the Kunwei controller sensor. This snapshot does not establish contact/no-contact, video observation, or a continuous stationary Home dwell."
+    },
+    {
+      "id": "tase-sfc-dsfc-r31-command-replay-normal-profile-mismatch-20260925T2340HKT",
+      "path": "reports/tase_sfc_dsfc_r31_command_replay_profile_mismatch_20260925.json",
+      "kind": "audit of the first completed SFC/DSFC same-input replay",
+      "status": "preserved but excluded from R31-aligned conclusion; all 30 rows used generic normal RNN epsilon=0.014/r=0.2 instead of R31 A epsilon=0.022/r=1.0/minus",
+      "key_values": {
+        "same_input_units": 15,
+        "controller_replays": 30,
+        "outer_A_profile_matched": true,
+        "normal_profile_matched": false,
+        "physical_evidence": false
+      }
+    },
+    {
+      "id": "tase-sfc-dsfc-r31-aligned-command-replay-20260926",
+      "path": "reports/tase_sfc_dsfc_r31_aligned_command_replay_audit_20260926.json",
+      "kind": "corrected R31-aligned SFC/DSFC same-input command replay audit",
+      "status": "passed profile binding, input pairing, single final realization, joint velocity bounds and tangent-normal separation; model-only command output comparison",
+      "key_values": {
+        "same_input_units": 15,
+        "controller_replays": 30,
+        "normal_epsilon": 0.022,
+        "normal_r": 1.0,
+        "normal_sign": "minus",
+        "A_outer_integral_n_s": 1.0,
+        "all_pairs_identical_input": true,
+        "all_joint_velocity_bound_violations": 0,
+        "max_tangent_normal_leak_below_1e-12_m_s": true,
+        "physical_evidence": false
+      }
+    },
+    {
+      "id": "tase-historical-trace-replay-eligibility-audit-20260926",
+      "path": "reports/tase_sfc_dsfc_historical_trace_schema_audit_20260926.json",
+      "kind": "corrected first-record schema audit for historical TASE physical run families",
+      "status": "89 selected run directories covered; historical streams lack the full consumed normal/reference/Jacobian/bounds inputs and cannot support byte-identical alternate-controller replay",
+      "key_values": {
+        "run_directories": 89,
+        "raw_sensor_streams": 228,
+        "robot_frame_streams": 228,
+        "published_packet_streams": 228,
+        "command_timeline_streams": 193,
+        "same_input_alternate_controller_replay_eligible": false,
+        "audit_scope": "first non-empty record per stream"
+      }
+    },
+    {
+      "id": "live-readonly-preflight-20260926T0017HKT",
+      "path": "runs/tase-poweron-continue-preflight-20260926T0017HKT/preflight_readonly.json",
+      "kind": "fresh read-only UR/Dashboard/RTDE/Kunwei-connectivity preflight",
+      "status": "passed for read-only observation only; robot already powered, Safety NORMAL, TP STOPPED, no writer; no motion, Kunwei sample, or video observation",
+      "key_values": {
+        "robotmode": "RUNNING",
+        "safety": "NORMAL",
+        "program": "STOPPED step5d_contact_six_qp_v1.urp",
+        "actual_tcp_speed_linear_norm_m_s": 0.0,
+        "home_q_max_error_rad": 4.76837158203125e-05,
+        "payload_kg": 0.413,
+        "tcp_z_mm": 87.4,
+        "ur_rtde_tcp_force_norm_diagnostic_n": 0.9560031216359761,
+        "writer_processes": [],
+        "kunwei": "TCP connect-only"
+      },
+      "limitations": "A single RTDE sample is not a stationary dwell. UR RTDE TCP force is not Kunwei force and does not establish contact/no-contact."
     }
   ],
   "not_yet_observed": [

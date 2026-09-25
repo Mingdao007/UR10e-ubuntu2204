@@ -1,0 +1,248 @@
+{
+  "audited_at": "2026-09-26T00:15:50+08:00",
+  "checks": {
+    "15_matched_input_units": true,
+    "30_controller_replays": true,
+    "R31_A_outer_profile_on_all_rows": true,
+    "R31_normal_profile_on_all_rows": true,
+    "dual_space_offline_only_and_recovery_fixtures_pass": true,
+    "five_per_method_scenario": true,
+    "identical_input_per_pair": true,
+    "model_only_no_physical_claim": true,
+    "no_joint_velocity_bound_violations": true,
+    "normal_leak_below_1e-12": true,
+    "single_final_realization": true,
+    "source_trace_hashes_match_sealed_attempts": true
+  },
+  "claim_scope": "command-output composition and boundary checks on synthetic model-generated, identical input traces; no force outcome, physical experiment, or live qualification",
+  "conclusion": "R31 normal and outer parameters are now correctly bound; all 15 identical-input pairs and composition checks pass. SFC/DSFC differences remain descriptive command-output differences only. The embedded historical_trace_audit in the replay artifact was generated before the audit-root fix and reports zero runs; the corrected separate audit here supersedes that metadata without changing the immutable command-output rows.",
+  "evidence_class": "same_input_command_replay_of_model_generated_traces",
+  "historical_trace_audit": {
+    "claim_limit": "This audit classifies each stream by its first non-empty record schema; it does not scan every JSONL row for schema changes and does not assert that all other run families share these schemas.",
+    "fields_not_stored_under_required_names_in_sensor_or_rtde_first_records": [
+      "estimated_outward_normal_base",
+      "force_target_n",
+      "jacobian",
+      "joint_velocity_lower_rad_s",
+      "joint_velocity_upper_rad_s",
+      "raw_force_base_n",
+      "reference_position_base_m",
+      "reference_velocity_base_m_s",
+      "state_age_s",
+      "tcp_position_base_m"
+    ],
+    "first_record_schema_counts": {
+      "published_packets": {
+        "timestamp,command_mode,double_values,integer_values,reason,reason_code,sequence,stop_dominant": 228
+      },
+      "raw_sensor": {
+        "corrected_wrench_n_nm,host_use_monotonic_s,packet_sequence,raw_wrench_n_nm,received_monotonic_s,sensor_fresh": 228
+      },
+      "robot_frames": {
+        "consumed_packet_sequence,integer_echoes,observed_at_s,payload_cog_m,payload_kg,q_rad,qd_rad_s,received_monotonic_s,robot_mode,runtime_state,safety_mode,speed_scaling,target_qd_rad_s,tcp_offset_m_rad,tcp_pose_m_rad,tcp_speed_m_s_rad_s,timestamp": 80,
+        "consumed_packet_sequence,integer_echoes,observed_at_s,payload_cog_m,payload_kg,q_rad,qd_rad_s,received_monotonic_s,robot_mode,runtime_state,safety_mode,tcp_offset_m_rad,tcp_pose_m_rad,tcp_speed_m_s_rad_s,timestamp": 148
+      }
+    },
+    "reconstruction_boundary": "RTDE streams retain joint and TCP state and packet streams retain published commands, but they do not store the controller reference, estimated normal, Jacobian, or joint bounds as consumed inputs. Recomputing these from robot state, firmware trajectory, or calibrated kinematics would create reconstructed inputs; it would not recover the original byte-identical controller input sequence.",
+    "required_controller_input_fields": [
+      "estimated_outward_normal_base",
+      "force_target_n",
+      "jacobian",
+      "joint_velocity_lower_rad_s",
+      "joint_velocity_upper_rad_s",
+      "raw_force_base_n",
+      "reference_position_base_m",
+      "reference_velocity_base_m_s",
+      "state_age_s",
+      "tcp_position_base_m"
+    ],
+    "run_directories": 89,
+    "run_prefixes": [
+      "tase-resident-",
+      "tase-integral-screen-rate400-",
+      "tase-r013-60-autotuner-",
+      "tase-r31-",
+      "tase-a-"
+    ],
+    "same_input_alternate_controller_replay_eligible": false,
+    "scope": "first non-empty record schema in every raw sensor, RTDE robot-frame, and published-packet stream under selected historical TASE run families",
+    "stream_counts": {
+      "attempt_results": 193,
+      "command_timeline": 193,
+      "published_packets": 228,
+      "raw_sensor": 228,
+      "robot_frames": 228,
+      "seals": 193
+    }
+  },
+  "limits": [
+    "K_path=120 N/m remains model-only and not live-approved",
+    "These are command statistics; no normal-force MAE is available from this replay",
+    "The historical trace schema audit is first-record-only and cannot detect within-file schema changes",
+    "Historical TASE raw streams lack fields required for byte-identical same-input alternate-controller replay"
+  ],
+  "physical_evidence": false,
+  "replay": {
+    "A_outer_profile": {
+      "Bd_scalar": 693.6559295653944,
+      "Md_scalar": 9.565272137974492,
+      "delay_T_s": 0.004,
+      "force_integral_authority_error_n": 0.5,
+      "force_integral_limit_n_s": 1.0,
+      "force_integral_policy": "legacy-clamp-v1",
+      "force_sign_convention": "step5_step6_positive_normal_load",
+      "force_target_n": 5.0,
+      "kf": 1.0,
+      "ko": 5.0,
+      "kp": 4.0
+    },
+    "A_outer_profile_sha256": "88523f9622828a2fb69881c6f52986e30c6819b5d4ffb72e5f2b5fcde029e935",
+    "A_outer_profile_source": "config/tase_figure8_integral_1p0_rate460.json",
+    "aggregate_command_metrics": {
+      "normal_pulse": {
+        "by_method": {
+          "TASE_RNN_MATURE+DSFC_YIELD_V1": {
+            "final_qdot_residual_rms_m_s_rad_s_mean": 0.3505024097889758,
+            "replays": 5,
+            "tangential_translation_rms_m_s_mean": 0.002101236764644123,
+            "tase_normal_translation_rms_m_s_mean": 0.0004445178906160526,
+            "tase_orientation_rms_rad_s_mean": 0.22344617111242288
+          },
+          "TASE_RNN_MATURE+SFC_YIELD_V1": {
+            "final_qdot_residual_rms_m_s_rad_s_mean": 0.35050240891784756,
+            "replays": 5,
+            "tangential_translation_rms_m_s_mean": 0.0019990811905706857,
+            "tase_normal_translation_rms_m_s_mean": 0.0004445178906160526,
+            "tase_orientation_rms_rad_s_mean": 0.22344617111242288
+          }
+        },
+        "descriptive_dsfc_minus_sfc_tangential_translation_rms_m_s": 0.00010215557407343727
+      },
+      "plane": {
+        "by_method": {
+          "TASE_RNN_MATURE+DSFC_YIELD_V1": {
+            "final_qdot_residual_rms_m_s_rad_s_mean": 8.78849151671397e-05,
+            "replays": 5,
+            "tangential_translation_rms_m_s_mean": 0.0017829149493074916,
+            "tase_normal_translation_rms_m_s_mean": 3.0174589826086956e-06,
+            "tase_orientation_rms_rad_s_mean": 0.0004136653688986471
+          },
+          "TASE_RNN_MATURE+SFC_YIELD_V1": {
+            "final_qdot_residual_rms_m_s_rad_s_mean": 8.783181070390981e-05,
+            "replays": 5,
+            "tangential_translation_rms_m_s_mean": 0.0017863848582773492,
+            "tase_normal_translation_rms_m_s_mean": 3.0174589826086956e-06,
+            "tase_orientation_rms_rad_s_mean": 0.0004136653688986471
+          }
+        },
+        "descriptive_dsfc_minus_sfc_tangential_translation_rms_m_s": -3.469908969857584e-06
+      },
+      "tangent_pulse": {
+        "by_method": {
+          "TASE_RNN_MATURE+DSFC_YIELD_V1": {
+            "final_qdot_residual_rms_m_s_rad_s_mean": 0.01092700084280488,
+            "replays": 5,
+            "tangential_translation_rms_m_s_mean": 0.002166354186966158,
+            "tase_normal_translation_rms_m_s_mean": 8.554602319712596e-06,
+            "tase_orientation_rms_rad_s_mean": 0.018302317088387473
+          },
+          "TASE_RNN_MATURE+SFC_YIELD_V1": {
+            "final_qdot_residual_rms_m_s_rad_s_mean": 0.010926949252993232,
+            "replays": 5,
+            "tangential_translation_rms_m_s_mean": 0.0020445219195517244,
+            "tase_normal_translation_rms_m_s_mean": 8.554602319712596e-06,
+            "tase_orientation_rms_rad_s_mean": 0.018302317088387473
+          }
+        },
+        "descriptive_dsfc_minus_sfc_tangential_translation_rms_m_s": 0.00012183226741443358
+      }
+    },
+    "controller_replays": 30,
+    "dual_space_collision_policy": {
+      "candidate_coverage_complete": true,
+      "candidate_scenario_replay_counts": {
+        "TASE_RNN_MATURE+DSFC_YIELD_V1": {
+          "normal_pulse": 5,
+          "plane": 5,
+          "tangent_pulse": 5
+        },
+        "TASE_RNN_MATURE+SFC_YIELD_V1": {
+          "normal_pulse": 5,
+          "plane": 5,
+          "tangent_pulse": 5
+        }
+      },
+      "candidate_specific_sample": "midpoint output from each frozen native-law replay",
+      "collision_intents_dispatched_as_qdot": false,
+      "command_authority": "offline_intent_only",
+      "link_collision_preserves_normal_and_orientation_for_all_replays": true,
+      "link_collision_tangent_frozen_for_all_replays": true,
+      "link_yield_preferences_are_intents_only": true,
+      "matched_input_pair_count": 15,
+      "out_of_corridor_requests_recovery_owner_for_all_replays": true,
+      "physical_joint_observer_qualified": false,
+      "physical_observer_qualified": false,
+      "policy_id": "tase-dual-space-collision-offline-v1",
+      "synthetic_test_fixture": {
+        "corridor_radius_m": 0.001,
+        "external_joint_torque_nm": [
+          1.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "joint_damping": 5.0,
+        "joint_stiffness": 10.0,
+        "joint_velocity_cap_rad_s": 0.05,
+        "note": "values copied from the existing offline unit-test fixture; none is calibrated or admitted for physical use",
+        "observer_receipt": {
+          "admission_passed": true,
+          "calibration_sha256": "synthetic-test-fixture-calibration",
+          "dynamics_model_sha256": "synthetic-test-fixture-dynamics",
+          "sample_fresh": true,
+          "timestamps_sha256": "synthetic-test-fixture-clock"
+        },
+        "virtual_inertia": 1.0
+      },
+      "tool_collision_max_normal_intent_error_m_s": 1.1771685299078002e-19,
+      "tool_collision_max_orientation_intent_error_rad_s": 0.0,
+      "tool_collision_tangent_frozen_for_all_replays": true,
+      "visual_corridor_qualified": false
+    },
+    "max_abs_joint_velocity_rad_s": 0.04999999999999997,
+    "max_tangential_normal_leak_m_s": 9.057137362050635e-19,
+    "normal_config": {
+      "epsilon": 0.022,
+      "lambda_update_sign": "minus",
+      "sigr_exponent_r": 1.0
+    },
+    "normal_config_identity_sha256": "ff465f9e410882167ee4cb630c91b455d2b183c6204e0ec905dc6121f4f1ec57",
+    "normal_config_source": "config/yield_live_entry_v1.json#methods.TASE_RNN_MATURE",
+    "path": "runs/tase-sfc-dsfc-r31-aligned-command-replay-20260925T2356HKT/command-replay.json",
+    "scenario_counts": {
+      "TASE_RNN_MATURE+DSFC_YIELD_V1": {
+        "normal_pulse": 5,
+        "plane": 5,
+        "tangent_pulse": 5
+      },
+      "TASE_RNN_MATURE+SFC_YIELD_V1": {
+        "normal_pulse": 5,
+        "plane": 5,
+        "tangent_pulse": 5
+      }
+    },
+    "sha256": "4030faeaaf78e983e8a5db8d9220dec4ead7c29474229893f48ae2ed797e5e3e",
+    "single_final_realization_all_rows": true,
+    "total_joint_velocity_bound_violation_ticks": 0,
+    "units": 15
+  },
+  "schema": "tase.sfc-dsfc-r31-aligned-command-replay-audit-v1",
+  "source": {
+    "attempts_sha256": "eac3bba98f7f9af4f7ad6733ae6dffbf572843dfa90650f348ad2424605bd933",
+    "comparison_run": "runs/tase-sfc-dsfc-r31-aligned-model-20260925T1631HKT",
+    "comparison_summary_sha256": "0233eb0a0c687bbe96679f2f61817e763abc53aa708dc6bc4ec228f2b67ff252",
+    "profile_manifest_sha256": "80257b7f73057af70c1551ac9c4d45a9bf0cd15b8e8565cde00e80e997a00beb"
+  }
+}
