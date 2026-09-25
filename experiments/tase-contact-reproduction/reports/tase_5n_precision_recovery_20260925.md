@@ -319,3 +319,16 @@ These values summarize internal tangent command outputs on the same recorded mod
 - A corrected schema audit covered **89 historical TASE run directories** (228 raw-sensor, 228 RTDE, 228 published-packet streams; 193 command timelines). Required consumed-input fields such as estimated normal, reference, Jacobian, and joint bounds are absent under the required names, so those historical physical runs are not eligible for byte-identical alternate-controller replay. Audit is first-record-only and does not prove every row has a constant schema. Receipts: `reports/tase_sfc_dsfc_historical_trace_schema_audit_20260926.json` and `reports/tase_sfc_dsfc_r31_aligned_command_replay_audit_20260926.json`.
 - Fresh read-only preflight at 00:16 HKT found the controller already powered, Safety NORMAL, TP STOPPED, zero sampled TCP speed, no active writer, and actual joints within **4.77e-5 rad** of joint Home. UR RTDE TCP-force norm was **0.956 N** (diagnostic only); Kunwei was connect-only, with no fresh force sample, and video was not checked. No motion or controller/sensor write was sent. Snapshot: `runs/tase-poweron-continue-preflight-20260926T0017HKT/preflight_readonly.json`.
 - The live branch remains closed: TASE-QP's frozen actual-qd gate still fails, and SFC+TASE has no registered live method or approved `K_path`. No live run was started during this continuation.
+
+## QP spectral-response feasibility — 2026-09-26
+
+An offline attempt to estimate Welch cross-spectra from the exact-consumed-sequence RTDE rows found that ordinary uniformly sampled Welch windows are not supported by these captures. The nominal RTDE interval is 2 ms, but intervals over 2.5 ms split each attempt into short continuous runs. The longest runs were only 40–53 rows (80–106 ms), far shorter than the 1,024-row (2.048 s) Welch window. No frequency-response values were produced, and no missing samples were interpolated.
+
+| Attempt | Joined rows | Continuous spans | Longest span | RTDE gaps |
+|---|---:|---:|---:|---:|
+| R31 A1 | 28,564 | 1,397 | 80 ms | 4.89% |
+| R31 A2 | 28,845 | 1,159 | 106 ms | 4.01% |
+| R31 QP BO-10 | 28,871 | 1,135 | 90 ms | 3.93% |
+| R31 QP matched-A | 28,809 | 1,190 | 86 ms | 4.13% |
+
+This only rejects the ordinary Welch method for the current traces; it does not confirm or refute servo bandwidth as the QP cause. Keep the two QP attempts failed at the original 0.900 gate and do not change the profile. The reproducible analyzer and report are [`analyze_tase_r31_qd_frequency_response.py`](../tools/analyze_tase_r31_qd_frequency_response.py), [`test_analyze_tase_r31_qd_frequency_response.py`](../tests/test_analyze_tase_r31_qd_frequency_response.py), and [`tase_r31_qd_frequency_response_feasibility_20260926.md`](tase_r31_qd_frequency_response_20260926.md); the machine-readable sealed-source result is [`tase_r31_qd_frequency_response_20260926.json`](tase_r31_qd_frequency_response_20260926.json).

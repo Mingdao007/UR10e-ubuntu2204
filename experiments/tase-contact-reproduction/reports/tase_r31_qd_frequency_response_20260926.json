@@ -1,0 +1,185 @@
+{
+  "attempts": [
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-a-baseline-20260925T1510HKT/attempts/0001",
+      "contiguous_span_count": 1397,
+      "contiguous_span_rows": {
+        "max": 40,
+        "median": 25,
+        "min": 1,
+        "p90": 28.0,
+        "p99": 31.0
+      },
+      "discontinuous_interval_count": 1396,
+      "eligible_span_count": 0,
+      "frequency_response": {
+        "largest_contiguous_span_rows": 40,
+        "per_joint": [],
+        "required_contiguous_rows": 1024,
+        "sample_rate_hz": 500.0,
+        "status": "ineligible_no_contiguous_span_long_enough",
+        "welch_windows": 0
+      },
+      "joined_rows": 28564,
+      "label": "R31_A1",
+      "median_controller_interval_s": 0.001999999993131496,
+      "official_qd_gate": 0.9700722532882486,
+      "path_complete": null,
+      "rows_in_short_spans": 28564,
+      "sealed_source_sha256": {
+        "command_timeline": "f2db9842e9f340d9335d8088e69306957ed9ed95f10d766439502f1902097836",
+        "robot_frames": "3ebc7fa2a747f87b5e0300218dd7365e5e86d9e5aabe438c91afb9de93ffe819"
+      },
+      "target_actual_same_row_pearson": [
+        0.9970266342262064,
+        0.8590987248679864,
+        0.9793401618610392,
+        0.9416496192863343,
+        0.21557561467515415,
+        0.9953000670346501
+      ]
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-a-baseline-repeat-evidenceonly-20260925T1530HKT/attempts/0001",
+      "contiguous_span_count": 1159,
+      "contiguous_span_rows": {
+        "max": 53,
+        "median": 26,
+        "min": 1,
+        "p90": 28.0,
+        "p99": 30.0
+      },
+      "discontinuous_interval_count": 1158,
+      "eligible_span_count": 0,
+      "frequency_response": {
+        "largest_contiguous_span_rows": 53,
+        "per_joint": [],
+        "required_contiguous_rows": 1024,
+        "sample_rate_hz": 500.0,
+        "status": "ineligible_no_contiguous_span_long_enough",
+        "welch_windows": 0
+      },
+      "joined_rows": 28845,
+      "label": "R31_A2",
+      "median_controller_interval_s": 0.001999999993131496,
+      "official_qd_gate": 0.9720695642595333,
+      "path_complete": null,
+      "rows_in_short_spans": 28845,
+      "sealed_source_sha256": {
+        "command_timeline": "149ecd21b9722d07d0fa3df1c49702d5a885c6944980679ffc47f4d7e8942507",
+        "robot_frames": "df8a9125a42527c5f5301d857c9a49378d37bd9993a3d91c4df67019e27b113a"
+      },
+      "target_actual_same_row_pearson": [
+        0.9975290594183415,
+        0.8789234966732031,
+        0.9842599910593183,
+        0.9474804788483572,
+        0.2022082383060559,
+        0.9954460657481563
+      ]
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-rate460-20260925T1600HKT/live/attempts/0001",
+      "contiguous_span_count": 1135,
+      "contiguous_span_rows": {
+        "max": 45,
+        "median": 26,
+        "min": 1,
+        "p90": 28.0,
+        "p99": 31.0
+      },
+      "discontinuous_interval_count": 1134,
+      "eligible_span_count": 0,
+      "frequency_response": {
+        "largest_contiguous_span_rows": 45,
+        "per_joint": [],
+        "required_contiguous_rows": 1024,
+        "sample_rate_hz": 500.0,
+        "status": "ineligible_no_contiguous_span_long_enough",
+        "welch_windows": 0
+      },
+      "joined_rows": 28871,
+      "label": "R31_QP_BO10",
+      "median_controller_interval_s": 0.001999999993131496,
+      "official_qd_gate": 0.8401317340726273,
+      "path_complete": null,
+      "rows_in_short_spans": 28871,
+      "sealed_source_sha256": {
+        "command_timeline": "00b03d19693e808e97020c0e4d007380ea45277447bed695e625edf18c860713",
+        "robot_frames": "e1e83a2601292e6d2c6235e5c1a4b70e91d9152057be78c3bbb61b4c53076780"
+      },
+      "target_actual_same_row_pearson": [
+        0.9586844516178363,
+        0.6934244831612647,
+        0.9407197674791333,
+        0.8825127851749246,
+        0.05362013613167707,
+        0.9897752869293611
+      ]
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001",
+      "contiguous_span_count": 1190,
+      "contiguous_span_rows": {
+        "max": 43,
+        "median": 26.0,
+        "min": 1,
+        "p90": 28.0,
+        "p99": 36.1099999999999
+      },
+      "discontinuous_interval_count": 1189,
+      "eligible_span_count": 0,
+      "frequency_response": {
+        "largest_contiguous_span_rows": 43,
+        "per_joint": [],
+        "required_contiguous_rows": 1024,
+        "sample_rate_hz": 500.0,
+        "status": "ineligible_no_contiguous_span_long_enough",
+        "welch_windows": 0
+      },
+      "joined_rows": 28809,
+      "label": "R31_QP_matched_A",
+      "median_controller_interval_s": 0.001999999993131496,
+      "official_qd_gate": 0.8486068681812743,
+      "path_complete": null,
+      "rows_in_short_spans": 28809,
+      "sealed_source_sha256": {
+        "command_timeline": "f9bfa7cfbdc3e910685ce8f92a15f18f25791b1ae9e2754afb670e862cac33d4",
+        "robot_frames": "aa2bb923f3fb468f63e50d28f0c6f78d7f4dd92c549894395f3235086e466b8d"
+      },
+      "target_actual_same_row_pearson": [
+        0.9623828986815515,
+        0.7078498217274569,
+        0.9430608553471428,
+        0.8877214644506259,
+        0.05881462279714914,
+        0.9901290417205554
+      ]
+    }
+  ],
+  "claim_class": "offline sealed-trace telemetry diagnostic; no live tuning or gate changes",
+  "frequency_bands_hz": {
+    "0.5_to_5": [
+      0.5,
+      5.0
+    ],
+    "15_to_50": [
+      15.0,
+      50.0
+    ],
+    "5_to_15": [
+      5.0,
+      15.0
+    ]
+  },
+  "join": "first RTDE frame echoing the exact consumed packet sequence, received no earlier than publish time minus 1 ms",
+  "limitations": [
+    "Target-to-actual spectral response is observational and not a causal servo or physical-plant model.",
+    "The analysis excludes intervals around missing/held RTDE echoes and reports retained spans.",
+    "Joint 5 has low command variance; its coherence and gain are not treated as decisive evidence.",
+    "The official all-sample published-qdot/actual-qdot gate remains unchanged."
+  ],
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "schema": "tase.r31-qd-target-actual-frequency-response-v1",
+  "spectral_method": "Welch CSD on contiguous exact-sequence 2 ms RTDE spans; gaps are split, never interpolated"
+}
