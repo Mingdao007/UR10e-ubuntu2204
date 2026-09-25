@@ -189,3 +189,16 @@ A sealed v2 timeline may still support labeled diagnostics when a failed receipt
 - The strict hard-equality QP with the existing per-joint slew envelope was independently infeasible at the first PATH tick (sequence 9676, `t=0`, `dt=2.2147 ms`, captured slew delta `0.00553669 rad/s`): OSQP status 3 and a separate HiGHS linear feasibility check both agree. The live shared-scalar slew used `0.588094` and incurred `0.00163985 m/s` task residual on that row. This is a formulation conflict, not authorization to relax either bound.
 - Keep the failed QP runs and frozen profile unchanged. Continue the SFC+TASE branch offline: the aligned model proxy exists, but has no physical status and the live registry has no composed entry. Do not move to live composition until its exact method identity, normal/path inputs, numeric profile and return route are closed and discussed.
 - At 17:55:37 HKT, a fresh read-only preflight verified program STOPPED, Safety NORMAL, zero TCP speed, approved joint Home within 3.3e-5 rad, unchanged short-EOAT Installation, Kunwei reachability, and no live writer/bridge. Evidence and reducer are in `reports/tase_r31_cartesian_velocity_diagnostic_20260925.md` and the matching JSON.
+
+
+## Current checkpoint — 2026-09-25, 22:25 HKT
+
+- **R31 A→E confirmation:** complete, 5/5 valid pairs. A averaged 0.987131 N and E 1.748434 N; paired A-minus-E was −0.761304 N (95% CI [−0.893456, −0.629151] N). Retain the 7 failed physical attempts; no E improvement is supported.
+- **TASE-QP:** both frozen-profile live attempts remain failed at the 0.900 actual-qd correlation gate. No same-profile retry; continue only the SFC+TASE offline branch and keep all new live numerical choices explicit.
+- **SFC+TASE:** R31-aligned five-block model proxy is complete (30/30) but has no physical evidence. The 120 N/m path-stiffness default is not live-approved, and no combined live method is registered. Current branch is `L → No`; finish the bound tangent/path profile and executable single-realization seam offline before requesting any composed live admission.
+- **Bench:** robot already powered, approved joint Home verified after the last pair, Safety NORMAL, TP STOPPED, no writer/bridge. No redundant Power On was sent.
+
+## Live continuation gate — 2026-09-25, 22:31 HKT
+
+- A fresh read-only preflight after the Power On request again found `Robotmode: RUNNING`, Remote Control, Safety NORMAL, TP STOPPED, zero RTDE TCP speed, and the approved joint Home within `2.69e-5 rad`. Kunwei connect-only passed. No Power On command or motion was sent because the controller was already powered. Full snapshot: `runs/poweron-continue-preflight-20260925T2230HKT/preflight_readonly.json`.
+- Continue the approved SFC+TASE branch offline until its live method is bound. The offline adapter uses `F_restore = -K_path P_t (x - x_ref)` with `K_path=120 N/m`; that value is model-only. The frozen native SFC coefficients are identifiable, but their historical receipt does not qualify the new composition. Do not launch the combined controller until `K_path`, tangent command bounds, exact method identity, one-realization integration, package read-back, and recovery path are sealed.

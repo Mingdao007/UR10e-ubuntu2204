@@ -1,8 +1,8 @@
 # TASE 5 N normal-force precision — recovery checkpoint
 
-**Checkpoint:** 2026-09-25, 18:01 HKT
+**Checkpoint:** 2026-09-25, 22:25 HKT
 
-**Status:** Three eligible R31 rate460 `TASE_RNN_MATURE` A units completed 60 s PATHs with formal MAEs 1.282720, 1.006797, and 1.017505 N (mean 1.102341 N, sample SD 0.156304 N). A3 passed the 460 Hz floor at 480.567 Hz and returned to verified joint Home. Both complete TASE-QP paths remain failed at the frozen actual-qdot gate (0.840132 and 0.848607 versus 0.900); exact-sequence analysis localizes the strongest QP-specific difference to J2/J4 command and target/actual tracking. A 29,956-row frozen-input replay reproduced the solver-plus-host-slew command sequence and all 513 slew-limited rows. A strict hard-equality QP with the same recorded per-joint slew envelope was infeasible at the first PATH tick, independently confirmed by OSQP and HiGHS; the live scalar slew compromise incurred `0.00163985 m/s` task residual on that row. This is a formulation conflict, not a root-cause or remedy proof. QP's 0.950139 N remains diagnostic only. The R31-aligned SFC/DSFC model proxy is still simulation evidence only. The robot was already powered; no power command was sent. The 17:55:37 fresh read-only preflight found Safety NORMAL, TP STOPPED, zero TCP speed, approved joint Home within 3.3e-5 rad, and no writer/bridge. Next: continue the SFC+TASE branch offline; do not repeat QP unchanged or use model-only values for live.
+**Status:** The independent rate460 A-versus-E confirmation is complete: 5/5 valid pairs from 22 physical attempts, with 7 failed attempts retained and all resident sessions closed. A (incumbent Md/Bd, 1.0 N·s legacy integral) averaged **0.987131 N**; E (frozen BO-10 Md/Bd, integral off) averaged **1.748434 N**. Mean paired A-minus-E was **−0.761304 N** (95% CI **[−0.893456, −0.629151] N**), so E did not improve and A remains the supported incumbent. Both full TASE-QP attempts remain failed at the frozen `actual_qd` correlation gate (**0.840132** and **0.848607**, minimum **0.900**); solver timing and PATH timing passed, and their force MAEs remain diagnostics only. The R31-aligned SFC/DSFC proxy is still model-only; live composition remains unregistered and its `120 N/m` path stiffness is not live-approved. The robot was already powered; no Power On command was needed. The latest resident session ended at approved joint Home, Safety NORMAL, TP STOPPED, with no live writer.
 
 **Evidence boundary:** KWR75 feedback is the controller/metric signal, not an independent task-force truth. RPSFC/SFC/DSFC drift results below remain a separate experiment.
 
@@ -226,3 +226,32 @@ QP task-only rows almost completely realize the clipped normal task in the provi
 ## QP row-linkage checkpoint — 2026-09-25T17:15:54+08:00
 
 Row-level analysis confirms large QP J2/J4 tracking errors in the flagged task-space episodes, with only partial reduction from a one-sequence delay; RNN A does not show the same pattern. Command-change/error association is descriptive, not causal. Keep the motion gate and frozen QP profile unchanged.
+
+
+## Continuation update — 22:25 HKT
+
+### Five-pair rate460 confirmation
+
+The frozen confirmation compares A (`Md=9.565272137974492`, `Bd=693.6559295653944`, `legacy-clamp-v1`, `1.0 N·s`) with E (BO-10 `Md=9.472843441456142`, `Bd=777.699085641654`, `integral-off-v1`). It uses `TASE_RNN_MATURE`, Figure-eight `r013_60_rate460`, 60.0 s PATH, 5 N target, formal `[5,60)` window and 550 bins. The summary records **5/5 valid pairs**, **22 physical attempts**, **7 failed attempts**, and `all_sessions_closed=true`.
+
+- A formal MAEs: 0.974820, 1.081643, 0.901075, 1.000338, 0.977778 N (mean **0.987131 N**).
+- E formal MAEs: 1.889196, 1.721336, 1.648488, 1.810922, 1.672231 N (mean **1.748434 N**).
+- Paired A-minus-E is **−0.761304 N**, 95% CI **[−0.893456, −0.629151] N**. `improvement_supported=false`; the direction favors A. E also differs from A in both Md/Bd and integral policy, so this is a comparison of the frozen controller configurations, not a causal estimate of integral alone.
+
+The first resumed block-0 E attempt passed at 481.183 Hz TP echo, but its paired A attempt was below the 460 Hz floor and remained a failure. The replacement full pair passed: E at 478.483 Hz and A at 477.700 Hz TP echo, with both RTDE rates above 497 Hz. The corrected denominator retains all earlier timing-ineligible and interrupted attempts.
+
+### Rate diagnosis and stop state
+
+The low-rate A attempts in sessions 03 and 04 completed the full PATH and returned Home, but remained timing failures. The first session-03 controller-time interval of 4 ms occurred 92 ms into PATH (one 2 ms period was skipped); provider compute peaked at 1.446 ms, with no provider call above 2 ms. Session-04 A measured 421.967 Hz RTDE and 377.383 Hz TP echo. Host NIC error/drop counters and softnet drops stayed at zero during the observed intervals; global TCP retransmissions increased by three during that PATH. The data do not attribute the deficit to the UR controller, Ethernet, scheduler, or force-control law. Session 05's per-socket samples cover only successful paths and therefore cannot explain the earlier failures. Keep the 460 Hz contract unchanged; failed attempts stay failed.
+
+The last resident receipt verifies actual joint Home within **4.08e-5 rad**, TCP position cross-check within **0.049 mm**, Safety NORMAL, Remote Control, runtime stopped, Dashboard `STOPPED`, and zero TCP speed. Session 05's video file was available; `evidence-only` remains the recording policy. No Power On command was sent because the controller was already `Robotmode: RUNNING`.
+
+### Current branch
+
+TASE-QP remains ineligible under the frozen actual-qd gate. Sealed command-to-target-q d is high overall, while target-q d to actual-q d drops mainly on J2/J4; QP setpoint-change and output-limit associations remain hypotheses, not a confirmed physical root. The existing R31-aligned SFC/DSFC five-block proxy is 30/30, but `physical_evidence=false`. The live combined method remains unavailable. Its only current path-stiffness value, **120 N/m**, is a model default, not approved for live use. Continue offline method integration and bind the live tangent-path profile before any composed motion.
+
+## Current checkpoint — 2026-09-25, 22:31 HKT
+
+After the user's Power On instruction, one fresh read-only preflight found the controller already powered: Dashboard `Robotmode: RUNNING`, Remote Control, Safety NORMAL, TP program STOPPED; RTDE `runtime_state=1`, `robot_mode=7`, zero TCP speed, and approved joint Home max error **2.69e-5 rad**. Payload/CoG/TCP still read `0.413 kg / [0.0011,0.0031,0.0163] m / 87.4 mm`; Kunwei TCP connect-only succeeded. The sampled UR TCP force norm was **0.644 N**, retained as a diagnostic sample only; it does not establish no-contact or calibrated task-force truth. No Power On command, robot motion, sensor write, or controller write was sent. No live writer process was present; the shared lock file contained stale text `pid=856431`, but that PID and any file holder were absent, so the file was preserved. Snapshot: `runs/poweron-continue-preflight-20260925T2230HKT/preflight_readonly.json`.
+
+The next authorized method branch is SFC+TASE, but the live composition is not yet executable or registered. Its offline adapter adds a tangential path-restoring term `F_restore = -K_path P_t (x - x_ref)`; the inherited **120 N/m** is explicitly an offline default, not a live-approved value. The native SFC law's frozen coefficients (`m=4`, `mu=393`, `n=3`, `g=0.0521268261`) are source-bound historical values, but that source's claim scope is not fresh qualification of the composed method. Do not transfer the offline default to live implicitly. Keep the R31 normal controller, native SFC identity, tangent projection, single RNN joint-velocity realization, return route, and all existing protections fixed; resolve `K_path` and complete live registration/package/read-back before a composed motion.
