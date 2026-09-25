@@ -186,3 +186,15 @@ Same-consumed-sequence joint error is much larger in the QP task-space-changed r
 | Task-space and realization flags | Matched QP | 0.015074 | 0.012082 | 0.384608 | 0.442098 |
 
 This is consistent with QP joint commands changing in ways the arm follows less closely during clipped task episodes. It still cannot distinguish solver inverse mapping, output limiting, servo dynamics, or other synchronized disturbances. The complete row-level summaries and source hashes are in reports/tase_r31_qdot_row_linkage_20260925.json.
+
+## Third A repeat and exact command-to-TCP telemetry — 17:35 HKT
+
+A third eligible R31 A unit completed 60.0 s and 550 formal bins at **1.017505 N**, with a 480.567 Hz effective TP-consumed rate, official qd correlation 0.967947, verified joint Home, and usable video. The three eligible A scores are 1.282720, 1.006797, and 1.017505 N (mean 1.102341 N, sample SD 0.156304 N).
+
+A new seal-hash-verified, exact consumed-sequence analysis shows the more specific QP contrast is on J2/J4. QP command-to-target `qd` correlations are 0.971/0.973 on J2/J4 versus 0.996–0.997 for A; target-to-actual correlations are 0.710/0.890 versus 0.867–0.884 and 0.945–0.951. QP J2/J4 command standard deviations are about 1.8–2.0 times RNN A3, and actual-velocity standard deviations about 2.8–3.5 times larger. J5 is weakly correlated in both methods because its commanded variation is small, so the low QP J5 correlation is not a uniquely QP-specific explanation. The QP's linear `J·command` versus RTDE speed RMSE is 0.001643 m/s versus 0.000475–0.000560 m/s for A. These remain synchronized telemetry associations; the cause is not confirmed, and the QP attempt still fails the frozen 0.900 gate.
+
+Full per-axis metrics, command/target/actual dispersion, exact sequence association, and source hashes are in [`tase_r31_cartesian_velocity_diagnostic_20260925.md`](tase_r31_cartesian_velocity_diagnostic_20260925.md) and its machine-readable JSON. No QP number, motion gate, or profile changed.
+
+## Fixed-input solver-plus-slew replay — 17:53 HKT
+
+The exact 29,956-row replay used the QP library SHA recorded by the live dispatch receipt, verified both sealed input hashes, and reproduced all 513 post-solver slew-limited rows. Replayed final qdot matched published qdot to a maximum `1.224e-5 rad/s`; the maximum Cartesian residual introduced after the equality solve was `0.001640 m/s`. This closes the command-reconstruction question but not the physical tracking root cause. The QP attempt remains failed at the frozen `actual_qd` gate (`0.848607 < 0.900`); its MAE remains diagnostic. Next compare in-solver slew bounds offline before any discussion of a live profile change. Full output: [`fixed-input replay summary`](../runs/tase-r31-qp-matched-a-fixed-input-replay-20260925T1748HKT/summary.json).

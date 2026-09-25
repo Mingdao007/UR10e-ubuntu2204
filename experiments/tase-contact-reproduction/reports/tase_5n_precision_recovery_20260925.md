@@ -1,10 +1,12 @@
 # TASE 5 N normal-force precision — recovery checkpoint
 
-**Checkpoint:** 2026-09-25, 17:01 HKT
+**Checkpoint:** 2026-09-25, 17:55 HKT
 
-**Status:** Two eligible R31 rate460 TASE-RNN-MATURE A units completed 60 s PATHs (formal MAE 1.282720 N and 1.006797 N). Both complete TASE-QP paths remain failed at the frozen actual-qdot correlation gate (0.840132 and 0.848607 versus 0.900); expanded offset scans did not find a causal timing shift that passes it. QP J2/J4 setpoint changes and output-limit feedback are candidate contributors, not a confirmed cause. A separate five-block R31-parameter-aligned SFC/DSFC model proxy finished 30/30 with zero simulation failures; it is not physical evidence. Fresh preflight found the robot already powered, Safety NORMAL, TP STOPPED, and near the approved joint Home; no power command or motion was sent. Next: inspect QP active-set/realization-shortfall rows offline, then close a reviewed live SFC+TASE identity before any combined run.
+**Status:** Three eligible R31 rate460 `TASE_RNN_MATURE` A units completed 60 s PATHs with formal MAEs 1.282720, 1.006797, and 1.017505 N (mean 1.102341 N, sample SD 0.156304 N). A3 passed the 460 Hz floor at 480.567 Hz and returned to verified joint Home. Both complete TASE-QP paths remain failed at the frozen actual-qdot gate (0.840132 and 0.848607 versus 0.900); exact-sequence analysis localizes the strongest QP-specific difference to J2/J4 command and target/actual tracking. A 29,956-row frozen-input replay exactly reproduced the solver-plus-host-slew command sequence and all 513 slew-limited rows; the rescale can introduce up to 0.001640 m/s Cartesian residual after solving the equality. This confirms command reconstruction, not the physical cause of the actual-qdot mismatch. QP's 0.950139 N remains diagnostic only. The R31-aligned SFC/DSFC model proxy is still simulation evidence only. The robot was already powered; no power command was sent. The 17:55:37 fresh read-only preflight found Safety NORMAL, TP STOPPED, zero TCP speed, approved joint Home within 3.3e-5 rad, and no writer/bridge. Next: offline-compare an in-QP slew bound with the current post-solve rescale, then continue the R31 SFC+TASE composition replay; do not repeat QP unchanged.
 
 **Evidence boundary:** KWR75 feedback is the controller/metric signal, not an independent task-force truth. RPSFC/SFC/DSFC drift results below remain a separate experiment.
+
+The newest same-sequence QP telemetry breakdown and A3 reproduction are in the [R31 Cartesian-velocity diagnostic](tase_r31_cartesian_velocity_diagnostic_20260925.md); the [decision tree](tase_5n_precision_decision_tree_20260925.md) records the active branch and next offline step.
 
 ## Earlier continuation update — 07:18 HKT (historical)
 

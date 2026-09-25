@@ -6,8 +6,8 @@ This is the active decision record for recovering and improving TASE-RNN 5 N nor
 flowchart TD
     A{"Fresh controller, short-EOAT installation/TCP/payload, approved joint Home, Safety, observer, one writer, fetched-back package, and verified return route?"}
     A -- No --> A0["No motion. Record the exact missing predicate; continue independent offline work."]
-    A -- Yes --> A1{"Does the fresh TP enter PLAYING and echo runtime identity 27/618001 before timeout?"}
-    A1 -- No --> A10["No ARM/contact/PATH. Fix the confirmed URScript compile defect, validate a new package in isolated URSim, then recheck the physical TP start before motion."]
+    A -- Yes --> A1{"Does the fresh TP enter PLAYING and echo current runtime identity 606006/31/618001 before timeout?"}
+    A1 -- No --> A10["No ARM/contact/PATH. Preserve the first Load/Play failure, fresh read-back and Installation evidence; diagnose that exact package/runtime before another start attempt."]
     A1 -- Yes --> B{"State 20 contact search with current 8 mm early-brake package passes without force/travel/timing guard?"}
     B -- No --> B0["Recover to the same joint Home. Identify the first force/travel/speed condition; do not repeat the same failed branch unchanged."]
     B -- Yes --> C{"After the 8 s ramp, does the actual 0.5 s PATH-entry conjunction open?"}
@@ -26,10 +26,18 @@ flowchart TD
     I -- No --> J{"Does a measured local second-order model fit the 5 N normal axis?"}
     J -- Yes --> J0["Estimate effective M, then compare zeta 0.5, 0.707 and 1.0 using either B=2*zeta*sqrt(M*K) or K=B^2/(4*zeta^2*M)."]
     J -- No --> J1["Report where the model fails and use a bounded independent normal K/B grid; do not reuse tangential Bd or stiffness."]
-    J0 --> K["Next: TASE-QP, first offline and with the frozen A operating point."]
+    J0 --> K{"Does TASE-QP pass the full-path, >=460 Hz, and frozen actual_qd >=0.900 gates?"}
     J1 --> K
-    K --> L["Then: SFC+TASE with tangential projection and one final joint-velocity realization."]
-    L --> M{"Does a candidate pass 5 matched complete A/candidate pairs at >=460 Hz?"}
+    K -- No --> K0["Keep each QP attempt failed. Use exact consumed-sequence telemetry to localize command-to-target and target-to-actual mismatch; do not repeat unchanged."]
+    K -- Yes --> K1{"Does eligible paired evidence support >=0.10 N improvement with 95% CI lower bound >0?"}
+    K1 -- No --> K2["Keep A as incumbent; preserve the QP result and failure denominator."]
+    K1 -- Yes --> K3["Record QP as a supported candidate; retain its exact numerical profile."]
+    K0 --> L{"Is the R31 TASE+SFC live identity, tangent law, and final single qdot realization closed offline?"}
+    K2 --> L
+    K3 --> L
+    L -- No --> L0["Continue same-input offline replay; do not infer a live composed method from model scores."]
+    L -- Yes --> L1["Only then admit a bounded SFC+TASE live candidate through fresh gates."]
+    L1 --> M{"Does a candidate pass 5 matched complete A/candidate pairs at >=460 Hz?"}
     M -- No --> M0["Retain failures and diagnose; allow up to 10 pairs only when the first five are near the evidence threshold."]
     M -- Yes --> N{"Mean MAE improvement >=0.10 N and paired 95% CI lower bound >0?"}
     N -- Yes --> N0["Report an evidenced improvement, with KWR75 truth limitation and the full failure denominator."]
@@ -135,7 +143,7 @@ The latest TP read-back narrows A's failure: the 60 s formal PATH ended and emit
 
 A sealed v2 timeline may still support labeled diagnostics when a failed receipt omits its PATH start. The reducer now infers only the clock origin from `host_monotonic_s - reference_time_s`; it does not synthesize lifecycle completion, Home, eligibility, or an official score. Focused reducer tests pass 2/2.
 
-## Current branch — 16:54 HKT
+## Checkpoint — 16:54 HKT (superseded by the 17:35 update below)
 
 - **Power state:** fresh read-only preflight confirms the robot is already powered, Safety NORMAL, TP STOPPED, and within `2.9e-5 rad` of the approved joint Home. No Power On command or motion was sent.
 - **TASE-QP:** both 60 s attempts still fail the frozen `actual_qd` correlation threshold `0.900`; measured values are `0.840132` and `0.848607`. Keep them as failures and do not rerun unchanged.
@@ -168,3 +176,15 @@ A sealed v2 timeline may still support labeled diagnostics when a failed receipt
 - QP flagged J2/J4 rows have much larger same-sequence qdot tracking RMSE than RNN A under matching flags; one-sample delay only partly improves QP.
 - Error magnitude covaries with QP setpoint-change rate. Treat this as a narrowed diagnostic hypothesis, not a confirmed physical root cause.
 - Next offline task: inspect command transition / final Jqdot shortfall rows and distinguish solver mapping from host-output bounds and robot servo behavior. No live retry until that evidence changes the hypothesis.
+
+## Current branch — 2026-09-25T17:55+08:00 HKT
+
+- The user asked to power on and continue. Fresh read-only status already showed the robot powered; no Power On command was sent. Safety was NORMAL, controller remote, TP STOPPED, short EOAT binding unchanged, Kunwei reachable, and no writer process present.
+- A 10 s resident no-motion start-check passed with 1,000 RTDE frames and no ARM/PATH or motion. `required` video preparation then stalled before dispatch and produced a terminal no-dispatch receipt. The previously approved `evidence-only` route passed with usable video, and the subsequent A run also sealed available video.
+- R31 A3 completed an eligible 60.0 s PATH and 550 formal bins: MAE **1.017505 N**, effective rate **480.567 Hz**, official `qd` correlation **0.967947**, and verified joint Home. The three eligible R31 A MAEs are **1.282720, 1.006797, and 1.017505 N** (mean **1.102341 N**, sample SD **0.156304 N**). Descriptive only; no treatment conclusion.
+- The sealed matched-QP exact-sequence diagnostic now separates two telemetry stages. Relative to RNN A, QP correlation is already lower from host command to RTDE target qd (J2/J4/J5: `0.971/0.973/0.661`) and falls further from target to actual qd (`0.710/0.890/0.052`). The clearest QP-specific amplitude/error contrast is J2/J4: actual qd standard deviations are `0.00794/0.00851 rad/s` versus RNN A3 `0.00228/0.00305`, and target-to-actual RMSE relative to command standard deviation is `1.44/1.01` versus `0.56/0.36`. J5 correlation is weak in A as well because its command variation is small. QP's `J·command` versus RTDE linear speed correlation is `0.783` with `0.001643 m/s` RMSE; RNN A repeats are `0.958–0.969` with `0.000475–0.000560 m/s` RMSE. The QP attempt remains failed at the frozen **0.900** gate despite its complete PATH, passing timing and `0.950139 N` diagnostic MAE. No root cause is confirmed and no QP profile or threshold was changed.
+- Source inspection shows the deployed native QP minimizes `0.5||qdot||^2` under `Jqdot=twist` and box limits, with no previous-command term; a shared same-direction slew rescale runs after the solve. QP slew flags occur on 513/29,956 rows versus 7/29,778 for A1 and 3/29,991 for A2. This is a concrete mechanism candidate consistent with the QP-specific J2/J4 variation, not a confirmed root. Next offline step is an exact frozen-profile replay that records both pre-slew QP output and final published qdot. Do not add a continuity term or change its numerical value for live use without a separate discussion.
+- `J·actual_qd` matches recorded RTDE `actual_TCP_speed` to numerical precision in these streams. This is a telemetry/kinematic consistency check, not an independent measurement or physical-force truth.
+- The exact 29,956-row frozen-input replay now reproduces the matched QP command plus post-solve host slew: all rows solved, all 513 slew-limited rows reproduced, and final qdot differs from the sealed publish by at most `1.224e-5 rad/s`. Slew can introduce up to `0.001640 m/s` Cartesian task residual after the QP equality solve. This confirms command reconstruction, not the physical cause of the actual-qd gate miss.
+- Next offline branch: compare the same slew envelope represented inside QP bounds against current post-solve rescaling, including infeasible rows and residuals; then complete R31-identity SFC+TASE composition replay. Do not change the frozen live profile without discussing its numerical values. Any live composition requires its own registry identity and fresh admission.
+- At 17:55:37 HKT, a fresh read-only preflight verified program STOPPED, Safety NORMAL, zero TCP speed, approved joint Home within 3.3e-5 rad, unchanged short-EOAT Installation, Kunwei reachability, and no live writer/bridge. Evidence and reducer are in `reports/tase_r31_cartesian_velocity_diagnostic_20260925.md` and the matching JSON.

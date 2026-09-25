@@ -1,7 +1,7 @@
 {
   "schema": "tase-5n-precision-evidence-index-v1",
-  "checkpoint_at": "2026-09-25T17:15:54+08:00",
-  "primary_experiment": "R31 rate460 TASE_RNN_MATURE A: two eligible complete 60 s units (MAE 1.282720 and 1.006797 N); two complete TASE_QP units fail frozen actual_qd correlation gate (0.840132, 0.848607 versus 0.900); the new R31-parameter-aligned SFC/DSFC 30-attempt model proxy is complete with zero simulation failures but is not physical evidence. Robot already powered, Safety NORMAL, TP STOPPED at joint Home; no extra power command or motion sent. Extended QP offset scan did not find a causal sequence delay that restores qd correlation; higher J2/J4 setpoint changes and more output-limit feedback are candidate contributors, not confirmed cause. Event-conditioned comparison further narrows the qd diagnostic: RNN A flagged rows remain at 0.978/0.981 correlation, while matched QP flagged rows are 0.801 and QP unflagged rows 0.907; this is not causal proof. Output-event conditioning shows low qd correlation concentrated in QP flagged rows (0.801 vs 0.907 unflagged), while RNN flagged rows remain 0.978/0.981. QP J2/J4 setpoint-change rates are much larger in those rows; this is a candidate method/output interaction, not confirmed cause. QP task-only flagged rows retain near-zero provider task-normal to final Jqdot normal residual but only 0.795 actual_qd correlation; corresponding RNN flagged rows remain 0.978/0.981. This is further diagnostic localization only. Row-level diagnostics show QP task-space-flagged J2/J4 qdot tracking RMSE is 0.01460/0.01119 rad/s; one-packet lag improves but does not close it. Setpoint-change/error correlation is observational, not causal.",
+  "checkpoint_at": "2026-09-25T17:55:00+08:00",
+  "primary_experiment": "Three eligible R31 rate460 TASE_RNN_MATURE A units completed full 60 s Figure-eight PATHs; formal MAEs 1.282720, 1.006797 and 1.017505 N (mean 1.102341 N, sample SD 0.156304 N). Both complete TASE_QP attempts still fail the frozen actual_qd correlation gate (0.840132, 0.848607 versus 0.900). Exact frozen-input replay reconstructed all 29,956 matched-QP commands and all 513 post-solve slew rows, but does not establish physical root cause. QP MAE remains diagnostic only. Robot was already powered; the 17:55 read-only preflight confirms stopped approved joint Home and no writer after A3.",
   "claim_boundary": "Kunwei is controller feedback, not independent task-force truth. RPSFC/SFC/DSFC drift evidence is a different experiment.",
   "report": "reports/tase_5n_precision_recovery_20260925.md",
   "decision_tree": "reports/tase_5n_precision_decision_tree_20260925.md",
@@ -951,6 +951,130 @@
         "qp_task_only_j4_change_error_r": 0.3610578282604746
       },
       "limitations": "one-sequence pairing and Pearson associations are diagnostics; they do not identify root cause or justify a controller change"
+    },
+    {
+      "id": "tase-r31-a-baseline-repeat-03-20260925T1730HKT",
+      "path": "runs/tase-r31-a-baseline-repeat-03-20260925T1730HKT/attempts/0001/attempt-result.json",
+      "kind": "third eligible R31 rate460 TASE_RNN_MATURE A baseline live attempt",
+      "status": "complete 60.0 s PATH and 550 formal bins; MAE 1.017505 N; effective TP-consumed rate 480.567 Hz; official qd correlation 0.967947; joint Home verified; video available; attempt sealed",
+      "key_values": {
+        "Md_scalar": 9.565272137974492,
+        "Bd_scalar": 693.6559295653944,
+        "force_integral_limit_n_s": 1.0,
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "path_duration_s": 60.0,
+        "formal_window_s": [
+          5.0,
+          60.0
+        ],
+        "complete_bins": 550,
+        "mae_n": 1.017505248230811,
+        "effective_rate_hz": 480.56666666666666,
+        "qd_correlation": 0.9679473564587027,
+        "home_q_error_rad": 6.29425048828125e-05,
+        "through_seal_s": 85.29328190299566
+      }
+    },
+    {
+      "id": "tase-r31-cartesian-velocity-diagnostic-20260925",
+      "path": "reports/tase_r31_cartesian_velocity_diagnostic_20260925.json",
+      "kind": "sealed exact consumed-sequence command/target/actual/TCP velocity diagnostic",
+      "status": "all four source attempts passed seal hash verification; QP mismatch appears at command-to-target and target-to-actual telemetry stages; no packet offsets applied; diagnostic only, causal root unconfirmed",
+      "key_values": {
+        "matched_qp_command_to_target_correlation_j2_j4_j5": [
+          0.9714,
+          0.9728,
+          0.6607
+        ],
+        "matched_qp_target_to_actual_correlation_j2_j4_j5": [
+          0.7104,
+          0.8896,
+          0.0522
+        ],
+        "matched_qp_linear_tcp_r": 0.7829,
+        "matched_qp_linear_tcp_rmse_m_s": 0.001643,
+        "frozen_qd_gate": 0.9,
+        "matched_qp_official_qd_correlation": 0.8486068681812743,
+        "claim_class": "sealed-live-telemetry-diagnostic-not-acceptance"
+      }
+    },
+    {
+      "id": "tase-r31-resident-startcheck-evidenceonly-20260925T1728HKT",
+      "path": "runs/tase-r31-resident-startcheck-evidenceonly-20260925T1728HKT/supervisor-result.json",
+      "kind": "10 s resident no-motion start-check after fresh preflight",
+      "status": "passed; 1000 RTDE frames; no ARM/PATH or motion command; TP stopped afterward at verified joint Home; video file available under evidence-only policy"
+    },
+    {
+      "id": "tase-r31-resident-startcheck-required-video-no-dispatch-20260925T1725HKT",
+      "path": "runs/tase-r31-resident-startcheck-poweron-20260925T1725HKT/terminal-no-dispatch-receipt.json",
+      "kind": "required-video preparation failure before live writer dispatch",
+      "status": "video recording stopped advancing during preparation; no dispatch or motion; writer artifacts absent; kept as a capture failure, followed by the approved evidence-only check"
+    },
+    {
+      "id": "tase-r31-a-repeat-03-post-run-readonly-preflight",
+      "path": "runs/post-a-repeat03-preflight-20260925T1740HKT/preflight_readonly.json",
+      "kind": "fresh post-run controller, RTDE, network, and Kunwei-connectivity check",
+      "status": "passed; Robotmode RUNNING, Safety NORMAL, TP STOPPED, stationary at approved joint Home, payload/CoG/TCP unchanged, no live writer; receipt completed_at is 17:31 HKT; directory label T1740HKT was a caller-generated name, not the observation time"
+    },
+    {
+      "id": "tase-r31-cartesian-velocity-analyzer-focused-tests-20260925",
+      "path": "tests/test_analyze_tase_r31_cartesian_tracking.py",
+      "kind": "focused source-hash, sequence-join, and metric regression tests",
+      "status": "3 passed"
+    },
+    {
+      "id": "tase-r31-qp-minnorm-postslew-source-review-20260925",
+      "path": "tools/build_contact_qp.py",
+      "kind": "source and binary identity review for the matched live TASE_QP solver path",
+      "status": "The matched attempt dispatch receipt records the same OSQP codegen-C library SHA as the current local binary. The builder uses P=I,q=0 for min 0.5||qdot||^2 with Jqdot=twist and box bounds; previous x/y are numerical warm-start state, not a previous-command objective. The shared TASE provider applies a same-direction qdot slew rescale after the solve. This is a concrete candidate mechanism, not causal proof; no profile or solver source was changed.",
+      "key_values": {
+        "live_library_sha256": "a38ba13dee8efc52dd3eed623c3d2d5cf8020c03dfeb2b4c068d9d3366480878",
+        "current_local_library_sha256": "a38ba13dee8efc52dd3eed623c3d2d5cf8020c03dfeb2b4c068d9d3366480878",
+        "recorded_qdot_limit_rad_s": 0.05,
+        "recorded_deadline_s": 0.001,
+        "matched_qp_host_slew_rows": 513,
+        "matched_qp_path_rows": 29956,
+        "a1_host_slew_rows": 7,
+        "a1_path_rows": 29778,
+        "a2_host_slew_rows": 3,
+        "a2_path_rows": 29991,
+        "claim_class": "offline source interpretation plus sealed-live telemetry association; not causal proof"
+      }
+    },
+    {
+      "id": "tase-r31-qp-fixed-input-replay-20260925T1748HKT",
+      "path": "runs/tase-r31-qp-matched-a-fixed-input-replay-20260925T1748HKT/summary.json",
+      "kind": "sealed-input sequential native QP plus captured post-solve host-slew reconstruction",
+      "status": "all 29,956 rows replayed without solver rejection; all 513 slew rows reproduced; command reconstruction only, not closed-loop or causal evidence",
+      "key_values": {
+        "input_rows": 29956,
+        "replayed_rows": 29956,
+        "slew_rows": 513,
+        "max_slew_scale_error": 4.041157934953077e-07,
+        "qdot_error_inf_max_rad_s": 1.2242142058518576e-05,
+        "solver_equality_residual_inf_max_m_s": 1.0114737369231516e-08,
+        "post_slew_task_residual_inf_max_m_s": 0.0016398468369915593,
+        "frozen_actual_qd_correlation": 0.8486068681812743,
+        "solver_library_sha256": "a38ba13dee8efc52dd3eed623c3d2d5cf8020c03dfeb2b4c068d9d3366480878",
+        "claim_class": "offline_frozen_input_solver_and_post_slew_replay_not_closed_loop"
+      }
+    },
+    {
+      "id": "post-qp-replay-readonly-preflight-20260925T1755HKT",
+      "path": "runs/post-qp-replay-preflight-20260925T1753HKT/preflight_readonly.json",
+      "kind": "fresh read-only post-analysis controller, RTDE, tool, sensor reachability and writer-state check",
+      "status": "passed at 17:55:37 HKT; RUNNING robot mode, Safety NORMAL, TP Dashboard STOPPED, zero TCP speed, approved joint Home within 3.3e-5 rad, short EOAT configuration unchanged, Kunwei connect-only reachable, no active writer; no commands issued",
+      "key_values": {
+        "robotmode": "RUNNING",
+        "safety": "NORMAL",
+        "program_state": "STOPPED step5d_contact_six_qp_v1.urp",
+        "actual_tcp_speed_linear_norm_m_s": 0.0,
+        "actual_q_max_error_rad": 3.29e-05,
+        "payload_kg": 0.413,
+        "tcp_offset_z_mm": 87.4,
+        "kunwei_connect_only": true,
+        "active_writers": []
+      }
     }
   ],
   "not_yet_observed": [
@@ -962,5 +1086,5 @@
     "SFC+TASE same-condition live result; the R31-aligned 30-attempt model proxy is simulated only, the live registry has no composed method, and the inherited 120 N/m path stiffness is not live-approved",
     "Root cause and eligible repair for the TASE-QP actual_qd correlation miss"
   ],
-  "latest_report": "reports/tase_r31_qp_motion_gate_comparison_20260925.md"
+  "latest_report": "reports/tase_r31_cartesian_velocity_diagnostic_20260925.md"
 }
