@@ -1,6 +1,6 @@
 {
   "schema": "tase-5n-precision-evidence-index-v1",
-  "checkpoint_at": "2026-09-25T22:52:00+08:00",
+  "checkpoint_at": "2026-09-25T23:11:00+08:00",
   "primary_experiment": "The R31 rate460 independent A-versus-E confirmation is complete: 5/5 valid pairs, 22 physical attempts, 7 failed attempts retained, all sessions closed. A averaged 0.987131 N and E 1.748434 N; paired A-minus-E was -0.761304 N (95% CI [-0.893456, -0.629151] N), so no E improvement is supported and A remains incumbent. Two complete TASE-QP paths still fail the frozen actual_qd correlation gate (0.840132 and 0.848607 versus 0.900); their MAEs are diagnostics only. The R31 SFC/DSFC model proxy is simulation only, with 120 N/m path stiffness not approved for live use. KWR75 remains controller feedback, not independent task-force truth. Fresh read-only preflight at 22:30 HKT again found the controller already powered, Remote Control, Safety NORMAL, TP STOPPED, zero TCP speed, and joint Home max error 2.69e-5 rad; no power or motion command was sent. The SFC+TASE live method remains unavailable pending a reviewed K_path binding; 120 N/m is still offline-only. A fresh 22:50 HKT RTDE sample added active payload inertia; a reproducible URDF/Pinocchio operational-mass calculation gives 3.529 kg with tangent/orientation axes free and 23.982 kg with those axes constrained. This is model-derived robot inertia only; the local 5 N environment/contact K/B/M model remains empirically unidentified and no zeta sweep is authorized.",
   "claim_boundary": "Kunwei is controller feedback, not independent task-force truth. RPSFC/SFC/DSFC drift evidence is a different experiment.",
   "report": "reports/tase_5n_precision_recovery_20260925.md",
@@ -1296,6 +1296,39 @@
         "focused_formula_tests_passed": 3
       },
       "limitations": "Free and constrained task assumptions are different models, not a confidence interval. Model includes manufacturer URDF inertias and current payload read-back only; contact stiffness/damping, servo compliance, friction and empirical dynamic inertia remain unmeasured."
+    },
+    {
+      "id": "tase-poweron-resume-r31-qp-resident-startcheck-20260925T2308HKT",
+      "path": "runs/tase-live-resume-20260925T2308HKT/supervisor-result.json",
+      "kind": "fresh controller/package/sensor preparation plus TASE_QP resident no-motion start-check after the Power On request",
+      "status": "passed; controller was already RUNNING before any command; TP was loaded/played for a 10 s idle window without ARM/PATH, then stopped at verified joint Home",
+      "key_values": {
+        "method": "TASE_QP",
+        "parameter_profile": "bo-10",
+        "Md_scalar": 8.592659656558919,
+        "Bd_scalar": 772.1473715259434,
+        "integral_limit_n_s": 0.5,
+        "target_force_n": 5.0,
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "dashboard_robotmode": "RUNNING",
+        "remote_control": true,
+        "safety_mode": "NORMAL",
+        "final_program_state": "STOPPED step5d_contact_six_qp_v1.urp",
+        "resident_idle_seconds": 10.0,
+        "native_rtde_frames": 1000,
+        "motion_dispatched": false,
+        "arm_dispatched": false,
+        "path_dispatched": false,
+        "joint_home_max_error_rad": 3.635883331298828e-05,
+        "tcp_home_position_error_m": 1.8955761863348454e-05,
+        "software_baseline_samples": 3669,
+        "software_baseline_is_hardware_tare": false,
+        "fresh_package_readback_pass": true,
+        "octostream_video_available": true,
+        "post_check_active_writer_or_bridge": false,
+        "redundant_power_on_command_sent": false
+      },
+      "limitations": "No contact was attempted; this start-check establishes only fresh resident idle/stop/Home behavior, not formal TASE-QP qualification or force performance. The two prior full QP attempts remain failed at the 0.900 actual_qd correlation gate."
     }
   ],
   "not_yet_observed": [
