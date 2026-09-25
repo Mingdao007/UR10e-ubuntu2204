@@ -1218,6 +1218,24 @@
         "active_writer_processes": 0
       },
       "limitations": "Single RTDE snapshot; force norm is diagnostic and does not establish no-contact or independent task-force truth. Stale shared lock text was preserved; recorded PID 856431 had no process and held no file descriptor."
+    },
+    {
+      "id": "tase-sfc-kpath-120-scale-crosscheck-20260925",
+      "path": "reports/tase_5n_precision_recovery_20260925.md",
+      "kind": "offline scaling cross-check for the unapproved SFC+TASE tangent path restoring gain",
+      "status": "derived from one eligible R31-A physical trajectory plus an existing synthetic tangent-pulse model proxy; no composed physical experiment",
+      "key_values": {
+        "offline_default_k_path_n_per_m": 120.0,
+        "valid_r31_a_attempt_result": "runs/tase-r31-e-md-bd-autotune-20260925T1935HKT/confirmation-rate460-e-v1/session-05/attempts/0002/attempt-result.json",
+        "valid_r31_a_xy_error_p95_m": 0.00011144337042826065,
+        "valid_r31_a_xy_error_max_m": 0.0004405105290824455,
+        "derived_restoring_input_p95_n": 0.013373204451391278,
+        "derived_restoring_input_max_n": 0.05286126353189346,
+        "model_proxy_summary": "runs/tase-sfc-dsfc-r31-aligned-model-20260925T1631HKT/comparison/summary.json",
+        "sfc_tangent_pulse_path_error_rms_m": 0.0024889254143180837,
+        "derived_model_restoring_input_rms_n": 0.29867104971817
+      },
+      "limitations": "The physical run used RNN A, not SFC+TASE; multiplying its path error by K is a post-hoc scale calculation. The pulse result is synthetic model output. Neither establishes composed closed-loop response, safe bounds, or an optimal K_path."
     }
   ],
   "not_yet_observed": [
