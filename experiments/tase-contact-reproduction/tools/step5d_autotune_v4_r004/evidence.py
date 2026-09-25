@@ -760,8 +760,24 @@ class PathEvidenceCollector:
                 self._max_duration_source_ulp_s,
                 math.ulp(abs(sample.path_time_s)),
             )
+            if sample.path_time_s >= self.REQUIRED_DURATION_S:
+                raise EvidenceError(
+                    f"r004 PATH sample must remain strictly before {self.REQUIRED_DURATION_S:g} s"
+                )
         if self._path_samples and sample.observed_at_s < self._path_samples[-1].observed_at_s:
             raise EvidenceError("path timestamp regressed")
+        # Timing layers describe their own fresh source delivery, not only the
+        # subset of joined samples accepted for path metrics. Record them
+        # before TP/RTDE join deduplication so a repeated TP echo lowers only
+        # the TP layer instead of falsely lowering writer, RTDE, and Kunwei.
+        try:
+            self._timing.observe_layered_sample(
+                sample.observed_at_s,
+                source_sequences=sample.source_sequences,
+                source_ages_s=sample.source_ages_s,
+            )
+        except TimingError as exc:
+            self._timing_observation_error = str(exc)
         identity = self._path_identity(sample)
         if identity is not None and identity in self._seen_path_identities:
             return False
@@ -807,8 +823,6 @@ class PathEvidenceCollector:
             self._last_common_clock = common_clock
         if identity is not None:
             self._seen_path_identities.add(identity)
-        if sample.path_time_s is not None and sample.path_time_s >= self.REQUIRED_DURATION_S:
-            raise EvidenceError(f"r004 PATH sample must remain strictly before {self.REQUIRED_DURATION_S:g} s")
         if self._path_samples and sample.path_time_s is not None:
             previous_path_time = self._path_samples[-1].path_time_s
             if previous_path_time is not None:
@@ -829,14 +843,6 @@ class PathEvidenceCollector:
         if 0 <= index < self.REQUIRED_BINS:
             self._bins.setdefault(index, []).append(sample.filtered_normal_n)
         self._path_samples.append(sample)
-        try:
-            self._timing.observe_layered_sample(
-                sample.observed_at_s,
-                source_sequences=sample.source_sequences,
-                source_ages_s=sample.source_ages_s,
-            )
-        except TimingError as exc:
-            self._timing_observation_error = str(exc)
         return True
 
     def _validated_path_coverage_interval_s(self) -> float:

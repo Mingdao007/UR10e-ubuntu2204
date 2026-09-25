@@ -397,6 +397,46 @@ def test_common_tp_rtde_boundary_rejects_cached_join_without_counting_it() -> No
     assert len(collector.path_samples) == 1
 
 
+def test_path_timing_layers_count_independently_of_rejected_tp_join() -> None:
+    collector = PathEvidenceCollector(require_path_boundary=True)
+    collector.mark_path_start(observed_at_s=0.0, rtde_timestamp_s=0.0, tp_sequence=0)
+    source_sequences = {"writer": 0, "rtde": 0.002, "kunwei": 0, "tp": 1}
+    first = replace(
+        _motion_sample(0, 0.002),
+        source_sequences=source_sequences,
+        source_sequence=source_sequences,
+    )
+    assert collector.observe(first)
+
+    # This fresh host/RTDE/Kunwei sample carries the previous TP echo. It
+    # cannot contribute a second path metric sample, but must still prove the
+    # three independent source rates.
+    source_sequences = {"writer": 1, "rtde": 0.004, "kunwei": 1, "tp": 1}
+    cached_tp = replace(
+        _motion_sample(1, 0.004),
+        observed_at_s=0.004,
+        source_sequences=source_sequences,
+        source_sequence=source_sequences,
+    )
+    assert not collector.observe(cached_tp)
+
+    source_sequences = {"writer": 2, "rtde": 0.006, "kunwei": 2, "tp": 2}
+    second = replace(
+        _motion_sample(2, 0.006),
+        observed_at_s=0.006,
+        source_sequences=source_sequences,
+        source_sequence=source_sequences,
+    )
+    assert collector.observe(second)
+    assert len(collector.path_samples) == 2
+
+    timing = collector._timing.finalize(duration_s=0.008)
+    assert timing.successful_writer_publishes == 3
+    assert timing.distinct_rtde_frames == 3
+    assert timing.distinct_kunwei_frames == 3
+    assert timing.distinct_tp_consumed_packet_echoes == 2
+
+
 def _row(ordinal: int = 1, *, status: str = "completed") -> dict[str, object]:
     return {
         "logical_attempt_ordinal": ordinal,
