@@ -4,6 +4,7 @@ from pathlib import Path
 from build_contact_home import build,HOME_SOURCE
 from build_contact_benchmark_triplet import CONTROLLER_DIR
 from build_step4e_p0p1_programs import build_urp
+from contact_eoat_installation_binding import bind_urp,load_binding
 from step5d_autotune_v4_r012.controller_triplet import validate_urscript_block_balance
 from contact_home_motion_profile import (
     HISTORICAL_PROFILE_ID,
@@ -23,6 +24,11 @@ def build_recovery(receipt,output):
     staged_recovery = home.get('bounded_recovery') is True
     home.pop('bounded_recovery',None);home.pop('bounded_withdrawal',None)
     home['clearance_entry']=True
+    # This package is prepared before vertical relief, then its TP clearance
+    # gate admits the later lateral Home phase only after fresh RTDE reaches
+    # the clearance floor. Keep that distinction explicit for the source
+    # validator; the current start pose is intentionally not Home yet.
+    home['clearance_home_source']=True
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     bound=output/'recovery-home-source.json';bound.write_text(json.dumps(home,indent=2)+'\n')
     result=build(bound,output)
@@ -64,9 +70,11 @@ end
 '''
     validate_urscript_block_balance(text)
     for ext,data in [('script',text.encode()),('txt',f'{RELIEF_PROGRAM}\n{stamp}\n'.encode()),('urp',build_urp(text,RELIEF_PROGRAM,CONTROLLER_DIR))]:
+        if ext=='urp':data=bind_urp(data,basename=RELIEF_PROGRAM,controller_directory=CONTROLLER_DIR)
         (output/f'{RELIEF_PROGRAM}.{ext}').write_bytes(data)
     relief={
         'basename':RELIEF_PROGRAM,'stamp':stamp,'controller_directory':CONTROLLER_DIR,
+        'installation_binding':load_binding(),
         'vertical_speed_m_s':RELIEF_SPEED_M_S,
         'vertical_acceleration_m_s2':RELIEF_ACCEL_M_S2,
         'speed_basis':HISTORICAL_PROFILE_ID,

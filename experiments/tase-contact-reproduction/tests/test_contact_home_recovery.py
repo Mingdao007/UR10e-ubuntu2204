@@ -87,6 +87,16 @@ def test_segmented_clearance_home_binds_intermediate_target_to_final_home(tmp_pa
     h['home_pose'] = intermediate.tolist()
     h['final_home_pose'] = final_home
     h['segmented_recovery'] = True
+    h['recovery_route'] = 'segmented_bounded_home_v2'
+    h['segment_index'] = 1
+    h['geometry_proof'] = {
+        'pass': True,
+        'max_residual': 1e-9,
+        'max_joint_speed_rad_s': .10,
+        'home_q': h['home_q'],
+        'start_pose_m_rad': start_pose.tolist(),
+        'target_pose_m_rad': intermediate.tolist(),
+    }
     p = tmp_path / 'segmented-home.json'
     p.write_text(json.dumps(h))
     result = build(p, tmp_path / 'package')
@@ -94,6 +104,11 @@ def test_segmented_clearance_home_binds_intermediate_target_to_final_home(tmp_pa
     assert binding['segmented_recovery'] is True
     assert binding['final_home_pose'] == pytest.approx(final_home)
     assert result['home_pose'] == pytest.approx(intermediate.tolist())
+
+    h['geometry_proof']['max_joint_speed_rad_s'] = .151
+    p.write_text(json.dumps(h))
+    with pytest.raises(ValueError, match='geometry residual or joint speed'):
+        build(p, tmp_path / 'bad-speed-package')
 
 
 def test_low_clearance_recovery_replans_vertical_steps_within_existing_15mm_bound():
@@ -106,6 +121,54 @@ def test_low_clearance_recovery_replans_vertical_steps_within_existing_15mm_boun
     assert first - 0.017412645 <= 0.015
     assert second - first <= 0.015
     assert _next_clearance_target_z(second) is None
+
+
+def test_vertical_clearance_plan_only_never_deploys_or_moves(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    import build_contact_home
+    import run_contact_recovery
+    import run_segmented_home_recovery as owner
+
+    h = receipt()
+    start = list(h['rtde']['actual_TCP_pose'])
+    start[2] = 0.017
+    h['rtde']['actual_TCP_pose'] = start
+    owner.PRESERVED_HOME = tmp_path / 'preserved-home.json'
+    owner.PRESERVED_HOME.write_text(json.dumps(h))
+    final_target = np.asarray(h['home_pose'], dtype=float)
+    proof = {
+        'pass': True,
+        'max_residual': 1e-9,
+        'max_joint_speed_rad_s': 0.1,
+        'home_q': list(h['home_q']),
+    }
+    monkeypatch.setattr(run_contact_recovery, 'check_geometry', lambda fresh, plan: dict(proof))
+    monkeypatch.setattr(
+        build_contact_home,
+        'build',
+        lambda receipt_path, package: {
+            'stamp': 'test-stamp',
+            'installation_binding': {'controller_path': '/programs/current.installation'},
+        },
+    )
+    monkeypatch.setattr(
+        owner.subprocess,
+        'run',
+        lambda *args, **kwargs: SimpleNamespace(stdout='{"pass": true}', stderr=''),
+    )
+    monkeypatch.setattr(owner, '_deploy_and_readback', lambda *args, **kwargs: pytest.fail('plan-only deployed'))
+    monkeypatch.setattr(owner, 'run_home', lambda *args, **kwargs: pytest.fail('plan-only played a program'))
+    output = tmp_path / 'run'
+    output.mkdir()
+
+    plan = owner._run_vertical_clearance_withdrawal(
+        host='192.0.2.1', output=output, fresh=h['rtde'], final_target=final_target,
+        index=1, video_policy='evidence-only', execute=False,
+    )
+
+    assert plan['plan_only'] is True
+    assert plan['readback'] is None
+    assert plan['rise_m'] <= owner.MAX_RISE_M
 
 
 def test_bounded_withdrawal_package_stays_on_its_monitored_step_target(tmp_path):
@@ -125,6 +188,16 @@ def test_bounded_withdrawal_package_stays_on_its_monitored_step_target(tmp_path)
     h['bounded_recovery'] = False
     h['bounded_withdrawal'] = True
     h['segmented_recovery'] = True
+    h['recovery_route'] = 'vertical_clearance_withdrawal_then_segmented_home'
+    h['segment_index'] = 1
+    h['geometry_proof'] = {
+        'pass': True,
+        'max_residual': 1e-9,
+        'max_joint_speed_rad_s': .10,
+        'home_q': h['home_q'],
+        'start_pose_m_rad': start,
+        'target_pose_m_rad': target,
+    }
     source = tmp_path / 'vertical-withdrawal.json'
     source.write_text(json.dumps(h))
 

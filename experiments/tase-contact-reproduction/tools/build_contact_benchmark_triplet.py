@@ -5,8 +5,14 @@ import argparse,datetime,hashlib,json,re
 import numpy as np
 from build_step4e_p0p1_programs import build_urp
 from step5d_autotune_v4_r012.controller_triplet import validate_urscript_block_balance
+from contact_eoat_installation_binding import bind_urp,load_binding
 from contact_benchmark_protocol import ENTRY_DURATION_S, Task
 from contact_yield_protocol import PATH_END_HANDSHAKE_MARGIN_S
+from figure8_home_config import (
+    CANONICAL_FIGURE8_HOME_POSE,
+    CANONICAL_FIGURE8_HOME_Q,
+    EXPECTED_PROFILE_ID as FIGURE8_HOME_PROFILE_ID,
+)
 
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/'programs/step5/step5d/step5d_strict_rnn_autotune_v4_r012.script'
@@ -16,25 +22,29 @@ PROTOCOL=618001
 # Single-admission contact package: one continuous ten-second qualification
 # feeds the following PATH attempt. This wire-semantic change gets a fresh
 # readable runtime revision and a fresh controller read-back.
-REVISION=25
+# The post-PATH handoff now permits only a bounded world-Z drift while the
+# existing monitored vertical clearance move starts. Keep strict stationarity
+# after clearance and bind this behavior to a fresh package revision.
+REVISION=31
 
-# Trace-driven adaptation of the Step5d/R008 Wave-4 schedule. It retains the
-# bounded open-loop FAR/NEAR speeds and accelerations, but moves the
-# distance-triggered FAR/NEAR transition to 8 mm after the 2026-09-24 trace
-# showed 4.91 mm/s at the old 11.03 mm transition. The independent force-based
-# early switch remains unchanged. This is an offline candidate until a matching
-# TP read-back and live contact acceptance are completed.
-CONTACT_SEARCH_STRATEGY_ID='STEP5D_R008_WAVE4_FAR_NEAR_EARLY_BRAKE_008MM_V1'
-CONTACT_SEARCH_SOURCE='config/step5d/autotune_v4_r008_contact_search_schedule.json'
-SEARCH_FAR_SPEED_M_S=0.005
-SEARCH_NEAR_SPEED_M_S=0.0005
-SEARCH_NEAR_START_TRAVEL_M=0.008
-SEARCH_FAR_FORCE_SWITCH_N=0.3
-SEARCH_FAR_ACCELERATION_M_S2=0.01
-SEARCH_NEAR_ACCELERATION_M_S2=0.005
-SEARCH_MAX_TRAVEL_M=0.015
-SEARCH_TIMEOUT_S=90.0
-SEARCH_FORCE_FUSE_N=20.0
+CONTACT_SEARCH_PROFILE_PATH=ROOT/'config/tase_figure8_contact_search_rate460_early_brake_008mm_v1.json'
+CONTACT_SEARCH_PROFILE=json.loads(CONTACT_SEARCH_PROFILE_PATH.read_text())
+if (CONTACT_SEARCH_PROFILE.get('schema')!='tase.contact-search-profile-v1'
+        or CONTACT_SEARCH_PROFILE.get('method')!='TASE_RNN_MATURE'
+        or CONTACT_SEARCH_PROFILE.get('figure8_protocol_id')!='figure8_window60_r013_rate460_v1'):
+    raise ValueError('TASE early-brake contact-search profile identity differs')
+_search=CONTACT_SEARCH_PROFILE['contact_search']
+CONTACT_SEARCH_STRATEGY_ID=CONTACT_SEARCH_PROFILE['profile_id']
+CONTACT_SEARCH_SOURCE=CONTACT_SEARCH_PROFILE_PATH.relative_to(ROOT).as_posix()
+SEARCH_FAR_SPEED_M_S=float(_search['far_speed_m_s'])
+SEARCH_NEAR_SPEED_M_S=float(_search['near_speed_m_s'])
+SEARCH_NEAR_START_TRAVEL_M=float(_search['near_start_travel_m'])
+SEARCH_FAR_FORCE_SWITCH_N=float(_search['force_based_early_switch_n'])
+SEARCH_FAR_ACCELERATION_M_S2=float(_search['far_acceleration_m_s2'])
+SEARCH_NEAR_ACCELERATION_M_S2=float(_search['near_acceleration_m_s2'])
+SEARCH_MAX_TRAVEL_M=float(_search['max_travel_m'])
+SEARCH_TIMEOUT_S=float(_search['timeout_s'])
+SEARCH_FORCE_FUSE_N=float(_search['force_fuse_n'])
 
 
 def _apply_packet_snapshot(body: str) -> str:
@@ -139,9 +149,90 @@ def _add_fault_stopj(body: str) -> str:
 
 def transform(source,home,stamp):
     if home.get('user_home_confirmed') is not True:raise ValueError('user-defined Home receipt required')
-    obs=home['rtde'];pose=np.asarray(home['home_pose']);q=np.asarray(home['home_q'])
-    if pose.shape!=(6,) or q.shape!=(6,) or not np.isfinite(pose).all() or not np.isfinite(q).all():raise ValueError('invalid Home')
-    if np.linalg.norm(obs['actual_TCP_speed'])>.00001:raise ValueError('Home not stationary')
+    obs=home['rtde']
+    receipt_pose=np.asarray(home['home_pose'],dtype=float)
+    receipt_q=np.asarray(home['home_q'],dtype=float)
+    pose=np.asarray(CANONICAL_FIGURE8_HOME_POSE,dtype=float)
+    q=np.asarray(CANONICAL_FIGURE8_HOME_Q,dtype=float)
+    if (receipt_pose.shape!=(6,) or receipt_q.shape!=(6,)
+            or not np.isfinite(receipt_pose).all() or not np.isfinite(receipt_q).all()):
+        raise ValueError('invalid Home')
+    actual_pose=np.asarray(obs.get('actual_TCP_pose'),dtype=float)
+    actual_q=np.asarray(obs.get('actual_q'),dtype=float)
+    if (actual_pose.shape!=(6,) or actual_q.shape!=(6,)
+            or not np.isfinite(actual_pose).all() or not np.isfinite(actual_q).all()):
+        raise ValueError('Home receipt lacks finite measured TCP pose and joint state')
+    segmented=home.get('segmented_recovery') is True
+    staged_recovery=(home.get('clearance_entry') is True
+                     and (home.get('bounded_recovery') is True
+                          or home.get('clearance_home_source') is True))
+    if segmented:
+        final_pose=np.asarray(home.get('final_home_pose',()),dtype=float)
+        original_pose=np.asarray(home.get('original_home_pose',final_pose),dtype=float)
+        proof=home.get('geometry_proof')
+        if (final_pose.shape!=(6,) or original_pose.shape!=(6,)
+                or not np.isfinite(final_pose).all() or not np.isfinite(original_pose).all()
+                or not np.allclose(final_pose,pose,rtol=0.0,atol=1e-9)
+                or not np.allclose(original_pose,pose,rtol=0.0,atol=1e-9)):
+            raise ValueError('segmented Home receipt does not bind to approved Figure-eight Home')
+        if home.get('recovery_route') not in {
+            'segmented_bounded_home_v2',
+            'vertical_clearance_withdrawal_then_segmented_home',
+        }:
+            raise ValueError('unknown segmented Home recovery route')
+        if type(home.get('segment_index')) is not int or home['segment_index'] < 1:
+            raise ValueError('segmented Home receipt lacks a positive segment index')
+        if not isinstance(proof,dict) or proof.get('pass') is not True:
+            raise ValueError('segmented Home receipt lacks a passing calibrated geometry proof')
+        proof_q=np.asarray(proof.get('home_q',()),dtype=float)
+        if (proof_q.shape!=(6,) or not np.isfinite(proof_q).all()
+                or not np.allclose(proof_q,receipt_q,rtol=0.0,atol=1e-9)):
+            raise ValueError('segmented Home joint target differs from its geometry proof')
+        proof_start=np.asarray(proof.get('start_pose_m_rad',()),dtype=float)
+        proof_target=np.asarray(proof.get('target_pose_m_rad',()),dtype=float)
+        if (proof_start.shape!=(6,) or proof_target.shape!=(6,)
+                or not np.isfinite(proof_start).all() or not np.isfinite(proof_target).all()
+                or not np.allclose(proof_start,actual_pose,rtol=0.0,atol=1e-9)
+                or not np.allclose(proof_target,receipt_pose,rtol=0.0,atol=1e-9)):
+            raise ValueError('segmented Home start/target differs from its geometry proof')
+        residual=float(proof.get('max_residual',float('nan')))
+        max_qd=float(proof.get('max_joint_speed_rad_s',float('nan')))
+        if not np.isfinite((residual,max_qd)).all() or residual>1e-7 or not 0.0<=max_qd<=0.150:
+            raise ValueError('segmented Home geometry residual or joint speed exceeds its existing bound')
+    elif staged_recovery:
+        final_pose=np.asarray(home.get('final_home_pose',pose),dtype=float)
+        original_pose=np.asarray(home.get('original_home_pose',final_pose),dtype=float)
+        if (not np.allclose(receipt_pose,pose,rtol=0.0,atol=1e-9)
+                or not np.allclose(receipt_q,q,rtol=0.0,atol=1e-9)
+                or final_pose.shape!=(6,) or original_pose.shape!=(6,)
+                or not np.allclose(final_pose,pose,rtol=0.0,atol=1e-9)
+                or not np.allclose(original_pose,pose,rtol=0.0,atol=1e-9)):
+            raise ValueError('clearance Home receipt does not bind to approved Figure-eight Home')
+    else:
+        if not np.allclose(receipt_pose,pose,rtol=0.0,atol=1e-9):
+            raise ValueError('Home receipt pose differs from approved Figure-eight Home')
+        if not np.allclose(receipt_q,q,rtol=0.0,atol=1e-9):
+            raise ValueError('Home receipt joint target differs from approved Figure-eight Home')
+    if segmented or staged_recovery:
+        if segmented and (home.get('clearance_entry') is not True
+                          and home.get('bounded_withdrawal') is not True):
+            raise ValueError('segmented Home receipt lacks clearance or vertical-withdrawal identity')
+    else:
+        if np.linalg.norm(actual_pose[:3]-pose[:3])>.0005:
+            raise ValueError('measured TCP position is not at approved Figure-eight Home')
+        if np.linalg.norm(actual_pose[3:]-pose[3:])>.01:
+            raise ValueError('measured TCP orientation is not at approved Figure-eight Home')
+        if np.max(np.abs(actual_q-q))>.02:
+            raise ValueError('measured joints are not at approved Figure-eight Home')
+    if obs.get('safety_mode')!=1 or obs.get('robot_mode')!=7 or obs.get('runtime_state')!=1:
+        raise ValueError('Home receipt does not show NORMAL, powered, stopped robot state')
+    if np.linalg.norm(obs['actual_TCP_speed'])>(.0005 if segmented else .00001):raise ValueError('Home not stationary')
+    if segmented or staged_recovery:
+        actual_qd=np.asarray(obs.get('actual_qd',()),dtype=float)
+        if actual_qd.shape!=(6,) or not np.isfinite(actual_qd).all():
+            raise ValueError('clearance Home receipt lacks finite measured joint speed')
+        if np.max(np.abs(actual_qd))>.001:
+            raise ValueError('clearance Home start joint speed exceeds the recovery stationary bound')
     if not np.allclose(obs['tcp_offset'],[0,0,.0874,0,0,0],atol=1e-9):raise ValueError('TCP differs')
     if not np.isclose(obs['payload'],.413,atol=1e-6) or not np.allclose(obs['payload_cog'],[.0011,.0031,.0163],atol=1e-6):raise ValueError('tool mass/CoG differs')
     if 'while path_elapsed_s < 60.000000000 and not r012_path_early_end:' not in source:raise ValueError('source resident differs')
@@ -155,6 +246,47 @@ def transform(source,home,stamp):
     home_text='p['+', '.join(f'{v:.12f}' for v in pose)+']'
     body=re.sub(r'local fixed_home_pose = p\[[^\]]+\]',f'local fixed_home_pose = {home_text}',body)
     body=re.sub(r'^# FIXED_HOME_POSE: .*$',f'# FIXED_HOME_POSE: {home_text}',body,flags=re.M)
+    home_q_text='['+', '.join(f'{v:.12f}' for v in q)+']'
+    q_initializer=(
+        '  local locked_home_q = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]\n'
+        '  local locked_home_q_valid = False'
+    )
+    q_static=(
+        f'  local locked_home_q = {home_q_text}\n'
+        '  local locked_home_q_valid = True'
+    )
+    if body.count(q_initializer)!=1:raise ValueError('resident joint Home initializer differs')
+    body=body.replace(q_initializer,q_static,1)
+    # All Home recovery routes use the approved joint vector.  No runtime
+    # actual-q sample may silently become the package's return target.
+    body=body.replace(
+        'locked_home_q = get_actual_joint_positions()',
+        f'locked_home_q = {home_q_text}',
+    )
+    captured_q=(
+        '          local arm_home_q = get_actual_joint_positions()\n'
+        '          locked_home_q = arm_home_q\n'
+        '          locked_home_q_valid = True'
+    )
+    if body.count(captured_q)!=1:raise ValueError('resident ARM-time joint Home capture differs')
+    body=body.replace(
+        captured_q,
+        '          # Canonical approved joint Home is immutable across ARM attempts.',
+        1,
+    )
+    # Publish the loaded program identity before the first packet-observer
+    # pass.  A stale register image from a previously stopped program must not
+    # be mistaken for the revision currently executing.
+    startup_marker='  local completed = False\n  while True:\n'
+    startup_identity=(
+        '  local completed = False\n'
+        '  write_output_integer_register(32, 606006)\n'
+        f'  write_output_integer_register(33, {REVISION})\n'
+        '  write_output_integer_register(34, 618001)\n'
+        '  while True:\n'
+    )
+    if body.count(startup_marker)!=1:raise ValueError('resident startup identity marker differs')
+    body=body.replace(startup_marker,startup_identity,1)
     # The resident clock starts before the one-second entry seam. Keep the
     # entry explicit, then provide one complete formal period after it.
     resident_duration_s = Task().duration_s + ENTRY_DURATION_S + PATH_END_HANDSHAKE_MARGIN_S
@@ -162,21 +294,65 @@ def transform(source,home,stamp):
         'while path_elapsed_s < 60.000000000 and',
         f'while path_elapsed_s < {resident_duration_s:.12f} and',
     )
+    # This is a directional motion-release gate, not a claim of stationarity:
+    # before an upward base-Z clearance move, retain the existing 0.5 mm/s
+    # transverse and 5 mrad/s angular limits while allowing at most 1.5 mm/s in
+    # base Z. The 1.5 mm/s bound is supported by the failed RETURNING trace; it
+    # is about 27x below the unchanged 40 mm/s lift command. Sensor, force, torque,
+    # joint-speed, packet-dt, and 1.25 s timeout guards remain active. Full
+    # 0.5 mm/s stationarity is still required after clearance, before joint Home.
+    vertical_release_helper = '''
+
+def codex_r006_vertical_release_ready(required_s):
+  local dwell_s = 0.0
+  local elapsed_s = 0.0
+  while dwell_s < required_s and elapsed_s < required_s * 5.0:
+    local actual_dt = get_steptime()
+    local packet_reason = codex_r006_packet_observe()
+    local guard = codex_r006_recovery_packet_guard(packet_reason, 20.0, 20.0, 2.0)
+    local speed = get_actual_tcp_speed()
+    local transverse = sqrt(speed[0] * speed[0] + speed[1] * speed[1])
+    local vertical = codex_r006_abs(speed[2])
+    local angular = sqrt(speed[3] * speed[3] + speed[4] * speed[4] + speed[5] * speed[5])
+    if guard != 0:
+      return False
+    elif actual_dt <= 0.0 or actual_dt >= 0.080000000:
+      return False
+    elif transverse > 0.000500000 or vertical > 0.001500000 or angular > 0.005000000:
+      dwell_s = 0.0
+    else:
+      dwell_s = dwell_s + actual_dt
+    end
+    elapsed_s = elapsed_s + actual_dt
+    sync()
+  end
+  return dwell_s >= required_s
+end
+'''
+    execute_marker = '\ndef codex_r006_return_home('
+    if body.count(execute_marker) != 1:
+        raise ValueError('resident return marker differs for directional release gate')
+    body = body.replace(execute_marker, vertical_release_helper + execute_marker, 1)
     # Publish RETURNING before braking or any Home motion so the host stops
     # applying PATH control and PATH speed checks at this state edge.
-    path_end = (
+    old_path_end = (
         '  stopj(20.000000000)\n'
         '  if not codex_r006_stationary(0.250000000):\n'
         '    return codex_r006_fault(epoch, ordinal, token, kind, consumed, 58, runtime_revision, runtime_extension)\n'
         '  end\n'
         '  return codex_r006_return_home('
     )
-    if body.count(path_end) != 1:
+    new_path_end = (
+        '  stopj(20.000000000)\n'
+        '  return codex_r006_return_home('
+    )
+    if body.count(old_path_end) != 1:
         raise ValueError('PATH return transition source differs')
+    body = body.replace(old_path_end, new_path_end, 1)
     body = body.replace(
-        path_end,
+        new_path_end,
         '  codex_r006_echo(epoch, ordinal, 40, token, 0, consumed, kind, 0, runtime_revision, runtime_extension)\n'
-        + path_end,
+        + new_path_end,
         1,
     )
     # The active installation owns integer input24 for OnRobot's RTDE watchdog.
@@ -281,6 +457,54 @@ end
         raise ValueError('return-home guard call sites differ')
     return_body=return_body.replace('codex_r006_packet_guard(','codex_r006_recovery_packet_guard(')
     return_body=return_body.replace('codex_r006_stationary(','codex_r006_recovery_stationary(')
+    old_return_entry = (
+        '  local guard = codex_r006_recovery_packet_guard(packet_reason, 20.0, 20.0, 2.0)\n'
+        '  if guard != 0 or not codex_r006_recovery_stationary(0.250000000):\n'
+        '    return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 58, runtime_revision, runtime_extension, return_guard)\n'
+        '  end\n'
+    )
+    new_return_entry = (
+        '  local guard = codex_r006_recovery_packet_guard(packet_reason, 20.0, 20.0, 2.0)\n'
+        '  if guard != 0:\n'
+        '    return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 58, runtime_revision, runtime_extension, return_guard)\n'
+        '  end\n'
+    )
+    if return_body.count(old_return_entry) != 1:
+        raise ValueError('initial return guard source differs for directional release')
+    return_body=return_body.replace(old_return_entry,new_return_entry,1)
+    old_vertical_entry = (
+        '  local current_pose = get_actual_tcp_pose()\n'
+        '  local target_z = home_pose[2]\n'
+        '  local z_eps_m = 0.001000000\n'
+        '  if current_pose[2] < target_z - z_eps_m or current_pose[2] > target_z + z_eps_m:\n'
+    )
+    new_vertical_entry = (
+        '  local current_pose = get_actual_tcp_pose()\n'
+        '  local target_z = home_pose[2]\n'
+        '  local z_eps_m = 0.001000000\n'
+        '  if current_pose[2] < target_z - z_eps_m:\n'
+        '    if not codex_r006_vertical_release_ready(0.250000000):\n'
+        '      return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 58, runtime_revision, runtime_extension, return_guard)\n'
+        '    end\n'
+        '    current_pose = get_actual_tcp_pose()\n'
+        '    packet_reason = codex_r006_packet_observe()\n'
+        '    guard = codex_r006_recovery_packet_guard(packet_reason, 20.0, 20.0, 2.0)\n'
+        '    if guard != 0:\n'
+        '      return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 58, runtime_revision, runtime_extension, return_guard)\n'
+        '    end\n'
+        '    if current_pose[2] >= target_z - z_eps_m and not codex_r006_recovery_stationary(0.250000000):\n'
+        '      return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 58, runtime_revision, runtime_extension, return_guard)\n'
+        '    end\n'
+        '  else:\n'
+        '    if not codex_r006_recovery_stationary(0.250000000):\n'
+        '      return codex_r006_return_fault(epoch, ordinal, token, kind, consumed, 58, runtime_revision, runtime_extension, return_guard)\n'
+        '    end\n'
+        '  end\n'
+        '  if current_pose[2] < target_z - z_eps_m or current_pose[2] > target_z + z_eps_m:\n'
+    )
+    if return_body.count(old_vertical_entry) != 1:
+        raise ValueError('vertical return entry source differs for directional release')
+    return_body=return_body.replace(old_vertical_entry,new_vertical_entry,1)
     # Figure-eight Home is a joint-space identity.  Keep the vertical
     # withdrawal above the contact surface, then use the approved joint target
     # for the actual return.  The previous XY ``movel`` only happened to end
@@ -473,14 +697,93 @@ end
             return_guard = codex_r006_attempt_guard
 '''
     body=body.replace(execute_old,execute_new,1)
+    body=body.replace('arm_home_q','locked_home_q')
     arm='    elif not session_active and not completed and session_command == 1 and '
     if body.count(arm)!=1:raise ValueError('resident ARM branch source differs')
     body=body.replace(arm,'    elif state != 90 and not session_active and not completed and session_command == 1 and ')
+    body=body.replace(
+        'locked_home_q = get_actual_joint_positions()',
+        f'locked_home_q = {home_q_text}',
+    )
+    # A normal session STOP uses an explicitly non-measurement stop-only
+    # packet. When the resident has already completed its bounded Home route,
+    # re-running the sensor-gated recovery route is invalid and can emit a
+    # spurious reason 58. Verify the existing Home directly from live robot
+    # kinematics for a full dwell; if that proof fails, retain fault recovery.
+    stop_home_helper = '''
+
+def codex_r006_stop_home_stationary_for_stop(home_pose, home_q, required_s):
+  local dwell_s = 0.0
+  local elapsed_s = 0.0
+  while dwell_s < required_s and elapsed_s < required_s * 5.0:
+    local actual_dt = get_steptime()
+    if actual_dt <= 0.0 or actual_dt >= 0.080000000 or not codex_r006_home_close(home_pose, home_q):
+      return False
+    end
+    local speed = get_actual_tcp_speed()
+    local linear = sqrt(speed[0] * speed[0] + speed[1] * speed[1] + speed[2] * speed[2])
+    local angular = sqrt(speed[3] * speed[3] + speed[4] * speed[4] + speed[5] * speed[5])
+    if not codex_r006_actual_qd_ok(0.060000000) or linear > 0.000500000 or angular > 0.005000000:
+      dwell_s = 0.0
+    else:
+      dwell_s = dwell_s + actual_dt
+    end
+    elapsed_s = elapsed_s + actual_dt
+    sync()
+  end
+  return dwell_s >= required_s
+end
+'''
+    stop_echo_marker = '\ndef codex_r006_echo('
+    if body.count(stop_echo_marker) != 1:
+        raise ValueError('resident STOP Home-check insertion point differs')
+    body = body.replace(stop_echo_marker, stop_home_helper + stop_echo_marker, 1)
+    stop_start = '    if session_command == 3 and session_sequence > consumed_session_sequence:\n'
+    stop_end = '    elif integer_reason != 0 and session_command != 0 and state != 90:\n'
+    if body.count(stop_start) != 1 or body.count(stop_end) != 1:
+        raise ValueError('resident STOP branch differs for idempotent verified-Home stop')
+    stop_branch = f'''    if session_command == 3 and session_sequence > consumed_session_sequence:
+      consumed_session_sequence = session_sequence
+      if state != 90:
+        session_active = False
+        completed = False
+        last_failed_epoch = input_epoch
+        active_epoch = input_epoch
+        if not locked_home_q_valid:
+          locked_home_q = {home_q_text}
+          locked_home_q_valid = True
+        end
+        if state == 78 and return_guard == 123 and codex_r006_stop_home_stationary_for_stop(fixed_home_pose, locked_home_q, 0.250000000):
+          # State 78 and guard 123 were emitted only after the approved joint
+          # Home route. Reconfirm Home and stationarity without a fake sensor
+          # sample or a second motion command.
+          state = 90
+          reason = 4
+          return_guard = 123
+        else:
+          stopl(0.250000000)
+          state = 90
+          reason = 4
+          return_guard = 0
+          if not codex_r006_recover_home_after_fault(fixed_home_pose, locked_home_q, input_epoch, current_ordinal, current_token, current_kind, consumed_session_sequence, runtime_revision, runtime_extension, 4, 0):
+            reason = codex_r006_attempt_reason
+            return_guard = codex_r006_attempt_guard
+          else:
+            reason = 4
+            return_guard = codex_r006_attempt_guard
+          end
+        end
+      end
+'''
+    begin = body.index(stop_start)
+    end = body.index(stop_end, begin)
+    body = body[:begin] + stop_branch + body[end:]
     lines=[line for line in body.splitlines() if not line.startswith(('# R006_ACTIVE_CAPS:','# ROLE:','# CONTACT_SEARCH:'))]
     lines[1:1]=[f'# ROLE: six-law shared-QP preparation; requires matching host owner {PROTOCOL}',
         '# CONTACT_CAPS: qdot<=0.05rad/s; speedj_accel=5rad/s2; force_norm<20N; torque_norm<2Nm',
         f'# CONTACT_SEARCH: {CONTACT_SEARCH_STRATEGY_ID}; FAR={SEARCH_FAR_SPEED_M_S:.6f}m/s until {SEARCH_NEAR_START_TRAVEL_M:.9f}m, NEAR={SEARCH_NEAR_SPEED_M_S:.6f}m/s; travel<={SEARCH_MAX_TRAVEL_M:.3f}m; timeout={SEARCH_TIMEOUT_S:.1f}s; no scalar admittance',
         '# EOAT: payload=0.413kg CoG=[0.0011,0.0031,0.0163]m TCP=[0,0,0.0874,0,0,0]',
+        f'# INSTALLATION_BINDING: {load_binding()["controller_path"]} SHA256={load_binding()["controller_file_sha256"]}',
         '# HOST_BACKEND: native-six-law + osqp-codegen-c; legacy RNN qualification is not reusable',
         '# FAULT_RECOVERY: every terminal fault attempts bounded Home; host monitored Home is the fallback']
     lines.insert(6, '# NATIVE_INTEGER_INPUTS: logical24->physical36; 25..32 and 35 unchanged; OnRobot owns input24')
@@ -492,18 +795,26 @@ end
 
 
 def build(home_path,output):
-    home=json.loads(home_path.read_text());stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H%MZ_CONTACT_SIX_QP_V1_618001')
+    home=json.loads(home_path.read_text());stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H%MZ_CONTACT_SIX_QP_V1_R31_618001')
     source=SOURCE.read_text();script=transform(source,home,stamp);output.mkdir(parents=True,exist_ok=True)
     txt=f'Contact six-law shared QP\nPROGRAM={BASENAME}\nVERSION={stamp}\nPROTOCOL={PROTOCOL}\nLIVE_QUALIFIED=false\n'
+    binding=load_binding()
     for suffix,data in [('script',script.encode()),('txt',txt.encode()),('urp',build_urp(script,BASENAME,CONTROLLER_DIR))]:
+        if suffix=='urp':data=bind_urp(data,basename=BASENAME,controller_directory=CONTROLLER_DIR)
         (output/f'{BASENAME}.{suffix}').write_bytes(data)
     manifest={'schema':'contact-qp-package-preparation-v1','basename':BASENAME,'stamp':stamp,'controller_directory':CONTROLLER_DIR,
               'revision':REVISION,'protocol':PROTOCOL,'home_receipt_sha256':hashlib.sha256(home_path.read_bytes()).hexdigest(),
+              'home_profile_id':FIGURE8_HOME_PROFILE_ID,
+              'home_pose_m_rad':list(CANONICAL_FIGURE8_HOME_POSE),
+              'home_q_rad':list(CANONICAL_FIGURE8_HOME_Q),
+              'installation_binding':binding,
               'source_sha256':hashlib.sha256(SOURCE.read_bytes()).hexdigest(),'live_qualified':False,
-              'geometry':Task().sanity(),'source_owner':'R012 lifecycle; narrowed common caps, automatic Home-on-fault, Wave-4 no-admittance FAR/NEAR search, and new Home/identity/full-period duration',
+              'geometry':Task().sanity(),'source_owner':'R012 lifecycle; narrowed common caps, automatic Home-on-fault, idempotent verified-Home STOP, Wave-4 no-admittance FAR/NEAR search, and new Home/identity/full-period duration',
               'contact_search':{
                   'strategy_id':CONTACT_SEARCH_STRATEGY_ID,
                   'source':CONTACT_SEARCH_SOURCE,
+                  'profile_sha256':hashlib.sha256(CONTACT_SEARCH_PROFILE_PATH.read_bytes()).hexdigest(),
+                  'figure8_protocol_id':CONTACT_SEARCH_PROFILE['figure8_protocol_id'],
                   'admittance_enabled':False,
                   'far_speed_m_s':SEARCH_FAR_SPEED_M_S,
                   'near_speed_m_s':SEARCH_NEAR_SPEED_M_S,
@@ -530,7 +841,7 @@ def build(home_path,output):
         'contact_search_strategy_id':CONTACT_SEARCH_STRATEGY_ID,
         'contact_search_admittance_enabled':False,
         'raw_force_limit_n':20.,'raw_torque_limit_nm':2.,'fixed_orientation_approach_axis':[0,0,-1],
-        'home_xyz_m':home['home_pose'][:3],
+        'home_xyz_m':list(CANONICAL_FIGURE8_HOME_POSE[:3]),
         'scope':'local package arithmetic; workspace clearance and owner dispatch pending'}
     (output/f'{BASENAME}.binding.json').write_text(json.dumps(manifest,indent=2)+'\n');return manifest
 

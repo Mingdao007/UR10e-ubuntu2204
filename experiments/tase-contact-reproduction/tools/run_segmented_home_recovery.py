@@ -137,7 +137,8 @@ def _next_clearance_target_z(start_z: float) -> float | None:
     return step_target
 
 
-def _home_receipt(start: dict, target: np.ndarray, final_target: np.ndarray, q: list[float], index: int) -> dict:
+def _home_receipt(start: dict, target: np.ndarray, final_target: np.ndarray,
+                  geometry_proof: dict, index: int) -> dict:
     preserved = json.loads(PRESERVED_HOME.read_text())
     preserved.update(
         {
@@ -146,7 +147,8 @@ def _home_receipt(start: dict, target: np.ndarray, final_target: np.ndarray, q: 
             "user_instruction": "approved Figure-eight Home; segmented clearance transfer",
             "rtde": start,
             "home_pose": target.tolist(),
-            "home_q": q,
+            "home_q": geometry_proof["home_q"],
+            "geometry_proof": geometry_proof,
             "original_home_pose": list(final_target),
             "final_home_pose": final_target.tolist(),
             "clearance_entry": True,
@@ -161,7 +163,7 @@ def _home_receipt(start: dict, target: np.ndarray, final_target: np.ndarray, q: 
     return preserved
 
 
-def _geometry_q(start: dict, target: np.ndarray) -> list[float]:
+def _geometry_q(start: dict, target: np.ndarray) -> dict:
     """Run the existing calibrated sampled IK/speed proof for one segment."""
     from run_contact_recovery import check_geometry
 
@@ -174,7 +176,9 @@ def _geometry_q(start: dict, target: np.ndarray) -> list[float]:
     proof = check_geometry(start, plan)
     if proof.get("pass") is not True:
         raise RuntimeError(f"calibrated Home geometry failed: {proof}")
-    return proof["home_q"]
+    proof["start_pose_m_rad"] = list(map(float, start["actual_TCP_pose"]))
+    proof["target_pose_m_rad"] = target.tolist()
+    return proof
 
 
 def _deploy_and_readback(package_dir: Path, readback_root: Path, stamp: str) -> dict:
@@ -217,7 +221,7 @@ def _deploy_and_readback(package_dir: Path, readback_root: Path, stamp: str) -> 
 
 def _run_vertical_clearance_withdrawal(
     *, host: str, output: Path, fresh: dict, final_target: np.ndarray, index: int,
-    video_url: str = VIDEO_DEFAULT, video_policy: str = "required"
+    video_url: str = VIDEO_DEFAULT, video_policy: str = "required", execute: bool = True
 ) -> dict:
     """Raise a low stopped pose to the existing 33 mm Home clearance floor.
 
@@ -245,6 +249,8 @@ def _run_vertical_clearance_withdrawal(
         "home_pose": target.tolist(),
     }
     geometry = check_geometry(fresh, plan)
+    geometry["start_pose_m_rad"] = list(map(float, fresh["actual_TCP_pose"]))
+    geometry["target_pose_m_rad"] = target.tolist()
     segment = output / f"vertical-clearance-{index:02d}"
     package = segment / "package"
     package.mkdir(parents=True)
@@ -257,6 +263,7 @@ def _run_vertical_clearance_withdrawal(
             "rtde": fresh,
             "home_pose": target.tolist(),
             "home_q": geometry["home_q"],
+            "geometry_proof": geometry,
             "original_home_pose": final_target.tolist(),
             "final_home_pose": final_target.tolist(),
             "clearance_entry": False,
@@ -283,13 +290,28 @@ def _run_vertical_clearance_withdrawal(
         "--expected-stamp",
         binding["stamp"],
         "--expected-installation",
-        "/programs/default.installation",
+        binding["installation_binding"]["controller_path"],
     ]
     local = subprocess.run(validation_cmd, check=True, capture_output=True, text=True, timeout=20)
     (segment / "local-validation.json").write_text(local.stdout)
     if json.loads(local.stdout).get("pass") is not True:
         raise RuntimeError("vertical clearance Home package local validation failed")
+    record = {
+        "index": index,
+        "start_pose": start_pose.tolist(),
+        "target_pose": target.tolist(),
+        "rise_m": rise,
+        "geometry": geometry,
+        "package": str(package),
+        "local_validation": str(segment / "local-validation.json"),
+        "readback": None,
+    }
+    if not execute:
+        record["plan_only"] = True
+        return record
+
     readback = _deploy_and_readback(package, segment / "readback", binding["stamp"])
+    record["readback"] = readback
     home_args = SimpleNamespace(
         host=host,
         home_receipt=receipt,
@@ -302,16 +324,7 @@ def _run_vertical_clearance_withdrawal(
         execute=True,
     )
     home_result = run_home(home_args)
-    record = {
-        "index": index,
-        "start_pose": start_pose.tolist(),
-        "target_pose": target.tolist(),
-        "rise_m": rise,
-        "geometry": geometry,
-        "package": str(package),
-        "readback": readback,
-        "home_result": home_result,
-    }
+    record["home_result"] = home_result
     (segment / "vertical-clearance.json").write_text(json.dumps(record, indent=2, default=str) + "\n")
     if home_result.get("success") is not True:
         raise RuntimeError(f"vertical clearance withdrawal failed: {home_result}")
@@ -366,6 +379,7 @@ def run(args: argparse.Namespace) -> dict:
                     index=index,
                     video_url=getattr(args, "video_url", VIDEO_DEFAULT),
                     video_policy=getattr(args, "video_policy", "required"),
+                    execute=bool(getattr(args, "execute", False)),
                 )
             except Exception as exc:
                 result["state"] = "BLOCKED"
@@ -373,6 +387,9 @@ def run(args: argparse.Namespace) -> dict:
                 break
             result["vertical_clearance_withdrawal"] = vertical
             result.setdefault("vertical_clearance_withdrawals", []).append(vertical)
+            if not getattr(args, "execute", False):
+                result["state"] = "read_only_plan"
+                break
             observer2, fresh2 = _fresh_stationary(args.host)
             observer2.close()
             current = np.asarray(fresh2["actual_TCP_pose"], dtype=float)
@@ -439,8 +456,8 @@ def run(args: argparse.Namespace) -> dict:
         segment = output / f"segment-{index:02d}"
         package = segment / "package"
         package.mkdir(parents=True)
-        q = _geometry_q(fresh, target)
-        receipt = _home_receipt(fresh, target, final_target, q, index)
+        geometry_proof = _geometry_q(fresh, target)
+        receipt = _home_receipt(fresh, target, final_target, geometry_proof, index)
         receipt_path = segment / "home-receipt.json"
         receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
         binding = build_home(receipt_path, package)
@@ -458,7 +475,7 @@ def run(args: argparse.Namespace) -> dict:
             "--expected-stamp",
             binding["stamp"],
             "--expected-installation",
-            "/programs/default.installation",
+            binding["installation_binding"]["controller_path"],
         ]
         local = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=20)
         validation.write_text(local.stdout)
