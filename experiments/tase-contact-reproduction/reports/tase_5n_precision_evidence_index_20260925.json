@@ -1,7 +1,7 @@
 {
   "schema": "tase-5n-precision-evidence-index-v1",
-  "checkpoint_at": "2026-09-25T22:31:00+08:00",
-  "primary_experiment": "The R31 rate460 independent A-versus-E confirmation is complete: 5/5 valid pairs, 22 physical attempts, 7 failed attempts retained, all sessions closed. A averaged 0.987131 N and E 1.748434 N; paired A-minus-E was -0.761304 N (95% CI [-0.893456, -0.629151] N), so no E improvement is supported and A remains incumbent. Two complete TASE-QP paths still fail the frozen actual_qd correlation gate (0.840132 and 0.848607 versus 0.900); their MAEs are diagnostics only. The R31 SFC/DSFC model proxy is simulation only, with 120 N/m path stiffness not approved for live use. KWR75 remains controller feedback, not independent task-force truth. Fresh read-only preflight at 22:30 HKT again found the controller already powered, Remote Control, Safety NORMAL, TP STOPPED, zero TCP speed, and joint Home max error 2.69e-5 rad; no power or motion command was sent. The SFC+TASE live method remains unavailable pending a reviewed K_path binding; 120 N/m is still offline-only.",
+  "checkpoint_at": "2026-09-25T22:52:00+08:00",
+  "primary_experiment": "The R31 rate460 independent A-versus-E confirmation is complete: 5/5 valid pairs, 22 physical attempts, 7 failed attempts retained, all sessions closed. A averaged 0.987131 N and E 1.748434 N; paired A-minus-E was -0.761304 N (95% CI [-0.893456, -0.629151] N), so no E improvement is supported and A remains incumbent. Two complete TASE-QP paths still fail the frozen actual_qd correlation gate (0.840132 and 0.848607 versus 0.900); their MAEs are diagnostics only. The R31 SFC/DSFC model proxy is simulation only, with 120 N/m path stiffness not approved for live use. KWR75 remains controller feedback, not independent task-force truth. Fresh read-only preflight at 22:30 HKT again found the controller already powered, Remote Control, Safety NORMAL, TP STOPPED, zero TCP speed, and joint Home max error 2.69e-5 rad; no power or motion command was sent. The SFC+TASE live method remains unavailable pending a reviewed K_path binding; 120 N/m is still offline-only. A fresh 22:50 HKT RTDE sample added active payload inertia; a reproducible URDF/Pinocchio operational-mass calculation gives 3.529 kg with tangent/orientation axes free and 23.982 kg with those axes constrained. This is model-derived robot inertia only; the local 5 N environment/contact K/B/M model remains empirically unidentified and no zeta sweep is authorized.",
   "claim_boundary": "Kunwei is controller feedback, not independent task-force truth. RPSFC/SFC/DSFC drift evidence is a different experiment.",
   "report": "reports/tase_5n_precision_recovery_20260925.md",
   "decision_tree": "reports/tase_5n_precision_decision_tree_20260925.md",
@@ -1236,6 +1236,66 @@
         "derived_model_restoring_input_rms_n": 0.29867104971817
       },
       "limitations": "The physical run used RNN A, not SFC+TASE; multiplying its path error by K is a post-hoc scale calculation. The pulse result is synthetic model output. Neither establishes composed closed-loop response, safe bounds, or an optimal K_path."
+    },
+    {
+      "id": "tase-normal-axis-payload-inertia-readback-20260925T2250HKT",
+      "path": "runs/tase-normal-axis-payload-inertia-readback-20260925T2250HKT/readback.json",
+      "kind": "one-sample read-only Dashboard/RTDE payload and current joint/Home read-back for offline mass modeling",
+      "status": "Dashboard Remote Control, Safety NORMAL, program STOPPED; no writer before read; no motion or controller write",
+      "key_values": {
+        "robotmode": "RUNNING",
+        "remote_control": true,
+        "safety_mode": "NORMAL",
+        "program_state": "STOPPED step5d_contact_six_qp_v1.urp",
+        "runtime_state": 1,
+        "tcp_speed_m_s": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "home_q_max_error_rad": 2.7179718017578125e-05,
+        "payload_kg": 0.413,
+        "payload_cog_m": [
+          0.0011,
+          0.0031,
+          0.0163
+        ],
+        "payload_inertia_kg_m2": [
+          0.000353,
+          0.000353,
+          0.000353,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "tcp_offset_z_m": 0.0874
+      },
+      "limitations": "Single RTDE sample; not a stationarity interval. The payload fields describe controller Installation values, not a separate physical calibration."
+    },
+    {
+      "id": "tase-normal-axis-operational-inertia-model-candidate-v2-20260925T2252HKT",
+      "path": "runs/tase-normal-axis-operational-inertia-model-candidate-v2-20260925T2252HKT.json",
+      "kind": "offline Pinocchio operational-inertia calculation at actual Figure-eight Home using current payload mass, CoG and inertia read-back",
+      "status": "reproducible offline model candidate; model source identities match the existing route; not empirical contact identification or live qualification",
+      "key_values": {
+        "calibration_hash": "calib_7367377276742883610",
+        "source_identity_matches_route": true,
+        "normal_direction_base": [
+          0,
+          0,
+          1
+        ],
+        "robot_urdf_only_m_free_kg": 2.8780349082519505,
+        "robot_urdf_only_m_tangent_orientation_locked_kg": 23.568582255651425,
+        "robot_plus_payload_m_free_kg": 3.5286851329993367,
+        "robot_plus_payload_m_tangent_orientation_locked_kg": 23.981582255784083,
+        "tase_outer_md_scalar_not_estimated": 9.565272137974492,
+        "focused_formula_tests_passed": 3
+      },
+      "limitations": "Free and constrained task assumptions are different models, not a confidence interval. Model includes manufacturer URDF inertias and current payload read-back only; contact stiffness/damping, servo compliance, friction and empirical dynamic inertia remain unmeasured."
     }
   ],
   "not_yet_observed": [
@@ -1246,7 +1306,9 @@
     "an eligible alternative with paired MAE improvement >=0.10 N and 95% CI lower bound >0; the tested BO-10/E configuration did not improve over A, and independent task-force truth is absent",
     "SFC+TASE same-condition live result; the R31-aligned 30-attempt model proxy is simulated only, the live registry has no composed method, and the 120 N/m path stiffness remains offline-only",
     "causal root and eligible repair for the TASE-QP target_qd-to-actual_qd mismatch on J2/J4; keep the 0.900 gate and frozen solver profile unchanged",
-    "Live SFC+TASE method registration and a reviewed path-restoring stiffness/tangent profile; the inherited 120 N/m remains offline-only"
+    "Live SFC+TASE method registration and a reviewed path-restoring stiffness/tangent profile; the inherited 120 N/m remains offline-only",
+    "fixed-XY, persistently excited empirical contact response at the 5 N working point sufficient to identify local K_e and D_e or a supported closed-loop second-order model",
+    "a physical M/K/B model with task constraints defined well enough to compute and validate zeta candidates; the URDF operational-mass estimate alone is not sufficient"
   ],
   "latest_report": "reports/tase_5n_precision_recovery_20260925.md"
 }
