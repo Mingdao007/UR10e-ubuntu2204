@@ -1,0 +1,61 @@
+{
+  "schema": "tase.qp-equality-observability.v1",
+  "generated_utc": "2026-09-25T16:42:10Z",
+  "method": "float64 SVD of sealed 6x6 command-timeline Jacobian for every PATH row; rank threshold s_i/s_max > 1e-10",
+  "interpretation": {
+    "full_column_rank": "For exact J qdot = twist in six dimensions, a full-rank 6x6 J makes qdot unique whenever feasible; any strictly convex Hessian changes no solution. If the equality and box constraints conflict, changing the objective alone cannot make the problem feasible.",
+    "condition_number_caveat": "Raw J mixes translational and rotational units, so condition numbers are descriptive for this unscaled representation only; rank is the relevant result here.",
+    "live_status": "No profile, limit, tolerance, solver, or live eligibility changed; no motion sent."
+  },
+  "attempts": {
+    "tase_qp_bo10_b": {
+      "attempt_dir": "runs/tase-r31-qp-rate460-20260925T1600HKT/live/attempts/0001",
+      "seal_sha256": "754cef8f68303792b1a6d3b488e79e61316a44d8ed8293a8516ce7cd8fe60f24",
+      "timeline_sha256": "00b03d19693e808e97020c0e4d007380ea45277447bed695e625edf18c860713",
+      "seal_hash_verified": true,
+      "sealed_path_rows": 29995,
+      "analyzed_path_rows": 29995,
+      "attempt_evidence_eligible": false,
+      "official_qd_correlation": 0.8401317340726273,
+      "min_singular_value_raw": 0.21175386334955723,
+      "singular_value_min_quantiles": {
+        "0.01": 0.2117943915787778,
+        "0.5": 0.22602396131978084,
+        "0.99": 0.2405371437354236
+      },
+      "raw_condition_number_quantiles": {
+        "0.01": 8.012613754866502,
+        "0.5": 8.506730357762446,
+        "0.99": 9.058440799963677
+      },
+      "rank_relative_tolerance": 1e-10,
+      "rank6_path_rows": 29995,
+      "rank_below6_path_rows": 0
+    },
+    "tase_qp_matched_r31_a": {
+      "attempt_dir": "runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001",
+      "seal_sha256": "65e1acca0b960874be276212faa109ab9fee8a18f1dcf2f754ed487d155817fa",
+      "timeline_sha256": "f9bfa7cfbdc3e910685ce8f92a15f18f25791b1ae9e2754afb670e862cac33d4",
+      "seal_hash_verified": true,
+      "sealed_path_rows": 29956,
+      "analyzed_path_rows": 29956,
+      "attempt_evidence_eligible": false,
+      "official_qd_correlation": 0.8486068681812743,
+      "min_singular_value_raw": 0.2117630453752396,
+      "singular_value_min_quantiles": {
+        "0.01": 0.2117975715715289,
+        "0.5": 0.22602760918108125,
+        "0.99": 0.24054850667208547
+      },
+      "raw_condition_number_quantiles": {
+        "0.01": 8.012254890106103,
+        "0.5": 8.506686034094887,
+        "0.99": 9.058314185788259
+      },
+      "rank_relative_tolerance": 1e-10,
+      "rank6_path_rows": 29956,
+      "rank_below6_path_rows": 0
+    }
+  },
+  "generated_hkt": "2026-09-26 00:42:10 HKT"
+}

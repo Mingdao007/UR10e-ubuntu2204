@@ -1,7 +1,7 @@
 {
   "schema": "tase-5n-precision-evidence-index-v1",
-  "checkpoint_at": "2026-09-26T00:29:49+08:00",
-  "primary_experiment": "The R31 rate460 independent A-versus-E confirmation is complete: 5/5 valid pairs, 22 physical attempts, 7 failed attempts retained, all sessions closed. A averaged 0.987131 N and E 1.748434 N; paired A-minus-E was -0.761304 N (95% CI [-0.893456, -0.629151] N), so no E improvement is supported and A remains incumbent. Two complete TASE-QP paths still fail the frozen actual_qd correlation gate (0.840132 and 0.848607 versus 0.900); their MAEs are diagnostics only. The R31 SFC/DSFC model proxy is simulation only, with 120 N/m path stiffness not approved for live use. KWR75 remains controller feedback, not independent task-force truth. Fresh read-only preflight at 22:30 HKT again found the controller already powered, Remote Control, Safety NORMAL, TP STOPPED, zero TCP speed, and joint Home max error 2.69e-5 rad; no power or motion command was sent. The SFC+TASE live method remains unavailable pending a reviewed K_path binding; 120 N/m is still offline-only. A fresh 22:50 HKT RTDE sample added active payload inertia; a reproducible URDF/Pinocchio operational-mass calculation gives 3.529 kg with tangent/orientation axes free and 23.982 kg with those axes constrained. This is model-derived robot inertia only; the local 5 N environment/contact K/B/M model remains empirically unidentified and no zeta sweep is authorized. Fresh Dashboard-only check at 2026-09-25T23:31:14+08:00: RUNNING, Safety NORMAL, TP STOPPED step5d_contact_six_qp_v1; no writer/bridge process or write/motion command. This is not a complete fresh live preflight. A fresh full read-only preflight at 23:35 HKT again found the controller powered, Safety NORMAL, TP STOPPED, zero sampled TCP speed, short-EOAT payload/CoG/TCP matched, and no active writer; actual_q was within 2.885e-5 rad of the approved joint Home. UR RTDE TCP-force norm was 1.062 N (diagnostic only); Kunwei was connect-only and no motion was issued. The 30 SFC/DSFC model attempts are verified against R31 rate460 A; the generic loader fix is committed as c851f899 and remains offline-only. The first 30-row SFC/DSFC command replay was preserved but excluded from R31 conclusions because it used the generic normal RNN epsilon=0.014/r=0.2; the corrected replay now uses R31 epsilon=0.022/r=1.0/minus and passes 15/15 identical-input pairs and composition checks (model-only). A corrected historical trace schema audit covered 89 TASE run directories and confirms the physical streams do not contain all controller-consumed inputs needed for byte-identical alternate-controller replay. Fresh read-only preflight at 00:16 HKT again found the controller powered, Safety NORMAL, TP STOPPED, zero sampled TCP speed, and no active writer; no motion was sent. A new sealed-trace Welch feasibility check on four exact-sequence R31 attempts found 1,135-1,397 short continuous spans per attempt; the longest span was 40-53 RTDE samples, so the 1,024-sample Welch response was ineligible. No samples were interpolated and no spectral estimate or live change was made. Existing QP gate failures and time-domain transition evidence remain unchanged.",
+  "checkpoint_at": "2026-09-26T00:42:10+08:00",
+  "primary_experiment": "The R31 rate460 independent A-versus-E confirmation is complete: 5/5 valid pairs, 22 physical attempts, 7 failed attempts retained, all sessions closed. A averaged 0.987131 N and E 1.748434 N; paired A-minus-E was -0.761304 N (95% CI [-0.893456, -0.629151] N), so no E improvement is supported and A remains incumbent. Two complete TASE-QP paths still fail the frozen actual_qd correlation gate (0.840132 and 0.848607 versus 0.900); their MAEs are diagnostics only. The R31 SFC/DSFC model proxy is simulation only, with 120 N/m path stiffness not approved for live use. KWR75 remains controller feedback, not independent task-force truth. Fresh read-only preflight at 22:30 HKT again found the controller already powered, Remote Control, Safety NORMAL, TP STOPPED, zero TCP speed, and joint Home max error 2.69e-5 rad; no power or motion command was sent. The SFC+TASE live method remains unavailable pending a reviewed K_path binding; 120 N/m is still offline-only. A fresh 22:50 HKT RTDE sample added active payload inertia; a reproducible URDF/Pinocchio operational-mass calculation gives 3.529 kg with tangent/orientation axes free and 23.982 kg with those axes constrained. This is model-derived robot inertia only; the local 5 N environment/contact K/B/M model remains empirically unidentified and no zeta sweep is authorized. Fresh Dashboard-only check at 2026-09-25T23:31:14+08:00: RUNNING, Safety NORMAL, TP STOPPED step5d_contact_six_qp_v1; no writer/bridge process or write/motion command. This is not a complete fresh live preflight. A fresh full read-only preflight at 23:35 HKT again found the controller powered, Safety NORMAL, TP STOPPED, zero sampled TCP speed, short-EOAT payload/CoG/TCP matched, and no active writer; actual_q was within 2.885e-5 rad of the approved joint Home. UR RTDE TCP-force norm was 1.062 N (diagnostic only); Kunwei was connect-only and no motion was issued. The 30 SFC/DSFC model attempts are verified against R31 rate460 A; the generic loader fix is committed as c851f899 and remains offline-only. The first 30-row SFC/DSFC command replay was preserved but excluded from R31 conclusions because it used the generic normal RNN epsilon=0.014/r=0.2; the corrected replay now uses R31 epsilon=0.022/r=1.0/minus and passes 15/15 identical-input pairs and composition checks (model-only). A corrected historical trace schema audit covered 89 TASE run directories and confirms the physical streams do not contain all controller-consumed inputs needed for byte-identical alternate-controller replay. Fresh read-only preflight at 00:16 HKT again found the controller powered, Safety NORMAL, TP STOPPED, zero sampled TCP speed, and no active writer; no motion was sent. A new sealed-trace Welch feasibility check on four exact-sequence R31 attempts found 1,135-1,397 short continuous spans per attempt; the longest span was 40-53 RTDE samples, so the 1,024-sample Welch response was ineligible. No samples were interpolated and no spectral estimate or live change was made. Existing QP gate failures and time-domain transition evidence remain unchanged. Latest continuation at 2026-09-26 00:36 HKT: the controller was already powered, Safety NORMAL, Remote Control, TP STOPPED, and a single RTDE snapshot placed the arm within 3.81e-5 rad of the approved Figure-eight joint Home; no Power On or motion command was sent. The 100 mN RPSFC 20 s short-EOAT run had already completed at max TCP drift 0.495 mm, without a matched 1 N live control. A new seal-verified SVD audit found all 59,951 PATH Jacobians across the two failed QP attempts full-rank, so objective-only reweighting cannot alter their exact equality solution; no live QP retry is admitted.",
   "claim_boundary": "Kunwei is controller feedback, not independent task-force truth. RPSFC/SFC/DSFC drift evidence is a different experiment.",
   "report": "reports/tase_5n_precision_recovery_20260925.md",
   "decision_tree": "reports/tase_5n_precision_decision_tree_20260925.md",
@@ -1531,6 +1531,62 @@
         "motion_or_live_parameter_changed": false
       },
       "limitations": "No contiguous spectral window was long enough; do not impute gaps. This does not identify physical servo causation."
+    },
+    {
+      "id": "live-readonly-preflight-20260926T0035HKT",
+      "path": "runs/tase-poweron-continue-preflight-20260926T0035HKT/preflight_readonly.json",
+      "kind": "fresh read-only controller, RTDE, payload/TCP, Kunwei-connectivity and writer preflight after Power On request",
+      "status": "robot already powered; Safety NORMAL; Remote Control; TP STOPPED; zero sampled TCP speed; actual joints within 3.81e-5 rad of approved joint Home; no motion or write sent",
+      "key_values": {
+        "robotmode": "RUNNING",
+        "remote_control": true,
+        "safety": "NORMAL",
+        "program": "STOPPED step5d_contact_six_qp_v1.urp",
+        "actual_tcp_speed_linear_norm_m_s": 0.0,
+        "home_q_max_error_rad": 3.814697265625e-05,
+        "payload_kg": 0.413,
+        "payload_cog_m": [
+          0.0011,
+          0.0031,
+          0.0163
+        ],
+        "tcp_z_mm": 87.4,
+        "kunwei": "TCP connect-only; no fresh force samples",
+        "writer_processes": []
+      },
+      "limitations": "Single RTDE sample, not a stationary dwell; UR RTDE TCP-force norm is diagnostic and no current KWR force baseline or video observation was made."
+    },
+    {
+      "id": "tase-r31-qp-equality-observability-20260926",
+      "path": "reports/tase_r31_qp_equality_observability_20260926.json",
+      "kind": "seal-verified SVD rank audit of every exact-consumed-path QP Jacobian row",
+      "status": "all rows in both frozen QP attempts had rank 6/6; confirms that objective-only reweighting cannot change the unique exact equality solution; does not identify physical tracking cause",
+      "key_values": {
+        "attempts": [
+          "tase_qp_bo10_b",
+          "tase_qp_matched_r31_a"
+        ],
+        "path_rows": [
+          29995,
+          29956
+        ],
+        "rank6_rows": [
+          29995,
+          29956
+        ],
+        "relative_rank_tolerance": 1e-10,
+        "minimum_raw_singular_value": [
+          0.21175386334955723,
+          0.2117630453752396
+        ],
+        "official_qd_correlation": [
+          0.8401317340726273,
+          0.8486068681812743
+        ],
+        "motion_gate_changed": false,
+        "live_profile_changed": false
+      },
+      "limitations": "Raw condition numbers mix translational and rotational units; rank is only a numerical property of the logged model Jacobians."
     }
   ],
   "not_yet_observed": [

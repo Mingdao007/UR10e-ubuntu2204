@@ -46,6 +46,10 @@ flowchart TD
     N1 --> O
 ```
 
+## R31 QP observability update — 2026-09-26
+
+The sealed QP command timelines now show numerical rank 6/6 for every PATH Jacobian row in both live QP attempts (29,995 and 29,956 rows; relative SVD threshold `1e-10`). Therefore the branch “change only the objective weights to smooth qdot” cannot change the exact full-rank `J qdot = twist` solution. If a hard bound conflicts with the equality, objective reweighting cannot make it feasible either. Keep both QP attempts failed at the original `actual_qd >= 0.900` gate; do not retry unchanged. Any next QP branch must explicitly change task/constraint structure and bring its numerical slack/dynamic profile for discussion before a live run. See `tase_r31_qp_equality_observability_20260926.md`.
+
 ## Historical branch position (checkpoint before R31 rate460)
 
 The following section records the earlier September 25 checkpoint. The later
