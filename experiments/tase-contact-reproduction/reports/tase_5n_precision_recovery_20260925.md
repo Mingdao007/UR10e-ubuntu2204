@@ -216,4 +216,3 @@ Extended same-sequence offset scan (−24 to +24 packets) peaked at QP correlati
 ## QP output-event comparison — 2026-09-25T17:07:30+08:00
 
 The event-conditioned qd comparison against both RNN A traces shows a solver-specific interaction: RNN remains highly correlated on output-flagged rows, whereas matched QP does not. This narrows the next offline audit to command/`Jqdot` changes and active constraints at those timestamps. It does not prove cause or qualify a QP fix. No live motion was attempted.
-

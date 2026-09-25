@@ -152,4 +152,3 @@ A sealed v2 timeline may still support labeled diagnostics when a failed receipt
 
 - The output flags alone do not explain the QP miss: RNN A flagged-row correlations are `0.978/0.981`, but matched QP flagged rows are `0.801`; its unflagged rows are `0.907`.
 - Continue with same-row, same-sequence inspection of requested twist, final published `Jqdot`, active constraints and RTDE actual qd. Treat this as an association to diagnose, not a causal result. No physical rerun or gate relaxation.
-
