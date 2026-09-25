@@ -218,6 +218,41 @@ def _campaign_sessions(campaign_dir: Path) -> list[Path]:
     )
 
 
+def _path_duration_matches(metrics: dict[str, Any], required_s: float = 60.0) -> bool:
+    """Accept the exact protocol duration or only a proven floating-point endpoint.
+
+    The evidence collector derives ``path_duration_rounding_bound_s`` from the
+    timestamp magnitudes and operations used to calculate the endpoint. Keep
+    the bound fail-closed: it must be finite, nonnegative, and less than half
+    of the independently measured coverage interval. This is not a cadence
+    tolerance and cannot admit a one-frame-short PATH.
+    """
+
+    duration = metrics.get("path_duration_s")
+    if (not isinstance(duration, (int, float)) or isinstance(duration, bool)
+            or not math.isfinite(float(duration))):
+        return False
+    duration = float(duration)
+    if duration == required_s:
+        return True
+
+    rounding_bound = metrics.get("path_duration_rounding_bound_s")
+    coverage_interval = metrics.get("path_coverage_interval_s")
+    if (not isinstance(rounding_bound, (int, float)) or isinstance(rounding_bound, bool)
+            or not isinstance(coverage_interval, (int, float)) or isinstance(coverage_interval, bool)):
+        return False
+    rounding_bound = float(rounding_bound)
+    coverage_interval = float(coverage_interval)
+    return bool(
+        math.isfinite(rounding_bound)
+        and rounding_bound >= 0.0
+        and math.isfinite(coverage_interval)
+        and coverage_interval > 0.0
+        and 2.0 * rounding_bound < coverage_interval
+        and abs(duration - required_s) <= rounding_bound
+    )
+
+
 def score_campaign(campaign_dir: Path) -> dict[str, Any]:
     """Account for every sealed attempt without promoting partial metrics."""
 
@@ -315,7 +350,7 @@ def score_campaign(campaign_dir: Path) -> dict[str, Any]:
             item.get("evidence_eligible") is True
             and item.get("lifecycle", {}).get("path_complete") is True
             and metrics.get("complete_bins") == 550
-            and metrics.get("path_duration_s") == 60.0
+            and _path_duration_matches(metrics, 60.0)
             and metrics.get("protocol_id") == row["protocol_id"]
             and metrics.get("timing_gate_passed") is True
             and timing.get("acceptance_protocol_id") == row["protocol_id"]

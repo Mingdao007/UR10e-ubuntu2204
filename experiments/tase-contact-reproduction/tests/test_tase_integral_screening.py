@@ -1,7 +1,7 @@
 import json
 
 from tase_integral_screening import (
-    _session_verified_closed, build_schedule, execute_campaign,
+    _path_duration_matches, _session_verified_closed, build_schedule, execute_campaign,
     load_screening_config, prepare_campaign, score_campaign,
 )
 import pytest
@@ -88,7 +88,9 @@ def test_screening_score_keeps_failed_diagnostic_out_of_selection(tmp_path):
             "lifecycle": {"path_complete": True, "home_verified": True},
             "evidence": {"metrics": {
                 "complete_bins": 550,
-                "path_duration_s": 60.0,
+                "path_duration_s": 60.00000000001455 if ordinal == 1 else 60.0,
+                "path_duration_rounding_bound_s": 2.9118042178810644e-11,
+                "path_coverage_interval_s": 0.0020000000076834112,
                 "protocol_id": parameter["protocol_id"],
                 "timing_gate_passed": eligible,
                 "timing_evidence": {
@@ -114,6 +116,28 @@ def test_screening_score_keeps_failed_diagnostic_out_of_selection(tmp_path):
     assert result["attempts"][1]["failure"].startswith(
         "rate_evidence_mismatch:timing_receipt_not_successful,"
     )
+
+
+def test_path_duration_accepts_only_collector_derived_rounding_error():
+    evidence = {
+        "path_duration_s": 60.00000000001455,
+        "path_duration_rounding_bound_s": 2.9118042178810644e-11,
+        "path_coverage_interval_s": 0.0020000000076834112,
+    }
+    assert _path_duration_matches(evidence)
+    assert not _path_duration_matches({**evidence, "path_duration_s": 60.002})
+    assert not _path_duration_matches({
+        **evidence,
+        "path_duration_s": 60.00000000001455 + 1.01 * evidence["path_duration_rounding_bound_s"],
+    })
+    assert not _path_duration_matches({
+        **evidence,
+        "path_duration_rounding_bound_s": evidence["path_coverage_interval_s"] / 2.0,
+    })
+    assert not _path_duration_matches({
+        "path_duration_s": 60.00000000001455,
+        "path_coverage_interval_s": 0.002,
+    })
 
 
 def test_screening_execute_uses_one_resident_manifest(monkeypatch, tmp_path):
