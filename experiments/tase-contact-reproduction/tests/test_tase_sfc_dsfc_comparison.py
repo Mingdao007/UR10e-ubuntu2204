@@ -65,6 +65,25 @@ def test_normal_a_loader_rejects_rate400_point_one_profile(tmp_path):
         comparison._load_normal_a_profile(tmp_path)
 
 
+def test_historical_schema_audit_searches_sibling_runs_for_comparison_subdirectory(tmp_path):
+    runs_root = tmp_path / "runs"
+    source = runs_root / "tase-r31-a-baseline-fixture" / "attempts" / "0001"
+    comparison_root = runs_root / "tase-sfc-dsfc-model" / "comparison"
+    source.mkdir(parents=True)
+    comparison_root.mkdir(parents=True)
+    (source / "raw_sensor.jsonl").write_text(json.dumps({"time_s": 0.0, "force": [0, 0, 5]}) + "\n")
+    (source / "robot_frames.jsonl").write_text(json.dumps({"time_s": 0.0, "actual_q": [0] * 6}) + "\n")
+    (source / "published_packets.jsonl").write_text(json.dumps({"sequence": 1, "qdot": [0] * 6}) + "\n")
+
+    audit = command_replay._audit_historical_recordings(comparison_root)
+
+    assert audit["run_directories"] == 1
+    assert audit["stream_counts"]["raw_sensor"] == 1
+    assert audit["stream_counts"]["robot_frames"] == 1
+    assert audit["stream_counts"]["published_packets"] == 1
+    assert audit["same_input_alternate_controller_replay_eligible"] is False
+
+
 @pytest.mark.parametrize("scenario", comparison.SCENARIOS)
 def test_sfc_and_dsfc_share_normal_inputs_bounds_and_one_final_realizer(scenario):
     profile = comparison._load_frozen_profiles()

@@ -113,6 +113,8 @@ HISTORICAL_RUN_PREFIXES = (
     "tase-resident-",
     "tase-integral-screen-rate400-",
     "tase-r013-60-autotuner-",
+    "tase-r31-",
+    "tase-a-",
 )
 HISTORICAL_REPLAY_INPUT_FIELDS = (
     "raw_force_base_n",
@@ -156,7 +158,11 @@ def _schema_counts(paths: list[Path]) -> dict[str, int]:
 
 def _audit_historical_recordings(comparison_root: Path) -> dict[str, Any]:
     """Audit historical TASE trace schemas without treating reconstruction as raw input."""
-    runs_root = comparison_root.parent
+    runs_root = (
+        comparison_root.parent.parent
+        if comparison_root.name == "comparison"
+        else comparison_root.parent
+    )
     run_dirs = sorted(
         path for path in runs_root.iterdir()
         if path.is_dir() and path.name.startswith(HISTORICAL_RUN_PREFIXES)
