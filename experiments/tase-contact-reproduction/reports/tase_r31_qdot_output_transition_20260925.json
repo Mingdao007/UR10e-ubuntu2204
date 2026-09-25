@@ -1,0 +1,181 @@
+{
+  "claim_class": "offline sealed-trace diagnostic only",
+  "interpretation_limit": "Higher setpoint-change rates and more realization-limit feedback co-occurred with the QP qd gate miss. This supports an offline candidate mechanism but does not prove physical causation; no gate or profile was changed.",
+  "runs": {
+    "R31_A1": {
+      "attempt_qd_correlation": 0.9700722532882486,
+      "explicit_realization_limit_flag_count": 7,
+      "host_slew_limited_count": 7,
+      "output_feedback_realization_limited_count": 7,
+      "path_complete": true,
+      "per_joint_setpoint_change_rate_rad_s2": [
+        {
+          "joint_1_based": 1,
+          "max": 2.358681640931414,
+          "p50": 0.00185640370468207,
+          "p95": 0.007861804552476726,
+          "p99": 0.07530824181816476
+        },
+        {
+          "joint_1_based": 2,
+          "max": 2.466767760398736,
+          "p50": 0.012835674408966305,
+          "p95": 0.030543423810685862,
+          "p99": 0.47329209917520015
+        },
+        {
+          "joint_1_based": 3,
+          "max": 1.4154662230754629,
+          "p50": 0.0032291949562933877,
+          "p95": 0.012331117300131799,
+          "p99": 0.09851051537836646
+        },
+        {
+          "joint_1_based": 4,
+          "max": 2.4999999975000002,
+          "p50": 0.010944661024289773,
+          "p95": 0.02515512500097579,
+          "p99": 0.5968064848678716
+        },
+        {
+          "joint_1_based": 5,
+          "max": 0.3186460865111292,
+          "p50": 0.001310630617110355,
+          "p95": 0.011403004788875439,
+          "p99": 0.09287736057347447
+        },
+        {
+          "joint_1_based": 6,
+          "max": 2.4982038579577375,
+          "p50": 0.0017701055587748607,
+          "p95": 0.007877692056865719,
+          "p99": 0.10078242083787738
+        }
+      ],
+      "timeline_rows": 29778
+    },
+    "R31_A2": {
+      "attempt_qd_correlation": 0.9720695642595333,
+      "explicit_realization_limit_flag_count": 3,
+      "host_slew_limited_count": 3,
+      "output_feedback_realization_limited_count": 3,
+      "path_complete": true,
+      "per_joint_setpoint_change_rate_rad_s2": [
+        {
+          "joint_1_based": 1,
+          "max": 0.3641786983361975,
+          "p50": 0.0018976994749461294,
+          "p95": 0.008635678016667774,
+          "p99": 0.08241713737919959
+        },
+        {
+          "joint_1_based": 2,
+          "max": 1.8882935334415416,
+          "p50": 0.00936155572318623,
+          "p95": 0.029566045017602967,
+          "p99": 0.4372068801750744
+        },
+        {
+          "joint_1_based": 3,
+          "max": 0.5407471828388115,
+          "p50": 0.0029360881098544106,
+          "p95": 0.012324032168487329,
+          "p99": 0.09970479168543629
+        },
+        {
+          "joint_1_based": 4,
+          "max": 2.4999999975000002,
+          "p50": 0.007797235284105805,
+          "p95": 0.024365139227056225,
+          "p99": 0.5533130913958673
+        },
+        {
+          "joint_1_based": 5,
+          "max": 0.3326619676042716,
+          "p50": 0.001465511095866249,
+          "p95": 0.013331216018497651,
+          "p99": 0.09944222816892857
+        },
+        {
+          "joint_1_based": 6,
+          "max": 0.5022922166306324,
+          "p50": 0.0017620466122291888,
+          "p95": 0.00825734853119797,
+          "p99": 0.11506664596724955
+        }
+      ],
+      "timeline_rows": 29991
+    },
+    "R31_QP_A": {
+      "attempt_qd_correlation": 0.8486068681812743,
+      "explicit_realization_limit_flag_count": 1857,
+      "host_slew_limited_count": 513,
+      "output_feedback_realization_limited_count": 1857,
+      "path_complete": true,
+      "per_joint_setpoint_change_rate_rad_s2": [
+        {
+          "joint_1_based": 1,
+          "max": 2.4977676516989256,
+          "p50": 0.04664506586002447,
+          "p95": 0.13621814354461367,
+          "p99": 0.1801607448712149
+        },
+        {
+          "joint_1_based": 2,
+          "max": 2.4999999975000007,
+          "p50": 0.10404559520890946,
+          "p95": 0.8919646899737842,
+          "p99": 2.2919827011527265
+        },
+        {
+          "joint_1_based": 3,
+          "max": 0.4528043971504499,
+          "p50": 0.05179604626506775,
+          "p95": 0.15660634401609771,
+          "p99": 0.21326661995704624
+        },
+        {
+          "joint_1_based": 4,
+          "max": 2.4999999975000007,
+          "p50": 0.19279338302444865,
+          "p95": 1.0171342164410997,
+          "p99": 2.4999999975000002
+        },
+        {
+          "joint_1_based": 5,
+          "max": 0.36381639767761853,
+          "p50": 0.06057094477910943,
+          "p95": 0.1751132760384348,
+          "p99": 0.2277648086592341
+        },
+        {
+          "joint_1_based": 6,
+          "max": 2.4999999975000002,
+          "p50": 0.06694848967229038,
+          "p95": 0.1939125967769712,
+          "p99": 0.25454751238120465
+        }
+      ],
+      "timeline_rows": 29956
+    }
+  },
+  "schema": "tase.r31-qdot-output-transition-diagnostic-v1",
+  "sources": {
+    "R31_A1": {
+      "attempt_result": "runs/tase-r31-a-baseline-20260925T1510HKT/attempts/0001/attempt-result.json",
+      "command_timeline_sha256": "f2db9842e9f340d9335d8088e69306957ed9ed95f10d766439502f1902097836",
+      "seal_sha256": "f2db9842e9f340d9335d8088e69306957ed9ed95f10d766439502f1902097836"
+    },
+    "R31_A2": {
+      "attempt_result": "runs/tase-r31-a-baseline-repeat-evidenceonly-20260925T1530HKT/attempts/0001/attempt-result.json",
+      "command_timeline_sha256": "149ecd21b9722d07d0fa3df1c49702d5a885c6944980679ffc47f4d7e8942507",
+      "seal_sha256": "149ecd21b9722d07d0fa3df1c49702d5a885c6944980679ffc47f4d7e8942507"
+    },
+    "R31_QP_A": {
+      "attempt_result": "runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001/attempt-result.json",
+      "command_timeline_sha256": "f9bfa7cfbdc3e910685ce8f92a15f18f25791b1ae9e2754afb670e862cac33d4",
+      "seal_sha256": "f9bfa7cfbdc3e910685ce8f92a15f18f25791b1ae9e2754afb670e862cac33d4"
+    }
+  },
+  "unit_definition": "absolute difference between consecutive published joint-velocity setpoints divided by recorded actual_dt_s; this is a setpoint-change rate, not measured mechanical acceleration"
+}

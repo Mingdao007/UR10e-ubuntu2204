@@ -1,0 +1,915 @@
+{
+  "schema": "tase-5n-precision-evidence-index-v1",
+  "checkpoint_at": "2026-09-25T17:01:55+08:00",
+  "primary_experiment": "R31 rate460 TASE_RNN_MATURE A: two eligible complete 60 s units (MAE 1.282720 and 1.006797 N); two complete TASE_QP units fail frozen actual_qd correlation gate (0.840132, 0.848607 versus 0.900); the new R31-parameter-aligned SFC/DSFC 30-attempt model proxy is complete with zero simulation failures but is not physical evidence. Robot already powered, Safety NORMAL, TP STOPPED at joint Home; no extra power command or motion sent. Extended QP offset scan did not find a causal sequence delay that restores qd correlation; higher J2/J4 setpoint changes and more output-limit feedback are candidate contributors, not confirmed cause.",
+  "claim_boundary": "Kunwei is controller feedback, not independent task-force truth. RPSFC/SFC/DSFC drift evidence is a different experiment.",
+  "report": "reports/tase_5n_precision_recovery_20260925.md",
+  "decision_tree": "reports/tase_5n_precision_decision_tree_20260925.md",
+  "evidence": [
+    {
+      "id": "live-preflight-20260925T045313HKT",
+      "path": "runs/preflight-tase-current-20260924T205312Z-714452/preflight_readonly.json",
+      "kind": "fresh read-only UR/Dashboard/RTDE/network/Kunwei-connectivity preflight",
+      "status": "passed for read-only observation; TASE motion not admitted because the currently loaded program is the separate RPSFC package",
+      "key_values": {
+        "remote_control": true,
+        "safety": "NORMAL",
+        "program": "STOPPED short_eoat_rpsfc_100mn_v1.urp",
+        "payload_kg": 0.413,
+        "payload_cog_m": [
+          0.0011,
+          0.0031,
+          0.0163
+        ],
+        "tcp_m": [
+          0.0,
+          0.0,
+          0.0874,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "home_q_max_error_rad": 3.147125244140625e-05,
+        "home_tcp_position_error_mm": 0.02095497833212295,
+        "home_tcp_orientation_delta_mrad": 0.06542235822728071
+      }
+    },
+    {
+      "id": "live-observer-home-frame-20260925T0453HKT",
+      "path": "reports/assets/tase_5n_precision_20260925/home-observer.jpg",
+      "kind": "single fresh OctoStream frame",
+      "status": "observer endpoint returned H.264 at 720x1280; frame visually checked at approved joint Home",
+      "limitations": "one frame is not motion-path clearance proof or a TASE attempt video"
+    },
+    {
+      "id": "state20-21-a-failure-20260924-01",
+      "path": "runs/tase-a-four-unit-engineering-fixed-20260924T0600HKT/attempts/0001",
+      "kind": "failed live A attempt with synchronized raw sensor, RTDE, TP echo and command records",
+      "status": "failed_before_path; reason 48 after State-21 timeout; automatic-recovery report must remain linked to the original attempt",
+      "related_files": [
+        "attempt-result.json",
+        "seal.json",
+        "raw_sensor.jsonl",
+        "robot_frames.jsonl",
+        "published_packets.jsonl",
+        "admission_robot_frames.jsonl",
+        "command_timeline.jsonl"
+      ],
+      "key_values": {
+        "state20_near_branch_travel_mm": 11.066012478,
+        "state20_near_branch_tcp_speed_mm_s": 4.911517919,
+        "sustained_contact_travel_mm": 13.465753506,
+        "state20_peak_normal_n": 10.551336889,
+        "state20_peak_force_norm_n": 10.651047782,
+        "ideal_deceleration_distance_mm": 2.3873,
+        "observed_additional_travel_after_near_branch_mm": 2.399741028,
+        "state21_timeout_s": 30.008,
+        "state21_tp_baseline_mode_at_timeout": 1,
+        "state21_stop_reason": 48,
+        "state21_runtime_readiness_ticks": 9423,
+        "state21_runtime_readiness_total_ticks": 14916,
+        "state21_runtime_readiness_max_contiguous_s": 0.5020429180003703,
+        "state21_runtime_readiness_required_s": 10.0,
+        "state21_strict_diagnostic_ticks": 6369,
+        "state21_strict_diagnostic_expected_ticks": 6370,
+        "state21_secondary_joint_release_diagnostic_s": 0.4356,
+        "state21_secondary_joint_release_required_s": 0.5
+      },
+      "limitations": "native speedl command samples are missing; the readiness dwell was reconstructed from published packets and cross-checked against the writer diagnostic count; the separate joint-release statistic did not trigger TP reason 48",
+      "interpretation_correction": "The stored 10.0 s runtime-readiness field is a historical counter/configuration label, not the current State-21 PATH-entry rule. Exact replay against the active contract found a maximum 0.267 s complete release conjunction; see tase-r013-state21-exact-release-gate-replays-20260925."
+    },
+    {
+      "id": "state20-early-brake-local-candidate-20260924",
+      "path": "runs/tase-contact-near-brake-candidate-20260924T1000HKT/package",
+      "kind": "locally validated TP package candidate",
+      "status": "not uploaded, not fetched back, not live-qualified",
+      "key_values": {
+        "distance_switch_m": 0.008,
+        "force_switch_n": 0.3,
+        "far_speed_m_s": 0.005,
+        "near_speed_m_s": 0.0005,
+        "near_acceleration_m_s2": 0.005,
+        "travel_limit_m": 0.015,
+        "force_fuse_n": 20.0,
+        "home_profile": "figure8_home_v1 joint-authoritative"
+      }
+    },
+    {
+      "id": "state20-21-analysis-20260924",
+      "path": "reports/tase_contact_acquisition_revisit_20260924.json",
+      "kind": "trace-derived contact acquisition summary",
+      "status": "analysis evidence; no motion requested by this diagnostic"
+    },
+    {
+      "id": "state21-gate-timeline-20260924",
+      "path": "reports/tase_contact_gate_timeline_20260924.json",
+      "kind": "per-window contact and release-gate diagnostics",
+      "status": "descriptive; force-only gate fractions do not replace the complete continuous release predicate"
+    },
+    {
+      "id": "prior-rate460-but-compat-identity-20260923",
+      "path": "runs/tase-resident-infra-20260923-settled-09/dispatch_receipt.json",
+      "kind": "six complete 60 s paths under historical compat identity and 0.1 N*s integral",
+      "status": "five timing-eligible; sixth timing-failed; diagnostic only, not the new A baseline",
+      "summary": {
+        "eligible_mae_n": [
+          1.8286300773906476,
+          1.881512120391405,
+          1.7723798796705033,
+          1.8568357669372109,
+          1.8768906591323118
+        ],
+        "eligible_rate_hz_range": [
+          480.55,
+          480.73333333333335
+        ],
+        "eligible_max_gap_s_range": [
+          0.004074182994372677,
+          0.004125694002141245
+        ],
+        "failed_rate_hz": 454.65,
+        "failed_max_gap_s": 0.0063124549997155555,
+        "integral_limit_n_s": 0.1,
+        "protocol_id": "figure8_window60_r013_compat_v1"
+      }
+    },
+    {
+      "id": "current-tase-static-selection-metadata-20260923",
+      "path": "config/current_stage.json",
+      "kind": "historical TASE package selection and runtime metadata",
+      "status": "not current controller-loaded-program proof; current Dashboard readback reports the RPSFC program"
+    },
+    {
+      "id": "separate-rpsfc-100mn-live-result",
+      "path": "/home/andy/.codex-worktrees/short-eoat-sfc-dsfc-drift-20260924/runs/short-eoat-rpsfc-100mn-20s-20260925T0550HKT/attempt-result.json",
+      "kind": "separate RPSFC no-contact experiment",
+      "status": "completed and Home verified; do not merge with TASE contact-force metrics",
+      "limitations": "the run-directory time label differs from the receipt's UTC attempt timestamps; use receipt times for chronology"
+    },
+    {
+      "id": "rpsfc-100mn-home-noise-replay-20260925T0711HKT",
+      "path": "/home/andy/.codex-worktrees/short-eoat-sfc-dsfc-drift-20260924/runs/rpsfc-100mn-offline-replay-20260925T0711HKT/summary.json",
+      "kind": "offline RPSFC full-state replay on static KWR75 and raised-start force data",
+      "status": "completed; 100 mN and 1 N reference compared on identical compensated samples",
+      "limitations": "offline command integration is not live drift; rho=0.1 N permits sub-100 mN inputs to rest and does not establish comparative human-push response"
+    },
+    {
+      "id": "tase-rate460-provider-admission-failure-20260925T0712HKT",
+      "path": "runs/tase-a-baseline-rate460-20260925T0712HKT/supervisor-result.json",
+      "kind": "failed live TASE attempt before contact/ARM",
+      "status": "failed and preserved; unsupported rate460 protocol in provider; supervisor observed zero motion commands, stopped the TP, and verified stationary approved joint Home",
+      "key_values": {
+        "first_failure": "unsupported TASE Figure-eight protocol figure8_window60_r013_rate460_v1",
+        "motion_commands_from_supervisor": 0,
+        "contact_search_started": false,
+        "path_started": false,
+        "program_stopped": true,
+        "home_verified": true,
+        "safety": "NORMAL"
+      },
+      "repair": "provider now supports the rate460 protocol identity, bounded seam, and exact candidate duration token; related 68 tests passed"
+    },
+    {
+      "id": "tase-rate460-fresh-package-readback-20260925T0712HKT",
+      "path": "runs/tase-a-baseline-rate460-20260925T0712HKT/readback-results.json",
+      "kind": "fresh controller GET and local validation for main TASE TP and joint Home packages",
+      "status": "passed; package identity alone does not imply motion or contact qualification",
+      "key_values": {
+        "main_program": "step5d_contact_six_qp_v1",
+        "readback_triplet_passed": true,
+        "installation_profile": "new-3d-printed-eoat-v4",
+        "payload_kg": 0.413,
+        "tcp_z_mm": 87.4
+      }
+    },
+    {
+      "id": "tase-rate460-timing-admission-failure-20260925T0720HKT",
+      "path": "runs/tase-a-baseline-rate460-20260925T0720HKT/attempts/0001/attempt-result.json",
+      "kind": "failed live TASE attempt during pre-contact timing admission",
+      "status": "failed and preserved; provider and A parameters were bound, but timing collector rejected the rate460 protocol identity before ARM",
+      "key_values": {
+        "first_failure": "TimingError: R013 timing threshold differs from acceptance protocol",
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "minimum_rate_hz": 460.0,
+        "armed": false,
+        "executed": false,
+        "published_hold_packets": 6,
+        "attempt_command_timeline_rows": 0,
+        "actual_qd_rad_s": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "contact_search_started": false,
+        "path_started": false,
+        "program_stopped": true,
+        "home_verified": true,
+        "home_q_max_error_rad": 4.6253204345703125e-05,
+        "safety": "NORMAL"
+      },
+      "repair": "R013 lightweight timing collector now admits the exact rate460 identity while retaining strict rate/identity pairing"
+    },
+    {
+      "id": "tase-rate460-a-complete-unit-20260925T0724HKT",
+      "path": "runs/tase-a-baseline-rate460-20260925T0724HKT/dispatch_receipt.json",
+      "kind": "first complete live TASE-RNN A baseline unit under the rate460 protocol",
+      "status": "full PATH, formal window, all raw timing layers above 460 Hz, sealed traces, approved joint Home verified; eligible as one A unit, no repeatability or superiority claim",
+      "related_files": [
+        "supervisor-result.json",
+        "attempts/0001/attempt-result.json",
+        "attempts/0001/seal.json",
+        "attempts/0001/force-windows-diagnostic.json",
+        "attempts/0001/command_timeline.jsonl",
+        "attempts/0001/robot_frames.jsonl",
+        "attempts/0001/raw_sensor.jsonl",
+        "attempts/0001/published_packets.jsonl",
+        "reports/tase_r013_rate460_a_replay_input_audit_20260925.json",
+        "reports/tase_r013_rate460_a_replay_input_audit_20260925.md"
+      ],
+      "key_values": {
+        "method": "TASE_RNN_MATURE",
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "path_duration_s": 60.0,
+        "formal_window_s": [
+          5.0,
+          60.0
+        ],
+        "formal_bins": 550,
+        "target_force_n": 5.0,
+        "Md_scalar": 9.565272137974492,
+        "Bd_scalar": 693.6559295653944,
+        "integral_limit_n_s": 1.0,
+        "formal_bin_mean_mae_n": 1.1724929749281194,
+        "raw_path_0_60_mae_n": 2.379765,
+        "raw_path_5_60_mae_n": 2.317029,
+        "host_publish_hz": 499.7667,
+        "raw_rtde_hz": 499.6667,
+        "tp_consumed_echo_hz": 480.6833,
+        "kunwei_hz": 999.9667,
+        "home_verified": true,
+        "safety": "NORMAL",
+        "dashboard_stopped_after_session": true
+      },
+      "limitations": "KWR75 is feedback, not independent task-force truth; this was a cold start and is not the ordinary reused-cycle median timing test; continuous video was unavailable at recorder start"
+    },
+    {
+      "id": "tase-r013-state21-exact-release-gate-replays-20260925",
+      "path": "reports/tase_r013_rate400_state21_release_replay_20260924.json",
+      "kind": "packet-by-packet replay against the active PathEntryReleaseGate and paired successful rate460 A replay",
+      "related_files": [
+        "reports/tase_r013_rate460_state21_release_replay_20260925.json"
+      ],
+      "status": "reconciles old reason-48 failure and new narrow pass using the actual 0.5 s continuous release conjunction; prior 10 s explanation is superseded",
+      "key_values": {
+        "rate400_failed_gate_max_contiguous_s": 0.26747,
+        "rate400_emitted_path_packet": false,
+        "rate460_a_gate_pre_path_contiguous_s": 0.54,
+        "rate460_a_first_path_after_ramp_s": 0.599,
+        "active_state21_ramp_s": 8.0,
+        "active_path_entry_release_dwell_s": 0.5
+      },
+      "limitations": "The successful gate margin is narrow and has only one live observation; the replay reconstructs the gate from sealed packets and RTDE records."
+    },
+    {
+      "id": "tase-rate460-raw-layer-rate-reconciliation-20260925",
+      "path": "reports/tase_5n_precision_recovery_20260925.md",
+      "kind": "raw interface-rate reduction contrasted with synchronized accepted-row rate",
+      "status": "definitions separated; legacy timing_evidence.layer_rates_hz still means identities in matched accepted PathSample rows",
+      "key_values": {
+        "raw_host_publish_hz": 499.7667,
+        "raw_rtde_hz": 499.6667,
+        "raw_tp_consumed_echo_hz": 480.6833,
+        "raw_kunwei_hz": 999.9667,
+        "matched_synchronized_accepted_sample_hz": 480.6833,
+        "host_sequences_without_tp_echo_in_formal_window": 1143,
+        "sequence_jumps_between_observed_echoes": 1139,
+        "tp_echo_p99_interval_s": 0.004
+      },
+      "limitations": "Raw and matched series answer different questions and must not share a single rate label."
+    },
+    {
+      "id": "tase-rate460-a-offline-qpreplay-input-audit-20260925",
+      "path": "reports/tase_r013_rate460_a_replay_input_audit_20260925.json",
+      "kind": "read-only integrity audit of sealed mature-RNN inputs for a future solver-only replay",
+      "status": "seal verified; 29,984 v1 command rows join their published PATH packets; no QP solver was run",
+      "key_values": {
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "formal_path_packets": 29985,
+        "trace_rows": 29984,
+        "trace_rows_joined_rtde": 28845,
+        "trace_rows_joined_sensor": 29984,
+        "offline_qp_solver_run": false,
+        "per_frame_controller_diagnostics_complete": false
+      },
+      "limitations": "v1 trace is sufficient for a solver-only command replay but lacks per-frame force integral and saturation details; it cannot answer whether windup caused the live force error."
+    },
+    {
+      "id": "tase-r013-command-trace-v2-offline-acceptance-20260925T0823HKT",
+      "path": "tools/tase_contact_provider.py",
+      "kind": "preallocated per-PATH-frame evidence schema and focused offline regressions",
+      "status": "v2 implementation passes 92 focused tests; 10,000 synthetic buffer record/commit operations were measured offline",
+      "related_files": [
+        "tools/step5d_autotune_v4_r004/calibrated_runtime.py",
+        "tools/audit_tase_qp_replay_inputs.py",
+        "tests/test_tase_contact_provider.py",
+        "tests/test_contact_yield_resident_session.py",
+        "tests/test_tase_qp_sealed_replay.py"
+      ],
+      "key_values": {
+        "trace_schema": "tase.qp-replay-command-timeline-v2",
+        "focused_tests_passed": 92,
+        "synthetic_ticks": 10000,
+        "buffer_stage_commit_mean_ms": 0.0181319756,
+        "buffer_stage_commit_p99_ms": 0.020939,
+        "buffer_stage_commit_max_ms": 0.043441,
+        "synthetic_test_buffer_mib": 12.176513671875
+      },
+      "limitations": "This measures only an offline buffer path, not the full provider or live 460 Hz control chain. A live v2 attempt and its independent rate gates are still required."
+    },
+    {
+      "id": "tase-rate460-a-second-v2-complete-unit-20260925T0836HKT",
+      "path": "runs/tase-a-baseline-rate460-v2-repeat-20260925T0836HKT/dispatch_receipt.json",
+      "kind": "second complete live TASE-RNN A baseline unit with per-frame v2 trace and RTSP video",
+      "status": "full PATH, 550 formal bins, all raw layers >=460 Hz, v2 trace verified, fresh joint Home and Dashboard STOPPED; eligible as second A unit, no campaign conclusion",
+      "related_files": [
+        "runs/tase-a-baseline-rate460-v2-repeat-20260925T0836HKT/attempts/0001/attempt-result.json",
+        "runs/tase-a-baseline-rate460-v2-repeat-20260925T0836HKT/attempts/0001/seal.json",
+        "runs/tase-a-baseline-rate460-v2-repeat-20260925T0836HKT/attempts/0001/command_timeline.jsonl",
+        "runs/tase-a-baseline-rate460-v2-repeat-20260925T0836HKT/video.mkv",
+        "reports/tase_r013_rate460_a_repeat_reduction_20260925.json",
+        "reports/tase_r013_rate460_a_repeat_v2_trace_audit_20260925.json",
+        "reports/tase_r013_rate460_a_repeat_state21_release_replay_20260925.json"
+      ],
+      "key_values": {
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "method": "TASE_RNN_MATURE",
+        "path_duration_s": 60.0,
+        "formal_window_s": [
+          5.0,
+          60.0
+        ],
+        "formal_bins": 550,
+        "Md_scalar": 9.565272137974492,
+        "Bd_scalar": 693.6559295653944,
+        "integral_limit_n_s": 1.0,
+        "formal_bin_mean_mae_n": 1.2696075279438133,
+        "raw_corrected_sample_mae_n_0_60": 2.4582885656236946,
+        "raw_corrected_sample_mae_n_0_5": 2.595528215858262,
+        "raw_corrected_sample_mae_n_5_60": 2.4457981423976243,
+        "host_publish_hz": 499.2,
+        "raw_rtde_hz": 499.1,
+        "tp_consumed_echo_hz": 480.0,
+        "kunwei_hz": 999.9833333333333,
+        "integral_at_98pct_limit_ticks": 3466,
+        "path_ticks": 29950,
+        "task_space_saturated_ticks": 9157,
+        "force_preempt_direction_retry_ticks": 1104,
+        "host_observation_gap_max_s": 0.019674240000313148,
+        "host_publish_gap_max_s": 0.01975692398264073,
+        "provider_max_s": 0.0014647819916717708,
+        "solver_max_s": 0.00018147999071516097,
+        "state21_release_contiguous_s": 0.5016207699954975,
+        "start_to_home_receipt_s": 85.57492508497671,
+        "start_to_seal_s": 86.02923840598669,
+        "home_q_error_rad": 7.772445678710938e-05,
+        "safety": "NORMAL",
+        "program_stopped": true,
+        "video_available": true
+      },
+      "limitations": "A second unit does not establish a reliable MAE distribution; 1.0 N*s state occupancy and task-space saturation are observed correlations, not proven force-error causes. KWR75 is feedback, not independent task-force truth."
+    },
+    {
+      "id": "tase-a-pair-descriptive-summary-20260925",
+      "path": "reports/tase_5n_precision_recovery_20260925.md",
+      "kind": "descriptive comparison of two same-configuration A units",
+      "status": "two complete eligible same-condition A units; no candidate pair, CI or improvement claim",
+      "key_values": {
+        "n": 2,
+        "formal_bin_mean_mae_n": [
+          1.1724929749281194,
+          1.2696075279438133
+        ],
+        "mean_mae_n": 1.2210502514359665,
+        "second_minus_first_n": 0.0971145530156939,
+        "confidence_interval": null
+      },
+      "limitations": "Two repeats are insufficient for a stable repeatability estimate or an A/candidate treatment effect."
+    },
+    {
+      "id": "tase-state21-release-replay-second-a-20260925",
+      "path": "reports/tase_r013_rate460_a_repeat_state21_release_replay_20260925.json",
+      "kind": "offline replay of the exact live PathEntryReleaseGate from the second A attempt",
+      "status": "release gate passed narrowly; 0.5 s continuous conjunction reproduced from sealed packets and RTDE",
+      "key_values": {
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "ramp_duration_s": 8.0,
+        "required_continuous_hold_s": 0.5,
+        "complete_predicate_s": 0.5016207699954975,
+        "first_path_after_ramp_s": 0.7269023489789106,
+        "maximum_aligned_rtde_age_s": 0.0014958299871068448,
+        "path_packet_sequence": 9035,
+        "prior_a_release_dwell_s": 0.54
+      },
+      "limitations": "The second dwell margin is only 1.6 ms. Together with the first A replay, there are two successful but narrow live observations; this is not a gate reliability estimate."
+    },
+    {
+      "id": "tase-rtsp-evidence-only-camera-canary-20260925",
+      "path": "runs/preflight-tase-a-repeat-20260925T0824HKT/camera-rtsp-canary/video.mkv",
+      "kind": "short no-motion RTSP recorder canary using fresh OctoStream arm source",
+      "status": "required-policy canary recorded successfully; live attempt used the same source and sealed continuous video",
+      "key_values": {
+        "video_url": "rtsp://100.116.236.33:8554/arm",
+        "required_policy_time_to_first_bytes_s": 1.159138413000619,
+        "evidence_only_start_timeout_s": 5.0,
+        "attempt_video_path": "runs/tase-a-baseline-rate460-v2-repeat-20260925T0836HKT/video.mkv"
+      },
+      "limitations": "Observed camera bitrate was about 0.1 Mbps; the image is soft. Video is evidence-only and not a motion admission predicate in this run."
+    },
+    {
+      "id": "tase-r013-rate460-repeat-solver-replay-input-audit-20260925",
+      "path": "reports/tase_r013_rate460_a_repeat_replay_input_audit_20260925.json",
+      "kind": "seal-verified per-frame v2 RNN solver replay-input audit",
+      "status": "all 29,950 rows and origin/warm-start states are complete for same-input offline solver comparison; no QP was run",
+      "key_values": {
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "trace_schema": "tase.qp-replay-command-timeline-v2",
+        "trace_rows": 29950,
+        "seal_verified": true
+      }
+    },
+    {
+      "id": "tase-rnn-cpu-gpu-same-input-replay-20260925",
+      "path": "reports/tase_rnn_cpu_gpu_replay_20260925.json",
+      "kind": "offline technical CPU-versus-GPU RNN solver microbenchmark on sealed A inputs",
+      "status": "all 29,950 rows replayed with matched legacy-r1 dynamics; outputs numerically close; CPU median faster; no live writer or endpoint action",
+      "key_values": {
+        "numpy_p50_ms": 0.052469,
+        "numpy_p99_ms": 0.05853971,
+        "numpy_max_ms": 0.147857,
+        "cupy_p50_ms": 0.067146,
+        "cupy_p99_ms": 0.14173569,
+        "cupy_max_ms": 0.351829,
+        "max_abs_qdot_difference_rad_s": 4.6209295556653984e-09,
+        "gpu": "RTX 5070 Ti Laptop"
+      },
+      "limitations": "Backend-only diagnostic microbenchmark; not a registered or live-qualified CuPy profile and excludes provider, RTDE, scheduling, and sensor waits."
+    },
+    {
+      "id": "tase-integral-fixed-error-policy-replay-20260925",
+      "path": "reports/tase_integral_policy_trace_replay_20260925.json",
+      "kind": "offline sequential integral/saturation mechanism replay using sealed A force errors and dt",
+      "status": "A legacy integral state reproduced exactly; B/C/D/E counterfactuals remain fixed-input mechanism diagnostics, not closed-loop force predictions",
+      "key_values": {
+        "rows": 29950,
+        "A_state_replay_max_abs_error_n_s": 0.0,
+        "A_mean_abs_state_n_s": 0.5937883038,
+        "B_0p5_mean_abs_state_n_s": 0.2783930245,
+        "C_0p1_mean_abs_state_n_s": 0.0742308735,
+        "D_effective_0p5_mean_abs_state_n_s": 0.3877565597,
+        "D_output_feedback_freeze_ticks": 9047,
+        "D_conditional_frozen_ticks": 9297
+      },
+      "limitations": "Measured A force-error/dt stay fixed. D reuses A output-feedback signs; no changed candidate saturation or force MAE is recomputed."
+    },
+    {
+      "id": "tase-kunwei-batch-retention-audit-20260925",
+      "path": "tools/step5d_autotune_v4_r004/transport.py",
+      "kind": "source-level explanation of cumulative sensor rate versus values retained in sealed trace",
+      "status": "confirmed: transport counts all parsed batch frames but returns only the last wrench; the sealed attempt retains one host-used sample per loop observation",
+      "key_values": {
+        "cumulative_frames_in_formal_60s": 59999,
+        "cumulative_rate_hz": 999.9833333333333,
+        "host_publish_hz": 499.2,
+        "attempt_raw_sensor_rows": 39621,
+        "path_command_rows": 29950
+      },
+      "limitations": "This establishes sampled-frame throughput, not a benefit from filtering; intermediate per-frame wrench values were not retained for replay."
+    },
+    {
+      "id": "tase-normal-axis-model-identifiability-20260925",
+      "path": "reports/tase_normal_axis_model_identifiability_20260925.json",
+      "kind": "offline descriptive local normal-axis second-order fit audit using both sealed A paths",
+      "status": "no physically usable M/K/B identified; do not derive zeta-based candidate values from natural Figure-eight data",
+      "key_values": {
+        "attempts": 2,
+        "force_band_n": [
+          3.0,
+          7.0
+        ],
+        "smooth_windows_samples": [
+          21,
+          51,
+          101,
+          201
+        ],
+        "K_only_R2_range": [
+          0.0015987866455121624,
+          0.004757717336679026
+        ],
+        "K_B_M_R2_range": [
+          0.010929148290482749,
+          0.2969400741346615
+        ],
+        "fitted_M_kg_range_across_smoothing": [
+          -520.6155760765532,
+          -1.2761836530505641
+        ],
+        "accepted_for_parameter_selection": false
+      },
+      "limitations": "Closed-loop natural excitation over varying XY contact points; KWR75 is not independent force truth. Model fits are descriptive and not a plant identification."
+    },
+    {
+      "id": "tase-integral-pair01-b-success-20260925T0912HKT",
+      "path": "runs/tase-integral-pair01-live-20260925T0912HKT/attempts/0001/attempt-result.json",
+      "kind": "randomized B integral unit with 0.5 N*s legacy cap",
+      "status": "eligible standalone unit: complete 60 s PATH, formal bins, rate gates and joint Home passed",
+      "key_values": {
+        "Md": 9.565272137974492,
+        "Bd": 693.6559295653944,
+        "integral_limit_n_s": 0.5,
+        "formal_mae_n": 1.2720563544,
+        "formal_bins": 550,
+        "path_s": 60.0,
+        "minimum_raw_rate_hz": 465.7833,
+        "home_verified": true,
+        "max_home_joint_error_rad": 5.01e-05
+      },
+      "limitations": "one B observation only; paired A attempt failed, so no integral-policy effect or paired estimate"
+    },
+    {
+      "id": "tase-integral-pair01-a-failed-20260925T0912HKT",
+      "path": "runs/tase-integral-pair01-live-20260925T0912HKT/attempts/0002/attempt-result.json",
+      "kind": "randomized A integral unit with 1.0 N*s legacy cap",
+      "status": "failed after TP STOPPED reason 58 return_guard 0; lifecycle did not certify PATH completion, Home or readiness",
+      "key_values": {
+        "formal_time_s": 60.001997037,
+        "formal_command_rows": 29954,
+        "path_complete": false,
+        "home_verified": false,
+        "failure": "resident TP STOPPED: reason=58 return_guard=0"
+      },
+      "limitations": "no formal score emitted; retain as failed attempt and do not count as a complete pair"
+    },
+    {
+      "id": "tase-integral-pair01-recovery-env-failure-20260925T0123Z",
+      "path": "runs/tase-integral-pair01-live-20260925T0912HKT-autonomous-home-retry-20260925T012325.827319Z/result.json",
+      "kind": "first staged recovery-owner invocation",
+      "status": "software environment failure before geometry proof; no relief or Home motion dispatched",
+      "key_values": {
+        "first_error": "AMENT_PREFIX_PATH not set or empty",
+        "home_motion_dispatched": false,
+        "relief_rtde_observation_rows": 460,
+        "relief_wrench_rows": 0,
+        "home_first_probe": "below clearance-entry Home floor"
+      },
+      "limitations": "the stale-baseline refresh in this receipt occurred below Home clearance and is not accepted as independent no-contact evidence"
+    },
+    {
+      "id": "tase-integral-pair01-recovery-stationarity-block-20260925T0130Z",
+      "path": "runs/tase-integral-pair01-live-20260925T0912HKT-autonomous-home-retry-20260925T013022.657084Z/result.json",
+      "kind": "corrected-environment single recovery-owner retry",
+      "status": "fresh Home/relief/main package read-back passed; no motion dispatched because current RTDE failed the existing stationarity predicate",
+      "related_files": [
+        "runs/tase-integral-pair01-live-20260925T0912HKT-autonomous-home-retry-20260925T013022.657084Z-readback/readback-results.json",
+        "runs/tase-integral-pair01-live-20260925T0912HKT/recovery-quiescence-followup-20260925T0927HKT.json"
+      ],
+      "key_values": {
+        "dashboard_program": "STOPPED",
+        "safety": "NORMAL",
+        "home_motion_dispatched": false,
+        "tcp_pose_m": [
+          0.4673247397,
+          0.1667102956,
+          0.0203072494
+        ],
+        "tcp_z_below_home_mm": 13.7815,
+        "joint_home_max_error_rad": 0.04306984,
+        "quiescence_samples": 502,
+        "capture_s": 5.0098,
+        "exact_stationary_fraction": 0.1733,
+        "longest_exact_stationary_interval_s": 0.0095,
+        "tcp_xyz_span_mm": [
+          0.1102,
+          0.1354,
+          0.1051
+        ],
+        "tp_componentwise_pass_frames": 171,
+        "tp_componentwise_pass_fraction": 0.3406,
+        "longest_tp_componentwise_interval_s": 0.0301,
+        "tp_required_stationary_dwell_s": 0.25
+      },
+      "limitations": "100 Hz observer cannot prove the 500 Hz TP dwell; it shows no observed interval close to the required 250 ms. The fluctuation cause remains unidentified; do not relax thresholds."
+    },
+    {
+      "id": "tase-integral-pair01-fresh-live-preflight-20260925T0925HKT",
+      "path": "runs/recovery-integral-pair01-fresh-preflight-20260925T0926HKT/preflight_readonly.json",
+      "kind": "read-only controller, short-EOAT, network, Kunwei-connectivity and writer preflight",
+      "status": "passed at 09:25 HKT for read-only observation; robot remained outside Home and did not pass the motion stationarity gate",
+      "key_values": {
+        "remote_control": true,
+        "dashboard_program": "STOPPED step5d_contact_six_qp_v1",
+        "safety": "NORMAL",
+        "payload_kg": 0.413,
+        "payload_cog_m": [
+          0.0011,
+          0.0031,
+          0.0163
+        ],
+        "tcp_offset_z_mm": 87.4,
+        "kunwei_connect_only": true,
+        "active_writers": []
+      },
+      "limitations": "single RTDE sample and package-selection metadata do not establish stationary duration or Home identity at the current pose"
+    },
+    {
+      "id": "tase-integral-pair01-live-camera-frame-20260925T0930HKT",
+      "path": "reports/assets/tase_5n_precision_20260925/recovery-frame-0930.png",
+      "kind": "fresh OctoStream still frame during recovery preflight",
+      "status": "camera stream returned a visible frame; the end tool appears separated from the table in this view",
+      "limitations": "still image is not a 3D swept-volume proof; continuous recorder reported stopped advancing"
+    },
+    {
+      "id": "tase-integral-pair01-fresh-tp-readback-reason58-20260925T0130Z",
+      "path": "runs/tase-integral-pair01-live-20260925T0912HKT-autonomous-home-retry-20260925T013022.657084Z-readback/readback/step5d_contact_six_qp_v1/step5d_contact_six_qp_v1.script",
+      "kind": "freshly fetched-back installed R006 TP source for reason-58 localization",
+      "status": "source shows R012 end acknowledgement, stopj, then a 250 ms stationary dwell; on reason 58 the fault handler invokes the bounded Home routine, which requires a new stationary dwell before the first vertical motion",
+      "key_values": {
+        "stationary_linear_speed_limit_m_s": 0.0005,
+        "stationary_angular_speed_limit_rad_s": 0.005,
+        "dwell_s": 0.25,
+        "settle_window_max_s": 1.25,
+        "return_guard_at_failure": 0
+      },
+      "limitations": "source-path match and trace are consistent with post-PATH settling failure; no physical cause for residual fluctuation is yet identified"
+    },
+    {
+      "id": "tase-integral-pair01-last-synchronized-tp-echo-20260925T0912HKT",
+      "path": "runs/tase-integral-pair01-live-20260925T0912HKT/attempts/0002/robot_frames.jsonl",
+      "kind": "synchronized RTDE/TP echo record at the failed A attempt tail",
+      "status": "last stored TP echo was state 40/reason 0/return guard 0 before the terminal reason-58 receipt",
+      "key_values": {
+        "last_consumed_sequence": 81034,
+        "last_runtime_state": 2,
+        "last_qd_max_rad_s": 0.00901873,
+        "last_tcp_linear_speed_m_s": 0.004503,
+        "host_formal_time_s": 60.001997,
+        "formal_command_rows": 29954
+      },
+      "limitations": "the final reason-58 echo is present in the receipt, not this last pre-fault RTDE row; it records no completed return movement"
+    },
+    {
+      "id": "tase-integral-pair01-a-failed-path-metric-reconstruction-20260925T0935HKT",
+      "path": "reports/tase_integral_pair01_a_failure_diagnostic_20260925.json",
+      "kind": "offline stage and force-error diagnostic for the failed A attempt",
+      "status": "seal verified; 60 s command trace has all 600 100 ms bins and 550 formal bins reconstructed, but remains ineligible because TP reason 58 prevented lifecycle path/Home certification",
+      "key_values": {
+        "filtered_binmean_diagnostic_mae_0_60_n": 1.013803167,
+        "filtered_binmean_diagnostic_mae_5_60_n": 0.989090061,
+        "raw_corrected_kunwei_sample_mae_0_60_n": 1.964486454,
+        "raw_corrected_kunwei_sample_rmse_5_60_n": 2.514950055,
+        "raw_corrected_below_1n_fraction_5_60": 0.169531022,
+        "formal_bins_reconstructed": 550,
+        "official_mae_n": null,
+        "eligible": false
+      },
+      "limitations": "filtered bin-mean reconstruction cross-checked on the successful B attempt within 0.000124 N; this failed-A diagnostic is not a successful BO observation or paired result; KWR75 is not independent force truth"
+    },
+    {
+      "id": "tase-failed-attempt-path-origin-reducer-fix-20260925T0940HKT",
+      "path": "tools/analyze_tase_resident_evidence.py",
+      "kind": "diagnostic-only PATH-origin inference for sealed v2 traces when failed receipts omit timing.path_started_monotonic_s",
+      "status": "implemented and verified; inferred timestamp source is explicitly labeled and does not change lifecycle/eligibility/official score",
+      "related_files": [
+        "tests/test_analyze_tase_resident_evidence.py",
+        "reports/tase_integral_pair01_a_failure_diagnostic_20260925.json"
+      ],
+      "key_values": {
+        "focused_tests_passed": 2,
+        "attempt_path_start_source": "sealed_command_timeline",
+        "attempt_path_complete": false,
+        "attempt_home_verified": false,
+        "official_mae_n": null,
+        "raw_corrected_samples_5_60": 27464,
+        "raw_sample_mae_n": 1.907694053315236,
+        "raw_sample_rmse_n": 2.514950055460993
+      },
+      "limitations": "reporting fix only; it does not fix TP reason 58 or satisfy the live recovery stationarity gate"
+    },
+    {
+      "id": "tase-r31-a-baseline-20260925T1510HKT",
+      "path": "runs/tase-r31-a-baseline-20260925T1510HKT/attempts/0001/attempt-result.json",
+      "kind": "R31 rate460 TASE_RNN_MATURE A baseline",
+      "status": "eligible complete 60 s PATH with 550 formal bins, timing, motion, joint Home and STOP gates passed",
+      "key_values": {
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "Md_scalar": 9.565272137974492,
+        "Bd_scalar": 693.6559295653944,
+        "integral_limit_n_s": 1.0,
+        "mae_n": 1.2827202364908377,
+        "qd_correlation": 0.9700722532882486,
+        "complete_bins": 550,
+        "home_verified": true
+      },
+      "limitations": "first R31 A unit; not enough by itself to establish repeatability or treatment effect; KWR75 is feedback, not independent force truth"
+    },
+    {
+      "id": "tase-r31-a-baseline-repeat-20260925T1530HKT",
+      "path": "runs/tase-r31-a-baseline-repeat-evidenceonly-20260925T1530HKT/attempts/0001/attempt-result.json",
+      "kind": "R31 rate460 TASE_RNN_MATURE A repeated baseline",
+      "status": "eligible complete 60 s PATH with 550 formal bins, timing, motion, joint Home and STOP gates passed",
+      "key_values": {
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "Md_scalar": 9.565272137974492,
+        "Bd_scalar": 693.6559295653944,
+        "integral_limit_n_s": 1.0,
+        "mae_n": 1.0067966519915275,
+        "qd_correlation": 0.9720695642595333,
+        "complete_bins": 550,
+        "home_verified": true
+      },
+      "limitations": "evidence-only video policy followed an earlier recorder stall; video did record on this run; n=2 remains descriptive only"
+    },
+    {
+      "id": "tase-r31-qp-bo10-b-rate460-failed-motion-gate",
+      "path": "runs/tase-r31-qp-rate460-20260925T1600HKT/live/attempts/0001/attempt-result.json",
+      "kind": "TASE_QP live attempt with explicitly frozen BO-10/B integral profile",
+      "status": "complete 60.006 s PATH and 550 bins; timing, safety, return and Home passed; failed qd-correlation motion gate and remains a failure",
+      "key_values": {
+        "Md_scalar": 8.592659656558919,
+        "Bd_scalar": 772.1473715259434,
+        "integral_limit_n_s": 0.5,
+        "diagnostic_mae_n": 0.9147095610250513,
+        "qd_correlation": 0.8401317340726273,
+        "minimum_rate_hz": 460.0,
+        "effective_rate_hz": 481.1,
+        "solver_failed_calls": 0,
+        "solver_max_s": 9.261301602236927e-05,
+        "home_verified": true
+      },
+      "limitations": "diagnostic MAE only; motion gate requires qd correlation >=0.900; not eligible for BO or a solver-only A comparison"
+    },
+    {
+      "id": "tase-r31-qp-matched-a-rate460-failed-motion-gate",
+      "path": "runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001/attempt-result.json",
+      "kind": "TASE_QP live method comparison with the R31 A outer parameters held fixed",
+      "status": "complete 60.004 s PATH and 550 bins; timing, safety, return and Home passed; failed qd-correlation motion gate and remains a failure",
+      "key_values": {
+        "Md_scalar": 9.565272137974492,
+        "Bd_scalar": 693.6559295653944,
+        "integral_limit_n_s": 1.0,
+        "diagnostic_mae_n": 0.9501390239556037,
+        "qd_correlation": 0.8486068681812743,
+        "minimum_rate_hz": 460.0,
+        "effective_rate_hz": 480.05,
+        "solver_failed_calls": 0,
+        "solver_max_s": 0.00010007698438130319,
+        "home_verified": true
+      },
+      "limitations": "diagnostic MAE only; exact consumed-sequence recomputation gives 0.848627, below the frozen 0.900 motion gate; not an eligible force-score comparison"
+    },
+    {
+      "id": "tase-r31-qp-matched-a-motion-gate-replay",
+      "path": "reports/tase_r31_qp_matched_a_motion_gate_analysis_20260925.json",
+      "kind": "sealed per-joint and same-consumed-packet TASE_QP motion-gate recomputation",
+      "status": "source hashes and row joins verified; one-packet offset does not explain the failed gate",
+      "key_values": {
+        "captured_qd_correlation": 0.8486068681812743,
+        "same_packet_recomputed": 0.8486271490045678,
+        "best_single_packet_offset": -1,
+        "best_offset_correlation": 0.8521759264578136,
+        "joint2_correlation": 0.7049117187735726,
+        "joint4_correlation": 0.8796875566654627,
+        "joint5_correlation": 0.08568116784945845
+      },
+      "limitations": "per-joint correlation and qd lag localize mismatch but do not alone prove a mechanical, servo, or sensor root cause"
+    },
+    {
+      "id": "tase-r31-qp-scheduler-probe-writer-gc-disabled",
+      "path": "runs/tase-r31-qp-scheduler-probe-20260925T1545HKT/result-gc-disabled/summary.json",
+      "kind": "offline 30000-solve same-input scheduler attribution probe for a 35-iteration QP input",
+      "status": "all iterations were 35; GC disabled to match live resident policy; no solve exceeded the 1 ms gate",
+      "key_values": {
+        "samples": 30000,
+        "solver_median_ms": 0.03195001045241952,
+        "solver_max_ms": 0.04600599640980363,
+        "solver_over_1ms_count": 0,
+        "solver_over_106_1ms_count": 0,
+        "runqueue_wait_max_ms": 0.018535
+      },
+      "limitations": "106.1 ms historical event not reproduced; probe is offline and does not identify its source"
+    },
+    {
+      "id": "tase-r31-qp-matched-a-profile-whitelist",
+      "path": "tools/contact_yield_live_writer.py",
+      "kind": "host-side TASE_QP parameter identity validation and supervisor preflight",
+      "status": "exact frozen BO-10/B and exact matched R31-A profiles are allowlisted; unknown identities, changed values, or wrong R31-A protocol are rejected before Dashboard Load/Play",
+      "related_files": [
+        "tools/contact_yield_supervisor.py",
+        "tests/test_tase_contact_provider.py",
+        "tests/test_contact_yield_supervisor.py"
+      ],
+      "key_values": {
+        "focused_modules_passed": 83,
+        "tp_package_changed": false,
+        "qp_solver_profile_changed": false
+      },
+      "limitations": "source change only; both QP physical attempts remain failed at the existing motion gate"
+    },
+    {
+      "id": "tase-sfc-dsfc-r31-aligned-model-proxy-20260925T1631HKT",
+      "path": "runs/tase-sfc-dsfc-r31-aligned-model-20260925T1631HKT/comparison/summary.json",
+      "kind": "R31 numeric-profile-aligned five-block SFC/DSFC closed-loop model proxy",
+      "status": "30/30 model attempts complete; zero simulation failures; physical_evidence=false",
+      "key_values": {
+        "normal_config": {
+          "epsilon": 0.022,
+          "sigr_exponent_r": 1.0,
+          "lambda_update_sign": "minus"
+        },
+        "Md_scalar": 9.565272137974492,
+        "Bd_scalar": 693.6559295653944,
+        "integral_limit_n_s": 1.0,
+        "scenarios": [
+          "plane",
+          "tangent_pulse",
+          "normal_pulse"
+        ],
+        "blocks_per_scenario": 5,
+        "max_tangential_normal_leak_m_s": 8.673617379884035e-19,
+        "final_realization_calls_per_tick": [
+          1
+        ],
+        "mean_paired_dsfc_minus_sfc_model_mae_n": {
+          "normal_pulse": 0.008293574541136281,
+          "plane": 2.096191388744375e-06,
+          "tangent_pulse": 0.0003142630775808615
+        }
+      },
+      "limitations": "simulated plant and force only; 120 N/m path stiffness is not live-approved; not R31 physical-input replay; no live composed method is registered; no physical improvement claim"
+    },
+    {
+      "id": "live-readonly-power-on-continuation-20260925T165422HKT",
+      "path": "runs/poweron-continuation-final-preflight-20260925T165408HKT/preflight_readonly.json",
+      "kind": "fresh read-only Dashboard/RTDE/network/Kunwei-connectivity preflight after offline proxy",
+      "status": "passed; robot already powered, Remote Control, Safety NORMAL, program STOPPED, RTDE snapshot at approved joint Home; no power command or motion sent",
+      "key_values": {
+        "robotmode": "RUNNING",
+        "safety": "NORMAL",
+        "program": "STOPPED step5d_contact_six_qp_v1.urp",
+        "home_q_max_error_rad": 2.8848e-05,
+        "actual_tcp_speed_m_s": 0.0,
+        "payload_kg": 0.413,
+        "tcp_z_mm": 87.4,
+        "kunwei_connect_only": true,
+        "live_writer_count": 0
+      },
+      "limitations": "single read-only RTDE snapshot, not sustained stationarity qualification; Kunwei was connect-only, no force stream was sampled"
+    },
+    {
+      "id": "tase-r31-qdot-offset-scan-20260925",
+      "path": "reports/tase_r31_qdot_offset_scan_20260925.json",
+      "kind": "sealed command/RTDE actual_qd correlation scan across ±24 consumed-sequence offsets for two RNN A baselines and matched QP",
+      "status": "source hashes verified; no causal offset makes the QP gate pass; best flattened QP correlation is 0.852176 at noncausal future-command offset -1",
+      "key_values": {
+        "scan_packet_offsets": [
+          -24,
+          24
+        ],
+        "matched_qp_same_sequence_correlation": 0.8486271490045678,
+        "matched_qp_best_flattened_correlation": 0.8521759264578136,
+        "best_offset": -1,
+        "qp_j2_best_correlation": 0.7090414301985185,
+        "qp_j4_best_correlation": 0.8893089750645474
+      },
+      "limitations": "sequence-offset correlation is diagnostic only; no timing correction or root cause is established"
+    },
+    {
+      "id": "tase-r31-qdot-output-transition-20260925",
+      "path": "reports/tase_r31_qdot_output_transition_20260925.json",
+      "kind": "sealed command setpoint-change and output-feedback counts for R31 A1/A2 and matched QP",
+      "status": "QP has higher J2/J4 setpoint-change p95 and more slew/realization-limit feedback flags than RNN A; candidate mechanism only",
+      "key_values": {
+        "qp_j2_setpoint_change_p95_rad_s2": 0.8919646899737842,
+        "qp_j4_setpoint_change_p95_rad_s2": 1.0171342164410997,
+        "qp_host_slew_limited": 513,
+        "qp_output_feedback_realization_limited": 1857,
+        "a1_host_slew_limited": 7,
+        "a2_host_slew_limited": 3
+      },
+      "limitations": "setpoint difference/dt is not measured mechanical acceleration; flags do not confirm physical actuator saturation; causality remains unknown"
+    }
+  ],
+  "not_yet_observed": [
+    "source attribution for the 19.674 ms maximum host observation gap beyond the measured provider/solver time",
+    "sealed values for every Kunwei frame inside each approximately 1 kHz transport batch, needed to evaluate pairwise averaging or anti-alias filtering",
+    "closed-loop live force-MAE effect of any integral cap or anti-windup candidate",
+    "valid local 5 N normal-axis M/K/B identification; current passive Figure-eight fit is rejected for zeta selection",
+    "A-versus-candidate paired improvement with 95% CI and independent task-force truth",
+    "SFC+TASE same-condition live result; the R31-aligned 30-attempt model proxy is simulated only, the live registry has no composed method, and the inherited 120 N/m path stiffness is not live-approved",
+    "Root cause and eligible repair for the TASE-QP actual_qd correlation miss"
+  ],
+  "latest_report": "reports/tase_r31_qp_motion_gate_comparison_20260925.md"
+}
