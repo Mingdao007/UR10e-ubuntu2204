@@ -1,0 +1,57 @@
+{
+  "audited_at": "2026-09-25T23:31:14+08:00",
+  "checks": {
+    "all_30_attempt_rows_match_profile": true,
+    "all_rows_are_model_only_and_complete": true,
+    "all_trace_hashes_valid": true,
+    "attempts_artifact_hash_valid": true,
+    "sealed_manifest_profile_matches_canonical_a": true,
+    "sealed_manifest_source_path_and_sha_match_canonical_a": true,
+    "sealed_rate460_protocol_and_60s_duration": true,
+    "sealed_summary_profile_matches_canonical_a": true,
+    "sealed_wrapper_declares_canonical_rate460_a_source": true
+  },
+  "claim_limits": [
+    "model proxy only; no physical SFC/DSFC experiment",
+    "120 N/m path stiffness remains model-only and is not approved for live use",
+    "Kunwei feedback is not independent task-force truth"
+  ],
+  "evidence_class": "offline_closed_loop_model_proxy_only",
+  "normal_profile": {
+    "candidate_id": "figure8-rate460-integral-1p0-A-baseline",
+    "duration_token": "r013_60_rate460",
+    "outer_config": {
+      "Bd_scalar": 693.6559295653944,
+      "Md_scalar": 9.565272137974492,
+      "delay_T_s": 0.004,
+      "force_integral_authority_error_n": 0.5,
+      "force_integral_limit_n_s": 1.0,
+      "force_integral_policy": "legacy-clamp-v1",
+      "force_sign_convention": "step5_step6_positive_normal_load",
+      "force_target_n": 5.0,
+      "kf": 1.0,
+      "ko": 5.0,
+      "kp": 4.0
+    },
+    "path_duration_s": 60.0,
+    "protocol_id": "figure8_window60_r013_rate460_v1",
+    "sha256": "88523f9622828a2fb69881c6f52986e30c6819b5d4ffb72e5f2b5fcde029e935",
+    "source": "config/tase_figure8_integral_1p0_rate460.json"
+  },
+  "physical_evidence": false,
+  "result": "The existing 30 SFC/DSFC model attempts are numerically and source-aligned with R31 rate460 A; no simulation rerun is needed. The general comparison loader had selected the neighboring rate400/0.1 profile and overridden the cap; it is now corrected to read and validate the canonical A file directly.",
+  "run_dir": "runs/tase-sfc-dsfc-r31-aligned-model-20260925T1631HKT",
+  "runner_source": {
+    "path": "runs/tase-sfc-dsfc-r31-aligned-model-20260925T1631HKT/run_model_replay.py",
+    "sha256": "218ba23d041ac30884ec38f273ff9e8b644a7fe11b573f5701c1588f7bdaadf8"
+  },
+  "schema": "tase.sfc-dsfc-r31-profile-provenance-audit-v1",
+  "sealed_artifacts": {
+    "attempt_count": 30,
+    "attempts_sha256": "eac3bba98f7f9af4f7ad6733ae6dffbf572843dfa90650f348ad2424605bd933",
+    "failed_attempts": 0,
+    "profile_manifest_sha256": "80257b7f73057af70c1551ac9c4d45a9bf0cd15b8e8565cde00e80e997a00beb",
+    "summary_sha256": "3efd25657c8f3e20593530f1376f3c21260762196a110affba97919d21282395"
+  },
+  "worktree_head_at_audit": "ae45f3beb23cc32bf6e35e226394884ec1978679"
+}

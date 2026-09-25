@@ -28,12 +28,55 @@ DEFAULT_HORIZON_TICKS = 30_000  # 60 s at the shared 500 Hz simulation step.
 PULSE_START_FRACTION = 0.35
 PULSE_END_FRACTION = 0.55
 PULSE_MAGNITUDE_N = 0.6  # Reuses the existing offline proxy pulse amplitude.
-NORMAL_A_INTEGRAL_LIMIT_N_S = 1.0
-OUTER_PROFILE_ID = "r013_60_rate400_A_incumbent_integral_1p0"
+NORMAL_A_PARAMETER_FILE = "config/tase_figure8_integral_1p0_rate460.json"
+NORMAL_A_CANDIDATE_ID = "figure8-rate460-integral-1p0-A-baseline"
+NORMAL_A_PROTOCOL_ID = "figure8_window60_r013_rate460_v1"
+NORMAL_A_DURATION_TOKEN = "r013_60_rate460"
 
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def _load_normal_a_profile(root: Path) -> tuple[dict[str, Any], str]:
+    """Load the exact R31 rate460 A profile and reject neighboring protocols."""
+
+    profile_path = root / NORMAL_A_PARAMETER_FILE
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    if profile.get("schema") != "tase.outer-parameters-v1":
+        raise ValueError("normal A profile has an unexpected schema")
+    if profile.get("candidate_id") != NORMAL_A_CANDIDATE_ID:
+        raise ValueError("normal A candidate identity is not the frozen R31 rate460 A profile")
+    if profile.get("protocol_id") != NORMAL_A_PROTOCOL_ID:
+        raise ValueError("normal A profile is not bound to the R31 rate460 protocol")
+    if profile.get("duration_token") != NORMAL_A_DURATION_TOKEN:
+        raise ValueError("normal A profile duration token is not r013_60_rate460")
+    if float(profile.get("path_duration_s", float("nan"))) != 60.0:
+        raise ValueError("normal A profile duration must be exactly 60 seconds")
+    expected_start = (9.565272137974492, 693.6559295653944)
+    if not np.allclose(
+        (float(profile["Md_scalar"]), float(profile["Bd_scalar"])),
+        expected_start,
+        rtol=0.0,
+        atol=1e-12,
+    ):
+        raise ValueError("R31 A comparison must start from the accepted RNN incumbent")
+    frozen = profile.get("frozen")
+    if not isinstance(frozen, dict):
+        raise ValueError("normal A profile has no frozen outer-loop parameters")
+    expected_frozen = {
+        "kp": 4.0,
+        "ko": 5.0,
+        "kf": 1.0,
+        "force_target_n": 5.0,
+        "force_integral_limit_n_s": 1.0,
+        "force_integral_policy": "legacy-clamp-v1",
+        "force_integral_authority_error_n": 0.5,
+        "force_sign_convention": "step5_step6_positive_normal_load",
+    }
+    if frozen != expected_frozen:
+        raise ValueError("normal A frozen parameters differ from the accepted R31 profile")
+    return profile, hashlib.sha256(profile_path.read_bytes()).hexdigest()
 
 
 def _load_frozen_profiles() -> dict[str, Any]:
@@ -54,8 +97,7 @@ def _load_frozen_profiles() -> dict[str, Any]:
     if not {"SFC", "DSFC"}.issubset(law_parameters):
         raise ValueError("route config must freeze both native SFC and DSFC")
 
-    incumbent_path = root / "config" / "tase_figure8_integral_0p1_rate400.json"
-    incumbent = json.loads(incumbent_path.read_text(encoding="utf-8"))
+    incumbent, incumbent_sha = _load_normal_a_profile(root)
     frozen = incumbent["frozen"]
     outer = {
         "kp": float(frozen["kp"]),
@@ -64,18 +106,12 @@ def _load_frozen_profiles() -> dict[str, Any]:
         "Md_scalar": float(incumbent["Md_scalar"]),
         "Bd_scalar": float(incumbent["Bd_scalar"]),
         "force_target_n": float(frozen["force_target_n"]),
-        "force_integral_limit_n_s": NORMAL_A_INTEGRAL_LIMIT_N_S,
-        "force_integral_policy": "legacy-clamp-v1",
+        "force_integral_limit_n_s": float(frozen["force_integral_limit_n_s"]),
+        "force_integral_policy": str(frozen["force_integral_policy"]),
         "force_integral_authority_error_n": float(frozen["force_integral_authority_error_n"]),
         "force_sign_convention": str(frozen["force_sign_convention"]),
         "delay_T_s": 0.004,
     }
-    expected_start = (9.565272137974492, 693.6559295653944)
-    if not np.allclose(
-        (outer["Md_scalar"], outer["Bd_scalar"]), expected_start,
-        rtol=0.0, atol=1e-12,
-    ):
-        raise ValueError("A comparison must start from the accepted RNN incumbent")
     normal = research._candidate("TASE_RNN_MATURE", 0)
     normal_config = {
         key: normal[key]
@@ -85,7 +121,12 @@ def _load_frozen_profiles() -> dict[str, Any]:
         "normal_controller": "TASE_RNN_MATURE",
         "normal_config": normal_config,
         "normal_outer_config": outer,
-        "outer_profile_id": OUTER_PROFILE_ID,
+        "outer_profile_id": f"{NORMAL_A_PROTOCOL_ID}:{NORMAL_A_CANDIDATE_ID}",
+        "normal_outer_profile_source": NORMAL_A_PARAMETER_FILE,
+        "normal_outer_profile_sha256": incumbent_sha,
+        "protocol_id": NORMAL_A_PROTOCOL_ID,
+        "duration_token": NORMAL_A_DURATION_TOKEN,
+        "path_duration_s": float(incumbent["path_duration_s"]),
         "tangential_parameters": {name: dict(law_parameters[name]) for name in ("SFC", "DSFC")},
         "law_parameter_source": str(route["law_parameters_source"]),
         "law_parameter_source_sha256": source_sha,
@@ -213,6 +254,7 @@ def _render_report(summary: dict[str, Any]) -> str:
         "Evidence level: **offline closed-loop model proxy only**. These force values are generated by the proxy plant; they are neither UR10e feedback nor independent task-force truth. This report does not qualify either combination for live use.",
         "",
         f"Frozen normal controller: `{summary['profile']['normal_controller']}`, A outer profile `{summary['profile']['outer_profile_id']}` with Md={summary['profile']['normal_outer_config']['Md_scalar']}, Bd={summary['profile']['normal_outer_config']['Bd_scalar']}, integral cap={summary['profile']['normal_outer_config']['force_integral_limit_n_s']} N·s.",
+        f"A profile source: `{summary['profile']['normal_outer_profile_source']}` (SHA-256 `{summary['profile']['normal_outer_profile_sha256']}`), protocol `{summary['profile']['protocol_id']}`, duration `{summary['profile']['duration_token']}` / {summary['profile']['path_duration_s']} s.",
         "",
         "Both laws use the same normal observer, reference trajectory, 120 N/m path-restoring term, 0.002 s simulation step, 5 N target, and ±0.05 rad/s joint-velocity bounds. Each tangent output is projected and composed before exactly one TASE final realization. No surface geometry is provided to the controller.",
         "",
@@ -333,6 +375,11 @@ def run_comparison(
         "normal_config": profile["normal_config"],
         "normal_outer_config": profile["normal_outer_config"],
         "outer_profile_id": profile["outer_profile_id"],
+        "normal_outer_profile_source": profile["normal_outer_profile_source"],
+        "normal_outer_profile_sha256": profile["normal_outer_profile_sha256"],
+        "protocol_id": profile["protocol_id"],
+        "duration_token": profile["duration_token"],
+        "path_duration_s": profile["path_duration_s"],
         "native_composition_ids": {
             "SFC": "TASE_NORMAL_ORIENTATION+SFC_TANGENTIAL_YIELD_V1",
             "DSFC": "TASE_NORMAL_ORIENTATION+DSFC_TANGENTIAL_YIELD_V1",
@@ -359,6 +406,9 @@ def run_comparison(
         "attempts": len(attempts),
         "failed_attempts": sum(bool(item["metrics"]["failed"]) for item in attempts),
         "protocol": {
+            "normal_profile_protocol_id": profile["protocol_id"],
+            "normal_profile_duration_token": profile["duration_token"],
+            "normal_profile_path_duration_s": profile["path_duration_s"],
             "methods": list(METHODS),
             "scenarios": list(SCENARIOS),
             "horizon_ticks": horizon_ticks,

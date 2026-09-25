@@ -1,7 +1,8 @@
-from pathlib import Path
 import gzip
+import hashlib
 import json
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -20,11 +21,20 @@ from tase_sfc_fusion import NATIVE_DSFC_COMPOSITION_ID, NATIVE_SFC_COMPOSITION_I
 
 def test_frozen_native_profiles_use_a_incumbent_and_distinct_law_identities():
     profile = comparison._load_frozen_profiles()
+    normal_a_path = ROOT / "config/tase_figure8_integral_1p0_rate460.json"
+    normal_a = json.loads(normal_a_path.read_text(encoding="utf-8"))
     outer = profile["normal_outer_config"]
     assert outer["Md_scalar"] == pytest.approx(9.565272137974492)
     assert outer["Bd_scalar"] == pytest.approx(693.6559295653944)
     assert outer["force_integral_limit_n_s"] == 1.0
     assert outer["force_target_n"] == 5.0
+    assert profile["normal_outer_profile_source"] == "config/tase_figure8_integral_1p0_rate460.json"
+    assert profile["normal_outer_profile_sha256"] == hashlib.sha256(normal_a_path.read_bytes()).hexdigest()
+    assert profile["protocol_id"] == "figure8_window60_r013_rate460_v1"
+    assert profile["duration_token"] == "r013_60_rate460"
+    assert profile["path_duration_s"] == 60.0
+    assert profile["outer_profile_id"] == f"{normal_a['protocol_id']}:{normal_a['candidate_id']}"
+    assert outer["force_integral_limit_n_s"] == normal_a["frozen"]["force_integral_limit_n_s"]
     assert comparison.METHODS == (
         "TASE_RNN_MATURE+SFC_YIELD_V1",
         "TASE_RNN_MATURE+DSFC_YIELD_V1",
@@ -36,6 +46,15 @@ def test_frozen_native_profiles_use_a_incumbent_and_distinct_law_identities():
     assert all(record.live_eligible is False for record in records.values())
     assert records[comparison.METHODS[0]].tangential_controller == "SFC_YIELD_V1"
     assert records[comparison.METHODS[1]].tangential_controller == "DSFC_YIELD_V1"
+
+
+def test_normal_a_loader_rejects_rate400_point_one_profile(tmp_path):
+    profile_dir = tmp_path / "config"
+    profile_dir.mkdir()
+    wrong_profile = json.loads((ROOT / "config/tase_figure8_integral_0p1_rate400.json").read_text())
+    (profile_dir / "tase_figure8_integral_1p0_rate460.json").write_text(json.dumps(wrong_profile))
+    with pytest.raises(ValueError, match="candidate identity|rate460 protocol"):
+        comparison._load_normal_a_profile(tmp_path)
 
 
 @pytest.mark.parametrize("scenario", comparison.SCENARIOS)
@@ -128,10 +147,15 @@ def test_small_campaign_seals_model_only_traces_and_denominators(tmp_path):
     assert summary["attempts"] == summary["planned_attempts"] == 6
     assert summary["failed_attempts"] == 0
     assert summary["protocol"]["simulated_duration_s"] == pytest.approx(0.016)
+    assert summary["profile"]["normal_outer_profile_source"] == "config/tase_figure8_integral_1p0_rate460.json"
+    assert summary["protocol"]["normal_profile_protocol_id"] == "figure8_window60_r013_rate460_v1"
+    assert summary["protocol"]["normal_profile_duration_token"] == "r013_60_rate460"
+    assert summary["protocol"]["normal_profile_path_duration_s"] == 60.0
     assert summary["protocol"]["note"].startswith("closed-loop simulated")
     report = (tmp_path / "sfc-dsfc" / "report.md").read_text(encoding="utf-8")
     assert "offline closed-loop model proxy only" in report
     assert "does not qualify either combination for live use" in report
+    assert "config/tase_figure8_integral_1p0_rate460.json" in report
     attempts = [
         json.loads(line)
         for line in (tmp_path / "sfc-dsfc" / "attempts.jsonl").read_text(encoding="utf-8").splitlines()

@@ -1,7 +1,7 @@
 {
   "schema": "tase-5n-precision-evidence-index-v1",
-  "checkpoint_at": "2026-09-25T23:20:00+08:00",
-  "primary_experiment": "The R31 rate460 independent A-versus-E confirmation is complete: 5/5 valid pairs, 22 physical attempts, 7 failed attempts retained, all sessions closed. A averaged 0.987131 N and E 1.748434 N; paired A-minus-E was -0.761304 N (95% CI [-0.893456, -0.629151] N), so no E improvement is supported and A remains incumbent. Two complete TASE-QP paths still fail the frozen actual_qd correlation gate (0.840132 and 0.848607 versus 0.900); their MAEs are diagnostics only. The R31 SFC/DSFC model proxy is simulation only, with 120 N/m path stiffness not approved for live use. KWR75 remains controller feedback, not independent task-force truth. Fresh read-only preflight at 22:30 HKT again found the controller already powered, Remote Control, Safety NORMAL, TP STOPPED, zero TCP speed, and joint Home max error 2.69e-5 rad; no power or motion command was sent. The SFC+TASE live method remains unavailable pending a reviewed K_path binding; 120 N/m is still offline-only. A fresh 22:50 HKT RTDE sample added active payload inertia; a reproducible URDF/Pinocchio operational-mass calculation gives 3.529 kg with tangent/orientation axes free and 23.982 kg with those axes constrained. This is model-derived robot inertia only; the local 5 N environment/contact K/B/M model remains empirically unidentified and no zeta sweep is authorized.",
+  "checkpoint_at": "2026-09-25T23:31:14+08:00",
+  "primary_experiment": "The R31 rate460 independent A-versus-E confirmation is complete: 5/5 valid pairs, 22 physical attempts, 7 failed attempts retained, all sessions closed. A averaged 0.987131 N and E 1.748434 N; paired A-minus-E was -0.761304 N (95% CI [-0.893456, -0.629151] N), so no E improvement is supported and A remains incumbent. Two complete TASE-QP paths still fail the frozen actual_qd correlation gate (0.840132 and 0.848607 versus 0.900); their MAEs are diagnostics only. The R31 SFC/DSFC model proxy is simulation only, with 120 N/m path stiffness not approved for live use. KWR75 remains controller feedback, not independent task-force truth. Fresh read-only preflight at 22:30 HKT again found the controller already powered, Remote Control, Safety NORMAL, TP STOPPED, zero TCP speed, and joint Home max error 2.69e-5 rad; no power or motion command was sent. The SFC+TASE live method remains unavailable pending a reviewed K_path binding; 120 N/m is still offline-only. A fresh 22:50 HKT RTDE sample added active payload inertia; a reproducible URDF/Pinocchio operational-mass calculation gives 3.529 kg with tangent/orientation axes free and 23.982 kg with those axes constrained. This is model-derived robot inertia only; the local 5 N environment/contact K/B/M model remains empirically unidentified and no zeta sweep is authorized. Fresh Dashboard-only check at 2026-09-25T23:31:14+08:00: RUNNING, Safety NORMAL, TP STOPPED step5d_contact_six_qp_v1; no writer/bridge process or write/motion command. This is not a complete fresh live preflight.",
   "claim_boundary": "Kunwei is controller feedback, not independent task-force truth. RPSFC/SFC/DSFC drift evidence is a different experiment.",
   "report": "reports/tase_5n_precision_recovery_20260925.md",
   "decision_tree": "reports/tase_5n_precision_decision_tree_20260925.md",
@@ -1372,6 +1372,31 @@
         "focused_tests_passed": 2
       },
       "limitations": "The offset scan is descriptive and cannot replace the official same-consumed-sequence published-qdot/actual_qd gate. Joint 5 has very small target velocity variance, making its boundary-offset peak uninterpretable. No physical cause is proven."
+    },
+    {
+      "id": "tase-r31-sfc-dsfc-profile-provenance-audit-20260925T2330HKT",
+      "path": "reports/tase_sfc_dsfc_r31_profile_provenance_audit_20260925.json",
+      "kind": "source and attempt audit for the existing SFC/DSFC model proxy",
+      "status": "passed: wrapper, manifest, summary, all 30 attempt profiles and trace hashes match canonical rate460 A; no rerun required",
+      "key_values": {
+        "attempts": 30,
+        "failed_attempts": 0,
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "duration_token": "r013_60_rate460",
+        "integral_cap_n_s": 1.0,
+        "physical_evidence": false
+      }
+    },
+    {
+      "id": "live-dashboard-status-20260925T2330HKT",
+      "path": "reports/tase_dashboard_status_20260925T2330HKT.json",
+      "kind": "fresh read-only Dashboard status after user requested power-on continuation",
+      "status": "robot already powered; Safety NORMAL; TP STOPPED; no writer or bridge process observed; no motion issued; full live preflight not performed",
+      "key_values": {
+        "robotmode": "RUNNING",
+        "safety": "NORMAL",
+        "program": "STOPPED step5d_contact_six_qp_v1.urp"
+      }
     }
   ],
   "not_yet_observed": [

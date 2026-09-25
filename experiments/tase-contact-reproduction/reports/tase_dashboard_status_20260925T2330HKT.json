@@ -1,0 +1,27 @@
+{
+  "commands": [
+    "robotmode",
+    "safetystatus",
+    "programState"
+  ],
+  "endpoint": "192.168.1.18:29999",
+  "interpretation": {
+    "motion_or_program_write_sent": false,
+    "powered_on": true,
+    "program_stopped": true,
+    "safety_normal": true,
+    "writer_or_bridge_process_observed": false
+  },
+  "limitations": [
+    "Dashboard-only probe; this is not a full live preflight.",
+    "No RTDE joint, Installation, payload, TCP, or sensor freshness readback was performed in this probe."
+  ],
+  "observed_at": "2026-09-25T23:31:14+08:00",
+  "operation": "read-only Dashboard queries only",
+  "responses": {
+    "programState": "STOPPED step5d_contact_six_qp_v1.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "safetystatus": "Safetystatus: NORMAL"
+  },
+  "schema": "tase.readonly-dashboard-status-v1"
+}
