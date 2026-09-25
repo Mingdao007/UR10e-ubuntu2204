@@ -1,6 +1,6 @@
 {
   "schema": "tase-5n-precision-evidence-index-v1",
-  "checkpoint_at": "2026-09-25T23:11:00+08:00",
+  "checkpoint_at": "2026-09-25T23:20:00+08:00",
   "primary_experiment": "The R31 rate460 independent A-versus-E confirmation is complete: 5/5 valid pairs, 22 physical attempts, 7 failed attempts retained, all sessions closed. A averaged 0.987131 N and E 1.748434 N; paired A-minus-E was -0.761304 N (95% CI [-0.893456, -0.629151] N), so no E improvement is supported and A remains incumbent. Two complete TASE-QP paths still fail the frozen actual_qd correlation gate (0.840132 and 0.848607 versus 0.900); their MAEs are diagnostics only. The R31 SFC/DSFC model proxy is simulation only, with 120 N/m path stiffness not approved for live use. KWR75 remains controller feedback, not independent task-force truth. Fresh read-only preflight at 22:30 HKT again found the controller already powered, Remote Control, Safety NORMAL, TP STOPPED, zero TCP speed, and joint Home max error 2.69e-5 rad; no power or motion command was sent. The SFC+TASE live method remains unavailable pending a reviewed K_path binding; 120 N/m is still offline-only. A fresh 22:50 HKT RTDE sample added active payload inertia; a reproducible URDF/Pinocchio operational-mass calculation gives 3.529 kg with tangent/orientation axes free and 23.982 kg with those axes constrained. This is model-derived robot inertia only; the local 5 N environment/contact K/B/M model remains empirically unidentified and no zeta sweep is authorized.",
   "claim_boundary": "Kunwei is controller feedback, not independent task-force truth. RPSFC/SFC/DSFC drift evidence is a different experiment.",
   "report": "reports/tase_5n_precision_recovery_20260925.md",
@@ -1329,6 +1329,49 @@
         "redundant_power_on_command_sent": false
       },
       "limitations": "No contact was attempted; this start-check establishes only fresh resident idle/stop/Home behavior, not formal TASE-QP qualification or force performance. The two prior full QP attempts remain failed at the 0.900 actual_qd correlation gate."
+    },
+    {
+      "id": "tase-r31-target-actual-qd-lag-discriminator-20260925",
+      "path": "reports/tase_r31_target_actual_qd_lag_20260925.json",
+      "kind": "exact-consumed-sequence RTDE target_qd-to-actual_qd offset scan for RNN-A3, QP-BO10, and matched-A QP",
+      "status": "sealed-source hashes verified; offline telemetry diagnostic finds no fixed-lag correction for either QP episode; official gate and failed attempt identities unchanged",
+      "key_values": {
+        "offset_scan_rows": [
+          -24,
+          24
+        ],
+        "RNN_A3": {
+          "same_row_r": 0.9671830001174,
+          "best_r": 0.9683267086199864,
+          "best_offset_rows": 2,
+          "controller_time_offset_s": 0.004000000000814907,
+          "joined_rows": 28838
+        },
+        "TASE_QP_BO10": {
+          "same_row_r": 0.8404345283125564,
+          "best_r": 0.8404345283125564,
+          "best_offset_rows": 0,
+          "official_published_qdot_actual_qd_r": 0.8401317340726273,
+          "J2_same_row_r": 0.6934244831612635,
+          "J2_best_r": 0.695611421949122,
+          "J2_best_offset_rows": 1,
+          "J4_same_row_r": 0.8825127851749183,
+          "J4_best_r": 0.8825127851749183,
+          "J4_best_offset_rows": 0,
+          "joined_rows": 28871
+        },
+        "TASE_QP_MATCHED_A": {
+          "same_row_r": 0.8514280278096005,
+          "best_r": 0.8514280278096005,
+          "best_offset_rows": 0,
+          "official_published_qdot_actual_qd_r": 0.8486068681812743,
+          "J2_same_row_r": 0.7078498217274574,
+          "J4_same_row_r": 0.8877214644506293,
+          "joined_rows": 28809
+        },
+        "focused_tests_passed": 2
+      },
+      "limitations": "The offset scan is descriptive and cannot replace the official same-consumed-sequence published-qdot/actual_qd gate. Joint 5 has very small target velocity variance, making its boundary-offset peak uninterpretable. No physical cause is proven."
     }
   ],
   "not_yet_observed": [

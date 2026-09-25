@@ -190,6 +190,13 @@ A sealed v2 timeline may still support labeled diagnostics when a failed receipt
 - Keep the failed QP runs and frozen profile unchanged. Continue the SFC+TASE branch offline: the aligned model proxy exists, but has no physical status and the live registry has no composed entry. Do not move to live composition until its exact method identity, normal/path inputs, numeric profile and return route are closed and discussed.
 - At 17:55:37 HKT, a fresh read-only preflight verified program STOPPED, Safety NORMAL, zero TCP speed, approved joint Home within 3.3e-5 rad, unchanged short-EOAT Installation, Kunwei reachability, and no live writer/bridge. Evidence and reducer are in `reports/tase_r31_cartesian_velocity_diagnostic_20260925.md` and the matching JSON.
 
+## QP target-to-actual timing branch — 2026-09-25T23:20+08:00
+
+- The exact-consumed-row `target_qd → actual_qd` scan across ±24 joined rows does not improve either QP episode: BO-10 is best at 0 ms (`r=0.840435`), matched-A is best at 0 ms (`r=0.851428`). The RNN A3 comparison changes only from `0.967183` at 0 ms to `0.968327` at +4 ms.
+- **Timing-offset branch: not supported as the QP gate repair.** Do not shift sample joins or substitute this telemetry correlation for the frozen published-qdot/actual-qdot gate.
+- **Continue at output dynamics:** compare QP setpoint transitions and realization flags with subsequent RTDE target and actual velocities on the exact sequence. Keep the 0.900 gate, BO-10 profile, integral policy, and failed-attempt denominator unchanged. No live QP retry until new replay evidence or a materially different, reviewed solver formulation exists.
+- Receipt: `reports/tase_r31_target_actual_qd_lag_20260925.json`; focused test checks lag sign and controller timestamp monotonicity.
+
 
 ## Current checkpoint — 2026-09-25, 22:25 HKT
 

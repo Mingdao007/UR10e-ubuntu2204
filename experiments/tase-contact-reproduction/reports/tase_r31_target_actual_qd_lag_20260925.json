@@ -1,0 +1,2559 @@
+{
+  "attempts": [
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-a-baseline-repeat-03-20260925T1730HKT/attempts/0001",
+      "early_echo_rows_ignored": 0,
+      "evidence_eligible": true,
+      "joined_echo_rows": 28838,
+      "label": "RNN_A3",
+      "official_published_qdot_actual_qd_gate": {
+        "correlation": 0.9679473564587027,
+        "passed": true,
+        "required_minimum": 0.9
+      },
+      "repeated_echo_rows_ignored": 1146,
+      "sealed_source_sha256": {
+        "command_timeline": "cb08fae2a0aa154e1d06b1ba023ee6c171a94c7c7baaa37d03f323dbfde72619",
+        "robot_frames": "a7e9331c5e1da8e32c95fc194430b1fef56c2379040d491fafbc72ffee373e7d"
+      },
+      "target_actual_scan": {
+        "all_offsets": [
+          {
+            "flattened_pearson": 0.9383288082396728,
+            "matched_rows": 28814,
+            "median_controller_time_offset_s": -0.05000000000291038,
+            "per_joint_pearson": [
+              0.9947384864125449,
+              0.6225549263794332,
+              0.9815012081203162,
+              0.8591998033530277,
+              -0.23538152650533367,
+              0.9923386836470961
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -24
+          },
+          {
+            "flattened_pearson": 0.9392434603879392,
+            "matched_rows": 28815,
+            "median_controller_time_offset_s": -0.04799999999522697,
+            "per_joint_pearson": [
+              0.9947492437838966,
+              0.6313483857605713,
+              0.981608844265501,
+              0.8617234126448005,
+              -0.22144511967469524,
+              0.992346028362444
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -23
+          },
+          {
+            "flattened_pearson": 0.9402647670055747,
+            "matched_rows": 28816,
+            "median_controller_time_offset_s": -0.046000000002095476,
+            "per_joint_pearson": [
+              0.9947585710327306,
+              0.6413904011476668,
+              0.9817367545683188,
+              0.864430493605037,
+              -0.2064107148640506,
+              0.992358635409547
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -22
+          },
+          {
+            "flattened_pearson": 0.9413485192805674,
+            "matched_rows": 28817,
+            "median_controller_time_offset_s": -0.043999999994412065,
+            "per_joint_pearson": [
+              0.9947685949407241,
+              0.652279176324296,
+              0.9818612702187668,
+              0.8672002503991634,
+              -0.190347941850996,
+              0.9923684623687574
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -21
+          },
+          {
+            "flattened_pearson": 0.9424654235394652,
+            "matched_rows": 28818,
+            "median_controller_time_offset_s": -0.04200000000128057,
+            "per_joint_pearson": [
+              0.9947775546575348,
+              0.6635942301866182,
+              0.9819976882564844,
+              0.8699466090129155,
+              -0.1734589683926682,
+              0.9923890632320709
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -20
+          },
+          {
+            "flattened_pearson": 0.9435959996716702,
+            "matched_rows": 28819,
+            "median_controller_time_offset_s": -0.03999999999359716,
+            "per_joint_pearson": [
+              0.9947875501653968,
+              0.6749210146688606,
+              0.9821400245979213,
+              0.8727309923711836,
+              -0.155744697120416,
+              0.9924201646395969
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -19
+          },
+          {
+            "flattened_pearson": 0.9448309692537833,
+            "matched_rows": 28820,
+            "median_controller_time_offset_s": -0.03800000000046566,
+            "per_joint_pearson": [
+              0.994858728853321,
+              0.6861943286069426,
+              0.9822859395146168,
+              0.8761322391299391,
+              -0.13706635245017806,
+              0.9925013860666844
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -18
+          },
+          {
+            "flattened_pearson": 0.9460468323276143,
+            "matched_rows": 28821,
+            "median_controller_time_offset_s": -0.03599999999278225,
+            "per_joint_pearson": [
+              0.9949615747199555,
+              0.6969169104635626,
+              0.982431382158603,
+              0.8794326551385782,
+              -0.11710740989969524,
+              0.9926084094072867
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -17
+          },
+          {
+            "flattened_pearson": 0.9472110117472974,
+            "matched_rows": 28822,
+            "median_controller_time_offset_s": -0.033999999999650754,
+            "per_joint_pearson": [
+              0.9950641789458723,
+              0.7066762258152074,
+              0.9825886848071245,
+              0.8827463017713549,
+              -0.09640509718881803,
+              0.9927156974626016
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -16
+          },
+          {
+            "flattened_pearson": 0.9483050587344882,
+            "matched_rows": 28823,
+            "median_controller_time_offset_s": -0.03199999999196734,
+            "per_joint_pearson": [
+              0.9951667039937576,
+              0.7155640739946364,
+              0.9827485382179411,
+              0.8858793234938925,
+              -0.07532109003255419,
+              0.9928254506260069
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -15
+          },
+          {
+            "flattened_pearson": 0.9494417725761959,
+            "matched_rows": 28824,
+            "median_controller_time_offset_s": -0.029999999998835847,
+            "per_joint_pearson": [
+              0.9952706543872126,
+              0.7249827294624124,
+              0.9829060514402752,
+              0.889108208735855,
+              -0.0542138316723205,
+              0.992932442897535
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -14
+          },
+          {
+            "flattened_pearson": 0.9506406593694534,
+            "matched_rows": 28825,
+            "median_controller_time_offset_s": -0.027999999991152436,
+            "per_joint_pearson": [
+              0.9953721595433977,
+              0.735176606563968,
+              0.9830649093424441,
+              0.8924791002003727,
+              -0.033185284095444044,
+              0.993041433810981
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -13
+          },
+          {
+            "flattened_pearson": 0.951887300583242,
+            "matched_rows": 28826,
+            "median_controller_time_offset_s": -0.024000000004889444,
+            "per_joint_pearson": [
+              0.9954729301653725,
+              0.7459129450799715,
+              0.9832329890089034,
+              0.8959489009596733,
+              -0.011909075167791909,
+              0.9931552705828405
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -12
+          },
+          {
+            "flattened_pearson": 0.9531477883270276,
+            "matched_rows": 28827,
+            "median_controller_time_offset_s": -0.022000000011757948,
+            "per_joint_pearson": [
+              0.9955747303642369,
+              0.7567187299229597,
+              0.9834070609386755,
+              0.899477507937923,
+              0.009833628643753775,
+              0.9932677393390338
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -11
+          },
+          {
+            "flattened_pearson": 0.9543978240204198,
+            "matched_rows": 28828,
+            "median_controller_time_offset_s": -0.020000000004074536,
+            "per_joint_pearson": [
+              0.9956758565957796,
+              0.7672889084246248,
+              0.9835750105746149,
+              0.9030160740469376,
+              0.0321960299150325,
+              0.9933825478583167
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -10
+          },
+          {
+            "flattened_pearson": 0.9556536351756623,
+            "matched_rows": 28829,
+            "median_controller_time_offset_s": -0.01800000001094304,
+            "per_joint_pearson": [
+              0.9957771052335472,
+              0.7777103563935416,
+              0.9837404177248709,
+              0.906696413522905,
+              0.05506437429282195,
+              0.993490247427342
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -9
+          },
+          {
+            "flattened_pearson": 0.9569235120041149,
+            "matched_rows": 28830,
+            "median_controller_time_offset_s": -0.01600000000325963,
+            "per_joint_pearson": [
+              0.9958795032392446,
+              0.787978896553122,
+              0.9838966014858481,
+              0.9106449418864443,
+              0.07777166447009122,
+              0.9935869386427911
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -8
+          },
+          {
+            "flattened_pearson": 0.9582641299580368,
+            "matched_rows": 28831,
+            "median_controller_time_offset_s": -0.013999999995576218,
+            "per_joint_pearson": [
+              0.9959862845322098,
+              0.7986746838256028,
+              0.9840511006100522,
+              0.9149985228654403,
+              0.09960358208231412,
+              0.9936958869744769
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -7
+          },
+          {
+            "flattened_pearson": 0.9596164944051171,
+            "matched_rows": 28832,
+            "median_controller_time_offset_s": -0.012000000002444722,
+            "per_joint_pearson": [
+              0.9960985944129521,
+              0.8093334527825451,
+              0.9842092157430378,
+              0.9194959686835031,
+              0.1205137381541123,
+              0.9938087958751635
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -6
+          },
+          {
+            "flattened_pearson": 0.9609539962260608,
+            "matched_rows": 28833,
+            "median_controller_time_offset_s": -0.00999999999476131,
+            "per_joint_pearson": [
+              0.9962117614150618,
+              0.8195007310289631,
+              0.9843634954349766,
+              0.9242143758329147,
+              0.13964606259200266,
+              0.9939259300179788
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -5
+          },
+          {
+            "flattened_pearson": 0.9623351176858203,
+            "matched_rows": 28834,
+            "median_controller_time_offset_s": -0.008000000001629815,
+            "per_joint_pearson": [
+              0.9963224988435148,
+              0.8301266063370899,
+              0.9845170978096585,
+              0.9291753569880625,
+              0.15705058164404087,
+              0.9940401422624661
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -4
+          },
+          {
+            "flattened_pearson": 0.9637023965856666,
+            "matched_rows": 28835,
+            "median_controller_time_offset_s": -0.005999999993946403,
+            "per_joint_pearson": [
+              0.9964266701990063,
+              0.840769153591827,
+              0.9846634923041111,
+              0.9341160304427842,
+              0.17262606372053074,
+              0.9941549088546539
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -3
+          },
+          {
+            "flattened_pearson": 0.9649973447739747,
+            "matched_rows": 28836,
+            "median_controller_time_offset_s": -0.004000000000814907,
+            "per_joint_pearson": [
+              0.9965279035116315,
+              0.8508054210542288,
+              0.9848069655397805,
+              0.9388328620322589,
+              0.1869712368751725,
+              0.9942622153043092
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -2
+          },
+          {
+            "flattened_pearson": 0.9661602716654,
+            "matched_rows": 28837,
+            "median_controller_time_offset_s": -0.001999999993131496,
+            "per_joint_pearson": [
+              0.9966206575283794,
+              0.8595973295860151,
+              0.9849299412991082,
+              0.9431997244022035,
+              0.19985774538927334,
+              0.9943568364361033
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -1
+          },
+          {
+            "flattened_pearson": 0.9671830001174,
+            "matched_rows": 28838,
+            "median_controller_time_offset_s": 0.0,
+            "per_joint_pearson": [
+              0.9966968079493745,
+              0.8669243648072937,
+              0.9850115311934278,
+              0.947293894808223,
+              0.2112794432181043,
+              0.9944487362588839
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 0
+          },
+          {
+            "flattened_pearson": 0.9679735147977947,
+            "matched_rows": 28837,
+            "median_controller_time_offset_s": 0.001999999993131496,
+            "per_joint_pearson": [
+              0.9967532759818822,
+              0.8720714170203165,
+              0.9851243663229995,
+              0.9505709072503055,
+              0.22126593058873986,
+              0.9945422939204539
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 1
+          },
+          {
+            "flattened_pearson": 0.9683267086199864,
+            "matched_rows": 28836,
+            "median_controller_time_offset_s": 0.004000000000814907,
+            "per_joint_pearson": [
+              0.9967382150488185,
+              0.8742591227620906,
+              0.9852277438626637,
+              0.9521985673090073,
+              0.2303005478386269,
+              0.9944882383957888
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 2
+          },
+          {
+            "flattened_pearson": 0.9663465169621317,
+            "matched_rows": 28835,
+            "median_controller_time_offset_s": 0.005999999993946403,
+            "per_joint_pearson": [
+              0.9965166259320779,
+              0.8647053591264129,
+              0.9849903694361972,
+              0.9413289740064721,
+              0.23800229027872655,
+              0.9940252477614229
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 3
+          },
+          {
+            "flattened_pearson": 0.9634783670458725,
+            "matched_rows": 28834,
+            "median_controller_time_offset_s": 0.008000000001629815,
+            "per_joint_pearson": [
+              0.9961351411869583,
+              0.8444091227707732,
+              0.9846112076214764,
+              0.929233480442162,
+              0.24477671228383122,
+              0.9935089377624465
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 4
+          },
+          {
+            "flattened_pearson": 0.9608925694599186,
+            "matched_rows": 28833,
+            "median_controller_time_offset_s": 0.00999999999476131,
+            "per_joint_pearson": [
+              0.9957845813472452,
+              0.8231052945278152,
+              0.9844779165058711,
+              0.919390482187593,
+              0.2510738363482374,
+              0.9931553890381277
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 5
+          },
+          {
+            "flattened_pearson": 0.9590339606137139,
+            "matched_rows": 28832,
+            "median_controller_time_offset_s": 0.012000000002444722,
+            "per_joint_pearson": [
+              0.9955583998340636,
+              0.8090866466789638,
+              0.9846757782377431,
+              0.9109773983136928,
+              0.25709262527288823,
+              0.9929045862309486
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 6
+          },
+          {
+            "flattened_pearson": 0.9579549670614824,
+            "matched_rows": 28831,
+            "median_controller_time_offset_s": 0.013999999995576218,
+            "per_joint_pearson": [
+              0.9954429507247152,
+              0.8049480039095054,
+              0.9848971054092491,
+              0.9037018517510759,
+              0.26292391254723263,
+              0.9926929803283094
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 7
+          },
+          {
+            "flattened_pearson": 0.9574005798540628,
+            "matched_rows": 28830,
+            "median_controller_time_offset_s": 0.01600000000325963,
+            "per_joint_pearson": [
+              0.9954083786826073,
+              0.8087047564680226,
+              0.9849979715197307,
+              0.8967599279302731,
+              0.26891172528259616,
+              0.9924740429625103
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 8
+          },
+          {
+            "flattened_pearson": 0.9570670932852654,
+            "matched_rows": 28829,
+            "median_controller_time_offset_s": 0.01800000001094304,
+            "per_joint_pearson": [
+              0.9954192610817889,
+              0.8162680377951962,
+              0.9850653737631444,
+              0.8896027207280887,
+              0.2748539660530304,
+              0.9922614219117502
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 9
+          },
+          {
+            "flattened_pearson": 0.9567281981517701,
+            "matched_rows": 28828,
+            "median_controller_time_offset_s": 0.020000000004074536,
+            "per_joint_pearson": [
+              0.9954349657401401,
+              0.8229431232433241,
+              0.9850614600957459,
+              0.8829145693154644,
+              0.2808625704104403,
+              0.9920736838208211
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 10
+          },
+          {
+            "flattened_pearson": 0.9561320608175153,
+            "matched_rows": 28827,
+            "median_controller_time_offset_s": 0.022000000011757948,
+            "per_joint_pearson": [
+              0.9953841394259406,
+              0.8241377349144632,
+              0.9849486689754638,
+              0.877284189442634,
+              0.28626382910055276,
+              0.9919066747528872
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 11
+          },
+          {
+            "flattened_pearson": 0.9551493701699031,
+            "matched_rows": 28826,
+            "median_controller_time_offset_s": 0.024000000004889444,
+            "per_joint_pearson": [
+              0.9952533891710587,
+              0.8181563135222282,
+              0.9847997624874398,
+              0.8723879455087837,
+              0.29157507440837177,
+              0.9917580991282628
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 12
+          },
+          {
+            "flattened_pearson": 0.9538710076843607,
+            "matched_rows": 28825,
+            "median_controller_time_offset_s": 0.027999999991152436,
+            "per_joint_pearson": [
+              0.9950984199297013,
+              0.8070842195694835,
+              0.9847144538734364,
+              0.867612337591706,
+              0.2959172757430618,
+              0.9916275140687497
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 13
+          },
+          {
+            "flattened_pearson": 0.9525806672833489,
+            "matched_rows": 28824,
+            "median_controller_time_offset_s": 0.029999999998835847,
+            "per_joint_pearson": [
+              0.9949569392005088,
+              0.7951467778718119,
+              0.984706544211192,
+              0.86305792507718,
+              0.2996847356307184,
+              0.9915068423945652
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 14
+          },
+          {
+            "flattened_pearson": 0.9514732290111487,
+            "matched_rows": 28823,
+            "median_controller_time_offset_s": 0.03199999999196734,
+            "per_joint_pearson": [
+              0.9948423150208636,
+              0.7861811011260105,
+              0.9847307595308757,
+              0.8584009372323328,
+              0.3033414633385115,
+              0.9913819371656084
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 15
+          },
+          {
+            "flattened_pearson": 0.9506343374408105,
+            "matched_rows": 28822,
+            "median_controller_time_offset_s": 0.033999999999650754,
+            "per_joint_pearson": [
+              0.9947540141898358,
+              0.7814509849181743,
+              0.9847362183024775,
+              0.8537778764098902,
+              0.3060418219387384,
+              0.9912726104026496
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 16
+          },
+          {
+            "flattened_pearson": 0.949993451160079,
+            "matched_rows": 28821,
+            "median_controller_time_offset_s": 0.03599999999278225,
+            "per_joint_pearson": [
+              0.9946829616943894,
+              0.7798056974275239,
+              0.9847240070746408,
+              0.8491982136175504,
+              0.3082590331239419,
+              0.9911762916068403
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 17
+          },
+          {
+            "flattened_pearson": 0.9494073541939431,
+            "matched_rows": 28820,
+            "median_controller_time_offset_s": 0.03800000000046566,
+            "per_joint_pearson": [
+              0.9946143478301462,
+              0.7791449315207346,
+              0.9846900801053681,
+              0.844555045814001,
+              0.31057716030540006,
+              0.9910910918982695
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 18
+          },
+          {
+            "flattened_pearson": 0.948763085481005,
+            "matched_rows": 28819,
+            "median_controller_time_offset_s": 0.03999999999359716,
+            "per_joint_pearson": [
+              0.9945464698753294,
+              0.7775745913172784,
+              0.9846699868044886,
+              0.8398347870253187,
+              0.3130869993068826,
+              0.9910135486948921
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 19
+          },
+          {
+            "flattened_pearson": 0.9480398519837099,
+            "matched_rows": 28818,
+            "median_controller_time_offset_s": 0.04200000000128057,
+            "per_joint_pearson": [
+              0.9944819266152962,
+              0.7739711533013868,
+              0.98467275755417,
+              0.8354825751990875,
+              0.31564240626521384,
+              0.9909387311584946
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 20
+          },
+          {
+            "flattened_pearson": 0.9473968573962225,
+            "matched_rows": 28817,
+            "median_controller_time_offset_s": 0.043999999994412065,
+            "per_joint_pearson": [
+              0.9945375606016426,
+              0.7685330347004553,
+              0.9846750641294422,
+              0.8314703595361346,
+              0.3184588729685099,
+              0.9912591248336098
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 21
+          },
+          {
+            "flattened_pearson": 0.9469470999149782,
+            "matched_rows": 28816,
+            "median_controller_time_offset_s": 0.046000000002095476,
+            "per_joint_pearson": [
+              0.9950472099777337,
+              0.7612859709586068,
+              0.9846808629452669,
+              0.8275283145157097,
+              0.32135734906840835,
+              0.9921152935335107
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 22
+          },
+          {
+            "flattened_pearson": 0.946326647847663,
+            "matched_rows": 28815,
+            "median_controller_time_offset_s": 0.04799999999522697,
+            "per_joint_pearson": [
+              0.9956598404908001,
+              0.7535313080053306,
+              0.984683963501702,
+              0.8231882944295079,
+              0.3242829182555443,
+              0.9925509485399354
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 23
+          },
+          {
+            "flattened_pearson": 0.9456797233158066,
+            "matched_rows": 28814,
+            "median_controller_time_offset_s": 0.05000000000291038,
+            "per_joint_pearson": [
+              0.9959842926091349,
+              0.746809298963846,
+              0.9846732233034932,
+              0.8193454634841494,
+              0.3271438251541786,
+              0.9928024145638366
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 24
+          }
+        ],
+        "best_flattened_scan": {
+          "flattened_pearson": 0.9683267086199864,
+          "matched_rows": 28836,
+          "median_controller_time_offset_s": 0.004000000000814907,
+          "per_joint_pearson": [
+            0.9967382150488185,
+            0.8742591227620906,
+            0.9852277438626637,
+            0.9521985673090073,
+            0.2303005478386269,
+            0.9944882383957888
+          ],
+          "positive_means_actual_later": true,
+          "row_offset": 2
+        },
+        "joined_rows": 28838,
+        "per_joint": [
+          {
+            "actual_qd_std_rad_s": 0.004913970140805445,
+            "best_scan_pearson": 0.9967532759818822,
+            "best_scan_row_offset": 1,
+            "best_scan_time_offset_s": 0.001999999993131496,
+            "joint_1_based": 1,
+            "same_row_pearson": 0.9966968079493745,
+            "target_qd_std_rad_s": 0.004704149983673262
+          },
+          {
+            "actual_qd_std_rad_s": 0.0022547350292622718,
+            "best_scan_pearson": 0.8742591227620906,
+            "best_scan_row_offset": 2,
+            "best_scan_time_offset_s": 0.004000000000814907,
+            "joint_1_based": 2,
+            "same_row_pearson": 0.8669243648072937,
+            "target_qd_std_rad_s": 0.0019440350502332416
+          },
+          {
+            "actual_qd_std_rad_s": 0.0035465469107290423,
+            "best_scan_pearson": 0.9852277438626637,
+            "best_scan_row_offset": 2,
+            "best_scan_time_offset_s": 0.004000000000814907,
+            "joint_1_based": 3,
+            "same_row_pearson": 0.9850115311934278,
+            "target_qd_std_rad_s": 0.003304081692037546
+          },
+          {
+            "actual_qd_std_rad_s": 0.002953779443188872,
+            "best_scan_pearson": 0.9521985673090073,
+            "best_scan_row_offset": 2,
+            "best_scan_time_offset_s": 0.004000000000814907,
+            "joint_1_based": 4,
+            "same_row_pearson": 0.947293894808223,
+            "target_qd_std_rad_s": 0.0026196438814728236
+          },
+          {
+            "actual_qd_std_rad_s": 0.0014521282747085662,
+            "best_scan_pearson": 0.3271438251541786,
+            "best_scan_row_offset": 24,
+            "best_scan_time_offset_s": 0.05000000000291038,
+            "joint_1_based": 5,
+            "same_row_pearson": 0.2112794432181043,
+            "target_qd_std_rad_s": 0.00026250339972369254
+          },
+          {
+            "actual_qd_std_rad_s": 0.004938442400820707,
+            "best_scan_pearson": 0.9945422939204539,
+            "best_scan_row_offset": 1,
+            "best_scan_time_offset_s": 0.001999999993131496,
+            "joint_1_based": 6,
+            "same_row_pearson": 0.9944487362588839,
+            "target_qd_std_rad_s": 0.004707480696886419
+          }
+        ],
+        "same_row": {
+          "flattened_pearson": 0.9671830001174,
+          "matched_rows": 28838,
+          "median_controller_time_offset_s": 0.0,
+          "per_joint_pearson": [
+            0.9966968079493745,
+            0.8669243648072937,
+            0.9850115311934278,
+            0.947293894808223,
+            0.2112794432181043,
+            0.9944487362588839
+          ],
+          "positive_means_actual_later": true,
+          "row_offset": 0
+        },
+        "scan_row_offset_range": [
+          -24,
+          24
+        ]
+      }
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-rate460-20260925T1600HKT/live/attempts/0001",
+      "early_echo_rows_ignored": 0,
+      "evidence_eligible": false,
+      "joined_echo_rows": 28871,
+      "label": "TASE_QP_BO10",
+      "official_published_qdot_actual_qd_gate": {
+        "correlation": 0.8401317340726273,
+        "passed": false,
+        "required_minimum": 0.9
+      },
+      "repeated_echo_rows_ignored": 1124,
+      "sealed_source_sha256": {
+        "command_timeline": "00b03d19693e808e97020c0e4d007380ea45277447bed695e625edf18c860713",
+        "robot_frames": "e1e83a2601292e6d2c6235e5c1a4b70e91d9152057be78c3bbb61b4c53076780"
+      },
+      "target_actual_scan": {
+        "all_offsets": [
+          {
+            "flattened_pearson": 0.3021001264211497,
+            "matched_rows": 28847,
+            "median_controller_time_offset_s": -0.05000000000291038,
+            "per_joint_pearson": [
+              0.9567808881304835,
+              -0.21332269192668957,
+              0.9259971136778142,
+              -0.2704286098941317,
+              -0.21181302448749909,
+              0.9892930393477157
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -24
+          },
+          {
+            "flattened_pearson": 0.27334398753238864,
+            "matched_rows": 28848,
+            "median_controller_time_offset_s": -0.04799999999522697,
+            "per_joint_pearson": [
+              0.9568282786951662,
+              -0.2883846516325901,
+              0.9245304492137579,
+              -0.3106797992360442,
+              -0.2089932970888501,
+              0.9892484012010431
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -23
+          },
+          {
+            "flattened_pearson": 0.2527408753913839,
+            "matched_rows": 28849,
+            "median_controller_time_offset_s": -0.046000000002095476,
+            "per_joint_pearson": [
+              0.9569193481955257,
+              -0.3513080452117142,
+              0.9239792843833132,
+              -0.332476941981775,
+              -0.2054122702056265,
+              0.9893075280653647
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -22
+          },
+          {
+            "flattened_pearson": 0.24547999932770884,
+            "matched_rows": 28850,
+            "median_controller_time_offset_s": -0.043999999994412065,
+            "per_joint_pearson": [
+              0.9570592905590406,
+              -0.38071035397464315,
+              0.9242818261844375,
+              -0.33464241237064674,
+              -0.20196796268480355,
+              0.9893058117194777
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -21
+          },
+          {
+            "flattened_pearson": 0.2503606955101281,
+            "matched_rows": 28851,
+            "median_controller_time_offset_s": -0.04200000000128057,
+            "per_joint_pearson": [
+              0.9572721174947378,
+              -0.37538315979258957,
+              0.9251481485459471,
+              -0.3223056663094747,
+              -0.20037860219360465,
+              0.9892925870426038
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -20
+          },
+          {
+            "flattened_pearson": 0.2621121554318979,
+            "matched_rows": 28852,
+            "median_controller_time_offset_s": -0.03999999999359716,
+            "per_joint_pearson": [
+              0.9576130619004598,
+              -0.3494274773692972,
+              0.9258510806910677,
+              -0.30245388552451624,
+              -0.1970772546551032,
+              0.9893263022894823
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -19
+          },
+          {
+            "flattened_pearson": 0.275465251583688,
+            "matched_rows": 28853,
+            "median_controller_time_offset_s": -0.03800000000046566,
+            "per_joint_pearson": [
+              0.9581047563756896,
+              -0.3204204313103459,
+              0.9260256789382316,
+              -0.27936386568973437,
+              -0.1931728040010966,
+              0.98936340106021
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -18
+          },
+          {
+            "flattened_pearson": 0.2879711176499946,
+            "matched_rows": 28854,
+            "median_controller_time_offset_s": -0.03599999999278225,
+            "per_joint_pearson": [
+              0.958615517312642,
+              -0.2985463413334257,
+              0.9255353823942098,
+              -0.25333996396149583,
+              -0.1887888761440534,
+              0.9893948399461433
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -17
+          },
+          {
+            "flattened_pearson": 0.2996755435167954,
+            "matched_rows": 28855,
+            "median_controller_time_offset_s": -0.033999999999650754,
+            "per_joint_pearson": [
+              0.9590323438042031,
+              -0.2850789223244508,
+              0.9247781840534033,
+              -0.2232400605908513,
+              -0.1833264081275191,
+              0.9894025374943747
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -16
+          },
+          {
+            "flattened_pearson": 0.31168749943181123,
+            "matched_rows": 28856,
+            "median_controller_time_offset_s": -0.03199999999196734,
+            "per_joint_pearson": [
+              0.9592570723092598,
+              -0.2752265568619161,
+              0.9241949577360832,
+              -0.18910689474112635,
+              -0.17683627133730234,
+              0.9893832611538795
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -15
+          },
+          {
+            "flattened_pearson": 0.3252242891763459,
+            "matched_rows": 28857,
+            "median_controller_time_offset_s": -0.029999999998835847,
+            "per_joint_pearson": [
+              0.9592324122480479,
+              -0.2614384876053828,
+              0.9239396569552614,
+              -0.15271514619131252,
+              -0.17094182035988587,
+              0.989342216484971
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -14
+          },
+          {
+            "flattened_pearson": 0.34220495329162104,
+            "matched_rows": 28858,
+            "median_controller_time_offset_s": -0.027999999991152436,
+            "per_joint_pearson": [
+              0.9589524235314414,
+              -0.23444467197435945,
+              0.9238458693815876,
+              -0.11472097343850396,
+              -0.1651197084319417,
+              0.9893566459906817
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -13
+          },
+          {
+            "flattened_pearson": 0.36537888232677923,
+            "matched_rows": 28859,
+            "median_controller_time_offset_s": -0.024000000004889444,
+            "per_joint_pearson": [
+              0.9584707383340082,
+              -0.18721728282392153,
+              0.9240146378007044,
+              -0.071131135308603,
+              -0.1598954650403389,
+              0.9893167299950393
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -12
+          },
+          {
+            "flattened_pearson": 0.39678218310854846,
+            "matched_rows": 28860,
+            "median_controller_time_offset_s": -0.022000000011757948,
+            "per_joint_pearson": [
+              0.9579134220937595,
+              -0.11827942997691426,
+              0.9244974722330692,
+              -0.01612539324442201,
+              -0.15265862315498444,
+              0.989298622049661
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -11
+          },
+          {
+            "flattened_pearson": 0.43757359314193583,
+            "matched_rows": 28861,
+            "median_controller_time_offset_s": -0.020000000004074536,
+            "per_joint_pearson": [
+              0.9574246614694131,
+              -0.029703299772386012,
+              0.9256018923368903,
+              0.05579420371954456,
+              -0.14634607381004555,
+              0.9893641367859208
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -10
+          },
+          {
+            "flattened_pearson": 0.4870866255239204,
+            "matched_rows": 28862,
+            "median_controller_time_offset_s": -0.01800000001094304,
+            "per_joint_pearson": [
+              0.9570785311958945,
+              0.07512125269618798,
+              0.9273364421584046,
+              0.1449946841315507,
+              -0.13997931825395837,
+              0.9894127700230878
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -9
+          },
+          {
+            "flattened_pearson": 0.542572661719858,
+            "matched_rows": 28863,
+            "median_controller_time_offset_s": -0.01600000000325963,
+            "per_joint_pearson": [
+              0.9568590345288182,
+              0.190617391863522,
+              0.9293843280929142,
+              0.24645298668742938,
+              -0.13301013120304064,
+              0.9893994541665795
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -8
+          },
+          {
+            "flattened_pearson": 0.5986673287873963,
+            "matched_rows": 28864,
+            "median_controller_time_offset_s": -0.013999999995576218,
+            "per_joint_pearson": [
+              0.9566959710960978,
+              0.30539539402887,
+              0.9313208342191567,
+              0.3506304979858911,
+              -0.1224836567219639,
+              0.9893605352730703
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -7
+          },
+          {
+            "flattened_pearson": 0.6498643799919961,
+            "matched_rows": 28865,
+            "median_controller_time_offset_s": -0.012000000002444722,
+            "per_joint_pearson": [
+              0.9565626187123353,
+              0.4055771944369945,
+              0.9328634693692089,
+              0.4494694298149543,
+              -0.10739508721364024,
+              0.9893538317240409
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -6
+          },
+          {
+            "flattened_pearson": 0.6938701716880674,
+            "matched_rows": 28866,
+            "median_controller_time_offset_s": -0.00999999999476131,
+            "per_joint_pearson": [
+              0.9564701195096373,
+              0.4835967604540577,
+              0.933927225137086,
+              0.5410582437543524,
+              -0.08650777651411957,
+              0.9893223301258186
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -5
+          },
+          {
+            "flattened_pearson": 0.7315718013878948,
+            "matched_rows": 28867,
+            "median_controller_time_offset_s": -0.008000000001629815,
+            "per_joint_pearson": [
+              0.9565056626534306,
+              0.5411486657059746,
+              0.9348088468632829,
+              0.6269002866436179,
+              -0.061034725592868246,
+              0.9893063823202465
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -4
+          },
+          {
+            "flattened_pearson": 0.7649082767067358,
+            "matched_rows": 28868,
+            "median_controller_time_offset_s": -0.005999999993946403,
+            "per_joint_pearson": [
+              0.9567106253967144,
+              0.5852938766514614,
+              0.9358927090876883,
+              0.7078411894191446,
+              -0.03277426766287567,
+              0.9893579958589486
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -3
+          },
+          {
+            "flattened_pearson": 0.7952702014868234,
+            "matched_rows": 28869,
+            "median_controller_time_offset_s": -0.004000000000814907,
+            "per_joint_pearson": [
+              0.9571932297207153,
+              0.6235147552289166,
+              0.9372479899555627,
+              0.7826062274569918,
+              -0.0032300336206579176,
+              0.9896520903767356
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -2
+          },
+          {
+            "flattened_pearson": 0.8218576098948616,
+            "matched_rows": 28870,
+            "median_controller_time_offset_s": -0.001999999993131496,
+            "per_joint_pearson": [
+              0.957909107575692,
+              0.6607919494237352,
+              0.9390422824040447,
+              0.8446749546711851,
+              0.026112442434965733,
+              0.9898093493130773
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -1
+          },
+          {
+            "flattened_pearson": 0.8404345283125564,
+            "matched_rows": 28871,
+            "median_controller_time_offset_s": 0.0,
+            "per_joint_pearson": [
+              0.9586844516178366,
+              0.6934244831612635,
+              0.9407197674791398,
+              0.8825127851749183,
+              0.05362013613168424,
+              0.9897752869293528
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 0
+          },
+          {
+            "flattened_pearson": 0.8390673584103979,
+            "matched_rows": 28870,
+            "median_controller_time_offset_s": 0.001999999993131496,
+            "per_joint_pearson": [
+              0.9594826320309425,
+              0.695611421949122,
+              0.9415714636329964,
+              0.8748802843946616,
+              0.0777394289656472,
+              0.9901311706357676
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 1
+          },
+          {
+            "flattened_pearson": 0.8058897869682223,
+            "matched_rows": 28869,
+            "median_controller_time_offset_s": 0.004000000000814907,
+            "per_joint_pearson": [
+              0.9603438023352031,
+              0.6338612902964541,
+              0.941380203041556,
+              0.8065172028474242,
+              0.10776619262956183,
+              0.9917697926837707
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 2
+          },
+          {
+            "flattened_pearson": 0.7321309975129466,
+            "matched_rows": 28868,
+            "median_controller_time_offset_s": 0.005999999993946403,
+            "per_joint_pearson": [
+              0.9606096363494191,
+              0.4865363343822278,
+              0.9365959353762698,
+              0.6680807527006946,
+              0.1216204544477628,
+              0.9908933128229844
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 3
+          },
+          {
+            "flattened_pearson": 0.6391276542743431,
+            "matched_rows": 28867,
+            "median_controller_time_offset_s": 0.008000000001629815,
+            "per_joint_pearson": [
+              0.9600259056787296,
+              0.28971351404629775,
+              0.9305212831813608,
+              0.5031205547713494,
+              0.1361827391865658,
+              0.9893129054100314
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 4
+          },
+          {
+            "flattened_pearson": 0.550345038422399,
+            "matched_rows": 28866,
+            "median_controller_time_offset_s": 0.00999999999476131,
+            "per_joint_pearson": [
+              0.9591110207372494,
+              0.10432505130652082,
+              0.9274501316179612,
+              0.34209938941554846,
+              0.14971783925611049,
+              0.9891377260269449
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 5
+          },
+          {
+            "flattened_pearson": 0.47882018991654596,
+            "matched_rows": 28865,
+            "median_controller_time_offset_s": 0.012000000002444722,
+            "per_joint_pearson": [
+              0.9583869255647816,
+              -0.028072203241360495,
+              0.9276947636511751,
+              0.19748272530117475,
+              0.16281067490787268,
+              0.9896742269361886
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 6
+          },
+          {
+            "flattened_pearson": 0.4270991729601119,
+            "matched_rows": 28864,
+            "median_controller_time_offset_s": 0.013999999995576218,
+            "per_joint_pearson": [
+              0.9579083467582465,
+              -0.09894393866031326,
+              0.9288645289471409,
+              0.07266581970879789,
+              0.17283401137627932,
+              0.9900712527418541
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 7
+          },
+          {
+            "flattened_pearson": 0.39146460485224427,
+            "matched_rows": 28863,
+            "median_controller_time_offset_s": 0.01600000000325963,
+            "per_joint_pearson": [
+              0.957642064120219,
+              -0.1224679599930464,
+              0.9296738687111715,
+              -0.03343680117654386,
+              0.1820053698241857,
+              0.9901353018891975
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 8
+          },
+          {
+            "flattened_pearson": 0.36523917761053615,
+            "matched_rows": 28862,
+            "median_controller_time_offset_s": 0.01800000001094304,
+            "per_joint_pearson": [
+              0.9576863701626904,
+              -0.12487769225262048,
+              0.9304090814207904,
+              -0.12348049429626984,
+              0.18909345913238454,
+              0.9900121480866615
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 9
+          },
+          {
+            "flattened_pearson": 0.34024547764550406,
+            "matched_rows": 28861,
+            "median_controller_time_offset_s": 0.020000000004074536,
+            "per_joint_pearson": [
+              0.9578596506959612,
+              -0.1378853678077913,
+              0.930372824011655,
+              -0.20062119256698385,
+              0.1951919915809009,
+              0.9899542736592486
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 10
+          },
+          {
+            "flattened_pearson": 0.3111799473519872,
+            "matched_rows": 28860,
+            "median_controller_time_offset_s": 0.022000000011757948,
+            "per_joint_pearson": [
+              0.9578330068682833,
+              -0.1837117665499199,
+              0.9287605357299399,
+              -0.26519368429297385,
+              0.20098104832820093,
+              0.9899523954359157
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 11
+          },
+          {
+            "flattened_pearson": 0.2798402934706481,
+            "matched_rows": 28859,
+            "median_controller_time_offset_s": 0.024000000004889444,
+            "per_joint_pearson": [
+              0.9576748344198337,
+              -0.2580718131465647,
+              0.9266533629001699,
+              -0.3146172139842651,
+              0.20501705847638543,
+              0.9899690838286864
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 12
+          },
+          {
+            "flattened_pearson": 0.2537162197234925,
+            "matched_rows": 28858,
+            "median_controller_time_offset_s": 0.027999999991152436,
+            "per_joint_pearson": [
+              0.9575260725473113,
+              -0.33364370488482725,
+              0.9255739028993609,
+              -0.3451669772997715,
+              0.20772843249965373,
+              0.9900117691463927
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 13
+          },
+          {
+            "flattened_pearson": 0.24052340001355357,
+            "matched_rows": 28857,
+            "median_controller_time_offset_s": 0.029999999998835847,
+            "per_joint_pearson": [
+              0.9574847805441048,
+              -0.38030339884175623,
+              0.9258465385599725,
+              -0.3540583338622911,
+              0.21133338801626722,
+              0.9900119262658849
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 14
+          },
+          {
+            "flattened_pearson": 0.24207392537827163,
+            "matched_rows": 28856,
+            "median_controller_time_offset_s": 0.03199999999196734,
+            "per_joint_pearson": [
+              0.9576409134469162,
+              -0.38588644961207175,
+              0.9268492664628405,
+              -0.34452127055786264,
+              0.21633002173874097,
+              0.9899977805134917
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 15
+          },
+          {
+            "flattened_pearson": 0.2538588458555975,
+            "matched_rows": 28855,
+            "median_controller_time_offset_s": 0.033999999999650754,
+            "per_joint_pearson": [
+              0.9579795192147219,
+              -0.3607762072731768,
+              0.9279214749859118,
+              -0.323857271288735,
+              0.22204123413255614,
+              0.9900025381225143
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 16
+          },
+          {
+            "flattened_pearson": 0.2692476116814982,
+            "matched_rows": 28854,
+            "median_controller_time_offset_s": 0.03599999999278225,
+            "per_joint_pearson": [
+              0.9584762492974237,
+              -0.32533837156915485,
+              0.9285703003953322,
+              -0.2988298337370718,
+              0.22756572404096317,
+              0.9900796891160037
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 17
+          },
+          {
+            "flattened_pearson": 0.28369400994290556,
+            "matched_rows": 28853,
+            "median_controller_time_offset_s": 0.03800000000046566,
+            "per_joint_pearson": [
+              0.9590730716811153,
+              -0.2963308882922297,
+              0.9285355351321987,
+              -0.27174978480240347,
+              0.23285912517449334,
+              0.9900758205158837
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 18
+          },
+          {
+            "flattened_pearson": 0.29622679116288475,
+            "matched_rows": 28852,
+            "median_controller_time_offset_s": 0.03999999999359716,
+            "per_joint_pearson": [
+              0.9595935739852525,
+              -0.2795484725689063,
+              0.9280169577554122,
+              -0.24139029668816844,
+              0.23766000236399518,
+              0.9900535093209354
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 19
+          },
+          {
+            "flattened_pearson": 0.3079837257586757,
+            "matched_rows": 28851,
+            "median_controller_time_offset_s": 0.04200000000128057,
+            "per_joint_pearson": [
+              0.9599145156303567,
+              -0.2717964883111697,
+              0.9273903609950483,
+              -0.20639853033485192,
+              0.24329389045483357,
+              0.9900204571253896
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 20
+          },
+          {
+            "flattened_pearson": 0.320690990597893,
+            "matched_rows": 28850,
+            "median_controller_time_offset_s": 0.043999999994412065,
+            "per_joint_pearson": [
+              0.9599619195086602,
+              -0.2644508778604874,
+              0.9271908247670936,
+              -0.16777013592736031,
+              0.24777030808535255,
+              0.9900313979948222
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 21
+          },
+          {
+            "flattened_pearson": 0.33627591678489915,
+            "matched_rows": 28849,
+            "median_controller_time_offset_s": 0.046000000002095476,
+            "per_joint_pearson": [
+              0.959753293805829,
+              -0.24614771108142466,
+              0.9272333125917951,
+              -0.1277269463981244,
+              0.25233816667615383,
+              0.9900721100094231
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 22
+          },
+          {
+            "flattened_pearson": 0.35729923991252127,
+            "matched_rows": 28848,
+            "median_controller_time_offset_s": 0.04799999999522697,
+            "per_joint_pearson": [
+              0.9593303321185865,
+              -0.20708082454040963,
+              0.9274242797061126,
+              -0.08510025771976504,
+              0.256569131674787,
+              0.9900407913692548
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 23
+          },
+          {
+            "flattened_pearson": 0.38613400242801227,
+            "matched_rows": 28847,
+            "median_controller_time_offset_s": 0.05000000000291038,
+            "per_joint_pearson": [
+              0.9587880757473685,
+              -0.14404794624836825,
+              0.9277960799637055,
+              -0.03427512564318417,
+              0.2610487493724758,
+              0.9900205521491039
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 24
+          }
+        ],
+        "best_flattened_scan": {
+          "flattened_pearson": 0.8404345283125564,
+          "matched_rows": 28871,
+          "median_controller_time_offset_s": 0.0,
+          "per_joint_pearson": [
+            0.9586844516178366,
+            0.6934244831612635,
+            0.9407197674791398,
+            0.8825127851749183,
+            0.05362013613168424,
+            0.9897752869293528
+          ],
+          "positive_means_actual_later": true,
+          "row_offset": 0
+        },
+        "joined_rows": 28871,
+        "per_joint": [
+          {
+            "actual_qd_std_rad_s": 0.005122683400825198,
+            "best_scan_pearson": 0.9606096363494191,
+            "best_scan_row_offset": 3,
+            "best_scan_time_offset_s": 0.005999999993946403,
+            "joint_1_based": 1,
+            "same_row_pearson": 0.9586844516178366,
+            "target_qd_std_rad_s": 0.004696806916756334
+          },
+          {
+            "actual_qd_std_rad_s": 0.007903062044581,
+            "best_scan_pearson": 0.695611421949122,
+            "best_scan_row_offset": 1,
+            "best_scan_time_offset_s": 0.001999999993131496,
+            "joint_1_based": 2,
+            "same_row_pearson": 0.6934244831612635,
+            "target_qd_std_rad_s": 0.0039039319919889318
+          },
+          {
+            "actual_qd_std_rad_s": 0.0037663069550171336,
+            "best_scan_pearson": 0.9415714636329964,
+            "best_scan_row_offset": 1,
+            "best_scan_time_offset_s": 0.001999999993131496,
+            "joint_1_based": 3,
+            "same_row_pearson": 0.9407197674791398,
+            "target_qd_std_rad_s": 0.003308691477364198
+          },
+          {
+            "actual_qd_std_rad_s": 0.00842073915476471,
+            "best_scan_pearson": 0.8825127851749183,
+            "best_scan_row_offset": 0,
+            "best_scan_time_offset_s": 0.0,
+            "joint_1_based": 4,
+            "same_row_pearson": 0.8825127851749183,
+            "target_qd_std_rad_s": 0.004584376775465303
+          },
+          {
+            "actual_qd_std_rad_s": 0.0008485077318572593,
+            "best_scan_pearson": 0.2610487493724758,
+            "best_scan_row_offset": 24,
+            "best_scan_time_offset_s": 0.05000000000291038,
+            "joint_1_based": 5,
+            "same_row_pearson": 0.05362013613168424,
+            "target_qd_std_rad_s": 0.0002103638475498408
+          },
+          {
+            "actual_qd_std_rad_s": 0.004961684562787105,
+            "best_scan_pearson": 0.9917697926837707,
+            "best_scan_row_offset": 2,
+            "best_scan_time_offset_s": 0.004000000000814907,
+            "joint_1_based": 6,
+            "same_row_pearson": 0.9897752869293528,
+            "target_qd_std_rad_s": 0.004700160601671505
+          }
+        ],
+        "same_row": {
+          "flattened_pearson": 0.8404345283125564,
+          "matched_rows": 28871,
+          "median_controller_time_offset_s": 0.0,
+          "per_joint_pearson": [
+            0.9586844516178366,
+            0.6934244831612635,
+            0.9407197674791398,
+            0.8825127851749183,
+            0.05362013613168424,
+            0.9897752869293528
+          ],
+          "positive_means_actual_later": true,
+          "row_offset": 0
+        },
+        "scan_row_offset_range": [
+          -24,
+          24
+        ]
+      }
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001",
+      "early_echo_rows_ignored": 0,
+      "evidence_eligible": false,
+      "joined_echo_rows": 28809,
+      "label": "TASE_QP_MATCHED_A",
+      "official_published_qdot_actual_qd_gate": {
+        "correlation": 0.8486068681812743,
+        "passed": false,
+        "required_minimum": 0.9
+      },
+      "repeated_echo_rows_ignored": 1148,
+      "sealed_source_sha256": {
+        "command_timeline": "f9bfa7cfbdc3e910685ce8f92a15f18f25791b1ae9e2754afb670e862cac33d4",
+        "robot_frames": "aa2bb923f3fb468f63e50d28f0c6f78d7f4dd92c549894395f3235086e466b8d"
+      },
+      "target_actual_scan": {
+        "all_offsets": [
+          {
+            "flattened_pearson": 0.2949135914122164,
+            "matched_rows": 28785,
+            "median_controller_time_offset_s": -0.05000000000291038,
+            "per_joint_pearson": [
+              0.9603681806688716,
+              -0.24404950069122142,
+              0.9270833117266501,
+              -0.25397702741412687,
+              -0.2358224093120345,
+              0.9896374219230231
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -24
+          },
+          {
+            "flattened_pearson": 0.2689390838163915,
+            "matched_rows": 28786,
+            "median_controller_time_offset_s": -0.04799999999522697,
+            "per_joint_pearson": [
+              0.9604354041966963,
+              -0.30825040779490653,
+              0.9259739571225925,
+              -0.2913929925785031,
+              -0.23632585875031317,
+              0.9896654394419732
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -23
+          },
+          {
+            "flattened_pearson": 0.2513804652484083,
+            "matched_rows": 28787,
+            "median_controller_time_offset_s": -0.046000000002095476,
+            "per_joint_pearson": [
+              0.960579890512766,
+              -0.356257171601418,
+              0.9254975667519408,
+              -0.3130606766192865,
+              -0.23431878142839205,
+              0.9896185125159453
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -22
+          },
+          {
+            "flattened_pearson": 0.24556707196560806,
+            "matched_rows": 28788,
+            "median_controller_time_offset_s": -0.043999999994412065,
+            "per_joint_pearson": [
+              0.9607312320293184,
+              -0.37471403647588153,
+              0.925710218669833,
+              -0.31837240212268314,
+              -0.23092357623703733,
+              0.9896187278726845
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -21
+          },
+          {
+            "flattened_pearson": 0.25049263951198264,
+            "matched_rows": 28789,
+            "median_controller_time_offset_s": -0.04200000000128057,
+            "per_joint_pearson": [
+              0.9609342244868209,
+              -0.3644378600581788,
+              0.9262708711571025,
+              -0.3100232160850853,
+              -0.22631419861477933,
+              0.9896895016984529
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -20
+          },
+          {
+            "flattened_pearson": 0.26203208271214024,
+            "matched_rows": 28790,
+            "median_controller_time_offset_s": -0.03999999999359716,
+            "per_joint_pearson": [
+              0.9612934885396229,
+              -0.3369950174585276,
+              0.9268794781683414,
+              -0.2927789785287833,
+              -0.22292443548203025,
+              0.9897076947934146
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -19
+          },
+          {
+            "flattened_pearson": 0.2761645835946912,
+            "matched_rows": 28791,
+            "median_controller_time_offset_s": -0.03800000000046566,
+            "per_joint_pearson": [
+              0.9617640619035425,
+              -0.3060167233970511,
+              0.9271217970950512,
+              -0.26944161765774655,
+              -0.22028496573209808,
+              0.9897104979900703
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -18
+          },
+          {
+            "flattened_pearson": 0.29075276578322706,
+            "matched_rows": 28792,
+            "median_controller_time_offset_s": -0.03599999999278225,
+            "per_joint_pearson": [
+              0.9622769434607443,
+              -0.27958076858650033,
+              0.926887015987858,
+              -0.2408207246398093,
+              -0.21627061025933828,
+              0.989720924050459
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -17
+          },
+          {
+            "flattened_pearson": 0.30582027027217035,
+            "matched_rows": 28793,
+            "median_controller_time_offset_s": -0.033999999999650754,
+            "per_joint_pearson": [
+              0.96264684633399,
+              -0.2585028203483087,
+              0.9263826634836302,
+              -0.20613317691559505,
+              -0.21105124509691453,
+              0.9897094378546045
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -16
+          },
+          {
+            "flattened_pearson": 0.3220978562638664,
+            "matched_rows": 28794,
+            "median_controller_time_offset_s": -0.03199999999196734,
+            "per_joint_pearson": [
+              0.962803416487337,
+              -0.23852078378948288,
+              0.9260171294986659,
+              -0.16632855861287396,
+              -0.20508661729169952,
+              0.9896942005239742
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -15
+          },
+          {
+            "flattened_pearson": 0.3408500158528891,
+            "matched_rows": 28795,
+            "median_controller_time_offset_s": -0.029999999998835847,
+            "per_joint_pearson": [
+              0.9627166756563671,
+              -0.2126254436554126,
+              0.9259146569360235,
+              -0.12268361781951319,
+              -0.1993097216717686,
+              0.989711317795078
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -14
+          },
+          {
+            "flattened_pearson": 0.363907774692214,
+            "matched_rows": 28796,
+            "median_controller_time_offset_s": -0.027999999991152436,
+            "per_joint_pearson": [
+              0.9623752043221391,
+              -0.17370388359902866,
+              0.9260818886610711,
+              -0.07460279585493172,
+              -0.19260693777478036,
+              0.9897456390295938
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -13
+          },
+          {
+            "flattened_pearson": 0.3931103804270456,
+            "matched_rows": 28797,
+            "median_controller_time_offset_s": -0.024000000004889444,
+            "per_joint_pearson": [
+              0.9618392276078759,
+              -0.1174217716088271,
+              0.9264494013642428,
+              -0.019156744490480014,
+              -0.186060858839449,
+              0.989678370214753
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -12
+          },
+          {
+            "flattened_pearson": 0.42961094874486483,
+            "matched_rows": 28798,
+            "median_controller_time_offset_s": -0.022000000011757948,
+            "per_joint_pearson": [
+              0.9612791352252084,
+              -0.04328728362180986,
+              0.9272462679975721,
+              0.04694435558963992,
+              -0.1776784382342171,
+              0.9896756840570576
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -11
+          },
+          {
+            "flattened_pearson": 0.47315644229834264,
+            "matched_rows": 28799,
+            "median_controller_time_offset_s": -0.020000000004074536,
+            "per_joint_pearson": [
+              0.9608282482045767,
+              0.04547586924271683,
+              0.9285709801421498,
+              0.12535681048889508,
+              -0.1674202762421486,
+              0.9896178549001141
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -10
+          },
+          {
+            "flattened_pearson": 0.5226369375135658,
+            "matched_rows": 28800,
+            "median_controller_time_offset_s": -0.01800000001094304,
+            "per_joint_pearson": [
+              0.9605394926452481,
+              0.14497995401363106,
+              0.9304125722110574,
+              0.21526985464286205,
+              -0.15506649409221224,
+              0.989640235894888
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -9
+          },
+          {
+            "flattened_pearson": 0.575122094922756,
+            "matched_rows": 28801,
+            "median_controller_time_offset_s": -0.01600000000325963,
+            "per_joint_pearson": [
+              0.9603589116387345,
+              0.24897027331975563,
+              0.9324184827661941,
+              0.3117902019035881,
+              -0.1420314407405831,
+              0.9896702979276335
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -8
+          },
+          {
+            "flattened_pearson": 0.6261551361357742,
+            "matched_rows": 28802,
+            "median_controller_time_offset_s": -0.013999999995576218,
+            "per_joint_pearson": [
+              0.9602338736571114,
+              0.3476137075877993,
+              0.9342004683471551,
+              0.4076066360475053,
+              -0.12820374054415642,
+              0.9897365740832105
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -7
+          },
+          {
+            "flattened_pearson": 0.672239900093432,
+            "matched_rows": 28803,
+            "median_controller_time_offset_s": -0.012000000002444722,
+            "per_joint_pearson": [
+              0.9601284363743552,
+              0.4323362684913415,
+              0.9355576957635219,
+              0.4976930195583485,
+              -0.11179063010037758,
+              0.989720423872102
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -6
+          },
+          {
+            "flattened_pearson": 0.7125156442843495,
+            "matched_rows": 28804,
+            "median_controller_time_offset_s": -0.00999999999476131,
+            "per_joint_pearson": [
+              0.9600959456679882,
+              0.5002397709727335,
+              0.9365189009083218,
+              0.5813394354284326,
+              -0.09169080020635713,
+              0.9896405636782801
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -5
+          },
+          {
+            "flattened_pearson": 0.7481001164924657,
+            "matched_rows": 28805,
+            "median_controller_time_offset_s": -0.008000000001629815,
+            "per_joint_pearson": [
+              0.9601677335607685,
+              0.5542466468768628,
+              0.9373682999543895,
+              0.659847805706237,
+              -0.0659359172806532,
+              0.9896644004497867
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -4
+          },
+          {
+            "flattened_pearson": 0.7804946854456324,
+            "matched_rows": 28806,
+            "median_controller_time_offset_s": -0.005999999993946403,
+            "per_joint_pearson": [
+              0.9604128128823287,
+              0.5995679251261674,
+              0.9384517770261555,
+              0.7340951627116721,
+              -0.035331762432932574,
+              0.9897578021420878
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -3
+          },
+          {
+            "flattened_pearson": 0.8100253706863715,
+            "matched_rows": 28807,
+            "median_controller_time_offset_s": -0.004000000000814907,
+            "per_joint_pearson": [
+              0.9609372862917652,
+              0.6407413913085546,
+              0.9398896056175018,
+              0.8014412476660778,
+              -0.0015360205473137886,
+              0.9900264328887192
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -2
+          },
+          {
+            "flattened_pearson": 0.8352980446595357,
+            "matched_rows": 28808,
+            "median_controller_time_offset_s": -0.001999999993131496,
+            "per_joint_pearson": [
+              0.9616622756659272,
+              0.6792263977291503,
+              0.9416390349224606,
+              0.8562057791699756,
+              0.030257459816501464,
+              0.9901719214613759
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": -1
+          },
+          {
+            "flattened_pearson": 0.8514280278096005,
+            "matched_rows": 28809,
+            "median_controller_time_offset_s": 0.0,
+            "per_joint_pearson": [
+              0.9623828986815469,
+              0.7078498217274574,
+              0.9430608553471292,
+              0.8877214644506293,
+              0.05881462279715537,
+              0.9901290417205455
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 0
+          },
+          {
+            "flattened_pearson": 0.8475701709686897,
+            "matched_rows": 28808,
+            "median_controller_time_offset_s": 0.001999999993131496,
+            "per_joint_pearson": [
+              0.9631495666039317,
+              0.7023359082445432,
+              0.9433818541682971,
+              0.8779840462535294,
+              0.08657859773278756,
+              0.9904615062601384
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 1
+          },
+          {
+            "flattened_pearson": 0.8142437473965326,
+            "matched_rows": 28807,
+            "median_controller_time_offset_s": 0.004000000000814907,
+            "per_joint_pearson": [
+              0.963939333093907,
+              0.6365168867808106,
+              0.9428909508565704,
+              0.8147246756099016,
+              0.11840758690317033,
+              0.9921567132912892
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 2
+          },
+          {
+            "flattened_pearson": 0.7445787884848251,
+            "matched_rows": 28806,
+            "median_controller_time_offset_s": 0.005999999993946403,
+            "per_joint_pearson": [
+              0.9641668637745345,
+              0.4963605119677304,
+              0.9380376780291145,
+              0.6895021543765174,
+              0.1334260053411485,
+              0.9912805973662895
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 3
+          },
+          {
+            "flattened_pearson": 0.6571610920332337,
+            "matched_rows": 28805,
+            "median_controller_time_offset_s": 0.008000000001629815,
+            "per_joint_pearson": [
+              0.9634012211908436,
+              0.3138789618836786,
+              0.9320940225705777,
+              0.5383279914914146,
+              0.1449383318708415,
+              0.9897224767980574
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 4
+          },
+          {
+            "flattened_pearson": 0.573065489783994,
+            "matched_rows": 28804,
+            "median_controller_time_offset_s": 0.00999999999476131,
+            "per_joint_pearson": [
+              0.962475998787071,
+              0.14172485249490863,
+              0.9290749254092465,
+              0.3887466203168888,
+              0.15493257031441893,
+              0.9894485178496912
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 5
+          },
+          {
+            "flattened_pearson": 0.5038965324113417,
+            "matched_rows": 28803,
+            "median_controller_time_offset_s": 0.012000000002444722,
+            "per_joint_pearson": [
+              0.9618223476273864,
+              0.016082381803722467,
+              0.9292239639694653,
+              0.2517739607417724,
+              0.16489103129204685,
+              0.9899086535695326
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 6
+          },
+          {
+            "flattened_pearson": 0.45270394024142196,
+            "matched_rows": 28802,
+            "median_controller_time_offset_s": 0.013999999995576218,
+            "per_joint_pearson": [
+              0.9613726206960402,
+              -0.054008896755292815,
+              0.9302822145626514,
+              0.13186675113386043,
+              0.1741393141495956,
+              0.9903544540421432
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 7
+          },
+          {
+            "flattened_pearson": 0.41612960811130933,
+            "matched_rows": 28801,
+            "median_controller_time_offset_s": 0.01600000000325963,
+            "per_joint_pearson": [
+              0.9611155524910214,
+              -0.0814809269324164,
+              0.9309902296026572,
+              0.028406816307729538,
+              0.18266680076300887,
+              0.9904185937091118
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 8
+          },
+          {
+            "flattened_pearson": 0.3880502549363761,
+            "matched_rows": 28800,
+            "median_controller_time_offset_s": 0.01800000001094304,
+            "per_joint_pearson": [
+              0.9611000109450258,
+              -0.09009783795991343,
+              0.9314296706017604,
+              -0.060892232597845854,
+              0.19149774122900853,
+              0.9903004662574958
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 9
+          },
+          {
+            "flattened_pearson": 0.36125759159668114,
+            "matched_rows": 28799,
+            "median_controller_time_offset_s": 0.020000000004074536,
+            "per_joint_pearson": [
+              0.9611869745475706,
+              -0.10822000694814037,
+              0.9310430434979354,
+              -0.13806107993753677,
+              0.2001099610964407,
+              0.9902455458494093
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 10
+          },
+          {
+            "flattened_pearson": 0.33077684281024955,
+            "matched_rows": 28798,
+            "median_controller_time_offset_s": 0.022000000011757948,
+            "per_joint_pearson": [
+              0.96115423241237,
+              -0.15550661616394598,
+              0.9293121965791877,
+              -0.20420779383733498,
+              0.2080319760920928,
+              0.990248357025075
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 11
+          },
+          {
+            "flattened_pearson": 0.2976484508996745,
+            "matched_rows": 28797,
+            "median_controller_time_offset_s": 0.024000000004889444,
+            "per_joint_pearson": [
+              0.9610084567163718,
+              -0.22850932607559993,
+              0.9271615166524827,
+              -0.2588115880510576,
+              0.21581324291708753,
+              0.9902619730210617
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 12
+          },
+          {
+            "flattened_pearson": 0.2679319976045973,
+            "matched_rows": 28796,
+            "median_controller_time_offset_s": 0.027999999991152436,
+            "per_joint_pearson": [
+              0.9608800296396429,
+              -0.305312146171657,
+              0.9259378345892783,
+              -0.29902287850161746,
+              0.22335325658853694,
+              0.9902779373446082
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 13
+          },
+          {
+            "flattened_pearson": 0.2484621389343828,
+            "matched_rows": 28795,
+            "median_controller_time_offset_s": 0.029999999998835847,
+            "per_joint_pearson": [
+              0.9608680958668891,
+              -0.35932377937797105,
+              0.9258843514769349,
+              -0.322688189700973,
+              0.22936314694278812,
+              0.9902479759366716
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 14
+          },
+          {
+            "flattened_pearson": 0.2424060335076616,
+            "matched_rows": 28794,
+            "median_controller_time_offset_s": 0.03199999999196734,
+            "per_joint_pearson": [
+              0.9610033848226874,
+              -0.37670643196318776,
+              0.926619373404011,
+              -0.3298991265399269,
+              0.2337965137345265,
+              0.9902889654603367
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 15
+          },
+          {
+            "flattened_pearson": 0.24747456465853124,
+            "matched_rows": 28793,
+            "median_controller_time_offset_s": 0.033999999999650754,
+            "per_joint_pearson": [
+              0.961323025634567,
+              -0.3628334949952336,
+              0.9274724299219415,
+              -0.32400183469205934,
+              0.2374248302336044,
+              0.9902961201693486
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 16
+          },
+          {
+            "flattened_pearson": 0.2585110930527652,
+            "matched_rows": 28792,
+            "median_controller_time_offset_s": 0.03599999999278225,
+            "per_joint_pearson": [
+              0.9617958993370727,
+              -0.33349575222794686,
+              0.9279056431970124,
+              -0.3099769400231418,
+              0.24241494184779344,
+              0.9903429766286208
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 17
+          },
+          {
+            "flattened_pearson": 0.2705904110457848,
+            "matched_rows": 28791,
+            "median_controller_time_offset_s": 0.03800000000046566,
+            "per_joint_pearson": [
+              0.9623418110450959,
+              -0.30525947613615484,
+              0.9280713913079153,
+              -0.2914613019592287,
+              0.24840127556430253,
+              0.9903385924464639
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 18
+          },
+          {
+            "flattened_pearson": 0.2822735911246297,
+            "matched_rows": 28790,
+            "median_controller_time_offset_s": 0.03999999999359716,
+            "per_joint_pearson": [
+              0.9628570654740239,
+              -0.285371450893733,
+              0.9279652059265596,
+              -0.2675779080851637,
+              0.25468759032621874,
+              0.9903390854163376
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 19
+          },
+          {
+            "flattened_pearson": 0.2942649178334102,
+            "matched_rows": 28789,
+            "median_controller_time_offset_s": 0.04200000000128057,
+            "per_joint_pearson": [
+              0.9631909923796409,
+              -0.2722867065550915,
+              0.9277609923227668,
+              -0.23709428933418697,
+              0.2603571082544773,
+              0.9903390638263724
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 20
+          },
+          {
+            "flattened_pearson": 0.3079749493794163,
+            "matched_rows": 28788,
+            "median_controller_time_offset_s": 0.043999999994412065,
+            "per_joint_pearson": [
+              0.9632856535514767,
+              -0.2593695399903845,
+              0.9277678629481285,
+              -0.2004970252891635,
+              0.2651227350381073,
+              0.9903194790337932
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 21
+          },
+          {
+            "flattened_pearson": 0.32500200309325883,
+            "matched_rows": 28787,
+            "median_controller_time_offset_s": 0.046000000002095476,
+            "per_joint_pearson": [
+              0.9631356576715536,
+              -0.23728988480217444,
+              0.9279529812548235,
+              -0.15975953050816305,
+              0.2697232825552147,
+              0.9903306864322795
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 22
+          },
+          {
+            "flattened_pearson": 0.3470549638604459,
+            "matched_rows": 28786,
+            "median_controller_time_offset_s": 0.04799999999522697,
+            "per_joint_pearson": [
+              0.9627530797830872,
+              -0.19862515738418401,
+              0.9281730111852186,
+              -0.11483174569297742,
+              0.2752211972748145,
+              0.9903137973673216
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 23
+          },
+          {
+            "flattened_pearson": 0.37586955519803394,
+            "matched_rows": 28785,
+            "median_controller_time_offset_s": 0.05000000000291038,
+            "per_joint_pearson": [
+              0.962253555441535,
+              -0.14101569229248287,
+              0.9286003374405507,
+              -0.061807518644971485,
+              0.2806174841725945,
+              0.9903305452997876
+            ],
+            "positive_means_actual_later": true,
+            "row_offset": 24
+          }
+        ],
+        "best_flattened_scan": {
+          "flattened_pearson": 0.8514280278096005,
+          "matched_rows": 28809,
+          "median_controller_time_offset_s": 0.0,
+          "per_joint_pearson": [
+            0.9623828986815469,
+            0.7078498217274574,
+            0.9430608553471292,
+            0.8877214644506293,
+            0.05881462279715537,
+            0.9901290417205455
+          ],
+          "positive_means_actual_later": true,
+          "row_offset": 0
+        },
+        "joined_rows": 28809,
+        "per_joint": [
+          {
+            "actual_qd_std_rad_s": 0.005101420695302633,
+            "best_scan_pearson": 0.9641668637745345,
+            "best_scan_row_offset": 3,
+            "best_scan_time_offset_s": 0.005999999993946403,
+            "joint_1_based": 1,
+            "same_row_pearson": 0.9623828986815469,
+            "target_qd_std_rad_s": 0.004696498984402262
+          },
+          {
+            "actual_qd_std_rad_s": 0.0077156480726218064,
+            "best_scan_pearson": 0.7078498217274574,
+            "best_scan_row_offset": 0,
+            "best_scan_time_offset_s": 0.0,
+            "joint_1_based": 2,
+            "same_row_pearson": 0.7078498217274574,
+            "target_qd_std_rad_s": 0.004079790557243954
+          },
+          {
+            "actual_qd_std_rad_s": 0.003754691355727794,
+            "best_scan_pearson": 0.9433818541682971,
+            "best_scan_row_offset": 1,
+            "best_scan_time_offset_s": 0.001999999993131496,
+            "joint_1_based": 3,
+            "same_row_pearson": 0.9430608553471292,
+            "target_qd_std_rad_s": 0.0033102864002646356
+          },
+          {
+            "actual_qd_std_rad_s": 0.008323112809757996,
+            "best_scan_pearson": 0.8877214644506293,
+            "best_scan_row_offset": 0,
+            "best_scan_time_offset_s": 0.0,
+            "joint_1_based": 4,
+            "same_row_pearson": 0.8877214644506293,
+            "target_qd_std_rad_s": 0.004765606762369773
+          },
+          {
+            "actual_qd_std_rad_s": 0.0009160098430258002,
+            "best_scan_pearson": 0.2806174841725945,
+            "best_scan_row_offset": 24,
+            "best_scan_time_offset_s": 0.05000000000291038,
+            "joint_1_based": 5,
+            "same_row_pearson": 0.05881462279715537,
+            "target_qd_std_rad_s": 0.00021951472781074543
+          },
+          {
+            "actual_qd_std_rad_s": 0.0049567251393973204,
+            "best_scan_pearson": 0.9921567132912892,
+            "best_scan_row_offset": 2,
+            "best_scan_time_offset_s": 0.004000000000814907,
+            "joint_1_based": 6,
+            "same_row_pearson": 0.9901290417205455,
+            "target_qd_std_rad_s": 0.004699674705182875
+          }
+        ],
+        "same_row": {
+          "flattened_pearson": 0.8514280278096005,
+          "matched_rows": 28809,
+          "median_controller_time_offset_s": 0.0,
+          "per_joint_pearson": [
+            0.9623828986815469,
+            0.7078498217274574,
+            0.9430608553471292,
+            0.8877214644506293,
+            0.05881462279715537,
+            0.9901290417205455
+          ],
+          "positive_means_actual_later": true,
+          "row_offset": 0
+        },
+        "scan_row_offset_range": [
+          -24,
+          24
+        ]
+      }
+    }
+  ],
+  "claim_class": "offline sealed RTDE telemetry timing diagnostic; not live qualification",
+  "join": "first RTDE frame that echoes the exact consumed packet sequence, received no earlier than publish time minus 1 ms",
+  "limitations": [
+    "An offset peak is descriptive timing evidence and does not establish a physical root cause.",
+    "Rows are exact consumed-sequence joins; skipped echoes make adjacent rows nonuniform in time, so each offset also reports controller-time displacement.",
+    "Joint 5 can have very small target_qd variance; its Pearson peak is not interpretable as a stable servo-lag estimate.",
+    "The current QP attempts remain failed when their frozen published_qdot-to-actual_qd gate is below 0.900."
+  ],
+  "max_offset_rows": 24,
+  "method": "TASE_QP versus TASE_RNN_MATURE references",
+  "official_gate_unchanged": "published_qdot versus RTDE actual_qd on the same consumed packet sequence; this scan cannot replace or pass that gate",
+  "offset_definition": "positive row offsets pair an earlier target_qd frame with a later actual_qd frame; per-row controller timestamps report the actual time shift",
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "schema": "tase.r31-target-actual-qd-lag-diagnostic-v1"
+}
