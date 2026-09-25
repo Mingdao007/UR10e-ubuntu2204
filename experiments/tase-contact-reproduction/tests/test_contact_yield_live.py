@@ -474,9 +474,81 @@ def test_status_fresh_process_lists_native_identity_without_devices():
     assert completed.returncode == 0, completed.stderr
     payload = json.loads(completed.stdout)
     assert payload["program"] == "step5d_contact_six_qp_v1"
-    assert payload["readable_runtime_identity"] == [25, 618001]
+    assert payload["readable_runtime_identity"] == [31, 618001]
     assert payload["physical_qualification"] is False
     assert payload["machine_evidence_fresh"] is False
+
+
+def test_stop_reaches_inactive_attempt_owner_while_resident_supervisor_waits(tmp_path, monkeypatch):
+    import contact_yield_live as entry
+    import signal
+
+    run_dir = tmp_path / "resident-session"
+    run_dir.mkdir()
+    pid = 43210
+    attempt_id = "resident-attempt-01"
+    owner = {
+        "pid": pid,
+        "process_start": 98765,
+        "entry": str(Path(entry.__file__).resolve()),
+        "run_dir": str(run_dir.resolve()),
+        "attempt_id": attempt_id,
+        "active": False,
+    }
+    (run_dir / "owner.json").write_text(json.dumps(owner))
+    supervisor = str(Path(entry.__file__).resolve().with_name("contact_yield_supervisor.py"))
+    original_read_bytes = Path.read_bytes
+    kills = []
+
+    monkeypatch.setattr(os, "getpid", lambda: 12345)
+    monkeypatch.setattr(entry, "_process_start", lambda candidate_pid: 98765)
+
+    def read_bytes(path):
+        if path == Path(f"/proc/{pid}/cmdline"):
+            return f"python\0{supervisor}\0--action\0pilot\0".encode()
+        return original_read_bytes(path)
+
+    def kill(candidate_pid, sig):
+        kills.append((candidate_pid, sig))
+        (run_dir / "dispatch_receipt.json").write_text(json.dumps({
+            "attempt_id": attempt_id,
+            "stop": {"stopped": True, "program_stopped": True, "home_verified": True},
+            "cleanup_errors": [],
+        }))
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    monkeypatch.setattr(os, "kill", kill)
+    result = entry.request_process_stop(run_dir)
+    assert kills == [(pid, signal.SIGINT)]
+    assert result["stopped"] is True
+    assert result["program_stopped"] is True
+    assert result["home_verified"] is True
+
+
+def test_stop_still_rejects_inactive_standalone_writer(tmp_path, monkeypatch):
+    import contact_yield_live as entry
+
+    run_dir = tmp_path / "inactive-writer"
+    run_dir.mkdir()
+    pid = 43211
+    (run_dir / "owner.json").write_text(json.dumps({
+        "pid": pid,
+        "process_start": 98766,
+        "entry": str(Path(entry.__file__).resolve()),
+        "run_dir": str(run_dir.resolve()),
+        "attempt_id": "attempt-01",
+        "active": False,
+    }))
+    original_read_bytes = Path.read_bytes
+    monkeypatch.setattr(os, "getpid", lambda: 12345)
+    monkeypatch.setattr(entry, "_process_start", lambda _pid: 98766)
+    monkeypatch.setattr(Path, "read_bytes", lambda path: (
+        f"python\0{Path(entry.__file__).resolve()}\0pilot\0".encode()
+        if path == Path(f"/proc/{pid}/cmdline") else original_read_bytes(path)
+    ))
+    monkeypatch.setattr(os, "kill", lambda *_args: pytest.fail("inactive writer must not be signalled"))
+    with pytest.raises(entry.YieldLiveError, match="no longer active"):
+        entry.request_process_stop(run_dir)
 
 
 def test_unavailable_method_does_not_claim_execution(tmp_path: Path, lib):

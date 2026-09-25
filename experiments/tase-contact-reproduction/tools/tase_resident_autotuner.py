@@ -165,6 +165,65 @@ def _dispatch_receipt_path(attempt_path: Path) -> Path:
     return attempt_dir / "dispatch_receipt.json"
 
 
+def _session_controller_triplet(
+    attempt_path: Path,
+    dispatch: dict[str, Any],
+    expected: dict[str, str] | None,
+) -> dict[str, str]:
+    """Use the live read-back receipt while a resident session is still open.
+
+    The session-level dispatch receipt is written only after the resident
+    supervisor exits. A candidate can be sealed at Home earlier, so during a
+    resident session the fresh controller receipt and fetched-back package
+    files are the authoritative package identity available to the tuner.
+    """
+
+    triplet = dispatch.get("controller_readback_triplet")
+    if isinstance(triplet, dict) and triplet:
+        return dict(triplet)
+
+    session_dir = attempt_path.parents[2]
+    controller_path = session_dir / "controller_receipt.json"
+    readback_result_path = session_dir / "readback-results.json"
+    if not controller_path.is_file() or not readback_result_path.is_file():
+        return {}
+    try:
+        controller = json.loads(controller_path.read_text(encoding="utf-8"))
+        readback_result = json.loads(readback_result_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    program = "step5d_contact_six_qp_v1"
+    target = f"/programs/andyl/kunwei/step5/{program}.urp"
+    if (
+        readback_result.get("pass") is not True
+        or readback_result.get("scope") != "fresh GET of installed packages"
+        or program not in (readback_result.get("basenames") or [])
+        or controller.get("program") != program
+        or controller.get("controller_target") != target
+        or controller.get("safety_mode") != "NORMAL"
+        or (controller.get("provenance") or {}).get("triplet") != "readback-results.json"
+    ):
+        return {}
+
+    triplet = {
+        "script": controller.get("script_sha256"),
+        "txt": controller.get("txt_sha256"),
+        "urp": controller.get("urp_sha256"),
+    }
+    if any(not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None
+           for value in triplet.values()):
+        return {}
+    readback_dir = session_dir / "readback" / program
+    for extension, key in (("script", "script"), ("txt", "txt"), ("urp", "urp")):
+        path = readback_dir / f"{program}.{extension}"
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != triplet[key]:
+            return {}
+    if expected is not None and triplet != expected:
+        return {}
+    return triplet
+
+
 def _screening_initial(config: dict[str, Any]) -> dict[str, Any]:
     protocol = config["protocol_id"]
     screen = (ROOT / config["screening_campaign"]).resolve()
@@ -399,6 +458,61 @@ def _append_ledger(path: Path, row: dict[str, Any]) -> None:
         os.fsync(stream.fileno())
 
 
+def _persist_ledger_correction(
+    campaign_dir: Path,
+    ledger_path: Path,
+    ordinal: int,
+    previous: dict[str, Any],
+    replacement: dict[str, Any],
+) -> None:
+    """Record an evidence-backed score repair before atomically updating the ledger."""
+
+    correction_path = campaign_dir / "ledger-corrections.jsonl"
+    correction = {
+        "schema": "tase.resident-autotuner-ledger-correction-v1",
+        "recorded_at_unix_s": time.time(),
+        "ordinal": ordinal,
+        "candidate_id": previous["candidate_id"],
+        "reason": "fresh controller triplet was sealed after the resident attempt score was first written",
+        "previous": previous,
+        "replacement": replacement,
+    }
+    existing_corrections = (
+        [json.loads(line) for line in correction_path.read_text(encoding="utf-8").splitlines() if line]
+        if correction_path.is_file() else []
+    )
+    prior_correction = next((row for row in existing_corrections
+                             if row.get("ordinal") == ordinal
+                             and row.get("candidate_id") == previous["candidate_id"]), None)
+    if prior_correction is not None:
+        if (prior_correction.get("previous") != previous
+            or prior_correction.get("replacement") != replacement):
+            raise ValueError("resident tuner score correction conflicts with prior audit")
+    else:
+        _append_ledger(correction_path, correction)
+
+    ledger_rows = [json.loads(line) for line in ledger_path.read_text(encoding="utf-8").splitlines() if line]
+    if ordinal >= len(ledger_rows):
+        raise ValueError("resident tuner correction ordinal is absent from the ledger")
+    if ledger_rows[ordinal] == replacement:
+        return
+    if ledger_rows[ordinal] != previous:
+        raise ValueError("resident tuner ledger changed before the score correction")
+    ledger_rows[ordinal] = replacement
+    temporary = ledger_path.with_name(f"{ledger_path.name}.{os.getpid()}.tmp")
+    with temporary.open("x", encoding="utf-8") as stream:
+        for row in ledger_rows:
+            stream.write(json.dumps(row, sort_keys=True, allow_nan=False) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, ledger_path)
+    directory_fd = os.open(ledger_path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
 def _score_item(path: Path, candidate: Candidate, ordinal: int,
                 config: dict[str, Any]) -> dict[str, Any]:
     item = json.loads(path.read_text(encoding="utf-8"))
@@ -440,8 +554,8 @@ def _score_item(path: Path, candidate: Candidate, ordinal: int,
     )
     dispatch_path = _dispatch_receipt_path(path)
     dispatch = json.loads(dispatch_path.read_text(encoding="utf-8")) if dispatch_path.is_file() else {}
-    package_identity = dispatch.get("controller_readback_triplet") or {}
     expected_package = config.get("controller_readback_triplet")
+    package_identity = _session_controller_triplet(path, dispatch, expected_package)
     package_matches = (
         config["protocol_id"] == LEGACY_RATE400_PROTOCOL
         and expected_package is None
@@ -509,8 +623,28 @@ def _reconcile_sealed_sessions(campaign_dir: Path, config: dict[str, Any],
             raise RuntimeError("resident tuner physical result lacks seal")
         ordinal = index + 1
         if index < len(recorded):
-            if Path(recorded[index].get("source_attempt_result", "")) != path:
+            previous = rows[ordinal]
+            if Path(previous.get("source_attempt_result", "")) != path:
                 raise ValueError("resident tuner ledger source path differs from physical order")
+            if (previous.get("status") == "failed"
+                and previous.get("failure") == "evidence_ineligible"
+                and previous.get("controller_readback_triplet") == {}
+                and _session_verified_closed(path.parents[2])):
+                candidate = Candidate(
+                    str(previous["candidate_id"]), str(previous["stage"]), int(previous["index"]),
+                    float(previous["Md_scalar"]), float(previous["Bd_scalar"]),
+                )
+                rescored = _score_item(path, candidate, ordinal, config)
+                if rescored["status"] == "complete":
+                    rescored["score_correction"] = {
+                        "previous_status": "failed",
+                        "previous_failure": previous["failure"],
+                        "reason": "attempt evidence passed after the verified session receipt supplied the fresh package triplet",
+                    }
+                    _persist_ledger_correction(
+                        campaign_dir, ledger, ordinal, previous, rescored,
+                    )
+                    rows[ordinal] = rescored
             continue
         candidate = _candidate_for(config, rows, ordinal)
         row = _score_item(path, candidate, ordinal, config)
@@ -540,6 +674,8 @@ def summarize(campaign_dir: Path, config: dict[str, Any]) -> dict[str, Any]:
         "budget": config["budget"],
         "attempted": len(rows), "complete": len(complete),
         "failed": len(rows) - len(complete),
+        "score_corrections": len(list((campaign_dir / "ledger-corrections.jsonl").open()))
+            if (campaign_dir / "ledger-corrections.jsonl").is_file() else 0,
         "resident_sessions_closed": closed,
         "status": "complete" if len(rows) == TOTAL and closed else "incomplete",
         "best": best,

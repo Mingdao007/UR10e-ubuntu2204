@@ -279,6 +279,89 @@ def test_rate460_e_candidate_scoring_preserves_integral_off_identity(tmp_path):
     assert row["controller_readback_triplet"] == DUMMY_TRIPLET
 
 
+def test_resident_candidate_uses_fresh_readback_before_session_dispatch_is_written(tmp_path):
+    import hashlib
+
+    config = load_config(RATE460_E_CONFIG)
+    records = [_initial_row(config)]
+    candidate = _candidate_for(config, records, 1)
+    result_path = tmp_path / "session-01" / "attempts" / "0001" / "attempt-result.json"
+    _write_result(result_path, candidate, config)
+    session = result_path.parents[2]
+    program = "step5d_contact_six_qp_v1"
+    readback_dir = session / "readback" / program
+    readback_dir.mkdir(parents=True)
+    triplet = {}
+    for extension in ("script", "txt", "urp"):
+        payload = f"verified-{program}-{extension}".encode()
+        (readback_dir / f"{program}.{extension}").write_bytes(payload)
+        triplet[extension] = hashlib.sha256(payload).hexdigest()
+    config["controller_readback_triplet"] = triplet
+    (session / "controller_receipt.json").write_text(json.dumps({
+        "program": program,
+        "controller_target": f"/programs/andyl/kunwei/step5/{program}.urp",
+        "script_sha256": triplet["script"],
+        "txt_sha256": triplet["txt"],
+        "urp_sha256": triplet["urp"],
+        "safety_mode": "NORMAL",
+        "provenance": {"triplet": "readback-results.json"},
+    }))
+    (session / "readback-results.json").write_text(json.dumps({
+        "pass": True,
+        "scope": "fresh GET of installed packages",
+        "basenames": [program, "step5d_contact_home_v1"],
+    }))
+
+    assert not (session / "dispatch_receipt.json").exists()
+    row = _score_item(result_path, candidate, 1, config)
+    assert row["status"] == "complete"
+    assert row["safe_to_continue"] is True
+    assert row["controller_readback_triplet"] == triplet
+
+
+def test_closed_session_reconciles_package_identity_scoring_race(tmp_path):
+    import tase_resident_autotuner as tuner
+
+    config = load_config(RATE460_E_CONFIG)
+    config["controller_readback_triplet"] = DUMMY_TRIPLET
+    campaign = tmp_path / "campaign"
+    session = campaign / "session-01"
+    attempt = session / "attempts" / "0001" / "attempt-result.json"
+    rows = [_initial_row(config)]
+    candidate = _candidate_for(config, rows, 1)
+    _write_result(attempt, candidate, config)
+
+    # This is the score produced while the resident supervisor was still open
+    # and had not written its final dispatch receipt.
+    provisional = _score_item(attempt, candidate, 1, config)
+    assert provisional["status"] == "failed"
+    assert provisional["failure"] == "evidence_ineligible"
+    rows.append(provisional)
+    ledger = campaign / "ledger.jsonl"
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    ledger.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
+
+    # The session closes and supplies its immutable package triplet and Home/STOP proof.
+    (session / "dispatch_receipt.json").write_text(json.dumps({
+        "method": "TASE_RNN_MATURE",
+        "controller_identity": {"method": "TASE_RNN_MATURE"},
+        "live_path": {"protocol_id": PROTOCOL, "path_duration_s": 60.0},
+        "controller_readback_triplet": DUMMY_TRIPLET,
+        "attempts": [{"sequence": 1}],
+        "stop": {"home_verified": True, "program_stopped": True},
+    }))
+
+    reconciled = _reconcile_sealed_sessions(campaign, config, ledger, rows)
+    assert reconciled[1]["status"] == "complete"
+    assert reconciled[1]["mae_n"] == 1.25
+    assert reconciled[1]["score_correction"]["previous_status"] == "failed"
+    correction = json.loads((campaign / "ledger-corrections.jsonl").read_text().splitlines()[0])
+    assert correction["previous"]["status"] == "failed"
+    assert correction["replacement"]["status"] == "complete"
+    effective_rows = [json.loads(line) for line in ledger.read_text().splitlines()]
+    assert effective_rows[1]["status"] == "complete"
+
+
 def test_legacy_rate400_b_remains_explicit_and_separate():
     config = _legacy_config()
     assert config["protocol_id"] == LEGACY_RATE400_PROTOCOL

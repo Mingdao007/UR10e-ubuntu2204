@@ -386,14 +386,26 @@ def request_process_stop(run_dir):
         raise YieldLiveError("owner receipt cannot be a symlink")
     owner = json.loads(owner_path.read_text())
     pid = int(owner["pid"])
-    if (owner.get("active") is not True or owner.get("entry") != str(Path(__file__).resolve())
+    if (owner.get("entry") != str(Path(__file__).resolve())
         or owner.get("run_dir") != str(path) or pid == os.getpid()
         or _process_start(pid) != owner["process_start"]):
         raise YieldLiveError("live owner process identity differs")
     argv = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
-    allowed_entries = (Path(__file__).resolve(), Path(__file__).resolve().with_name('contact_yield_supervisor.py'))
-    if not any(str(entry).encode() in argv for entry in allowed_entries):
+    live_entry = Path(__file__).resolve()
+    supervisor_entry = live_entry.with_name('contact_yield_supervisor.py')
+    is_live_entry = str(live_entry).encode() in argv
+    is_resident_supervisor = str(supervisor_entry).encode() in argv
+    if not (is_live_entry or is_resident_supervisor):
         raise YieldLiveError("live owner command differs")
+    # In a resident session, the per-attempt writer marks owner.json inactive
+    # after sealing one attempt while contact_yield_supervisor.py still owns
+    # the session and waits at Home for its next candidate.  Permit Stop only
+    # for that exact still-running supervisor process; an inactive standalone
+    # writer remains ineligible.
+    if owner.get("active") is not True and not (
+        owner.get("active") is False and is_resident_supervisor
+    ):
+        raise YieldLiveError("live owner process is no longer active")
     os.kill(pid, signal.SIGINT)
     deadline = time.monotonic() + 3.
     while time.monotonic() < deadline:
@@ -507,7 +519,11 @@ def _load_resident_candidate(candidate_dir: Path, ordinal: int, *, duration: str
     expected_protocol = (
         "figure8_window60_r013_rate400_v1"
         if duration == "r013_60_rate400"
-        else "figure8_window60_r013_compat_v1"
+        else (
+            "figure8_window60_r013_rate460_v1"
+            if duration == "r013_60_rate460"
+            else "figure8_window60_r013_compat_v1"
+        )
     )
     if (
         binding.get("protocol_id") != expected_protocol
@@ -655,7 +671,9 @@ def run_live(
         if (
             args.command != "pilot"
             or args.method != "TASE_RNN_MATURE"
-            or getattr(args, "duration", None) not in {"r013_60", "r013_60_rate400"}
+            or getattr(args, "duration", None) not in {
+                "r013_60", "r013_60_rate400", "r013_60_rate460"
+            }
         ):
             raise YieldLiveError(
                 "resident candidate directory requires a 60 s TASE_RNN_MATURE pilot"
