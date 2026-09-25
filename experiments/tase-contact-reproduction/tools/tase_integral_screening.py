@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -15,6 +16,10 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = ROOT / "config" / "tase_integral_screening_v1.json"
+SUPPORTED_PROTOCOLS = {
+    "figure8_window60_r013_rate400_v1": "r013_60_rate400",
+    "figure8_window60_r013_rate460_v1": "r013_60_rate460",
+}
 
 
 def load_screening_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
@@ -23,9 +28,17 @@ def load_screening_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
         raise ValueError("screening schema differs")
     if payload.get("method") != "TASE_RNN_MATURE":
         raise ValueError("screening method must be TASE_RNN_MATURE")
-    if (payload.get("protocol_id") != "figure8_window60_r013_rate400_v1"
-        or payload.get("duration_token") != "r013_60_rate400"):
-        raise ValueError("screening must use the separate 60 s rate400 protocol")
+    protocol_id = payload.get("protocol_id")
+    if protocol_id not in SUPPORTED_PROTOCOLS or payload.get("duration_token") != SUPPORTED_PROTOCOLS[protocol_id]:
+        raise ValueError("screening must bind a supported 60 s R013 rate protocol")
+    expected_triplet = payload.get("expected_controller_readback_triplet_sha256")
+    if expected_triplet is not None and (
+        not isinstance(expected_triplet, dict)
+        or set(expected_triplet) != {"script", "txt", "urp"}
+        or any(not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None
+               for value in expected_triplet.values())
+    ):
+        raise ValueError("expected controller read-back triplet must bind three SHA-256 values")
     if int(payload.get("repeats_per_arm", 0)) != 5:
         raise ValueError("screening requires five repeats per arm")
     arms = payload.get("arms")
@@ -85,11 +98,27 @@ def build_schedule(config: dict[str, Any] | None = None) -> list[dict[str, Any]]
     return rows
 
 
+def _schedule_document(config: dict[str, Any], *, config_sha256: str | None = None) -> dict[str, Any]:
+    return {
+        "schema": "tase.integral-screening-schedule-v1",
+        "method": config["method"],
+        "protocol_id": config["protocol_id"],
+        "duration_token": config["duration_token"],
+        "seed": int(config["seed"]),
+        "repeats_per_arm": int(config["repeats_per_arm"]),
+        "arm_ids": [arm["arm_id"] for arm in config["arms"]],
+        "expected_controller_readback_triplet_sha256": config.get("expected_controller_readback_triplet_sha256"),
+        "config_sha256": config_sha256,
+        "rows": build_schedule(config),
+    }
+
+
 def write_schedule(output: Path, config_path: Path = DEFAULT_CONFIG) -> Path:
     config = load_screening_config(config_path)
-    rows = build_schedule(config)
+    config_sha256 = hashlib.sha256(Path(config_path).read_bytes()).hexdigest()
+    schedule = _schedule_document(config, config_sha256=config_sha256)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps({"schema": "tase.integral-screening-schedule-v1", "rows": rows}, indent=2) + "\n", encoding="utf-8")
+    output.write_text(json.dumps(schedule, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return output
 
 
@@ -99,6 +128,9 @@ def prepare_campaign(campaign_dir: Path, config_path: Path = DEFAULT_CONFIG) -> 
     config = load_screening_config(config_path)
     campaign_dir = Path(campaign_dir).expanduser().resolve()
     campaign_dir.mkdir(parents=True, exist_ok=False)
+    config_path = Path(config_path)
+    config_bytes = config_path.read_bytes()
+    config_sha256 = hashlib.sha256(config_bytes).hexdigest()
     rows = build_schedule(config)
     candidates = campaign_dir / "candidates"
     candidates.mkdir()
@@ -119,8 +151,9 @@ def prepare_campaign(campaign_dir: Path, config_path: Path = DEFAULT_CONFIG) -> 
         path = candidates / f"{ordinal:02d}-{row['candidate_id']}.json"
         path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         parameter_files.append(str(path.relative_to(campaign_dir)))
+    (campaign_dir / "config-frozen.json").write_bytes(config_bytes)
     (campaign_dir / "screening-schedule.json").write_text(
-        json.dumps({"schema": "tase.integral-screening-schedule-v1", "rows": rows},
+        json.dumps(_schedule_document(config, config_sha256=config_sha256),
                    indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     manifest = campaign_dir / "resident-parameter-manifest.json"
@@ -195,12 +228,44 @@ def score_campaign(campaign_dir: Path) -> dict[str, Any]:
     planned = schedule["rows"]
     if len(planned) != 25:
         raise ValueError("screening schedule must contain 25 cells")
+    if any(row.get("protocol_id") != schedule.get("protocol_id")
+           or row.get("duration_token") != schedule.get("duration_token") for row in planned):
+        raise ValueError("screening schedule rows differ from their frozen protocol identity")
+    minimum_rate = 460.0 if schedule["protocol_id"] == "figure8_window60_r013_rate460_v1" else 400.0
     observed: list[tuple[Path, dict[str, Any]]] = []
     for session in _campaign_sessions(campaign_dir):
         for path in sorted(session.glob("attempts/*/attempt-result.json")):
             observed.append((path, json.loads(path.read_text(encoding="utf-8"))))
     if len(observed) > len(planned):
         raise ValueError("screening has more physical attempts than scheduled cells")
+    session_identities: dict[Path, dict[str, Any] | None] = {}
+    for session in _campaign_sessions(campaign_dir):
+        receipt_path = session / "dispatch_receipt.json"
+        if not receipt_path.is_file():
+            session_identities[session] = None
+            continue
+        dispatch = json.loads(receipt_path.read_text(encoding="utf-8"))
+        triplet = dispatch.get("controller_readback_triplet")
+        valid_triplet = (
+            isinstance(triplet, dict)
+            and set(triplet) == {"script", "txt", "urp"}
+            and all(isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
+                    for value in triplet.values())
+        )
+        live_path = dispatch.get("live_path") or {}
+        controller_identity = dispatch.get("controller_identity") or {}
+        session_identities[session] = {
+            "method": dispatch.get("method"),
+            "controller_method": controller_identity.get("method"),
+            "protocol_id": live_path.get("protocol_id"),
+            "path_duration_s": live_path.get("path_duration_s"),
+            "triplet": dict(triplet) if valid_triplet else None,
+        }
+    configured_triplet = schedule.get("expected_controller_readback_triplet_sha256")
+    reference_triplet = configured_triplet or next(
+        (identity["triplet"] for identity in session_identities.values()
+         if identity is not None and identity["triplet"] is not None), None
+    )
     attempts: list[dict[str, Any]] = []
     for index, (path, item) in enumerate(observed):
         row = planned[index]
@@ -223,13 +288,40 @@ def score_campaign(campaign_dir: Path) -> dict[str, Any]:
         metrics = (item.get("evidence") or {}).get("metrics") or {}
         timing = metrics.get("timing_evidence") or {}
         sealed = path.with_name("seal.json").is_file()
+        session_identity = session_identities.get(path.parents[2])
+        session_triplet = None if session_identity is None else session_identity["triplet"]
+        session_identity_pass = bool(
+            session_identity is not None
+            and session_identity.get("method") == schedule["method"]
+            and session_identity.get("controller_method") == schedule["method"]
+            and session_identity.get("protocol_id") == row["protocol_id"]
+            and session_identity.get("path_duration_s") == 60.0
+        )
+        package_identity_pass = (
+            session_triplet is not None
+            and reference_triplet is not None
+            and session_triplet == reference_triplet
+        )
+        rates = timing.get("layer_rates_hz") or {}
+        rate_evidence_pass = bool(
+            timing.get("successful") is True
+            and timing.get("minimum_rate_hz") == minimum_rate
+            and rates
+            and all(isinstance(rate, (int, float)) and not isinstance(rate, bool)
+                    and math.isfinite(float(rate)) and float(rate) >= minimum_rate
+                    for rate in rates.values())
+        )
         eligible = bool(
             item.get("evidence_eligible") is True
             and item.get("lifecycle", {}).get("path_complete") is True
             and metrics.get("complete_bins") == 550
+            and metrics.get("path_duration_s") == 60.0
             and metrics.get("protocol_id") == row["protocol_id"]
             and metrics.get("timing_gate_passed") is True
             and timing.get("acceptance_protocol_id") == row["protocol_id"]
+            and rate_evidence_pass
+            and session_identity_pass
+            and package_identity_pass
             and item.get("lifecycle", {}).get("home_verified") is True
             and sealed
             and isinstance(metrics.get("normal_force_mae_n"), (int, float))
@@ -244,17 +336,23 @@ def score_campaign(campaign_dir: Path) -> dict[str, Any]:
                 or metrics.get("failure")
             )
             if failure is None and metrics.get("timing_gate_passed") is False:
-                minimum_rate = timing.get("minimum_rate_hz")
                 rates = timing.get("layer_rates_hz") or {}
-                if isinstance(minimum_rate, (int, float)) and not isinstance(minimum_rate, bool):
-                    slow_layers = [
-                        f"{name}={float(rate):.1f}<{float(minimum_rate):.1f}Hz"
-                        for name, rate in sorted(rates.items())
-                        if isinstance(rate, (int, float)) and not isinstance(rate, bool)
-                        and float(rate) < float(minimum_rate)
-                    ]
-                    if slow_layers:
-                        failure = "rate_below_minimum:" + ",".join(slow_layers)
+            if failure is None and not rate_evidence_pass:
+                slow_layers = [
+                    f"{name}={float(rate):.1f}<{minimum_rate:.1f}Hz"
+                    for name, rate in sorted(rates.items())
+                    if isinstance(rate, (int, float)) and not isinstance(rate, bool)
+                    and (not math.isfinite(float(rate)) or float(rate) < minimum_rate)
+                ]
+                if timing.get("minimum_rate_hz") != minimum_rate:
+                    slow_layers.insert(0, f"declared_minimum={timing.get('minimum_rate_hz')}!=${minimum_rate:.1f}Hz".replace("$", ""))
+                if timing.get("successful") is not True:
+                    slow_layers.insert(0, "timing_receipt_not_successful")
+                failure = "rate_evidence_mismatch:" + ",".join(slow_layers or ["unknown"])
+            if failure is None and not package_identity_pass:
+                failure = "controller_readback_triplet_missing_or_mismatched"
+            if failure is None and not session_identity_pass:
+                failure = "controller_method_or_protocol_identity_mismatch"
             if failure is None:
                 failure = "evidence_ineligible"
         attempts.append({
@@ -266,6 +364,9 @@ def score_campaign(campaign_dir: Path) -> dict[str, Any]:
             "diagnostic_mae_n": metrics.get("normal_force_mae_n"),
             "path_duration_s": metrics.get("path_duration_s"),
             "complete_bins": metrics.get("complete_bins"),
+            "controller_readback_triplet_sha256": session_triplet,
+            "controller_package_identity_pass": package_identity_pass,
+            "controller_session_identity_pass": session_identity_pass,
             "home_verified": item.get("lifecycle", {}).get("home_verified") is True,
             "sealed": sealed,
             "failure": failure,
@@ -295,11 +396,18 @@ def score_campaign(campaign_dir: Path) -> dict[str, Any]:
         )
     result = {
         "schema": "tase.integral-screening-results-v1",
-        "protocol_id": "figure8_window60_r013_rate400_v1",
+        "protocol_id": schedule["protocol_id"],
         "planned": 25, "attempted": len(attempts),
         "status": ("complete" if complete_budget and sessions_closed
                    else "awaiting_verified_close" if complete_budget else "incomplete"),
         "sessions_closed": sessions_closed,
+        "expected_controller_readback_triplet_sha256": reference_triplet,
+        "controller_identity_valid": bool(
+            session_identities
+            and all(identity is not None for identity in session_identities.values())
+            and all(row["controller_package_identity_pass"]
+                    and row["controller_session_identity_pass"] for row in attempts)
+        ),
         "attempts": attempts, "arms": arms, "selected_arm": winner,
         "selection_rule": "complete-count desc, successful MAE mean asc, A/B/C/D/E tie",
         "claim_scope": "screening selection only; no paired improvement claim",
@@ -345,7 +453,7 @@ def execute_campaign(campaign_dir: Path, *, resume: bool = False) -> dict[str, A
     command = [
         str(ROOT / "scripts/figure8.sh"),
         "--method", "TASE_RNN_MATURE",
-        "--duration", "r013_60_rate400",
+        "--duration", root_manifest["duration_token"],
         "--control-cpu", "4",
         "--video-policy", "evidence-only",
         "--resident-attempts", str(len(remaining)),
