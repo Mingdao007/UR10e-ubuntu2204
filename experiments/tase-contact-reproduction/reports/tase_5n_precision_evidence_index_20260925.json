@@ -1,7 +1,7 @@
 {
   "schema": "tase-5n-precision-evidence-index-v1",
-  "checkpoint_at": "2026-09-25T17:01:55+08:00",
-  "primary_experiment": "R31 rate460 TASE_RNN_MATURE A: two eligible complete 60 s units (MAE 1.282720 and 1.006797 N); two complete TASE_QP units fail frozen actual_qd correlation gate (0.840132, 0.848607 versus 0.900); the new R31-parameter-aligned SFC/DSFC 30-attempt model proxy is complete with zero simulation failures but is not physical evidence. Robot already powered, Safety NORMAL, TP STOPPED at joint Home; no extra power command or motion sent. Extended QP offset scan did not find a causal sequence delay that restores qd correlation; higher J2/J4 setpoint changes and more output-limit feedback are candidate contributors, not confirmed cause.",
+  "checkpoint_at": "2026-09-25T17:07:30+08:00",
+  "primary_experiment": "R31 rate460 TASE_RNN_MATURE A: two eligible complete 60 s units (MAE 1.282720 and 1.006797 N); two complete TASE_QP units fail frozen actual_qd correlation gate (0.840132, 0.848607 versus 0.900); the new R31-parameter-aligned SFC/DSFC 30-attempt model proxy is complete with zero simulation failures but is not physical evidence. Robot already powered, Safety NORMAL, TP STOPPED at joint Home; no extra power command or motion sent. Extended QP offset scan did not find a causal sequence delay that restores qd correlation; higher J2/J4 setpoint changes and more output-limit feedback are candidate contributors, not confirmed cause. Event-conditioned comparison further narrows the qd diagnostic: RNN A flagged rows remain at 0.978/0.981 correlation, while matched QP flagged rows are 0.801 and QP unflagged rows 0.907; this is not causal proof.",
   "claim_boundary": "Kunwei is controller feedback, not independent task-force truth. RPSFC/SFC/DSFC drift evidence is a different experiment.",
   "report": "reports/tase_5n_precision_recovery_20260925.md",
   "decision_tree": "reports/tase_5n_precision_decision_tree_20260925.md",
@@ -900,6 +900,21 @@
         "a2_host_slew_limited": 3
       },
       "limitations": "setpoint difference/dt is not measured mechanical acceleration; flags do not confirm physical actuator saturation; causality remains unknown"
+    },
+    {
+      "id": "tase-r31-qdot-output-event-condition-20260925",
+      "path": "reports/tase_r31_qdot_event_condition_20260925.json",
+      "kind": "same consumed-frame qd correlation partitioned by host slew, task-space saturation and realization-feedback flags across R31 A1/A2 and matched QP",
+      "status": "sources sealed and verified; RNN retains high correlation on flagged rows while matched QP does not; diagnostic association only",
+      "key_values": {
+        "a1_flagged_corr": 0.977826277753018,
+        "a2_flagged_corr": 0.9811183004822522,
+        "qp_flagged_corr": 0.8005752347221807,
+        "qp_unflagged_corr": 0.9069486521213135,
+        "qp_task_space_saturated_corr": 0.7985455110149194,
+        "qp_realization_feedback_corr": 0.8069156042437755
+      },
+      "limitations": "observational partition does not prove causality; official score includes all rows and gate remains unchanged"
     }
   ],
   "not_yet_observed": [

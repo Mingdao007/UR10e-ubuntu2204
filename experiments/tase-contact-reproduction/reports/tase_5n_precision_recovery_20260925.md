@@ -212,3 +212,8 @@ The detailed trace and per-joint analysis are in [the R31 TASE-QP motion-gate co
 ## QP qd follow-up — 2026-09-25T17:01
 
 Extended same-sequence offset scan (−24 to +24 packets) peaked at QP correlation `0.852176` at a noncausal future-command offset; it does not support simple delay correction. QP J2/J4 setpoint changes and output-feedback limit flags are higher than RNN A. Treat abrupt command change as a candidate mechanism only. The current output-gate miss remains unresolved; no new live run or gate change was made. Details: `reports/tase_r31_qdot_offset_scan_20260925.json` and `reports/tase_r31_qdot_output_transition_20260925.json`.
+
+## QP output-event comparison — 2026-09-25T17:07:30+08:00
+
+The event-conditioned qd comparison against both RNN A traces shows a solver-specific interaction: RNN remains highly correlated on output-flagged rows, whereas matched QP does not. This narrows the next offline audit to command/`Jqdot` changes and active constraints at those timestamps. It does not prove cause or qualify a QP fix. No live motion was attempted.
+

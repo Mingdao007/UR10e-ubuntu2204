@@ -140,3 +140,18 @@ The sealed command traces show a separate difference in the QP setpoint profile:
 QP J2/J4 setpoint-change p95 is much higher, and the QP trace has more host slew interventions and output-feedback realization-limit flags. This makes abrupt joint-velocity changes a plausible proximal contributor to the qd mismatch, alongside the low-correlation joints. The change-rate statistic is computed from commanded setpoints, not measured robot acceleration; the flags describe the controller's output feedback, not a confirmed hardware saturation event. Correlation and output flags do not establish causality. The next offline diagnosis should compare QP active-set transitions and qdot change/actual-qd response at those specific rows. Do not change the frozen QP profile, relax the motion gate, or repeat it unchanged.
 
 Detailed 49-offset/per-joint results: `reports/tase_r31_qdot_offset_scan_20260925.json`; transition counts and per-joint command-change distributions: `reports/tase_r31_qdot_output_transition_20260925.json`. Both source timelines were checked against their sealed hashes.
+
+## Event-conditioned actual-qd diagnostic — 2026-09-25T17:07:30+08:00 HKT
+
+The same output-event partition was applied to the two RNN A baselines and matched QP. “Any output flag” means at least one of host slew limit, task-space saturation, or final realization-feedback limit on that consumed row.
+
+| Attempt | Flagged rows | Correlation when flagged | Unflagged rows | Correlation when unflagged |
+|---|---:|---:|---:|---:|
+| R31 A1 RNN | 8579 | 0.978 | 19985 | 0.967 |
+| R31 A2 RNN | 5752 | 0.981 | 23093 | 0.969 |
+| Matched QP | 3191 | 0.801 | 25617 | 0.907 |
+
+The RNN controls retain high correlation in flagged rows (`0.978` and `0.981`), while the matched QP flagged subset falls to `0.801`; its unflagged subset is `0.907`. Within QP, task-space-saturated rows are `0.799` and realization-feedback-flagged rows `0.807`. The event itself therefore does not explain the miss across methods. The evidence supports a **QP-by-output-event interaction** as a focused diagnostic branch, but a single-run conditional partition cannot identify causality. The official gate still uses all joined samples, and no rows were removed from its score.
+
+The next offline check is to inspect the exact QP task request, final published `Jqdot`, active bounds, and subsequent RTDE `actual_qd` around the flagged transitions, against the same rows from RNN A. Do not repeat the live QP profile unchanged. Full grouped metrics are in `reports/tase_r31_qdot_event_condition_20260925.json`.
+
