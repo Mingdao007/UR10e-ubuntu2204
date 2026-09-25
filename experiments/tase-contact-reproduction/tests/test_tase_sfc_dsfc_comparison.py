@@ -24,6 +24,14 @@ def test_frozen_native_profiles_use_a_incumbent_and_distinct_law_identities():
     normal_a_path = ROOT / "config/tase_figure8_integral_1p0_rate460.json"
     normal_a = json.loads(normal_a_path.read_text(encoding="utf-8"))
     outer = profile["normal_outer_config"]
+    assert profile["normal_config"] == {
+        "epsilon": 0.022,
+        "sigr_exponent_r": 1.0,
+        "lambda_update_sign": "minus",
+    }
+    assert profile["normal_config_source"] == "config/yield_live_entry_v1.json#methods.TASE_RNN_MATURE"
+    identity_path = ROOT / "config/yield_live_entry_v1.json"
+    assert profile["normal_config_identity_sha256"] == hashlib.sha256(identity_path.read_bytes()).hexdigest()
     assert outer["Md_scalar"] == pytest.approx(9.565272137974492)
     assert outer["Bd_scalar"] == pytest.approx(693.6559295653944)
     assert outer["force_integral_limit_n_s"] == 1.0
@@ -155,6 +163,8 @@ def test_small_campaign_seals_model_only_traces_and_denominators(tmp_path):
     report = (tmp_path / "sfc-dsfc" / "report.md").read_text(encoding="utf-8")
     assert "offline closed-loop model proxy only" in report
     assert "does not qualify either combination for live use" in report
+    assert "epsilon=0.022, r=1.0" in report
+    assert "config/yield_live_entry_v1.json#methods.TASE_RNN_MATURE" in report
     assert "config/tase_figure8_integral_1p0_rate460.json" in report
     attempts = [
         json.loads(line)
@@ -181,6 +191,11 @@ def test_small_campaign_seals_model_only_traces_and_denominators(tmp_path):
         method: {scenario: 1 for scenario in comparison.SCENARIOS}
         for method in comparison.METHODS
     }
+    assert all(
+        item["candidate"]["normal_config"] == summary["profile"]["normal_config"]
+        and item["candidate"]["outer_profile_id"] == summary["profile"]["outer_profile_id"]
+        for item in replay["results"]
+    )
     for offset in range(0, len(replay["results"]), 2):
         pair = replay["results"][offset:offset + 2]
         assert pair[0]["common_input_sha256"] == pair[1]["common_input_sha256"]
