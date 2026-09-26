@@ -83,6 +83,17 @@ motion gate 是同一被消费 packet 的 published qdot 与 RTDE `actual_qd` �
 
 当前 OSQP live profile 是硬等式 `J qdot = twist` 加 joint-velocity box bound，sealed trace 中 Jacobian 每个 PATH row 都是 full rank。这个配置下可行时 qdot 解唯一，单纯改二次目标权重不会提供连续性；加入 previous-qdot 惩罚、任务 slack 或分层软任务都会改变数学问题，并新增用户要求先逐项讨论的数值。故当前 QP 分支维持失败状态，不再按原 profile 重复 live 圈。上述 QP attempt 的 robot-frame recipe 不含 UR 内置 `actual_TCP_force`；force MAE 使用 KWR75 feedback。
 
+## TASE+SFC/DSFC sealed-trace replay
+
+既有 live-trace replay 以 A 基线一整圈、29,989 个封存输入样本作为两种 native tangent law 的**开环同输入 command replay**。两者读取同一份 baseline-corrected Kunwei feedback，输入 digest 相同；候选命令未反馈到机器人或下一帧观察，因此不是闭环 force-score 重算，`primary_force_metric_recomputed=false`。法向也是该 TASE profile 固定的 base-Z reaction axis，不是曲面法向测量。原始记录仍显示 KWR75 是反馈源，不是独立 task-force truth。
+
+| replay | 正常方向切向泄漏峰值 | Joint bound-hit ticks | bound violations | RMS `Jqdot` 对目标 twist 残差 | 实机/正式 MAE |
+|---|---:|---:|---:|---:|---|
+| `TASE_RNN_MATURE+SFC_YIELD_V1` | 0 m/s | 29,825 / 29,989（99.45%） | 0 | 0.06286（混合 twist 单位） | 未执行；未重算 |
+| `TASE_RNN_MATURE+DSFC_YIELD_V1` | 0 m/s | 29,825 / 29,989（99.45%） | 0 | 0.06284（混合 twist 单位） | 未执行；未重算 |
+
+该 replay 证明切向投影在所记录轴上没有数值泄漏，且每个 tick 只调用一次 final realization；但两候选几乎每个 tick 都碰到一个 joint velocity bound，最大残差约 0.121。Native profile 的路径 restoring term `120 N/m` 以及离线 final-QP 权重不是本轮 live 批准值。此迹线不能用于声称 SFC/DSFC 改善 5 N 力跟踪，也不能通过只看零法向泄漏就升级为 live 候选。接入 live 前须先让相同受保护的最终实现能在完整 sealed input 上保留法向/姿态任务，并显著减少持续 bound hits；之后才可计算逐样本及 550/600-bin 指标。详见 [sealed TASE+SFC/DSFC replay receipt](../runs/tase-r32-sfc-dsfc-live-trace-replay-final-20260926T173500HKT/summary.json)。
+
 ## 下一步
 
-保留 A（`Md=9.5653, Bd=693.6559, integral=1.0 N·s`）为同条件参照。TASE-QP 的调度/序号归因和 frozen replay 已完成；原 profile 的 live 尝试仍因 qdot motion gate 不合格，不能作候选结论。下一步应先在既有 traces 上完成控制输出变化与 force error 的对齐，并形成带法向/姿态优先及显式退让的 QP 数学候选；不改变已冻结 profile 的数值，不发新的 QP live attempt。随后可继续 SFC+TASE 的 offline same-input replay。每个新 live 候选继续同时输出正式 filtered 550-bin、filtered 600-bin、raw KWR75 逐样本指标及 coverage；KWR75 仍只代表 feedback source。当前没有新的 live motion；任何实机实验都要重新通过 fresh owner、安全、rate460、完整 60 s 和同一 joint Home recovery gate。
+保留 A（`Md=9.5653, Bd=693.6559, integral=1.0 N·s`）为同条件参照。TASE-QP 原 profile 因 qdot motion gate 不合格；SFC/DSFC sealed-trace replay 尚无 force-score，且现有 final realization 在 99.45% ticks 碰到至少一个 joint bound。两者都不构成可配对的改进候选。下一步沿当前证据先检查 tangent law 输出、TASE orientation/normal 请求及最终实现残差的逐周期关系，使用已有 traces 做离线修正验证；任何新增 live 权重、slack、阈值或路径刚度先单独列明和讨论，不动已冻结保护。随后再评估是否能回到同条件单圈配对。每个新 live 候选继续同时输出正式 filtered 550-bin、filtered 600-bin、raw KWR75 逐样本指标及 coverage；KWR75 仍只代表 feedback source。当前没有新的 live motion；任何实机实验都要重新通过 fresh owner、安全、rate460、完整 60 s 和同一 joint Home recovery gate。
