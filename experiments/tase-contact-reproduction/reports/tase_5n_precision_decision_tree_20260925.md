@@ -344,3 +344,10 @@ A sealed v2 timeline may still support labeled diagnostics when a failed receipt
 - Snapshot: `runs/poweron-continue-preflight-20260926T1633HKT/preflight_readonly.json`.
 - The updated weekly report was atomically published in the Library release and read back over HTTP at `weekly-reports/2026-09-26-tase-precision/index.html`; the Library directory, report, and machine-readable summary returned HTTP 200. Desktop and mobile Chrome screenshots were visually checked. This does not change controller eligibility or TASE experiment status.
 - **Next:** continue offline QP command-to-actual transition diagnosis and the bounded local normal-response design. Any new live normal-axis numerical profile remains for explicit numerical review before use.
+
+## Fresh Power On closeout check — 2026-09-26, 16:49 HKT
+
+- A second fresh read-only preflight still reports the robot already powered (`Robotmode: RUNNING`), Remote Control, Safety NORMAL, TP STOPPED, zero sampled TCP speed, and Kunwei reachable. Actual joints are within `6.8188e-5 rad` of the approved joint Home; the one UR RTDE force-norm sample is `0.420 N` and is diagnostic only.
+- No Power On, motion, sensor write, or controller write was sent; the process check found no live writer. This remains one read-only snapshot and does not replace a sustained stationarity dwell.
+- Snapshot: `runs/poweron-continue-preflight-20260926T1649HKT/preflight_readonly.json`.
+- Continue the active goal offline from the QP output-transition/normal-axis design branch; a new live profile still needs fresh gates and explicit review of its numerical values.
