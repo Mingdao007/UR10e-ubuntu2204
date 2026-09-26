@@ -27,6 +27,7 @@ from tase_sfc_fusion import (
     TaseSfcFusion,
     normal_tangent_projectors,
 )
+from step5d_autotune_v4_r004.timing import MAX_FRESH_GAP_S
 
 
 SCHEMA = "tase-sfc-composed-offline-adapter-v1"
@@ -34,10 +35,24 @@ NATIVE_SCHEMA = "tase-native-tangent-composed-offline-adapter-v1"
 SUPPORTED_NORMAL_METHODS = ("TASE_RNN_MATURE", "TASE_QP")
 SUPPORTED_TANGENTIAL_METHODS = ("SFC", "DSFC")
 DEFAULT_PATH_STIFFNESS_N_PER_M = 120.0
+NATIVE_LAW_MAX_STEP_S = 0.004
 NATIVE_COMPOSITION_IDS = {
     "SFC": NATIVE_SFC_COMPOSITION_ID,
     "DSFC": NATIVE_DSFC_COMPOSITION_ID,
 }
+
+
+def _elapsed_substep_count(dt_s: float) -> int:
+    """Split one observed interval into native-law steps of at most 4 ms."""
+    elapsed = float(dt_s)
+    if not math.isfinite(elapsed) or not 0.0 < elapsed <= MAX_FRESH_GAP_S:
+        raise TaseSfcCompositionError(
+            f"observed dt_s is outside (0, {MAX_FRESH_GAP_S:g}s]"
+        )
+    count = max(1, int(math.ceil(elapsed / NATIVE_LAW_MAX_STEP_S)))
+    while elapsed / count > NATIVE_LAW_MAX_STEP_S:
+        count += 1
+    return count
 
 
 class TaseSfcCompositionError(ValueError):
@@ -233,9 +248,20 @@ class TaseSfcComposedOfflineAdapter:
         path_error = position - ref_position
         tangential_force = projectors.Pt @ force_base
         path_restoring_force = -self.path_stiffness_n_per_m * (projectors.Pt @ path_error)
+        integration_substeps = 0
+        integration_substep_dt_s = 0.0
         if in_path:
             sfc_input = tangential_force + path_restoring_force
-            tangent_law_velocity = np.asarray(self.tangent_law.step(sfc_input, dt_s), dtype=float)
+            integration_substeps = _elapsed_substep_count(dt_s)
+            integration_substep_dt_s = float(dt_s) / integration_substeps
+            # Native laws reject a single elapsed step above 4 ms. Retain every
+            # recorded controller observation and integrate the measured elapsed
+            # interval with that sample held constant between its endpoints.
+            for _ in range(integration_substeps):
+                tangent_law_velocity = np.asarray(
+                    self.tangent_law.step(sfc_input, integration_substep_dt_s),
+                    dtype=float,
+                )
             if tangent_law_velocity.shape != (3,) or not np.isfinite(tangent_law_velocity).all():
                 raise TaseSfcCompositionError(
                     f"{self.tangential_method} produced an invalid tangential task command"
@@ -275,6 +301,12 @@ class TaseSfcComposedOfflineAdapter:
             "tangential_law_identity": self.tangent_law.identity,
             "tangential_build_fingerprint": self.tangent_law.build_fingerprint,
             "path_stiffness_n_per_m": self.path_stiffness_n_per_m,
+            "observed_dt_s": float(dt_s),
+            "tangential_integration_substeps": integration_substeps,
+            "tangential_substep_dt_s": integration_substep_dt_s,
+            "tangential_inter_sample_hold_policy": (
+                "zero_order_hold_recorded_sample" if in_path else "inactive_outside_path"
+            ),
             "phase": phase,
             "sfc_enabled": fused.sfc_enabled,
             "tangential_force_input_n": [float(value) for value in tangential_force],
@@ -312,8 +344,7 @@ class TaseSfcComposedOfflineAdapter:
             raise TaseSfcCompositionError("composed TASE/tangent-law adapter is stopped")
         before = self.snapshot()
         try:
-            if not math.isclose(float(dt_s), self.dt_s, rel_tol=0.0, abs_tol=1e-12):
-                raise TaseSfcCompositionError("composition dt_s differs from its law identity")
+            _elapsed_substep_count(dt_s)
             return self.tase.step(
                 measured,
                 target,
