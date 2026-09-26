@@ -103,6 +103,8 @@ raw KWR75 的逐样本误差显著高于先做 100 ms 分箱的结果，反映 b
 
 这两圈都完整运行 60 s 并回 Home、通过既有 rate/timing gate，但 qdot motion gate 分别只有 **0.8401** 与 **0.8486**（需 ≥0.900），所以不能作合格控制候选或正式配对。BO-10 的 receipt MAE 比 matched-A 低约 0.035 N，但两者参数/积分配置不同且都不合格，不能解释成胜出或积分效果。完整窗口、各 force source、逐样本/分箱覆盖及 attempt 身份见 [QP metric completion receipt](tase_r31_qp_live_force_metric_completion_20260927.json)。
 
+只作量级参照，A–E screening 中合格 RNN A 的正式 MAE 均值为 **0.977 N**（4 个合格单元）；matched-A QP 的单圈 receipt 数值比它低 **0.027 N**，BO-10 QP 低 **0.062 N**。这两个都是跨批次、非配对、且 QP motion gate 失败的 attempt；差值未达到 **0.10 N**，没有 CI，不能用作精度改善证据。
+
 motion gate 是同一被消费 packet 的 published qdot 与 RTDE `actual_qd` 六关节合并 Pearson，门槛 0.900。对封存序号重新连接后，两次重算分别为 0.84010 和 0.84863；单 packet 偏移最多只将后者提高到约 0.849，因此不是简单的 host/RTDE 错位。两次任务空间位置误差和 qdot lag 都在现有限值内，相关性失败主要集中在关节 2、4、5；关节 5 的命令标准差约 0.00021 rad/s，低于实测速度噪声尺度，但关节 2 的 command-to-actual 误差也明显高于 RNN A。
 
 同一 frozen trace 的输出诊断发现：matched-A QP 有 513 次 host slew 限制、1,857 次最终 realization 限制和 2,916 次 task-space saturation；RNN A 两个对照 trace 的 host slew / realization 限制分别只有 7/7 与 3/3 次。固定输入重放准确复现 QP 及 host slew 输出，但只是 open-loop command replay。把原有 slew bound 直接并入硬等式 QP 的离线反事实在 packet 9676 即不可行；原 attempt 与 solver 状态保留为失败，没有修改 gate 或放宽边界。详情见 [QP motion-gate 分析](tase_r31_qp_motion_gate_analysis_20260925.json)、[指令变化分析](tase_r31_qdot_output_transition_20260925.json)、[事件分组](tase_r31_qdot_event_condition_20260925.json)、[固定输入重放与 embedded-slew 反事实](tase_r31_cartesian_velocity_diagnostic_20260925.json)。
