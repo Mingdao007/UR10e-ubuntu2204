@@ -32,6 +32,8 @@ R32 receipt 实际已经带有 host hot-path、publish/send、provider 与 RTDE-
 
 ## 积分筛选与 autotuner 入口恢复
 
-核对发现 rate460 五策略筛选早已完成：25次全部封存，20圈完整、5圈失败。A/B/C/D/E 的完整次数分别为 `4/3/4/4/5`，成功圈 MAE 均值分别为 `0.977/1.140/1.756/1.235/1.929 N`。预定的“完成次数优先”规则选E；E的力误差均值最高、A最低，因此不能把E描述成力控最优。screen-D-00 实际绑定 conditional double clamp，sealed timeline 的已发布输出反馈字段覆盖该圈29,994/29,994行。
+核对发现 rate460 五策略筛选早已完成：25次全部封存，20圈完整、5圈失败。A/B/C/D/E 的完整次数分别为 `4/3/4/4/5`，成功圈 MAE 均值分别为 `0.977/1.140/1.756/1.235/1.929 N`。预定的“完成次数优先”规则选E；E的力误差均值最高、A最低，因此不能把E描述成力控最优。四个 rate失败跨 A/B/C/D，writer/RTDE/TP 速率一致而 Kunwei仍约1000 Hz；host publish p95间隔 `2.617–4.496 ms`、最大 `7.265–10.577 ms`。已测 provider/solver/publish 子段都短于2 ms，但旧失败圈没有逐阶段计时，仍未知道主机循环具体在哪段等待。screen-D-00 实际绑定 conditional double clamp，sealed timeline 的已发布输出反馈字段覆盖该圈29,994/29,994行。
+
+阈值反事实：若只把 frequency floor 从460降到400Hz，上述四个 rate-only失败中三次会过频率门槛，`380.15 Hz`仍不通过；这不是独立 `rate400` 协议的验收或配对证据。正式 TASE 当前仍按 rate460 profile 计量。
 
 旧 `figure8.sh --autotune` 把配置固定成A，无法跟随已选E；现已恢复单一入口：默认使用筛选所选E配置，A可由显式配置和A基线receipt启动，resume 默认读取 campaign 的冻结配置。入口 focused tests **24 passed**，E的 initial-00 也通过现有 sealed-screening source 校验。正式24次 tuning 尚未启动。报告索引见[研究决策树](tase_control_research_decision_tree_20260926.md)；源结果见[screening result](../runs/tase-r31-integral-screening-20260925T1825HKT/screening-results.json)。
