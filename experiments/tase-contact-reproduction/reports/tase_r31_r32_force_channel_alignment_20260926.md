@@ -17,7 +17,9 @@ Official MAE is the 550-bin score. The sample MAEs below use all command samples
 | R31-A3 | 1.017505 | 1.019193 | 1.083302 | 0.833145 | 18.99 | 0.002751 |
 | R32-A1 | 1.098445 | 1.099853 | 1.196105 | 0.882412 | 22.60 | 0.002810 |
 
-The “controller input minus filter” column is the mean of `max(filtered_normal, measured_normal) - filtered_normal`. The “normal command limited” event marks rows where the requested normal component differs from the task-space command after the existing task limits. It can reflect the normal cap or the total linear cap, so it does not isolate one limit.
+The “controller input minus filter” column is the mean of `max(filtered_normal, measured_normal) - filtered_normal`. The “normal command limited” event marks rows where the pre-cap normal request differs from the task-space normal output after existing limits. It can reflect the normal cap or the total linear cap, so it does not isolate one limit.
+
+The trace fields have different points in the pipeline: `published_requested_normal_m_s` preserves the pre-cap scalar normal request, while `requested_outer_twist_m_s_rad_s` is already the task-space-capped vector returned by `calibrated_runtime.desired_twist`. Its projection on the fixed approach axis exactly matches `published_task_normal_m_s`. Across all four traces, `published_task_space_saturated` matches the pre-cap-scalar versus task-output gap on every row. Do not interpret the saved vector's normal component as an uncapped request or as a second cap stage.
 
 On those limited rows, the filtered-force sample MAE was **2.23–2.35 N**, compared with **0.69–0.86 N** on rows without that event. The association is expected to be partly self-triggered: a large force error asks for more normal velocity, which can then meet the existing limit. It does not show that raising that limit would improve stable closed-loop control.
 

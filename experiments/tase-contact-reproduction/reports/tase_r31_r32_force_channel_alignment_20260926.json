@@ -1,6 +1,6 @@
 {
   "schema": "tase.r31-r32-force-channel-alignment-diagnostic-v1",
-  "created_at": "2026-09-26T18:13:34.158887+08:00",
+  "created_at": "2026-09-26T18:49:04.401919+08:00",
   "analysis_window_s": [
     5.0,
     60.0
@@ -10,7 +10,7 @@
     "score_sample_signal": "normal_force_filtered_n",
     "controller_signal": "normal_force_control_n = max(normal_force_filtered_n, normal_force_measured_n)",
     "logged_controller_error": "force_error_n = force_target_n - normal_force_control_n",
-    "task_normal_clip_flag": "abs(published_requested_normal_m_s - published_task_normal_m_s) > 1e-8 m/s",
+    "task_normal_clip_flag": "published_task_space_saturated matches abs(pre-cap published_requested_normal_m_s - task-capped published_task_normal_m_s) > 1e-8 m/s; the saved requested_outer_twist vector is already task-space capped",
     "final_jqdot_task_residual": "published_task_normal_m_s - published_realized_normal_m_s",
     "limitation": "Per-command diagnostics use Kunwei signals and are not independent task-force truth; conditional splits are associations, not causality."
   },
@@ -24,7 +24,7 @@
     "tase_contact_provider.py": "fe007678be32e0a1a9b6b53ed743d608345e72ac67f059416f0548a16cddbeae",
     "calibrated_runtime.py": "971b564ca5c8206a9965696cd3be18f92b83a9c7a885fd88095c8c08506852e7",
     "step5d_paper_outer_loop.py": "c4f66a9aa421a042a3038e848ca9ce8a09b64d4a12894c316550b7c98fb39859",
-    "analyzer": "764fdb98d8e680bd17b2ee3f7f89e9bfd8de3f548ab42dd22de048c61db23c04"
+    "analyzer": "486317df00e92e9a53374e832e1f076d773ee09cc2605771992ac11411843007"
   },
   "attempts": [
     {
@@ -71,6 +71,7 @@
       "task_normal_command_clipping": {
         "rows": 8326,
         "pct": 30.430174335733344,
+        "meaning": "pre-cap published_requested_normal_m_s differs from published_task_normal_m_s; requested_outer_twist_m_s_rad_s is already the returned task-space-capped vector",
         "clipped_filtered_signal": {
           "rows": 8326,
           "pct_of_formal_rows": 30.430174335733344,
@@ -83,6 +84,15 @@
           "filtered_force_mean_n": 4.16319547430392,
           "filtered_sample_mae_n": 0.8607378391822058
         }
+      },
+      "task_limit_field_semantics": {
+        "task_vector_source": "requested_outer_twist_m_s_rad_s is the task-space-capped return value from calibrated_runtime.desired_twist",
+        "normal_axis_sources": [
+          "fixed-base-Z profile (v2 trace; cross-checked against R32 v3)"
+        ],
+        "task_vector_normal_projection_max_abs_error_m_s": 0.0,
+        "published_task_space_saturated_matches_raw_request_gap_all_rows": true,
+        "extra_post_return_normal_reclip_observed": false
       },
       "published_jacobian_realization": {
         "task_minus_final_jqdot_normal_p50_abs_m_s": 0.0015258096398527638,
@@ -140,6 +150,7 @@
       "task_normal_command_clipping": {
         "rows": 5356,
         "pct": 19.485574999090478,
+        "meaning": "pre-cap published_requested_normal_m_s differs from published_task_normal_m_s; requested_outer_twist_m_s_rad_s is already the returned task-space-capped vector",
         "clipped_filtered_signal": {
           "rows": 5356,
           "pct_of_formal_rows": 19.485574999090478,
@@ -152,6 +163,15 @@
           "filtered_force_mean_n": 4.312566656815951,
           "filtered_sample_mae_n": 0.6934095572631228
         }
+      },
+      "task_limit_field_semantics": {
+        "task_vector_source": "requested_outer_twist_m_s_rad_s is the task-space-capped return value from calibrated_runtime.desired_twist",
+        "normal_axis_sources": [
+          "fixed-base-Z profile (v2 trace; cross-checked against R32 v3)"
+        ],
+        "task_vector_normal_projection_max_abs_error_m_s": 0.0,
+        "published_task_space_saturated_matches_raw_request_gap_all_rows": true,
+        "extra_post_return_normal_reclip_observed": false
       },
       "published_jacobian_realization": {
         "task_minus_final_jqdot_normal_p50_abs_m_s": 0.0009633647101031967,
@@ -209,6 +229,7 @@
       "task_normal_command_clipping": {
         "rows": 5219,
         "pct": 18.9919941775837,
+        "meaning": "pre-cap published_requested_normal_m_s differs from published_task_normal_m_s; requested_outer_twist_m_s_rad_s is already the returned task-space-capped vector",
         "clipped_filtered_signal": {
           "rows": 5219,
           "pct_of_formal_rows": 18.9919941775837,
@@ -221,6 +242,15 @@
           "filtered_force_mean_n": 4.276774806018285,
           "filtered_sample_mae_n": 0.7351934998770564
         }
+      },
+      "task_limit_field_semantics": {
+        "task_vector_source": "requested_outer_twist_m_s_rad_s is the task-space-capped return value from calibrated_runtime.desired_twist",
+        "normal_axis_sources": [
+          "fixed-base-Z profile (v2 trace; cross-checked against R32 v3)"
+        ],
+        "task_vector_normal_projection_max_abs_error_m_s": 0.0,
+        "published_task_space_saturated_matches_raw_request_gap_all_rows": true,
+        "extra_post_return_normal_reclip_observed": false
       },
       "published_jacobian_realization": {
         "task_minus_final_jqdot_normal_p50_abs_m_s": 0.001111582674723042,
@@ -278,6 +308,7 @@
       "task_normal_command_clipping": {
         "rows": 6211,
         "pct": 22.597780607604147,
+        "meaning": "pre-cap published_requested_normal_m_s differs from published_task_normal_m_s; requested_outer_twist_m_s_rad_s is already the returned task-space-capped vector",
         "clipped_filtered_signal": {
           "rows": 6211,
           "pct_of_formal_rows": 22.597780607604147,
@@ -290,6 +321,15 @@
           "filtered_force_mean_n": 4.282620975341642,
           "filtered_sample_mae_n": 0.7356358844754862
         }
+      },
+      "task_limit_field_semantics": {
+        "task_vector_source": "requested_outer_twist_m_s_rad_s is the task-space-capped return value from calibrated_runtime.desired_twist",
+        "normal_axis_sources": [
+          "recorded sfc_replay_inputs.control_reaction_normal_base"
+        ],
+        "task_vector_normal_projection_max_abs_error_m_s": 0.0,
+        "published_task_space_saturated_matches_raw_request_gap_all_rows": true,
+        "extra_post_return_normal_reclip_observed": false
       },
       "published_jacobian_realization": {
         "task_minus_final_jqdot_normal_p50_abs_m_s": 0.0011706344450440717,

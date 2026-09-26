@@ -29,6 +29,8 @@
       -0.0,
       -1.0
     ],
+    "saved_requested_outer_twist_semantics": "the writer passes the return value of calibrated_runtime.desired_twist, which is already task-space capped; published_requested_normal_m_s is the pre-cap normal request",
+    "saved_task_twist_projection_max_abs_error_mm_s": 0.0,
     "task_space_limit_flag_pct": 22.597780607604147,
     "requested_minus_task_limit": {
       "mean": 0.25043742814759384,
@@ -46,6 +48,22 @@
       "p95": 2.8022704413041657,
       "max_abs": 3.8077935345035927
     },
+    "task_minus_published_Jqdot_tangent_vector_norm_mm_s": {
+      "mean": 0.16377196173233247,
+      "sd": 0.11188506506804526,
+      "p05": 0.01899439123848065,
+      "p50": 0.1422948701431455,
+      "p95": 0.3818427773177832,
+      "max_abs": 0.8509347380214266
+    },
+    "task_minus_published_Jqdot_angular_vector_norm_rad_s": {
+      "mean": 0.0004989834736416702,
+      "sd": 0.00027661733940435293,
+      "p05": 0.00010148924853319944,
+      "p50": 0.00046297009518807313,
+      "p95": 0.0010025700088596282,
+      "max_abs": 0.0018123644611078512
+    },
     "requested_minus_published_Jqdot": {
       "mean": 1.0156376050233848,
       "sd": 1.9455001248049708,
@@ -59,6 +77,21 @@
     "host_slew_limited_pct": 0.029106785519374203,
     "explicit_realization_limit_pct": 0.029106785519374203,
     "published_realization_saturated_flag_pct": 0.029106785519374203,
+    "translation_jacobian_condition_3x6": {
+      "mean": 2.76855503955253,
+      "sd": 0.04334988410406726,
+      "p05": 2.702242062906694,
+      "p50": 2.7666853721799582,
+      "p95": 2.8381365863788623,
+      "max_abs": 2.840378198057276
+    },
+    "residual_associations": {
+      "pearson_signed_normal_residual_vs_force_error": 0.8628644673372903,
+      "pearson_abs_normal_residual_vs_translation_jacobian_condition": 0.010199104404540226,
+      "pearson_abs_normal_residual_vs_tangent_task_speed_m_s": 0.19234057116776354,
+      "pearson_abs_normal_residual_vs_angular_task_speed_rad_s": 0.30488901648979166,
+      "claim_limit": "descriptive association within one closed-loop trace; no causal allocation"
+    },
     "no_explicit_bound_or_slew_subset": {
       "rows": 27477,
       "task_to_Jqdot_residual_p95_abs_mm_s": 2.809833243776177,

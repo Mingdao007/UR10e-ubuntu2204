@@ -1661,19 +1661,34 @@
         "R32_shadow_base_z_delta_p95_abs_m_s": 0.005199945328306461,
         "R32_shadow_opposite_sign_rows_pct": 29.766409547373016
       },
-      "limitations": "Kunwei internal signals are not independent task-force truth. Conditional samples are associations. R32 alternative output is fixed-input open-loop, not robot motion or force MAE."
+      "limitations": "Kunwei internal signals are not independent task-force truth. Conditional samples are associations. R32 alternative output is fixed-input open-loop, not robot motion or force MAE. The saved task vector is already post-cap; raw pre-cap request is the scalar feedback field.",
+      "task_limit_field_semantics": {
+        "attempts": 4,
+        "published_task_space_saturated_matches_raw_request_gap_all_rows": true,
+        "saved_task_twist_projection_max_abs_error_m_s": 0.0,
+        "normal_axis_sources": [
+          "fixed-base-Z profile (v2 trace; cross-checked against R32 v3)",
+          "recorded sfc_replay_inputs.control_reaction_normal_base"
+        ],
+        "extra_post_return_normal_reclip_observed": false
+      }
     },
     {
       "id": "tase-r32-signal-to-motion-chain-20260926",
       "path": "reports/tase_r32_signal_to_motion_chain_20260926.json",
-      "status": "joined force input, task limiting, final Jqdot, and RTDE speed; associations only; no live change",
+      "status": "raw normal request, task-capped vector, final Jqdot and RTDE speed joined; task field semantics verified; associations only; no live change",
       "key_values": {
         "rows": 27485,
         "task_limit_active_pct": 22.597780607604147,
         "task_to_final_jqdot_abs_p95_mm_s": 2.8022704413041657,
         "unlimited_joint_slew_subset_abs_p95_mm_s": 2.809833243776177,
         "command_to_RTDE_correlation_lag_samples": 5,
-        "command_to_RTDE_correlation": 0.7170000938917577
+        "command_to_RTDE_correlation": 0.7170000938917577,
+        "task_saturation_flag_semantics": "raw pre-cap normal request differs from task-capped output; saved requested_outer_twist vector is already task capped",
+        "saved_task_twist_projection_max_abs_error_m_s": 0.0,
+        "normal_residual_abs_p95_mm_s": 2.8022704413041657,
+        "tangent_residual_norm_p95_mm_s": 0.3818427773177832,
+        "angular_residual_norm_p95_rad_s": 0.0010025700088596282
       },
       "limitations": "same closed-loop trace; no causal force-MAE allocation; RTDE TCP speed is state-derived, not external truth"
     }
@@ -1705,7 +1720,12 @@
       "task_to_final_jqdot_abs_p95_mm_s": 2.8022704413041657,
       "unlimited_joint_slew_subset_abs_p95_mm_s": 2.809833243776177,
       "command_to_RTDE_correlation_lag_samples": 5,
-      "command_to_RTDE_correlation": 0.7170000938917577
+      "command_to_RTDE_correlation": 0.7170000938917577,
+      "task_saturation_flag_semantics": "raw pre-cap normal request differs from task-capped output; saved requested_outer_twist vector is already task capped",
+      "saved_task_twist_projection_max_abs_error_m_s": 0.0,
+      "normal_residual_abs_p95_mm_s": 2.8022704413041657,
+      "tangent_residual_norm_p95_mm_s": 0.3818427773177832,
+      "angular_residual_norm_p95_rad_s": 0.0010025700088596282
     },
     "limitations": "same closed-loop trace; no causal force-MAE allocation; RTDE TCP speed is state-derived, not external truth"
   }

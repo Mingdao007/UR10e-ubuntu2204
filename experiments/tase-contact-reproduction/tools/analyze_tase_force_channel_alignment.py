@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any
 from datetime import datetime, timezone, timedelta
 
+import numpy as np
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ATTEMPTS = (
@@ -106,6 +108,39 @@ def _summarize_attempt(attempt_dir: Path, label: str) -> tuple[dict[str, Any], l
         if abs(float(row["published_requested_normal_m_s"])
                - float(row["published_task_normal_m_s"])) <= 1e-8
     ]
+    task_projection_error = []
+    flag_mismatches = []
+    normal_axis_sources = set()
+    for row in rows:
+        inputs = row.get("sfc_replay_inputs", {})
+        task_twist = np.asarray(row.get("requested_outer_twist_m_s_rad_s"), dtype=float)
+        if task_twist.shape != (6,) or not np.all(np.isfinite(task_twist)):
+            raise ValueError(f"{label} is missing the returned task-twist binding")
+        recorded_axis = inputs.get("control_reaction_normal_base") if isinstance(inputs, dict) else None
+        if recorded_axis is None:
+            # R31's v2 trace predates sfc_replay_inputs. Its bound TASE profile
+            # used the fixed base-Z reaction normal; R32 records that same axis.
+            axis = np.asarray((0.0, 0.0, 1.0), dtype=float)
+            normal_axis_sources.add("fixed-base-Z profile (v2 trace; cross-checked against R32 v3)")
+        else:
+            axis = np.asarray(recorded_axis, dtype=float)
+            normal_axis_sources.add("recorded sfc_replay_inputs.control_reaction_normal_base")
+        if axis.shape != (3,) or not np.all(np.isfinite(axis)):
+            raise ValueError(f"{label} has an invalid normal axis")
+        norm = float(np.linalg.norm(axis))
+        if norm <= 1e-12:
+            raise ValueError(f"{label} has a degenerate control reaction-normal axis")
+        approach = -axis / norm
+        projected_task_normal = float(task_twist[:3] @ approach)
+        saved_task_normal = float(row["published_task_normal_m_s"])
+        task_projection_error.append(projected_task_normal - saved_task_normal)
+        raw_gap = abs(float(row["published_requested_normal_m_s"]) - saved_task_normal) > 1e-8
+        flag_mismatches.append(bool(row.get("published_task_space_saturated")) != raw_gap)
+    task_projection_error_max = max(abs(value) for value in task_projection_error)
+    if task_projection_error_max > 2e-6:
+        raise ValueError(f"{label} saved task twist is not already bound to the task-normal output")
+    if any(flag_mismatches):
+        raise ValueError(f"{label} published saturation flag differs from raw-request/task-output gap")
 
     def clipped_summary(group: list[dict[str, Any]]) -> dict[str, Any]:
         group_filtered = [float(row["normal_force_filtered_n"]) for row in group]
@@ -155,8 +190,16 @@ def _summarize_attempt(attempt_dir: Path, label: str) -> tuple[dict[str, Any], l
         "task_normal_command_clipping": {
             "rows": len(clipped),
             "pct": 100.0 * len(clipped) / len(rows),
+            "meaning": "pre-cap published_requested_normal_m_s differs from published_task_normal_m_s; requested_outer_twist_m_s_rad_s is already the returned task-space-capped vector",
             "clipped_filtered_signal": clipped_summary(clipped),
             "unclipped_filtered_signal": clipped_summary(unclipped),
+        },
+        "task_limit_field_semantics": {
+            "task_vector_source": "requested_outer_twist_m_s_rad_s is the task-space-capped return value from calibrated_runtime.desired_twist",
+            "normal_axis_sources": sorted(normal_axis_sources),
+            "task_vector_normal_projection_max_abs_error_m_s": task_projection_error_max,
+            "published_task_space_saturated_matches_raw_request_gap_all_rows": True,
+            "extra_post_return_normal_reclip_observed": False,
         },
         "published_jacobian_realization": {
             "task_minus_final_jqdot_normal_p50_abs_m_s": statistics.median(abs(value) for value in realization_residual),
@@ -300,7 +343,7 @@ def analyze(attempt_dirs: list[Path], parameter_file: Path, output: Path) -> dic
             "score_sample_signal": "normal_force_filtered_n",
             "controller_signal": "normal_force_control_n = max(normal_force_filtered_n, normal_force_measured_n)",
             "logged_controller_error": "force_error_n = force_target_n - normal_force_control_n",
-            "task_normal_clip_flag": "abs(published_requested_normal_m_s - published_task_normal_m_s) > 1e-8 m/s",
+            "task_normal_clip_flag": "published_task_space_saturated matches abs(pre-cap published_requested_normal_m_s - task-capped published_task_normal_m_s) > 1e-8 m/s; the saved requested_outer_twist vector is already task-space capped",
             "final_jqdot_task_residual": "published_task_normal_m_s - published_realized_normal_m_s",
             "limitation": "Per-command diagnostics use Kunwei signals and are not independent task-force truth; conditional splits are associations, not causality.",
         },

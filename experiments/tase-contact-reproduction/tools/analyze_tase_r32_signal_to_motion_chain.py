@@ -66,6 +66,19 @@ def _corr(a: np.ndarray, b: np.ndarray) -> float | None:
     return float(np.corrcoef(a, b)[0, 1])
 
 
+def _task_residual_components(task_twist: np.ndarray, achieved_twist: np.ndarray,
+                             approach_axis: np.ndarray) -> tuple[float, float, float]:
+    """Return normal, tangent-vector, and angular task residual magnitudes."""
+    task_linear = task_twist[:3]
+    achieved_linear = achieved_twist[:3]
+    normal = float(np.dot(task_linear - achieved_linear, approach_axis))
+    task_tangent = task_linear - float(np.dot(task_linear, approach_axis)) * approach_axis
+    achieved_tangent = achieved_linear - float(np.dot(achieved_linear, approach_axis)) * approach_axis
+    tangent_norm = float(np.linalg.norm(task_tangent - achieved_tangent))
+    angular_norm = float(np.linalg.norm(task_twist[3:] - achieved_twist[3:]))
+    return normal, tangent_norm, angular_norm
+
+
 def _lag_scan(command: np.ndarray, measured: np.ndarray, host_s: np.ndarray,
               published_s: np.ndarray, max_lag: int = 30) -> dict[str, Any]:
     """Positive lag means a measured speed sample occurs after its command."""
@@ -157,6 +170,9 @@ def analyze(attempt: Path) -> dict[str, Any]:
 
     approach_axes, rtde_normal, jactual_normal, jcmd_normal = [], [], [], []
     command_projection_error, actual_projection_error, bound_active = [], [], []
+    tangent_residual_norm, angular_residual_norm = [], []
+    translation_condition, tangent_demand, angular_demand = [], [], []
+    task_projection_error = []
     for row in rows:
         inp = row["sfc_replay_inputs"]
         reaction = np.asarray(inp["control_reaction_normal_base"], dtype=float)
@@ -171,15 +187,34 @@ def analyze(attempt: Path) -> dict[str, Any]:
         jac = np.asarray(row["jacobian_6x6"], dtype=float)
         qdot_actual = np.asarray(row["actual_qd_rad_s"], dtype=float)
         qdot_command = np.asarray(row["published_packet_qdot_rad_s"], dtype=float)
+        task_twist = np.asarray(row["requested_outer_twist_m_s_rad_s"], dtype=float)
         lower = np.asarray(row["solver_qdot_lower_rad_s"], dtype=float)
         upper = np.asarray(row["solver_qdot_upper_rad_s"], dtype=float)
         if (jac.shape != (6, 6) or qdot_actual.shape != (6,) or
                 qdot_command.shape != (6,) or lower.shape != (6,) or upper.shape != (6,)):
             raise ValueError("trace has a malformed Jacobian or joint-vector field")
-        if not all(np.all(np.isfinite(x)) for x in (tcp_speed, jac, qdot_actual, qdot_command, lower, upper)):
+        if task_twist.shape != (6,):
+            raise ValueError("trace task-capped twist must have six components")
+        if not all(np.all(np.isfinite(x)) for x in (tcp_speed, jac, qdot_actual, qdot_command, task_twist, lower, upper)):
             raise ValueError("trace has a nonfinite kinematic value")
         cmd_twist = jac @ qdot_command
         actual_twist = jac @ qdot_actual
+        task_normal = float(task_twist[:3] @ approach)
+        saved_task_normal = float(row["published_task_normal_m_s"])
+        task_projection_error.append(task_normal - saved_task_normal)
+        normal_residual, tangent_residual, angular_residual = _task_residual_components(
+            task_twist, cmd_twist, approach
+        )
+        tangent_residual_norm.append(tangent_residual)
+        angular_residual_norm.append(angular_residual)
+        singular_values = np.linalg.svd(jac[:3, :], compute_uv=False)
+        if singular_values[-1] <= 1e-12:
+            raise ValueError("translation Jacobian is rank deficient in the saved trace")
+        translation_condition.append(float(singular_values[0] / singular_values[-1]))
+        tangent_demand.append(float(np.linalg.norm(
+            task_twist[:3] - task_normal * approach
+        )))
+        angular_demand.append(float(np.linalg.norm(task_twist[3:])))
         rtde_normal.append(float(tcp_speed @ approach))
         jactual_normal.append(float(actual_twist[:3] @ approach))
         jcmd_normal.append(float(cmd_twist[:3] @ approach))
@@ -195,9 +230,17 @@ def analyze(attempt: Path) -> dict[str, Any]:
     jcmd_normal = np.asarray(jcmd_normal)
     command_projection_error = np.asarray(command_projection_error)
     actual_projection_error = np.asarray(actual_projection_error)
+    tangent_residual_norm = np.asarray(tangent_residual_norm)
+    angular_residual_norm = np.asarray(angular_residual_norm)
+    translation_condition = np.asarray(translation_condition)
+    tangent_demand = np.asarray(tangent_demand)
+    angular_demand = np.asarray(angular_demand)
+    task_projection_error = np.asarray(task_projection_error)
     bound_active = np.asarray(bound_active)
     if float(np.max(np.abs(command_projection_error))) > 2e-6:
         raise ValueError("recorded Jqdot projection does not match published normal channel")
+    if float(np.max(np.abs(task_projection_error))) > 2e-6:
+        raise ValueError("saved task-capped twist does not match published task-normal scalar")
     if float(np.max(np.abs(actual_projection_error))) > 2e-5:
         raise ValueError("RTDE Cartesian speed disagrees with calibrated J*actual_qd beyond tolerance")
 
@@ -251,15 +294,27 @@ def analyze(attempt: Path) -> dict[str, Any]:
         },
         "normal_command_chain": {
             "approach_axis_base": axes[0].tolist(),
+            "saved_requested_outer_twist_semantics": "the writer passes the return value of calibrated_runtime.desired_twist, which is already task-space capped; published_requested_normal_m_s is the pre-cap normal request",
+            "saved_task_twist_projection_max_abs_error_mm_s": float(np.max(np.abs(task_projection_error)) * 1000.0),
             "task_space_limit_flag_pct": 100.0 * float(np.mean(task_clipped)),
             "requested_minus_task_limit": _summary(task_shortfall, 1000.0),
             "task_minus_published_Jqdot": _summary(rnn_realization_residual, 1000.0),
+            "task_minus_published_Jqdot_tangent_vector_norm_mm_s": _summary(tangent_residual_norm, 1000.0),
+            "task_minus_published_Jqdot_angular_vector_norm_rad_s": _summary(angular_residual_norm),
             "requested_minus_published_Jqdot": _summary(total_command_shortfall, 1000.0),
             "task_and_published_Jqdot_same_sign_pct": 100.0 * float(np.mean(task * realized > 0.0)),
             "joint_solver_bound_active_pct": 100.0 * float(np.mean(bound_active)),
             "host_slew_limited_pct": 100.0 * float(np.mean(host_slew)),
             "explicit_realization_limit_pct": 100.0 * float(np.mean(explicit_realization)),
             "published_realization_saturated_flag_pct": 100.0 * float(np.mean(reported_realization_sat)),
+            "translation_jacobian_condition_3x6": _summary(translation_condition),
+            "residual_associations": {
+                "pearson_signed_normal_residual_vs_force_error": _corr(rnn_realization_residual, force_error_control),
+                "pearson_abs_normal_residual_vs_translation_jacobian_condition": _corr(np.abs(rnn_realization_residual), translation_condition),
+                "pearson_abs_normal_residual_vs_tangent_task_speed_m_s": _corr(np.abs(rnn_realization_residual), tangent_demand),
+                "pearson_abs_normal_residual_vs_angular_task_speed_rad_s": _corr(np.abs(rnn_realization_residual), angular_demand),
+                "claim_limit": "descriptive association within one closed-loop trace; no causal allocation",
+            },
             "no_explicit_bound_or_slew_subset": {
                 "rows": int(np.count_nonzero(no_explicit_limit)),
                 "task_to_Jqdot_residual_p95_abs_mm_s": (
@@ -303,6 +358,8 @@ def render_markdown(data: dict[str, Any]) -> str:
     response = data["robot_response_stage"]
     groups = chain["clipped_vs_unclipped"]
     lag = response["published_command_to_RTDE_speed_alignment"]
+    condition = chain["translation_jacobian_condition_3x6"]
+    associations = chain["residual_associations"]
     return f"""# R32 A force-to-motion chain diagnostic
 
 **Evidence class:** sealed complete live A trace, joined offline diagnostic only. The controller, task limits, and live profile were not changed.
@@ -313,10 +370,12 @@ Input: `{data['attempt']}`, protocol `{data['protocol']}`, formal window `[5,60)
 |---|---|---|
 | Force input | `max(filtered, measured)` is {force['controller_minus_scored_filter_mean_n']:.3f} N above the scored filter on average; controller-channel mean error is {force['controller_channel_signed_error_mean_n']:.3f} N while score-channel mean error is {force['score_channel_signed_error_mean_n']:.3f} N. | This is an exact same-sensor signal mismatch; it is not independent force truth and does not alone prove a physical MAE cause. |
 | Task-space normal limit | Active on {chain['task_space_limit_flag_pct']:.2f}% of formal rows. On clipped rows, score-channel sample MAE is {groups['clipped']['sample_force_mae_n']:.3f} N; unclipped rows are {groups['unclipped']['sample_force_mae_n']:.3f} N. | The clipped subset is selected by higher error and requested speed, so this contrast is associative, not causal. |
-| RNN joint-velocity realization | `task request − final Jqdot` absolute p95 is {chain['task_minus_published_Jqdot']['p95']:.3f} mm/s; even the no-explicit-bound/slew subset has p95 {chain['no_explicit_bound_or_slew_subset']['task_to_Jqdot_residual_p95_abs_mm_s']:.3f} mm/s. | This is a measured calibrated-Jacobian command residual. It is distinct from joint-velocity correlation and suggests the RNN output does not fully realize every normal task request. |
+| RNN joint-velocity realization | Normal `task request − final Jqdot` absolute p95 is {chain['task_minus_published_Jqdot']['p95']:.3f} mm/s; tangent residual p95 is {chain['task_minus_published_Jqdot_tangent_vector_norm_mm_s']['p95']:.3f} mm/s and angular residual p95 is {chain['task_minus_published_Jqdot_angular_vector_norm_rad_s']['p95']:.6f} rad/s. | This is a calibrated-Jacobian command residual. The saved `requested_outer_twist` is already task-space capped; it must not be mistaken for the pre-cap request. |
 | Robot speed readback | RTDE `actual_TCP_speed` and `J·actual_qd` normal projections differ by at most {response['RTDE_actual_TCP_speed_and_J_actual_qd_normal_max_abs_difference_mm_s']:.6f} mm/s in the saved values. Command/readback correlation peaks at lag {lag['best_positive_correlation_lag_samples']} samples ({lag['best_lag_median_publish_to_RTDE_sample_ms']:.2f} ms median publish-to-sample offset; correlation {lag['best_lag_correlation']:.3f}). | Internal command/readback alignment only; RTDE speed is state-derived and the peak lag is not a causal plant-delay estimate. |
 
-The exact command decomposition is `requested → task-capped → final Jqdot`. It shows where command magnitude changes, but because the trace is a closed-loop outcome, it cannot allocate a causal share of force MAE to the force envelope, task cap, or RNN realization. The reported force signals all come from the Kunwei feedback chain.
+The exact saved decomposition is `pre-cap scalar request → task-capped twist → final Jqdot`. The full `requested_outer_twist_m_s_rad_s` field is the runtime return value after the normal task cap; the scalar `published_requested_normal_m_s` preserves the pre-cap normal request. On this trace, the raw-to-task flag co-occurs with low force, but the closed-loop outcome cannot allocate a causal share of MAE to the force envelope, task cap, or RNN realization. All force signals are from the Kunwei feedback chain.
+
+The residual is concentrated on the normal axis: the translational task residual p95 is {chain['task_minus_published_Jqdot']['p95']:.3f} mm/s on normal, {chain['task_minus_published_Jqdot_tangent_vector_norm_mm_s']['p95']:.3f} mm/s on tangent, and {chain['task_minus_published_Jqdot_angular_vector_norm_rad_s']['p95']:.6f} rad/s on orientation. The 3x6 translational Jacobian condition number has median/p95 {condition['p50']:.3f}/{condition['p95']:.3f}; its correlation with absolute normal residual is {associations['pearson_abs_normal_residual_vs_translation_jacobian_condition']:.3f}. This trace does not support a simple translation-singularity explanation, but it cannot isolate the RNN solver as a cause. Signed normal residual and controller force error correlate at {associations['pearson_signed_normal_residual_vs_force_error']:.3f}; both are endogenous to this same closed loop.
 
 ## Claim boundary
 
