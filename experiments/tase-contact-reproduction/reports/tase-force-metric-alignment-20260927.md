@@ -122,6 +122,12 @@ motion gate 是同一被消费 packet 的 published qdot 与 RTDE `actual_qd` �
 
 保留 A（`Md=9.5653, Bd=693.6559, integral=1.0 N·s`）为同条件参照。TASE-QP 原 profile 仍因 qdot motion gate 不合格；native SFC/DSFC fixed-Home replay 已消除姿态错配和关节限幅，但新增实际速度对照显示原始 SFC 切向输入会抵消路径运动，故该版不得 live。下一候选前先确认 KWR75 切向力符号/轴向标定，并在不触碰已冻结保护的情况下分离可重复运动相关分量与外部扰动；若无法辨识，就保留此分支为未准入，不凭符号翻转试跑。任何新增 live 权重、slack、阈值或路径刚度先单独列明和讨论。每个 live candidate 继续报告正式 filtered 550-bin、filtered 600-bin、raw KWR75 逐样本指标及完整率；KWR75 仍只代表 feedback source。当前没有新的 live motion；任何实机实验都要重新通过 fresh owner、安全、rate460、完整 60 s 和同一 joint Home recovery gate。
 
+## PATH 相位误差的重复性：ILC 是否值得离线推进
+
+我用五条完整、rate460、同参数 A trace 的 550 个正式 filtered KWR75 bin 做留一尝试预测。每条重算出的正式 MAE 与 receipt 相差不超过 **0.00015 N**；相位误差曲线的两两 Pearson 相关均值为 **0.410**（范围 0.304–0.548）。只用另外四圈形成 phase-indexed error profile，在留出圈的误差 RMSE 相比一个常量偏差基线平均降低 **13.9%**，五折范围 **2.7%–23.8%**；每圈 mean signed error 仍约 **0.93–1.19 N**，每个时间 bin 跨圈误差标准差中位 **0.617 N**、p95 **1.183 N**。
+
+这说明固定路径上有一部分误差形状可重复，值得把 phase-indexed ILC 当作离线候选研究；但可重复性有限，数据没有识别“修改哪个命令会让力改变多少”。目前没有构造或执行 ILC 命令，也没有力指标改善结论。审计及五条 source timeline hash 见 [phase-error repeatability JSON](tase_r013_phase_error_repeatability_20260927.json)，可复算代码与 focused tests 见 [audit tool](../tools/audit_tase_r013_phase_error_repeatability.py) 和 [tests](../tests/test_audit_tase_r013_phase_error_repeatability.py)。
+
 ## 原始 campaign 再执行核验
 
 我从两个原始 campaign 目录重新运行 canonical reducer `tools/analyze_tase_resident_evidence.py`，并将输出与已封存的 reducer JSON 做逐字段比较。积分筛选 **25/25** 次尝试、调参确认 **11/11** 次尝试的完整 JSON 均完全相同；attempt 身份一致，所有字段的最大数值差为 **0**，两边 `seal_field_mismatches` 均为 0。简短机器可读凭证见 [metric-alignment reverification JSON](tase_r013_metric_alignment_reverification_20260927.json)。

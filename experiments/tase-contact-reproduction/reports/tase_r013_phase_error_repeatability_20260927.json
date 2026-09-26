@@ -1,0 +1,125 @@
+{
+  "attempts": [
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0002",
+      "candidate_id": "confirm-s01-b00-A",
+      "formal_bins": 550,
+      "mean_filtered_force_n": 4.010730793870711,
+      "mean_signed_error_n": 0.9892692061292883,
+      "receipt_formal_mae_n": 1.0061050570848329,
+      "reconstructed_filtered_bin_mae_n": 1.00597443577017,
+      "reconstructed_minus_receipt_mae_n": -0.00013062131466279325,
+      "timeline_sha256": "89ba3e2024eac35299ac90115a35d9aec5161879e1aec7d6dbd965ad9190f8a7"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0004",
+      "candidate_id": "confirm-s01-b01-A",
+      "formal_bins": 550,
+      "mean_filtered_force_n": 4.070594162816349,
+      "mean_signed_error_n": 0.9294058371836516,
+      "receipt_formal_mae_n": 0.9419680748585729,
+      "reconstructed_filtered_bin_mae_n": 0.942090144204013,
+      "reconstructed_minus_receipt_mae_n": 0.00012206934544012338,
+      "timeline_sha256": "bebf6a408a8bb2d7bb0ac72217669b77e140b216a18546813ce84cb1e64caedf"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0002",
+      "candidate_id": "confirm-s02-b02-A",
+      "formal_bins": 550,
+      "mean_filtered_force_n": 3.971051627989023,
+      "mean_signed_error_n": 1.0289483720109767,
+      "receipt_formal_mae_n": 1.0364228577061043,
+      "reconstructed_filtered_bin_mae_n": 1.036386123460533,
+      "reconstructed_minus_receipt_mae_n": -3.6734245571379276e-05,
+      "timeline_sha256": "9c62e807f869da886dcb211e6884fb87d818002a9f88ccb3bd66186e20e4d573"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0003",
+      "candidate_id": "confirm-s02-b03-A",
+      "formal_bins": 550,
+      "mean_filtered_force_n": 4.004758098540911,
+      "mean_signed_error_n": 0.9952419014590888,
+      "receipt_formal_mae_n": 1.0242417404331408,
+      "reconstructed_filtered_bin_mae_n": 1.0243532901399928,
+      "reconstructed_minus_receipt_mae_n": 0.00011154970685200993,
+      "timeline_sha256": "1e10313919f5080bdb9276ac209f0da4df83416025a7a6006c8243aa7b986a2e"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0005",
+      "candidate_id": "confirm-s02-b04-A",
+      "formal_bins": 550,
+      "mean_filtered_force_n": 3.8139798594141996,
+      "mean_signed_error_n": 1.1860201405858002,
+      "receipt_formal_mae_n": 1.1958953801632153,
+      "reconstructed_filtered_bin_mae_n": 1.195746450887288,
+      "reconstructed_minus_receipt_mae_n": -0.00014892927592735639,
+      "timeline_sha256": "c4bdabf7d913e1457af045c5dd28ca2d0afee72233a5b2a63e73ee7e219afd5f"
+    }
+  ],
+  "bin_count": 550,
+  "candidate_status": "no ILC command or live controller was evaluated",
+  "evidence_class": "offline_sensor_feedback_repeatability",
+  "force_truth_limit": "KWR75 feedback is not independent task-force ground truth",
+  "metric_signal": "normal_force_filtered_n from baseline-corrected Kunwei KWR75 feedback",
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "repeatability": {
+    "attempt_count": 5,
+    "between_attempt_error_sd_per_bin_median_n": 0.6174036961159781,
+    "between_attempt_error_sd_per_bin_p95_n": 1.1825986297765656,
+    "bin_count_per_attempt": 550,
+    "interpretation_limit": "Repeatability of sensor-feedback error shape only; not causal plant identification, independent force truth, or predicted improvement from an ILC command.",
+    "leave_one_attempt_out": {
+      "fold_error_rmse_reduction_range": [
+        0.027341785670107144,
+        0.23765849437060282
+      ],
+      "folds": [
+        {
+          "constant_bias_rmse_n": 0.9120964881159446,
+          "held_out_index": 0,
+          "phase_profile_reduction_vs_constant_fraction": 0.23765849437060282,
+          "phase_profile_rmse_n": 0.6953290100295948
+        },
+        {
+          "constant_bias_rmse_n": 0.887738441978272,
+          "held_out_index": 1,
+          "phase_profile_reduction_vs_constant_fraction": 0.027341785670107144,
+          "phase_profile_rmse_n": 0.8634660877665873
+        },
+        {
+          "constant_bias_rmse_n": 0.8564954557159007,
+          "held_out_index": 2,
+          "phase_profile_reduction_vs_constant_fraction": 0.1097671348574758,
+          "phase_profile_rmse_n": 0.7624804035235182
+        },
+        {
+          "constant_bias_rmse_n": 0.9891825478811177,
+          "held_out_index": 3,
+          "phase_profile_reduction_vs_constant_fraction": 0.18085448863819986,
+          "phase_profile_rmse_n": 0.8102844440142465
+        },
+        {
+          "constant_bias_rmse_n": 0.9653286448892491,
+          "held_out_index": 4,
+          "phase_profile_reduction_vs_constant_fraction": 0.1401638030038188,
+          "phase_profile_rmse_n": 0.830024510873049
+        }
+      ],
+      "mean_constant_bias_rmse_n": 0.9221683157160967,
+      "mean_error_rmse_reduction_vs_constant_fraction": 0.13915714130804088,
+      "mean_phase_profile_rmse_n": 0.7923168912413991
+    },
+    "mean_pairwise_pearson_error_curve": 0.41026817798142645,
+    "pairwise_pearson_error_curve_range": [
+      0.3040293698117234,
+      0.5480710038421446
+    ]
+  },
+  "schema": "tase.r013.phase-error-repeatability-audit-v1",
+  "source_audit": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/reports/tase_r32a_kunwei_tangent_path_direction_audit_20260927.json",
+  "source_audit_sha256": "754d0d093e65c6b5417ee5fca2a5a1bf1bd6d7f8cb7a264072db41648df363a4",
+  "window_s": [
+    5.0,
+    60.0
+  ]
+}
