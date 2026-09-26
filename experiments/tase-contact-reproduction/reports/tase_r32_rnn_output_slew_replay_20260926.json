@@ -1,0 +1,102 @@
+{
+  "claim_limits": [
+    "The trace replay checks the local LEGACY_R1 source-equation and host-slew mapping against recorded packets only.",
+    "It does not establish paper-equation correctness; the paper-truth contract still has pending verification fields.",
+    "It does not establish physical force accuracy, independent task-force truth, or a causal force-MAE effect from slew limiting.",
+    "No robot command, sensor write, package change, or motion was performed."
+  ],
+  "created_from_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r32-rate460-a-v3-capture-evidence-only-20260926T171700HKT/attempts/0001",
+  "evidence_class": "offline_source_equation_replay_diagnostic_only",
+  "experiment_git_head": "a9fe9ecd0b6d2d1e204966a0e210627923fc26ad",
+  "method": "TASE_RNN_MATURE",
+  "program_identity": "step5d_contact_six_qp_v1",
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "replay": {
+    "all_rnn_only_mismatches_are_slew_limited": true,
+    "comparison_tolerance_rad_s": 1e-10,
+    "delta_slew_matches_every_recorded_packet": true,
+    "host_slew_limited_row_indices": [
+      71,
+      72,
+      1112,
+      25781,
+      26100,
+      26329,
+      26629,
+      26893,
+      27481,
+      28611,
+      28898
+    ],
+    "host_slew_limited_rows": 11,
+    "incorrect_absolute_scale_vs_published": {
+      "interpretation": "diagnostic comparator only; not the runtime slew equation",
+      "matched_rows": 29978,
+      "max_rad_s": 0.002059580980410456,
+      "mismatch_rows": [
+        71,
+        72,
+        1112,
+        25781,
+        26100,
+        26329,
+        26629,
+        26893,
+        27481,
+        28611,
+        28898
+      ],
+      "p50_rad_s": 0.0,
+      "p95_rad_s": 0.0
+    },
+    "pre_slew_rnn_vs_published": {
+      "matched_rows": 29978,
+      "max_rad_s": 0.003362994616190565,
+      "mismatch_rows": [
+        71,
+        72,
+        1112,
+        25781,
+        26100,
+        26329,
+        26629,
+        26893,
+        27481,
+        28611,
+        28898
+      ],
+      "p50_rad_s": 0.0,
+      "p95_rad_s": 0.0
+    },
+    "recorded_delta_slew_vs_published": {
+      "matched_rows": 29989,
+      "max_rad_s": 8.673617379884035e-19,
+      "mismatch_rows": [],
+      "p50_rad_s": 0.0,
+      "p95_rad_s": 0.0
+    },
+    "row_count": 29989,
+    "transition_event_count": 1303
+  },
+  "schema": "tase.r32-live-rnn-output-slew-replay-v1",
+  "sealed_trace_sha256": "c296074b4a583709a9fe810d6680bd7a39f515849c932b4a2ba6c8967c8975ee",
+  "solver_profile": {
+    "backend": "numpy",
+    "epsilon": 0.022,
+    "id": "legacy-r1",
+    "iterations": 1,
+    "preconstruct_outside_tick": false,
+    "qdot_limit_rad_s": 0.15,
+    "r": 1.0,
+    "schema": "step5d.autotuner-r014/solver-profile-v1",
+    "version": 1
+  },
+  "solver_profile_sha256": "eec81086740a3db789c9eed022a3f6422978dd4aca6f33c02bcc2cb1499748b0",
+  "source_sha256": {
+    "tools/step5c_strict_rnn.py": "11cddbbf2d21b8ad5377a9585f23bff17f850e9d05a6cc3b53f3cc3732e98160",
+    "tools/step5d_autotune_v4_r004/calibrated_runtime.py": "971b564ca5c8206a9965696cd3be18f92b83a9c7a885fd88095c8c08506852e7",
+    "tools/step5d_autotune_v4_r004/motion_profile.py": "de6cb1a6814bbc29d9f55796e90fbfa18b97a6ae09a3e95926f835471da226c5",
+    "tools/step5d_autotune_v4_r014/solver_profile.py": "9e435188ea7d4a3a9546bcdbb4e2806197083e9fceec042fbe43cf6ec4ea9db8",
+    "tools/tase_contact_provider.py": "fe007678be32e0a1a9b6b53ed743d608345e72ac67f059416f0548a16cddbeae"
+  }
+}
