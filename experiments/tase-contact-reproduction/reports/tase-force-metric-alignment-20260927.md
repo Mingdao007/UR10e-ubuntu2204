@@ -83,6 +83,10 @@ motion gate 是同一被消费 packet 的 published qdot 与 RTDE `actual_qd` �
 
 当前 OSQP live profile 是硬等式 `J qdot = twist` 加 joint-velocity box bound，sealed trace 中 Jacobian 每个 PATH row 都是 full rank。这个配置下可行时 qdot 解唯一，单纯改二次目标权重不会提供连续性；加入 previous-qdot 惩罚、任务 slack 或分层软任务都会改变数学问题，并新增用户要求先逐项讨论的数值。故当前 QP 分支维持失败状态，不再按原 profile 重复 live 圈。上述 QP attempt 的 robot-frame recipe 不含 UR 内置 `actual_TCP_force`；force MAE 使用 KWR75 feedback。
 
+我把 hard-task feasibility audit 扩展为接受封存的 `rate400`、`rate460` 两种 60 s 身份，并对两次 **rate460** QP 失败按各自原始 `command_timeline` 重算。bo-10 attempt 有 **577/27,491（2.10%）** PATH rows、matched-A attempt 有 **406/27,453（1.48%）** rows，在保持法向与姿态精确时，无法同时满足实测 host-slew box；两组都是 joint-only box 可行、加入 host-slew box 后不可行。这个比例低于全程，但足以让单 tick 严格 QP 路径不能完整满足原 task。其余可行行所需的最小 tangent slack 中位数和 p95 都为 0，最大分别 **2.512 和 2.442 mm/s**；这只是逐行可行性下界，不能当作已选 live slack。完整结果分别见 [bo-10 feasibility JSON](tase_r31_qpfirst_hard_task_feasibility_20260927.json) 和 [matched-A feasibility JSON](tase_r31_qpmatched_hard_task_feasibility_20260927.json)。
+
+因此，单独放松 tangent task 并不能处理这 577/406 行；保持法向优先时，线性规划给出的 orientation 最小 slack 中位数 / p95 / 最大值为 bo-10 `0.001016 / 0.002773 / 0.007429 rad/s`、matched-A `0.000592 / 0.002120 / 0.003417 rad/s`。这些值只是历史约束冲突的尺度，仍需把“姿态允许偏差多少”作为研究选择和复验目标逐项讨论，不能直接抄作 live 容差。captured host-slew box 又依赖原先 QP 输出，替换 solver 后会改变后续 box；所以这两份 replay 仍非新 QP 的闭环评估或 MAE 证据。
+
 ## TASE+SFC/DSFC sealed-trace replay
 
 既有 live-trace replay 以 A 基线一整圈、29,989 个封存输入样本作为两种 native tangent law 的**开环同输入 command replay**。两者读取同一份 baseline-corrected Kunwei feedback，输入 digest 相同；候选命令未反馈到机器人或下一帧观察，因此不是闭环 force-score 重算，`primary_force_metric_recomputed=false`。法向也是该 TASE profile 固定的 base-Z reaction axis，不是曲面法向测量。原始记录仍显示 KWR75 是反馈源，不是独立 task-force truth。

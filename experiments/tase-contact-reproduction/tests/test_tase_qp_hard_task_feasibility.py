@@ -8,11 +8,35 @@ from audit_tase_qp_hard_task_feasibility import (
     maximum_common_hard_task_scale,
     minimum_componentwise_tangent_slack,
     minimum_normal_orientation_priority_slack,
+    validate_attempt_protocol,
 )
 
 
 REACTION = (0.0, 0.0, 1.0)
 TANGENT_BASIS = ((1.0, 0.0), (0.0, 1.0), (0.0, 0.0))
+
+
+@pytest.mark.parametrize(
+    "protocol_id",
+    (
+        "figure8_window60_r013_rate400_v1",
+        "figure8_window60_r013_rate460_v1",
+    ),
+)
+def test_feasibility_audit_accepts_only_supported_rate400_and_rate460_60s(protocol_id):
+    assert validate_attempt_protocol({"protocol_id": protocol_id, "path_duration_s": 60.0}) == protocol_id
+
+
+@pytest.mark.parametrize(
+    "binding",
+    (
+        {"protocol_id": "figure8_window60_r013_rate300_v1", "path_duration_s": 60.0},
+        {"protocol_id": "figure8_window60_r013_rate460_v1", "path_duration_s": 59.0},
+    ),
+)
+def test_feasibility_audit_rejects_unsupported_or_wrong_duration_protocol(binding):
+    with pytest.raises(FeasibilityAuditError, match="supported sealed 60 s"):
+        validate_attempt_protocol(binding)
 
 
 def _case():

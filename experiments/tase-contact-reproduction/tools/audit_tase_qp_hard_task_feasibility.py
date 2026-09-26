@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 from scipy.optimize import linprog
 
-from audit_tase_qp_replay_inputs import PROTOCOL_ID, verify_seal
+from audit_tase_qp_replay_inputs import SUPPORTED_PROTOCOL_IDS, verify_seal
 
 
 SCHEMA = "tase.qp-hard-task-feasibility-v1"
@@ -28,6 +28,23 @@ BOX_TOLERANCE = 1e-7
 
 class FeasibilityAuditError(RuntimeError):
     pass
+
+
+def validate_attempt_protocol(binding: Any) -> str:
+    """Accept only sealed Figure-eight 60 s protocol identities supported by the input audit."""
+    if not isinstance(binding, dict):
+        raise FeasibilityAuditError("attempt parameter binding is missing")
+    protocol_id = binding.get("protocol_id")
+    try:
+        path_duration_s = float(binding.get("path_duration_s", math.nan))
+    except (TypeError, ValueError, OverflowError):
+        path_duration_s = math.nan
+    if protocol_id not in SUPPORTED_PROTOCOL_IDS or path_duration_s != 60.0:
+        supported = ", ".join(sorted(SUPPORTED_PROTOCOL_IDS))
+        raise FeasibilityAuditError(
+            f"attempt protocol must be one of the supported sealed 60 s identities: {supported}"
+        )
+    return str(protocol_id)
 
 
 def _vector(value: Any, size: int, name: str) -> np.ndarray:
@@ -302,8 +319,7 @@ def analyze_attempt(
     attempt_dir = Path(attempt_dir).resolve(strict=True)
     seal, result, verified = verify_seal(attempt_dir)
     binding = result.get("parameter_binding", {})
-    if binding.get("protocol_id") != PROTOCOL_ID or float(binding.get("path_duration_s", -1.0)) != 60.0:
-        raise FeasibilityAuditError("attempt protocol is not the sealed r013_60_rate400 60 s identity")
+    protocol_id = validate_attempt_protocol(binding)
     command_path = Path(verified["command_timeline"]["path"])
     reaction = _vector(reaction_normal_base, 3, "reaction_normal_base")
     basis = np.asarray(tangent_basis_base_3x2, dtype=float)
