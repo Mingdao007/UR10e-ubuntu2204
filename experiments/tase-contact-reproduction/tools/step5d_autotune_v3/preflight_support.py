@@ -13,7 +13,6 @@ from typing import Any, Sequence
 RTDE_FIELDS = [
     "actual_TCP_pose",
     "actual_TCP_speed",
-    "actual_TCP_force",
     "actual_q",
     "runtime_state",
     "robot_mode",
@@ -125,7 +124,6 @@ def rtde_predicate(result: Any) -> dict[str, Any]:
     lengths = {
         "actual_TCP_pose": 6,
         "actual_TCP_speed": 6,
-        "actual_TCP_force": 6,
         "actual_q": 6,
         "payload_cog": 3,
         "tcp_offset": 6,
