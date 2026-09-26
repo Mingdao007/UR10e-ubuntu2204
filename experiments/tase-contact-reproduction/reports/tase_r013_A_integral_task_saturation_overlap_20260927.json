@@ -1,0 +1,180 @@
+{
+  "aggregate_counts": {
+    "explicit_velocity_limit_active_rows": 149541,
+    "host_slew_limited_rows": 36,
+    "path_rows": 149541,
+    "realization_saturated_rows": 36,
+    "task_space_saturated_rows": 31198,
+    "upper_cap_host_slew_limited_rows": 13,
+    "upper_cap_integral_saturated_flag_rows": 0,
+    "upper_cap_positive_error_and_task_space_saturated_rows": 10204,
+    "upper_cap_positive_error_rows": 10600,
+    "upper_cap_realization_or_slew_rows": 13,
+    "upper_cap_realization_saturated_rows": 13,
+    "upper_cap_rows": 12119,
+    "upper_cap_task_space_saturated_rows": 10283
+  },
+  "aggregate_fractions": {
+    "explicit_velocity_limit_active_fraction_all_path": 1.0,
+    "legacy_integral_saturated_flag_fraction_at_upper_cap": 0.0,
+    "path_upper_cap_fraction": 0.08104131977183515,
+    "published_task_space_saturation_fraction_all_path": 0.20862505934827238,
+    "upper_cap_positive_error_and_task_saturation_fraction": 0.8419836620183183,
+    "upper_cap_positive_error_fraction": 0.8746596253816321,
+    "upper_cap_realization_or_slew_fraction": 0.0010726957669774733,
+    "upper_cap_task_space_saturation_fraction": 0.8485023516791814
+  },
+  "attempt_count": 5,
+  "attempts": [
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0002",
+      "candidate_id": "confirm-s01-b00-A",
+      "counts": {
+        "explicit_velocity_limit_active_rows": 29982,
+        "host_slew_limited_rows": 5,
+        "path_rows": 29982,
+        "realization_saturated_rows": 5,
+        "task_space_saturated_rows": 6223,
+        "upper_cap_host_slew_limited_rows": 1,
+        "upper_cap_integral_saturated_flag_rows": 0,
+        "upper_cap_positive_error_and_task_space_saturated_rows": 2114,
+        "upper_cap_positive_error_rows": 2195,
+        "upper_cap_realization_or_slew_rows": 1,
+        "upper_cap_realization_saturated_rows": 1,
+        "upper_cap_rows": 2516,
+        "upper_cap_task_space_saturated_rows": 2134
+      },
+      "force_at_upper_cap_quantiles_n": [
+        1.3799665840901099,
+        2.412767395852945,
+        6.0200155483681375
+      ],
+      "force_error_at_upper_cap_mean_n": 2.075858076625233,
+      "formal_mae_n": 1.0061050570848329,
+      "timeline_sha256": "89ba3e2024eac35299ac90115a35d9aec5161879e1aec7d6dbd965ad9190f8a7"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0004",
+      "candidate_id": "confirm-s01-b01-A",
+      "counts": {
+        "explicit_velocity_limit_active_rows": 30003,
+        "host_slew_limited_rows": 6,
+        "path_rows": 30003,
+        "realization_saturated_rows": 6,
+        "task_space_saturated_rows": 5209,
+        "upper_cap_host_slew_limited_rows": 3,
+        "upper_cap_integral_saturated_flag_rows": 0,
+        "upper_cap_positive_error_and_task_space_saturated_rows": 1524,
+        "upper_cap_positive_error_rows": 1555,
+        "upper_cap_realization_or_slew_rows": 3,
+        "upper_cap_realization_saturated_rows": 3,
+        "upper_cap_rows": 1784,
+        "upper_cap_task_space_saturated_rows": 1538
+      },
+      "force_at_upper_cap_quantiles_n": [
+        1.525872088978882,
+        2.400927304871723,
+        6.092161843103136
+      ],
+      "force_error_at_upper_cap_mean_n": 2.0630274394354235,
+      "formal_mae_n": 0.9419680748585729,
+      "timeline_sha256": "bebf6a408a8bb2d7bb0ac72217669b77e140b216a18546813ce84cb1e64caedf"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0002",
+      "candidate_id": "confirm-s02-b02-A",
+      "counts": {
+        "explicit_velocity_limit_active_rows": 29997,
+        "host_slew_limited_rows": 6,
+        "path_rows": 29997,
+        "realization_saturated_rows": 6,
+        "task_space_saturated_rows": 6267,
+        "upper_cap_host_slew_limited_rows": 2,
+        "upper_cap_integral_saturated_flag_rows": 0,
+        "upper_cap_positive_error_and_task_space_saturated_rows": 1732,
+        "upper_cap_positive_error_rows": 1839,
+        "upper_cap_realization_or_slew_rows": 2,
+        "upper_cap_realization_saturated_rows": 2,
+        "upper_cap_rows": 2165,
+        "upper_cap_task_space_saturated_rows": 1745
+      },
+      "force_at_upper_cap_quantiles_n": [
+        1.7469140548575495,
+        2.5765125940104907,
+        6.091935403869175
+      ],
+      "force_error_at_upper_cap_mean_n": 1.8176845242265058,
+      "formal_mae_n": 1.0364228577061043,
+      "timeline_sha256": "9c62e807f869da886dcb211e6884fb87d818002a9f88ccb3bd66186e20e4d573"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0003",
+      "candidate_id": "confirm-s02-b03-A",
+      "counts": {
+        "explicit_velocity_limit_active_rows": 29557,
+        "host_slew_limited_rows": 9,
+        "path_rows": 29557,
+        "realization_saturated_rows": 9,
+        "task_space_saturated_rows": 5773,
+        "upper_cap_host_slew_limited_rows": 2,
+        "upper_cap_integral_saturated_flag_rows": 0,
+        "upper_cap_positive_error_and_task_space_saturated_rows": 2008,
+        "upper_cap_positive_error_rows": 2117,
+        "upper_cap_realization_or_slew_rows": 2,
+        "upper_cap_realization_saturated_rows": 2,
+        "upper_cap_rows": 2372,
+        "upper_cap_task_space_saturated_rows": 2024
+      },
+      "force_at_upper_cap_quantiles_n": [
+        0.6597869782880438,
+        2.327476380767727,
+        5.931386471542441
+      ],
+      "force_error_at_upper_cap_mean_n": 2.2574109310717474,
+      "formal_mae_n": 1.0242417404331408,
+      "timeline_sha256": "1e10313919f5080bdb9276ac209f0da4df83416025a7a6006c8243aa7b986a2e"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0005",
+      "candidate_id": "confirm-s02-b04-A",
+      "counts": {
+        "explicit_velocity_limit_active_rows": 30002,
+        "host_slew_limited_rows": 10,
+        "path_rows": 30002,
+        "realization_saturated_rows": 10,
+        "task_space_saturated_rows": 7726,
+        "upper_cap_host_slew_limited_rows": 5,
+        "upper_cap_integral_saturated_flag_rows": 0,
+        "upper_cap_positive_error_and_task_space_saturated_rows": 2826,
+        "upper_cap_positive_error_rows": 2894,
+        "upper_cap_realization_or_slew_rows": 5,
+        "upper_cap_realization_saturated_rows": 5,
+        "upper_cap_rows": 3282,
+        "upper_cap_task_space_saturated_rows": 2842
+      },
+      "force_at_upper_cap_quantiles_n": [
+        1.4420705301436163,
+        2.3830113890879723,
+        5.9655322955029
+      ],
+      "force_error_at_upper_cap_mean_n": 2.133657898264879,
+      "formal_mae_n": 1.1958953801632153,
+      "timeline_sha256": "c4bdabf7d913e1457af045c5dd28ca2d0afee72233a5b2a63e73ee7e219afd5f"
+    }
+  ],
+  "evidence_class": "offline_command_timeline_diagnostic",
+  "explicit_velocity_limit_flag_definition": "integral_explicit_velocity_limit_active aliases runtime explicit_velocity_limit_active (some task-space speed cap); it is not itself proof of normal-axis force saturation",
+  "force_at_upper_cap_quantiles_n": [
+    1.4146928666943788,
+    2.4108676709067782,
+    6.013473801496194
+  ],
+  "force_error_at_upper_cap_mean_n": 2.0790354664823654,
+  "force_signal": "normal_force_control_n from Kunwei KWR75 baseline-corrected feedback",
+  "independent_task_force_truth": false,
+  "integral_cap_definition": "state >= 0.98 * effective legacy limit; source traces bind 1.0 N*s A strategy",
+  "interpretation": "The legacy integrator reaches its upper state limit on some rows while force error remains positive. Most such rows also have reaction-normal task-space clipping, while actual joint-realization and host-slew flags are rare. Increasing the integral limit alone cannot change the command on rows where the requested normal task is already clipped; downstream telemetry must be separated from mere activation of some explicit Cartesian limit.",
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "schema": "tase.r013.A-integral-task-saturation-overlap-v1",
+  "task_space_saturation_definition": "published_task_space_saturated records explicit velocity clipping that changes reaction-normal requested velocity beyond the live tolerance"
+}

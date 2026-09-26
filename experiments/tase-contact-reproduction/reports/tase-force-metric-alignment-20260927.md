@@ -62,6 +62,12 @@ raw 逐样本 MAE 比 raw 100 ms-bin MAE 高约 **0.185 N**：先在 bin 内平�
 
 `published_task_space_saturated` 在 A trace 平均约 **20.9%** ticks。按代码定义，它表示显式 task-space 速度约束生效时，请求的法向速度与限幅后法向速度不同；这不等于关节速度限制，也不表示机器人 20.9% 时间停住。最终 `Jqdot` realization saturation 与 host slew flag 都约 0.024% ticks。现有数据没有证明 task-space 限幅是力误差的唯一成因。
 
+进一步对五条 A 的 **149,541** 个正式 PATH tick 做重叠统计：积分状态达到 1.0 N·s 上限 98% 的共有 **12,119（8.10%）** tick；其中 **10,283（84.85%）** 同时有法向 task-space saturation 标志，**10,204** 同时仍有正力误差。上限时 normal-force feedback 中位数 **2.411 N**，力误差均值 **2.079 N**。与此相对，真正的 `Jqdot` realization 或 host slew 限制并集只有 **13/12,119（0.11%）**。这说明“把积分上限调大”不会改变大多数已被 task-space 限速的 tick，且可能留下更多积分状态；但它不能证明一个经过输出反馈的抗饱和律会更差或更好，D 组的正式结果仍按原筛选表报告。
+
+审计也厘清了两个容易混淆的标志：旧 A 运行的 `integral_saturated` 在这些上限 tick 仍为零，所以应按数值积分状态与有效上限判断；`integral_explicit_velocity_limit_active` 实际映射到“某种显式 task-space 速度限制已启用”，五条 PATH 中始终为真，不能单独当成 normal axis 饱和。判断力向的 task-space saturation 应看 `published_task_space_saturated`。五次 trace 的逐 attempt 计数和 hash 在 [integral/task-saturation overlap JSON](tase_r013_A_integral_task_saturation_overlap_20260927.json)。
+
+D 组实际 runtime 也已核对：四个合格 attempt 的有效积分上限始终是 **0.5 N·s**，因为 `authority_error=0.5 N` 与 `kf=1` 先将 1.0 N·s state cap 收紧到 0.5 N·s；state cap 本身没有被触发。D 的 output-freeze 共 **21,462/119,901（17.90%）** tick，其中 **20,936（97.55%）** 同时是法向 task-space saturation；freeze 时 **91.5%** 仍有正力误差，中位反馈力 **2.517 N**。相反，真实 final `Jqdot` realization 和 host slew 限制合计只有 **7** tick。也就是说，D 当前主要在“上游法向速度限幅”时冻结，而不是在关节最终实现饱和时冻结。D 的合格圈 MAE 均值 **1.235 N**，A 为 **0.977 N**，B legacy-0.5 为 **1.140 N**；筛选结果没有配对显著性结论，但当前 D profile 不值得直接提升。详见 [D runtime freeze semantics JSON](tase_r013_integral_conditional_freeze_semantics_20260927.json)。这些关联不能证明 freeze 是 MAE 变差的唯一原因；后续若试 anti-windup，应明确区分 task-space cap 与 final realization/slew saturation。
+
 ## 接触阶段时间与法向模型
 
 五对确认中的 11 个已记录阶段，state20 搜索中位 **9.456 s**（9.334–11.502 s），state21 latch/ramp 中位 **8.862 s**（8.860–8.864 s），entry 中位 **1.010 s**。state20 按既有程序执行两段搜索，接触需达到 0.5 N 或 0.7 N force norm 并连续确认 80 ms，最大行程 15 mm；它不是固定的 10 s qualification。state21 的历史 replay 显示 **8 s** 升力 ramp 加 **0.5 s** 连续放行，实测 8.87 s 与此一致。一次 300 s preparation refresh 的周转较长：额外准备发生在 state20 前，不是 state21 的隐藏等待。

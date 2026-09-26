@@ -1,0 +1,340 @@
+{
+  "A_baseline": {
+    "attempts": [
+      {
+        "attempt_dir": "runs/tase-r31-integral-screening-20260925T1825HKT/session-01/attempts/0005",
+        "candidate_id": "screen-A-00",
+        "counts": {
+          "conditional_freeze_and_task_space_saturated": 0,
+          "final_freeze_and_task_space_saturated": 0,
+          "host_slew_limited": 8,
+          "integral_authority_clamped": 0,
+          "integral_conditional_frozen": 0,
+          "integral_final_output_frozen": 0,
+          "integral_saturated": 0,
+          "integral_state_clamped": 0,
+          "integral_velocity_saturated": 0,
+          "path": 29699,
+          "published_realization_saturated": 8,
+          "published_task_space_saturated": 4986,
+          "realization_or_slew": 8,
+          "task_space_saturation_with_positive_error": 4261
+        },
+        "final_output_freeze_positive_error_fraction": null,
+        "final_output_frozen_force_error_mean_n": null,
+        "final_output_frozen_force_quantiles_n": [],
+        "formal_mae_n": 0.915627405599624,
+        "integral_effective_limit_n_s_range": [
+          1.0,
+          1.0
+        ],
+        "integral_state_at_or_above_98pct_effective_limit_ticks": 1553,
+        "path_complete": true,
+        "path_rows": 29699,
+        "same_direction_freeze_sign_positive_fraction": null,
+        "timeline_sha256": "473fc9272f59de1318892410cdba5b54c9b53824f6a344de044b87d495fd053f"
+      },
+      {
+        "attempt_dir": "runs/tase-r31-integral-screening-20260925T1825HKT/session-01/attempts/0013",
+        "candidate_id": "screen-A-02",
+        "counts": {
+          "conditional_freeze_and_task_space_saturated": 0,
+          "final_freeze_and_task_space_saturated": 0,
+          "host_slew_limited": 9,
+          "integral_authority_clamped": 0,
+          "integral_conditional_frozen": 0,
+          "integral_final_output_frozen": 0,
+          "integral_saturated": 0,
+          "integral_state_clamped": 0,
+          "integral_velocity_saturated": 0,
+          "path": 29995,
+          "published_realization_saturated": 9,
+          "published_task_space_saturated": 6147,
+          "realization_or_slew": 9,
+          "task_space_saturation_with_positive_error": 5243
+        },
+        "final_output_freeze_positive_error_fraction": null,
+        "final_output_frozen_force_error_mean_n": null,
+        "final_output_frozen_force_quantiles_n": [],
+        "formal_mae_n": 1.051513695986785,
+        "integral_effective_limit_n_s_range": [
+          1.0,
+          1.0
+        ],
+        "integral_state_at_or_above_98pct_effective_limit_ticks": 2236,
+        "path_complete": true,
+        "path_rows": 29995,
+        "same_direction_freeze_sign_positive_fraction": null,
+        "timeline_sha256": "5ab648773a9140862104a6b3b6c73915297a19984fbd274c699888455f690bcd"
+      },
+      {
+        "attempt_dir": "runs/tase-r31-integral-screening-20260925T1825HKT/session-02/attempts/0004",
+        "candidate_id": "screen-A-03",
+        "counts": {
+          "conditional_freeze_and_task_space_saturated": 0,
+          "final_freeze_and_task_space_saturated": 0,
+          "host_slew_limited": 5,
+          "integral_authority_clamped": 0,
+          "integral_conditional_frozen": 0,
+          "integral_final_output_frozen": 0,
+          "integral_saturated": 0,
+          "integral_state_clamped": 0,
+          "integral_velocity_saturated": 0,
+          "path": 29939,
+          "published_realization_saturated": 5,
+          "published_task_space_saturated": 6150,
+          "realization_or_slew": 5,
+          "task_space_saturation_with_positive_error": 5233
+        },
+        "final_output_freeze_positive_error_fraction": null,
+        "final_output_frozen_force_error_mean_n": null,
+        "final_output_frozen_force_quantiles_n": [],
+        "formal_mae_n": 1.0129405196400054,
+        "integral_effective_limit_n_s_range": [
+          1.0,
+          1.0
+        ],
+        "integral_state_at_or_above_98pct_effective_limit_ticks": 2401,
+        "path_complete": true,
+        "path_rows": 29939,
+        "same_direction_freeze_sign_positive_fraction": null,
+        "timeline_sha256": "71a7edaf2cfa5c13e1522530805f43bf54fdc940c5cfe2f33aeafbf5714e73f5"
+      },
+      {
+        "attempt_dir": "runs/tase-r31-integral-screening-20260925T1825HKT/session-02/attempts/0011",
+        "candidate_id": "screen-A-04",
+        "counts": {
+          "conditional_freeze_and_task_space_saturated": 0,
+          "final_freeze_and_task_space_saturated": 0,
+          "host_slew_limited": 4,
+          "integral_authority_clamped": 0,
+          "integral_conditional_frozen": 0,
+          "integral_final_output_frozen": 0,
+          "integral_saturated": 0,
+          "integral_state_clamped": 0,
+          "integral_velocity_saturated": 0,
+          "path": 29985,
+          "published_realization_saturated": 12,
+          "published_task_space_saturated": 4665,
+          "realization_or_slew": 12,
+          "task_space_saturation_with_positive_error": 4018
+        },
+        "final_output_freeze_positive_error_fraction": null,
+        "final_output_frozen_force_error_mean_n": null,
+        "final_output_frozen_force_quantiles_n": [],
+        "formal_mae_n": 0.9284861205371482,
+        "integral_effective_limit_n_s_range": [
+          1.0,
+          1.0
+        ],
+        "integral_state_at_or_above_98pct_effective_limit_ticks": 1773,
+        "path_complete": true,
+        "path_rows": 29985,
+        "same_direction_freeze_sign_positive_fraction": null,
+        "timeline_sha256": "9b240f5c7350eeaa26af97cbd5b73af47a22009d397a3fcde3054e2269bfc321"
+      }
+    ],
+    "attempts_denominator": 5,
+    "eligible_attempts": 4,
+    "mean_formal_mae_n": 0.9771419354408907
+  },
+  "B_legacy_0p5_comparison": {
+    "attempts_denominator": 5,
+    "eligible_attempts": 3,
+    "mean_formal_mae_n": 1.139859548914716
+  },
+  "D_conditional_double_clamp": {
+    "A_mean_formal_mae_n": 0.9771419354408907,
+    "B_legacy_0p5_mean_formal_mae_n": 1.139859548914716,
+    "D_minus_A_unpaired_mean_mae_n": 0.2578751018411497,
+    "D_minus_B_unpaired_mean_mae_n": 0.0951574883673243,
+    "actual_realization_saturated_ticks": 7,
+    "attempts": [
+      {
+        "attempt_dir": "runs/tase-r31-integral-screening-20260925T1825HKT/session-01/attempts/0003",
+        "candidate_id": "screen-D-00",
+        "counts": {
+          "conditional_freeze_and_task_space_saturated": 4832,
+          "final_freeze_and_task_space_saturated": 4719,
+          "host_slew_limited": 3,
+          "integral_authority_clamped": 1570,
+          "integral_conditional_frozen": 4948,
+          "integral_final_output_frozen": 4833,
+          "integral_saturated": 1570,
+          "integral_state_clamped": 0,
+          "integral_velocity_saturated": 4832,
+          "path": 29994,
+          "published_realization_saturated": 3,
+          "published_task_space_saturated": 4832,
+          "realization_or_slew": 3,
+          "task_space_saturation_with_positive_error": 4367
+        },
+        "final_output_freeze_positive_error_fraction": 0.9035795572108422,
+        "final_output_frozen_force_error_mean_n": 2.037626159589738,
+        "final_output_frozen_force_quantiles_n": [
+          1.5411746640366697,
+          2.5325952180174083,
+          7.897662977901331
+        ],
+        "formal_mae_n": 1.1692396082209298,
+        "integral_effective_limit_n_s_range": [
+          0.5,
+          0.5
+        ],
+        "integral_state_at_or_above_98pct_effective_limit_ticks": 2212,
+        "path_complete": true,
+        "path_rows": 29994,
+        "same_direction_freeze_sign_positive_fraction": 0.8903372646389406,
+        "timeline_sha256": "22672b2f6c07f07aa52bab43a3e51c9e0d857db25dbad27659c65cb5ffcca9e1"
+      },
+      {
+        "attempt_dir": "runs/tase-r31-integral-screening-20260925T1825HKT/session-01/attempts/0010",
+        "candidate_id": "screen-D-01",
+        "counts": {
+          "conditional_freeze_and_task_space_saturated": 6317,
+          "final_freeze_and_task_space_saturated": 6165,
+          "host_slew_limited": 3,
+          "integral_authority_clamped": 1415,
+          "integral_conditional_frozen": 6474,
+          "integral_final_output_frozen": 6319,
+          "integral_saturated": 1415,
+          "integral_state_clamped": 0,
+          "integral_velocity_saturated": 6317,
+          "path": 29989,
+          "published_realization_saturated": 3,
+          "published_task_space_saturated": 6317,
+          "realization_or_slew": 3,
+          "task_space_saturation_with_positive_error": 5788
+        },
+        "final_output_freeze_positive_error_fraction": 0.9159677164108245,
+        "final_output_frozen_force_error_mean_n": 2.18466667305021,
+        "final_output_frozen_force_quantiles_n": [
+          1.348059981960519,
+          2.458992398839938,
+          7.676225359035158
+        ],
+        "formal_mae_n": 1.3443014448722619,
+        "integral_effective_limit_n_s_range": [
+          0.5,
+          0.5
+        ],
+        "integral_state_at_or_above_98pct_effective_limit_ticks": 2244,
+        "path_complete": true,
+        "path_rows": 29989,
+        "same_direction_freeze_sign_positive_fraction": 0.9029909795853774,
+        "timeline_sha256": "9d6169172e4debfb8e8b250b29feb69ab4686e16fce604ff9b95d576bd56b5d8"
+      },
+      {
+        "attempt_dir": "runs/tase-r31-integral-screening-20260925T1825HKT/session-02/attempts/0003",
+        "candidate_id": "screen-D-03",
+        "counts": {
+          "conditional_freeze_and_task_space_saturated": 5683,
+          "final_freeze_and_task_space_saturated": 5523,
+          "host_slew_limited": 0,
+          "integral_authority_clamped": 1452,
+          "integral_conditional_frozen": 5849,
+          "integral_final_output_frozen": 5683,
+          "integral_saturated": 1452,
+          "integral_state_clamped": 0,
+          "integral_velocity_saturated": 5683,
+          "path": 29986,
+          "published_realization_saturated": 0,
+          "published_task_space_saturated": 5683,
+          "realization_or_slew": 0,
+          "task_space_saturation_with_positive_error": 5100
+        },
+        "final_output_freeze_positive_error_fraction": 0.8974133380256907,
+        "final_output_frozen_force_error_mean_n": 1.9431764026171245,
+        "final_output_frozen_force_quantiles_n": [
+          1.520911827550983,
+          2.5886007478253243,
+          7.910624547767458
+        ],
+        "formal_mae_n": 1.2673892172492753,
+        "integral_effective_limit_n_s_range": [
+          0.5,
+          0.5
+        ],
+        "integral_state_at_or_above_98pct_effective_limit_ticks": 2076,
+        "path_complete": true,
+        "path_rows": 29986,
+        "same_direction_freeze_sign_positive_fraction": 0.8821045222593701,
+        "timeline_sha256": "ef7c90ca02bee2423292e86b634e08083101619a22dd770332ac7e9eab1d98f6"
+      },
+      {
+        "attempt_dir": "runs/tase-r31-integral-screening-20260925T1825HKT/session-02/attempts/0007",
+        "candidate_id": "screen-D-04",
+        "counts": {
+          "conditional_freeze_and_task_space_saturated": 4626,
+          "final_freeze_and_task_space_saturated": 4529,
+          "host_slew_limited": 1,
+          "integral_authority_clamped": 1776,
+          "integral_conditional_frozen": 4724,
+          "integral_final_output_frozen": 4627,
+          "integral_saturated": 1776,
+          "integral_state_clamped": 0,
+          "integral_velocity_saturated": 4626,
+          "path": 29932,
+          "published_realization_saturated": 1,
+          "published_task_space_saturated": 4626,
+          "realization_or_slew": 1,
+          "task_space_saturation_with_positive_error": 4379
+        },
+        "final_output_freeze_positive_error_fraction": 0.9464015560838557,
+        "final_output_frozen_force_error_mean_n": 2.3126151350794104,
+        "final_output_frozen_force_quantiles_n": [
+          1.4421106566703086,
+          2.4934436868135137,
+          7.074450096806172
+        ],
+        "formal_mae_n": 1.1591378787856947,
+        "integral_effective_limit_n_s_range": [
+          0.5,
+          0.5
+        ],
+        "integral_state_at_or_above_98pct_effective_limit_ticks": 2774,
+        "path_complete": true,
+        "path_rows": 29932,
+        "same_direction_freeze_sign_positive_fraction": 0.9314890858007349,
+        "timeline_sha256": "6436a09393b2349258cd4c788858f6fcd0c5208ca7085bcdc2247fe4eae7e9d6"
+      }
+    ],
+    "attempts_denominator": 5,
+    "conditional_frozen_ticks": 21995,
+    "effective_integral_limit_n_s_range_across_D_attempts": [
+      0.5,
+      0.5
+    ],
+    "eligible_attempts": 4,
+    "eligible_path_rows": 119901,
+    "final_freeze_and_task_space_saturated_ticks": 20936,
+    "final_output_frozen_ticks": 21462,
+    "force_during_final_freeze_n_quantiles": [
+      1.4511127061036442,
+      2.5169204882881586,
+      7.719462092932616
+    ],
+    "force_error_during_final_freeze_mean_n": 2.115194187978149,
+    "fractions": {
+      "final_freeze_fraction_path": 0.17899767308029124,
+      "final_freeze_overlaps_task_space_fraction": 0.9754915664896096,
+      "final_output_freeze_with_positive_error_fraction": 0.9148262044543845,
+      "final_output_freeze_with_positive_freeze_sign_fraction": 0.900754822476936,
+      "realization_or_slew_union_fraction_path": 5.8381498069240455e-05,
+      "task_space_saturation_fraction_path": 0.1789643122242517
+    },
+    "host_slew_limited_ticks": 7,
+    "integral_authority_clamped_ticks": 6213,
+    "integral_state_clamped_ticks": 0,
+    "mean_formal_mae_n": 1.2350170372820404,
+    "mechanism_note": "The effective cap is 0.5 N*s (authority_error_n=0.5 N, kf=1, so authority_error * P/I = 0.5 N*s) although configured state cap is 1.0 N*s. Final-output-freeze ticks mostly overlap the task-space normal-velocity saturation flag; actual Jqdot realization and host-slew flags are rare. This diagnostic is observational and does not prove the freeze caused the worse MAE.",
+    "realization_or_slew_union_ticks": 7,
+    "task_space_saturated_ticks": 21458
+  },
+  "evidence_class": "offline_A_to_D_screening_trace_diagnostic",
+  "force_truth_limit": "Kunwei KWR75 feedback only; not independent task-force truth",
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "schema": "tase.r013.integral-conditional-freeze-semantics-v1",
+  "source_campaign": "runs/tase-r31-integral-screening-20260925T1825HKT",
+  "source_reducer": "reports/tase-r31-integral-screening-r013-diagnostic-20260927.json"
+}
