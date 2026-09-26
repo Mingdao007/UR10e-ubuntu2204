@@ -1,0 +1,134 @@
+{
+  "classification": "no_motion_readonly_checkpoint",
+  "controller_readback": {
+    "all_three_match": true,
+    "all_three_match_current_workspace": true,
+    "completed_at": "2026-09-26T19:52:21+08:00",
+    "controller_directory": "/programs/andyl/kunwei/step5",
+    "files": {
+      "step5d_contact_six_qp_v1.script": {
+        "expected_sha256": "ba062d293d800cc2c7a081fcf256e6e6f076f30eae5b86021fa63c52f367370e",
+        "fetched_back_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resume-readonly-20260926T1950HKT/controller-readback-r31-fresh/step5d_contact_six_qp_v1.script",
+        "fetched_back_sha256": "ba062d293d800cc2c7a081fcf256e6e6f076f30eae5b86021fa63c52f367370e",
+        "local_sha256": "ba062d293d800cc2c7a081fcf256e6e6f076f30eae5b86021fa63c52f367370e",
+        "matches_current_workspace": true,
+        "matches_expected": true,
+        "workspace_sha256": "ba062d293d800cc2c7a081fcf256e6e6f076f30eae5b86021fa63c52f367370e"
+      },
+      "step5d_contact_six_qp_v1.txt": {
+        "expected_sha256": "f20271234adb59eea648e07304af283bebc4ca4014e3a63bdf02d8e3e1eee901",
+        "fetched_back_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resume-readonly-20260926T1950HKT/controller-readback-r31-fresh/step5d_contact_six_qp_v1.txt",
+        "fetched_back_sha256": "f20271234adb59eea648e07304af283bebc4ca4014e3a63bdf02d8e3e1eee901",
+        "local_sha256": "f20271234adb59eea648e07304af283bebc4ca4014e3a63bdf02d8e3e1eee901",
+        "matches_current_workspace": true,
+        "matches_expected": true,
+        "workspace_sha256": "f20271234adb59eea648e07304af283bebc4ca4014e3a63bdf02d8e3e1eee901"
+      },
+      "step5d_contact_six_qp_v1.urp": {
+        "expected_sha256": "495a98b352f0e5881dca4709de043791f4775ecbc01086088ee1d5eddbb63f6c",
+        "fetched_back_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resume-readonly-20260926T1950HKT/controller-readback-r31-fresh/step5d_contact_six_qp_v1.urp",
+        "fetched_back_sha256": "495a98b352f0e5881dca4709de043791f4775ecbc01086088ee1d5eddbb63f6c",
+        "local_sha256": "495a98b352f0e5881dca4709de043791f4775ecbc01086088ee1d5eddbb63f6c",
+        "matches_current_workspace": true,
+        "matches_expected": true,
+        "workspace_sha256": "495a98b352f0e5881dca4709de043791f4775ecbc01086088ee1d5eddbb63f6c"
+      }
+    },
+    "manifest": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-stop-idempotent-20260925T1505HKT/controller-deploy-manifest-r31.json",
+    "program": "step5d_contact_six_qp_v1"
+  },
+  "created_at": "2026-09-26T19:54:15+08:00",
+  "live_state": {
+    "active_payload_cog_m": [
+      0.0011,
+      0.0031,
+      0.0163
+    ],
+    "active_payload_kg": 0.413,
+    "active_tcp_m_rad": [
+      0.0,
+      0.0,
+      0.0874,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "actual_q_rad": [
+      0.745212733745575,
+      -1.818099161187643,
+      -2.5627059936523438,
+      -0.31229622781787114,
+      1.5275973081588745,
+      -0.823827091847555
+    ],
+    "actual_tcp_speed_m_s": 0.0,
+    "dashboard": {
+      "banner": "Connected: Universal Robots Dashboard Server",
+      "is in remote control": "true",
+      "programState": "STOPPED step5d_contact_six_qp_v1.urp",
+      "robotmode": "Robotmode: RUNNING",
+      "running": "Program running: false",
+      "safetymode": "Safetymode: NORMAL"
+    },
+    "home_profile_id": "step6.autotune/figure8-contact-derived-home-v1",
+    "home_q_rad": [
+      0.7451654076576233,
+      -1.8181091747679652,
+      -2.5626940727233887,
+      -0.3122711938670655,
+      1.5276236534118652,
+      -0.8238123098956507
+    ],
+    "joint_error_rad": [
+      4.7326087951660156e-05,
+      1.0013580322265625e-05,
+      -1.1920928955078125e-05,
+      -2.5033950805664062e-05,
+      -2.6345252990722656e-05,
+      -1.4781951904296875e-05
+    ],
+    "joint_max_error_rad": 4.7326087951660156e-05,
+    "kunwei_tcp_connect_only": {
+      "connect_ms": 0.5864680279046297,
+      "host": "192.168.50.25",
+      "open": true,
+      "port": 5152
+    },
+    "preflight_ok": true,
+    "preflight_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resume-readonly-20260926T1950HKT/fresh-preflight/preflight_readonly.json",
+    "robot_ports_ok": true,
+    "safety_normal": true,
+    "ur_tcp_force_norm_diagnostic_n": 0.6539514694084461
+  },
+  "next_live_gates": [
+    "refresh a real Kunwei no-contact baseline immediately before the next attempt",
+    "start continuous observer capture at the live observer barrier",
+    "confirm the CPU/I/O throughput lane is clear for formal timing"
+  ],
+  "observer": {
+    "bytes": 629536,
+    "captured_at": "2026-09-26T19:52:35+08:00",
+    "scope": "single fresh frame; not a continuous recording",
+    "single_frame_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resume-readonly-20260926T1950HKT/octostream-observer-frame.png",
+    "source": "local OctoStream RTSP /arm"
+  },
+  "power_action": "not sent; fresh Dashboard already reports Robotmode RUNNING",
+  "resource_snapshot": {
+    "note": "formal timing attempt deferred while an unrelated archive compaction occupies a CPU core",
+    "r008_compactor": {
+      "cpu_percent": 100.0,
+      "elapsed": "28:26",
+      "pid": 1012539
+    },
+    "sampled_at": "2026-09-26T19:56:30+08:00"
+  },
+  "robot_effects_this_checkpoint": {
+    "dashboard_write_sent": false,
+    "kunwei_write_or_zero_sent": false,
+    "load_or_play_sent": false,
+    "rtde_motion_command_sent": false,
+    "urscript_sent": false
+  },
+  "schema": "tase.poweron-resume-readonly-checkpoint-v1",
+  "user_request": "power on then continue"
+}

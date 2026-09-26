@@ -1,0 +1,393 @@
+{
+  "completed_at": "2026-09-26T19:52:35.448",
+  "contract_id": "ur10e_concurrency_contract_v1",
+  "created_at": "2026-09-26T19:52:33.429",
+  "dashboard": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "true",
+    "programState": "STOPPED step5d_contact_six_qp_v1.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: false",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "derived": {
+    "actual_tcp_force_norm_n": 0.6539514694084461,
+    "actual_tcp_speed_linear_norm_m_s": 0.0,
+    "actual_tcp_torque_norm_nm": 0.00480234012876294,
+    "payload_kg": 0.413,
+    "tcp_offset_z_mm": 87.4
+  },
+  "elapsed_s": 2.019352402014192,
+  "errors": [],
+  "ok": true,
+  "ports": {
+    "kunwei_tcp_connect_only": {
+      "connect_ms": 0.5864680279046297,
+      "host": "192.168.50.25",
+      "open": true,
+      "port": 5152
+    },
+    "robot": {
+      "29999": {
+        "banner_hex": "436f6e6e65637465643a20556e6976657273616c20526f626f74732044617368626f617264205365727665720a",
+        "open": true,
+        "port": 29999
+      },
+      "30002": {
+        "banner_hex": "00000037140000000000000000fe03095552436f6e74726f6c051a000000000000000030382d30372d323032362c2031333a33383a303700000018140000000000000000fe0c0000000000000000010000003914000000000000000007110000006300000004000000270000001430382d30372d323032362c2031333a33383a",
+        "open": true,
+        "port": 30002
+      },
+      "30004": {
+        "open": true,
+        "port": 30004
+      }
+    }
+  },
+  "predicates": {
+    "dashboard": {
+      "checks": {
+        "program_state": true,
+        "remote_control_mode": true,
+        "robot_mode": true,
+        "safety_normal": true
+      },
+      "ok": true
+    },
+    "kunwei": {
+      "ok": true
+    },
+    "realtime": {
+      "ok": true
+    },
+    "robot_ports": {
+      "ok": true
+    },
+    "rtde": {
+      "checks": {
+        "actual_TCP_force": true,
+        "actual_TCP_pose": true,
+        "actual_TCP_speed": true,
+        "actual_q": true,
+        "payload": true,
+        "payload_cog": true,
+        "robot_mode": true,
+        "runtime_state": true,
+        "safety_mode": true,
+        "speed_scaling": true,
+        "tcp_offset": true
+      },
+      "ok": true
+    }
+  },
+  "routes": {
+    "kunwei": {
+      "args": [
+        "ip",
+        "route",
+        "get",
+        "192.168.50.25"
+      ],
+      "ok": true,
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "192.168.50.25 dev enp3s0 src 192.168.50.26 uid 1000 \n    cache"
+    },
+    "robot": {
+      "args": [
+        "ip",
+        "route",
+        "get",
+        "192.168.1.18"
+      ],
+      "ok": true,
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "192.168.1.18 dev enp3s0 src 192.168.1.10 uid 1000 \n    cache"
+    }
+  },
+  "rtde": {
+    "actual_TCP_force": [
+      0.3968972489016569,
+      0.12797994260010576,
+      0.5037323023668778,
+      -0.000312122190273829,
+      -0.0036250885921987434,
+      0.0031342914908119267
+    ],
+    "actual_TCP_pose": [
+      0.4620647429292524,
+      0.1778881912671995,
+      0.03408042259200539,
+      3.120733063904826,
+      7.621613319474808e-05,
+      0.06864986050883785
+    ],
+    "actual_TCP_speed": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "actual_q": [
+      0.745212733745575,
+      -1.818099161187643,
+      -2.5627059936523438,
+      -0.31229622781787114,
+      1.5275973081588745,
+      -0.823827091847555
+    ],
+    "payload": 0.413,
+    "payload_cog": [
+      0.0011,
+      0.0031,
+      0.0163
+    ],
+    "robot_mode": 7,
+    "runtime_state": 1,
+    "safety_mode": 1,
+    "speed_scaling": 0.0,
+    "tcp_offset": [
+      0.0,
+      0.0,
+      0.0874,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "safety_boundary": [
+    "read-only Dashboard commands",
+    "read-only RTDE output recipe",
+    "TCP connect-only probe to Kunwei endpoint",
+    "no Kunwei 0x48/0x49/0x43 commands",
+    "no URScript upload, no motion, no zero, no TCP/payload writes"
+  ],
+  "schema_version": "ur10e_readonly_preflight_snapshot_v2",
+  "stages": {
+    "local": {
+      "realtime": {
+        "affinity": {
+          "args": [
+            "taskset",
+            "-pc",
+            "1016590"
+          ],
+          "ok": true,
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "pid 1016590's current affinity list: 0,1,3-17,19-31"
+        },
+        "chrt": {
+          "args": [
+            "chrt",
+            "--max"
+          ],
+          "ok": true,
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "SCHED_OTHER min/max priority\t: 0/0\nSCHED_FIFO min/max priority\t: 1/99\nSCHED_RR min/max priority\t: 1/99\nSCHED_BATCH min/max priority\t: 0/0\nSCHED_IDLE min/max priority\t: 0/0\nSCHED_DEADLINE min/max priority\t: 0/0"
+        },
+        "ok": true
+      },
+      "route_kunwei": {
+        "args": [
+          "ip",
+          "route",
+          "get",
+          "192.168.50.25"
+        ],
+        "ok": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "192.168.50.25 dev enp3s0 src 192.168.50.26 uid 1000 \n    cache"
+      },
+      "route_robot": {
+        "args": [
+          "ip",
+          "route",
+          "get",
+          "192.168.1.18"
+        ],
+        "ok": true,
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "192.168.1.18 dev enp3s0 src 192.168.1.10 uid 1000 \n    cache"
+      },
+      "writer_process": {
+        "active_writers": [],
+        "ok": true
+      }
+    },
+    "remote": {
+      "bench_network": {
+        "args": [
+          "/usr/bin/python3",
+          "/home/andy/codex-private-skills-shared-main/skills/ur10e-realsetup/scripts/check_ubuntu_network.py",
+          "--include-kunwei",
+          "--json-only"
+        ],
+        "ok": true,
+        "payload": {
+          "default_route_on_direct_link": false,
+          "default_routes": [
+            {
+              "dev": "wlp4s0",
+              "gateway": "10.11.192.2",
+              "metric": "600",
+              "protocol": "dhcp"
+            }
+          ],
+          "device": "enp3s0",
+          "device_state": {
+            "connection": "Profile 2",
+            "device": "enp3s0",
+            "state": "connected",
+            "type": "ethernet"
+          },
+          "expected_connection": "Profile 2",
+          "expected_host_ipv4": "192.168.1.10/24",
+          "ipv4_addresses": [
+            "192.168.1.10/24",
+            "192.168.50.26/24"
+          ],
+          "issues": [],
+          "kunwei": {
+            "expected_host_ipv4": "192.168.50.26/24",
+            "host_ipv4_seen": true,
+            "next_config_command": "sudo ip addr add 192.168.50.26/24 dev enp3s0",
+            "route": {
+              "dev": "enp3s0",
+              "host": "192.168.50.25",
+              "ok": true,
+              "returncode": 0,
+              "src": "192.168.50.26",
+              "stderr": "",
+              "stdout": "192.168.50.25 dev enp3s0 src 192.168.50.26 uid 1000 \n    cache",
+              "table": ""
+            },
+            "route_ok": true,
+            "sensor_host": "192.168.50.25",
+            "sensor_port": 5152,
+            "tcp_connect": {
+              "host": "192.168.50.25",
+              "ok": true,
+              "port": 5152
+            }
+          },
+          "ok": true,
+          "ping": {
+            "ok": true,
+            "returncode": 0,
+            "stderr": "",
+            "stdout": "PING 192.168.1.18 (192.168.1.18) 56(84) bytes of data.\n64 bytes from 192.168.1.18: icmp_seq=1 ttl=64 time=0.325 ms\n64 bytes from 192.168.1.18: icmp_seq=2 ttl=64 time=0.141 ms\n\n--- 192.168.1.18 ping statistics ---\n2 packets transmitted, 2 received, 0% packet loss, time 1003ms\nrtt min/avg/max/mdev = 0.141/0.233/0.325/0.092 ms"
+          },
+          "robot_host": "192.168.1.18",
+          "same_subnet": true
+        },
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "{\n  \"ok\": true,\n  \"robot_host\": \"192.168.1.18\",\n  \"device\": \"enp3s0\",\n  \"expected_connection\": \"Profile 2\",\n  \"expected_host_ipv4\": \"192.168.1.10/24\",\n  \"device_state\": {\n    \"device\": \"enp3s0\",\n    \"type\": \"ethernet\",\n    \"state\": \"connected\",\n    \"connection\": \"Profile 2\"\n  },\n  \"ipv4_addresses\": [\n    \"192.168.1.10/24\",\n    \"192.168.50.26/24\"\n  ],\n  \"same_subnet\": true,\n  \"default_routes\": [\n    {\n      \"dev\": \"wlp4s0\",\n      \"gateway\": \"10.11.192.2\",\n      \"metric\": \"600\",\n      \"protocol\": \"dhcp\"\n    }\n  ],\n  \"default_route_on_direct_link\": false,\n  \"ping\": {\n    \"ok\": true,\n    \"returncode\": 0,\n    \"stdout\": \"PING 192.168.1.18 (192.168.1.18) 56(84) bytes of data.\\n64 bytes from 192.168.1.18: icmp_seq=1 ttl=64 time=0.325 ms\\n64 bytes from 192.168.1.18: icmp_seq=2 ttl=64 time=0.141 ms\\n\\n--- 192.168.1.18 ping statistics ---\\n2 packets transmitted, 2 received, 0% packet loss, time 1003ms\\nrtt min/avg/max/mdev = 0.141/0.233/0.325/0.092 ms\",\n    \"stderr\": \"\"\n  },\n  \"kunwei\": {\n    \"sensor_host\": \"192.168.50.25\",\n    \"sensor_port\": 5152,\n    \"expected_host_ipv4\": \"192.168.50.26/24\",\n    \"host_ipv4_seen\": true,\n    \"route\": {\n      \"host\": \"192.168.50.25\",\n      \"ok\": true,\n      \"returncode\": 0,\n      \"stdout\": \"192.168.50.25 dev enp3s0 src 192.168.50.26 uid 1000 \\n    cache\",\n      \"stderr\": \"\",\n      \"dev\": \"enp3s0\",\n      \"src\": \"192.168.50.26\",\n      \"table\": \"\"\n    },\n    \"route_ok\": true,\n    \"tcp_connect\": {\n      \"host\": \"192.168.50.25\",\n      \"port\": 5152,\n      \"ok\": true\n    },\n    \"next_config_command\": \"sudo ip addr add 192.168.50.26/24 dev enp3s0\"\n  },\n  \"issues\": []\n}"
+      },
+      "controller_binding": {
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_contact_six_qp_v1.urp",
+        "delivery_mode": "full_upload_readback",
+        "fresh_controller_checked_at": "2026-09-25T15:07:46+08:00",
+        "fresh_controller_sha_verified": true,
+        "manifest": "report/yield-live-transition-v1/contact-readback-selection-20260925T150746+0800.json",
+        "ok": true,
+        "program": "step5d_contact_six_qp_v1",
+        "sha256": {
+          ".script": "ba062d293d800cc2c7a081fcf256e6e6f076f30eae5b86021fa63c52f367370e",
+          ".txt": "f20271234adb59eea648e07304af283bebc4ca4014e3a63bdf02d8e3e1eee901",
+          ".urp": "495a98b352f0e5881dca4709de043791f4775ecbc01086088ee1d5eddbb63f6c"
+        },
+        "source_delivery_manifest": "runs/tase-r31-stop-idempotent-20260925T1505HKT/contact-package-delivery-r31.json"
+      },
+      "dashboard": {
+        "banner": "Connected: Universal Robots Dashboard Server",
+        "is in remote control": "true",
+        "programState": "STOPPED step5d_contact_six_qp_v1.urp",
+        "robotmode": "Robotmode: RUNNING",
+        "running": "Program running: false",
+        "safetymode": "Safetymode: NORMAL"
+      },
+      "kunwei_tcp_connect_only": {
+        "connect_ms": 0.5864680279046297,
+        "host": "192.168.50.25",
+        "open": true,
+        "port": 5152
+      },
+      "robot_ports": {
+        "29999": {
+          "banner_hex": "436f6e6e65637465643a20556e6976657273616c20526f626f74732044617368626f617264205365727665720a",
+          "open": true,
+          "port": 29999
+        },
+        "30002": {
+          "banner_hex": "00000037140000000000000000fe03095552436f6e74726f6c051a000000000000000030382d30372d323032362c2031333a33383a303700000018140000000000000000fe0c0000000000000000010000003914000000000000000007110000006300000004000000270000001430382d30372d323032362c2031333a33383a",
+          "open": true,
+          "port": 30002
+        },
+        "30004": {
+          "open": true,
+          "port": 30004
+        }
+      },
+      "rtde": {
+        "actual_TCP_force": [
+          0.3968972489016569,
+          0.12797994260010576,
+          0.5037323023668778,
+          -0.000312122190273829,
+          -0.0036250885921987434,
+          0.0031342914908119267
+        ],
+        "actual_TCP_pose": [
+          0.4620647429292524,
+          0.1778881912671995,
+          0.03408042259200539,
+          3.120733063904826,
+          7.621613319474808e-05,
+          0.06864986050883785
+        ],
+        "actual_TCP_speed": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "actual_q": [
+          0.745212733745575,
+          -1.818099161187643,
+          -2.5627059936523438,
+          -0.31229622781787114,
+          1.5275973081588745,
+          -0.823827091847555
+        ],
+        "payload": 0.413,
+        "payload_cog": [
+          0.0011,
+          0.0031,
+          0.0163
+        ],
+        "robot_mode": 7,
+        "runtime_state": 1,
+        "safety_mode": 1,
+        "speed_scaling": 0.0,
+        "tcp_offset": [
+          0.0,
+          0.0,
+          0.0874,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    }
+  }
+}
