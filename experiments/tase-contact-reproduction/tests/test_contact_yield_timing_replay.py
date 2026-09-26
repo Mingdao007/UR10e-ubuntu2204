@@ -270,6 +270,7 @@ def test_native_offline_fixture_emits_all_hot_path_boundaries(
     first = run.hot_path_timing[0]
     assert first["first_sample"] is True
     assert first["actual_dt_s"] is None
+    assert run.writer._baseline_successes == 3
     assert {
         "control_step_enter",
         "pre_send_tracing_enter",

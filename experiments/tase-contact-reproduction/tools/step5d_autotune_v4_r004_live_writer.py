@@ -1897,7 +1897,10 @@ class LiveR004Writer:
                             in {"success_path_release", "path"}
                         ):
                             self.set_baseline_state(
-                                consecutive_successes=1,
+                                # This continuous qualification contributes one
+                                # success, but must not erase stronger baseline
+                                # evidence already present in the session.
+                                consecutive_successes=max(1, self._baseline_successes),
                                 sticky_one_newton_latched=self._sticky_latched,
                             )
                         sensor = replace(sensor, filtered_normal_n=command.filtered_normal_n)
