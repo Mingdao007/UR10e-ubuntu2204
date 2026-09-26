@@ -18,16 +18,20 @@ import numpy as np
 
 from analyze_tase_resident_evidence import reduce_attempt
 from contact_yield_live_writer import R006Candidate, _select_tase_solver_profile, native_motion_profile
+from step5d_autotune_v4_r004.motion_profile import same_direction_qdot_rescale
+from step5d_autotune_v4_r004.runtime import gate_qdot, project_qdot_to_gate
 from step5d_paper_outer_loop import Step5dOuterLoopState
 from tase_contact_provider import (
     R013_RATE460_PROTOCOL_ID,
     TaseContactProvider,
+    TASE_FORCE_PREEMPT_THRESHOLD_N,
+    TASE_FORCE_PREEMPT_REARM_N,
     current_model_binding,
     load_tase_outer_config,
 )
 
 
-SCHEMA = "tase.force-feedback-selection-outer-loop-replay-v1"
+SCHEMA = "tase.force-feedback-selection-rnn-command-replay-v2"
 FORMAL_START_S = 5.0
 PATH_END_S = 60.0
 BIN_WIDTH_S = 0.1
@@ -266,6 +270,300 @@ def _window_summary(
     }
 
 
+def _restore_last_recorded_transition(runtime: Any, row: Mapping[str, Any]) -> None:
+    events = row.get("transition_events", ())
+    if not isinstance(events, list):
+        raise ReplayError("source transition events are malformed")
+    latest = None
+    for event in events:
+        if isinstance(event, Mapping) and "theta_dot_state" in event:
+            latest = event
+    if latest is not None:
+        runtime.solver.restore({
+            "theta_dot_state": latest["theta_dot_state"],
+            "lambda_state": latest["lambda_state"],
+        })
+        runtime._active_mode = "path"
+
+
+def _recorded_force_warm_start(row: Mapping[str, Any]) -> bool:
+    events = row.get("transition_events", ())
+    return any(
+        isinstance(event, Mapping)
+        and event.get("event_type") == "force_preempt_warm_start"
+        for event in events
+    )
+
+
+def _run_rnn_commands(
+    provider: TaseContactProvider,
+    rows: Sequence[Mapping[str, Any]],
+    twists: np.ndarray,
+    *,
+    source_transitions: bool,
+) -> dict[str, Any]:
+    runtime = provider.runtime
+    if isinstance(twists, np.ndarray) and twists.shape != (len(rows), 6):
+        raise ReplayError("RNN command twist array differs from source rows")
+    if runtime.solver_profile.as_dict().get("backend") not in {"numpy", "cupy"}:
+        raise ReplayError("filtered-feedback RNN command replay requires the mature recurrent solver")
+    first = rows[0]
+    origin = next((
+        event for event in first.get("transition_events", ())
+        if isinstance(event, Mapping) and event.get("event_type") == "path_origin"
+    ), None)
+    if origin is None:
+        raise ReplayError("RNN command replay source lacks PATH-origin state")
+    runtime.solver.restore({
+        "theta_dot_state": origin["theta_dot_state"],
+        "lambda_state": origin["lambda_state"],
+    })
+    runtime._active_mode = "path"
+    previous = _finite_array(
+        first["previous_published_qdot_rad_s"], (6,), "initial published qdot",
+    )
+    armed = bool(first.get("force_preempt_warm_start"))
+    profile = runtime.motion_profile
+    if profile is None:
+        raise ReplayError("RNN command replay lacks the frozen motion profile")
+    qdot_limit = min(float(profile.qdot_cap_rad_s), float(runtime.solver_profile.qdot_limit_rad_s))
+    raw_qdots = np.empty((len(rows), 6), dtype=float)
+    final_qdots = np.empty((len(rows), 6), dtype=float)
+    pre_gate_tasks = np.empty((len(rows), 6), dtype=float)
+    tasks = np.empty((len(rows), 6), dtype=float)
+    host_slew_scales = np.empty(len(rows), dtype=float)
+    final_gate_scales = np.empty(len(rows), dtype=float)
+    post_gate_slew_violations = np.zeros(len(rows), dtype=bool)
+    post_gate_task_cap_violations = np.zeros(len(rows), dtype=bool)
+    bound_violations = np.zeros(len(rows), dtype=bool)
+    task_cap_violations = np.zeros(len(rows), dtype=bool)
+    task_cap_rows = {
+        "normal": np.zeros(len(rows), dtype=bool),
+        "tangential": np.zeros(len(rows), dtype=bool),
+        "total_linear": np.zeros(len(rows), dtype=bool),
+        "angular": np.zeros(len(rows), dtype=bool),
+    }
+    source_errors = np.zeros(len(rows), dtype=float)
+    pre_gate_reason_counts: dict[str, int] = {}
+    warm_count = retry_count = source_retry_count = retry_disagreements = 0
+    for index, (row, twist) in enumerate(zip(rows, twists, strict=True)):
+        if source_transitions:
+            _restore_last_recorded_transition(runtime, row)
+            do_warm_start = False
+        else:
+            if index == 0:
+                _restore_last_recorded_transition(runtime, row)
+            if float(row["measured_force_norm_n"]) < TASE_FORCE_PREEMPT_REARM_N:
+                armed = True
+            do_warm_start = bool(
+                armed
+                and float(row["measured_force_norm_n"]) >= TASE_FORCE_PREEMPT_THRESHOLD_N
+            )
+            if do_warm_start:
+                armed = False
+        runtime.bind_command_twist(twist)
+        if source_transitions:
+            warm_count += int(bool(row.get("force_preempt_warm_start")))
+        elif do_warm_start:
+            runtime.warm_start_for_twist(
+                actual_q=row["actual_q_rad"], desired_twist=twist, mode="path",
+            )
+            warm_count += 1
+        command = runtime.command(
+            actual_q=row["actual_q_rad"],
+            actual_qd=row["actual_qd_rad_s"],
+            actual_tcp_pose=row["sfc_replay_inputs"]["actual_tcp_pose_m_rad"],
+            desired_twist=twist,
+            actual_dt_s=float(row["actual_dt_s"]),
+            mode="path",
+            path_time_s=float(row["reference_time_s"]),
+        )
+        jacobian = np.asarray(command.jacobian_6x6, dtype=float)
+        raw_qdot = np.asarray(command.qdot, dtype=float)
+        retry = bool(row.get("force_preempt_direction_retry")) if source_transitions else bool(
+            float(row["measured_force_norm_n"]) >= TASE_FORCE_PREEMPT_THRESHOLD_N
+            and -float((jacobian @ raw_qdot)[2]) > 0.0
+        )
+        source_retry_count += int(bool(row.get("force_preempt_direction_retry")))
+        if not source_transitions:
+            retry_disagreements += int(retry != bool(row.get("force_preempt_direction_retry")))
+        if retry:
+            if not source_transitions:
+                runtime.warm_start_for_twist(
+                    actual_q=row["actual_q_rad"], desired_twist=twist, mode="path",
+                )
+                command = runtime.command(
+                    actual_q=row["actual_q_rad"],
+                    actual_qd=row["actual_qd_rad_s"],
+                    actual_tcp_pose=row["sfc_replay_inputs"]["actual_tcp_pose_m_rad"],
+                    desired_twist=twist,
+                    actual_dt_s=float(row["actual_dt_s"]),
+                    mode="path",
+                    path_time_s=float(row["reference_time_s"]),
+                )
+                jacobian = np.asarray(command.jacobian_6x6, dtype=float)
+                raw_qdot = np.asarray(command.qdot, dtype=float)
+            retry_count += 1
+        dt_s = float(row["actual_dt_s"])
+        slew_delta = float(row["host_slew_delta_limit_rad_s"])
+        ramp = same_direction_qdot_rescale(
+            raw_qdot,
+            previous,
+            dt_s=dt_s,
+            max_slew_rad_s2=slew_delta / min(dt_s, 0.02),
+        )
+        pre_gate_qdot = np.asarray(ramp.qdot, dtype=float)
+        requested_task = jacobian @ pre_gate_qdot
+        original_gate = gate_qdot(
+            provider.contract,
+            qdot=pre_gate_qdot,
+            jacobian_6x6=command.jacobian_6x6,
+            normal_base=provider.command_normal_base,
+            observed_model_hashes=command.observed_model_hashes,
+            motion_profile=profile,
+        )
+        gate_reason = original_gate.reason or "within_caps"
+        pre_gate_reason_counts[gate_reason] = pre_gate_reason_counts.get(gate_reason, 0) + 1
+        projected_gate, projection_scale = project_qdot_to_gate(
+            provider.contract,
+            qdot=pre_gate_qdot,
+            jacobian_6x6=command.jacobian_6x6,
+            normal_base=provider.command_normal_base,
+            observed_model_hashes=command.observed_model_hashes,
+            motion_profile=profile,
+        )
+        final_qdot = np.asarray(projected_gate.qdot, dtype=float)
+        lower = _finite_array(row["solver_qdot_lower_rad_s"], (6,), "joint lower bound")
+        upper = _finite_array(row["solver_qdot_upper_rad_s"], (6,), "joint upper bound")
+        bound_violations[index] = bool(
+            np.any(final_qdot < lower - 1e-12) or np.any(final_qdot > upper + 1e-12)
+        )
+        achieved = jacobian @ final_qdot
+        tangent = float(np.linalg.norm(requested_task[:2]))
+        normal = abs(float(requested_task[2]))
+        total = float(np.linalg.norm(requested_task[:3]))
+        angular = float(np.linalg.norm(requested_task[3:]))
+        task_cap_rows["normal"][index] = normal > float(profile.normal_linear_cap_m_s) + 1e-9
+        task_cap_rows["tangential"][index] = tangent > float(profile.tangential_cap_m_s) + 1e-9
+        task_cap_rows["total_linear"][index] = total > float(profile.total_linear_cap_m_s) + 1e-9
+        task_cap_rows["angular"][index] = angular > float(profile.angular_cap_rad_s) + 1e-9
+        task_cap_violations[index] = any(values[index] for values in task_cap_rows.values())
+        post_gate_task_cap_violations[index] = bool(
+            abs(float(achieved[2])) > float(profile.normal_linear_cap_m_s) + 1e-9
+            or float(np.linalg.norm(achieved[:2])) > float(profile.tangential_cap_m_s) + 1e-9
+            or float(np.linalg.norm(achieved[:3])) > float(profile.total_linear_cap_m_s) + 1e-9
+            or float(np.linalg.norm(achieved[3:])) > float(profile.angular_cap_rad_s) + 1e-9
+        )
+        source_qdot = _finite_array(row["published_packet_qdot_rad_s"], (6,), "source published qdot")
+        source_errors[index] = float(np.max(np.abs(final_qdot - source_qdot)))
+        raw_qdots[index] = raw_qdot
+        final_qdots[index] = final_qdot
+        pre_gate_tasks[index] = requested_task
+        tasks[index] = achieved
+        host_slew_scales[index] = float(ramp.scale)
+        final_gate_scales[index] = float(projection_scale)
+        post_gate_slew_violations[index] = bool(
+            np.max(np.abs(final_qdot - previous))
+            > slew_delta + 1e-12
+        )
+        previous = final_qdot
+    times = np.asarray([float(row["reference_time_s"]) for row in rows], dtype=float)
+    formal = (times >= FORMAL_START_S) & (times < PATH_END_S)
+    return {
+        "raw_qdots": raw_qdots,
+        "final_qdots": final_qdots,
+        "pre_gate_tasks": pre_gate_tasks,
+        "tasks": tasks,
+        "host_slew_scales": host_slew_scales,
+        "final_gate_scales": final_gate_scales,
+        "post_gate_slew_violations": post_gate_slew_violations,
+        "post_gate_task_cap_violations": post_gate_task_cap_violations,
+        "bound_violations": bound_violations,
+        "task_cap_violations": task_cap_violations,
+        "task_cap_rows": task_cap_rows,
+        "source_published_qdot_max_abs_error": float(np.max(source_errors)),
+        "source_published_qdot_formal_max_abs_error": (
+            float(np.max(source_errors[formal])) if np.any(formal) else None
+        ),
+        "warm_start_rows": warm_count,
+        "direction_retry_rows": retry_count,
+        "source_direction_retry_rows": source_retry_count,
+        "retry_decision_disagreements": retry_disagreements,
+        "pre_gate_reason_counts": pre_gate_reason_counts,
+        "profile_caps": {
+            "qdot_abs_rad_s": qdot_limit,
+            "normal_linear_m_s": float(profile.normal_linear_cap_m_s),
+            "tangential_m_s": float(profile.tangential_cap_m_s),
+            "total_linear_m_s": float(profile.total_linear_cap_m_s),
+            "angular_rad_s": float(profile.angular_cap_rad_s),
+        },
+    }
+
+
+def _qdot_window_summary(
+    rows: Sequence[Mapping[str, Any]],
+    baseline: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    *,
+    start_s: float,
+    end_s: float,
+) -> dict[str, Any]:
+    times = np.asarray([float(row["reference_time_s"]) for row in rows], dtype=float)
+    mask = (times >= start_s) & (times < end_s)
+    if not np.any(mask):
+        raise ReplayError("RNN qdot window is empty")
+    delta_qdot = np.asarray(candidate["final_qdots"])[mask] - np.asarray(baseline["final_qdots"])[mask]
+    delta_task = np.asarray(candidate["tasks"])[mask] - np.asarray(baseline["tasks"])[mask]
+    qdot_norm = np.linalg.norm(delta_qdot, axis=1)
+    task_norm = np.linalg.norm(delta_task, axis=1)
+    return {
+        "window_s": [start_s, end_s],
+        "sample_count": int(np.count_nonzero(mask)),
+        "candidate_minus_fused_qdot_delta_rad_s": {
+            "mean_vector_norm": float(np.mean(qdot_norm)),
+            "p95_vector_norm": float(np.quantile(qdot_norm, 0.95)),
+            "max_vector_norm": float(np.max(qdot_norm)),
+        },
+        "candidate_minus_fused_achieved_task_twist_delta": {
+            "mean_vector_norm": float(np.mean(task_norm)),
+            "p95_vector_norm": float(np.quantile(task_norm, 0.95)),
+            "max_vector_norm": float(np.max(task_norm)),
+        },
+        "candidate_joint_bound_violation_rows": int(np.count_nonzero(np.asarray(candidate["bound_violations"])[mask])),
+        "candidate_task_cap_pre_gate_rows": int(np.count_nonzero(np.asarray(candidate["task_cap_violations"])[mask])),
+        "candidate_task_cap_pre_gate_violations_by_axis": {
+            name: int(np.count_nonzero(np.asarray(values)[mask]))
+            for name, values in candidate["task_cap_rows"].items()
+        },
+        "candidate_post_gate_task_cap_violation_rows": int(np.count_nonzero(
+            np.asarray(candidate["post_gate_task_cap_violations"])[mask]
+        )),
+        "candidate_host_slew_limited_rows": int(np.count_nonzero(
+            np.asarray(candidate["host_slew_scales"])[mask] < 1.0 - 1e-12
+        )),
+        "candidate_final_gate_projection_rows": int(np.count_nonzero(
+            np.asarray(candidate["final_gate_scales"])[mask] < 1.0 - 1e-12
+        )),
+        "candidate_post_gate_slew_violation_rows": int(np.count_nonzero(
+            np.asarray(candidate["post_gate_slew_violations"])[mask]
+        )),
+        "candidate_qdot_max_abs_rad_s": float(np.max(np.abs(np.asarray(candidate["final_qdots"])[mask]))),
+        "candidate_max_achieved_speeds_before_final_gate": {
+            "normal_m_s": float(np.max(np.abs(np.asarray(candidate["pre_gate_tasks"])[mask, 2]))),
+            "tangential_m_s": float(np.max(np.linalg.norm(np.asarray(candidate["pre_gate_tasks"])[mask, :2], axis=1))),
+            "total_linear_m_s": float(np.max(np.linalg.norm(np.asarray(candidate["pre_gate_tasks"])[mask, :3], axis=1))),
+            "angular_rad_s": float(np.max(np.linalg.norm(np.asarray(candidate["pre_gate_tasks"])[mask, 3:], axis=1))),
+        },
+        "candidate_max_achieved_speeds_after_final_gate": {
+            "normal_m_s": float(np.max(np.abs(np.asarray(candidate["tasks"])[mask, 2]))),
+            "tangential_m_s": float(np.max(np.linalg.norm(np.asarray(candidate["tasks"])[mask, :2], axis=1))),
+            "total_linear_m_s": float(np.max(np.linalg.norm(np.asarray(candidate["tasks"])[mask, :3], axis=1))),
+            "angular_rad_s": float(np.max(np.linalg.norm(np.asarray(candidate["tasks"])[mask, 3:], axis=1))),
+        },
+        "not_force_metric": True,
+    }
+
+
 def replay_attempt(attempt_dir: Path, *, root: Path) -> dict[str, Any]:
     attempt_dir = Path(attempt_dir).resolve(strict=True)
     source, rows = _read_source(attempt_dir)
@@ -306,6 +604,27 @@ def replay_attempt(attempt_dir: Path, *, root: Path) -> dict[str, Any]:
     if not np.array_equal(candidate_times, baseline_times):
         raise ReplayError("counterfactual time base differs from the fused replay")
 
+    source_twists = np.asarray([
+        _finite_array(row["requested_outer_twist_m_s_rad_s"], (6,), "sealed fused outer twist")
+        for row in rows
+    ])
+    baseline_solver_provider = _new_provider(root, source["parameter_file"])
+    baseline_qdot = _run_rnn_commands(
+        baseline_solver_provider, rows, source_twists, source_transitions=True,
+    )
+    candidate_qdot = _run_rnn_commands(
+        provider, rows, candidate_twists, source_transitions=False,
+    )
+    baseline_qdot_exact = (
+        baseline_qdot["source_published_qdot_formal_max_abs_error"] is not None
+        and baseline_qdot["source_published_qdot_formal_max_abs_error"] <= 1e-9
+    )
+    if not baseline_qdot_exact:
+        raise ReplayError(
+            "fused RNN qdot replay does not reproduce sealed formal published qdot: "
+            f"max abs error {baseline_qdot['source_published_qdot_formal_max_abs_error']} rad/s"
+        )
+
     expected_full_bins = {
         int(math.floor(t / BIN_WIDTH_S + 1e-9))
         for t in baseline_times if 0.0 <= t < PATH_END_S
@@ -341,7 +660,38 @@ def replay_attempt(attempt_dir: Path, *, root: Path) -> dict[str, Any]:
         "sealed_source_formal_bins": len(expected_formal_bins),
         "fused_replay_formal_max_abs_twist_error": float(np.max(fused_replay_error)),
         "source_guard_reference_counts_only": source_guard_reference_counts,
-        "candidate_guard_decisions_recomputed": False,
+        "outer_loop_only_guard_decisions_recomputed": False,
+        "rnn_qdot_command_replay": {
+            "baseline_published_qdot_formal_max_abs_error_rad_s": baseline_qdot[
+                "source_published_qdot_formal_max_abs_error"
+            ],
+            "baseline_reproduces_sealed_formal_qdot": baseline_qdot_exact,
+            "baseline_replay_full_path_max_abs_error_rad_s": baseline_qdot[
+                "source_published_qdot_max_abs_error"
+            ],
+            "candidate_final_task_gate_projection_replayed": True,
+            "candidate_guard_decisions_recomputed": True,
+            "candidate_force_preempt_warm_start_rows": candidate_qdot["warm_start_rows"],
+            "source_force_preempt_warm_start_rows": baseline_qdot["warm_start_rows"],
+            "candidate_direction_retry_rows": candidate_qdot["direction_retry_rows"],
+            "source_direction_retry_rows": baseline_qdot["source_direction_retry_rows"],
+            "candidate_vs_source_retry_decision_disagreements": candidate_qdot[
+                "retry_decision_disagreements"
+            ],
+            "candidate_joint_bounds_checked": True,
+            "candidate_task_caps_checked_before_final_projection": True,
+            "candidate_profile_caps": candidate_qdot["profile_caps"],
+            "windows": {
+                "diagnostic_0_60": _qdot_window_summary(
+                    rows, baseline_qdot, candidate_qdot,
+                    start_s=0.0, end_s=PATH_END_S,
+                ),
+                "formal_5_60": _qdot_window_summary(
+                    rows, baseline_qdot, candidate_qdot,
+                    start_s=FORMAL_START_S, end_s=PATH_END_S,
+                ),
+            },
+        },
         "windows": {
             "diagnostic_0_60": _window_summary(
                 baseline_times, baseline_twists, candidate_twists,
@@ -361,7 +711,7 @@ def run_replay(attempt_dirs: Sequence[Path], *, root: Path, output: Path) -> dic
     attempts = [replay_attempt(path, root=root) for path in attempt_dirs]
     document = {
         "schema": SCHEMA,
-        "evidence_class": "sealed_Kunwei_fixed_observation_task_space_outer_loop_command_replay",
+        "evidence_class": "sealed_Kunwei_fixed_observation_TASE_RNN_command_replay",
         "protocol_id": R013_RATE460_PROTOCOL_ID,
         "control_signal_change": "max(filtered_normal_n, measured_normal_n) -> filtered_normal_n",
         "unchanged_inputs_and_guard_definitions": [
@@ -375,18 +725,21 @@ def run_replay(attempt_dirs: Sequence[Path], *, root: Path, output: Path) -> dic
             "Check the sealed KWR75 filtered channel against the provider's declared one-pole tau and each row's actual dt; it is a consistency check, not a force-truth validation."
         ),
         "closed_loop": False,
-        "qdot_solver_replayed": False,
-        "joint_or_task_space_limits_recomputed": False,
-        "candidate_guard_decisions_recomputed": False,
+        "qdot_solver_replayed": True,
+        "joint_and_host_slew_constraints_replayed": True,
+        "final_task_space_projection_replayed": True,
+        "candidate_force_preempt_and_direction_retry_recomputed": True,
+        "force_rise_guard_decisions_recomputed": False,
         "force_mae_recomputed": False,
         "physical_candidate_executed": False,
         "independent_force_truth": False,
         "interpretation_limit": (
             "Fused replay reproduces the sealed formal outer-loop twist before the filtered-only comparison. "
             "The counterfactual changes only the KWR75 normal value supplied to the outer loop. It does not "
-            "recompute RNN qdot, feed candidate commands into robot observations, or predict force MAE. "
-            "Raw/full-force inputs and guard thresholds are unchanged, but candidate guard decisions are not "
-            "recomputed; in particular, qdot-dependent direction retry is not evaluated. No live suitability follows."
+            "feed candidate commands into robot observations or predict force MAE. The same mature RNN, host "
+            "slew and shared final task-space qdot gate are replayed; pre-gate cap hits and post-gate slew "
+            "are both measured, and KWR75-force-triggered RNN warm-start/direction retry are recomputed. "
+            "The force-rise entry guard is not part of this PATH-only command replay. No live suitability follows."
         ),
         "attempts": attempts,
     }

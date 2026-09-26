@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from replay_tase_force_feedback_selection import (  # noqa: E402
     ReplayError,
     _filter_recurrence_summary,
+    _qdot_window_summary,
     _window_summary,
 )
 
@@ -70,3 +71,55 @@ def test_filter_recurrence_uses_measured_kunwei_and_actual_dt() -> None:
     assert result["updates_compared"] == 2
     assert result["matches_one_pole_actual_dt_recurrence"] is True
     assert result["max_abs_recurrence_residual_n"] < 1e-12
+
+
+def test_rnn_qdot_window_summary_reports_limits_separately() -> None:
+    rows = [{"reference_time_s": 0.01}, {"reference_time_s": 0.11}]
+    baseline = {
+        "final_qdots": np.zeros((2, 6)),
+        "pre_gate_tasks": np.zeros((2, 6)),
+        "tasks": np.zeros((2, 6)),
+        "host_slew_scales": np.ones(2),
+        "final_gate_scales": np.ones(2),
+        "post_gate_slew_violations": np.zeros(2, dtype=bool),
+        "post_gate_task_cap_violations": np.zeros(2, dtype=bool),
+        "bound_violations": np.zeros(2, dtype=bool),
+        "task_cap_violations": np.zeros(2, dtype=bool),
+        "task_cap_rows": {
+            "normal": np.zeros(2, dtype=bool),
+            "tangential": np.zeros(2, dtype=bool),
+            "total_linear": np.zeros(2, dtype=bool),
+            "angular": np.zeros(2, dtype=bool),
+        },
+    }
+    candidate = {
+        "final_qdots": np.asarray([[0.001, 0, 0, 0, 0, 0], [0.002, 0, 0, 0, 0, 0]]),
+        "pre_gate_tasks": np.asarray([[0.002, 0, 0, 0, 0, 0], [0.003, 0, 0, 0, 0, 0]]),
+        "tasks": np.asarray([[0.001, 0, 0, 0, 0, 0], [0.002, 0, 0, 0, 0, 0]]),
+        "host_slew_scales": np.asarray([0.5, 1.0]),
+        "final_gate_scales": np.asarray([0.5, 1.0]),
+        "post_gate_slew_violations": np.asarray([False, False]),
+        "post_gate_task_cap_violations": np.asarray([False, False]),
+        "bound_violations": np.asarray([False, True]),
+        "task_cap_violations": np.asarray([True, False]),
+        "task_cap_rows": {
+            "normal": np.asarray([True, False]),
+            "tangential": np.asarray([False, False]),
+            "total_linear": np.asarray([False, False]),
+            "angular": np.asarray([False, False]),
+        },
+    }
+
+    result = _qdot_window_summary(
+        rows, baseline, candidate, start_s=0.0, end_s=0.2,
+    )
+
+    assert result["sample_count"] == 2
+    assert result["candidate_joint_bound_violation_rows"] == 1
+    assert result["candidate_task_cap_pre_gate_rows"] == 1
+    assert result["candidate_task_cap_pre_gate_violations_by_axis"]["normal"] == 1
+    assert result["candidate_post_gate_task_cap_violation_rows"] == 0
+    assert result["candidate_host_slew_limited_rows"] == 1
+    assert result["candidate_final_gate_projection_rows"] == 1
+    assert result["candidate_post_gate_slew_violation_rows"] == 0
+    assert result["candidate_minus_fused_qdot_delta_rad_s"]["max_vector_norm"] == pytest.approx(0.002)

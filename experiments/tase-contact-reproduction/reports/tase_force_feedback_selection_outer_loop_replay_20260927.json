@@ -5,7 +5,6 @@
       "Md_scalar": 9.565272137974492,
       "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0002",
       "attempt_id": "0002",
-      "candidate_guard_decisions_recomputed": false,
       "candidate_id": "confirm-s01-b00-A",
       "filtered_signal_recurrence": {
         "filter_tau_s": 0.35,
@@ -18,7 +17,117 @@
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
+      "outer_loop_only_guard_decisions_recomputed": false,
       "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-01-02-A.json",
+      "rnn_qdot_command_replay": {
+        "baseline_published_qdot_formal_max_abs_error_rad_s": 8.673617379884035e-19,
+        "baseline_replay_full_path_max_abs_error_rad_s": 8.673617379884035e-19,
+        "baseline_reproduces_sealed_formal_qdot": true,
+        "candidate_direction_retry_rows": 6991,
+        "candidate_final_task_gate_projection_replayed": true,
+        "candidate_force_preempt_warm_start_rows": 331,
+        "candidate_guard_decisions_recomputed": true,
+        "candidate_joint_bounds_checked": true,
+        "candidate_profile_caps": {
+          "angular_rad_s": 0.05,
+          "normal_linear_m_s": 0.003,
+          "qdot_abs_rad_s": 0.05,
+          "tangential_m_s": 0.01,
+          "total_linear_m_s": 0.01044030650891055
+        },
+        "candidate_task_caps_checked_before_final_projection": true,
+        "candidate_vs_source_retry_decision_disagreements": 5975,
+        "source_direction_retry_rows": 1016,
+        "source_force_preempt_warm_start_rows": 331,
+        "windows": {
+          "diagnostic_0_60": {
+            "candidate_final_gate_projection_rows": 1951,
+            "candidate_host_slew_limited_rows": 1,
+            "candidate_joint_bound_violation_rows": 0,
+            "candidate_max_achieved_speeds_after_final_gate": {
+              "angular_rad_s": 0.0018760548762182503,
+              "normal_m_s": 0.00299999959546099,
+              "tangential_m_s": 0.005789577603706737,
+              "total_linear_m_s": 0.006131757336235833
+            },
+            "candidate_max_achieved_speeds_before_final_gate": {
+              "angular_rad_s": 0.0018760548762182503,
+              "normal_m_s": 0.0033508029555926917,
+              "tangential_m_s": 0.005789577603706737,
+              "total_linear_m_s": 0.006131757336235833
+            },
+            "candidate_minus_fused_achieved_task_twist_delta": {
+              "max_vector_norm": 0.005153676108509751,
+              "mean_vector_norm": 0.002241785264115806,
+              "p95_vector_norm": 0.0036804087878013337
+            },
+            "candidate_minus_fused_qdot_delta_rad_s": {
+              "max_vector_norm": 0.022135208026173636,
+              "mean_vector_norm": 0.009472674359566922,
+              "p95_vector_norm": 0.01512838035894384
+            },
+            "candidate_post_gate_slew_violation_rows": 0,
+            "candidate_post_gate_task_cap_violation_rows": 0,
+            "candidate_qdot_max_abs_rad_s": 0.014176885827302472,
+            "candidate_task_cap_pre_gate_rows": 1951,
+            "candidate_task_cap_pre_gate_violations_by_axis": {
+              "angular": 0,
+              "normal": 1951,
+              "tangential": 0,
+              "total_linear": 0
+            },
+            "not_force_metric": true,
+            "sample_count": 29982,
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "formal_5_60": {
+            "candidate_final_gate_projection_rows": 1934,
+            "candidate_host_slew_limited_rows": 0,
+            "candidate_joint_bound_violation_rows": 0,
+            "candidate_max_achieved_speeds_after_final_gate": {
+              "angular_rad_s": 0.0018760548762182503,
+              "normal_m_s": 0.00299999959546099,
+              "tangential_m_s": 0.0049147260039814015,
+              "total_linear_m_s": 0.005757996919438778
+            },
+            "candidate_max_achieved_speeds_before_final_gate": {
+              "angular_rad_s": 0.0018760548762182503,
+              "normal_m_s": 0.0033508029555926917,
+              "tangential_m_s": 0.0049147260039814015,
+              "total_linear_m_s": 0.005757996919438778
+            },
+            "candidate_minus_fused_achieved_task_twist_delta": {
+              "max_vector_norm": 0.004620514995402491,
+              "mean_vector_norm": 0.002222982122957221,
+              "p95_vector_norm": 0.0036771935097083476
+            },
+            "candidate_minus_fused_qdot_delta_rad_s": {
+              "max_vector_norm": 0.018211728146700763,
+              "mean_vector_norm": 0.00939806095827228,
+              "p95_vector_norm": 0.015149395180872393
+            },
+            "candidate_post_gate_slew_violation_rows": 0,
+            "candidate_post_gate_task_cap_violation_rows": 0,
+            "candidate_qdot_max_abs_rad_s": 0.014176885827302472,
+            "candidate_task_cap_pre_gate_rows": 1934,
+            "candidate_task_cap_pre_gate_violations_by_axis": {
+              "angular": 0,
+              "normal": 1934,
+              "tangential": 0,
+              "total_linear": 0
+            },
+            "not_force_metric": true,
+            "sample_count": 27480,
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        }
+      },
       "sealed_source_force_mae_is_not_counterfactual": true,
       "sealed_source_formal_bins": 550,
       "sealed_source_formal_force_mae_n": 1.0061050570848329,
@@ -99,7 +208,6 @@
       "Md_scalar": 9.565272137974492,
       "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0004",
       "attempt_id": "0004",
-      "candidate_guard_decisions_recomputed": false,
       "candidate_id": "confirm-s01-b01-A",
       "filtered_signal_recurrence": {
         "filter_tau_s": 0.35,
@@ -112,7 +220,117 @@
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
+      "outer_loop_only_guard_decisions_recomputed": false,
       "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-01-04-A.json",
+      "rnn_qdot_command_replay": {
+        "baseline_published_qdot_formal_max_abs_error_rad_s": 4.336808689942018e-19,
+        "baseline_replay_full_path_max_abs_error_rad_s": 4.336808689942018e-19,
+        "baseline_reproduces_sealed_formal_qdot": true,
+        "candidate_direction_retry_rows": 7044,
+        "candidate_final_task_gate_projection_replayed": true,
+        "candidate_force_preempt_warm_start_rows": 375,
+        "candidate_guard_decisions_recomputed": true,
+        "candidate_joint_bounds_checked": true,
+        "candidate_profile_caps": {
+          "angular_rad_s": 0.05,
+          "normal_linear_m_s": 0.003,
+          "qdot_abs_rad_s": 0.05,
+          "tangential_m_s": 0.01,
+          "total_linear_m_s": 0.01044030650891055
+        },
+        "candidate_task_caps_checked_before_final_projection": true,
+        "candidate_vs_source_retry_decision_disagreements": 5999,
+        "source_direction_retry_rows": 1045,
+        "source_force_preempt_warm_start_rows": 375,
+        "windows": {
+          "diagnostic_0_60": {
+            "candidate_final_gate_projection_rows": 1447,
+            "candidate_host_slew_limited_rows": 3,
+            "candidate_joint_bound_violation_rows": 0,
+            "candidate_max_achieved_speeds_after_final_gate": {
+              "angular_rad_s": 0.0017168157298222543,
+              "normal_m_s": 0.00299999957784806,
+              "tangential_m_s": 0.006643250893364123,
+              "total_linear_m_s": 0.006667153253383233
+            },
+            "candidate_max_achieved_speeds_before_final_gate": {
+              "angular_rad_s": 0.0017168157298222543,
+              "normal_m_s": 0.0033384015698954745,
+              "tangential_m_s": 0.006643250893364123,
+              "total_linear_m_s": 0.006667153253383233
+            },
+            "candidate_minus_fused_achieved_task_twist_delta": {
+              "max_vector_norm": 0.004974964146410853,
+              "mean_vector_norm": 0.0021999640771071336,
+              "p95_vector_norm": 0.0036055106960199215
+            },
+            "candidate_minus_fused_qdot_delta_rad_s": {
+              "max_vector_norm": 0.020342279398529388,
+              "mean_vector_norm": 0.009296349594602673,
+              "p95_vector_norm": 0.014848980094885741
+            },
+            "candidate_post_gate_slew_violation_rows": 0,
+            "candidate_post_gate_task_cap_violation_rows": 0,
+            "candidate_qdot_max_abs_rad_s": 0.015029275769774973,
+            "candidate_task_cap_pre_gate_rows": 1447,
+            "candidate_task_cap_pre_gate_violations_by_axis": {
+              "angular": 0,
+              "normal": 1447,
+              "tangential": 0,
+              "total_linear": 0
+            },
+            "not_force_metric": true,
+            "sample_count": 30003,
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "formal_5_60": {
+            "candidate_final_gate_projection_rows": 1417,
+            "candidate_host_slew_limited_rows": 1,
+            "candidate_joint_bound_violation_rows": 0,
+            "candidate_max_achieved_speeds_after_final_gate": {
+              "angular_rad_s": 0.0017168157298222543,
+              "normal_m_s": 0.00299999957784806,
+              "tangential_m_s": 0.004878496914694445,
+              "total_linear_m_s": 0.005723340148699376
+            },
+            "candidate_max_achieved_speeds_before_final_gate": {
+              "angular_rad_s": 0.0017168157298222543,
+              "normal_m_s": 0.0033384015698954745,
+              "tangential_m_s": 0.004878496914694445,
+              "total_linear_m_s": 0.005723340148699376
+            },
+            "candidate_minus_fused_achieved_task_twist_delta": {
+              "max_vector_norm": 0.004565443914897701,
+              "mean_vector_norm": 0.002174328135136526,
+              "p95_vector_norm": 0.003587111626293776
+            },
+            "candidate_minus_fused_qdot_delta_rad_s": {
+              "max_vector_norm": 0.020342279398529388,
+              "mean_vector_norm": 0.009217003853167082,
+              "p95_vector_norm": 0.014841039787113021
+            },
+            "candidate_post_gate_slew_violation_rows": 0,
+            "candidate_post_gate_task_cap_violation_rows": 0,
+            "candidate_qdot_max_abs_rad_s": 0.014239586069147455,
+            "candidate_task_cap_pre_gate_rows": 1417,
+            "candidate_task_cap_pre_gate_violations_by_axis": {
+              "angular": 0,
+              "normal": 1417,
+              "tangential": 0,
+              "total_linear": 0
+            },
+            "not_force_metric": true,
+            "sample_count": 27499,
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        }
+      },
       "sealed_source_force_mae_is_not_counterfactual": true,
       "sealed_source_formal_bins": 550,
       "sealed_source_formal_force_mae_n": 0.9419680748585729,
@@ -193,7 +411,6 @@
       "Md_scalar": 9.565272137974492,
       "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0002",
       "attempt_id": "0002",
-      "candidate_guard_decisions_recomputed": false,
       "candidate_id": "confirm-s02-b02-A",
       "filtered_signal_recurrence": {
         "filter_tau_s": 0.35,
@@ -206,7 +423,117 @@
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
+      "outer_loop_only_guard_decisions_recomputed": false,
       "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-02-02-A.json",
+      "rnn_qdot_command_replay": {
+        "baseline_published_qdot_formal_max_abs_error_rad_s": 4.336808689942018e-19,
+        "baseline_replay_full_path_max_abs_error_rad_s": 4.336808689942018e-19,
+        "baseline_reproduces_sealed_formal_qdot": true,
+        "candidate_direction_retry_rows": 7309,
+        "candidate_final_task_gate_projection_replayed": true,
+        "candidate_force_preempt_warm_start_rows": 393,
+        "candidate_guard_decisions_recomputed": true,
+        "candidate_joint_bounds_checked": true,
+        "candidate_profile_caps": {
+          "angular_rad_s": 0.05,
+          "normal_linear_m_s": 0.003,
+          "qdot_abs_rad_s": 0.05,
+          "tangential_m_s": 0.01,
+          "total_linear_m_s": 0.01044030650891055
+        },
+        "candidate_task_caps_checked_before_final_projection": true,
+        "candidate_vs_source_retry_decision_disagreements": 6164,
+        "source_direction_retry_rows": 1145,
+        "source_force_preempt_warm_start_rows": 393,
+        "windows": {
+          "diagnostic_0_60": {
+            "candidate_final_gate_projection_rows": 1650,
+            "candidate_host_slew_limited_rows": 1,
+            "candidate_joint_bound_violation_rows": 0,
+            "candidate_max_achieved_speeds_after_final_gate": {
+              "angular_rad_s": 0.0018495539195447245,
+              "normal_m_s": 0.002999999593619946,
+              "tangential_m_s": 0.006393631075613228,
+              "total_linear_m_s": 0.006505138243976168
+            },
+            "candidate_max_achieved_speeds_before_final_gate": {
+              "angular_rad_s": 0.0018495539195447245,
+              "normal_m_s": 0.003292369651742388,
+              "tangential_m_s": 0.006393631075613228,
+              "total_linear_m_s": 0.006505138243976168
+            },
+            "candidate_minus_fused_achieved_task_twist_delta": {
+              "max_vector_norm": 0.00440662117884413,
+              "mean_vector_norm": 0.0022579065198687397,
+              "p95_vector_norm": 0.0036433732486170476
+            },
+            "candidate_minus_fused_qdot_delta_rad_s": {
+              "max_vector_norm": 0.017704030913962332,
+              "mean_vector_norm": 0.009534295520594083,
+              "p95_vector_norm": 0.014891847776140214
+            },
+            "candidate_post_gate_slew_violation_rows": 0,
+            "candidate_post_gate_task_cap_violation_rows": 0,
+            "candidate_qdot_max_abs_rad_s": 0.014469662231652896,
+            "candidate_task_cap_pre_gate_rows": 1650,
+            "candidate_task_cap_pre_gate_violations_by_axis": {
+              "angular": 0,
+              "normal": 1650,
+              "tangential": 0,
+              "total_linear": 0
+            },
+            "not_force_metric": true,
+            "sample_count": 29997,
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "formal_5_60": {
+            "candidate_final_gate_projection_rows": 1601,
+            "candidate_host_slew_limited_rows": 0,
+            "candidate_joint_bound_violation_rows": 0,
+            "candidate_max_achieved_speeds_after_final_gate": {
+              "angular_rad_s": 0.0018495539195447245,
+              "normal_m_s": 0.002999999593619946,
+              "tangential_m_s": 0.004962614881519622,
+              "total_linear_m_s": 0.005798926056527077
+            },
+            "candidate_max_achieved_speeds_before_final_gate": {
+              "angular_rad_s": 0.0018495539195447245,
+              "normal_m_s": 0.003292369651742388,
+              "tangential_m_s": 0.004962614881519622,
+              "total_linear_m_s": 0.005798926056527077
+            },
+            "candidate_minus_fused_achieved_task_twist_delta": {
+              "max_vector_norm": 0.00440662117884413,
+              "mean_vector_norm": 0.002273119307247199,
+              "p95_vector_norm": 0.0036621954023825813
+            },
+            "candidate_minus_fused_qdot_delta_rad_s": {
+              "max_vector_norm": 0.017704030913962332,
+              "mean_vector_norm": 0.009603246064161583,
+              "p95_vector_norm": 0.014953919122277674
+            },
+            "candidate_post_gate_slew_violation_rows": 0,
+            "candidate_post_gate_task_cap_violation_rows": 0,
+            "candidate_qdot_max_abs_rad_s": 0.014123630264239953,
+            "candidate_task_cap_pre_gate_rows": 1601,
+            "candidate_task_cap_pre_gate_violations_by_axis": {
+              "angular": 0,
+              "normal": 1601,
+              "tangential": 0,
+              "total_linear": 0
+            },
+            "not_force_metric": true,
+            "sample_count": 27493,
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        }
+      },
       "sealed_source_force_mae_is_not_counterfactual": true,
       "sealed_source_formal_bins": 550,
       "sealed_source_formal_force_mae_n": 1.0364228577061043,
@@ -287,7 +614,6 @@
       "Md_scalar": 9.565272137974492,
       "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0003",
       "attempt_id": "0003",
-      "candidate_guard_decisions_recomputed": false,
       "candidate_id": "confirm-s02-b03-A",
       "filtered_signal_recurrence": {
         "filter_tau_s": 0.35,
@@ -300,7 +626,117 @@
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
+      "outer_loop_only_guard_decisions_recomputed": false,
       "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-02-03-A.json",
+      "rnn_qdot_command_replay": {
+        "baseline_published_qdot_formal_max_abs_error_rad_s": 8.673617379884035e-19,
+        "baseline_replay_full_path_max_abs_error_rad_s": 8.673617379884035e-19,
+        "baseline_reproduces_sealed_formal_qdot": true,
+        "candidate_direction_retry_rows": 6787,
+        "candidate_final_task_gate_projection_replayed": true,
+        "candidate_force_preempt_warm_start_rows": 376,
+        "candidate_guard_decisions_recomputed": true,
+        "candidate_joint_bounds_checked": true,
+        "candidate_profile_caps": {
+          "angular_rad_s": 0.05,
+          "normal_linear_m_s": 0.003,
+          "qdot_abs_rad_s": 0.05,
+          "tangential_m_s": 0.01,
+          "total_linear_m_s": 0.01044030650891055
+        },
+        "candidate_task_caps_checked_before_final_projection": true,
+        "candidate_vs_source_retry_decision_disagreements": 5657,
+        "source_direction_retry_rows": 1130,
+        "source_force_preempt_warm_start_rows": 376,
+        "windows": {
+          "diagnostic_0_60": {
+            "candidate_final_gate_projection_rows": 1685,
+            "candidate_host_slew_limited_rows": 3,
+            "candidate_joint_bound_violation_rows": 0,
+            "candidate_max_achieved_speeds_after_final_gate": {
+              "angular_rad_s": 0.001682615499640167,
+              "normal_m_s": 0.002999999568266739,
+              "tangential_m_s": 0.005312977834543755,
+              "total_linear_m_s": 0.005676349825616531
+            },
+            "candidate_max_achieved_speeds_before_final_gate": {
+              "angular_rad_s": 0.001682615499640167,
+              "normal_m_s": 0.0033361982883541147,
+              "tangential_m_s": 0.005312977834543755,
+              "total_linear_m_s": 0.005676349825616531
+            },
+            "candidate_minus_fused_achieved_task_twist_delta": {
+              "max_vector_norm": 0.005311475068287563,
+              "mean_vector_norm": 0.002177544756712495,
+              "p95_vector_norm": 0.0036511324349870655
+            },
+            "candidate_minus_fused_qdot_delta_rad_s": {
+              "max_vector_norm": 0.023996473705633303,
+              "mean_vector_norm": 0.00921508216750932,
+              "p95_vector_norm": 0.015197393024687046
+            },
+            "candidate_post_gate_slew_violation_rows": 0,
+            "candidate_post_gate_task_cap_violation_rows": 0,
+            "candidate_qdot_max_abs_rad_s": 0.014125001894797248,
+            "candidate_task_cap_pre_gate_rows": 1684,
+            "candidate_task_cap_pre_gate_violations_by_axis": {
+              "angular": 0,
+              "normal": 1684,
+              "tangential": 0,
+              "total_linear": 0
+            },
+            "not_force_metric": true,
+            "sample_count": 29557,
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "formal_5_60": {
+            "candidate_final_gate_projection_rows": 1677,
+            "candidate_host_slew_limited_rows": 1,
+            "candidate_joint_bound_violation_rows": 0,
+            "candidate_max_achieved_speeds_after_final_gate": {
+              "angular_rad_s": 0.001682615499640167,
+              "normal_m_s": 0.002999999568266739,
+              "tangential_m_s": 0.00481881215834028,
+              "total_linear_m_s": 0.005676349825616531
+            },
+            "candidate_max_achieved_speeds_before_final_gate": {
+              "angular_rad_s": 0.001682615499640167,
+              "normal_m_s": 0.0033361982883541147,
+              "tangential_m_s": 0.00481881215834028,
+              "total_linear_m_s": 0.005676349825616531
+            },
+            "candidate_minus_fused_achieved_task_twist_delta": {
+              "max_vector_norm": 0.005311475068287563,
+              "mean_vector_norm": 0.0021765243154210972,
+              "p95_vector_norm": 0.0036762467227867014
+            },
+            "candidate_minus_fused_qdot_delta_rad_s": {
+              "max_vector_norm": 0.023996473705633303,
+              "mean_vector_norm": 0.009219444867252026,
+              "p95_vector_norm": 0.01528559948653267
+            },
+            "candidate_post_gate_slew_violation_rows": 0,
+            "candidate_post_gate_task_cap_violation_rows": 0,
+            "candidate_qdot_max_abs_rad_s": 0.014125001894797248,
+            "candidate_task_cap_pre_gate_rows": 1676,
+            "candidate_task_cap_pre_gate_violations_by_axis": {
+              "angular": 0,
+              "normal": 1676,
+              "tangential": 0,
+              "total_linear": 0
+            },
+            "not_force_metric": true,
+            "sample_count": 27139,
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        }
+      },
       "sealed_source_force_mae_is_not_counterfactual": true,
       "sealed_source_formal_bins": 550,
       "sealed_source_formal_force_mae_n": 1.0242417404331408,
@@ -381,7 +817,6 @@
       "Md_scalar": 9.565272137974492,
       "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0005",
       "attempt_id": "0005",
-      "candidate_guard_decisions_recomputed": false,
       "candidate_id": "confirm-s02-b04-A",
       "filtered_signal_recurrence": {
         "filter_tau_s": 0.35,
@@ -394,7 +829,117 @@
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
+      "outer_loop_only_guard_decisions_recomputed": false,
       "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-02-05-A.json",
+      "rnn_qdot_command_replay": {
+        "baseline_published_qdot_formal_max_abs_error_rad_s": 2.168404344971009e-19,
+        "baseline_replay_full_path_max_abs_error_rad_s": 2.168404344971009e-19,
+        "baseline_reproduces_sealed_formal_qdot": true,
+        "candidate_direction_retry_rows": 7683,
+        "candidate_final_task_gate_projection_replayed": true,
+        "candidate_force_preempt_warm_start_rows": 308,
+        "candidate_guard_decisions_recomputed": true,
+        "candidate_joint_bounds_checked": true,
+        "candidate_profile_caps": {
+          "angular_rad_s": 0.05,
+          "normal_linear_m_s": 0.003,
+          "qdot_abs_rad_s": 0.05,
+          "tangential_m_s": 0.01,
+          "total_linear_m_s": 0.01044030650891055
+        },
+        "candidate_task_caps_checked_before_final_projection": true,
+        "candidate_vs_source_retry_decision_disagreements": 6719,
+        "source_direction_retry_rows": 964,
+        "source_force_preempt_warm_start_rows": 308,
+        "windows": {
+          "diagnostic_0_60": {
+            "candidate_final_gate_projection_rows": 2773,
+            "candidate_host_slew_limited_rows": 2,
+            "candidate_joint_bound_violation_rows": 0,
+            "candidate_max_achieved_speeds_after_final_gate": {
+              "angular_rad_s": 0.0018080645960988437,
+              "normal_m_s": 0.0029999995700133054,
+              "tangential_m_s": 0.0064529027896098904,
+              "total_linear_m_s": 0.006638641348711989
+            },
+            "candidate_max_achieved_speeds_before_final_gate": {
+              "angular_rad_s": 0.0018080645960988437,
+              "normal_m_s": 0.0033693823153310236,
+              "tangential_m_s": 0.0064529027896098904,
+              "total_linear_m_s": 0.006638641348711989
+            },
+            "candidate_minus_fused_achieved_task_twist_delta": {
+              "max_vector_norm": 0.004777016111104301,
+              "mean_vector_norm": 0.002384105990668581,
+              "p95_vector_norm": 0.003761422212986227
+            },
+            "candidate_minus_fused_qdot_delta_rad_s": {
+              "max_vector_norm": 0.021364978692019695,
+              "mean_vector_norm": 0.010067651601980983,
+              "p95_vector_norm": 0.015442345464623402
+            },
+            "candidate_post_gate_slew_violation_rows": 0,
+            "candidate_post_gate_task_cap_violation_rows": 0,
+            "candidate_qdot_max_abs_rad_s": 0.014499615147059561,
+            "candidate_task_cap_pre_gate_rows": 2773,
+            "candidate_task_cap_pre_gate_violations_by_axis": {
+              "angular": 0,
+              "normal": 2773,
+              "tangential": 0,
+              "total_linear": 0
+            },
+            "not_force_metric": true,
+            "sample_count": 30002,
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "formal_5_60": {
+            "candidate_final_gate_projection_rows": 2772,
+            "candidate_host_slew_limited_rows": 0,
+            "candidate_joint_bound_violation_rows": 0,
+            "candidate_max_achieved_speeds_after_final_gate": {
+              "angular_rad_s": 0.0018080645960988437,
+              "normal_m_s": 0.0029999995700133054,
+              "tangential_m_s": 0.005087025536524482,
+              "total_linear_m_s": 0.005905745145047087
+            },
+            "candidate_max_achieved_speeds_before_final_gate": {
+              "angular_rad_s": 0.0018080645960988437,
+              "normal_m_s": 0.0033693823153310236,
+              "tangential_m_s": 0.005087025536524482,
+              "total_linear_m_s": 0.005905745145047087
+            },
+            "candidate_minus_fused_achieved_task_twist_delta": {
+              "max_vector_norm": 0.004658365728343165,
+              "mean_vector_norm": 0.0023769105835490544,
+              "p95_vector_norm": 0.003779091331558308
+            },
+            "candidate_minus_fused_qdot_delta_rad_s": {
+              "max_vector_norm": 0.021364978692019695,
+              "mean_vector_norm": 0.010061876332454266,
+              "p95_vector_norm": 0.015544094678333387
+            },
+            "candidate_post_gate_slew_violation_rows": 0,
+            "candidate_post_gate_task_cap_violation_rows": 0,
+            "candidate_qdot_max_abs_rad_s": 0.014499615147059561,
+            "candidate_task_cap_pre_gate_rows": 2772,
+            "candidate_task_cap_pre_gate_violations_by_axis": {
+              "angular": 0,
+              "normal": 2772,
+              "tangential": 0,
+              "total_linear": 0
+            },
+            "not_force_metric": true,
+            "sample_count": 27498,
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        }
+      },
       "sealed_source_force_mae_is_not_counterfactual": true,
       "sealed_source_formal_bins": 550,
       "sealed_source_formal_force_mae_n": 1.1958953801632153,
@@ -471,19 +1016,21 @@
       }
     }
   ],
-  "candidate_guard_decisions_recomputed": false,
+  "candidate_force_preempt_and_direction_retry_recomputed": true,
   "closed_loop": false,
   "control_signal_change": "max(filtered_normal_n, measured_normal_n) -> filtered_normal_n",
-  "evidence_class": "sealed_Kunwei_fixed_observation_task_space_outer_loop_command_replay",
+  "evidence_class": "sealed_Kunwei_fixed_observation_TASE_RNN_command_replay",
   "filter_recurrence_semantics": "Check the sealed KWR75 filtered channel against the provider's declared one-pole tau and each row's actual dt; it is a consistency check, not a force-truth validation.",
+  "final_task_space_projection_replayed": true,
   "force_mae_recomputed": false,
+  "force_rise_guard_decisions_recomputed": false,
   "independent_force_truth": false,
-  "interpretation_limit": "Fused replay reproduces the sealed formal outer-loop twist before the filtered-only comparison. The counterfactual changes only the KWR75 normal value supplied to the outer loop. It does not recompute RNN qdot, feed candidate commands into robot observations, or predict force MAE. Raw/full-force inputs and guard thresholds are unchanged, but candidate guard decisions are not recomputed; in particular, qdot-dependent direction retry is not evaluated. No live suitability follows.",
-  "joint_or_task_space_limits_recomputed": false,
+  "interpretation_limit": "Fused replay reproduces the sealed formal outer-loop twist before the filtered-only comparison. The counterfactual changes only the KWR75 normal value supplied to the outer loop. It does not feed candidate commands into robot observations or predict force MAE. The same mature RNN, host slew and shared final task-space qdot gate are replayed; pre-gate cap hits and post-gate slew are both measured, and KWR75-force-triggered RNN warm-start/direction retry are recomputed. The force-rise entry guard is not part of this PATH-only command replay. No live suitability follows.",
+  "joint_and_host_slew_constraints_replayed": true,
   "physical_candidate_executed": false,
   "protocol_id": "figure8_window60_r013_rate460_v1",
-  "qdot_solver_replayed": false,
-  "schema": "tase.force-feedback-selection-outer-loop-replay-v1",
+  "qdot_solver_replayed": true,
+  "schema": "tase.force-feedback-selection-rnn-command-replay-v2",
   "unchanged_inputs_and_guard_definitions": [
     "baseline-corrected Kunwei wrench vector",
     "native/raw Kunwei wrench and full-force measurements from the sealed source",
