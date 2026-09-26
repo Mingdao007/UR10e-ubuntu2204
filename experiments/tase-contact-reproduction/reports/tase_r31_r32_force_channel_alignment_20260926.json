@@ -1,0 +1,377 @@
+{
+  "schema": "tase.r31-r32-force-channel-alignment-diagnostic-v1",
+  "created_at": "2026-09-26T18:13:34.158887+08:00",
+  "analysis_window_s": [
+    5.0,
+    60.0
+  ],
+  "target_force_n": 5.0,
+  "analysis_method": {
+    "score_sample_signal": "normal_force_filtered_n",
+    "controller_signal": "normal_force_control_n = max(normal_force_filtered_n, normal_force_measured_n)",
+    "logged_controller_error": "force_error_n = force_target_n - normal_force_control_n",
+    "task_normal_clip_flag": "abs(published_requested_normal_m_s - published_task_normal_m_s) > 1e-8 m/s",
+    "final_jqdot_task_residual": "published_task_normal_m_s - published_realized_normal_m_s",
+    "limitation": "Per-command diagnostics use Kunwei signals and are not independent task-force truth; conditional splits are associations, not causality."
+  },
+  "runtime_source_references": [
+    "tools/tase_contact_provider.py:1411-1424",
+    "tools/tase_contact_provider.py:1774-1781",
+    "tools/step5d_autotune_v4_r004/calibrated_runtime.py:918-970",
+    "tools/step5d_autotune_v4_r004/calibrated_runtime.py:448-486"
+  ],
+  "runtime_source_sha256": {
+    "tase_contact_provider.py": "fe007678be32e0a1a9b6b53ed743d608345e72ac67f059416f0548a16cddbeae",
+    "calibrated_runtime.py": "971b564ca5c8206a9965696cd3be18f92b83a9c7a885fd88095c8c08506852e7",
+    "step5d_paper_outer_loop.py": "c4f66a9aa421a042a3038e848ca9ce8a09b64d4a12894c316550b7c98fb39859",
+    "analyzer": "764fdb98d8e680bd17b2ee3f7f89e9bfd8de3f548ab42dd22de048c61db23c04"
+  },
+  "attempts": [
+    {
+      "id": "R31-A1",
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-a-baseline-20260925T1510HKT/attempts/0001",
+      "timeline_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-a-baseline-20260925T1510HKT/attempts/0001/command_timeline.jsonl",
+      "timeline_sha256": "f2db9842e9f340d9335d8088e69306957ed9ed95f10d766439502f1902097836",
+      "attempt_result_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-a-baseline-20260925T1510HKT/attempts/0001/attempt-result.json",
+      "attempt_result_sha256": "2d5f9f6eed28a2489800222bb4e9c8ca73bc29ec0027c0756b18355d8979fbd7",
+      "formal_binned_mae_n": 1.2827202364908377,
+      "formal_bins": 550,
+      "actual_qd_correlation": 0.9700722532882486,
+      "formal_rows": 27361,
+      "scored_filtered_channel": {
+        "mean_n": 3.7386560700913063,
+        "signed_target_minus_signal_mean_n": 1.2613439299086933,
+        "sample_mae_n": 1.2864251832590685,
+        "sample_rmse_n": 1.6027316319487397
+      },
+      "unfiltered_measured_normal_channel": {
+        "mean_n": 3.729371350623516,
+        "signed_target_minus_signal_mean_n": 1.2706286493764842,
+        "sample_mae_n": 2.420902802841713,
+        "sample_rmse_n": 3.0104540736135585
+      },
+      "controller_envelope_channel": {
+        "mean_n": 4.758283647466322,
+        "signed_target_minus_signal_mean_n": 0.2417163525336779,
+        "sample_mae_n": 1.4032093618398682,
+        "sample_rmse_n": 1.7945169103845333
+      },
+      "logged_force_error": {
+        "mean_n": 0.2417163525336779,
+        "sample_mae_n": 1.4032093618398682,
+        "max_abs_identity_residual_n": 2.1316282072803006e-14
+      },
+      "one_sided_envelope_uplift": {
+        "mean_n": 1.0196275773750154,
+        "p50_n": 0.0,
+        "p95_n": 4.727328092405148,
+        "max_n": 9.562432618618585,
+        "measured_normal_above_filter_pct": 46.288512846752674
+      },
+      "task_normal_command_clipping": {
+        "rows": 8326,
+        "pct": 30.430174335733344,
+        "clipped_filtered_signal": {
+          "rows": 8326,
+          "pct_of_formal_rows": 30.430174335733344,
+          "filtered_force_mean_n": 2.7680690464080144,
+          "filtered_sample_mae_n": 2.25963664068197
+        },
+        "unclipped_filtered_signal": {
+          "rows": 19035,
+          "pct_of_formal_rows": 69.56982566426666,
+          "filtered_force_mean_n": 4.16319547430392,
+          "filtered_sample_mae_n": 0.8607378391822058
+        }
+      },
+      "published_jacobian_realization": {
+        "task_minus_final_jqdot_normal_p50_abs_m_s": 0.0015258096398527638,
+        "task_minus_final_jqdot_normal_p95_abs_m_s": 0.002921271637576374,
+        "task_minus_final_jqdot_normal_max_abs_m_s": 0.00415798487138414,
+        "mean_signed_task_minus_final_jqdot_normal_m_s": 0.0008900877057843063
+      },
+      "integrator": {
+        "configured_limit_n_s": 1.0,
+        "state_at_effective_limit_pct": 10.324915025035635,
+        "interpretation": "state occupancy at the configured cap; not by itself proof of windup"
+      }
+    },
+    {
+      "id": "R31-A2",
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-a-baseline-repeat-evidenceonly-20260925T1530HKT/attempts/0001",
+      "timeline_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-a-baseline-repeat-evidenceonly-20260925T1530HKT/attempts/0001/command_timeline.jsonl",
+      "timeline_sha256": "149ecd21b9722d07d0fa3df1c49702d5a885c6944980679ffc47f4d7e8942507",
+      "attempt_result_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-a-baseline-repeat-evidenceonly-20260925T1530HKT/attempts/0001/attempt-result.json",
+      "attempt_result_sha256": "78f850f279dd66e22a5013f25cf8303929d668781532bb91d5232a9ddd4bd96a",
+      "formal_binned_mae_n": 1.0067966519915275,
+      "formal_bins": 550,
+      "actual_qd_correlation": 0.9720695642595333,
+      "formal_rows": 27487,
+      "scored_filtered_channel": {
+        "mean_n": 3.999741737004846,
+        "signed_target_minus_signal_mean_n": 1.000258262995154,
+        "sample_mae_n": 1.0076338363430926,
+        "sample_rmse_n": 1.355194108318656
+      },
+      "unfiltered_measured_normal_channel": {
+        "mean_n": 3.9994015225129633,
+        "signed_target_minus_signal_mean_n": 1.0005984774870371,
+        "sample_mae_n": 1.8592219244477788,
+        "sample_rmse_n": 2.4902108722060357
+      },
+      "controller_envelope_channel": {
+        "mean_n": 4.807422405263345,
+        "signed_target_minus_signal_mean_n": 0.19257759473665417,
+        "sample_mae_n": 1.054457924374997,
+        "sample_rmse_n": 1.424062755111722
+      },
+      "logged_force_error": {
+        "mean_n": 0.19257759473665423,
+        "sample_mae_n": 1.054457924374997,
+        "max_abs_identity_residual_n": 1.7763568394002505e-14
+      },
+      "one_sided_envelope_uplift": {
+        "mean_n": 0.8076806682584998,
+        "p50_n": 0.0,
+        "p95_n": 3.986972783006243,
+        "max_n": 8.312122999284439,
+        "measured_normal_above_filter_pct": 49.33968785243933
+      },
+      "task_normal_command_clipping": {
+        "rows": 5356,
+        "pct": 19.485574999090478,
+        "clipped_filtered_signal": {
+          "rows": 5356,
+          "pct_of_formal_rows": 19.485574999090478,
+          "filtered_force_mean_n": 2.7071487010937987,
+          "filtered_sample_mae_n": 2.3060090268432436
+        },
+        "unclipped_filtered_signal": {
+          "rows": 22131,
+          "pct_of_formal_rows": 80.51442500090953,
+          "filtered_force_mean_n": 4.312566656815951,
+          "filtered_sample_mae_n": 0.6934095572631228
+        }
+      },
+      "published_jacobian_realization": {
+        "task_minus_final_jqdot_normal_p50_abs_m_s": 0.0009633647101031967,
+        "task_minus_final_jqdot_normal_p95_abs_m_s": 0.002815362524909111,
+        "task_minus_final_jqdot_normal_max_abs_m_s": 0.0036605287519848886,
+        "mean_signed_task_minus_final_jqdot_normal_m_s": 0.0007251673461997507
+      },
+      "integrator": {
+        "configured_limit_n_s": 1.0,
+        "state_at_effective_limit_pct": 7.6909084294393715,
+        "interpretation": "state occupancy at the configured cap; not by itself proof of windup"
+      }
+    },
+    {
+      "id": "R31-A3",
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-a-baseline-repeat-03-20260925T1730HKT/attempts/0001",
+      "timeline_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-a-baseline-repeat-03-20260925T1730HKT/attempts/0001/command_timeline.jsonl",
+      "timeline_sha256": "cb08fae2a0aa154e1d06b1ba023ee6c171a94c7c7baaa37d03f323dbfde72619",
+      "attempt_result_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-a-baseline-repeat-03-20260925T1730HKT/attempts/0001/attempt-result.json",
+      "attempt_result_sha256": "b88d155bcc72ed152fc44e5cf53f01c73c85674dfd86e2f2ee82cfead86f9267",
+      "formal_binned_mae_n": 1.017505248230811,
+      "formal_bins": 550,
+      "actual_qd_correlation": 0.9679473564587027,
+      "formal_rows": 27480,
+      "scored_filtered_channel": {
+        "mean_n": 3.995163842047104,
+        "signed_target_minus_signal_mean_n": 1.004836157952896,
+        "sample_mae_n": 1.0191930961807163,
+        "sample_rmse_n": 1.3294807713049948
+      },
+      "unfiltered_measured_normal_channel": {
+        "mean_n": 3.9847692524852776,
+        "signed_target_minus_signal_mean_n": 1.0152307475147222,
+        "sample_mae_n": 1.9204766451099344,
+        "sample_rmse_n": 2.5297121117567594
+      },
+      "controller_envelope_channel": {
+        "mean_n": 4.828309127638216,
+        "signed_target_minus_signal_mean_n": 0.17169087236178338,
+        "sample_mae_n": 1.0833024647751135,
+        "sample_rmse_n": 1.4295377225650552
+      },
+      "logged_force_error": {
+        "mean_n": 0.1716908723617834,
+        "sample_mae_n": 1.0833024647751135,
+        "max_abs_identity_residual_n": 1.5987211554602254e-14
+      },
+      "one_sided_envelope_uplift": {
+        "mean_n": 0.8331452855911126,
+        "p50_n": 0.0,
+        "p95_n": 3.8899432228105555,
+        "max_n": 9.104654072100026,
+        "measured_normal_above_filter_pct": 48.66812227074236
+      },
+      "task_normal_command_clipping": {
+        "rows": 5219,
+        "pct": 18.9919941775837,
+        "clipped_filtered_signal": {
+          "rows": 5219,
+          "pct_of_formal_rows": 18.9919941775837,
+          "filtered_force_mean_n": 2.7939870516729983,
+          "filtered_sample_mae_n": 2.2305583027942
+        },
+        "unclipped_filtered_signal": {
+          "rows": 22261,
+          "pct_of_formal_rows": 81.00800582241631,
+          "filtered_force_mean_n": 4.276774806018285,
+          "filtered_sample_mae_n": 0.7351934998770564
+        }
+      },
+      "published_jacobian_realization": {
+        "task_minus_final_jqdot_normal_p50_abs_m_s": 0.001111582674723042,
+        "task_minus_final_jqdot_normal_p95_abs_m_s": 0.0027506274243587914,
+        "task_minus_final_jqdot_normal_max_abs_m_s": 0.00353956931342671,
+        "mean_signed_task_minus_final_jqdot_normal_m_s": 0.0007768143668030736
+      },
+      "integrator": {
+        "configured_limit_n_s": 1.0,
+        "state_at_effective_limit_pct": 7.034206695778749,
+        "interpretation": "state occupancy at the configured cap; not by itself proof of windup"
+      }
+    },
+    {
+      "id": "R32-A1",
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r32-rate460-a-v3-capture-evidence-only-20260926T171700HKT/attempts/0001",
+      "timeline_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r32-rate460-a-v3-capture-evidence-only-20260926T171700HKT/attempts/0001/command_timeline.jsonl",
+      "timeline_sha256": "c296074b4a583709a9fe810d6680bd7a39f515849c932b4a2ba6c8967c8975ee",
+      "attempt_result_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r32-rate460-a-v3-capture-evidence-only-20260926T171700HKT/attempts/0001/attempt-result.json",
+      "attempt_result_sha256": "074d59f2e2c0d7ee2ea08158f8329c4e45437a4661b47ea23346e485867ac3bd",
+      "formal_binned_mae_n": 1.0984452737652308,
+      "formal_bins": 550,
+      "actual_qd_correlation": 0.9681933898876778,
+      "formal_rows": 27485,
+      "scored_filtered_channel": {
+        "mean_n": 3.919948307999434,
+        "signed_target_minus_signal_mean_n": 1.0800516920005658,
+        "sample_mae_n": 1.099853379997562,
+        "sample_rmse_n": 1.461971851234591
+      },
+      "unfiltered_measured_normal_channel": {
+        "mean_n": 3.9156303929693688,
+        "signed_target_minus_signal_mean_n": 1.0843696070306312,
+        "sample_mae_n": 2.0742711777677534,
+        "sample_rmse_n": 2.7099151686673446
+      },
+      "controller_envelope_channel": {
+        "mean_n": 4.802360076174417,
+        "signed_target_minus_signal_mean_n": 0.197639923825583,
+        "sample_mae_n": 1.1961053796283263,
+        "sample_rmse_n": 1.6153847988344974
+      },
+      "logged_force_error": {
+        "mean_n": 0.19763992382558296,
+        "sample_mae_n": 1.1961053796283263,
+        "max_abs_identity_residual_n": 2.4868995751603507e-14
+      },
+      "one_sided_envelope_uplift": {
+        "mean_n": 0.8824117681749828,
+        "p50_n": 0.0,
+        "p95_n": 4.29543896339548,
+        "max_n": 11.372383331109262,
+        "measured_normal_above_filter_pct": 48.21539021284337
+      },
+      "task_normal_command_clipping": {
+        "rows": 6211,
+        "pct": 22.597780607604147,
+        "clipped_filtered_signal": {
+          "rows": 6211,
+          "pct_of_formal_rows": 22.597780607604147,
+          "filtered_force_mean_n": 2.677717052961899,
+          "filtered_sample_mae_n": 2.3473760011111735
+        },
+        "unclipped_filtered_signal": {
+          "rows": 21274,
+          "pct_of_formal_rows": 77.40221939239585,
+          "filtered_force_mean_n": 4.282620975341642,
+          "filtered_sample_mae_n": 0.7356358844754862
+        }
+      },
+      "published_jacobian_realization": {
+        "task_minus_final_jqdot_normal_p50_abs_m_s": 0.0011706344450440717,
+        "task_minus_final_jqdot_normal_p95_abs_m_s": 0.0028097369271666956,
+        "task_minus_final_jqdot_normal_max_abs_m_s": 0.0038077935345035927,
+        "mean_signed_task_minus_final_jqdot_normal_m_s": 0.0007652001768757909
+      },
+      "integrator": {
+        "configured_limit_n_s": 1.0,
+        "state_at_effective_limit_pct": 7.487720574859014,
+        "interpretation": "state occupancy at the configured cap; not by itself proof of windup"
+      }
+    }
+  ],
+  "r32_fixed_input_shadow_replay": {
+    "schema": "tase-r32-force-channel-fixed-input-shadow-replay-v1",
+    "window_s": [
+      5.0,
+      60.0
+    ],
+    "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/config/tase_figure8_integral_1p0_rate460.json",
+    "parameter_file_sha256": "88523f9622828a2fb69881c6f52986e30c6819b5d4ffb72e5f2b5fcde029e935",
+    "input_rows_formal_window": 27485,
+    "current_signal_reproduction_xyz_max_abs_error_m_s": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "filtered_counterfactual_vs_current": {
+      "formal_5_60_s": {
+        "rows": 27484,
+        "base_z_command_delta_mean_m_s": -0.001631339578008759,
+        "base_z_command_delta_p50_abs_m_s": 0.001158443640667816,
+        "base_z_command_delta_p90_abs_m_s": 0.004189418545289381,
+        "base_z_command_delta_p95_abs_m_s": 0.005199945328306461,
+        "base_z_command_delta_max_abs_m_s": 0.006,
+        "rows_abs_delta_gt_0p1mm_s_pct": 79.99563382331539,
+        "opposite_sign_base_z_command_pct": 29.766409547373016
+      }
+    },
+    "limitations": [
+      "R32 recorded pose, speed, wrench, and dt are held fixed. Candidate twist is not fed back into subsequent observations.",
+      "Only the outer loop is replayed. No robot motion, force MAE, safety response, or stable closed-loop trajectory is predicted.",
+      "The baseline XYZ reproduction check excludes orientation components because live TASE intentionally substitutes a fixed approved-Home orientation policy."
+    ]
+  },
+  "cross_run_summary": {
+    "complete_eligible_A_units": 4,
+    "mean_controller_minus_scored_filter_n": {
+      "min": 0.8076806682584998,
+      "max": 1.0196275773750154,
+      "mean": 0.8857163248499027
+    },
+    "controller_signal_signed_error_n": {
+      "min": 0.17169087236178338,
+      "max": 0.2417163525336779,
+      "mean": 0.2009061858644246
+    },
+    "scored_filter_signed_error_n": {
+      "min": 1.000258262995154,
+      "max": 1.2613439299086933,
+      "mean": 1.0866225107143272
+    },
+    "normal_task_clipping_pct": {
+      "min": 18.9919941775837,
+      "max": 30.430174335733344,
+      "mean": 22.876381030002918
+    },
+    "measured_normal_above_filter_pct": {
+      "min": 46.288512846752674,
+      "max": 49.33968785243933,
+      "mean": 48.12792829569443
+    },
+    "final_Jqdot_normal_residual_p95_abs_m_s": {
+      "min": 0.0027506274243587914,
+      "max": 0.002921271637576374,
+      "mean": 0.002824249628502743
+    },
+    "integral_at_1p0_n_s_limit_pct": {
+      "min": 7.034206695778749,
+      "max": 10.324915025035635,
+      "mean": 8.134437681278193
+    }
+  }
+}

@@ -19,10 +19,11 @@ flowchart TD
     F -- No --> F0["Keep both outcomes in the denominator; diagnose the first differing contact/timing/measurement factor before any controller comparison."]
     F -- Yes --> G{"Are per-frame normal error, integral, single/double saturation, actual q/qd, dt, host publish, RTDE and TP echo joined and complete?"}
     G -- No --> G0["Repair telemetry capture and validate it offline; do not infer windup from the terminal integral alone."]
-    G -- Yes --> H{"Do force-frame/baseline/coordinate or sensing effects explain the error?"}
-    H -- Yes --> H0["Correct only the demonstrated measurement/execution issue; KWR75 remains feedback, not independent task-force truth."]
-    H -- No --> I{"Do integral growth, state/authority clamp, output saturation, slew, or rollback explain the error?"}
-    I -- Yes --> I0["Compare one integral/anti-windup change at a time with path gains frozen and complete matched paths."]
+    G -- Yes --> H{"Does the outer-loop force input match the scored filtered-normal signal?"}
+    H -- No --> H0["R31/R32 A traces confirm max(filtered, measured normal). Keep it live-frozen; reproduce and assess this one-sided envelope offline before discussing any change."]
+    H -- Yes --> I
+    H0 --> I{"Do integral occupancy, task-space limiting, or final-Jqdot residual explain low-force windows?"}
+    I -- Yes --> I0["Separate the force envelope, task-speed limit, and RNN realization in fixed-input replay. Change one factor at a time only after safety review."]
     I -- No --> J{"Does a measured local second-order model fit the 5 N normal axis?"}
     J -- Yes --> J0["Estimate effective M, then compare zeta 0.5, 0.707 and 1.0 using either B=2*zeta*sqrt(M*K) or K=B^2/(4*zeta^2*M)."]
     J -- No --> J1["Report where the model fails and use a bounded independent normal K/B grid; do not reuse tangential Bd or stiffness."]
@@ -32,11 +33,11 @@ flowchart TD
     K -- Yes --> K1{"Does eligible paired evidence support >=0.10 N improvement with 95% CI lower bound >0?"}
     K1 -- No --> K2["Keep A as incumbent; preserve the QP result and failure denominator."]
     K1 -- Yes --> K3["Record QP as a supported candidate; retain its exact numerical profile."]
-    K0 --> L{"Is the R31 TASE+SFC live identity, tangent law, and final single qdot realization closed offline?"}
+    K0 --> L{"Do sealed-feedback SFC/DSFC replays stay viable under reviewed tangent and joint bounds?"}
     K2 --> L
     K3 --> L
-    L -- No --> L0["Continue same-input offline replay; do not infer a live composed method from model scores."]
-    L -- Yes --> L1["Only then admit a bounded SFC+TASE live candidate through fresh gates."]
+    L -- No --> L0["Keep SFC+TASE offline; inspect bound hits and task residuals, and review all new numbers before live admission."]
+    L -- Yes --> L1["Review/freeze the live numerical profile, then admit only through fresh gates."]
     L1 --> M{"Does a candidate pass 5 matched complete A/candidate pairs at >=460 Hz?"}
     M -- No --> M0["Retain failures and diagnose; allow up to 10 pairs only when the first five are near the evidence threshold."]
     M -- Yes --> N{"Mean MAE improvement >=0.10 N and paired 95% CI lower bound >0?"}
@@ -351,3 +352,24 @@ A sealed v2 timeline may still support labeled diagnostics when a failed receipt
 - No Power On, motion, sensor write, or controller write was sent; the process check found no live writer. This remains one read-only snapshot and does not replace a sustained stationarity dwell.
 - Snapshot: `runs/poweron-continue-preflight-20260926T1649HKT/preflight_readonly.json`.
 - Continue the active goal offline from the QP output-transition/normal-axis design branch; a new live profile still needs fresh gates and explicit review of its numerical values.
+
+## Rate460 A v3 trace and controller replay — 2026-09-26, 17:17 HKT
+
+- The controller was already powered, so no Power On command was sent. A required-video preparation stopped before dispatch after the recording stopped growing; the next attempt used the already-approved `evidence-only` policy, retained a video, and proceeded with continuous RTDE/Kunwei records.
+- One cold TASE-RNN A unit completed `r013_60_rate460`: complete 60 s reference span, 550/550 `[5,60)` bins, formal normal-force feedback MAE **1.098445 N**, and distinct TP-consumed echoes **480.936 Hz**. Host/RTDE/Kunwei rates were 499.683/500.000/1000.100 Hz. Actual-qdot correlation was 0.968193. Through-seal time was 85.510 s; this does not estimate a reused-cycle median.
+- The sealed v3 trace has 29,989 complete host-tick rows; the v3 audit and QP input audit pass. Strict QP replay solved all 29,989 independent frozen-input rows with no rejection, equality residual maximum `1.011e-8`, and median solve time `0.0312 ms`; it has no closed-loop force claim. The earlier live QP measured-qdot failures remain unresolved.
+- Same-input open-loop SFC and DSFC replays over the sealed TASE-RNN feedback rows now complete. Each uses one final realization and the input digests match. Under the current offline-only `K_path=120 N/m` profile, 29,825/29,989 outputs hit a `0.05 rad/s` joint bound and maximum `Jqdot` residual is 0.12071 m/s. Keep the composition offline; the path stiffness is unapproved for live use and the replay does not measure candidate force MAE.
+- The replay consumes each measured `dt`. Rows above 4 ms are split into equal native-law steps while holding that one recorded sample constant; no intermediate force samples are created. This is a stated numerical integration assumption.
+- The attempt sealed at verified Home. The root session receipt records Dashboard STOPPED and clean shutdown; per-attempt resident readiness is separate from final session stop. A later fresh read-only preflight also found STOPPED/Home. `--stop` now acknowledges a verified prior stop when its owner has exited and labels it as prior evidence, not as a fresh state query.
+- Full evidence: `reports/tase_r32_live_trace_controller_replay_20260926.md`; live unit `runs/tase-r32-rate460-a-v3-capture-evidence-only-20260926T171700HKT/`; QP replay `runs/tase-r32-a-v3-qp-replay-20260926T173000HKT/`; SFC/DSFC replay `runs/tase-r32-sfc-dsfc-live-trace-replay-final-20260926T173500HKT/`.
+- **Next:** retain the 460 Hz gate and A profile. Keep SFC/DSFC offline until their tangent/path numerical profile and high bound-hit behavior have been reviewed; do not infer force improvement or promote the offline 120 N/m default to live.
+
+## Force-channel and RNN realization update — 2026-09-26, 18:15 HKT
+
+- Four complete rate460 A traces (three R31, one R32) show a consistent split between the scored low-pass normal signal and the normal signal used by the outer loop. The provider uses `max(normal_force_filtered_n, normal_force_measured_n)`. The logged controller error matches target minus this max signal to floating-point precision.
+- The one-sided envelope raised the controller input by **0.808–1.020 N** relative to the scored filter. The unfiltered normal sample exceeded the filter on **46.3–49.3%** of formal rows. The signed error from the scored signal was **1.000–1.261 N**, while the controller's signed error averaged **0.172–0.242 N**. These are same-sensor Kunwei signals, not independent force truth.
+- Requests for normal task velocity differed from the final task-space normal command on **19.0–30.4%** of formal rows. Those rows had filtered-force sample MAE **2.23–2.35 N**, compared with **0.69–0.86 N** for rows without the limiting event. This association does not establish that the limit caused low force because the large force error also requests higher speed.
+- The final published `Jqdot` normal component differs from the task-normal request by p95 **2.75–2.92 mm/s** across the four traces. This is calibrated-model kinematic command residual, not measured TCP speed. The actual joint-velocity correlation still passes for all four RNN A units, showing that joint-command tracking and Cartesian task realization are different checks.
+- The 1.0 N·s state sat at its effective positive cap on **7.0–10.3%** of formal samples. Cap occupancy alone does not prove windup.
+- R32 fixed-input outer-loop replay reproduces the current XYZ request to exact saved precision. Substituting the scored filtered channel for the controller's one-sided envelope changes base-Z outer requests by mean **−1.631 mm/s**, p95 absolute **5.200 mm/s**, and maximum **6.000 mm/s**. Command signs differ on **29.77%** of samples. This is an open-loop input counterfactual. It predicts neither physical motion nor force MAE.
+- Keep the live A profile frozen. The next offline branch isolates the force input channel, task-space limit and RNN `Jqdot` realization. Do not remove the one-sided force-rise behavior or raise a live velocity limit from this evidence alone. Evidence and source hashes: `reports/tase_r31_r32_force_channel_alignment_20260926.json` and `reports/tase_r31_r32_force_channel_alignment_20260926.md`.
