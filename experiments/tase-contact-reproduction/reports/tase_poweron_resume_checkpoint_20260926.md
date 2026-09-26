@@ -36,4 +36,8 @@ R32 receipt 实际已经带有 host hot-path、publish/send、provider 与 RTDE-
 
 阈值反事实：若只把 frequency floor 从460降到400Hz，上述四个 rate-only失败中三次会过频率门槛，`380.15 Hz`仍不通过；这不是独立 `rate400` 协议的验收或配对证据。正式 TASE 当前仍按 rate460 profile 计量。
 
+## 20:40 HKT fresh power-state check
+
+用户再次要求上电续接。最新只读 preflight（[20:40 readback](../runs/tase-resume-readonly-20260926T2039HKT/fresh-preflight/preflight_readonly.json)）仍显示 Dashboard `Robotmode RUNNING`、Remote、Safety `NORMAL`、程序 `STOPPED`；RTDE 六维 TCP speed 全零，actual_q 对批准 Figure-eight joint Home 最大差约 `4.3e-5 rad`。Payload/CoG/TCP 仍为 `0.413 kg`、`[0.0011,0.0031,0.0163] m`、z=`87.4 mm`；Kunwei 只做 connect-only。故没有发送 power-on 或运动指令；当前仍等无关 archive compactor 释放正式 timing 资源，再 fresh 读回 controller package、KWR75 no-contact baseline 和连续视频后启动 E-arm resident autotuner。
+
 旧 `figure8.sh --autotune` 把配置固定成A，无法跟随已选E；现已恢复单一入口：默认使用筛选所选E配置，A可由显式配置和A基线receipt启动，resume 默认读取 campaign 的冻结配置。入口 focused tests **24 passed**，E的 initial-00 也通过现有 sealed-screening source 校验。正式24次 tuning 尚未启动。报告索引见[研究决策树](tase_control_research_decision_tree_20260926.md)；源结果见[screening result](../runs/tase-r31-integral-screening-20260925T1825HKT/screening-results.json)。
