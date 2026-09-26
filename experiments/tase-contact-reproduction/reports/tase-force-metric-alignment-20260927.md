@@ -132,21 +132,24 @@ motion gate 是同一被消费 packet 的 published qdot 与 RTDE `actual_qd` �
 
 旧的硬等式 `J qdot = twist` 在封存的 rate460 trace 上有 1.48%–2.10% PATH tick 与 joint/slew bounds 冲突，单加切向 slack 无法解决；而把所有任务改成法向优先、姿态其次、切向最后的词典序求解后，可以在冲突时优先保住更高优先级任务，并让切向任务退让。物理速度边界仍是硬约束；本离线候选没有加 slack 权重或新物理阈值。
 
-用原冻结 OSQP `rho=0.1` 重放 matched-A 时，orientation stage 在 packet **30864**、PATH **42.446 s** 达到 400 次迭代并回报 `solved inaccurate`，因此候选拒绝；只完成 **18,685/27,453** 行、375/550 bins。保留该失败，不把略超 `1e-8` 的内部 residual 当成通过。针对这一个确定故障，离线诊断显示 `rho=0.01` 能在同近似输入上收敛；随后保留原 `rho=0.1` 版本与失败记录，单独评估 `rho=0.01` 研究变体，并把 2D 活动集枚举向量化。`rho=0.01` 是与之前冻结的 live profile 不同的 solver 数值，**尚未获准用于 live**。
+用原冻结 OSQP `rho=0.1` 和默认内部 scaling 重放 matched-A 时，orientation stage 在 packet **30864**、PATH **42.446 s** 达到 400 次迭代并回报 `solved inaccurate`，因此候选拒绝；只完成 **18,685/27,453** 行、375/550 bins。保留该失败，不把略超 `1e-8` 的内部 residual 当成通过。局部诊断发现该行对 ADMM 数值设置敏感：`rho=0.01` 可收敛；此外，保持批准的 `rho=0.1`、将 OSQP 内部 scaling 从默认 **10 次迭代**设为 **0（关闭）**后也能收敛。OSQP 文档把 `scaling` 定义为内部 scaling 迭代次数，默认值 10，0 表示关闭；该选项改变数值求解过程，不改变 QP 任务、目标、物理边界或容差，见 [OSQP solver settings](https://osqp.org/docs/interfaces/solver_settings.html)。我保留 `rho=0.1` 的拒绝记录，并分别封存两个离线数值变体；**`scaling=0` 仍是对已冻结 OSQP profile 的改动，未准 live**。
 
-| 固定输入 replay | 正式 PATH rows / bins | solver 拒绝 | 四阶段计算时间 median / max | 来源身份 |
-|---|---:|---:|---:|---|
-| Normal-priority QP，向量化，`rho=0.01` | 27,453 / 550 | 0 | 0.174 / 0.349 ms | 匹配 A 参数的 QP 尝试 |
-| Normal-priority QP，向量化，`rho=0.01` | 27,491 / 550 | 0 | 0.176 / 0.695 ms | BO-10；该源 attempt `evidence_eligible=false`，仅作输入压力测试 |
-| SFC+TASE-QP，向量化，`rho=0.01` | 27,480 / 550 | 0 | 0.172 / 0.745 ms | A 的 sealed SFC+TASE command replay 输入 |
+| 固定输入 replay | OSQP `rho / scaling` | 正式 PATH rows / bins | solver 拒绝 | 四阶段计算时间 median / max | 来源身份 |
+|---|---:|---:|---:|---:|---|
+| Normal-priority QP，向量化活动集 | `0.01 / 10` | 27,453 / 550 | 0 | 0.174 / 0.349 ms | 匹配 A 参数的 QP 尝试 |
+| Normal-priority QP，向量化活动集 | `0.01 / 10` | 27,491 / 550 | 0 | 0.176 / 0.695 ms | BO-10；源 attempt `evidence_eligible=false`，仅作输入压力测试 |
+| SFC+TASE-QP，向量化活动集 | `0.01 / 10` | 27,480 / 550 | 0 | 0.172 / 0.745 ms | A 的 sealed SFC+TASE command replay 输入 |
+| Normal-priority QP，向量化活动集 | `0.1 / 0` | 27,453 / 550 | 0 | 0.169 / 0.738 ms | 匹配 A 参数的 QP 尝试 |
+| Normal-priority QP，向量化活动集 | `0.1 / 0` | 27,491 / 550 | 0 | 0.172 / 0.488 ms | BO-10；源 attempt `evidence_eligible=false`，仅作输入压力测试 |
+| SFC+TASE-QP，向量化活动集 | `0.1 / 0` | 27,480 / 550 | 0 | 0.170 / 0.693 ms | A 的 sealed SFC+TASE command replay 输入 |
 
-matched-A 的最大锁定任务等式误差为 **5.24e-9**、最大 box 越界 **7.02e-8 rad/s**；SFC+TASE-QP 组合的对应数值为 **2.91e-9** 和 **4.34e-19 rad/s**。在组合回放中，normal 与 orientation 任务保持高优先级，切向残差最大 **2.411 mm/s**；它说明发生冲突时低优先级路径任务会退让，不代表产生了真实运动改善。输入 twist 来自已有 SFC 增广记录，时间戳与同一 source timeline 29,982 行逐行一致；最终每帧仅有 QP 生成的一组 qdot。
+在 `rho=0.1 / scaling=0` profile 下，matched-A 的最大锁定任务等式误差为 **5.31e-9**、最大 box 越界 **8.42e-8 rad/s**；SFC+TASE-QP 组合的对应数值为 **2.26e-9** 和 **8.68e-19 rad/s**。在组合回放中，normal 与 orientation 任务保持高优先级，切向残差最大 **2.411 mm/s**；它说明发生冲突时低优先级路径任务会退让，不代表产生了真实运动改善。输入 twist 来自已有 SFC 增广记录，时间戳与同一 source timeline 29,982 行逐行一致；最终每帧仅有 QP 生成的一组 qdot。
 
-上述 1 ms 内的时间是本机固定输入离线 replay 测得的计算时间，不包含 live host/TP 通信、Kunwei、RTDE、完整 writer 周期或 OS 调度，因此不证明 460 Hz 运行。三种新 replay 均无 candidate force MAE，KWR75 力、TCP/Jacobian 和下一帧观测都仍冻结在源轨迹；不产生候选闭环 actual_qd，不可用于声称力精度改善。复算代码为 [offline QP solver](../tools/tase_qp_normal_priority_offline.py) 与 [fixed-input replay](../tools/replay_tase_qp_normal_priority.py)，4 项 focused tests 通过。逐 attempt receipt： [matched-A 原 profile 拒绝](tase_r31_qpmatched_normal_priority_replay_20260927_v5.json)、[matched-A 向量化变体](tase_r31_qpmatched_normal_priority_replay_20260927_v7_rho001_vectorized.json)、[BO-10 压力输入](tase_r31_qpbo10_normal_priority_replay_20260927_rho001_vectorized.json)、[SFC+TASE-QP 组合](tase_r32a_sfc_plus_tase_qp_command_replay_20260927_rho001.json)。
+上述 1 ms 内的时间是本机固定输入离线 replay 测得的计算时间，不包含 live host/TP 通信、Kunwei、RTDE、完整 writer 周期或 OS 调度，因此不证明 460 Hz 运行。三种新 replay 均无 candidate force MAE，KWR75 力、TCP/Jacobian 和下一帧观测都仍冻结在源轨迹；不产生候选闭环 actual_qd，不可用于声称力精度改善。复算代码为 [offline QP solver](../tools/tase_qp_normal_priority_offline.py) 与 [fixed-input replay](../tools/replay_tase_qp_normal_priority.py)，5 项 focused tests 通过。逐 attempt receipt： [matched-A 原 profile 拒绝](tase_r31_qpmatched_normal_priority_replay_20260927_v5.json)、[matched-A `rho=0.01` 变体](tase_r31_qpmatched_normal_priority_replay_20260927_v7_rho001_vectorized.json)、[matched-A `rho=0.1 / scaling=0`](tase_r31_qpmatched_normal_priority_replay_20260927_v8_scale0.json)、[BO-10 `rho=0.1 / scaling=0`](tase_r31_qpbo10_normal_priority_replay_20260927_scale0.json)、[SFC+TASE-QP `rho=0.1 / scaling=0`](tase_r32a_sfc_plus_tase_qp_command_replay_20260927_scale0.json)。
 
 ## 下一步
 
-保留 A（`Md=9.5653, Bd=693.6559, integral=1.0 N·s`）为同条件参照。normal-priority TASE-QP 现可作为**离线**候选继续，但 adopt `rho=0.01` 前须先把它作为新 OSQP 数值 profile 与用户讲清楚；当前不能直接替换已冻结的 `rho=0.1` live profile。之后才评估 fresh QP 的完整 provider/TP 周期、460 Hz、joint/RTDE tracking gate 和 60 s Home recovery。native SFC 的实测 KWR75 切向输入会与 baseline 路径运动反向，故 SFC+TASE-QP 也保持离线；先分清运动相关 KWR75 分量与外部扰动，不能凭符号翻转试跑。三个 fixed-input replay 均没有候选 MAE，也不满足配对精度目标。任何 live candidate 继续报告正式 filtered 550-bin、filtered 600-bin、raw KWR75 逐样本指标及完整率；KWR75 仍只代表 feedback source。当前没有新的 live motion；任何实机实验都要重新通过 fresh owner、安全、rate460、完整 60 s 和同一 joint Home recovery gate。
+保留 A（`Md=9.5653, Bd=693.6559, integral=1.0 N·s`）为同条件参照。normal-priority TASE-QP 在 `rho=0.1 / scaling=0` 数值变体下已通过三种完整 sealed fixed-input replay，可进入下一步 profile 讨论；但 OSQP `scaling=0` 不同于此前冻结的默认 `10`，须先向用户说明并取得 live 数值决定。通过后再评估 fresh QP 的完整 provider/TP 周期、460 Hz、joint/RTDE tracking gate 和 60 s Home recovery。native SFC 的实测 KWR75 切向输入会与 baseline 路径运动反向，故 SFC+TASE-QP 也保持离线；先分清运动相关 KWR75 分量与外部扰动，不能凭符号翻转试跑。所有 fixed-input replay 均没有候选 MAE，也不满足配对精度目标。任何 live candidate 继续报告正式 filtered 550-bin、filtered 600-bin、raw KWR75 逐样本指标及完整率；KWR75 仍只代表 feedback source。当前没有新的 live motion；任何实机实验都要重新通过 fresh owner、安全、rate460、完整 60 s 和同一 joint Home recovery gate。
 
 ## PATH 相位误差的重复性：ILC 是否值得离线推进
 

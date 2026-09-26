@@ -1,0 +1,144 @@
+{
+  "candidate_desired_twist_trace": null,
+  "candidate_force_mae_recomputed": false,
+  "candidate_is_not_closed_loop": true,
+  "candidate_solver_failures": [],
+  "formal_bins": 550,
+  "formal_rows": 27453,
+  "formal_window_s": [
+    5.0,
+    60.0
+  ],
+  "hardware_or_endpoint_action": false,
+  "interpretation_limit": "The candidate qdot sequence is replayed against frozen source observations, Jacobians, joint limits, and recorded slew deltas. When an explicit desired-twist trace is supplied it is consumed row-by-row after timestamp checks. Force observations are not fed back through the new controller; the source MAE is not a candidate score and no real candidate actual_qd exists.",
+  "live_eligible": false,
+  "method_id": "TASE_QP_NORMAL_PRIORITY_LEXICOGRAPHIC_OFFLINE_V1",
+  "metrics": {
+    "four_qp_stage_total_s": {
+      "max": 0.0007375179895071089,
+      "median": 0.0001693429906488657,
+      "p95": 0.0001798924118137538,
+      "p99": 0.00018996246397522094
+    },
+    "maximum_box_violation_rad_s": {
+      "max": 8.416783850613563e-08,
+      "median": 0.0,
+      "p95": 0.0,
+      "p99": 0.0
+    },
+    "maximum_locked_task_equality_residual": {
+      "max": 5.31366105955243e-09,
+      "median": 1.3739976177759745e-09,
+      "p95": 1.880298724756196e-09,
+      "p99": 1.9981855878400347e-09
+    },
+    "normal_task_residual_m_s": {
+      "max": 1.3296940320952494e-08,
+      "median": 3.6721324077749855e-09,
+      "p95": 1.0448430102378141e-08,
+      "p99": 1.1843113297540716e-08
+    },
+    "orientation_task_residual_norm_rad_s": {
+      "max": 0.0037957863172066912,
+      "median": 4.591900460052409e-09,
+      "p95": 6.075511651449462e-09,
+      "p99": 0.00029727966601254656
+    },
+    "qdot_delta_vs_source_command_norm_rad_s": {
+      "max": 0.021776300595889066,
+      "median": 2.9508247522555074e-08,
+      "p95": 1.4852689510682887e-05,
+      "p99": 0.007172948460406299
+    },
+    "stage_iteration_count": [
+      {
+        "max": 13.0,
+        "median": 9.0,
+        "p95": 11.0,
+        "p99": 13.0
+      },
+      {
+        "max": 202.0,
+        "median": 21.0,
+        "p95": 24.0,
+        "p99": 93.0
+      },
+      {
+        "max": 13.0,
+        "median": 10.0,
+        "p95": 10.0,
+        "p99": 11.0
+      },
+      {
+        "max": 0.0,
+        "median": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      }
+    ],
+    "stage_solve_time_s": [
+      {
+        "max": 1.9948e-05,
+        "median": 4.238e-06,
+        "p95": 4.819e-06,
+        "p99": 5.12e-06
+      },
+      {
+        "max": 5.1578e-05,
+        "median": 7.274e-06,
+        "p95": 8.246e-06,
+        "p99": 2.4781799999999994e-05
+      },
+      {
+        "max": 0.0006936439895071089,
+        "median": 0.00015778199303895235,
+        "p95": 0.00016609701560810208,
+        "p99": 0.00017441740492358802
+      },
+      {
+        "max": 0.0,
+        "median": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      }
+    ],
+    "tangent_task_residual_norm_m_s": {
+      "max": 0.007201313000302284,
+      "median": 4.336808689942018e-19,
+      "p95": 9.69739903612216e-19,
+      "p99": 0.002334433343312826
+    }
+  },
+  "normal_basis_source": "fixed approved TASE base-Z reaction axis; no surface geometry",
+  "numerical_profile": {
+    "bounds": "captured joint qdot bounds intersected with per-tick dynamic slew interval rebuilt from candidate's previous qdot and recorded delta",
+    "eps_abs": 1e-08,
+    "eps_rel": 1e-08,
+    "force_source_used_for_scoring": null,
+    "max_iter_per_stage": 400,
+    "new_physical_slack_or_weight": null,
+    "osqp_rho": 0.1,
+    "osqp_scaling": 0,
+    "stage_count": 4,
+    "stage_methods": [
+      "osqp_normal",
+      "osqp_orientation",
+      "two_dimensional_active_set",
+      "unique_task_realization_no_tiebreak_solve"
+    ]
+  },
+  "schema": "tase.qp-normal-priority-fixed-input-replay-v1",
+  "solver_rows_completed": 27453,
+  "source_attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001",
+  "source_candidate_id": "figure8-rate460-integral-1p0-A-baseline",
+  "source_command_timeline": {
+    "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001/command_timeline.jsonl",
+    "sha256": "f9bfa7cfbdc3e910685ce8f92a15f18f25791b1ae9e2754afb670e862cac33d4"
+  },
+  "source_evidence_eligible": false,
+  "source_home_verified": true,
+  "source_official_mae_n_diagnostic_only": 0.9501390239556037,
+  "source_path_complete": true,
+  "source_protocol_id": "figure8_window60_r013_rate460_v1",
+  "status": "offline_fixed_input_command_replay_only"
+}

@@ -23,6 +23,7 @@ MAX_ITER = 400
 EQUALITY_TOLERANCE = 1e-6
 BOUND_TOLERANCE = 1e-7
 DEFAULT_OSQP_RHO = 0.1
+DEFAULT_OSQP_SCALING = 10
 
 
 class LexicographicTaseQpError(ValueError):
@@ -79,6 +80,7 @@ def _solve_bounded_least_squares(
     lower: np.ndarray,
     upper: np.ndarray,
     osqp_rho: float,
+    osqp_scaling: int,
 ) -> tuple[np.ndarray, int, float]:
     variables = lower.size
     if objective_matrix.ndim != 2 or objective_matrix.shape[1] != variables:
@@ -124,6 +126,7 @@ def _solve_bounded_least_squares(
         check_termination=1,
         adaptive_rho_interval=25,
         rho=osqp_rho,
+        scaling=osqp_scaling,
         polishing=False,
         warm_starting=True,
     )
@@ -268,13 +271,15 @@ def solve_normal_priority_qp(
     slew_velocity_lower_rad_s: Any,
     slew_velocity_upper_rad_s: Any,
     osqp_rho: float = DEFAULT_OSQP_RHO,
+    osqp_scaling: int = DEFAULT_OSQP_SCALING,
 ) -> LexicographicTaseQpResult:
     """Solve strict priorities without task weights or selected slack values.
 
-    Four bounded QPs lexicographically minimize: (1) normal velocity error,
+    Bounded stages lexicographically minimize: (1) normal velocity error,
     (2) orientation error while preserving the best normal output, (3) tangent
     error while preserving best normal/orientation outputs, then (4) distance
-    to the previous qdot while preserving all achieved task outputs.
+    to the previous qdot while preserving all achieved task outputs. A reduced
+    2-D active-set solve is used for stage 3 when the task nullspace allows it.
     """
     jacobian = _matrix(jacobian_6x6, (6, 6), "jacobian_6x6")
     desired = _vector(desired_twist_m_s_rad_s, 6, "desired_twist_m_s_rad_s")
@@ -288,6 +293,8 @@ def solve_normal_priority_qp(
     if not math.isfinite(float(osqp_rho)) or float(osqp_rho) <= 0.0:
         raise LexicographicTaseQpError("osqp_rho must be finite and positive")
     osqp_rho = float(osqp_rho)
+    if type(osqp_scaling) is not int or osqp_scaling < 0:
+        raise LexicographicTaseQpError("osqp_scaling must be a nonnegative integer")
 
     norm = float(np.linalg.norm(normal))
     if norm <= 1e-12:
@@ -321,6 +328,7 @@ def solve_normal_priority_qp(
         lower=lower,
         upper=upper,
         osqp_rho=osqp_rho,
+        osqp_scaling=osqp_scaling,
     )
     normal_achieved = normal_row @ qdot_1
     qdot_2, iter_2, time_2 = _solve_bounded_least_squares(
@@ -333,6 +341,7 @@ def solve_normal_priority_qp(
         lower=lower,
         upper=upper,
         osqp_rho=osqp_rho,
+        osqp_scaling=osqp_scaling,
     )
     hard_matrix_2 = np.vstack((normal_row, orientation_matrix))
     hard_target_2 = hard_matrix_2 @ qdot_2
@@ -367,6 +376,7 @@ def solve_normal_priority_qp(
                 lower=lower,
                 upper=upper,
                 osqp_rho=osqp_rho,
+                osqp_scaling=osqp_scaling,
             )
     else:
         qdot_3, iter_3, _stage_3_qp_time = _solve_bounded_least_squares(
@@ -379,6 +389,7 @@ def solve_normal_priority_qp(
                 lower=lower,
                 upper=upper,
                 osqp_rho=osqp_rho,
+                osqp_scaling=osqp_scaling,
         )
     time_3 = time.perf_counter() - tangent_started
     all_task_matrix = np.vstack((hard_matrix_2, tangent_matrix))
@@ -402,6 +413,7 @@ def solve_normal_priority_qp(
             lower=lower,
             upper=upper,
             osqp_rho=osqp_rho,
+            osqp_scaling=osqp_scaling,
         )
         stage_4_method = "osqp_previous_qdot_tiebreak"
 

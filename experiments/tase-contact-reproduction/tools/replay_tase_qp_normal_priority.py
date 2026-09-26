@@ -21,7 +21,12 @@ import numpy as np
 
 from audit_tase_qp_hard_task_feasibility import validate_attempt_protocol
 from audit_tase_qp_replay_inputs import verify_seal
-from tase_qp_normal_priority_offline import DEFAULT_OSQP_RHO, METHOD_ID, solve_normal_priority_qp
+from tase_qp_normal_priority_offline import (
+    DEFAULT_OSQP_RHO,
+    DEFAULT_OSQP_SCALING,
+    METHOD_ID,
+    solve_normal_priority_qp,
+)
 
 
 SCHEMA = "tase.qp-normal-priority-fixed-input-replay-v1"
@@ -62,6 +67,7 @@ def replay_attempt(
     attempt_dir: Path,
     *,
     osqp_rho: float = DEFAULT_OSQP_RHO,
+    osqp_scaling: int = DEFAULT_OSQP_SCALING,
     desired_twist_trace: Path | None = None,
 ) -> dict[str, Any]:
     attempt_dir = Path(attempt_dir).resolve(strict=True)
@@ -181,6 +187,7 @@ def replay_attempt(
                     slew_velocity_lower_rad_s=slew_lower,
                     slew_velocity_upper_rad_s=slew_upper,
                     osqp_rho=osqp_rho,
+                    osqp_scaling=osqp_scaling,
                 )
             except Exception as exc:
                 row_failures.append({
@@ -270,6 +277,7 @@ def replay_attempt(
         },
         "numerical_profile": {
             "osqp_rho": float(osqp_rho),
+            "osqp_scaling": osqp_scaling,
             "eps_abs": 1e-8,
             "eps_rel": 1e-8,
             "max_iter_per_stage": 400,
@@ -288,11 +296,13 @@ def main() -> int:
     parser.add_argument("--attempt-dir", type=Path, required=True)
     parser.add_argument("--json-out", type=Path, required=True)
     parser.add_argument("--osqp-rho", type=float, default=DEFAULT_OSQP_RHO)
+    parser.add_argument("--osqp-scaling", type=int, default=DEFAULT_OSQP_SCALING)
     parser.add_argument("--desired-twist-trace", type=Path)
     args = parser.parse_args()
     result = replay_attempt(
         args.attempt_dir,
         osqp_rho=args.osqp_rho,
+        osqp_scaling=args.osqp_scaling,
         desired_twist_trace=args.desired_twist_trace,
     )
     args.json_out.parent.mkdir(parents=True, exist_ok=True)

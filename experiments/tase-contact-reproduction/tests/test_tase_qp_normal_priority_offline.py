@@ -40,6 +40,8 @@ def test_unconstrained_lexicographic_qp_matches_requested_twist():
     assert result.live_eligible is False
     alternate_rho = solve_normal_priority_qp(**case, osqp_rho=0.01)
     assert alternate_rho.qdot_rad_s == pytest.approx(result.qdot_rad_s, abs=1e-8)
+    unscaled = solve_normal_priority_qp(**case, osqp_scaling=0)
+    assert unscaled.qdot_rad_s == pytest.approx(result.qdot_rad_s, abs=1e-8)
 
 
 def test_normal_priority_preserves_force_axis_before_orientation_and_tangent():
@@ -71,3 +73,8 @@ def test_lexicographic_qp_rejects_empty_joint_and_slew_intersection():
 def test_lexicographic_qp_rejects_nonpositive_rho():
     with pytest.raises(LexicographicTaseQpError, match="osqp_rho"):
         solve_normal_priority_qp(**_case(), osqp_rho=0.0)
+
+
+def test_lexicographic_qp_rejects_negative_osqp_scaling():
+    with pytest.raises(LexicographicTaseQpError, match="osqp_scaling"):
+        solve_normal_priority_qp(**_case(), osqp_scaling=-1)
