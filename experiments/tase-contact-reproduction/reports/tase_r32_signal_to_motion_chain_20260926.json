@@ -1,0 +1,250 @@
+{
+  "schema": "tase.r32-signal-to-motion-chain-v1",
+  "evidence_class": "sealed_complete_live_A_trace_joined_open_loop_diagnostic",
+  "attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r32-rate460-a-v3-capture-evidence-only-20260926T171700HKT/attempts/0001",
+  "protocol": "r013_60_rate460",
+  "window_s": [
+    5.0,
+    60.0
+  ],
+  "rows": 27485,
+  "target_force_n": 5.0,
+  "sources": {
+    "command_timeline": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r32-rate460-a-v3-capture-evidence-only-20260926T171700HKT/attempts/0001/command_timeline.jsonl",
+    "command_timeline_sha256": "c296074b4a583709a9fe810d6680bd7a39f515849c932b4a2ba6c8967c8975ee",
+    "attempt_result": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r32-rate460-a-v3-capture-evidence-only-20260926T171700HKT/attempts/0001/attempt-result.json",
+    "attempt_result_sha256": "074d59f2e2c0d7ee2ea08158f8329c4e45437a4661b47ea23346e485867ac3bd"
+  },
+  "force_input_stage": {
+    "identity_checked": true,
+    "controller_minus_scored_filter_mean_n": 0.882411768174983,
+    "measured_normal_above_filter_pct": 48.21539021284337,
+    "score_channel_signed_error_mean_n": 1.0800516920005658,
+    "controller_channel_signed_error_mean_n": 0.197639923825583,
+    "claim_limit": "all forces are from the same Kunwei feedback path; no independent task-force truth"
+  },
+  "normal_command_chain": {
+    "approach_axis_base": [
+      -0.0,
+      -0.0,
+      -1.0
+    ],
+    "task_space_limit_flag_pct": 22.597780607604147,
+    "requested_minus_task_limit": {
+      "mean": 0.25043742814759384,
+      "sd": 0.9438493650457308,
+      "p05": 0.0,
+      "p50": 0.0,
+      "p95": 2.3592435414098154,
+      "max_abs": 10.794653727770058
+    },
+    "task_minus_published_Jqdot": {
+      "mean": 0.7652001768757909,
+      "sd": 1.3598199800940198,
+      "p05": -1.8190400604291124,
+      "p50": 0.811765788933091,
+      "p95": 2.8022704413041657,
+      "max_abs": 3.8077935345035927
+    },
+    "requested_minus_published_Jqdot": {
+      "mean": 1.0156376050233848,
+      "sd": 1.9455001248049708,
+      "p05": -1.9357712984626645,
+      "p50": 0.8182039444542917,
+      "p95": 4.4233274859770235,
+      "max_abs": 12.041700511451658
+    },
+    "task_and_published_Jqdot_same_sign_pct": 72.31217027469529,
+    "joint_solver_bound_active_pct": 0.0,
+    "host_slew_limited_pct": 0.029106785519374203,
+    "explicit_realization_limit_pct": 0.029106785519374203,
+    "published_realization_saturated_flag_pct": 0.029106785519374203,
+    "no_explicit_bound_or_slew_subset": {
+      "rows": 27477,
+      "task_to_Jqdot_residual_p95_abs_mm_s": 2.809833243776177,
+      "task_to_Jqdot_residual_mean_mm_s": 0.7653759484928334
+    },
+    "clipped_vs_unclipped": {
+      "clipped": {
+        "rows": 6211,
+        "pct_of_formal_rows": 22.597780607604147,
+        "mean_scored_force_n": 2.6777170529618997,
+        "signed_score_error_target_minus_filter_n": 2.322282947038101,
+        "sample_force_mae_n": 2.3473760011111735,
+        "mean_controller_force_error_n": 1.429256540999792,
+        "requested_normal_mean_mm_s": 3.156701451076577,
+        "task_after_limit_mean_mm_s": 2.0484624054097567,
+        "final_jqdot_normal_mean_mm_s": 0.5069822133847566,
+        "task_to_jqdot_residual_p95_abs_mm_s": 3.171470679426448
+      },
+      "unclipped": {
+        "rows": 21274,
+        "pct_of_formal_rows": 77.40221939239585,
+        "mean_scored_force_n": 4.282620975341642,
+        "signed_score_error_target_minus_filter_n": 0.7173790246583581,
+        "sample_force_mae_n": 0.7356358844754863,
+        "mean_controller_force_error_n": -0.16193377220097577,
+        "requested_normal_mean_mm_s": 0.40944340561829745,
+        "task_after_limit_mean_mm_s": 0.40944340561829745,
+        "final_jqdot_normal_mean_mm_s": -0.12911978836326848,
+        "task_to_jqdot_residual_p95_abs_mm_s": 2.5532566306651128
+      }
+    },
+    "claim_limit": "clipped rows are selected by large error/request; their worse force scores are association, not an isolated causal effect"
+  },
+  "robot_response_stage": {
+    "RTDE_actual_TCP_speed_and_J_actual_qd_normal_max_abs_difference_mm_s": 2.505844324315193e-05,
+    "J_published_qdot_matches_recorded_final_normal_max_abs_difference_mm_s": 4.3368086899420177e-16,
+    "published_command_to_RTDE_speed_alignment": {
+      "definition": "Pearson correlation(command[i], RTDE_actual_TCP_speed[i+lag]); positive lag is post-publish",
+      "tested_lags_samples": [
+        0,
+        30
+      ],
+      "lag_sample_interval_median_ms": 1.9999250071123242,
+      "best_positive_correlation_lag_samples": 5,
+      "best_lag_median_publish_to_RTDE_sample_ms": 8.791080006631091,
+      "best_lag_correlation": 0.7170000938917577,
+      "same_row_correlation": 0.6660479826570336,
+      "correlations_by_lag": [
+        {
+          "lag_samples": 0,
+          "correlation": 0.6660479826570336
+        },
+        {
+          "lag_samples": 1,
+          "correlation": 0.6796104424054097
+        },
+        {
+          "lag_samples": 2,
+          "correlation": 0.692385047455239
+        },
+        {
+          "lag_samples": 3,
+          "correlation": 0.7035598599409684
+        },
+        {
+          "lag_samples": 4,
+          "correlation": 0.7125787919522268
+        },
+        {
+          "lag_samples": 5,
+          "correlation": 0.7170000938917577
+        },
+        {
+          "lag_samples": 6,
+          "correlation": 0.7112891080251957
+        },
+        {
+          "lag_samples": 7,
+          "correlation": 0.6916718613559911
+        },
+        {
+          "lag_samples": 8,
+          "correlation": 0.6674070830051648
+        },
+        {
+          "lag_samples": 9,
+          "correlation": 0.6521771475424062
+        },
+        {
+          "lag_samples": 10,
+          "correlation": 0.650042322676262
+        },
+        {
+          "lag_samples": 11,
+          "correlation": 0.6591483366529077
+        },
+        {
+          "lag_samples": 12,
+          "correlation": 0.6759965972513003
+        },
+        {
+          "lag_samples": 13,
+          "correlation": 0.6937684972616084
+        },
+        {
+          "lag_samples": 14,
+          "correlation": 0.704771571076295
+        },
+        {
+          "lag_samples": 15,
+          "correlation": 0.7037230242515308
+        },
+        {
+          "lag_samples": 16,
+          "correlation": 0.6936289552994747
+        },
+        {
+          "lag_samples": 17,
+          "correlation": 0.6815155265120139
+        },
+        {
+          "lag_samples": 18,
+          "correlation": 0.6728321805425738
+        },
+        {
+          "lag_samples": 19,
+          "correlation": 0.6690177079882054
+        },
+        {
+          "lag_samples": 20,
+          "correlation": 0.6694147145845402
+        },
+        {
+          "lag_samples": 21,
+          "correlation": 0.6723057611379076
+        },
+        {
+          "lag_samples": 22,
+          "correlation": 0.6755646563197965
+        },
+        {
+          "lag_samples": 23,
+          "correlation": 0.6771605488206724
+        },
+        {
+          "lag_samples": 24,
+          "correlation": 0.6760351918691965
+        },
+        {
+          "lag_samples": 25,
+          "correlation": 0.6722692434112991
+        },
+        {
+          "lag_samples": 26,
+          "correlation": 0.6675959404284378
+        },
+        {
+          "lag_samples": 27,
+          "correlation": 0.6636273549973368
+        },
+        {
+          "lag_samples": 28,
+          "correlation": 0.6611190927944363
+        },
+        {
+          "lag_samples": 29,
+          "correlation": 0.6593772497404874
+        },
+        {
+          "lag_samples": 30,
+          "correlation": 0.6577971542034297
+        }
+      ],
+      "interpretation_limit": "descriptive alignment in a periodic feedback trace; not a causal plant-delay estimate"
+    },
+    "claim_limit": "RTDE actual_TCP_speed is robot-state-derived telemetry, not an independent external velocity sensor"
+  },
+  "timing": {
+    "actual_dt_median_ms": 1.9999250071123242,
+    "actual_dt_p99_ms": 2.2130896011367436,
+    "host_sample_dt_median_ms": 1.9999250071123242
+  },
+  "conclusion": [
+    "The one-sided force envelope explains a deterministic mismatch between the controller error channel and the scored filtered channel, but its physical contribution to MAE is not identified by this fixed trace.",
+    "On this trace, the 3 mm/s task normal cap is active on some low-force/high-demand rows; final Jqdot is often materially smaller than the task request. These effects are observed together and cannot be assigned separate MAE shares from the same closed-loop trace.",
+    "RTDE speed follows the calibrated J*actual_qd identity in the saved data; command-to-speed correlation is delayed and descriptive, not a force-control causal estimate.",
+    "No controller values or live profile are changed or promoted by this analysis."
+  ]
+}

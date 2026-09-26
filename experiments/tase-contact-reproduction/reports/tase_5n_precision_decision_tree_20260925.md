@@ -23,7 +23,7 @@ flowchart TD
     H -- No --> H0["R31/R32 A traces confirm max(filtered, measured normal). Keep it live-frozen; reproduce and assess this one-sided envelope offline before discussing any change."]
     H -- Yes --> I
     H0 --> I{"Do integral occupancy, task-space limiting, or final-Jqdot residual explain low-force windows?"}
-    I -- Yes --> I0["Separate the force envelope, task-speed limit, and RNN realization in fixed-input replay. Change one factor at a time only after safety review."]
+    I -- Yes --> I0["R32 joined replay: 3 mm/s task cap active on 22.6% of rows; task-to-final Jqdot p95 residual 2.80 mm/s. Clipped rows co-occur with low force, but the closed-loop trace cannot apportion causality. Keep A frozen; do not change force envelope, speed cap, or solver live."]
     I -- No --> J{"Does a measured local second-order model fit the 5 N normal axis?"}
     J -- Yes --> J0["Estimate effective M, then compare zeta 0.5, 0.707 and 1.0 using either B=2*zeta*sqrt(M*K) or K=B^2/(4*zeta^2*M)."]
     J -- No --> J1["Report where the model fails and use a bounded independent normal K/B grid; do not reuse tangential Bd or stiffness."]
