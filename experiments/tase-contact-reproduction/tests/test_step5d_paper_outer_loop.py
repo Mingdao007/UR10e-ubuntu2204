@@ -112,6 +112,25 @@ class Step5dPaperOuterLoopTest(unittest.TestCase):
         self.assertAlmostEqual(output.diagnostics["e_f"], 3.0, places=12)
         np.testing.assert_allclose(output.diagnostics["xddot_p"], [0.0, 0.0, 0.275], atol=1e-12)
 
+    def test_legacy_integral_reports_raw_trial_and_state_clamp(self) -> None:
+        for diagnostic_mode in ("compact", True):
+            output = compute_step5d_outer_loop(
+                Step5dOuterLoopConfig(
+                    kp=0.0,
+                    ko=0.0,
+                    kf=1.0,
+                    force_target_n=5.0,
+                    force_integral_limit_n_s=1.0,
+                ),
+                Step5dOuterLoopState(force_integral_n_s=0.99),
+                self.make_inputs(dt_s=0.1),
+                include_diagnostics=diagnostic_mode,
+            )
+            self.assertAlmostEqual(output.next_state.force_integral_n_s, 1.0)
+            self.assertAlmostEqual(output.diagnostics["integral_raw_state_n_s"], 1.29)
+            self.assertTrue(output.diagnostics["integral_state_clamped"])
+            self.assertTrue(output.diagnostics["integral_saturated"])
+
     def test_integral_off_policy_zeros_existing_state_exactly(self) -> None:
         output = compute_step5d_outer_loop(
             Step5dOuterLoopConfig(

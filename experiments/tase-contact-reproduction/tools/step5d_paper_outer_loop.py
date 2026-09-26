@@ -641,6 +641,8 @@ def compute_step5d_outer_loop(
     e_f = force_error_n(target_load_n=float(config.force_target_n), normal_load_n=normal_load_n)
     xdot_p_prev = _finite_array(state.xdot_p_prev_m_s, (3,), "xdot_p_prev_m_s")
     anti_windup: ConditionalAntiWindupResult | ContactGatedLeakyResult | None = None
+    legacy_integral_raw_state_n_s: float | None = None
+    legacy_integral_state_clamped = False
     if config.force_integral_policy == CONDITIONAL_DOUBLE_CLAMP_POLICY:
         velocity_limit = _finite_float(
             config.force_normal_velocity_limit_m_s,
@@ -739,10 +741,17 @@ def compute_step5d_outer_loop(
         integral_increment = (
             e_f * dt_s if bool(inputs.integral_enabled) else 0.0
         )
+        legacy_integral_raw_state_n_s = state.force_integral_n_s + integral_increment
         force_integral = clamp(
-            state.force_integral_n_s + integral_increment,
+            legacy_integral_raw_state_n_s,
             -abs(float(config.force_integral_limit_n_s)),
             abs(float(config.force_integral_limit_n_s)),
+        )
+        legacy_integral_state_clamped = not math.isclose(
+            legacy_integral_raw_state_n_s,
+            force_integral,
+            rel_tol=0.0,
+            abs_tol=1e-15,
         )
         xddot_p = force_motion_acceleration_base(
             force_error=e_f,
@@ -804,9 +813,17 @@ def compute_step5d_outer_loop(
             "integral_state_n_s": float(force_integral),
             "force_integral_policy": config.force_integral_policy,
             "integral_raw_state_n_s": (
-                float(getattr(anti_windup, "raw_integral_state_n_s", force_integral))
+                float(getattr(
+                    anti_windup,
+                    "raw_integral_state_n_s",
+                    force_integral if legacy_integral_raw_state_n_s is None
+                    else legacy_integral_raw_state_n_s,
+                ))
                 if anti_windup is not None
-                else float(force_integral)
+                else float(
+                    force_integral if legacy_integral_raw_state_n_s is None
+                    else legacy_integral_raw_state_n_s
+                )
             ),
             "integral_leaky_state_n_s": (
                 float(getattr(anti_windup, "leaky_integral_state_n_s", force_integral))
@@ -827,7 +844,10 @@ def compute_step5d_outer_loop(
             "integral_i_term": anti_windup.i_term if anti_windup is not None else float(config.kf) * force_integral / Md,
             "integral_raw_normal_velocity_m_s": anti_windup.raw_normal_velocity_m_s if anti_windup is not None else float(np.dot(xdot_force_candidate, approach_normal_base)),
             "integral_applied_normal_velocity_m_s": anti_windup.applied_normal_velocity_m_s if anti_windup is not None else float(np.dot(xdot_force_candidate, approach_normal_base)),
-            "integral_state_clamped": anti_windup.state_clamped if anti_windup is not None else False,
+            "integral_state_clamped": (
+                anti_windup.state_clamped if anti_windup is not None
+                else legacy_integral_state_clamped
+            ),
             "integral_authority_clamped": anti_windup.authority_clamped if anti_windup is not None else False,
             "integral_conditional_frozen": anti_windup.conditional_frozen if anti_windup is not None else False,
             "integral_final_output_frozen": anti_windup.output_feedback_frozen if anti_windup is not None else False,
@@ -835,7 +855,7 @@ def compute_step5d_outer_loop(
             "integral_saturated": bool(
                 (anti_windup.state_clamped or anti_windup.authority_clamped)
                 if anti_windup is not None
-                else False
+                else legacy_integral_state_clamped
             ) or bool(getattr(anti_windup, "integral_saturated", False)),
             "integral_reset_reason": anti_windup.reset_reason if anti_windup is not None else "",
             "xddot_p": _tuple3(xddot_p),
@@ -869,9 +889,17 @@ def compute_step5d_outer_loop(
             "integral_state_n_s": float(force_integral),
             "force_integral_policy": config.force_integral_policy,
             "integral_raw_state_n_s": (
-                float(getattr(anti_windup, "raw_integral_state_n_s", force_integral))
+                float(getattr(
+                    anti_windup,
+                    "raw_integral_state_n_s",
+                    force_integral if legacy_integral_raw_state_n_s is None
+                    else legacy_integral_raw_state_n_s,
+                ))
                 if anti_windup is not None
-                else float(force_integral)
+                else float(
+                    force_integral if legacy_integral_raw_state_n_s is None
+                    else legacy_integral_raw_state_n_s
+                )
             ),
             "integral_leaky_state_n_s": (
                 float(getattr(anti_windup, "leaky_integral_state_n_s", force_integral))
@@ -892,7 +920,10 @@ def compute_step5d_outer_loop(
             "integral_i_term": anti_windup.i_term if anti_windup is not None else float(config.kf) * force_integral / Md,
             "integral_raw_normal_velocity_m_s": anti_windup.raw_normal_velocity_m_s if anti_windup is not None else float(np.dot(xdot_force_candidate, approach_normal_base)),
             "integral_applied_normal_velocity_m_s": anti_windup.applied_normal_velocity_m_s if anti_windup is not None else float(np.dot(xdot_force_candidate, approach_normal_base)),
-            "integral_state_clamped": anti_windup.state_clamped if anti_windup is not None else False,
+            "integral_state_clamped": (
+                anti_windup.state_clamped if anti_windup is not None
+                else legacy_integral_state_clamped
+            ),
             "integral_authority_clamped": anti_windup.authority_clamped if anti_windup is not None else False,
             "integral_conditional_frozen": anti_windup.conditional_frozen if anti_windup is not None else False,
             "integral_final_output_frozen": anti_windup.output_feedback_frozen if anti_windup is not None else False,
@@ -900,7 +931,7 @@ def compute_step5d_outer_loop(
             "integral_saturated": bool(
                 (anti_windup.state_clamped or anti_windup.authority_clamped)
                 if anti_windup is not None
-                else False
+                else legacy_integral_state_clamped
             ) or bool(getattr(anti_windup, "integral_saturated", False)),
             "integral_reset_reason": anti_windup.reset_reason if anti_windup is not None else "",
             "T_s": T_s,

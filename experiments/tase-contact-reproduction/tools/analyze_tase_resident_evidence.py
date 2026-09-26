@@ -14,12 +14,24 @@ import statistics
 from typing import Any
 
 from tase_r013_timing_ledger import STAGES, TaseR013TimingLedger, TimingLedgerError
+from tase_figure8_protocol import (
+    BIN_WIDTH_S,
+    DURATION_S,
+    FORMAL_END_S,
+    FORMAL_START_S,
+    TARGET_FORCE_N,
+)
 
 
 SCHEMA = "tase.resident-evidence-diagnostic-v1"
+CONTROLLER_TRACE_SCHEMAS = {
+    "tase.qp-replay-command-timeline-v2",
+    "tase.qp-replay-command-timeline-v3",
+}
 EXPECTED_PROTOCOLS = {
     "figure8_window60_r013_compat_v1",
     "figure8_window60_r013_rate400_v1",
+    "figure8_window60_r013_rate460_v1",
 }
 
 
@@ -203,17 +215,465 @@ def _force_window(values: list[tuple[float, float]]) -> dict[str, float | int | 
     }
 
 
+def _bin_mean_force_window(
+    values: list[tuple[float, float]], *, start_s: float, end_s: float,
+    source_label: str,
+) -> dict[str, Any]:
+    """Equal-weight 100 ms bin-mean diagnostic for one named force signal."""
+    bin_count_float = (end_s - start_s) / BIN_WIDTH_S
+    bin_count = int(round(bin_count_float))
+    if (
+        not math.isfinite(bin_count_float)
+        or bin_count <= 0
+        or not math.isclose(bin_count_float, bin_count, rel_tol=0.0, abs_tol=1e-12)
+    ):
+        raise ValueError("raw sensor diagnostic window must contain whole R013 bins")
+    totals = [0.0] * bin_count
+    counts = [0] * bin_count
+    for stamp, force in values:
+        if not start_s <= stamp < end_s:
+            continue
+        index = int(math.floor((stamp - start_s) / BIN_WIDTH_S + 1e-9))
+        if 0 <= index < bin_count:
+            totals[index] += force
+            counts[index] += 1
+    means = [total / count for total, count in zip(totals, counts) if count]
+    errors = [value - TARGET_FORCE_N for value in means]
+    absolute = sorted(abs(error) for error in errors)
+    p95 = absolute[math.ceil(.95 * len(absolute)) - 1] if absolute else None
+    return {
+        "metric_basis": f"equal-weight mean of nonempty 100 ms bin means from {source_label}",
+        "window_s": [float(start_s), float(end_s)],
+        "sample_count": sum(counts),
+        "nonempty_bins": len(means),
+        "required_bins": bin_count,
+        "empty_bins": bin_count - len(means),
+        "coverage_fraction": len(means) / bin_count,
+        "complete_coverage": len(means) == bin_count,
+        "mean_of_bin_means_n": statistics.fmean(means) if means else None,
+        "bin_mean_mae_n": statistics.fmean(absolute) if absolute else None,
+        "bin_mean_rmse_n": math.sqrt(statistics.fmean(error * error for error in errors))
+            if errors else None,
+        "bin_mean_bias_measured_minus_target_n": statistics.fmean(errors) if errors else None,
+        "bin_mean_tail_abs_error_p95_n": p95,
+    }
+
+
+def _raw_sensor_bin_mean_window(
+    values: list[tuple[float, float]], *, start_s: float, end_s: float,
+) -> dict[str, Any]:
+    """Equal-weight bin-mean diagnostic over retained raw Kunwei samples."""
+    result = _bin_mean_force_window(
+        values,
+        start_s=start_s,
+        end_s=end_s,
+        source_label="sealed raw KWR75 corrected normal-load samples",
+    )
+    result["metric_basis"] += "; diagnostic only, not the synchronized official score"
+    return result
+
+
+def _controller_path_force_diagnostics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compare per-frame measured, filtered, and control signals on PATH time."""
+    channels = {
+        "normal_force_measured_n": "KWR75 corrected normal load at controller observation",
+        "normal_force_filtered_n": "controller low-pass filtered KWR75 normal load",
+        "normal_force_control_n": "normal load supplied to the TASE outer loop",
+    }
+    values: dict[str, list[tuple[float, float]]] = {name: [] for name in channels}
+    invalid_rows = 0
+    for row in rows:
+        if row.get("reference_phase") != "path":
+            continue
+        try:
+            reference_time = float(row.get("reference_time_s", math.nan))
+        except (TypeError, ValueError):
+            reference_time = math.nan
+        if not math.isfinite(reference_time) or not 0.0 <= reference_time < DURATION_S:
+            invalid_rows += 1
+            continue
+        for name in channels:
+            try:
+                force = float(row.get(name, math.nan))
+            except (TypeError, ValueError):
+                force = math.nan
+            if not math.isfinite(force):
+                invalid_rows += 1
+                continue
+            values[name].append((reference_time, force))
+
+    windows = {
+        "window_0_60_s": (0.0, DURATION_S),
+        "window_0_5_s": (0.0, FORMAL_START_S),
+        "window_5_60_s": (FORMAL_START_S, FORMAL_END_S),
+    }
+    result: dict[str, Any] = {}
+    for name, source_label in channels.items():
+        channel_windows: dict[str, Any] = {}
+        for window_name, (start_s, end_s) in windows.items():
+            selected = [
+                (stamp, force) for stamp, force in values[name]
+                if start_s <= stamp < end_s
+            ]
+            channel_windows[window_name] = {
+                "per_sample": _force_window(selected),
+                "equal_weight_100ms_bins": _bin_mean_force_window(
+                    selected,
+                    start_s=start_s,
+                    end_s=end_s,
+                    source_label=source_label,
+                ),
+            }
+        result[name] = {
+            "source": source_label,
+            "path_time_source": "command_timeline.reference_time_s",
+            "windows": channel_windows,
+        }
+    return {
+        "available": any(values.values()),
+        "invalid_sample_or_channel_count": invalid_rows,
+        "signals": result,
+    }
+
+
 def _force_diagnostics(path: Path, path_start: float | None) -> dict[str, Any]:
     windows: list[list[tuple[float, float]]] = [[], []]
+    full_path: list[tuple[float, float]] = []
     if path_start is not None:
         for row in _rows(path):
             wrench = row.get("corrected_wrench_n_nm")
             t = float(row.get("host_use_monotonic_s", -math.inf)) - path_start
             if wrench is not None and 0 <= t < 60.0:
+                full_path.append((t, -float(wrench[2])))
                 windows[0 if t < 5.0 else 1].append((t, -float(wrench[2])))
-    return {"window_0_5_s": _force_window(windows[0]),
+    return {"window_0_60_s": _force_window(full_path),
+            "window_0_5_s": _force_window(windows[0]),
             "window_5_60_s": _force_window(windows[1]),
+            "raw_sensor_bin_mean_diagnostics": {
+                "window_0_60_s": _raw_sensor_bin_mean_window(
+                    full_path, start_s=0.0, end_s=DURATION_S,
+                ),
+                "window_0_5_s": _raw_sensor_bin_mean_window(
+                    full_path, start_s=0.0, end_s=FORMAL_START_S,
+                ),
+            "window_5_60_s": _raw_sensor_bin_mean_window(
+                    full_path, start_s=FORMAL_START_S, end_s=FORMAL_END_S,
+                ),
+                "official_window_s": [FORMAL_START_S, FORMAL_END_S],
+            },
             "interpretation": "raw corrected samples; below 1 N is a contact-loss proxy, not visual proof; independent of formal bin-mean MAE"}
+
+
+def _distribution(values: list[float]) -> dict[str, float | int | None]:
+    finite = sorted(float(value) for value in values if math.isfinite(float(value)))
+    if not finite:
+        return {"count": 0, "mean": None, "rms": None, "p95": None,
+                "min": None, "max": None}
+    p95 = finite[math.ceil(.95 * len(finite)) - 1]
+    return {
+        "count": len(finite),
+        "mean": statistics.fmean(finite),
+        "rms": math.sqrt(statistics.fmean(value * value for value in finite)),
+        "p95": p95,
+        "min": finite[0],
+        "max": finite[-1],
+    }
+
+
+def _pre_path_force_diagnostics(
+    sensor_path: Path,
+    robot_frames_path: Path,
+    stages: dict[str, float | None],
+) -> dict[str, Any]:
+    """Describe search, contact ramp, and entry without a fixed-5 N MAE.
+
+    State 20 is contact search, state 21 includes the one-newton latch and
+    force ramp, and state 25 is the separate PATH entry. Those intervals do
+    not all hold a constant 5 N reference, so this reports measured channels
+    and timing instead of treating them as force-tracking error.
+    """
+    intervals = {
+        "state20_contact_search": (
+            stages.get("contact_search_s"), stages.get("contact_latch_s"),
+        ),
+        "state21_latch_and_ramp": (
+            stages.get("contact_latch_s"), stages.get("entry_s"),
+        ),
+        "entry": (stages.get("entry_s"), stages.get("path_start_s")),
+    }
+    samples: dict[str, list[tuple[float, list[float], bool | None]]] = {
+        name: [] for name in intervals
+    }
+    for row in _rows(sensor_path):
+        try:
+            timestamp = float(row["host_use_monotonic_s"])
+            wrench = [float(value) for value in row["corrected_wrench_n_nm"]]
+        except (KeyError, TypeError, ValueError):
+            continue
+        if len(wrench) != 6 or not all(math.isfinite(value) for value in wrench):
+            continue
+        if not math.isfinite(timestamp):
+            continue
+        fresh = row.get("sensor_fresh")
+        for name, (start_s, end_s) in intervals.items():
+            if start_s is not None and end_s is not None and start_s <= timestamp < end_s:
+                samples[name].append((timestamp, wrench, fresh if type(fresh) is bool else None))
+                break
+
+    frame_bounds: dict[str, list[list[float]]] = {name: [] for name in intervals}
+    for row in _rows(robot_frames_path):
+        try:
+            timestamp = float(row["received_monotonic_s"])
+            pose = [float(value) for value in row.get("tcp_pose_m_rad", [])]
+        except (KeyError, TypeError, ValueError):
+            continue
+        if len(pose) != 6 or not all(math.isfinite(value) for value in pose):
+            continue
+        for name, (start_s, end_s) in intervals.items():
+            if start_s is not None and end_s is not None and start_s <= timestamp < end_s:
+                bounds = frame_bounds[name]
+                if not bounds:
+                    bounds.append(pose)
+                elif len(bounds) == 1:
+                    bounds.append(pose)
+                else:
+                    bounds[1] = pose
+                break
+
+    result: dict[str, Any] = {}
+    for name, (start_s, end_s) in intervals.items():
+        rows = samples[name]
+        normal = [-wrench[2] for _, wrench, _ in rows]
+        force_norm = [math.sqrt(sum(value * value for value in wrench[:3]))
+                      for _, wrench, _ in rows]
+        torque_norm = [math.sqrt(sum(value * value for value in wrench[3:]))
+                       for _, wrench, _ in rows]
+        fresh_values = [fresh for _, _, fresh in rows if fresh is not None]
+        pose_rows = frame_bounds[name]
+        result[name] = {
+            "stage_interval_s": [start_s, end_s],
+            "stage_duration_s": (
+                None if start_s is None or end_s is None else max(0.0, end_s - start_s)
+            ),
+            "sensor_sample_count": len(rows),
+            "sensor_observed_span_s": (
+                None if len(rows) < 2 else rows[-1][0] - rows[0][0]
+            ),
+            "sensor_fresh_fraction": (
+                None if not fresh_values else sum(fresh_values) / len(fresh_values)
+            ),
+            "normal_load_n": _distribution(normal),
+            "force_norm_n": _distribution(force_norm),
+            "torque_norm_nm": _distribution(torque_norm),
+            "below_1n_fraction": (
+                None if not normal else sum(value < 1.0 for value in normal) / len(normal)
+            ),
+            "tcp_z_start_m": None if not pose_rows else pose_rows[0][2],
+            "tcp_z_end_m": None if not pose_rows else pose_rows[-1][2],
+            "tcp_z_change_m": (
+                None if len(pose_rows) < 2 else pose_rows[-1][2] - pose_rows[0][2]
+            ),
+            "interpretation": "KWR75 corrected feedback; stage may have a changing target, so no constant-5 N MAE is assigned",
+        }
+    return {
+        "force_source": "Kunwei KWR75 corrected_wrench_n_nm",
+        "normal_load_definition": "-corrected_wrench_n_nm[2]",
+        "stages": result,
+    }
+
+
+def _controller_trace_diagnostics(path: Path) -> dict[str, Any]:
+    rows = list(_rows(path))
+    if not rows:
+        return {"available": False, "reason": "sealed command timeline is empty"}
+    schema = rows[0].get("schema")
+    if schema not in CONTROLLER_TRACE_SCHEMAS:
+        return {
+            "available": True,
+            "schema": schema,
+            "per_frame_diagnostics_complete": False,
+            "record_count": len(rows),
+            "reason": "trace predates per-frame controller diagnostics",
+        }
+    boolean_fields = (
+        "integral_state_clamped", "integral_authority_clamped",
+        "integral_conditional_frozen", "integral_final_output_frozen",
+        "integral_velocity_saturated", "integral_saturated",
+        "integral_contact_gated", "integral_explicit_velocity_limit_active",
+        "force_rise_guard", "force_preempt_warm_start",
+        "force_preempt_direction_retry", "baseline_normal_projection_applied",
+        "force_rise_inward_cap_applied", "host_slew_limited",
+        "published_feedback_present", "published_task_space_saturated",
+        "published_realization_saturated", "published_explicit_realization_limit",
+    )
+    numeric_fields = (
+        "normal_force_measured_n", "normal_force_filtered_n",
+        "normal_force_control_n", "force_target_n", "force_error_n",
+        "integral_state_n_s", "integral_raw_state_n_s",
+        "integral_effective_limit_n_s", "integral_i_term",
+        "integral_raw_normal_velocity_m_s", "integral_applied_normal_velocity_m_s",
+        "measured_force_norm_n", "published_same_direction_freeze_sign",
+        "published_total_directional_shortfall_m_s", "published_requested_normal_m_s",
+        "published_task_normal_m_s", "published_realized_normal_m_s",
+        "publish_latency_s", "actual_dt_s", "solver_elapsed_s", "provider_elapsed_s",
+    )
+    missing = 0
+    numeric: dict[str, list[float]] = {name: [] for name in numeric_fields}
+    flag_counts = {name: 0 for name in boolean_fields}
+    integral_at_limit_count = 0
+    host_gaps: list[float] = []
+    publish_gaps: list[float] = []
+    largest_gap_rows: list[dict[str, Any]] = []
+    previous_host: float | None = None
+    previous_publish: float | None = None
+    actual_qd_max_abs = 0.0
+    actual_qd_max_norm = 0.0
+    published_qdot_max_abs = 0.0
+    actual_q_min = [math.inf] * 6
+    actual_q_max = [-math.inf] * 6
+    actual_qd_min = [math.inf] * 6
+    actual_qd_max = [-math.inf] * 6
+    for row in rows:
+        row_numeric: dict[str, float] = {}
+        if row.get("schema") != schema:
+            missing += 1
+        for name in boolean_fields:
+            value = row.get(name)
+            if type(value) is not bool:
+                missing += 1
+            elif value:
+                flag_counts[name] += 1
+        for name in numeric_fields:
+            try:
+                value = float(row.get(name, math.nan))
+            except (TypeError, ValueError):
+                value = math.nan
+            if not math.isfinite(value):
+                missing += 1
+            else:
+                numeric[name].append(value)
+                row_numeric[name] = value
+        limit = row_numeric.get("integral_effective_limit_n_s", math.nan)
+        integral = row_numeric.get("integral_state_n_s", math.nan)
+        if math.isfinite(limit) and limit > 0.0 and math.isfinite(integral) \
+                and abs(integral) >= 0.98 * limit:
+            integral_at_limit_count += 1
+        try:
+            q = [float(value) for value in row.get("actual_q_rad", [])]
+            qd = [float(value) for value in row.get("actual_qd_rad_s", [])]
+            qdot = [float(value) for value in row.get("published_packet_qdot_rad_s", [])]
+        except (TypeError, ValueError):
+            q, qd, qdot = [], [], []
+        if len(q) != 6 or not all(math.isfinite(value) for value in q):
+            missing += 1
+        else:
+            for index, value in enumerate(q):
+                actual_q_min[index] = min(actual_q_min[index], value)
+                actual_q_max[index] = max(actual_q_max[index], value)
+        if len(qd) != 6 or not all(math.isfinite(value) for value in qd):
+            missing += 1
+        else:
+            actual_qd_max_abs = max(actual_qd_max_abs, *(abs(value) for value in qd))
+            actual_qd_max_norm = max(actual_qd_max_norm, math.sqrt(sum(value * value for value in qd)))
+            for index, value in enumerate(qd):
+                actual_qd_min[index] = min(actual_qd_min[index], value)
+                actual_qd_max[index] = max(actual_qd_max[index], value)
+        if len(qdot) != 6 or not all(math.isfinite(value) for value in qdot):
+            missing += 1
+        else:
+            published_qdot_max_abs = max(published_qdot_max_abs, *(abs(value) for value in qdot))
+        try:
+            host_time = float(row.get("host_monotonic_s", math.nan))
+            publish_time = float(row.get("published_monotonic_s", math.nan))
+        except (TypeError, ValueError):
+            host_time = publish_time = math.nan
+        if not math.isfinite(host_time) or not math.isfinite(publish_time):
+            missing += 1
+        else:
+            host_gap = None if previous_host is None else host_time - previous_host
+            publish_gap = None if previous_publish is None else publish_time - previous_publish
+            if host_gap is not None and host_gap > 0.0:
+                host_gaps.append(host_gap)
+            if publish_gap is not None and publish_gap > 0.0:
+                publish_gaps.append(publish_gap)
+            previous_host, previous_publish = host_time, publish_time
+            if host_gap is not None and host_gap > 0.0:
+                active_flags = [name for name in boolean_fields if row.get(name) is True]
+                largest_gap_rows.append({
+                    "packet_sequence": row.get("packet_sequence"),
+                    "reference_time_s": row.get("reference_time_s"),
+                    "host_gap_s": host_gap,
+                    "publish_gap_s": publish_gap,
+                    "actual_dt_s": row_numeric.get("actual_dt_s"),
+                    "provider_elapsed_s": row_numeric.get("provider_elapsed_s"),
+                    "solver_elapsed_s": row_numeric.get("solver_elapsed_s"),
+                    "publish_latency_s": row_numeric.get("publish_latency_s"),
+                    "normal_force_measured_n": row_numeric.get("normal_force_measured_n"),
+                    "force_error_n": row_numeric.get("force_error_n"),
+                    "integral_state_n_s": row_numeric.get("integral_state_n_s"),
+                    "integral_effective_limit_n_s": row_numeric.get(
+                        "integral_effective_limit_n_s"
+                    ),
+                    "host_slew_scale": row.get("host_slew_scale"),
+                    "active_guards_and_saturation_flags": active_flags,
+                    "max_abs_actual_qd_rad_s": (
+                        max((abs(value) for value in qd), default=None)
+                    ),
+                    "max_abs_published_qdot_rad_s": (
+                        max((abs(value) for value in qdot), default=None)
+                    ),
+                })
+    force_target = numeric["force_target_n"]
+    measured = numeric["normal_force_measured_n"]
+    filtered = numeric["normal_force_filtered_n"]
+    target_minus_measured = [target - value for target, value in zip(force_target, measured)]
+    target_minus_filtered = [target - value for target, value in zip(force_target, filtered)]
+    return {
+        "available": True,
+        "schema": schema,
+        "record_count": len(rows),
+        "per_frame_diagnostics_complete": missing == 0,
+        "missing_or_invalid_field_count": missing,
+        "normal_force_target_minus_measured_n": _distribution(target_minus_measured),
+        "normal_force_target_minus_filtered_n": _distribution(target_minus_filtered),
+        "controller_force_error_n": _distribution(numeric["force_error_n"]),
+        "force_norm_n": _distribution(numeric["measured_force_norm_n"]),
+        "integral_state_n_s": _distribution(numeric["integral_state_n_s"]),
+        "integral_raw_state_n_s": _distribution(numeric["integral_raw_state_n_s"]),
+        "integral_effective_limit_n_s": _distribution(numeric["integral_effective_limit_n_s"]),
+        "integral_i_term": _distribution(numeric["integral_i_term"]),
+        "integral_at_or_above_98pct_limit_ticks": integral_at_limit_count,
+        "saturation_and_transition_ticks": flag_counts,
+        "published_shortfall_m_s": _distribution(
+            numeric["published_total_directional_shortfall_m_s"]
+        ),
+        "timing_s": {
+            name: _distribution(numeric[name])
+            for name in ("actual_dt_s", "solver_elapsed_s", "provider_elapsed_s", "publish_latency_s")
+        },
+        "inter_tick_timing_s": {
+            "host_observation_gap": _distribution(host_gaps),
+            "successful_publish_gap": _distribution(publish_gaps),
+            "largest_host_gaps": sorted(
+                largest_gap_rows, key=lambda value: value["host_gap_s"], reverse=True
+            )[:10],
+        },
+        "path_force_signal_diagnostics": _controller_path_force_diagnostics(rows),
+        "actual_qd_max_abs_rad_s": actual_qd_max_abs,
+        "actual_qd_max_norm_rad_s": actual_qd_max_norm,
+        "published_qdot_max_abs_rad_s": published_qdot_max_abs,
+        "actual_q_joint_range_rad": [
+            {"min": low, "max": high}
+            if math.isfinite(low) and math.isfinite(high) else {"min": None, "max": None}
+            for low, high in zip(actual_q_min, actual_q_max)
+        ],
+        "actual_qd_joint_range_rad_s": [
+            {"min": low, "max": high}
+            if math.isfinite(low) and math.isfinite(high) else {"min": None, "max": None}
+            for low, high in zip(actual_qd_min, actual_qd_max)
+        ],
+        "limitations": "KWR75 is feedback, not an independent task-force reference; joint position and velocity vectors remain in the sealed per-frame rows.",
+    }
 
 
 def _host_intervals(path: Path, path_start: float | None) -> dict[str, float | int | None]:
@@ -232,6 +692,151 @@ def _host_intervals(path: Path, path_start: float | None) -> dict[str, float | i
             "p99_interval_s": (sorted(intervals)[math.ceil(.99 * len(intervals)) - 1]
                                if intervals else None),
             "max_interval_s": max(intervals) if intervals else None}
+
+
+def _interval_summary(values: list[float]) -> dict[str, float | int | None]:
+    ordered = sorted(float(value) for value in values if math.isfinite(float(value)) and value > 0.0)
+    if not ordered:
+        return {"interval_count": 0, "p99_interval_s": None, "max_interval_s": None}
+    return {
+        "interval_count": len(ordered),
+        "p99_interval_s": ordered[math.ceil(.99 * len(ordered)) - 1],
+        "max_interval_s": ordered[-1],
+    }
+
+
+def _raw_path_layers(
+    segments: dict[str, Any],
+    *,
+    duration_s: float,
+    protocol_id: str,
+    attempt: dict[str, Any],
+) -> dict[str, Any]:
+    """Separate raw interface rates from the synchronized acceptance samples.
+
+    TimingEvidence intentionally counts identities represented in fully
+    accepted PathSample rows. This helper independently counts all formal
+    host PATH references, raw RTDE frames, and distinct TP-consumed echoes in
+    the controller-clock [0,duration) window.
+    """
+    timeline_receipt = segments.get("command_timeline") or {}
+    frames_receipt = segments.get("robot_frames") or {}
+    timeline_path = Path(timeline_receipt.get("path", ""))
+    frames_path = Path(frames_receipt.get("path", ""))
+    if not timeline_path.is_file() or not frames_path.is_file():
+        return {"available": False, "reason": "sealed command timeline or RTDE segment is missing"}
+
+    formal_refs: dict[int, float] = {}
+    for row in _rows(timeline_path):
+        if row.get("reference_phase") != "path":
+            continue
+        reference = row.get("reference_time_s")
+        sequence = row.get("packet_sequence")
+        if (isinstance(reference, (int, float)) and not isinstance(reference, bool)
+                and math.isfinite(float(reference)) and 0.0 <= float(reference) < duration_s
+                and isinstance(sequence, int) and not isinstance(sequence, bool)):
+            formal_refs[int(sequence)] = float(reference)
+    if not formal_refs:
+        return {"available": False, "reason": "no formal PATH reference packets were retained"}
+
+    rtde_path_frames: list[dict[str, Any]] = []
+    path_origin_timestamp = None
+    echo_first_time: dict[int, float] = {}
+    for row in _rows(frames_path):
+        echoes = row.get("integer_echoes") or {}
+        state = int(echoes.get("26", echoes.get(26, -1)))
+        if state != 25:
+            continue
+        timestamp = float(row.get("timestamp", math.nan))
+        sequence = int(row.get("consumed_packet_sequence", -1))
+        if not math.isfinite(timestamp):
+            continue
+        if sequence in formal_refs:
+            if path_origin_timestamp is None:
+                path_origin_timestamp = timestamp
+            echo_first_time.setdefault(sequence, timestamp)
+        rtde_path_frames.append({"timestamp": timestamp, "sequence": sequence})
+    if path_origin_timestamp is None:
+        return {"available": False, "reason": "no RTDE frame echoed a formal PATH reference"}
+
+    stop_timestamp = path_origin_timestamp + duration_s
+    window_frames = [
+        row for row in rtde_path_frames
+        if path_origin_timestamp <= row["timestamp"] < stop_timestamp
+    ]
+    unique_rtde_timestamps = sorted({row["timestamp"] for row in window_frames})
+    echoes_in_window = sorted({
+        row["sequence"] for row in window_frames
+        if row["sequence"] in formal_refs
+    })
+    echo_times = sorted({
+        sequence: echo_first_time[sequence]
+        for sequence in echoes_in_window
+        if sequence in echo_first_time
+    }.values())
+    rtde_intervals = [right - left for left, right in zip(
+        unique_rtde_timestamps, unique_rtde_timestamps[1:]
+    )]
+    echo_intervals = [right - left for left, right in zip(echo_times, echo_times[1:])]
+    skipped_sequence_steps = sum(
+        max(0, right - left - 1)
+        for left, right in zip(echoes_in_window, echoes_in_window[1:])
+    )
+    timing_evidence = ((attempt.get("evidence") or {}).get("metrics") or {}).get(
+        "timing_evidence"
+    ) or {}
+    minimum_rate_hz = float(timing_evidence.get("minimum_rate_hz", 460.0))
+    timing_attribution = attempt.get("timing_attribution") or {}
+    host_summary = timing_attribution.get("host_interpublish") or {}
+    host_count = host_summary.get("path_publishes")
+    host_rate = timing_attribution.get("host_path_publish_rate_hz")
+    if isinstance(host_count, int) and not isinstance(host_count, bool):
+        host_rate = host_count / duration_s
+    kunwei_count = timing_evidence.get("distinct_kunwei_frames")
+    layer_counts = {
+        "host_successful_path_publishes": host_count,
+        "formal_host_path_reference_sequences": len(formal_refs),
+        "raw_rtde_frames": len(unique_rtde_timestamps),
+        "tp_consumed_formal_echoes": len(echoes_in_window),
+        "kunwei_distinct_frames": kunwei_count,
+    }
+    layer_rates = {
+        "host_successful_path_publishes": host_rate,
+        "formal_host_path_reference_sequences": len(formal_refs) / duration_s,
+        "raw_rtde_frames": len(unique_rtde_timestamps) / duration_s,
+        "tp_consumed_formal_echoes": len(echoes_in_window) / duration_s,
+        "kunwei_distinct_frames": (
+            None if not isinstance(kunwei_count, int) else kunwei_count / duration_s
+        ),
+    }
+    return {
+        "available": True,
+        "protocol_id": protocol_id,
+        "formal_window_controller_timestamp_s": [path_origin_timestamp, stop_timestamp],
+        "duration_s": duration_s,
+        "minimum_layer_rate_hz": minimum_rate_hz,
+        "counts": layer_counts,
+        "rates_hz": layer_rates,
+        "passes_minimum_rate": {
+            name: (None if rate is None else rate >= minimum_rate_hz)
+            for name, rate in layer_rates.items()
+        },
+        "formal_host_sequences_not_echoed_in_window": len(
+            set(formal_refs).difference(echoes_in_window)
+        ),
+        "consumed_sequence_skips": skipped_sequence_steps,
+        "raw_rtde_intervals": _interval_summary(rtde_intervals),
+        "tp_echo_intervals": _interval_summary(echo_intervals),
+        "synchronized_timing_evidence": {
+            "scope": "distinct identities represented in accepted, fully synchronized PathSample rows; not a raw callback count",
+            "layer_rates_hz": timing_evidence.get("layer_rates_hz"),
+            "writer_sequences": timing_evidence.get("successful_writer_publishes"),
+            "rtde_frames": timing_evidence.get("distinct_rtde_frames"),
+            "tp_consumed_echoes": timing_evidence.get("distinct_tp_consumed_packet_echoes"),
+            "kunwei_frames": timing_evidence.get("distinct_kunwei_frames"),
+        },
+        "interpretation": "Raw per-layer rates and synchronized accepted-sample rate are separate measurements; do not rename the latter as raw RTDE or host-send cadence.",
+    }
 
 
 def _attempt_timing_ledger(*, attempt_id: str, protocol: str,
@@ -281,6 +886,28 @@ def _attempt_timing_ledger(*, attempt_id: str, protocol: str,
     return ledger.as_dict()
 
 
+def _infer_path_start_from_command_timeline(path: Path) -> float | None:
+    """Recover a missing PATH origin from the sealed v2 reference trace.
+
+    This is diagnostic-only timestamp recovery. It never changes lifecycle
+    completeness or attempt eligibility.
+    """
+    for row in _rows(path):
+        if row.get("reference_phase") != "path":
+            continue
+        try:
+            host_time = float(row["host_monotonic_s"])
+            reference_time = float(row["reference_time_s"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if (math.isfinite(host_time) and host_time >= 0.0
+                and math.isfinite(reference_time) and reference_time >= 0.0):
+            inferred = host_time - reference_time
+            if math.isfinite(inferred) and inferred >= 0.0:
+                return inferred
+    return None
+
+
 def reduce_attempt(attempt_dir: Path, *, verify_seal: bool = True,
                    events: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     attempt_dir = Path(attempt_dir)
@@ -296,6 +923,13 @@ def reduce_attempt(attempt_dir: Path, *, verify_seal: bool = True,
     timing = item.get("timing") or {}
     start = timing.get("started_monotonic_s")
     path_start = timing.get("path_started_monotonic_s")
+    path_start_source = "attempt_timing_receipt" if path_start is not None else "missing"
+    if path_start is None:
+        path_start = _infer_path_start_from_command_timeline(
+            Path(segments["command_timeline"]["path"])
+        )
+        if path_start is not None:
+            path_start_source = "sealed_command_timeline"
     receipt_home = timing.get("home_verified_monotonic_s")
     home_path = attempt_dir.parent.parent / "home_start_receipt.json"
     home_target = (json.loads(home_path.read_text(encoding="utf-8"))
@@ -304,6 +938,11 @@ def reduce_attempt(attempt_dir: Path, *, verify_seal: bool = True,
     service_path = Path(service_info["path"]) if service_info.get("path") else None
     stages = _stages(Path(segments["robot_frames"]["path"]), path_start,
                      home_target, service_path)
+    pre_path_contact = _pre_path_force_diagnostics(
+        Path(segments["raw_sensor"]["path"]),
+        Path(segments["robot_frames"]["path"]),
+        stages,
+    )
     events = events if events is not None else _session_events(attempt_dir.parent.parent)
     first_ready = stages["first_tp_ready_home_s"]
     stationary_home = timing.get("stationary_home_verified_monotonic_s")
@@ -344,6 +983,47 @@ def reduce_attempt(attempt_dir: Path, *, verify_seal: bool = True,
         started=start, events=events, sequence=sequence,
         eligible=item.get("evidence_eligible") is True,
     )
+    force_diagnostics = _force_diagnostics(
+        Path(segments["raw_sensor"]["path"]), path_start
+    )
+    raw_formal_bins = force_diagnostics["raw_sensor_bin_mean_diagnostics"][
+        "window_5_60_s"
+    ]
+    receipt_mae = metrics.get("normal_force_mae_n")
+    force_diagnostics["raw_sensor_bin_mean_diagnostics"].update({
+        "receipt_normal_force_mae_n": receipt_mae,
+        "receipt_metric_eligible": item.get("evidence_eligible") is True,
+        "raw_formal_bin_mean_minus_receipt_mae_n": (
+            None if raw_formal_bins.get("bin_mean_mae_n") is None
+            or not isinstance(receipt_mae, (int, float))
+            else raw_formal_bins["bin_mean_mae_n"] - float(receipt_mae)
+        ),
+    })
+    controller_trace = _controller_trace_diagnostics(
+        Path(segments["command_timeline"]["path"])
+    )
+    filtered_formal = (
+        controller_trace.get("path_force_signal_diagnostics", {})
+        .get("signals", {})
+        .get("normal_force_filtered_n", {})
+        .get("windows", {})
+        .get("window_5_60_s", {})
+        .get("equal_weight_100ms_bins", {})
+    )
+    filtered_reconstruction = filtered_formal.get("bin_mean_mae_n")
+    controller_trace["official_score_crosscheck"] = {
+        "receipt_formal_550_bin_mae_n": receipt_mae,
+        "filtered_timeline_reconstructed_550_bin_mae_n": filtered_reconstruction,
+        "reconstruction_minus_receipt_n": (
+            None if not isinstance(filtered_reconstruction, (int, float))
+            or not isinstance(receipt_mae, (int, float))
+            else float(filtered_reconstruction) - float(receipt_mae)
+        ),
+        "signal_identity": (
+            "official R013 score uses filtered_normal_n; this cross-check bins "
+            "normal_force_filtered_n from the sealed per-frame command timeline"
+        ),
+    }
     return {
         "schema": SCHEMA,
         "campaign": attempt_dir.parent.parent.parent.name,
@@ -352,6 +1032,7 @@ def reduce_attempt(attempt_dir: Path, *, verify_seal: bool = True,
         "candidate_id": binding.get("candidate_id"),
         "protocol_id": protocol,
         "physical_dispatched": item.get("physical_dispatched") is True,
+        "path_start_source": path_start_source,
         "path_complete": item.get("lifecycle", {}).get("path_complete") is True,
         "evidence_eligible": item.get("evidence_eligible") is True,
         "home_verified": item.get("lifecycle", {}).get("home_verified") is True,
@@ -360,6 +1041,7 @@ def reduce_attempt(attempt_dir: Path, *, verify_seal: bool = True,
         "formal_bin_mean_mae_n": metrics.get("normal_force_mae_n"),
         "formal_bins": metrics.get("complete_bins"),
         "timing_ledger": timing_ledger,
+        "pre_path_contact_diagnostics": pre_path_contact,
         "timing": {**stages,
                    "stationary_home_verified_s": stationary_home,
                    "receipt_home_verified_s": receipt_home,
@@ -379,10 +1061,18 @@ def reduce_attempt(attempt_dir: Path, *, verify_seal: bool = True,
                     "max_fresh_gap_s": cadence.get("max_fresh_gap_s"),
                     "feedback_age_p99_s": cadence.get("feedback_age_p99_s"),
                     "classification": classification,
+                    "rate_scope": "rtde_hz/tp_echo_hz above are unique identities in accepted synchronized PathSample rows; use raw_layer_measurements below for all raw interfaces",
                     "provider_compute_summary": timing_attribution.get("provider_compute"),
                     "host_interpublish_summary": timing_attribution.get("host_interpublish"),
                     **_host_intervals(Path(segments["published_packets"]["path"]), path_start)},
-        "force": _force_diagnostics(Path(segments["raw_sensor"]["path"]), path_start),
+        "raw_layer_measurements": _raw_path_layers(
+            segments,
+            duration_s=float(metrics.get("path_duration_s", 60.0)),
+            protocol_id=protocol,
+            attempt=item,
+        ),
+        "controller_trace": controller_trace,
+        "force": force_diagnostics,
         "solver_timing_aggregate_available": bool(
             (timing_attribution.get("provider_compute") or {}).get("solver_timed_calls", 0)
         ),
@@ -441,8 +1131,11 @@ def reduce_campaigns(roots: list[Path], *, verify_seal: bool = True) -> dict[str
 
 
 def seal_session_diagnostic(session_dir: Path,
-                            *, events: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+                            *, events: list[dict[str, Any]] | None = None,
+                            protocol_id: str = "figure8_window60_r013_rate400_v1") -> dict[str, Any]:
     """Write the post-stop resident sidecar; original attempt files stay intact."""
+    if protocol_id not in EXPECTED_PROTOCOLS:
+        raise ValueError(f"unsupported resident timing protocol: {protocol_id}")
     session_dir = Path(session_dir)
     attempts_dir = session_dir / "attempts"
     rows = [
@@ -451,7 +1144,9 @@ def seal_session_diagnostic(session_dir: Path,
         if (path / "attempt-result.json").is_file()
     ]
     if not rows:
-        raise ValueError("resident rate400 has no sealed physical attempt")
+        raise ValueError("resident session has no sealed physical attempt")
+    if any(row.get("protocol_id") != protocol_id for row in rows):
+        raise ValueError("resident session attempts do not share the declared protocol")
     output = session_dir / "resident-evidence-diagnostic.json"
     temporary = output.with_suffix(".tmp")
     temporary.write_text(json.dumps({
@@ -461,7 +1156,7 @@ def seal_session_diagnostic(session_dir: Path,
     temporary.replace(output)
     return {
         "schema": "tase.resident-timing-ledger-bundle-v1",
-        "protocol_id": "figure8_window60_r013_rate400_v1",
+        "protocol_id": protocol_id,
         "attempt_count": len(rows),
         "home_to_home_count": sum(
             row["timing_ledger"]["durations_s"]["home_to_home_s"] is not None
