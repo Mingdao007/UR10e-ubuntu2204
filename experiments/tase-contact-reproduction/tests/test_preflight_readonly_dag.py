@@ -211,6 +211,8 @@ class PreflightReadonlyDagTest(unittest.TestCase):
         self.assertEqual(set(payload["stages"]), {"local", "remote"})
         self.assertIn("controller_binding", payload["stages"]["remote"])
         self.assertIn("bench_network", payload["stages"]["remote"])
+        self.assertNotIn("actual_TCP_force", preflight.RTDE_FIELDS)
+        self.assertNotIn("actual_tcp_force_norm_n", payload["derived"])
 
     def test_remote_stage_is_skipped_when_local_route_fails(self) -> None:
         def command(args: list[str]) -> dict[str, object]:

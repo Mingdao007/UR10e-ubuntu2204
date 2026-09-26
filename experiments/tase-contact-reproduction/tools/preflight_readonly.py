@@ -42,7 +42,6 @@ from _ur_common import dashboard_exchange, probe_port, read_rtde_once  # noqa: E
 RTDE_FIELDS = [
     "actual_TCP_pose",
     "actual_TCP_speed",
-    "actual_TCP_force",
     "actual_q",
     "runtime_state",
     "robot_mode",
@@ -306,7 +305,7 @@ def p0_controller_binding(profile: str, root: Path = EXPERIMENT_ROOT) -> dict[st
 
 
 def rtde_predicate(result: Any) -> dict[str, Any]:
-    lengths = {"actual_TCP_pose": 6, "actual_TCP_speed": 6, "actual_TCP_force": 6,
+    lengths = {"actual_TCP_pose": 6, "actual_TCP_speed": 6,
                "actual_q": 6, "payload_cog": 3, "tcp_offset": 6}
     checks: dict[str, bool] = {}
     if not isinstance(result, dict):
@@ -478,15 +477,12 @@ def main(argv: list[str] | None = None) -> int:
     }
     required_derived_fields = {
         "actual_TCP_speed",
-        "actual_TCP_force",
         "tcp_offset",
         "payload",
     }
     if isinstance(rtde, dict) and required_derived_fields.issubset(rtde):
         payload["derived"] = {
             "actual_tcp_speed_linear_norm_m_s": vector_norm(rtde["actual_TCP_speed"][:3]),
-            "actual_tcp_force_norm_n": vector_norm(rtde["actual_TCP_force"][:3]),
-            "actual_tcp_torque_norm_nm": vector_norm(rtde["actual_TCP_force"][3:]),
             "tcp_offset_z_mm": rtde["tcp_offset"][2] * 1000.0,
             "payload_kg": rtde["payload"],
         }
