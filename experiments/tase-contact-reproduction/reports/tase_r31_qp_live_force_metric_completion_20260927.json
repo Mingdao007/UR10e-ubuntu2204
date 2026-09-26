@@ -1,0 +1,478 @@
+{
+  "attempts": [
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-rate460-20260925T1600HKT/live/attempts/0001",
+      "candidate_id": "bo-10",
+      "evidence_eligible": false,
+      "home_verified": true,
+      "host_publish_hz": 499.95,
+      "interpretation": "KWR75 feedback and raw samples are the same sensor system, not independent task-force truth; attempt is diagnostic-only because motion_gate_passed is false.",
+      "method_id": null,
+      "motion_gate_passed": false,
+      "parameter_binding": {
+        "Bd_scalar": 772.1473715259434,
+        "Md_scalar": 8.592659656558919,
+        "candidate_id": "bo-10",
+        "duration_token": "r013_60_rate460",
+        "force_integral_authority_error_n": 0.5,
+        "force_integral_limit_n_s": 0.5,
+        "force_integral_policy": "legacy-clamp-v1",
+        "frozen": {
+          "force_integral_authority_error_n": 0.5,
+          "force_integral_limit_n_s": 0.5,
+          "force_integral_policy": "legacy-clamp-v1",
+          "force_sign_convention": "step5_step6_positive_normal_load",
+          "force_target_n": 5.0,
+          "kf": 1.0,
+          "ko": 5.0,
+          "kp": 4.0
+        },
+        "index": 10,
+        "orientation_gain_scale": 1.0,
+        "orientation_target_policy": "fixed_approved_home_rotvec",
+        "path_duration_s": 60.0,
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "schema": "tase.outer-parameters-v1",
+        "source": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-rate460-20260925T1600HKT/qp-bo10-b-rate460.json",
+        "stage": "bo"
+      },
+      "path_complete": true,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "qd_correlation": 0.8401317340726273,
+      "qd_lag_s": 0.009968041005777195,
+      "rate460_eligible": true,
+      "receipt_formal_bin_coverage": 550,
+      "receipt_official_formal_550_bin_mae_n": 0.9147095610250513,
+      "seal_verified": true,
+      "timing_gate_passed": true,
+      "tp_consumed_hz": 481.1,
+      "windows": {
+        "window_0_60_s": {
+          "controller_measured_normal_force_n_from_kwr75": {
+            "equal_weight_100ms_bins": {
+              "bin_mean_bias_measured_minus_target_n": -0.8820142058717177,
+              "bin_mean_mae_n": 0.8931846305743072,
+              "bin_mean_rmse_n": 1.3081617295955938,
+              "bin_mean_tail_abs_error_p95_n": 2.665313132079953,
+              "complete_coverage": true,
+              "coverage_fraction": 1.0,
+              "empty_bins": 0,
+              "mean_of_bin_means_n": 4.117985794128282,
+              "metric_basis": "equal-weight mean of nonempty 100 ms bin means from KWR75 corrected normal load at controller observation",
+              "nonempty_bins": 600,
+              "required_bins": 600,
+              "sample_count": 29995,
+              "window_s": [
+                0.0,
+                60.0
+              ]
+            },
+            "per_sample": {
+              "below_1n_fraction": 0.2671111851975329,
+              "below_1n_runs": 327,
+              "longest_below_1n_run_s": 0.05399886899976991,
+              "peak_normal_n": 19.2237527031775,
+              "sample_error_p95_n": 6.910320617880988,
+              "sample_mae_n": 2.3476689321692867,
+              "sample_rmse_n": 3.537398743378382,
+              "samples": 29995
+            }
+          },
+          "filtered_normal_force_n": {
+            "equal_weight_100ms_bins": {
+              "bin_mean_bias_measured_minus_target_n": -0.8789852655904239,
+              "bin_mean_mae_n": 0.8790557494602745,
+              "bin_mean_rmse_n": 1.1641814240392756,
+              "bin_mean_tail_abs_error_p95_n": 1.970595550458142,
+              "complete_coverage": true,
+              "coverage_fraction": 1.0,
+              "empty_bins": 0,
+              "mean_of_bin_means_n": 4.121014734409576,
+              "metric_basis": "equal-weight mean of nonempty 100 ms bin means from controller low-pass filtered KWR75 normal load",
+              "nonempty_bins": 600,
+              "required_bins": 600,
+              "sample_count": 29995,
+              "window_s": [
+                0.0,
+                60.0
+              ]
+            },
+            "per_sample": {
+              "below_1n_fraction": 0.0,
+              "below_1n_runs": 0,
+              "longest_below_1n_run_s": 0.0,
+              "peak_normal_n": 5.192917457416224,
+              "sample_error_p95_n": 2.0378340511778212,
+              "sample_mae_n": 0.8796544482282075,
+              "sample_rmse_n": 1.1677210853478546,
+              "samples": 29995
+            }
+          },
+          "raw_corrected_kwr75_normal_load_n": {
+            "equal_weight_100ms_bins": {
+              "bin_mean_bias_measured_minus_target_n": -0.8818762605530238,
+              "bin_mean_mae_n": 0.8930441445357875,
+              "bin_mean_rmse_n": 1.3078788533002335,
+              "bin_mean_tail_abs_error_p95_n": 2.665313132079953,
+              "complete_coverage": true,
+              "coverage_fraction": 1.0,
+              "empty_bins": 0,
+              "mean_of_bin_means_n": 4.118123739446975,
+              "metric_basis": "equal-weight mean of nonempty 100 ms bin means from sealed raw KWR75 corrected normal-load samples; diagnostic only, not the synchronized official score",
+              "nonempty_bins": 600,
+              "required_bins": 600,
+              "sample_count": 29990,
+              "window_s": [
+                0.0,
+                60.0
+              ]
+            },
+            "per_sample": {
+              "below_1n_fraction": 0.26715571857285764,
+              "below_1n_runs": 327,
+              "longest_below_1n_run_s": 0.0539995209837798,
+              "peak_normal_n": 19.2237527031775,
+              "sample_error_p95_n": 6.910320617880988,
+              "sample_mae_n": 2.3478137027608,
+              "sample_rmse_n": 3.5376420447032895,
+              "samples": 29990
+            }
+          }
+        },
+        "window_5_60_s": {
+          "controller_measured_normal_force_n_from_kwr75": {
+            "equal_weight_100ms_bins": {
+              "bin_mean_bias_measured_minus_target_n": -0.9234676595909636,
+              "bin_mean_mae_n": 0.9336163997364586,
+              "bin_mean_rmse_n": 1.3516410537276116,
+              "bin_mean_tail_abs_error_p95_n": 2.6717790319564982,
+              "complete_coverage": true,
+              "coverage_fraction": 1.0,
+              "empty_bins": 0,
+              "mean_of_bin_means_n": 4.076532340409036,
+              "metric_basis": "equal-weight mean of nonempty 100 ms bin means from KWR75 corrected normal load at controller observation",
+              "nonempty_bins": 550,
+              "required_bins": 550,
+              "sample_count": 27491,
+              "window_s": [
+                5.0,
+                60.0
+              ]
+            },
+            "per_sample": {
+              "below_1n_fraction": 0.2887126696009603,
+              "below_1n_runs": 324,
+              "longest_below_1n_run_s": 0.05399886899976991,
+              "peak_normal_n": 19.2237527031775,
+              "sample_error_p95_n": 7.631272839229869,
+              "sample_mae_n": 2.4722494415274188,
+              "sample_rmse_n": 3.6717594217471543,
+              "samples": 27491
+            }
+          },
+          "filtered_normal_force_n": {
+            "equal_weight_100ms_bins": {
+              "bin_mean_bias_measured_minus_target_n": -0.9145819571871628,
+              "bin_mean_mae_n": 0.9146588486815452,
+              "bin_mean_rmse_n": 1.2046536221447302,
+              "bin_mean_tail_abs_error_p95_n": 1.9754171173720234,
+              "complete_coverage": true,
+              "coverage_fraction": 1.0,
+              "empty_bins": 0,
+              "mean_of_bin_means_n": 4.0854180428128375,
+              "metric_basis": "equal-weight mean of nonempty 100 ms bin means from controller low-pass filtered KWR75 normal load",
+              "nonempty_bins": 550,
+              "required_bins": 550,
+              "sample_count": 27491,
+              "window_s": [
+                5.0,
+                60.0
+              ]
+            },
+            "per_sample": {
+              "below_1n_fraction": 0.0,
+              "below_1n_runs": 0,
+              "longest_below_1n_run_s": 0.0,
+              "peak_normal_n": 5.192917457416224,
+              "sample_error_p95_n": 2.04610126839233,
+              "sample_mae_n": 0.915311745244978,
+              "sample_rmse_n": 1.208289562938864,
+              "samples": 27491
+            }
+          },
+          "raw_corrected_kwr75_normal_load_n": {
+            "equal_weight_100ms_bins": {
+              "bin_mean_bias_measured_minus_target_n": -0.9236215906959541,
+              "bin_mean_mae_n": 0.9337703308414488,
+              "bin_mean_rmse_n": 1.3515160769783585,
+              "bin_mean_tail_abs_error_p95_n": 2.6717790319564982,
+              "complete_coverage": true,
+              "coverage_fraction": 1.0,
+              "empty_bins": 0,
+              "mean_of_bin_means_n": 4.076378409304047,
+              "metric_basis": "equal-weight mean of nonempty 100 ms bin means from sealed raw KWR75 corrected normal-load samples; diagnostic only, not the synchronized official score",
+              "nonempty_bins": 550,
+              "required_bins": 550,
+              "sample_count": 27491,
+              "window_s": [
+                5.0,
+                60.0
+              ]
+            },
+            "per_sample": {
+              "below_1n_fraction": 0.2887126696009603,
+              "below_1n_runs": 324,
+              "longest_below_1n_run_s": 0.0539995209837798,
+              "peak_normal_n": 19.2237527031775,
+              "sample_error_p95_n": 7.631272839229869,
+              "sample_mae_n": 2.4722494415274188,
+              "sample_rmse_n": 3.6717594217471543,
+              "samples": 27491
+            }
+          }
+        }
+      }
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001",
+      "candidate_id": "figure8-rate460-integral-1p0-A-baseline",
+      "evidence_eligible": false,
+      "home_verified": true,
+      "host_publish_hz": 499.28333333333336,
+      "interpretation": "KWR75 feedback and raw samples are the same sensor system, not independent task-force truth; attempt is diagnostic-only because motion_gate_passed is false.",
+      "method_id": null,
+      "motion_gate_passed": false,
+      "parameter_binding": {
+        "Bd_scalar": 693.6559295653944,
+        "Md_scalar": 9.565272137974492,
+        "candidate_id": "figure8-rate460-integral-1p0-A-baseline",
+        "duration_token": "r013_60_rate460",
+        "force_integral_authority_error_n": 0.5,
+        "force_integral_limit_n_s": 1.0,
+        "force_integral_policy": "legacy-clamp-v1",
+        "frozen": {
+          "force_integral_authority_error_n": 0.5,
+          "force_integral_limit_n_s": 1.0,
+          "force_integral_policy": "legacy-clamp-v1",
+          "force_sign_convention": "step5_step6_positive_normal_load",
+          "force_target_n": 5.0,
+          "kf": 1.0,
+          "ko": 5.0,
+          "kp": 4.0
+        },
+        "index": 0,
+        "orientation_gain_scale": 1.0,
+        "orientation_target_policy": "fixed_approved_home_rotvec",
+        "path_duration_s": 60.0,
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "schema": "tase.outer-parameters-v1",
+        "source": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/config/tase_figure8_integral_1p0_rate460.json",
+        "stage": "engineering_acceptance"
+      },
+      "path_complete": true,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "qd_correlation": 0.8486068681812743,
+      "qd_lag_s": 0.016835366026498377,
+      "rate460_eligible": true,
+      "receipt_formal_bin_coverage": 550,
+      "receipt_official_formal_550_bin_mae_n": 0.9501390239556037,
+      "seal_verified": true,
+      "timing_gate_passed": true,
+      "tp_consumed_hz": 480.05,
+      "windows": {
+        "window_0_60_s": {
+          "controller_measured_normal_force_n_from_kwr75": {
+            "equal_weight_100ms_bins": {
+              "bin_mean_bias_measured_minus_target_n": -0.9648139546076004,
+              "bin_mean_mae_n": 0.9936254117437282,
+              "bin_mean_rmse_n": 1.4152555695284283,
+              "bin_mean_tail_abs_error_p95_n": 2.786926071871669,
+              "complete_coverage": true,
+              "coverage_fraction": 1.0,
+              "empty_bins": 0,
+              "mean_of_bin_means_n": 4.0351860453924,
+              "metric_basis": "equal-weight mean of nonempty 100 ms bin means from KWR75 corrected normal load at controller observation",
+              "nonempty_bins": 600,
+              "required_bins": 600,
+              "sample_count": 29956,
+              "window_s": [
+                0.0,
+                60.0
+              ]
+            },
+            "per_sample": {
+              "below_1n_fraction": 0.265756442782748,
+              "below_1n_runs": 310,
+              "longest_below_1n_run_s": 0.14796890298021026,
+              "peak_normal_n": 17.992192045547434,
+              "sample_error_p95_n": 5.806729922081896,
+              "sample_mae_n": 2.3245181286645744,
+              "sample_rmse_n": 3.3771575784908534,
+              "samples": 29956
+            }
+          },
+          "filtered_normal_force_n": {
+            "equal_weight_100ms_bins": {
+              "bin_mean_bias_measured_minus_target_n": -0.9575884865047101,
+              "bin_mean_mae_n": 0.9575884865047101,
+              "bin_mean_rmse_n": 1.2468163967834496,
+              "bin_mean_tail_abs_error_p95_n": 2.033135705230712,
+              "complete_coverage": true,
+              "coverage_fraction": 1.0,
+              "empty_bins": 0,
+              "mean_of_bin_means_n": 4.04241151349529,
+              "metric_basis": "equal-weight mean of nonempty 100 ms bin means from controller low-pass filtered KWR75 normal load",
+              "nonempty_bins": 600,
+              "required_bins": 600,
+              "sample_count": 29956,
+              "window_s": [
+                0.0,
+                60.0
+              ]
+            },
+            "per_sample": {
+              "below_1n_fraction": 0.0,
+              "below_1n_runs": 0,
+              "longest_below_1n_run_s": 0.0,
+              "peak_normal_n": 5.087942733296774,
+              "sample_error_p95_n": 2.1527221286148452,
+              "sample_mae_n": 0.9581778351078541,
+              "sample_rmse_n": 1.2509590401800748,
+              "samples": 29956
+            }
+          },
+          "raw_corrected_kwr75_normal_load_n": {
+            "equal_weight_100ms_bins": {
+              "bin_mean_bias_measured_minus_target_n": -0.9642980737196145,
+              "bin_mean_mae_n": 0.9931095308557425,
+              "bin_mean_rmse_n": 1.4147321687170487,
+              "bin_mean_tail_abs_error_p95_n": 2.786926071871669,
+              "complete_coverage": true,
+              "coverage_fraction": 1.0,
+              "empty_bins": 0,
+              "mean_of_bin_means_n": 4.035701926280385,
+              "metric_basis": "equal-weight mean of nonempty 100 ms bin means from sealed raw KWR75 corrected normal-load samples; diagnostic only, not the synchronized official score",
+              "nonempty_bins": 600,
+              "required_bins": 600,
+              "sample_count": 29951,
+              "window_s": [
+                0.0,
+                60.0
+              ]
+            },
+            "per_sample": {
+              "below_1n_fraction": 0.2656338686521318,
+              "below_1n_runs": 310,
+              "longest_below_1n_run_s": 0.14796789101092145,
+              "peak_normal_n": 17.992192045547434,
+              "sample_error_p95_n": 5.806729922081896,
+              "sample_mae_n": 2.3241342941022056,
+              "sample_rmse_n": 3.376911052592169,
+              "samples": 29951
+            }
+          }
+        },
+        "window_5_60_s": {
+          "controller_measured_normal_force_n_from_kwr75": {
+            "equal_weight_100ms_bins": {
+              "bin_mean_bias_measured_minus_target_n": -0.9562319039469586,
+              "bin_mean_mae_n": 0.9724023037336207,
+              "bin_mean_rmse_n": 1.3949329631681762,
+              "bin_mean_tail_abs_error_p95_n": 2.7825454098183573,
+              "complete_coverage": true,
+              "coverage_fraction": 1.0,
+              "empty_bins": 0,
+              "mean_of_bin_means_n": 4.043768096053041,
+              "metric_basis": "equal-weight mean of nonempty 100 ms bin means from KWR75 corrected normal load at controller observation",
+              "nonempty_bins": 550,
+              "required_bins": 550,
+              "sample_count": 27453,
+              "window_s": [
+                5.0,
+                60.0
+              ]
+            },
+            "per_sample": {
+              "below_1n_fraction": 0.2713000400684807,
+              "below_1n_runs": 294,
+              "longest_below_1n_run_s": 0.13994055401417427,
+              "peak_normal_n": 17.992192045547434,
+              "sample_error_p95_n": 6.365602991249034,
+              "sample_mae_n": 2.3182826378551566,
+              "sample_rmse_n": 3.417220589109752,
+              "samples": 27453
+            }
+          },
+          "filtered_normal_force_n": {
+            "equal_weight_100ms_bins": {
+              "bin_mean_bias_measured_minus_target_n": -0.9502371515761431,
+              "bin_mean_mae_n": 0.9502371515761431,
+              "bin_mean_rmse_n": 1.2614124818811314,
+              "bin_mean_tail_abs_error_p95_n": 2.0338595108153377,
+              "complete_coverage": true,
+              "coverage_fraction": 1.0,
+              "empty_bins": 0,
+              "mean_of_bin_means_n": 4.049762848423857,
+              "metric_basis": "equal-weight mean of nonempty 100 ms bin means from controller low-pass filtered KWR75 normal load",
+              "nonempty_bins": 550,
+              "required_bins": 550,
+              "sample_count": 27453,
+              "window_s": [
+                5.0,
+                60.0
+              ]
+            },
+            "per_sample": {
+              "below_1n_fraction": 0.0,
+              "below_1n_runs": 0,
+              "longest_below_1n_run_s": 0.0,
+              "peak_normal_n": 5.087942733296774,
+              "sample_error_p95_n": 2.1580743925939885,
+              "sample_mae_n": 0.9507894587270237,
+              "sample_rmse_n": 1.264974548683079,
+              "samples": 27453
+            }
+          },
+          "raw_corrected_kwr75_normal_load_n": {
+            "equal_weight_100ms_bins": {
+              "bin_mean_bias_measured_minus_target_n": -0.9562319039469586,
+              "bin_mean_mae_n": 0.9724023037336207,
+              "bin_mean_rmse_n": 1.3949329631681762,
+              "bin_mean_tail_abs_error_p95_n": 2.7825454098183573,
+              "complete_coverage": true,
+              "coverage_fraction": 1.0,
+              "empty_bins": 0,
+              "mean_of_bin_means_n": 4.043768096053041,
+              "metric_basis": "equal-weight mean of nonempty 100 ms bin means from sealed raw KWR75 corrected normal-load samples; diagnostic only, not the synchronized official score",
+              "nonempty_bins": 550,
+              "required_bins": 550,
+              "sample_count": 27453,
+              "window_s": [
+                5.0,
+                60.0
+              ]
+            },
+            "per_sample": {
+              "below_1n_fraction": 0.2713000400684807,
+              "below_1n_runs": 294,
+              "longest_below_1n_run_s": 0.13994045299477875,
+              "peak_normal_n": 17.992192045547434,
+              "sample_error_p95_n": 6.365602991249034,
+              "sample_mae_n": 2.3182826378551566,
+              "sample_rmse_n": 3.417220589109752,
+              "samples": 27453
+            }
+          }
+        }
+      }
+    }
+  ],
+  "controller_force_source": "Kunwei KWR75 only; no UR internal actual_TCP_force/get_tcp_force",
+  "interpretation_limit": "Both attempts completed PATH and Home and passed rate/timing gates, but failed the qdot motion gate. Their force metrics are diagnostic and are not successful BO observations, candidate promotions, or paired improvement evidence.",
+  "reduction_method": "canonical tools/analyze_tase_resident_evidence.py; verify_seal=true",
+  "schema": "tase.r31-qp-live-attempt-force-metric-completion-v1",
+  "windows": {
+    "window_0_60_s": "600 equal-weight 100ms bins plus per-sample diagnostics",
+    "window_5_60_s": "formal 550 equal-weight 100ms bins plus per-sample diagnostics"
+  }
+}
