@@ -2,9 +2,9 @@
 """Offline replay of the lexicographic normal-priority TASE-QP candidate.
 
 The replay uses source outer twists, Jacobians, joint limits, and per-tick
-slew deltas from sealed rate460 QP traces. It evolves its own qdot for slew
-bounds, but source force/pose observations remain fixed, so this is not a
-closed-loop force score or live qualification.
+slew deltas from sealed rate460 traces. It evolves its own qdot from the PATH
+origin for slew bounds, but source force/pose observations remain fixed, so
+this is not a closed-loop force score or live qualification.
 """
 from __future__ import annotations
 
@@ -30,9 +30,11 @@ from tase_qp_normal_priority_offline import (
 
 
 SCHEMA = "tase.qp-normal-priority-fixed-input-replay-v1"
+PATH_START_S = 0.0
 FORMAL_START_S = 5.0
 FORMAL_END_S = 60.0
 FORMAL_BIN_COUNT = 550
+PATH_BIN_COUNT = 600
 TASE_NORMAL_BASE = np.asarray((0.0, 0.0, 1.0), dtype=float)
 
 
@@ -97,6 +99,7 @@ def replay_attempt(
     path_row_index = 0
     previous_sequence = -1
     previous_candidate_qdot: np.ndarray | None = None
+    path_bins: set[int] = set()
     bins: set[int] = set()
     source_qdot: list[np.ndarray] = []
     candidate_qdot: list[np.ndarray] = []
@@ -108,8 +111,15 @@ def replay_attempt(
     solve_total_s: list[float] = []
     solve_stage_s: list[list[float]] = [[], [], [], []]
     iterations: list[list[int]] = [[], [], [], []]
+    path_solve_total_s: list[float] = []
+    path_solve_stage_s: list[list[float]] = [[], [], [], []]
+    path_iterations: list[list[int]] = [[], [], [], []]
     stage_methods: tuple[str, ...] | None = None
     row_failures: list[dict[str, Any]] = []
+    path_rows = 0
+    path_first_time_s: float | None = None
+    path_last_time_s: float | None = None
+    solver_path_rows_completed = 0
     formal_rows = 0
     with command_path.open("r", encoding="utf-8") as stream:
         for line_number, line in enumerate(stream, 1):
@@ -122,6 +132,13 @@ def replay_attempt(
             if row.get("reference_phase") != "path":
                 continue
             time_s = float(row.get("reference_time_s", math.nan))
+            if not math.isfinite(time_s) or not PATH_START_S <= time_s < FORMAL_END_S:
+                raise ReplayError(f"PATH row has invalid/out-of-protocol time {time_s}")
+            if path_first_time_s is None:
+                path_first_time_s = time_s
+                if abs(time_s - PATH_START_S) > 1e-8:
+                    raise ReplayError("source PATH does not begin at the PATH origin")
+            path_last_time_s = time_s
             candidate_twist_row = None
             if candidate_twist_rows is not None:
                 if path_row_index >= len(candidate_twist_rows):
@@ -131,16 +148,18 @@ def replay_attempt(
                 if not math.isfinite(candidate_time) or abs(candidate_time - time_s) > 1e-9:
                     raise ReplayError(
                         f"candidate desired-twist trace time mismatch at PATH row {path_row_index}"
-                    )
+                )
                 path_row_index += 1
-            if not FORMAL_START_S <= time_s < FORMAL_END_S:
-                continue
             sequence = int(row.get("packet_sequence", -1))
             if sequence <= previous_sequence:
-                raise ReplayError("formal PATH packet sequence regressed")
+                raise ReplayError("PATH packet sequence regressed")
             previous_sequence = sequence
-            bins.add(int(math.floor((time_s - FORMAL_START_S) / 0.1 + 1e-9)))
-            formal_rows += 1
+            path_rows += 1
+            path_bins.add(int(math.floor((time_s - PATH_START_S) / 0.1 + 1e-9)))
+            is_formal = FORMAL_START_S <= time_s < FORMAL_END_S
+            if is_formal:
+                bins.add(int(math.floor((time_s - FORMAL_START_S) / 0.1 + 1e-9)))
+                formal_rows += 1
             try:
                 jacobian = row["jacobian_6x6"]
                 desired = (
@@ -171,7 +190,7 @@ def replay_attempt(
                 or not math.isfinite(dt_s) or dt_s <= 0.0
                 or not math.isfinite(slew_delta) or slew_delta < 0.0
             ):
-                raise ReplayError(f"formal row {sequence} contains invalid solver values")
+                raise ReplayError(f"PATH row {sequence} contains invalid solver values")
             tangent = _tangent_basis(normal)
             slew_lower = previous_candidate_qdot - slew_delta
             slew_upper = previous_candidate_qdot + slew_delta
@@ -202,19 +221,25 @@ def replay_attempt(
                 stage_methods = tuple(solved.stage_methods)
             elif tuple(solved.stage_methods) != stage_methods:
                 raise ReplayError("candidate stage algorithm changed during one attempt")
-            source_qdot.append(published)
-            candidate_qdot.append(qdot)
-            normal_residuals.append(float(solved.normal_residual_m_s))
-            orientation_residual_norms.append(float(np.linalg.norm(solved.orientation_residual_rad_s)))
-            tangent_residual_norms.append(float(np.linalg.norm(solved.tangential_residual_m_s)))
-            max_stage_eq.append(float(solved.max_stage_equality_residual))
-            bound_violations.append(float(solved.max_bound_violation_rad_s))
+            solver_path_rows_completed += 1
             stage_times = list(solved.stage_solve_time_s)
             stage_iterations = list(solved.stage_iterations)
             for index in range(4):
-                solve_stage_s[index].append(stage_times[index])
-                iterations[index].append(stage_iterations[index])
-            solve_total_s.append(sum(stage_times))
+                path_solve_stage_s[index].append(stage_times[index])
+                path_iterations[index].append(stage_iterations[index])
+            path_solve_total_s.append(sum(stage_times))
+            if is_formal:
+                source_qdot.append(published)
+                candidate_qdot.append(qdot)
+                normal_residuals.append(float(solved.normal_residual_m_s))
+                orientation_residual_norms.append(float(np.linalg.norm(solved.orientation_residual_rad_s)))
+                tangent_residual_norms.append(float(np.linalg.norm(solved.tangential_residual_m_s)))
+                max_stage_eq.append(float(solved.max_stage_equality_residual))
+                bound_violations.append(float(solved.max_bound_violation_rad_s))
+                for index in range(4):
+                    solve_stage_s[index].append(stage_times[index])
+                    iterations[index].append(stage_iterations[index])
+                solve_total_s.append(sum(stage_times))
     if (
         candidate_twist_rows is not None
         and not row_failures
@@ -223,8 +248,12 @@ def replay_attempt(
         raise ReplayError(
             f"candidate desired-twist trace has {len(candidate_twist_rows) - path_row_index} extra PATH rows"
         )
+    if path_rows == 0:
+        raise ReplayError("source has no PATH rows")
     if formal_rows == 0:
         raise ReplayError("source has no formal PATH rows")
+    if not row_failures and len(path_bins) != PATH_BIN_COUNT:
+        raise ReplayError(f"source PATH bin coverage is {len(path_bins)}/{PATH_BIN_COUNT}")
     if not row_failures and len(bins) != FORMAL_BIN_COUNT:
         raise ReplayError(f"source formal bin coverage is {len(bins)}/{FORMAL_BIN_COUNT}")
     if candidate_qdot:
@@ -261,6 +290,22 @@ def replay_attempt(
         "formal_rows": formal_rows,
         "formal_bins": len(bins),
         "solver_rows_completed": len(candidate_qdot),
+        "path_window_s": [PATH_START_S, FORMAL_END_S],
+        "path_rows": path_rows,
+        "path_bins": len(path_bins),
+        "path_first_time_s": path_first_time_s,
+        "path_last_time_s": path_last_time_s,
+        "solver_path_rows_completed": solver_path_rows_completed,
+        "candidate_solver_path_complete": bool(
+            not row_failures
+            and solver_path_rows_completed == path_rows
+            and len(path_bins) == PATH_BIN_COUNT
+        ),
+        "solver_state_started_at_path_origin": bool(
+            path_first_time_s is not None
+            and abs(path_first_time_s - PATH_START_S) <= 1e-8
+            and solver_path_rows_completed > 0
+        ),
         "candidate_solver_failures": row_failures,
         "candidate_force_mae_recomputed": False,
         "candidate_is_not_closed_loop": True,
@@ -274,6 +319,9 @@ def replay_attempt(
             "four_qp_stage_total_s": _summary(solve_total_s) if solve_total_s else None,
             "stage_solve_time_s": [_summary(values) if values else None for values in solve_stage_s],
             "stage_iteration_count": [_summary([float(value) for value in values]) if values else None for values in iterations],
+            "full_path_four_qp_stage_total_s": _summary(path_solve_total_s) if path_solve_total_s else None,
+            "full_path_stage_solve_time_s": [_summary(values) if values else None for values in path_solve_stage_s],
+            "full_path_stage_iteration_count": [_summary([float(value) for value in values]) if values else None for values in path_iterations],
         },
         "numerical_profile": {
             "osqp_rho": float(osqp_rho),
@@ -313,6 +361,10 @@ def main() -> int:
         "source_candidate_id": result["source_candidate_id"],
         "formal_rows": result["formal_rows"],
         "solver_rows_completed": result["solver_rows_completed"],
+        "path_rows": result["path_rows"],
+        "path_bins": result["path_bins"],
+        "solver_path_rows_completed": result["solver_path_rows_completed"],
+        "candidate_solver_path_complete": result["candidate_solver_path_complete"],
         "candidate_solver_failures": len(result["candidate_solver_failures"]),
         "metrics": result["metrics"],
     }, indent=2))
