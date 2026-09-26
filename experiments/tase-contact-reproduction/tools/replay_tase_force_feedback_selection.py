@@ -175,6 +175,35 @@ def _run_outer_loop(
     return times, twists, integrals
 
 
+def _filter_recurrence_summary(
+    rows: Sequence[Mapping[str, Any]], *, tau_s: float,
+) -> dict[str, Any]:
+    if not rows or not math.isfinite(tau_s) or tau_s <= 0.0:
+        raise ReplayError("filtered-force recurrence inputs are invalid")
+    previous = float(rows[0]["normal_force_filtered_n"])
+    residuals: list[float] = []
+    for row in rows[1:]:
+        dt_s = float(row["actual_dt_s"])
+        measured = float(row["normal_force_measured_n"])
+        filtered = float(row["normal_force_filtered_n"])
+        if not all(math.isfinite(value) for value in (dt_s, measured, filtered)) or dt_s <= 0.0:
+            raise ReplayError("filtered-force recurrence row contains invalid data")
+        alpha = -math.expm1(-dt_s / tau_s)
+        predicted = previous + alpha * (measured - previous)
+        residuals.append(filtered - predicted)
+        previous = filtered
+    absolute = np.abs(np.asarray(residuals, dtype=float))
+    max_abs = float(np.max(absolute)) if absolute.size else 0.0
+    return {
+        "filter_tau_s": float(tau_s),
+        "updates_compared": len(residuals),
+        "mean_abs_recurrence_residual_n": float(np.mean(absolute)) if absolute.size else 0.0,
+        "p95_abs_recurrence_residual_n": float(np.quantile(absolute, 0.95)) if absolute.size else 0.0,
+        "max_abs_recurrence_residual_n": max_abs,
+        "matches_one_pole_actual_dt_recurrence": max_abs <= 1e-12,
+    }
+
+
 def _window_summary(
     times: Sequence[float],
     baseline_twists: np.ndarray,
@@ -302,6 +331,9 @@ def replay_attempt(attempt_dir: Path, *, root: Path) -> dict[str, Any]:
         "Bd_scalar": float(binding["Bd_scalar"]),
         "integral_policy": str(binding["force_integral_policy"]),
         "integral_limit_n_s": float(config.force_integral_limit_n_s),
+        "filtered_signal_recurrence": _filter_recurrence_summary(
+            rows, tau_s=float(provider.lifecycle_observer.tau_s),
+        ),
         "sealed_source_formal_force_mae_n": source["reduction"].get("formal_bin_mean_mae_n"),
         "sealed_source_force_mae_is_not_counterfactual": True,
         "sealed_source_path_rows": len(rows),
@@ -339,6 +371,9 @@ def run_replay(attempt_dirs: Sequence[Path], *, root: Path, output: Path) -> dic
             "actual RTDE TCP pose/speed and the fixed recorded reference/dt",
             "Md, Bd, target force, integral policy and integral bound",
         ],
+        "filter_recurrence_semantics": (
+            "Check the sealed KWR75 filtered channel against the provider's declared one-pole tau and each row's actual dt; it is a consistency check, not a force-truth validation."
+        ),
         "closed_loop": False,
         "qdot_solver_replayed": False,
         "joint_or_task_space_limits_recomputed": False,

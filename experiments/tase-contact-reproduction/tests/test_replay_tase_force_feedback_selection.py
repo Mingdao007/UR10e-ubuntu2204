@@ -9,7 +9,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from replay_tase_force_feedback_selection import ReplayError, _window_summary  # noqa: E402
+from replay_tase_force_feedback_selection import (  # noqa: E402
+    ReplayError,
+    _filter_recurrence_summary,
+    _window_summary,
+)
 
 
 def test_outer_loop_command_summary_keeps_samples_bins_and_integral_separate() -> None:
@@ -47,3 +51,22 @@ def test_outer_loop_command_summary_rejects_empty_window() -> None:
             [], empty_twists, empty_twists, np.asarray([]), np.asarray([]),
             start_s=0.0, end_s=0.1,
         )
+
+
+def test_filter_recurrence_uses_measured_kunwei_and_actual_dt() -> None:
+    tau_s = 0.35
+    rows = [
+        {"actual_dt_s": 0.002, "normal_force_measured_n": 0.2, "normal_force_filtered_n": 0.2},
+        {"actual_dt_s": 0.003, "normal_force_measured_n": 1.0, "normal_force_filtered_n": 0.2},
+        {"actual_dt_s": 0.004, "normal_force_measured_n": 2.0, "normal_force_filtered_n": 0.2},
+    ]
+    rows[1]["normal_force_filtered_n"] = 0.2 + -np.expm1(-0.003 / tau_s) * (1.0 - 0.2)
+    rows[2]["normal_force_filtered_n"] = rows[1]["normal_force_filtered_n"] + -np.expm1(
+        -0.004 / tau_s
+    ) * (2.0 - rows[1]["normal_force_filtered_n"])
+
+    result = _filter_recurrence_summary(rows, tau_s=tau_s)
+
+    assert result["updates_compared"] == 2
+    assert result["matches_one_pole_actual_dt_recurrence"] is True
+    assert result["max_abs_recurrence_residual_n"] < 1e-12

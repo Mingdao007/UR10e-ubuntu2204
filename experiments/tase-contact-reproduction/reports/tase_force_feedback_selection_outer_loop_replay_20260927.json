@@ -7,6 +7,14 @@
       "attempt_id": "0002",
       "candidate_guard_decisions_recomputed": false,
       "candidate_id": "confirm-s01-b00-A",
+      "filtered_signal_recurrence": {
+        "filter_tau_s": 0.35,
+        "matches_one_pole_actual_dt_recurrence": true,
+        "max_abs_recurrence_residual_n": 0.0,
+        "mean_abs_recurrence_residual_n": 0.0,
+        "p95_abs_recurrence_residual_n": 0.0,
+        "updates_compared": 29981
+      },
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
@@ -93,6 +101,14 @@
       "attempt_id": "0004",
       "candidate_guard_decisions_recomputed": false,
       "candidate_id": "confirm-s01-b01-A",
+      "filtered_signal_recurrence": {
+        "filter_tau_s": 0.35,
+        "matches_one_pole_actual_dt_recurrence": true,
+        "max_abs_recurrence_residual_n": 0.0,
+        "mean_abs_recurrence_residual_n": 0.0,
+        "p95_abs_recurrence_residual_n": 0.0,
+        "updates_compared": 30002
+      },
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
@@ -179,6 +195,14 @@
       "attempt_id": "0002",
       "candidate_guard_decisions_recomputed": false,
       "candidate_id": "confirm-s02-b02-A",
+      "filtered_signal_recurrence": {
+        "filter_tau_s": 0.35,
+        "matches_one_pole_actual_dt_recurrence": true,
+        "max_abs_recurrence_residual_n": 0.0,
+        "mean_abs_recurrence_residual_n": 0.0,
+        "p95_abs_recurrence_residual_n": 0.0,
+        "updates_compared": 29996
+      },
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
@@ -265,6 +289,14 @@
       "attempt_id": "0003",
       "candidate_guard_decisions_recomputed": false,
       "candidate_id": "confirm-s02-b03-A",
+      "filtered_signal_recurrence": {
+        "filter_tau_s": 0.35,
+        "matches_one_pole_actual_dt_recurrence": true,
+        "max_abs_recurrence_residual_n": 0.0,
+        "mean_abs_recurrence_residual_n": 0.0,
+        "p95_abs_recurrence_residual_n": 0.0,
+        "updates_compared": 29556
+      },
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
@@ -351,6 +383,14 @@
       "attempt_id": "0005",
       "candidate_guard_decisions_recomputed": false,
       "candidate_id": "confirm-s02-b04-A",
+      "filtered_signal_recurrence": {
+        "filter_tau_s": 0.35,
+        "matches_one_pole_actual_dt_recurrence": true,
+        "max_abs_recurrence_residual_n": 0.0,
+        "mean_abs_recurrence_residual_n": 0.0,
+        "p95_abs_recurrence_residual_n": 0.0,
+        "updates_compared": 30001
+      },
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
@@ -435,6 +475,7 @@
   "closed_loop": false,
   "control_signal_change": "max(filtered_normal_n, measured_normal_n) -> filtered_normal_n",
   "evidence_class": "sealed_Kunwei_fixed_observation_task_space_outer_loop_command_replay",
+  "filter_recurrence_semantics": "Check the sealed KWR75 filtered channel against the provider's declared one-pole tau and each row's actual dt; it is a consistency check, not a force-truth validation.",
   "force_mae_recomputed": false,
   "independent_force_truth": false,
   "interpretation_limit": "Fused replay reproduces the sealed formal outer-loop twist before the filtered-only comparison. The counterfactual changes only the KWR75 normal value supplied to the outer loop. It does not recompute RNN qdot, feed candidate commands into robot observations, or predict force MAE. Raw/full-force inputs and guard thresholds are unchanged, but candidate guard decisions are not recomputed; in particular, qdot-dependent direction retry is not evaluated. No live suitability follows.",
@@ -447,12 +488,6 @@
     "baseline-corrected Kunwei wrench vector",
     "native/raw Kunwei wrench and full-force measurements from the sealed source",
     "existing force-rise and force-preempt thresholds; source trigger counts are reference-only",
-    "actual RTDE TCP pose/speed and the fixed recorded reference/dt",
-    "Md, Bd, target force, integral policy and integral bound"
-  ],
-  "unchanged_inputs_and_guards": [
-    "baseline-corrected Kunwei wrench vector",
-    "native/raw Kunwei wrench and the sealed full-force/rise/preempt guard outcomes",
     "actual RTDE TCP pose/speed and the fixed recorded reference/dt",
     "Md, Bd, target force, integral policy and integral bound"
   ]

@@ -109,6 +109,8 @@ raw KWR75 的逐样本误差显著高于先做 100 ms 分箱的结果，反映 b
 
 live provider 源码规定 `control_normal=max(filtered_normal, measured_normal)`，outer loop 用该值算 `force_error_n`；正式 R013 force score 则用 `normal_force_filtered_n`。我对五条合格 RNN A 与两条失败 QP trace 的每个 sealed controller frame 复核了这一公式：七条 trace 的 control-rule violation 都为 **0**，`force_error_n` 与 `5-control_normal` 的最大差不超过 **3.2e-14 N**。
 
+`normal_force_filtered_n` 不是另一只传感器，也不是时间错位信号：五条 A trace 的 **29,981–30,002** 次更新逐帧精确符合 `F[n]=F[n−1]+(1−exp(−dt/0.35))(M[n]−F[n−1])`，其中 `M` 是同一条 KWR75 measured-normal、`dt` 是该帧实际间隔；递推绝对残差最大值为 **0 N**。因此 measured 与 filtered 的差异可由已知 **0.35 s** 一阶滤波解释。`max(filtered, measured)` 在 measured 上升时选较快的 raw KWR75，在下降时选较高的滤波值；这是非对称反馈行为，不是滤波器故障的证据。
+
 | source group | `[5,60)` measured 比 filtered 大 | mean `(control-filtered)` | filtered mean / control mean | filtered / control sample MAE | filtered 欠力但 control 显示过力 |
 |---|---:|---:|---:|---:|---:|
 | 5 条合格 RNN A，按 attempt 平均 | 48.91% | 0.845 N | 3.974 / 4.819 N | 1.043 / 1.123 N | 35.44% |
