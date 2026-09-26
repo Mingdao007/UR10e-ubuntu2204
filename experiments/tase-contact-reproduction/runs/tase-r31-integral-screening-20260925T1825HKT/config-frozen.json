@@ -1,0 +1,53 @@
+{
+  "schema": "tase.integral-screening-v1",
+  "method": "TASE_RNN_MATURE",
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "duration_token": "r013_60_rate460",
+  "target_force_n": 5.0,
+  "Md_scalar": 9.565272137974492,
+  "Bd_scalar": 693.6559295653944,
+  "repeats_per_arm": 5,
+  "seed": 20260925,
+  "expected_controller_readback_triplet_sha256": {
+    "script": "ba062d293d800cc2c7a081fcf256e6e6f076f30eae5b86021fa63c52f367370e",
+    "txt": "f20271234adb59eea648e07304af283bebc4ca4014e3a63bdf02d8e3e1eee901",
+    "urp": "495a98b352f0e5881dca4709de043791f4775ecbc01086088ee1d5eddbb63f6c"
+  },
+  "arms": [
+    {
+      "arm_id": "A",
+      "label": "legacy-limit-1p0",
+      "force_integral_limit_n_s": 1.0,
+      "force_integral_policy": "legacy-clamp-v1",
+      "force_integral_authority_error_n": 0.5
+    },
+    {
+      "arm_id": "B",
+      "label": "legacy-limit-0p5",
+      "force_integral_limit_n_s": 0.5,
+      "force_integral_policy": "legacy-clamp-v1",
+      "force_integral_authority_error_n": 0.5
+    },
+    {
+      "arm_id": "C",
+      "label": "legacy-limit-0p1",
+      "force_integral_limit_n_s": 0.1,
+      "force_integral_policy": "legacy-clamp-v1",
+      "force_integral_authority_error_n": 0.5
+    },
+    {
+      "arm_id": "D",
+      "label": "conditional-double-clamp-output-feedback",
+      "force_integral_limit_n_s": 1.0,
+      "force_integral_policy": "conditional-double-clamp-v1",
+      "force_integral_authority_error_n": 0.5
+    },
+    {
+      "arm_id": "E",
+      "label": "integral-off",
+      "force_integral_limit_n_s": 1.0,
+      "force_integral_policy": "integral-off-v1",
+      "force_integral_authority_error_n": 0.5
+    }
+  ]
+}

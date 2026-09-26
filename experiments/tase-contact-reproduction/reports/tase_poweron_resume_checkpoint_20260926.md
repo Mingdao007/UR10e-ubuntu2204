@@ -22,4 +22,16 @@ RTDE 实测 TCP 速度为零；相对于批准 Figure-eight/Autotuner joint Home
 
 时序诊断新增一个 focused 修复：连续 qualification 成功后不能把已满足的 3 次 baseline 计数降成 1，否则 legacy candidate 会正确 fail-closed 为 `baseline_qualification_missing`，使后续时序 marker 没有机会出现。现在只把计数提升到至少 1、保留已有更强证据；R006 当前单次资格规则不变。七个 writer/supervisor 生命周期测试文件共 **101 passed**。修复提交为 `29796f5f`（尚未 push）。
 
-下一项仍是用该 timing instrumentation 对齐 host publish、RTDE 与 TP consumed echo，找出首个延迟周期；不重跑旧 QP profile，也不在 RPSFC 工作流中改动控制器。当前归档压缩进程仍占一个 CPU 核，正式时序运行等共享 CPU/I/O lane 空出后再启动。checkpoint 的 `preflight` 和包读回只证明本次静止状态与 package 身份；它们不等于新的 live attempt 或 force-control acceptance。
+R32 receipt 实际已经带有 host hot-path、publish/send、provider 与 RTDE-poll 的分层摘要；此前“没有此次逐阶段计时”的描述已在决策树更正。现有 raw join 已把 `sequence 36485→36486` 的最大 host interpublish `11.891 ms` / `actual_dt=12.068 ms` 定位到 host observation/control-loop gap：RTDE poll 相隔 `12.059 ms` 后恢复，并一次 drain 六帧，其 controller timestamp 连续保持 2 ms 间隔。provider `1.044 ms`、solver `0.091 ms`、publish latency `1.654 ms` 都不足以说明这段等待；具体未计时 wait/scheduler/call boundary 仍未知，不能直接归因为 network 或 Linux scheduler。
+
+## 20:11 HKT fresh read-only 续接
+
+新 preflight 位于 [20:11 fresh preflight](../runs/tase-resume-readonly-20260926T2012HKT/fresh-preflight/preflight_readonly.json)，时间 `2026-09-26T20:11:50+08:00`。Dashboard/RTDE 再次显示机器人已上电 (`Robotmode RUNNING`)、Remote、Safety `NORMAL`、程序 `STOPPED`，零 TCP 速度；没有发送 power-on、brake-release、Load/Play 或任何运动/传感器写命令。实际关节对批准 Home 的最大差值约 `8.1e-5 rad`；TCP z `87.4 mm`、payload `0.413 kg`、CoG `[0.0011, 0.0031, 0.0163] m`。Kunwei 仅 TCP connect-only；该 preflight 没有取样或 zero/tare。一次 UR `actual_TCP_force` norm 为 `0.202 N`，仅作诊断，不能独立证明 no-contact。
+
+此时没有 live writer；旧 global lock 文件记载 PID `1011853`，该 PID 已不存在，不能当作仍持锁的进程。另有无关 archive compaction PID `1012539` 持续使用一个 CPU 核并写外部盘。保留它的运行控制权；正式时序采集等共享资源 lane 空出后再执行。上次 OctoStream 证据仍是 19:50 的单帧，不替代下一次 live attempt 前的连续 observer barrier；fresh KWR75 no-contact baseline 也仍待采。
+
+## 积分筛选与 autotuner 入口恢复
+
+核对发现 rate460 五策略筛选早已完成：25次全部封存，20圈完整、5圈失败。A/B/C/D/E 的完整次数分别为 `4/3/4/4/5`，成功圈 MAE 均值分别为 `0.977/1.140/1.756/1.235/1.929 N`。预定的“完成次数优先”规则选E；E的力误差均值最高、A最低，因此不能把E描述成力控最优。screen-D-00 实际绑定 conditional double clamp，sealed timeline 的已发布输出反馈字段覆盖该圈29,994/29,994行。
+
+旧 `figure8.sh --autotune` 把配置固定成A，无法跟随已选E；现已恢复单一入口：默认使用筛选所选E配置，A可由显式配置和A基线receipt启动，resume 默认读取 campaign 的冻结配置。入口 focused tests **24 passed**，E的 initial-00 也通过现有 sealed-screening source 校验。正式24次 tuning 尚未启动。报告索引见[研究决策树](tase_control_research_decision_tree_20260926.md)；源结果见[screening result](../runs/tase-r31-integral-screening-20260925T1825HKT/screening-results.json)。

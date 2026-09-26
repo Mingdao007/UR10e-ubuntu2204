@@ -3,9 +3,12 @@
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
-  echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60|r013_60_rate400] [--run-dir RUN] [--prepared-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--resident-parameter-manifest FILE | --resident-candidate-dir DIR] [--resident-attempts N] [--video-policy required|evidence-only]'
-  echo '       figure8.sh --autotune [--campaign-dir CAMPAIGN]'
-  echo '       figure8.sh --resume --campaign-dir CAMPAIGN'
+  echo 'Usage: figure8.sh [--method METHOD] [--duration full|r013_60|r013_60_rate400|r013_60_rate460] [--run-dir RUN] [--prepared-dir PREPARED_RUN] [--control-cpu N] [--parameter-file FILE] [--resident-parameter-manifest FILE | --resident-candidate-dir DIR] [--resident-attempts N] [--video-policy required|evidence-only] [--video-url RTSP_URL]'
+  echo '       figure8.sh --autotune [--tuner-config CONFIG] [--baseline-attempt-result ATTEMPT_RESULT] [--campaign-dir CAMPAIGN]'
+  echo '       figure8.sh --resume --campaign-dir CAMPAIGN [--tuner-config CONFIG]'
+  echo 'Autotune defaults to the selected rate460 screening arm E; arm A requires its sealed baseline receipt.'
+  echo 'Resume reads config-frozen.json from that campaign unless --tuner-config overrides it.'
+  echo '       figure8.sh --resident-start-check [standard run options]'
   echo 'Adaptive resident mode reads candidate-0001.json before launch, then waits up to 120 s at verified joint Home for each next candidate.'
   echo '       figure8.sh --stop --run-dir RUN'
   echo 'Defaults: TASE_RNN_MATURE, CPU 2, one 60 s R013-compatible figure-eight, then stop/Home.'
@@ -22,13 +25,17 @@ resident_parameter_manifest=''
 resident_candidate_dir=''
 prepared_dir=''
 stop_requested=0
+resident_start_check=0
 duration='r013_60'
 video_policy='evidence-only'
+video_url=''
 resident_attempts=1
 offline_acceptance=0
 autotune_requested=0
 resume_requested=0
 campaign_dir=''
+baseline_attempt_result=''
+tuner_config=''
 autotuner_mixed_options=0
 while (($#)); do
   case "$1" in
@@ -42,11 +49,15 @@ while (($#)); do
     --resident-parameter-manifest) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; resident_parameter_manifest="$2"; shift 2 ;;
     --resident-candidate-dir) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; resident_candidate_dir="$2"; shift 2 ;;
     --video-policy) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; video_policy="$2"; shift 2 ;;
+    --video-url) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; video_url="$2"; shift 2 ;;
     --resident-attempts) autotuner_mixed_options=1; [[ $# -ge 2 ]] || exit 64; resident_attempts="$2"; shift 2 ;;
     --offline-acceptance) autotuner_mixed_options=1; offline_acceptance=1; shift ;;
+    --resident-start-check) autotuner_mixed_options=1; resident_start_check=1; shift ;;
     --autotune) (( autotune_requested == 0 )) || { echo '--autotune may only be specified once' >&2; exit 64; }; autotune_requested=1; shift ;;
     --resume) (( resume_requested == 0 )) || { echo '--resume may only be specified once' >&2; exit 64; }; resume_requested=1; shift ;;
     --campaign-dir) [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { echo '--campaign-dir requires a non-option path' >&2; exit 64; }; [[ -z "$campaign_dir" ]] || { echo '--campaign-dir may only be specified once' >&2; exit 64; }; campaign_dir="$2"; shift 2 ;;
+    --baseline-attempt-result) [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { echo '--baseline-attempt-result requires an attempt-result.json path' >&2; exit 64; }; [[ -z "$baseline_attempt_result" ]] || { echo '--baseline-attempt-result may only be specified once' >&2; exit 64; }; baseline_attempt_result="$2"; shift 2 ;;
+    --tuner-config) [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { echo '--tuner-config requires a config path' >&2; exit 64; }; [[ -z "$tuner_config" ]] || { echo '--tuner-config may only be specified once' >&2; exit 64; }; tuner_config="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 64 ;;
   esac
 done
@@ -61,6 +72,10 @@ if (( autotune_requested || resume_requested )); then
   fi
   if (( resume_requested )) && [[ -z "$campaign_dir" ]]; then
     echo '--resume requires --campaign-dir' >&2
+    exit 64
+  fi
+  if (( resume_requested )) && [[ -n "$baseline_attempt_result" ]]; then
+    echo '--resume uses the frozen campaign baseline; do not supply --baseline-attempt-result' >&2
     exit 64
   fi
   if [[ -z "$campaign_dir" ]]; then
@@ -86,7 +101,53 @@ if (( autotune_requested || resume_requested )); then
     done
   fi
   action='start'
-  tuner_args=(--config "$ROOT/config/tase_resident_autotuner_rate400_b_v1.json" --campaign-dir "$campaign_dir")
+  if (( resume_requested )); then
+    if [[ -z "$tuner_config" ]]; then
+      tuner_config="$campaign_dir/config-frozen.json"
+    elif [[ "$tuner_config" != /* ]]; then
+      tuner_config="$PWD/$tuner_config"
+    fi
+  else
+    if [[ -z "$tuner_config" ]]; then
+      tuner_config="$ROOT/config/tase_resident_autotuner_rate460_e_v1.json"
+    elif [[ "$tuner_config" != /* ]]; then
+      tuner_config="$PWD/$tuner_config"
+    fi
+    if [[ -L "$tuner_config" || ! -f "$tuner_config" ]]; then
+      echo "--tuner-config is not a regular config file: $tuner_config" >&2
+      exit 64
+    fi
+    selected_arm="$(python3 - "$tuner_config" <<'PY'
+import json
+import sys
+
+try:
+    payload = json.load(open(sys.argv[1], encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    raise SystemExit(1)
+arm = payload.get("selected_screening_arm")
+if arm not in {"A", "B", "C", "D", "E"}:
+    raise SystemExit(1)
+print(arm)
+PY
+    )" || { echo "--tuner-config has no supported selected_screening_arm: $tuner_config" >&2; exit 64; }
+    if [[ "$selected_arm" == A && -z "$baseline_attempt_result" ]]; then
+      echo '--autotune with arm A requires --baseline-attempt-result' >&2
+      exit 64
+    fi
+    if [[ "$selected_arm" != A && -n "$baseline_attempt_result" ]]; then
+      echo "--baseline-attempt-result applies only to arm A; arm $selected_arm uses its sealed screening source" >&2
+      exit 64
+    fi
+  fi
+  if [[ -L "$tuner_config" || ! -f "$tuner_config" ]]; then
+    echo "resident tuner config is not a regular file: $tuner_config" >&2
+    exit 64
+  fi
+  tuner_args=(--config "$tuner_config" --campaign-dir "$campaign_dir")
+  if (( autotune_requested )); then
+    tuner_args+=(--baseline-attempt-result "$baseline_attempt_result")
+  fi
   if (( resume_requested )); then
     action='resume'
     tuner_args+=(--resume)
@@ -101,12 +162,20 @@ if [[ -n "$campaign_dir" ]]; then
   echo '--campaign-dir requires --autotune or --resume' >&2
   exit 64
 fi
+if [[ -n "$baseline_attempt_result" ]]; then
+  echo '--baseline-attempt-result requires --autotune' >&2
+  exit 64
+fi
+if [[ -n "$tuner_config" ]]; then
+  echo '--tuner-config requires --autotune or --resume' >&2
+  exit 64
+fi
 if [[ -n "$resident_candidate_dir" ]]; then
   if [[ -n "$resident_parameter_manifest" || -n "$parameter_file" ]]; then
     echo '--resident-candidate-dir is mutually exclusive with --resident-parameter-manifest and --parameter-file' >&2
     exit 64
   fi
-  if [[ "$method" != TASE_RNN_MATURE || ( "$duration" != r013_60 && "$duration" != r013_60_rate400 ) ]]; then
+  if [[ "$method" != TASE_RNN_MATURE || ( "$duration" != r013_60 && "$duration" != r013_60_rate400 && "$duration" != r013_60_rate460 ) ]]; then
     echo '--resident-candidate-dir requires a 60 s TASE_RNN_MATURE pilot' >&2
     exit 64
   fi
@@ -145,7 +214,11 @@ except Exception as exc:
 expected_protocol = (
     "figure8_window60_r013_rate400_v1"
     if duration == "r013_60_rate400"
-    else "figure8_window60_r013_compat_v1"
+    else (
+        "figure8_window60_r013_rate460_v1"
+        if duration == "r013_60_rate460"
+        else "figure8_window60_r013_compat_v1"
+    )
 )
 if binding.get("protocol_id") != expected_protocol or binding.get("duration_token") != duration:
     raise SystemExit(f"initial resident candidate protocol/duration differs: {first}")
@@ -160,6 +233,8 @@ if (( offline_acceptance )); then
   offline_args=(--run-dir "$run_dir" --attempts "$resident_attempts")
   if [[ "$duration" == r013_60_rate400 ]]; then
     offline_args+=(--rate400)
+  elif [[ "$duration" == r013_60_rate460 ]]; then
+    offline_args+=(--rate460)
   fi
   exec env PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONNOUSERSITE=1 \
     PYTHONPATH="$ROOT/tools:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages" \
@@ -171,19 +246,49 @@ case "$video_policy" in
   required|evidence-only) ;;
   *) echo "Unsupported video policy: $video_policy" >&2; exit 64 ;;
 esac
+if [[ -n "$video_url" && "$video_url" != rtsp://* ]]; then
+  echo '--video-url must use rtsp:// because the recorder uses RTSP/TCP' >&2
+  exit 64
+fi
+
+live_action=pilot
+if (( resident_start_check )); then
+  if (( stop_requested || offline_acceptance )); then
+    echo '--resident-start-check cannot be combined with --stop or --offline-acceptance' >&2
+    exit 64
+  fi
+  if [[ -n "$prepared_dir" ]]; then
+    echo '--resident-start-check requires fresh preparation; do not reuse --prepared-dir' >&2
+    exit 64
+  fi
+  if [[ -n "$run_dir" && ( -e "$run_dir" || -L "$run_dir" ) ]]; then
+    echo '--resident-start-check requires a new run directory for fresh neutral HOLD and baseline' >&2
+    exit 64
+  fi
+  if [[ "$method" != TASE_RNN_MATURE || ( "$duration" != r013_60_rate400 && "$duration" != r013_60_rate460 ) || "$resident_attempts" != 1 ]]; then
+    echo '--resident-start-check requires TASE_RNN_MATURE, r013_60_rate400 or r013_60_rate460 and one unit' >&2
+    exit 64
+  fi
+  if [[ -n "$resident_parameter_manifest" || -n "$resident_candidate_dir" ]]; then
+    echo '--resident-start-check does not accept autotuner parameter manifests or candidate directories' >&2
+    exit 64
+  fi
+  live_action=resident-start-check
+fi
 
 if (( stop_requested )); then
   [[ -n "$run_dir" ]] || { echo '--stop requires --run-dir' >&2; exit 64; }
   exec "$ROOT/scripts/contact-yield-live.sh" stop --run-dir "$run_dir"
 fi
 case "$duration" in
-  full|full_period|period|r013_60|compat60|r013_compat_60|r013_60_rate400) ;;
+  full|full_period|period|r013_60|compat60|r013_compat_60|r013_60_rate400|r013_60_rate460) ;;
   *) echo "Unsupported Figure-eight duration: $duration" >&2; exit 64 ;;
 esac
 if [[ -z "$parameter_file" && -z "$resident_parameter_manifest" && -z "$resident_candidate_dir" && "$method" == TASE_RNN_MATURE ]]; then
   case "$duration" in
     r013_60|compat60|r013_compat_60) parameter_file="$ROOT/config/tase_figure8_integral_0p1.json" ;;
     r013_60_rate400) parameter_file="$ROOT/config/tase_figure8_integral_0p1_rate400.json" ;;
+    r013_60_rate460) parameter_file="$ROOT/config/tase_figure8_integral_1p0_rate460.json" ;;
   esac
 fi
 
@@ -256,10 +361,13 @@ if [[ -z "$run_dir" || ! -d "$run_dir" ]]; then
   fi
 fi
 set +e
-supervise_args=(supervise --action pilot \
+supervise_args=(supervise --action "$live_action" \
  --method "$method" --duration "$duration" --run-dir "$run_dir" \
  --readback-dir "$run_dir/readback" --control-cpu "$cpu")
 supervise_args+=(--video-policy "$video_policy")
+if [[ -n "$video_url" ]]; then
+  supervise_args+=(--video-url "$video_url")
+fi
 supervise_args+=(--resident-attempts "$resident_attempts")
 if [[ -n "$resident_parameter_manifest" ]]; then
   supervise_args+=(--resident-parameter-manifest "$resident_parameter_manifest")
