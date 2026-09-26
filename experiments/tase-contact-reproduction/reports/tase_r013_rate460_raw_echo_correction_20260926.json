@@ -1,0 +1,62 @@
+{
+  "attempt_sequence": 1,
+  "experiment_result": {
+    "Bd_scalar": 693.6559295653944,
+    "Md_scalar": 9.565272137974492,
+    "arm": "A",
+    "complete_bins": 550,
+    "evidence_eligible_original": true,
+    "evidence_scope": "Kunwei signed-normal feedback diagnostic; not independent task-force truth",
+    "formal_window_s": [
+      5.0,
+      60.0
+    ],
+    "integral_limit_n_s": 1.0,
+    "method": "TASE_RNN_MATURE",
+    "normal_force_feedback_mae_n": 1.0314071504242428,
+    "target_force_n": 5.0
+  },
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "provenance_note": "Original attempt result and seal remain unchanged. This supplemental replay corrects only rate denominator interpretation and proves the corrected gate from the same complete raw frame stream.",
+  "reconstruction": {
+    "complete_batches": 32371,
+    "corrected_rates_hz": {
+      "kunwei_frames": 999.8333555525659,
+      "rtde_frames": 499.9999999999864,
+      "tp_consumed_packet_echoes": 480.8192241034398,
+      "writer_publishes": 499.5500599919875
+    },
+    "corrected_timing_gate_passed": true,
+    "counting_basis": "complete drained RTDE batches mapped to immutable published PATH references in [0,60)",
+    "counts": {
+      "kunwei_frames": 59998,
+      "rtde_frames": 30004,
+      "tp_consumed_packet_echoes": 28853,
+      "writer_publishes": 29977
+    },
+    "denominator_basis": "last formal RTDE timestamp minus first formal RTDE timestamp plus median of first 256 inter-frame intervals",
+    "distinct_rtde_frames": 30004,
+    "distinct_tp_consumed_sequences": 28853,
+    "feedback_age_p99_s": 0.008916436054278165,
+    "first_controller_timestamp_s": 183287.623,
+    "formal_echoes": 30004,
+    "interval_sample_count": 256,
+    "last_controller_timestamp_s": 183347.629,
+    "max_fresh_gap_s": 0.012335706036537886,
+    "median_interval_s": 0.0020000000076834112,
+    "minimum_rate_hz": 460.0,
+    "observed_span_s": 60.005999999993946,
+    "stream_sha256": "69df73feaeba4dd7f047e2e8b1f774b1368aa6c534b4b23776473c94725cd57c",
+    "stream_sha_matches_sealed_summary": true,
+    "timing_duration_s": 60.00800000000163,
+    "timing_rates_pass": true
+  },
+  "run_dir": "runs/tase-r31-rate460-echo-counter-fix-live-validation-20260926T1615HKT",
+  "schema": "tase.r013-rate460-raw-echo-correction-v1",
+  "source_evidence_sha256": "6a14db27cdb3ca87872b3bc0ad529d5ebec32f682195997766de250ad05002f0",
+  "source_segment_sha256": {
+    "command_timeline": "f117154c5b8da46442e5c03962a1e46534fa0db1bd479acddef6b84aa4260b1e",
+    "robot_frames": "ba21e4d390937fc6752ac81741ba7698ecaa4e644ef45671dfd02a37749a7cba",
+    "service_observations": "e11a0e51c4719c2e703ca48d555b2375de03bf743ab44c2e0694c5521164d489"
+  }
+}
