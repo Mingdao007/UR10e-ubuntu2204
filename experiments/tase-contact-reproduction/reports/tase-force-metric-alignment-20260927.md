@@ -145,6 +145,8 @@ motion gate 是同一被消费 packet 的 published qdot 与 RTDE `actual_qd` �
 
 在 `rho=0.1 / scaling=0` profile 下，matched-A 的最大锁定任务等式误差为 **5.31e-9**、最大 box 越界 **8.42e-8 rad/s**；SFC+TASE-QP 组合的对应数值为 **2.26e-9** 和 **8.68e-19 rad/s**。在组合回放中，normal 与 orientation 任务保持高优先级，切向残差最大 **2.411 mm/s**；它说明发生冲突时低优先级路径任务会退让，不代表产生了真实运动改善。输入 twist 来自已有 SFC 增广记录，时间戳与同一 source timeline 29,982 行逐行一致；最终每帧仅有 QP 生成的一组 qdot。
 
+为避免把改变 QP profile 当成唯一出路，我还在上述失败行对默认 `scaling=10` 做了单行筛查：消去已锁定 normal 等式、复用前一行 orientation 对偶初值，以及将 `qdot` 作统一尺度变换（0.1、1、10、100、1000）均未在 400 次内得到 `solved`。这些是局部诊断，前一 tick 的 qdot 使用 sealed 原命令近似，**不替代完整 replay，也不代表这些变体完整 PATH 失败**。完整而权威的结果仍是原 `rho=0.1 / scaling=10` 回放在 42.446 s 被拒，以及 `rho=0.1 / scaling=0` 的三条完整回放通过。
+
 上述 1 ms 内的时间是本机固定输入离线 replay 测得的计算时间，不包含 live host/TP 通信、Kunwei、RTDE、完整 writer 周期或 OS 调度，因此不证明 460 Hz 运行。三种新 replay 均无 candidate force MAE，KWR75 力、TCP/Jacobian 和下一帧观测都仍冻结在源轨迹；不产生候选闭环 actual_qd，不可用于声称力精度改善。复算代码为 [offline QP solver](../tools/tase_qp_normal_priority_offline.py) 与 [fixed-input replay](../tools/replay_tase_qp_normal_priority.py)，5 项 focused tests 通过。逐 attempt receipt： [matched-A 原 profile 拒绝](tase_r31_qpmatched_normal_priority_replay_20260927_v5.json)、[matched-A `rho=0.01` 变体](tase_r31_qpmatched_normal_priority_replay_20260927_v7_rho001_vectorized.json)、[matched-A `rho=0.1 / scaling=0`](tase_r31_qpmatched_normal_priority_replay_20260927_v8_scale0.json)、[BO-10 `rho=0.1 / scaling=0`](tase_r31_qpbo10_normal_priority_replay_20260927_scale0.json)、[SFC+TASE-QP `rho=0.1 / scaling=0`](tase_r32a_sfc_plus_tase_qp_command_replay_20260927_scale0.json)。
 
 ## 下一步
