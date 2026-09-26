@@ -118,6 +118,12 @@ live provider 源码规定 `control_normal=max(filtered_normal, measured_normal)
 
 **这条 TASE RTDE 配方没有读取 UR 内置 `actual_TCP_force`。** 当前 `OUTPUT_FIELDS` 只请求 TCP pose/speed、关节、payload、Safety/Runtime 状态和控制器 echo；`R004OutputSnapshot` 也只解析这些字段。`contact_yield_supervisor.fresh_stop_sample()` 再显式排除该字段，replay 输入若出现该字段则拒绝混源。力反馈与上述 MAE 都来自同步 Kunwei KWR75 通道；代码里出现字段名的两处是“排除/拒绝”检查，不是读取或使用。相关边界由 `test_tase_rtde_force_source_boundary.py` 固定。
 
+### Filtered-only outer-loop command replay
+
+我把同一组 A trace 分别按封存的融合信号和反事实 `filtered-only` 送入 TASE outer loop。5 条合格 trace 的融合回放都精确重现了封存的正式 `[5,60)` requested twist，逐分量最大误差均为 **0**；每条都覆盖 **550/550** formal bins 和 **600/600** diagnostic bins。filtered-only 在正式窗内将 base-Z normal command 平均再改动 **−1.620 mm/s**（逐 attempt 范围 −1.652 至 −1.570 mm/s）；平均 **81.98%** 的帧更负，约 **29.50%** 的帧相对融合命令发生正负号翻转，最大两者相差 **6.0 mm/s**。xy tangential command 变化低于 **2.2×10⁻¹⁹ m/s**，说明本 outer loop 中改变此信号主要改法向命令。积分状态差平均 **+0.469 N·s**，95th percentile 绝对差平均 **0.905 N·s**。
+
+这证明控制输入选择会显著改变要求的法向运动，不能只当作“评分用哪个信号”的问题；但回放没有重跑 RNN `qdot`、最终 joint/task-space projection，也没有把候选命令送回机器人观测。因此它**没有候选力 MAE**，不能说明 filtered-only 会提高实测跟踪精度或适合 live。原始/全力 KWR75 输入与 guard 阈值不变，但方向重试等依赖候选 qdot 的保护决策没有重算；结果仅用于定位下一步闭环验证的风险。5 条 trace 的逐 attempt 数值见 [outer-loop replay](tase_force_feedback_selection_outer_loop_replay_20260927.json)，重放入口和边界测试为 `tools/replay_tase_force_feedback_selection.py` 与 `tests/test_replay_tase_force_feedback_selection.py`。
+
 motion gate 是同一被消费 packet 的 published qdot 与 RTDE `actual_qd` 六关节合并 Pearson，门槛 0.900。对封存序号重新连接后，两次重算分别为 0.84010 和 0.84863；单 packet 偏移最多只将后者提高到约 0.849，因此不是简单的 host/RTDE 错位。两次任务空间位置误差和 qdot lag 都在现有限值内，相关性失败主要集中在关节 2、4、5；关节 5 的命令标准差约 0.00021 rad/s，低于实测速度噪声尺度，但关节 2 的 command-to-actual 误差也明显高于 RNN A。
 
 同一 frozen trace 的输出诊断发现：matched-A QP 有 513 次 host slew 限制、1,857 次最终 realization 限制和 2,916 次 task-space saturation；RNN A 两个对照 trace 的 host slew / realization 限制分别只有 7/7 与 3/3 次。固定输入重放准确复现 QP 及 host slew 输出，但只是 open-loop command replay。把原有 slew bound 直接并入硬等式 QP 的离线反事实在 packet 9676 即不可行；原 attempt 与 solver 状态保留为失败，没有修改 gate 或放宽边界。详情见 [QP motion-gate 分析](tase_r31_qp_motion_gate_analysis_20260925.json)、[指令变化分析](tase_r31_qdot_output_transition_20260925.json)、[事件分组](tase_r31_qdot_event_condition_20260925.json)、[固定输入重放与 embedded-slew 反事实](tase_r31_cartesian_velocity_diagnostic_20260925.json)。

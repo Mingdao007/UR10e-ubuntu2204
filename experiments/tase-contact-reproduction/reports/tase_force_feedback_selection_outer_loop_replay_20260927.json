@@ -1,0 +1,459 @@
+{
+  "attempts": [
+    {
+      "Bd_scalar": 693.6559295653944,
+      "Md_scalar": 9.565272137974492,
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0002",
+      "attempt_id": "0002",
+      "candidate_guard_decisions_recomputed": false,
+      "candidate_id": "confirm-s01-b00-A",
+      "fused_replay_formal_max_abs_twist_error": 0.0,
+      "integral_limit_n_s": 1.0,
+      "integral_policy": "legacy-clamp-v1",
+      "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-01-02-A.json",
+      "sealed_source_force_mae_is_not_counterfactual": true,
+      "sealed_source_formal_bins": 550,
+      "sealed_source_formal_force_mae_n": 1.0061050570848329,
+      "sealed_source_full_bins": 600,
+      "sealed_source_path_rows": 29982,
+      "source_guard_reference_counts_only": {
+        "force_preempt_direction_retry_rows": 1016,
+        "force_preempt_warm_start_rows": 331,
+        "force_rise_guard_rows": 966
+      },
+      "windows": {
+        "diagnostic_0_60": {
+          "complete_100ms_bin_coverage": true,
+          "integral_state_delta_n_s": {
+            "max_absolute": 1.3193502579688285,
+            "mean_absolute": 0.47685050297884557,
+            "mean_candidate_minus_fused": 0.47685050297884557,
+            "p95_absolute": 0.9415337531350801
+          },
+          "nonempty_100ms_bins": 600,
+          "normal_base_z_command_delta_m_s": {
+            "100ms_bin_mean_absolute": 0.0016382915988489616,
+            "100ms_bin_p95_absolute": 0.004599661521760214,
+            "fraction_more_negative": 0.8196251083983723,
+            "fraction_sign_reversal": 0.2996464545393903,
+            "max_absolute": 0.006,
+            "mean_absolute": 0.001637395828355227,
+            "mean_candidate_minus_fused": -0.001637395828355227,
+            "p95_absolute": 0.005224745054902035
+          },
+          "not_force_metric": true,
+          "required_100ms_bins": 600,
+          "sample_count": 29982,
+          "tangential_xy_command_delta_m_s": {
+            "max_vector_norm": 2.168404344971009e-19,
+            "mean_vector_norm": 1.0357239303345308e-21
+          },
+          "window_s": [
+            0.0,
+            60.0
+          ]
+        },
+        "formal_5_60": {
+          "complete_100ms_bin_coverage": true,
+          "integral_state_delta_n_s": {
+            "max_absolute": 1.3193502579688285,
+            "mean_absolute": 0.48471912329321837,
+            "mean_candidate_minus_fused": 0.48471912329321837,
+            "p95_absolute": 0.9479623464698899
+          },
+          "nonempty_100ms_bins": 550,
+          "normal_base_z_command_delta_m_s": {
+            "100ms_bin_mean_absolute": 0.001629279863468712,
+            "100ms_bin_p95_absolute": 0.004516439171098012,
+            "fraction_more_negative": 0.8287117903930131,
+            "fraction_sign_reversal": 0.29690684133915574,
+            "max_absolute": 0.006,
+            "mean_absolute": 0.0016283123949883893,
+            "mean_candidate_minus_fused": -0.0016283123949883893,
+            "p95_absolute": 0.005132898376180454
+          },
+          "not_force_metric": true,
+          "required_100ms_bins": 550,
+          "sample_count": 27480,
+          "tangential_xy_command_delta_m_s": {
+            "max_vector_norm": 2.168404344971009e-19,
+            "mean_vector_norm": 1.1300245589261247e-21
+          },
+          "window_s": [
+            5.0,
+            60.0
+          ]
+        }
+      }
+    },
+    {
+      "Bd_scalar": 693.6559295653944,
+      "Md_scalar": 9.565272137974492,
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0004",
+      "attempt_id": "0004",
+      "candidate_guard_decisions_recomputed": false,
+      "candidate_id": "confirm-s01-b01-A",
+      "fused_replay_formal_max_abs_twist_error": 0.0,
+      "integral_limit_n_s": 1.0,
+      "integral_policy": "legacy-clamp-v1",
+      "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-01-04-A.json",
+      "sealed_source_force_mae_is_not_counterfactual": true,
+      "sealed_source_formal_bins": 550,
+      "sealed_source_formal_force_mae_n": 0.9419680748585729,
+      "sealed_source_full_bins": 600,
+      "sealed_source_path_rows": 30003,
+      "source_guard_reference_counts_only": {
+        "force_preempt_direction_retry_rows": 1045,
+        "force_preempt_warm_start_rows": 375,
+        "force_rise_guard_rows": 1092
+      },
+      "windows": {
+        "diagnostic_0_60": {
+          "complete_100ms_bin_coverage": true,
+          "integral_state_delta_n_s": {
+            "max_absolute": 1.1289653177297678,
+            "mean_absolute": 0.4893755856078073,
+            "mean_candidate_minus_fused": 0.4893755856078073,
+            "p95_absolute": 0.8616366351016305
+          },
+          "nonempty_100ms_bins": 600,
+          "normal_base_z_command_delta_m_s": {
+            "100ms_bin_mean_absolute": 0.0016322966316518685,
+            "100ms_bin_p95_absolute": 0.00467527648656564,
+            "fraction_more_negative": 0.8457820884578209,
+            "fraction_sign_reversal": 0.2965036829650368,
+            "max_absolute": 0.006,
+            "mean_absolute": 0.0016325321524192974,
+            "mean_candidate_minus_fused": -0.0016325321524192974,
+            "p95_absolute": 0.005095584218026585
+          },
+          "not_force_metric": true,
+          "required_100ms_bins": 600,
+          "sample_count": 30003,
+          "tangential_xy_command_delta_m_s": {
+            "max_vector_norm": 1.3552527156068805e-19,
+            "mean_vector_norm": 1.1049207499790818e-21
+          },
+          "window_s": [
+            0.0,
+            60.0
+          ]
+        },
+        "formal_5_60": {
+          "complete_100ms_bin_coverage": true,
+          "integral_state_delta_n_s": {
+            "max_absolute": 1.1289653177297678,
+            "mean_absolute": 0.4940947536003611,
+            "mean_candidate_minus_fused": 0.4940947536003611,
+            "p95_absolute": 0.8654152685231772
+          },
+          "nonempty_100ms_bins": 550,
+          "normal_base_z_command_delta_m_s": {
+            "100ms_bin_mean_absolute": 0.0016032958820866668,
+            "100ms_bin_p95_absolute": 0.00458485036803333,
+            "fraction_more_negative": 0.850321829884723,
+            "fraction_sign_reversal": 0.28604676533692136,
+            "max_absolute": 0.006,
+            "mean_absolute": 0.0016033516933491208,
+            "mean_candidate_minus_fused": -0.0016033516933491208,
+            "p95_absolute": 0.005007242533497249
+          },
+          "not_force_metric": true,
+          "required_100ms_bins": 550,
+          "sample_count": 27499,
+          "tangential_xy_command_delta_m_s": {
+            "max_vector_norm": 1.3552527156068805e-19,
+            "mean_vector_norm": 1.2055324652395501e-21
+          },
+          "window_s": [
+            5.0,
+            60.0
+          ]
+        }
+      }
+    },
+    {
+      "Bd_scalar": 693.6559295653944,
+      "Md_scalar": 9.565272137974492,
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0002",
+      "attempt_id": "0002",
+      "candidate_guard_decisions_recomputed": false,
+      "candidate_id": "confirm-s02-b02-A",
+      "fused_replay_formal_max_abs_twist_error": 0.0,
+      "integral_limit_n_s": 1.0,
+      "integral_policy": "legacy-clamp-v1",
+      "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-02-02-A.json",
+      "sealed_source_force_mae_is_not_counterfactual": true,
+      "sealed_source_formal_bins": 550,
+      "sealed_source_formal_force_mae_n": 1.0364228577061043,
+      "sealed_source_full_bins": 600,
+      "sealed_source_path_rows": 29997,
+      "source_guard_reference_counts_only": {
+        "force_preempt_direction_retry_rows": 1145,
+        "force_preempt_warm_start_rows": 393,
+        "force_rise_guard_rows": 1078
+      },
+      "windows": {
+        "diagnostic_0_60": {
+          "complete_100ms_bin_coverage": true,
+          "integral_state_delta_n_s": {
+            "max_absolute": 1.0846233470407503,
+            "mean_absolute": 0.4559612001830476,
+            "mean_candidate_minus_fused": 0.4559612001830476,
+            "p95_absolute": 0.9090794968522086
+          },
+          "nonempty_100ms_bins": 600,
+          "normal_base_z_command_delta_m_s": {
+            "100ms_bin_mean_absolute": 0.0016469160314812848,
+            "100ms_bin_p95_absolute": 0.004558021055688429,
+            "fraction_more_negative": 0.8237157049038237,
+            "fraction_sign_reversal": 0.3031969863653032,
+            "max_absolute": 0.006,
+            "mean_absolute": 0.0016468264488806526,
+            "mean_candidate_minus_fused": -0.0016468264488806526,
+            "p95_absolute": 0.005235994556495415
+          },
+          "not_force_metric": true,
+          "required_100ms_bins": 600,
+          "sample_count": 29997,
+          "tangential_xy_command_delta_m_s": {
+            "max_vector_norm": 1.0842021724855044e-19,
+            "mean_vector_norm": 1.0958772892483974e-21
+          },
+          "window_s": [
+            0.0,
+            60.0
+          ]
+        },
+        "formal_5_60": {
+          "complete_100ms_bin_coverage": true,
+          "integral_state_delta_n_s": {
+            "max_absolute": 1.0846233470407503,
+            "mean_absolute": 0.4542581002448055,
+            "mean_candidate_minus_fused": 0.4542581002448055,
+            "p95_absolute": 0.9121393885555653
+          },
+          "nonempty_100ms_bins": 550,
+          "normal_base_z_command_delta_m_s": {
+            "100ms_bin_mean_absolute": 0.001648981625014512,
+            "100ms_bin_p95_absolute": 0.004590333477127037,
+            "fraction_more_negative": 0.8192994580438657,
+            "fraction_sign_reversal": 0.2967300767468083,
+            "max_absolute": 0.006,
+            "mean_absolute": 0.0016489692057860303,
+            "mean_candidate_minus_fused": -0.0016489692057860303,
+            "p95_absolute": 0.005301099813644614
+          },
+          "not_force_metric": true,
+          "required_100ms_bins": 550,
+          "sample_count": 27493,
+          "tangential_xy_command_delta_m_s": {
+            "max_vector_norm": 1.0842021724855044e-19,
+            "mean_vector_norm": 1.1956873038804124e-21
+          },
+          "window_s": [
+            5.0,
+            60.0
+          ]
+        }
+      }
+    },
+    {
+      "Bd_scalar": 693.6559295653944,
+      "Md_scalar": 9.565272137974492,
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0003",
+      "attempt_id": "0003",
+      "candidate_guard_decisions_recomputed": false,
+      "candidate_id": "confirm-s02-b03-A",
+      "fused_replay_formal_max_abs_twist_error": 0.0,
+      "integral_limit_n_s": 1.0,
+      "integral_policy": "legacy-clamp-v1",
+      "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-02-03-A.json",
+      "sealed_source_force_mae_is_not_counterfactual": true,
+      "sealed_source_formal_bins": 550,
+      "sealed_source_formal_force_mae_n": 1.0242417404331408,
+      "sealed_source_full_bins": 600,
+      "sealed_source_path_rows": 29557,
+      "source_guard_reference_counts_only": {
+        "force_preempt_direction_retry_rows": 1130,
+        "force_preempt_warm_start_rows": 376,
+        "force_rise_guard_rows": 1052
+      },
+      "windows": {
+        "diagnostic_0_60": {
+          "complete_100ms_bin_coverage": true,
+          "integral_state_delta_n_s": {
+            "max_absolute": 1.430112750431925,
+            "mean_absolute": 0.481607265796852,
+            "mean_candidate_minus_fused": 0.481607265796852,
+            "p95_absolute": 0.8826906617378923
+          },
+          "nonempty_100ms_bins": 600,
+          "normal_base_z_command_delta_m_s": {
+            "100ms_bin_mean_absolute": 0.001587273060226797,
+            "100ms_bin_p95_absolute": 0.004306016042908489,
+            "fraction_more_negative": 0.8303278411205467,
+            "fraction_sign_reversal": 0.2982373041919004,
+            "max_absolute": 0.006,
+            "mean_absolute": 0.0015867995000713815,
+            "mean_candidate_minus_fused": -0.0015867995000713815,
+            "p95_absolute": 0.004977925471553185
+          },
+          "not_force_metric": true,
+          "required_100ms_bins": 600,
+          "sample_count": 29557,
+          "tangential_xy_command_delta_m_s": {
+            "max_vector_norm": 2.168404344971009e-19,
+            "mean_vector_norm": 1.1459098674512794e-21
+          },
+          "window_s": [
+            0.0,
+            60.0
+          ]
+        },
+        "formal_5_60": {
+          "complete_100ms_bin_coverage": true,
+          "integral_state_delta_n_s": {
+            "max_absolute": 1.430112750431925,
+            "mean_absolute": 0.48093227856903625,
+            "mean_candidate_minus_fused": 0.48093227856903625,
+            "p95_absolute": 0.8828722337564997
+          },
+          "nonempty_100ms_bins": 550,
+          "normal_base_z_command_delta_m_s": {
+            "100ms_bin_mean_absolute": 0.0015738807729615992,
+            "100ms_bin_p95_absolute": 0.004293430082862526,
+            "fraction_more_negative": 0.8277755259957994,
+            "fraction_sign_reversal": 0.29160986034857583,
+            "max_absolute": 0.006,
+            "mean_absolute": 0.0015699480053918678,
+            "mean_candidate_minus_fused": -0.0015699480053918678,
+            "p95_absolute": 0.004979980155891378
+          },
+          "not_force_metric": true,
+          "required_100ms_bins": 550,
+          "sample_count": 27139,
+          "tangential_xy_command_delta_m_s": {
+            "max_vector_norm": 2.168404344971009e-19,
+            "mean_vector_norm": 1.2480068518463269e-21
+          },
+          "window_s": [
+            5.0,
+            60.0
+          ]
+        }
+      }
+    },
+    {
+      "Bd_scalar": 693.6559295653944,
+      "Md_scalar": 9.565272137974492,
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0005",
+      "attempt_id": "0005",
+      "candidate_guard_decisions_recomputed": false,
+      "candidate_id": "confirm-s02-b04-A",
+      "fused_replay_formal_max_abs_twist_error": 0.0,
+      "integral_limit_n_s": 1.0,
+      "integral_policy": "legacy-clamp-v1",
+      "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-02-05-A.json",
+      "sealed_source_force_mae_is_not_counterfactual": true,
+      "sealed_source_formal_bins": 550,
+      "sealed_source_formal_force_mae_n": 1.1958953801632153,
+      "sealed_source_full_bins": 600,
+      "sealed_source_path_rows": 30002,
+      "source_guard_reference_counts_only": {
+        "force_preempt_direction_retry_rows": 964,
+        "force_preempt_warm_start_rows": 308,
+        "force_rise_guard_rows": 980
+      },
+      "windows": {
+        "diagnostic_0_60": {
+          "complete_100ms_bin_coverage": true,
+          "integral_state_delta_n_s": {
+            "max_absolute": 1.0744503494110915,
+            "mean_absolute": 0.437188549043911,
+            "mean_candidate_minus_fused": 0.437188549043911,
+            "p95_absolute": 0.9139746892636386
+          },
+          "nonempty_100ms_bins": 600,
+          "normal_base_z_command_delta_m_s": {
+            "100ms_bin_mean_absolute": 0.0016821883729654164,
+            "100ms_bin_p95_absolute": 0.004674457837832224,
+            "fraction_more_negative": 0.7734817678821412,
+            "fraction_sign_reversal": 0.31154589694020396,
+            "max_absolute": 0.006,
+            "mean_absolute": 0.0016822982310802698,
+            "mean_candidate_minus_fused": -0.0016822982310802698,
+            "p95_absolute": 0.005417227434462722
+          },
+          "not_force_metric": true,
+          "required_100ms_bins": 600,
+          "sample_count": 30002,
+          "tangential_xy_command_delta_m_s": {
+            "max_vector_norm": 1.0842021724855044e-19,
+            "mean_vector_norm": 1.0085334964911817e-21
+          },
+          "window_s": [
+            0.0,
+            60.0
+          ]
+        },
+        "formal_5_60": {
+          "complete_100ms_bin_coverage": true,
+          "integral_state_delta_n_s": {
+            "max_absolute": 1.0744503494110915,
+            "mean_absolute": 0.4328112546650728,
+            "mean_candidate_minus_fused": 0.4328112546650728,
+            "p95_absolute": 0.9153762723002666
+          },
+          "nonempty_100ms_bins": 550,
+          "normal_base_z_command_delta_m_s": {
+            "100ms_bin_mean_absolute": 0.0016518104659840177,
+            "100ms_bin_p95_absolute": 0.004589824600722805,
+            "fraction_more_negative": 0.7729289402865663,
+            "fraction_sign_reversal": 0.30394937813659173,
+            "max_absolute": 0.006,
+            "mean_absolute": 0.0016518389765879703,
+            "mean_candidate_minus_fused": -0.0016518389765879703,
+            "p95_absolute": 0.005345326711761379
+          },
+          "not_force_metric": true,
+          "required_100ms_bins": 550,
+          "sample_count": 27498,
+          "tangential_xy_command_delta_m_s": {
+            "max_vector_norm": 1.0842021724855044e-19,
+            "mean_vector_norm": 1.1003717347344693e-21
+          },
+          "window_s": [
+            5.0,
+            60.0
+          ]
+        }
+      }
+    }
+  ],
+  "candidate_guard_decisions_recomputed": false,
+  "closed_loop": false,
+  "control_signal_change": "max(filtered_normal_n, measured_normal_n) -> filtered_normal_n",
+  "evidence_class": "sealed_Kunwei_fixed_observation_task_space_outer_loop_command_replay",
+  "force_mae_recomputed": false,
+  "independent_force_truth": false,
+  "interpretation_limit": "Fused replay reproduces the sealed formal outer-loop twist before the filtered-only comparison. The counterfactual changes only the KWR75 normal value supplied to the outer loop. It does not recompute RNN qdot, feed candidate commands into robot observations, or predict force MAE. Raw/full-force inputs and guard thresholds are unchanged, but candidate guard decisions are not recomputed; in particular, qdot-dependent direction retry is not evaluated. No live suitability follows.",
+  "joint_or_task_space_limits_recomputed": false,
+  "physical_candidate_executed": false,
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "qdot_solver_replayed": false,
+  "schema": "tase.force-feedback-selection-outer-loop-replay-v1",
+  "unchanged_inputs_and_guard_definitions": [
+    "baseline-corrected Kunwei wrench vector",
+    "native/raw Kunwei wrench and full-force measurements from the sealed source",
+    "existing force-rise and force-preempt thresholds; source trigger counts are reference-only",
+    "actual RTDE TCP pose/speed and the fixed recorded reference/dt",
+    "Md, Bd, target force, integral policy and integral bound"
+  ],
+  "unchanged_inputs_and_guards": [
+    "baseline-corrected Kunwei wrench vector",
+    "native/raw Kunwei wrench and the sealed full-force/rise/preempt guard outcomes",
+    "actual RTDE TCP pose/speed and the fixed recorded reference/dt",
+    "Md, Bd, target force, integral policy and integral bound"
+  ]
+}
