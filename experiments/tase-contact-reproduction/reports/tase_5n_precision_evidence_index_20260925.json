@@ -1,5 +1,5 @@
 {
-  "checkpoint_at": "2026-09-26T18:16:37.828936+08:00",
+  "checkpoint_at": "2026-09-26T18:34:14+08:00",
   "claim_boundary": "Kunwei is controller feedback, not independent task-force truth. RPSFC/SFC/DSFC drift evidence is a different experiment.",
   "decision_tree": "reports/tase_5n_precision_decision_tree_20260925.md",
   "evidence": [
@@ -1662,9 +1662,23 @@
         "R32_shadow_opposite_sign_rows_pct": 29.766409547373016
       },
       "limitations": "Kunwei internal signals are not independent task-force truth. Conditional samples are associations. R32 alternative output is fixed-input open-loop, not robot motion or force MAE."
+    },
+    {
+      "id": "tase-r32-signal-to-motion-chain-20260926",
+      "path": "reports/tase_r32_signal_to_motion_chain_20260926.json",
+      "status": "joined force input, task limiting, final Jqdot, and RTDE speed; associations only; no live change",
+      "key_values": {
+        "rows": 27485,
+        "task_limit_active_pct": 22.597780607604147,
+        "task_to_final_jqdot_abs_p95_mm_s": 2.8022704413041657,
+        "unlimited_joint_slew_subset_abs_p95_mm_s": 2.809833243776177,
+        "command_to_RTDE_correlation_lag_samples": 5,
+        "command_to_RTDE_correlation": 0.7170000938917577
+      },
+      "limitations": "same closed-loop trace; no causal force-MAE allocation; RTDE TCP speed is state-derived, not external truth"
     }
   ],
-  "latest_report": "reports/tase_r31_r32_force_channel_alignment_20260926.md",
+  "latest_report": "reports/tase_r32_signal_to_motion_chain_20260926.md",
   "not_yet_observed": [
     "source attribution for the intermittent low-rate A attempts; the first observed missed RTDE/controller-time interval and available host/kernel telemetry do not establish a UR controller, network, scheduler, or control-law cause",
     "sealed values for every Kunwei frame inside each approximately 1 kHz transport batch, needed to evaluate pairwise averaging or anti-alias filtering",
@@ -1675,9 +1689,24 @@
     "causal root and eligible repair for the TASE-QP target_qd-to-actual_qd mismatch on J2/J4; keep the 0.900 gate and frozen solver profile unchanged",
     "Live SFC+TASE method registration and a reviewed path-restoring stiffness/tangent profile; the inherited 120 N/m remains offline-only",
     "fixed-XY, persistently excited empirical contact response at the 5 N working point sufficient to identify local K_e and D_e or a supported closed-loop second-order model",
-    "a physical M/K/B model with task constraints defined well enough to compute and validate zeta candidates; the URDF operational-mass estimate alone is not sufficient"
+    "a physical M/K/B model with task constraints defined well enough to compute and validate zeta candidates; the URDF operational-mass estimate alone is not sufficient",
+    "causal attribution of the 5 N force MAE among one-sided force-envelope bias, task-normal cap, RNN Jqdot realization, and plant response"
   ],
   "primary_experiment": "The R31 rate460 independent A-versus-E confirmation is complete: 5/5 valid pairs, 22 physical attempts, 7 failed attempts retained, all sessions closed. A averaged 0.987131 N and E 1.748434 N; paired A-minus-E was -0.761304 N (95% CI [-0.893456, -0.629151] N), so no E improvement is supported and A remains incumbent. Two complete TASE-QP paths still fail the frozen actual_qd correlation gate (0.840132 and 0.848607 versus 0.900); their MAEs are diagnostics only. The R31 SFC/DSFC model proxy is simulation only, with 120 N/m path stiffness not approved for live use. KWR75 remains controller feedback, not independent task-force truth. Fresh read-only preflight at 22:30 HKT again found the controller already powered, Remote Control, Safety NORMAL, TP STOPPED, zero TCP speed, and joint Home max error 2.69e-5 rad; no power or motion command was sent. The SFC+TASE live method remains unavailable pending a reviewed K_path binding; 120 N/m is still offline-only. A fresh 22:50 HKT RTDE sample added active payload inertia; a reproducible URDF/Pinocchio operational-mass calculation gives 3.529 kg with tangent/orientation axes free and 23.982 kg with those axes constrained. This is model-derived robot inertia only; the local 5 N environment/contact K/B/M model remains empirically unidentified and no zeta sweep is authorized. Fresh Dashboard-only check at 2026-09-25T23:31:14+08:00: RUNNING, Safety NORMAL, TP STOPPED step5d_contact_six_qp_v1; no writer/bridge process or write/motion command. This is not a complete fresh live preflight. A fresh full read-only preflight at 23:35 HKT again found the controller powered, Safety NORMAL, TP STOPPED, zero sampled TCP speed, short-EOAT payload/CoG/TCP matched, and no active writer; actual_q was within 2.885e-5 rad of the approved joint Home. UR RTDE TCP-force norm was 1.062 N (diagnostic only); Kunwei was connect-only and no motion was issued. The 30 SFC/DSFC model attempts are verified against R31 rate460 A; the generic loader fix is committed as c851f899 and remains offline-only. The first 30-row SFC/DSFC command replay was preserved but excluded from R31 conclusions because it used the generic normal RNN epsilon=0.014/r=0.2; the corrected replay now uses R31 epsilon=0.022/r=1.0/minus and passes 15/15 identical-input pairs and composition checks (model-only). A corrected historical trace schema audit covered 89 TASE run directories and confirms the physical streams do not contain all controller-consumed inputs needed for byte-identical alternate-controller replay. Fresh read-only preflight at 00:16 HKT again found the controller powered, Safety NORMAL, TP STOPPED, zero sampled TCP speed, and no active writer; no motion was sent. A new sealed-trace Welch feasibility check on four exact-sequence R31 attempts found 1,135-1,397 short continuous spans per attempt; the longest span was 40-53 RTDE samples, so the 1,024-sample Welch response was ineligible. No samples were interpolated and no spectral estimate or live change was made. Existing QP gate failures and time-domain transition evidence remain unchanged. Latest continuation at 2026-09-26 00:36 HKT: the controller was already powered, Safety NORMAL, Remote Control, TP STOPPED, and a single RTDE snapshot placed the arm within 3.81e-5 rad of the approved Figure-eight joint Home; no Power On or motion command was sent. The 100 mN RPSFC 20 s short-EOAT run had already completed at max TCP drift 0.495 mm, without a matched 1 N live control. A new seal-verified SVD audit found all 59,951 PATH Jacobians across the two failed QP attempts full-rank, so objective-only reweighting cannot alter their exact equality solution; no live QP retry is admitted. Latest rate460 A unit completed with MAE 1.098445 N and a sealed v3 trace; the full timing and replay audit is in reports/tase_r32_live_trace_controller_replay_20260926.md. Strict QP solved the frozen RNN inputs offline only. Same-input SFC/DSFC replay is open-loop and shows 99.45% joint-bound hits under the unapproved 120 N/m offline path stiffness; it is not a force-improvement result. Latest R31/R32 force-channel audit covers four eligible A traces: current controller input max(filtered, measured) averages 0.808-1.020 N above the scored filter, with normal task-output limiting on 18.99-30.43% of formal rows. The R32 fixed-input filtered-only outer-loop replay reproduces current XYZ output exactly, then changes base-Z commands by mean -1.631 mm/s, p95 absolute 5.200 mm/s, with sign differences on 29.77% of rows. This remains an open-loop, same-sensor diagnostic, not force truth or live improvement evidence.",
   "report": "reports/tase_5n_precision_recovery_20260925.md",
-  "schema": "tase-5n-precision-evidence-index-v1"
+  "schema": "tase-5n-precision-evidence-index-v1",
+  "latest_diagnostic": {
+    "id": "tase-r32-signal-to-motion-chain-20260926",
+    "path": "reports/tase_r32_signal_to_motion_chain_20260926.json",
+    "status": "joined force input, task limiting, final Jqdot, and RTDE speed; associations only; no live change",
+    "key_values": {
+      "rows": 27485,
+      "task_limit_active_pct": 22.597780607604147,
+      "task_to_final_jqdot_abs_p95_mm_s": 2.8022704413041657,
+      "unlimited_joint_slew_subset_abs_p95_mm_s": 2.809833243776177,
+      "command_to_RTDE_correlation_lag_samples": 5,
+      "command_to_RTDE_correlation": 0.7170000938917577
+    },
+    "limitations": "same closed-loop trace; no causal force-MAE allocation; RTDE TCP speed is state-derived, not external truth"
+  }
 }
