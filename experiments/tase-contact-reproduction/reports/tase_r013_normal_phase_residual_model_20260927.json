@@ -1,0 +1,220 @@
+{
+  "analysis": {
+    "attempt_count": 5,
+    "formal_bins_per_attempt": 550,
+    "in_sample_phase_demeaned_models": {
+      "acceleration_only": {
+        "coefficients_physical_units": [
+          -440.2343650674331
+        ],
+        "r_squared_centered": 0.788459617768736,
+        "rmse_n": 0.875792184071022,
+        "standardized_design_condition_number": 1.0,
+        "zero_prediction_rmse_n": 1.9041643179833374
+      },
+      "position_only": {
+        "coefficients_physical_units": [
+          40511.18132766418
+        ],
+        "r_squared_centered": 0.5926126617774964,
+        "rmse_n": 1.2153690876848993,
+        "standardized_design_condition_number": 1.0,
+        "zero_prediction_rmse_n": 1.9041643179833374
+      },
+      "position_velocity": {
+        "coefficients_physical_units": [
+          40325.689779093256,
+          214.49397560428926
+        ],
+        "r_squared_centered": 0.5950592476190297,
+        "rmse_n": 1.2117141107584433,
+        "standardized_design_condition_number": 1.0737972963617821,
+        "zero_prediction_rmse_n": 1.9041643179833374
+      },
+      "position_velocity_acceleration": {
+        "coefficients_physical_units": [
+          12242.851482887889,
+          367.8295771888665,
+          -354.3832815257249
+        ],
+        "r_squared_centered": 0.8226421275013833,
+        "rmse_n": 0.8019174388773113,
+        "standardized_design_condition_number": 2.6230326227544976,
+        "zero_prediction_rmse_n": 1.9041643179833374
+      },
+      "velocity_only": {
+        "coefficients_physical_units": [
+          450.09752823477504
+        ],
+        "r_squared_centered": 0.010827878281509218,
+        "rmse_n": 1.8938272299091126,
+        "standardized_design_condition_number": 1.0,
+        "zero_prediction_rmse_n": 1.9041643179833374
+      }
+    },
+    "interpretation_limit": "The regressions predict deviations in a closed-loop repeated trial. Physical M/K/B are not identified because regressors are endogenous, acceleration is differentiated from 100 ms bins, and coefficients are unstable across phase halves.",
+    "leave_one_attempt_out": {
+      "folds": [
+        {
+          "baseline_phase_mean_rmse_n": 2.2306862475248908,
+          "coefficients_position_velocity_acceleration": [
+            11963.755394568165,
+            369.5188480427697,
+            -353.16622012053375
+          ],
+          "held_out_bins": 550,
+          "held_out_index": 0,
+          "model_rmse_n": 0.9184798382684856,
+          "rmse_reduction_vs_phase_mean_fraction": 0.5882523419474137
+        },
+        {
+          "baseline_phase_mean_rmse_n": 2.388240695453991,
+          "coefficients_position_velocity_acceleration": [
+            10530.924986577327,
+            358.6719763168876,
+            -362.4215734228595
+          ],
+          "held_out_bins": 550,
+          "held_out_index": 1,
+          "model_rmse_n": 1.0181276578886838,
+          "rmse_reduction_vs_phase_mean_fraction": 0.5736913537120916
+        },
+        {
+          "baseline_phase_mean_rmse_n": 2.4931636442073266,
+          "coefficients_position_velocity_acceleration": [
+            11086.547633638102,
+            400.67369097687475,
+            -359.71811804310664
+          ],
+          "held_out_bins": 550,
+          "held_out_index": 2,
+          "model_rmse_n": 0.8861592186495567,
+          "rmse_reduction_vs_phase_mean_fraction": 0.6445643587381521
+        },
+        {
+          "baseline_phase_mean_rmse_n": 2.10341636297669,
+          "coefficients_position_velocity_acceleration": [
+            18820.29431747524,
+            370.18874828646705,
+            -320.19625099810185
+          ],
+          "held_out_bins": 550,
+          "held_out_index": 3,
+          "model_rmse_n": 1.277425441481504,
+          "rmse_reduction_vs_phase_mean_fraction": 0.392690166356921
+        },
+        {
+          "baseline_phase_mean_rmse_n": 2.6470754737616415,
+          "coefficients_position_velocity_acceleration": [
+            11971.18020941899,
+            316.55305520943176,
+            -355.4279853385718
+          ],
+          "held_out_bins": 550,
+          "held_out_index": 4,
+          "model_rmse_n": 1.009986674340463,
+          "rmse_reduction_vs_phase_mean_fraction": 0.6184518785536492
+        }
+      ],
+      "mean_rmse_reduction_vs_phase_mean_fraction": 0.5635300198616455,
+      "rmse_reduction_range": [
+        0.392690166356921,
+        0.6445643587381521
+      ]
+    },
+    "same_phase_variation_sd": {
+      "acceleration_into_surface_m_s2": 0.0038406984426330713,
+      "force_n": 1.9041643179833374,
+      "position_into_surface_m": 3.6183866985914913e-05,
+      "velocity_into_surface_m_s": 0.000440219703835424
+    },
+    "two_half_models": [
+      {
+        "formal_bin_indices": [
+          0,
+          275
+        ],
+        "position_velocity_acceleration": {
+          "coefficients_physical_units": [
+            8738.792766789513,
+            215.13009980030097,
+            -352.26554819027785
+          ],
+          "r_squared_centered": 0.8304444565487026,
+          "rmse_n": 0.7232133969830552,
+          "standardized_design_condition_number": 2.5848835961637113,
+          "zero_prediction_rmse_n": 1.756347577053622
+        }
+      },
+      {
+        "formal_bin_indices": [
+          275,
+          550
+        ],
+        "position_velocity_acceleration": {
+          "coefficients_physical_units": [
+            17638.690592738596,
+            517.8095620550667,
+            -345.8059565514866
+          ],
+          "r_squared_centered": 0.8305565846099618,
+          "rmse_n": 0.840272747238771,
+          "standardized_design_condition_number": 2.692944178910356,
+          "zero_prediction_rmse_n": 2.041305143367784
+        }
+      }
+    ]
+  },
+  "attempts": [
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0002",
+      "candidate_id": "confirm-s01-b00-A",
+      "formal_bins": 550,
+      "path_rows_formal": 27480,
+      "receipt_formal_mae_n": 1.0061050570848329,
+      "source_timeline_sha256": "89ba3e2024eac35299ac90115a35d9aec5161879e1aec7d6dbd965ad9190f8a7"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0004",
+      "candidate_id": "confirm-s01-b01-A",
+      "formal_bins": 550,
+      "path_rows_formal": 27499,
+      "receipt_formal_mae_n": 0.9419680748585729,
+      "source_timeline_sha256": "bebf6a408a8bb2d7bb0ac72217669b77e140b216a18546813ce84cb1e64caedf"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0002",
+      "candidate_id": "confirm-s02-b02-A",
+      "formal_bins": 550,
+      "path_rows_formal": 27493,
+      "receipt_formal_mae_n": 1.0364228577061043,
+      "source_timeline_sha256": "9c62e807f869da886dcb211e6884fb87d818002a9f88ccb3bd66186e20e4d573"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0003",
+      "candidate_id": "confirm-s02-b03-A",
+      "formal_bins": 550,
+      "path_rows_formal": 27139,
+      "receipt_formal_mae_n": 1.0242417404331408,
+      "source_timeline_sha256": "1e10313919f5080bdb9276ac209f0da4df83416025a7a6006c8243aa7b986a2e"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0005",
+      "candidate_id": "confirm-s02-b04-A",
+      "formal_bins": 550,
+      "path_rows_formal": 27498,
+      "receipt_formal_mae_n": 1.1958953801632153,
+      "source_timeline_sha256": "c4bdabf7d913e1457af045c5dd28ca2d0afee72233a5b2a63e73ee7e219afd5f"
+    }
+  ],
+  "evidence_class": "offline_phase_demeaned_closed_loop_force_model",
+  "force_source": "Kunwei KWR75 normal_force_measured_n, equal-weight 100 ms bin means",
+  "force_truth_limit": "KWR75 feedback is not independent task-force truth",
+  "live_candidate": false,
+  "motion_source": "synchronized RTDE actual_TCP_pose and actual_TCP_speed fields in TASE timeline",
+  "positive_coordinate": "into surface = negative base-Z position and speed",
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "schema": "tase.r013.normal-phase-residual-model-v1",
+  "source_audit_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/reports/tase_r32a_kunwei_tangent_path_direction_audit_20260927.json",
+  "source_audit_sha256": "754d0d093e65c6b5417ee5fca2a5a1bf1bd6d7f8cb7a264072db41648df363a4"
+}

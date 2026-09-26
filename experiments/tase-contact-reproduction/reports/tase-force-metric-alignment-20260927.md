@@ -74,6 +74,10 @@ D 组实际 runtime 也已核对：四个合格 attempt 的有效积分上限始
 
 既有 Figure-eight 二阶拟合明确拒绝用于 live 参数选择：`K/B/M` 拟合对平滑窗口和轨迹半程敏感，系数会明显变化；轨迹跨越不同 XY 接触位置，且位置是力反馈控制下的内生响应。当前证据不识别稳定的法向有效质量、刚度、阻尼。因此不做基于 `ζ=0.707` 的 live 换算扫参；先做固定 5 N 接触点的有界局部法向响应识别。详见 [模型可辨识性诊断](tase_normal_axis_model_identifiability_20260925.json) 及 [state21 release replay](tase_r013_rate460_state21_release_replay_20260925.json)。
 
+为检查“表面不同路径位置”是否是唯一问题，我又对五条同协议 A trace 按同一个 PATH 相位 bin 先去掉跨圈均值，再拟合圈间的小幅 KWR75 法向力差和 TCP 位置/速度/加速度差。完整五圈的交叉验证中，`x+xdot+xddot` 模型对 held-out 圈残差的 RMSE 比只用该相位平均力低 **39.3%–64.5%**，平均 **56.4%**；这证明有可预测的闭环运动相关成分，但不证明参数具有物理含义。
+
+物理量仍不成立：全样本系数为 `K=12.24 kN/m, B=367.8 N·s/m, M=−354 kg`；前后半程分别得到 `K=8.74/17.64 kN/m`、`B=215/518 N·s/m`，M 均为约 `−350 kg`。负质量与半程 K/B 变化排除了将这些回归数当作真实接触二阶模型；其高预测分数很可能包含闭环耦合和传感/差分误差。因此 `ζ=0.707` 仍不能用于 live 增益换算。可复算结果及 source hash 见 [phase-residual model audit JSON](tase_r013_normal_phase_residual_model_20260927.json)，代码与测试见 [audit tool](../tools/audit_tase_r013_normal_phase_residual_model.py) 和 [tests](../tests/test_audit_tase_r013_normal_phase_residual_model.py)。
+
 ## TASE-QP 已有实机记录的准入诊断
 
 既有两次 rate460 TASE-QP 实机 attempt 都实际完成 60 s PATH、550 个正式 bin、通过 timing/safety/contact/return，并验证回到 joint Home；但两次都因现行 motion gate 不合格，保留为失败 attempt。它们的单圈 MAE 只能作为诊断值，不能作为 BO 成功观测或与 RNN A 的配对改善证据。
