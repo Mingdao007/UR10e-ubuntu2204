@@ -1,0 +1,3681 @@
+{
+  "attempts": [
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0002",
+      "cadence": {
+        "classification": "observed_layers_at_least_460",
+        "feedback_age_p99_s": 0.00900201202603057,
+        "host_interpublish_summary": {
+          "hot_path_stage_timing": {
+            "clock": "monotonic_ns+thread_time_ns",
+            "duplicate_stage_starts": 0,
+            "schema": "tase.r013.hot-path-stage-timing-v1",
+            "stages": {
+              "control_step_state_21": {
+                "count": 4430,
+                "thread_ns_max": 1185083,
+                "thread_ns_total": 2972051260,
+                "thread_over_0p5ms_count": 4298,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1190732,
+                "wall_ns_total": 2971332683,
+                "wall_over_0p5ms_count": 4298,
+                "wall_over_2ms_count": 0
+              },
+              "control_step_state_25": {
+                "count": 30486,
+                "thread_ns_max": 1976507,
+                "thread_ns_total": 35591782861,
+                "thread_over_0p5ms_count": 30486,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1976269,
+                "wall_ns_total": 35617063188,
+                "wall_over_0p5ms_count": 30486,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_11": {
+                "count": 2,
+                "thread_ns_max": 30247,
+                "thread_ns_total": 45987,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 30186,
+                "wall_ns_total": 45845,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_20": {
+                "count": 4773,
+                "thread_ns_max": 41578,
+                "thread_ns_total": 79582490,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 41317,
+                "wall_ns_total": 78922953,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_21": {
+                "count": 4430,
+                "thread_ns_max": 51798,
+                "thread_ns_total": 80563106,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 51526,
+                "wall_ns_total": 80048813,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_25": {
+                "count": 30489,
+                "thread_ns_max": 1319255,
+                "thread_ns_total": 1831264513,
+                "thread_over_0p5ms_count": 1,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1320776,
+                "wall_ns_total": 1825229223,
+                "wall_over_0p5ms_count": 1,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_40": {
+                "count": 1804,
+                "thread_ns_max": 22504428,
+                "thread_ns_total": 1299422840,
+                "thread_over_0p5ms_count": 958,
+                "thread_over_2ms_count": 1,
+                "wall_ns_max": 22510619,
+                "wall_ns_total": 1300036196,
+                "wall_over_0p5ms_count": 958,
+                "wall_over_2ms_count": 1
+              },
+              "packet_evidence_state_78": {
+                "count": 1,
+                "thread_ns_max": 32751,
+                "thread_ns_total": 32751,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 32510,
+                "wall_ns_total": 32510,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_11": {
+                "count": 3,
+                "thread_ns_max": 4448,
+                "thread_ns_total": 9256,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 4288,
+                "wall_ns_total": 8916,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_20": {
+                "count": 4773,
+                "thread_ns_max": 7304,
+                "thread_ns_total": 12624753,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 7043,
+                "wall_ns_total": 12055328,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_21": {
+                "count": 4430,
+                "thread_ns_max": 5660,
+                "thread_ns_total": 11584858,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 8606,
+                "wall_ns_total": 11122970,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_25": {
+                "count": 30489,
+                "thread_ns_max": 5691,
+                "thread_ns_total": 80450778,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 5520,
+                "wall_ns_total": 76847732,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_40": {
+                "count": 1804,
+                "thread_ns_max": 9779,
+                "thread_ns_total": 6020775,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 9538,
+                "wall_ns_total": 5744966,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_78": {
+                "count": 752,
+                "thread_ns_max": 6553,
+                "thread_ns_total": 2693210,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 7344,
+                "wall_ns_total": 2532771,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_11": {
+                "count": 3,
+                "thread_ns_max": 12193,
+                "thread_ns_total": 34685,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 12062,
+                "wall_ns_total": 34093,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_20": {
+                "count": 4773,
+                "thread_ns_max": 15409,
+                "thread_ns_total": 30235833,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 14838,
+                "wall_ns_total": 29562141,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_21": {
+                "count": 4430,
+                "thread_ns_max": 17763,
+                "thread_ns_total": 26142660,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 22081,
+                "wall_ns_total": 25673266,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_25": {
+                "count": 30489,
+                "thread_ns_max": 12083,
+                "thread_ns_total": 180059129,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 13946,
+                "wall_ns_total": 176609650,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_40": {
+                "count": 1804,
+                "thread_ns_max": 28574,
+                "thread_ns_total": 13477937,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 28423,
+                "wall_ns_total": 13154068,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_78": {
+                "count": 752,
+                "thread_ns_max": 31159,
+                "thread_ns_total": 6667001,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 31038,
+                "wall_ns_total": 6536543,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_11": {
+                "count": 2,
+                "planned_sleep_ns_max": 1445432,
+                "planned_sleep_ns_total": 2875026,
+                "thread_ns_max": 18426,
+                "thread_ns_total": 36108,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1475032,
+                "wall_ns_total": 2933212,
+                "wall_over_0p5ms_count": 2,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_20": {
+                "count": 4773,
+                "planned_sleep_ns_max": 1771190,
+                "planned_sleep_ns_total": 7864996365,
+                "thread_ns_max": 31659,
+                "thread_ns_total": 33901984,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1782645,
+                "wall_ns_total": 7913082722,
+                "wall_over_0p5ms_count": 4773,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_21": {
+                "count": 4430,
+                "planned_sleep_ns_max": 1601576,
+                "planned_sleep_ns_total": 3841979563,
+                "thread_ns_max": 28815,
+                "thread_ns_total": 50501622,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1611407,
+                "wall_ns_total": 3919588459,
+                "wall_over_0p5ms_count": 4294,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_25": {
+                "count": 30489,
+                "planned_sleep_ns_max": 1596622,
+                "planned_sleep_ns_total": 7812767447,
+                "thread_ns_max": 21301,
+                "thread_ns_total": 311425514,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1626216,
+                "wall_ns_total": 8309412199,
+                "wall_over_0p5ms_count": 113,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_40": {
+                "count": 1804,
+                "planned_sleep_ns_max": 1752066,
+                "planned_sleep_ns_total": 1476688700,
+                "thread_ns_max": 22983,
+                "thread_ns_total": 23142223,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1758352,
+                "wall_ns_total": 1512955548,
+                "wall_over_0p5ms_count": 857,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_11": {
+                "count": 2,
+                "thread_ns_max": 119374,
+                "thread_ns_total": 237857,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 119423,
+                "wall_ns_total": 237944,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_20": {
+                "count": 4773,
+                "thread_ns_max": 220904,
+                "thread_ns_total": 385480423,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 220802,
+                "wall_ns_total": 385003225,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_21": {
+                "count": 4430,
+                "thread_ns_max": 236704,
+                "thread_ns_total": 399945000,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 236141,
+                "wall_ns_total": 401070531,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_25": {
+                "count": 30489,
+                "thread_ns_max": 307886,
+                "thread_ns_total": 5959616638,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 308416,
+                "wall_ns_total": 5970257916,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_40": {
+                "count": 1804,
+                "thread_ns_max": 241152,
+                "thread_ns_total": 197268634,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 241120,
+                "wall_ns_total": 197059816,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_11": {
+                "count": 3,
+                "thread_ns_max": 30377,
+                "thread_ns_total": 89367,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 30026,
+                "wall_ns_total": 88495,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_20": {
+                "count": 4773,
+                "thread_ns_max": 133039,
+                "thread_ns_total": 170919107,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 132778,
+                "wall_ns_total": 170211649,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_21": {
+                "count": 4430,
+                "thread_ns_max": 82435,
+                "thread_ns_total": 199943643,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 82013,
+                "wall_ns_total": 199017891,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_25": {
+                "count": 30489,
+                "thread_ns_max": 82405,
+                "thread_ns_total": 1149296811,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 82434,
+                "wall_ns_total": 1144349830,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_40": {
+                "count": 1804,
+                "thread_ns_max": 148979,
+                "thread_ns_total": 83964588,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 148637,
+                "wall_ns_total": 83589652,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_78": {
+                "count": 753,
+                "thread_ns_max": 102923,
+                "thread_ns_total": 42647242,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 103703,
+                "wall_ns_total": 42628525,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              }
+            },
+            "unmatched_stage_ends": 0
+          },
+          "interpublish_intervals": 29984,
+          "last_publish_s": 341210.9381999,
+          "max_interpublish_s": 0.004577964020427316,
+          "missed_2ms_slots_proxy": 8,
+          "over_2ms_intervals": 13893,
+          "path_publishes": 29985,
+          "publish_send_timing": {
+            "diagnostic_threshold_ns": 2000000,
+            "missing_transport_timing_count": 0,
+            "schema": "tase.r013.publish-send-timing-summary-v1",
+            "stages": {
+              "input_encode": {
+                "count": 29985,
+                "slow_examples": [],
+                "thread_ns_max": 17854,
+                "thread_ns_total": 281225062,
+                "wall_ns_max": 17874,
+                "wall_ns_total": 282244539,
+                "wall_over_2ms_count": 0
+              },
+              "input_send_total": {
+                "count": 29985,
+                "slow_examples": [],
+                "thread_ns_max": 36268,
+                "thread_ns_total": 738911808,
+                "wall_ns_max": 37380,
+                "wall_ns_total": 752367011,
+                "wall_over_2ms_count": 0
+              },
+              "provider_return_to_writer_entry": {
+                "count": 29985,
+                "slow_examples": [],
+                "thread_ns_max": 115276,
+                "thread_ns_total": 2427342769,
+                "wall_ns_max": 115306,
+                "wall_ns_total": 2434196786,
+                "wall_over_2ms_count": 0
+              },
+              "rtde_frame_build": {
+                "count": 29985,
+                "slow_examples": [],
+                "thread_ns_max": 3707,
+                "thread_ns_total": 24625856,
+                "wall_ns_max": 3707,
+                "wall_ns_total": 24672481,
+                "wall_over_2ms_count": 0
+              },
+              "socket_sendall": {
+                "count": 29985,
+                "slow_examples": [],
+                "thread_ns_max": 22742,
+                "thread_ns_total": 376951327,
+                "wall_ns_max": 25458,
+                "wall_ns_total": 387798290,
+                "wall_over_2ms_count": 0
+              },
+              "writer_send_method": {
+                "count": 29985,
+                "slow_examples": [],
+                "thread_ns_max": 283271,
+                "thread_ns_total": 5128890595,
+                "wall_ns_max": 283780,
+                "wall_ns_total": 5137602388,
+                "wall_over_2ms_count": 0
+              }
+            }
+          },
+          "scheduler_max_lateness_s": 0.0019009893294423819,
+          "scheduler_wakeups": 41498,
+          "scheduler_wakeups_over_0p5ms": 60
+        },
+        "host_publish_hz": 499.75,
+        "kunwei_hz": 999.8000333276235,
+        "max_fresh_gap_s": 0.00423668697476387,
+        "max_interval_s": 0.004577101964969188,
+        "observed_intervals": 29977,
+        "p99_interval_s": 0.0026104719727300107,
+        "provider_compute_summary": {
+          "calls": 34784,
+          "failed_calls": 0,
+          "force_rise_guard_calls": 966,
+          "gate_projection_calls": 0,
+          "host_slew_limited_calls": 5,
+          "max_compute_s": 0.0013280279817990959,
+          "max_non_cpu_wall_s": 8.650038054724973e-06,
+          "max_thread_cpu_s": 0.001325506000000587,
+          "over_2ms_calls": 0,
+          "path_calls": 29985,
+          "path_compute_bucket_upper_s": [
+            0.00025,
+            0.0005,
+            0.001,
+            0.0015,
+            0.002,
+            0.004
+          ],
+          "path_compute_histogram": [
+            0,
+            0,
+            28669,
+            1316,
+            0,
+            0,
+            0
+          ],
+          "path_max_compute_s": 0.0013280279817990959,
+          "path_over_2ms_calls": 0,
+          "published_joint_bound_calls": 0,
+          "slow_call_examples": [],
+          "solver_active_bound_calls": 0,
+          "solver_backend_counts": {
+            "cupy": 0,
+            "fixed-normal-jacobian": 0,
+            "numpy": 29985,
+            "osqp-codegen-c": 0,
+            "other": 0,
+            "strict-rnn": 0
+          },
+          "solver_max_s": 0.0001352420076727867,
+          "solver_over_2ms_calls": 0,
+          "solver_timed_calls": 29985,
+          "solver_total_s": 2.0798214683891274,
+          "total_compute_s": 26.88972578168614
+        },
+        "rate_scope": "rtde_hz/tp_echo_hz above are unique identities in accepted synchronized PathSample rows; use raw_layer_measurements below for all raw interfaces",
+        "rtde_hz": 499.9999999999224,
+        "tp_echo_hz": 481.019830028254
+      },
+      "candidate_id": "confirm-s01-b00-A",
+      "evidence_eligible": true,
+      "home_verified": true,
+      "path_complete": true,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "receipt_formal_bins": 550,
+      "receipt_official_formal_mae_n": 1.0061050570848329,
+      "seal_verified": true,
+      "windows": {
+        "window_0_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 600,
+          "required_bins": 600,
+          "sample_count": 29982,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 0.851467354630675,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 9.616525264690186,
+              "mean": 0.8505069305742584,
+              "median": 0.0,
+              "p95": 4.131723874752495
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.415,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.34947635247815356,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 2.1316282072803006e-14,
+            "mean_control_minus_filtered_n": 0.8505069305742584,
+            "measured_dominates_filtered_sample_fraction": 0.48809285571342803,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.34947635247815356
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 0.9752842496176561,
+              "bin_mean_rmse_n": 1.3315816125052198,
+              "sample_bias_measured_minus_target_n": -0.17698360470112112,
+              "sample_mae_n": 1.1286221000836218,
+              "sample_rmse_n": 1.5080372889312057
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 1.0432058629281038,
+              "bin_mean_rmse_n": 1.3770260909543872,
+              "sample_bias_measured_minus_target_n": -1.0274905352753796,
+              "sample_mae_n": 1.044617392407986,
+              "sample_rmse_n": 1.3872903893002817
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 1.7732081598770317,
+              "bin_mean_rmse_n": 2.4205815500706684,
+              "sample_bias_measured_minus_target_n": -1.0265466877794927,
+              "sample_mae_n": 1.9707121032977732,
+              "sample_rmse_n": 2.591002408014296
+            }
+          },
+          "window_s": [
+            0.0,
+            60.0
+          ]
+        },
+        "window_5_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 550,
+          "required_bins": 550,
+          "sample_count": 27480,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 0.8286684455207863,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 9.616525264690186,
+              "mean": 0.8276444539017777,
+              "median": 0.0,
+              "p95": 4.1182803453290555
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.42,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.3495633187772926,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 2.1316282072803006e-14,
+            "mean_control_minus_filtered_n": 0.8276444539017777,
+            "measured_dominates_filtered_sample_fraction": 0.49097525473071324,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.3495633187772926
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 0.9509459977679727,
+              "bin_mean_rmse_n": 1.3088616410933995,
+              "sample_bias_measured_minus_target_n": -0.161254358538142,
+              "sample_mae_n": 1.0896867251728248,
+              "sample_rmse_n": 1.47773614532587
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 1.0059744357701703,
+              "bin_mean_rmse_n": 1.3448014818867704,
+              "sample_bias_measured_minus_target_n": -0.9888988124399197,
+              "sample_mae_n": 1.0072468753781445,
+              "sample_rmse_n": 1.354951304807082
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 1.7154905176136472,
+              "bin_mean_rmse_n": 2.3614228892943783,
+              "sample_bias_measured_minus_target_n": -0.9782611614492057,
+              "sample_mae_n": 1.8986934474960202,
+              "sample_rmse_n": 2.526925073108658
+            }
+          },
+          "window_s": [
+            5.0,
+            60.0
+          ]
+        }
+      }
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0004",
+      "cadence": {
+        "classification": "observed_layers_at_least_460",
+        "feedback_age_p99_s": 0.008864247996825725,
+        "host_interpublish_summary": {
+          "hot_path_stage_timing": {
+            "clock": "monotonic_ns+thread_time_ns",
+            "duplicate_stage_starts": 0,
+            "schema": "tase.r013.hot-path-stage-timing-v1",
+            "stages": {
+              "control_step_state_21": {
+                "count": 4426,
+                "thread_ns_max": 1149315,
+                "thread_ns_total": 2924506790,
+                "thread_over_0p5ms_count": 4293,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1149066,
+                "wall_ns_total": 2927800427,
+                "wall_over_0p5ms_count": 4293,
+                "wall_over_2ms_count": 0
+              },
+              "control_step_state_25": {
+                "count": 30506,
+                "thread_ns_max": 1908620,
+                "thread_ns_total": 35519468566,
+                "thread_over_0p5ms_count": 30506,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1908295,
+                "wall_ns_total": 35550155253,
+                "wall_over_0p5ms_count": 30506,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_11": {
+                "count": 2,
+                "thread_ns_max": 47719,
+                "thread_ns_total": 78687,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 47449,
+                "wall_ns_total": 78197,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_20": {
+                "count": 4728,
+                "thread_ns_max": 40796,
+                "thread_ns_total": 108102163,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 40536,
+                "wall_ns_total": 107635540,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_21": {
+                "count": 4426,
+                "thread_ns_max": 36469,
+                "thread_ns_total": 79142731,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 36158,
+                "wall_ns_total": 78517801,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_25": {
+                "count": 30509,
+                "thread_ns_max": 1426185,
+                "thread_ns_total": 1829328420,
+                "thread_over_0p5ms_count": 1,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1426074,
+                "wall_ns_total": 1823316803,
+                "wall_over_0p5ms_count": 1,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_40": {
+                "count": 1774,
+                "thread_ns_max": 23375917,
+                "thread_ns_total": 1231728986,
+                "thread_over_0p5ms_count": 929,
+                "thread_over_2ms_count": 1,
+                "wall_ns_max": 24244657,
+                "wall_ns_total": 1233124729,
+                "wall_over_0p5ms_count": 929,
+                "wall_over_2ms_count": 1
+              },
+              "packet_evidence_state_78": {
+                "count": 1,
+                "thread_ns_max": 12934,
+                "thread_ns_total": 12934,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 12854,
+                "wall_ns_total": 12854,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_11": {
+                "count": 3,
+                "thread_ns_max": 4809,
+                "thread_ns_total": 11973,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 4599,
+                "wall_ns_total": 11321,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_20": {
+                "count": 4728,
+                "thread_ns_max": 7152,
+                "thread_ns_total": 16750014,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 10279,
+                "wall_ns_total": 16008306,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_21": {
+                "count": 4426,
+                "thread_ns_max": 5060,
+                "thread_ns_total": 10924490,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 5100,
+                "wall_ns_total": 10439880,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_25": {
+                "count": 30509,
+                "thread_ns_max": 5421,
+                "thread_ns_total": 78150413,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 5500,
+                "wall_ns_total": 74562736,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_40": {
+                "count": 1774,
+                "thread_ns_max": 9037,
+                "thread_ns_total": 5654308,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 9899,
+                "wall_ns_total": 5403742,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_78": {
+                "count": 785,
+                "thread_ns_max": 6052,
+                "thread_ns_total": 2557468,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 5901,
+                "wall_ns_total": 2413351,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_11": {
+                "count": 3,
+                "thread_ns_max": 11431,
+                "thread_ns_total": 28894,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 11201,
+                "wall_ns_total": 28393,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_20": {
+                "count": 4728,
+                "thread_ns_max": 18695,
+                "thread_ns_total": 41571078,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 23464,
+                "wall_ns_total": 42075286,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_21": {
+                "count": 4426,
+                "thread_ns_max": 12934,
+                "thread_ns_total": 25997388,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 12734,
+                "wall_ns_total": 25382952,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_25": {
+                "count": 30509,
+                "thread_ns_max": 12383,
+                "thread_ns_total": 181003810,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 12043,
+                "wall_ns_total": 177156830,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_40": {
+                "count": 1774,
+                "thread_ns_max": 26861,
+                "thread_ns_total": 12398332,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 26680,
+                "wall_ns_total": 12110545,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_78": {
+                "count": 785,
+                "thread_ns_max": 29365,
+                "thread_ns_total": 6279451,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 29275,
+                "wall_ns_total": 6153021,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_11": {
+                "count": 2,
+                "planned_sleep_ns_max": 1335272,
+                "planned_sleep_ns_total": 2669487,
+                "thread_ns_max": 19558,
+                "thread_ns_total": 39034,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1365551,
+                "wall_ns_total": 2730440,
+                "wall_over_0p5ms_count": 2,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_20": {
+                "count": 4728,
+                "planned_sleep_ns_max": 1755135,
+                "planned_sleep_ns_total": 7094536817,
+                "thread_ns_max": 28734,
+                "thread_ns_total": 61509823,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1776217,
+                "wall_ns_total": 7185231379,
+                "wall_over_0p5ms_count": 4728,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_21": {
+                "count": 4426,
+                "planned_sleep_ns_max": 1584885,
+                "planned_sleep_ns_total": 3918554701,
+                "thread_ns_max": 28433,
+                "thread_ns_total": 50131461,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1613975,
+                "wall_ns_total": 3995560572,
+                "wall_over_0p5ms_count": 4329,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_25": {
+                "count": 30509,
+                "planned_sleep_ns_max": 1461006,
+                "planned_sleep_ns_total": 8002400267,
+                "thread_ns_max": 21601,
+                "thread_ns_total": 293707489,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1494632,
+                "wall_ns_total": 8469801582,
+                "wall_over_0p5ms_count": 14,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_40": {
+                "count": 1774,
+                "planned_sleep_ns_max": 1739700,
+                "planned_sleep_ns_total": 1576690526,
+                "thread_ns_max": 22623,
+                "thread_ns_total": 19637325,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1753466,
+                "wall_ns_total": 1606572913,
+                "wall_over_0p5ms_count": 947,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_11": {
+                "count": 2,
+                "thread_ns_max": 156443,
+                "thread_ns_total": 311003,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 162123,
+                "wall_ns_total": 316521,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_20": {
+                "count": 4728,
+                "thread_ns_max": 187361,
+                "thread_ns_total": 539918196,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 191278,
+                "wall_ns_total": 543405259,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_21": {
+                "count": 4426,
+                "thread_ns_max": 224431,
+                "thread_ns_total": 366545091,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 225371,
+                "wall_ns_total": 367875920,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_25": {
+                "count": 30509,
+                "thread_ns_max": 270768,
+                "thread_ns_total": 5939746034,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 270645,
+                "wall_ns_total": 5949825351,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_40": {
+                "count": 1774,
+                "thread_ns_max": 233077,
+                "thread_ns_total": 176349563,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 238455,
+                "wall_ns_total": 176720570,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_11": {
+                "count": 3,
+                "thread_ns_max": 64480,
+                "thread_ns_total": 165260,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 64210,
+                "wall_ns_total": 164587,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_20": {
+                "count": 4728,
+                "thread_ns_max": 78608,
+                "thread_ns_total": 223366306,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 78267,
+                "wall_ns_total": 222517131,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_21": {
+                "count": 4426,
+                "thread_ns_max": 93596,
+                "thread_ns_total": 200987675,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 97973,
+                "wall_ns_total": 200410943,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_25": {
+                "count": 30509,
+                "thread_ns_max": 85811,
+                "thread_ns_total": 1145511642,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 85530,
+                "wall_ns_total": 1141547915,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_40": {
+                "count": 1774,
+                "thread_ns_max": 96070,
+                "thread_ns_total": 74518746,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 95859,
+                "wall_ns_total": 74235575,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_78": {
+                "count": 786,
+                "thread_ns_max": 103374,
+                "thread_ns_total": 39802234,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 103393,
+                "wall_ns_total": 39800447,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              }
+            },
+            "unmatched_stage_ends": 0
+          },
+          "interpublish_intervals": 30005,
+          "last_publish_s": 341381.929580059,
+          "max_interpublish_s": 0.0043725689756684005,
+          "missed_2ms_slots_proxy": 1,
+          "over_2ms_intervals": 13890,
+          "path_publishes": 30006,
+          "publish_send_timing": {
+            "diagnostic_threshold_ns": 2000000,
+            "missing_transport_timing_count": 0,
+            "schema": "tase.r013.publish-send-timing-summary-v1",
+            "stages": {
+              "input_encode": {
+                "count": 30006,
+                "slow_examples": [],
+                "thread_ns_max": 15169,
+                "thread_ns_total": 281221307,
+                "wall_ns_max": 15198,
+                "wall_ns_total": 282059645,
+                "wall_over_2ms_count": 0
+              },
+              "input_send_total": {
+                "count": 30006,
+                "slow_examples": [],
+                "thread_ns_max": 38693,
+                "thread_ns_total": 735771833,
+                "wall_ns_max": 40155,
+                "wall_ns_total": 751828263,
+                "wall_over_2ms_count": 0
+              },
+              "provider_return_to_writer_entry": {
+                "count": 30006,
+                "slow_examples": [],
+                "thread_ns_max": 113824,
+                "thread_ns_total": 2397014075,
+                "wall_ns_max": 113813,
+                "wall_ns_total": 2396133184,
+                "wall_over_2ms_count": 0
+              },
+              "rtde_frame_build": {
+                "count": 30006,
+                "slow_examples": [],
+                "thread_ns_max": 2284,
+                "thread_ns_total": 24709089,
+                "wall_ns_max": 2214,
+                "wall_ns_total": 24763285,
+                "wall_over_2ms_count": 0
+              },
+              "socket_sendall": {
+                "count": 30006,
+                "slow_examples": [],
+                "thread_ns_max": 26720,
+                "thread_ns_total": 374037369,
+                "wall_ns_max": 27892,
+                "wall_ns_total": 387757724,
+                "wall_over_2ms_count": 0
+              },
+              "writer_send_method": {
+                "count": 30006,
+                "slow_examples": [],
+                "thread_ns_max": 241793,
+                "thread_ns_total": 5111826067,
+                "wall_ns_max": 241612,
+                "wall_ns_total": 5122001968,
+                "wall_over_2ms_count": 0
+              }
+            }
+          },
+          "scheduler_max_lateness_s": 0.0010352808167226613,
+          "scheduler_wakeups": 41439,
+          "scheduler_wakeups_over_0p5ms": 20
+        },
+        "host_publish_hz": 500.1,
+        "kunwei_hz": 999.8166972169753,
+        "max_fresh_gap_s": 0.0041382519993931055,
+        "max_interval_s": 0.004364484979305416,
+        "observed_intervals": 29998,
+        "p99_interval_s": 0.0026141629787161946,
+        "provider_compute_summary": {
+          "calls": 34799,
+          "failed_calls": 0,
+          "force_rise_guard_calls": 1092,
+          "gate_projection_calls": 0,
+          "host_slew_limited_calls": 6,
+          "max_compute_s": 0.001319906034041196,
+          "max_non_cpu_wall_s": 6.147978950821198e-06,
+          "max_thread_cpu_s": 0.0013198060000263467,
+          "over_2ms_calls": 0,
+          "path_calls": 30006,
+          "path_compute_bucket_upper_s": [
+            0.00025,
+            0.0005,
+            0.001,
+            0.0015,
+            0.002,
+            0.004
+          ],
+          "path_compute_histogram": [
+            0,
+            0,
+            28936,
+            1070,
+            0,
+            0,
+            0
+          ],
+          "path_max_compute_s": 0.001319906034041196,
+          "path_over_2ms_calls": 0,
+          "published_joint_bound_calls": 0,
+          "slow_call_examples": [],
+          "solver_active_bound_calls": 0,
+          "solver_backend_counts": {
+            "cupy": 0,
+            "fixed-normal-jacobian": 0,
+            "numpy": 30006,
+            "osqp-codegen-c": 0,
+            "other": 0,
+            "strict-rnn": 0
+          },
+          "solver_max_s": 9.965599747374654e-05,
+          "solver_over_2ms_calls": 0,
+          "solver_timed_calls": 30006,
+          "solver_total_s": 2.0691227521165274,
+          "total_compute_s": 26.78839455411071
+        },
+        "rate_scope": "rtde_hz/tp_echo_hz above are unique identities in accepted synchronized PathSample rows; use raw_layer_measurements below for all raw interfaces",
+        "rtde_hz": 499.9999999999224,
+        "tp_echo_hz": 481.13647725371635
+      },
+      "candidate_id": "confirm-s01-b01-A",
+      "evidence_eligible": true,
+      "home_verified": true,
+      "path_complete": true,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "receipt_formal_bins": 550,
+      "receipt_official_formal_mae_n": 0.9419680748585729,
+      "seal_verified": true,
+      "windows": {
+        "window_0_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 600,
+          "required_bins": 600,
+          "sample_count": 30003,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 0.8227029127687289,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 8.488823345837535,
+              "mean": 0.8229174736241576,
+              "median": 0.0,
+              "p95": 3.9473855468108674
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.445,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.3598640135986401,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 1.9539925233402755e-14,
+            "mean_control_minus_filtered_n": 0.8229174736241576,
+            "measured_dominates_filtered_sample_fraction": 0.49075092490750927,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.3598640135986401
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 0.9388389059932073,
+              "bin_mean_rmse_n": 1.2756528894974248,
+              "sample_bias_measured_minus_target_n": -0.1287948625229244,
+              "sample_mae_n": 1.0701597704955372,
+              "sample_rmse_n": 1.4390388919105386
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 0.9642426571124513,
+              "bin_mean_rmse_n": 1.2948145778333344,
+              "sample_bias_measured_minus_target_n": -0.9517123361470818,
+              "sample_mae_n": 0.9662567370787961,
+              "sample_rmse_n": 1.3054722235449363
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 1.7164542946372392,
+              "bin_mean_rmse_n": 2.3346361454603066,
+              "sample_bias_measured_minus_target_n": -0.9540824358285082,
+              "sample_mae_n": 1.8889181641629902,
+              "sample_rmse_n": 2.5040065117601498
+            }
+          },
+          "window_s": [
+            0.0,
+            60.0
+          ]
+        },
+        "window_5_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 550,
+          "required_bins": 550,
+          "sample_count": 27499,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 0.7874320095239672,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 8.488823345837535,
+              "mean": 0.7874606444564927,
+              "median": 0.0,
+              "p95": 3.8879781946254313
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.44363636363636366,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.3559038510491291,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 1.9539925233402755e-14,
+            "mean_control_minus_filtered_n": 0.7874606444564927,
+            "measured_dominates_filtered_sample_fraction": 0.48867231535692207,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.3559038510491291
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 0.9053092611863401,
+              "bin_mean_rmse_n": 1.2474388836026045,
+              "sample_bias_measured_minus_target_n": -0.1419141109367981,
+              "sample_mae_n": 1.032155528752953,
+              "sample_rmse_n": 1.404426826779587
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 0.942090144204013,
+              "bin_mean_rmse_n": 1.2795949202427461,
+              "sample_bias_measured_minus_target_n": -0.9293747553932908,
+              "sample_mae_n": 0.9442209464778818,
+              "sample_rmse_n": 1.2898217503420506
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 1.658530315264042,
+              "bin_mean_rmse_n": 2.2821062346769887,
+              "sample_bias_measured_minus_target_n": -0.9420978699346204,
+              "sample_mae_n": 1.8253619531365675,
+              "sample_rmse_n": 2.4473302082494217
+            }
+          },
+          "window_s": [
+            5.0,
+            60.0
+          ]
+        }
+      }
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0002",
+      "cadence": {
+        "classification": "observed_layers_at_least_460",
+        "feedback_age_p99_s": 0.008817821042612195,
+        "host_interpublish_summary": {
+          "hot_path_stage_timing": {
+            "clock": "monotonic_ns+thread_time_ns",
+            "duplicate_stage_starts": 0,
+            "schema": "tase.r013.hot-path-stage-timing-v1",
+            "stages": {
+              "control_step_state_21": {
+                "count": 4430,
+                "thread_ns_max": 1105554,
+                "thread_ns_total": 2717150910,
+                "thread_over_0p5ms_count": 4298,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1111080,
+                "wall_ns_total": 2717857393,
+                "wall_over_0p5ms_count": 4298,
+                "wall_over_2ms_count": 0
+              },
+              "control_step_state_25": {
+                "count": 30499,
+                "thread_ns_max": 1876550,
+                "thread_ns_total": 35070035838,
+                "thread_over_0p5ms_count": 30499,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1880060,
+                "wall_ns_total": 35106067258,
+                "wall_over_0p5ms_count": 30499,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_11": {
+                "count": 2,
+                "thread_ns_max": 28865,
+                "thread_ns_total": 45176,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 28744,
+                "wall_ns_total": 44954,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_20": {
+                "count": 5751,
+                "thread_ns_max": 40385,
+                "thread_ns_total": 114246126,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 40095,
+                "wall_ns_total": 113300708,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_21": {
+                "count": 4430,
+                "thread_ns_max": 36889,
+                "thread_ns_total": 78575847,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 36698,
+                "wall_ns_total": 77970946,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_25": {
+                "count": 30502,
+                "thread_ns_max": 1281864,
+                "thread_ns_total": 1788116208,
+                "thread_over_0p5ms_count": 2,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1281670,
+                "wall_ns_total": 1782061394,
+                "wall_over_0p5ms_count": 2,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_40": {
+                "count": 1766,
+                "thread_ns_max": 23111157,
+                "thread_ns_total": 1230072873,
+                "thread_over_0p5ms_count": 910,
+                "thread_over_2ms_count": 1,
+                "wall_ns_max": 23120542,
+                "wall_ns_total": 1230692410,
+                "wall_over_0p5ms_count": 910,
+                "wall_over_2ms_count": 1
+              },
+              "packet_evidence_state_78": {
+                "count": 1,
+                "thread_ns_max": 25197,
+                "thread_ns_total": 25197,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 24997,
+                "wall_ns_total": 24997,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_11": {
+                "count": 3,
+                "thread_ns_max": 4739,
+                "thread_ns_total": 9407,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 4489,
+                "wall_ns_total": 8897,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_20": {
+                "count": 5751,
+                "thread_ns_max": 8576,
+                "thread_ns_total": 17658745,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 8235,
+                "wall_ns_total": 16868595,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_21": {
+                "count": 4430,
+                "thread_ns_max": 6031,
+                "thread_ns_total": 11531282,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 5801,
+                "wall_ns_total": 11070486,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_25": {
+                "count": 30502,
+                "thread_ns_max": 4699,
+                "thread_ns_total": 80105406,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 4479,
+                "wall_ns_total": 76439080,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_40": {
+                "count": 1766,
+                "thread_ns_max": 7854,
+                "thread_ns_total": 4888285,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 7654,
+                "wall_ns_total": 4659180,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_78": {
+                "count": 772,
+                "thread_ns_max": 6963,
+                "thread_ns_total": 2490037,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 11872,
+                "wall_ns_total": 2359790,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_11": {
+                "count": 3,
+                "thread_ns_max": 12213,
+                "thread_ns_total": 23855,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 12042,
+                "wall_ns_total": 23433,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_20": {
+                "count": 5751,
+                "thread_ns_max": 18525,
+                "thread_ns_total": 43208094,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 18184,
+                "wall_ns_total": 42329554,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_21": {
+                "count": 4430,
+                "thread_ns_max": 14557,
+                "thread_ns_total": 24412869,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 14107,
+                "wall_ns_total": 23867723,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_25": {
+                "count": 30502,
+                "thread_ns_max": 12393,
+                "thread_ns_total": 171949135,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 12062,
+                "wall_ns_total": 168208840,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_40": {
+                "count": 1766,
+                "thread_ns_max": 29706,
+                "thread_ns_total": 10757034,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 29585,
+                "wall_ns_total": 10488348,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_78": {
+                "count": 772,
+                "thread_ns_max": 30207,
+                "thread_ns_total": 6023713,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 30116,
+                "wall_ns_total": 5895769,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_11": {
+                "count": 2,
+                "planned_sleep_ns_max": 1575584,
+                "planned_sleep_ns_total": 3083536,
+                "thread_ns_max": 19978,
+                "thread_ns_total": 38863,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1606178,
+                "wall_ns_total": 3143957,
+                "wall_over_0p5ms_count": 2,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_20": {
+                "count": 5751,
+                "planned_sleep_ns_max": 1776882,
+                "planned_sleep_ns_total": 9127269859,
+                "thread_ns_max": 32840,
+                "thread_ns_total": 59144549,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1797746,
+                "wall_ns_total": 9213818716,
+                "wall_over_0p5ms_count": 5751,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_21": {
+                "count": 4430,
+                "planned_sleep_ns_max": 1582779,
+                "planned_sleep_ns_total": 4356401596,
+                "thread_ns_max": 33564,
+                "thread_ns_total": 38692371,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1589656,
+                "wall_ns_total": 4412538158,
+                "wall_over_0p5ms_count": 4391,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_25": {
+                "count": 30502,
+                "planned_sleep_ns_max": 1542688,
+                "planned_sleep_ns_total": 9002272285,
+                "thread_ns_max": 22643,
+                "thread_ns_total": 275172387,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1571983,
+                "wall_ns_total": 9429950836,
+                "wall_over_0p5ms_count": 322,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_40": {
+                "count": 1766,
+                "planned_sleep_ns_max": 1738304,
+                "planned_sleep_ns_total": 1663022132,
+                "thread_ns_max": 21961,
+                "thread_ns_total": 15462247,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1751940,
+                "wall_ns_total": 1686724782,
+                "wall_over_0p5ms_count": 882,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_11": {
+                "count": 2,
+                "thread_ns_max": 73027,
+                "thread_ns_total": 142838,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 72977,
+                "wall_ns_total": 142708,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_20": {
+                "count": 5751,
+                "thread_ns_max": 238276,
+                "thread_ns_total": 538904777,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 237995,
+                "wall_ns_total": 538188507,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_21": {
+                "count": 4430,
+                "thread_ns_max": 215013,
+                "thread_ns_total": 356166115,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 214742,
+                "wall_ns_total": 356230986,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_25": {
+                "count": 30502,
+                "thread_ns_max": 371877,
+                "thread_ns_total": 5608423367,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 371716,
+                "wall_ns_total": 5615948400,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_40": {
+                "count": 1766,
+                "thread_ns_max": 251531,
+                "thread_ns_total": 161079238,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 251240,
+                "wall_ns_total": 160872111,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_11": {
+                "count": 3,
+                "thread_ns_max": 30417,
+                "thread_ns_total": 69861,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 30026,
+                "wall_ns_total": 69250,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_20": {
+                "count": 5751,
+                "thread_ns_max": 176942,
+                "thread_ns_total": 184978333,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 176711,
+                "wall_ns_total": 183889215,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_21": {
+                "count": 4430,
+                "thread_ns_max": 72546,
+                "thread_ns_total": 178735738,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 72025,
+                "wall_ns_total": 177892803,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_25": {
+                "count": 30502,
+                "thread_ns_max": 88095,
+                "thread_ns_total": 1153975510,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 87904,
+                "wall_ns_total": 1148564316,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_40": {
+                "count": 1766,
+                "thread_ns_max": 102102,
+                "thread_ns_total": 67330817,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 101901,
+                "wall_ns_total": 67013855,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_78": {
+                "count": 773,
+                "thread_ns_max": 239359,
+                "thread_ns_total": 39120453,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 239127,
+                "wall_ns_total": 39097531,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              }
+            },
+            "unmatched_stage_ends": 0
+          },
+          "interpublish_intervals": 29999,
+          "last_publish_s": 343031.13835946,
+          "max_interpublish_s": 0.008004617993719876,
+          "missed_2ms_slots_proxy": 7,
+          "over_2ms_intervals": 14043,
+          "path_publishes": 30000,
+          "publish_send_timing": {
+            "diagnostic_threshold_ns": 2000000,
+            "missing_transport_timing_count": 0,
+            "schema": "tase.r013.publish-send-timing-summary-v1",
+            "stages": {
+              "input_encode": {
+                "count": 30000,
+                "slow_examples": [],
+                "thread_ns_max": 20639,
+                "thread_ns_total": 280605948,
+                "wall_ns_max": 20658,
+                "wall_ns_total": 281424839,
+                "wall_over_2ms_count": 0
+              },
+              "input_send_total": {
+                "count": 30000,
+                "slow_examples": [],
+                "thread_ns_max": 105037,
+                "thread_ns_total": 511071758,
+                "wall_ns_max": 105087,
+                "wall_ns_total": 524916004,
+                "wall_over_2ms_count": 0
+              },
+              "provider_return_to_writer_entry": {
+                "count": 30000,
+                "slow_examples": [],
+                "thread_ns_max": 118392,
+                "thread_ns_total": 2379093495,
+                "wall_ns_max": 118261,
+                "wall_ns_total": 2377592851,
+                "wall_over_2ms_count": 0
+              },
+              "rtde_frame_build": {
+                "count": 30000,
+                "slow_examples": [],
+                "thread_ns_max": 2484,
+                "thread_ns_total": 25977166,
+                "wall_ns_max": 2485,
+                "wall_ns_total": 26006174,
+                "wall_over_2ms_count": 0
+              },
+              "socket_sendall": {
+                "count": 30000,
+                "slow_examples": [],
+                "thread_ns_max": 91972,
+                "thread_ns_total": 155212090,
+                "wall_ns_max": 91923,
+                "wall_ns_total": 166580945,
+                "wall_over_2ms_count": 0
+              },
+              "writer_send_method": {
+                "count": 30000,
+                "slow_examples": [],
+                "thread_ns_max": 347812,
+                "thread_ns_total": 4806707138,
+                "wall_ns_max": 347691,
+                "wall_ns_total": 4815166821,
+                "wall_over_2ms_count": 0
+              }
+            }
+          },
+          "scheduler_max_lateness_s": 0.0014629687066189945,
+          "scheduler_wakeups": 42451,
+          "scheduler_wakeups_over_0p5ms": 10
+        },
+        "host_publish_hz": 500.0,
+        "kunwei_hz": 999.8500199973065,
+        "max_fresh_gap_s": 0.007970032980665565,
+        "max_interval_s": 0.008006511023268104,
+        "observed_intervals": 29992,
+        "p99_interval_s": 0.0026096159708686173,
+        "provider_compute_summary": {
+          "calls": 34797,
+          "failed_calls": 0,
+          "force_rise_guard_calls": 1078,
+          "gate_projection_calls": 0,
+          "host_slew_limited_calls": 6,
+          "max_compute_s": 0.001298410992603749,
+          "max_non_cpu_wall_s": 1.1316993692389588e-05,
+          "max_thread_cpu_s": 0.0012940969999988283,
+          "over_2ms_calls": 0,
+          "path_calls": 30000,
+          "path_compute_bucket_upper_s": [
+            0.00025,
+            0.0005,
+            0.001,
+            0.0015,
+            0.002,
+            0.004
+          ],
+          "path_compute_histogram": [
+            0,
+            0,
+            28907,
+            1093,
+            0,
+            0,
+            0
+          ],
+          "path_max_compute_s": 0.001298410992603749,
+          "path_over_2ms_calls": 0,
+          "published_joint_bound_calls": 0,
+          "slow_call_examples": [],
+          "solver_active_bound_calls": 0,
+          "solver_backend_counts": {
+            "cupy": 0,
+            "fixed-normal-jacobian": 0,
+            "numpy": 30000,
+            "osqp-codegen-c": 0,
+            "other": 0,
+            "strict-rnn": 0
+          },
+          "solver_max_s": 0.00010066799586638808,
+          "solver_over_2ms_calls": 0,
+          "solver_timed_calls": 30000,
+          "solver_total_s": 2.102899978752248,
+          "total_compute_s": 26.549101917480584
+        },
+        "rate_scope": "rtde_hz/tp_echo_hz above are unique identities in accepted synchronized PathSample rows; use raw_layer_measurements below for all raw interfaces",
+        "rtde_hz": 499.9999999999864,
+        "tp_echo_hz": 481.08585521929103
+      },
+      "candidate_id": "confirm-s02-b02-A",
+      "evidence_eligible": true,
+      "home_verified": true,
+      "path_complete": true,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "receipt_formal_bins": 550,
+      "receipt_official_formal_mae_n": 1.0364228577061043,
+      "seal_verified": true,
+      "windows": {
+        "window_0_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 600,
+          "required_bins": 600,
+          "sample_count": 29997,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 0.8751737766910774,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 7.8305064130828805,
+              "mean": 0.8752023834577951,
+              "median": 0.0,
+              "p95": 4.150861635310993
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.445,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.3655365536553655,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 1.5987211554602254e-14,
+            "mean_control_minus_filtered_n": 0.8752023834577951,
+            "measured_dominates_filtered_sample_fraction": 0.4947161382804947,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.3655365536553655
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 0.9644613234008742,
+              "bin_mean_rmse_n": 1.271318363613403,
+              "sample_bias_measured_minus_target_n": -0.14261579441041736,
+              "sample_mae_n": 1.1202550882521627,
+              "sample_rmse_n": 1.4670287523390304
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 1.0275465800598464,
+              "bin_mean_rmse_n": 1.328767975574885,
+              "sample_bias_measured_minus_target_n": -1.0178181778682125,
+              "sample_mae_n": 1.0288264023130993,
+              "sample_rmse_n": 1.3401604326941299
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 1.7918430988853253,
+              "bin_mean_rmse_n": 2.4250180223006543,
+              "sample_bias_measured_minus_target_n": -1.027669367379412,
+              "sample_mae_n": 2.00044617611868,
+              "sample_rmse_n": 2.6069660741600575
+            }
+          },
+          "window_s": [
+            0.0,
+            60.0
+          ]
+        },
+        "window_5_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 550,
+          "required_bins": 550,
+          "sample_count": 27493,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 0.8798758564595139,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 7.8305064130828805,
+              "mean": 0.8799345503331915,
+              "median": 0.0,
+              "p95": 4.195558410840365
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.4509090909090909,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.366929763939912,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 1.5987211554602254e-14,
+            "mean_control_minus_filtered_n": 0.8799345503331915,
+            "measured_dominates_filtered_sample_fraction": 0.4936529298366857,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.366929763939912
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 0.9689727011480578,
+              "bin_mean_rmse_n": 1.2829447863557615,
+              "sample_bias_measured_minus_target_n": -0.1490831007983624,
+              "sample_mae_n": 1.1289860692593061,
+              "sample_rmse_n": 1.4812157868273343
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 1.0363861234605332,
+              "bin_mean_rmse_n": 1.3387693990496996,
+              "sample_bias_measured_minus_target_n": -1.0290176511315539,
+              "sample_mae_n": 1.0375438275787967,
+              "sample_rmse_n": 1.3503715087293038
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 1.8052495665151245,
+              "bin_mean_rmse_n": 2.445733174935014,
+              "sample_bias_measured_minus_target_n": -1.0434666612219174,
+              "sample_mae_n": 2.019504421396561,
+              "sample_rmse_n": 2.628963287612467
+            }
+          },
+          "window_s": [
+            5.0,
+            60.0
+          ]
+        }
+      }
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0003",
+      "cadence": {
+        "classification": "observed_layers_at_least_460",
+        "feedback_age_p99_s": 0.008934170007705688,
+        "host_interpublish_summary": {
+          "hot_path_stage_timing": {
+            "clock": "monotonic_ns+thread_time_ns",
+            "duplicate_stage_starts": 0,
+            "schema": "tase.r013.hot-path-stage-timing-v1",
+            "stages": {
+              "control_step_state_21": {
+                "count": 4327,
+                "thread_ns_max": 1182508,
+                "thread_ns_total": 2989915460,
+                "thread_over_0p5ms_count": 4200,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1181923,
+                "wall_ns_total": 2988863855,
+                "wall_over_0p5ms_count": 4200,
+                "wall_over_2ms_count": 0
+              },
+              "control_step_state_25": {
+                "count": 30047,
+                "thread_ns_max": 1893242,
+                "thread_ns_total": 34454459199,
+                "thread_over_0p5ms_count": 30047,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1896591,
+                "wall_ns_total": 34450625665,
+                "wall_over_0p5ms_count": 30047,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_11": {
+                "count": 2,
+                "thread_ns_max": 32130,
+                "thread_ns_total": 63589,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 31990,
+                "wall_ns_total": 63238,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_20": {
+                "count": 4529,
+                "thread_ns_max": 43141,
+                "thread_ns_total": 90688118,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 42981,
+                "wall_ns_total": 89950482,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_21": {
+                "count": 4327,
+                "thread_ns_max": 36749,
+                "thread_ns_total": 79435220,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 36458,
+                "wall_ns_total": 78830680,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_25": {
+                "count": 30050,
+                "thread_ns_max": 1306740,
+                "thread_ns_total": 1777676088,
+                "thread_over_0p5ms_count": 1,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1308319,
+                "wall_ns_total": 1778906735,
+                "wall_over_0p5ms_count": 1,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_40": {
+                "count": 1768,
+                "thread_ns_max": 22842114,
+                "thread_ns_total": 1183495983,
+                "thread_over_0p5ms_count": 909,
+                "thread_over_2ms_count": 1,
+                "wall_ns_max": 22846980,
+                "wall_ns_total": 1183515134,
+                "wall_over_0p5ms_count": 909,
+                "wall_over_2ms_count": 1
+              },
+              "packet_evidence_state_78": {
+                "count": 1,
+                "thread_ns_max": 13255,
+                "thread_ns_total": 13255,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 13185,
+                "wall_ns_total": 13185,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_11": {
+                "count": 3,
+                "thread_ns_max": 3848,
+                "thread_ns_total": 7845,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 3676,
+                "wall_ns_total": 7493,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_20": {
+                "count": 4529,
+                "thread_ns_max": 7474,
+                "thread_ns_total": 14082428,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 7264,
+                "wall_ns_total": 13426904,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_21": {
+                "count": 4327,
+                "thread_ns_max": 5500,
+                "thread_ns_total": 11676546,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 7444,
+                "wall_ns_total": 11175721,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_25": {
+                "count": 30050,
+                "thread_ns_max": 6111,
+                "thread_ns_total": 79754998,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 9167,
+                "wall_ns_total": 76420981,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_40": {
+                "count": 1768,
+                "thread_ns_max": 7404,
+                "thread_ns_total": 4349958,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 7164,
+                "wall_ns_total": 4162341,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_78": {
+                "count": 762,
+                "thread_ns_max": 8536,
+                "thread_ns_total": 2410653,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 11382,
+                "wall_ns_total": 2285778,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_11": {
+                "count": 3,
+                "thread_ns_max": 9498,
+                "thread_ns_total": 19337,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 9298,
+                "wall_ns_total": 18907,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_20": {
+                "count": 4529,
+                "thread_ns_max": 19246,
+                "thread_ns_total": 34501431,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 18846,
+                "wall_ns_total": 33757510,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_21": {
+                "count": 4327,
+                "thread_ns_max": 11932,
+                "thread_ns_total": 24191870,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 11622,
+                "wall_ns_total": 23597951,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_25": {
+                "count": 30050,
+                "thread_ns_max": 9868,
+                "thread_ns_total": 169842566,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 11661,
+                "wall_ns_total": 166247523,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_40": {
+                "count": 1768,
+                "thread_ns_max": 28624,
+                "thread_ns_total": 9727236,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 28443,
+                "wall_ns_total": 9491897,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_78": {
+                "count": 762,
+                "thread_ns_max": 28444,
+                "thread_ns_total": 5856525,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 28282,
+                "wall_ns_total": 5733265,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_11": {
+                "count": 2,
+                "planned_sleep_ns_max": 1655258,
+                "planned_sleep_ns_total": 3146294,
+                "thread_ns_max": 8186,
+                "thread_ns_total": 14156,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1665930,
+                "wall_ns_total": 3164375,
+                "wall_over_0p5ms_count": 2,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_20": {
+                "count": 4529,
+                "planned_sleep_ns_max": 1757937,
+                "planned_sleep_ns_total": 7064398741,
+                "thread_ns_max": 31328,
+                "thread_ns_total": 48972103,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1774753,
+                "wall_ns_total": 7135365937,
+                "wall_over_0p5ms_count": 4529,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_21": {
+                "count": 4327,
+                "planned_sleep_ns_max": 1545208,
+                "planned_sleep_ns_total": 3574532849,
+                "thread_ns_max": 22923,
+                "thread_ns_total": 54480553,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1566704,
+                "wall_ns_total": 3659982511,
+                "wall_over_0p5ms_count": 4202,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_25": {
+                "count": 30050,
+                "planned_sleep_ns_max": 1694997,
+                "planned_sleep_ns_total": 8582751079,
+                "thread_ns_max": 21199,
+                "thread_ns_total": 270333120,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1701126,
+                "wall_ns_total": 9000018396,
+                "wall_over_0p5ms_count": 11,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_40": {
+                "count": 1768,
+                "planned_sleep_ns_max": 1740985,
+                "planned_sleep_ns_total": 1797669839,
+                "thread_ns_max": 19717,
+                "thread_ns_total": 11294536,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1814658,
+                "wall_ns_total": 1813698239,
+                "wall_over_0p5ms_count": 1227,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_11": {
+                "count": 2,
+                "thread_ns_max": 134642,
+                "thread_ns_total": 207458,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 134462,
+                "wall_ns_total": 207178,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_20": {
+                "count": 4529,
+                "thread_ns_max": 179697,
+                "thread_ns_total": 447181288,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 179496,
+                "wall_ns_total": 446694735,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_21": {
+                "count": 4327,
+                "thread_ns_max": 234991,
+                "thread_ns_total": 388172475,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 234549,
+                "wall_ns_total": 387693120,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_25": {
+                "count": 30050,
+                "thread_ns_max": 286958,
+                "thread_ns_total": 5830615400,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 287709,
+                "wall_ns_total": 5855463413,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_40": {
+                "count": 1768,
+                "thread_ns_max": 261400,
+                "thread_ns_total": 136279170,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 261369,
+                "wall_ns_total": 136095048,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_11": {
+                "count": 3,
+                "thread_ns_max": 24386,
+                "thread_ns_total": 49714,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 24195,
+                "wall_ns_total": 49301,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_20": {
+                "count": 4529,
+                "thread_ns_max": 90340,
+                "thread_ns_total": 194503012,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 90259,
+                "wall_ns_total": 193678957,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_21": {
+                "count": 4327,
+                "thread_ns_max": 84719,
+                "thread_ns_total": 206604253,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 83897,
+                "wall_ns_total": 205585756,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_25": {
+                "count": 30050,
+                "thread_ns_max": 113382,
+                "thread_ns_total": 1119823840,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 113283,
+                "wall_ns_total": 1114545050,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_40": {
+                "count": 1768,
+                "thread_ns_max": 117550,
+                "thread_ns_total": 60981186,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 117420,
+                "wall_ns_total": 60752648,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_78": {
+                "count": 763,
+                "thread_ns_max": 112040,
+                "thread_ns_total": 37806655,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 112029,
+                "wall_ns_total": 37783140,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              }
+            },
+            "unmatched_stage_ends": 0
+          },
+          "interpublish_intervals": 29559,
+          "last_publish_s": 343116.441887637,
+          "max_interpublish_s": 0.004753380955662578,
+          "missed_2ms_slots_proxy": 401,
+          "over_2ms_intervals": 13559,
+          "path_publishes": 29560,
+          "publish_send_timing": {
+            "diagnostic_threshold_ns": 2000000,
+            "missing_transport_timing_count": 0,
+            "schema": "tase.r013.publish-send-timing-summary-v1",
+            "stages": {
+              "input_encode": {
+                "count": 29560,
+                "slow_examples": [],
+                "thread_ns_max": 17342,
+                "thread_ns_total": 275222970,
+                "wall_ns_max": 17503,
+                "wall_ns_total": 276292755,
+                "wall_over_2ms_count": 0
+              },
+              "input_send_total": {
+                "count": 29560,
+                "slow_examples": [],
+                "thread_ns_max": 103143,
+                "thread_ns_total": 727637971,
+                "wall_ns_max": 103914,
+                "wall_ns_total": 732052051,
+                "wall_over_2ms_count": 0
+              },
+              "provider_return_to_writer_entry": {
+                "count": 29560,
+                "slow_examples": [],
+                "thread_ns_max": 117039,
+                "thread_ns_total": 2337974459,
+                "wall_ns_max": 117030,
+                "wall_ns_total": 2338448166,
+                "wall_over_2ms_count": 0
+              },
+              "rtde_frame_build": {
+                "count": 29560,
+                "slow_examples": [],
+                "thread_ns_max": 5551,
+                "thread_ns_total": 25611623,
+                "wall_ns_max": 6121,
+                "wall_ns_total": 25651469,
+                "wall_over_2ms_count": 0
+              },
+              "socket_sendall": {
+                "count": 29560,
+                "slow_examples": [],
+                "thread_ns_max": 91472,
+                "thread_ns_total": 377654885,
+                "wall_ns_max": 92112,
+                "wall_ns_total": 379058485,
+                "wall_over_2ms_count": 0
+              },
+              "writer_send_method": {
+                "count": 29560,
+                "slow_examples": [],
+                "thread_ns_max": 255700,
+                "thread_ns_total": 5024118307,
+                "wall_ns_max": 256280,
+                "wall_ns_total": 5044747195,
+                "wall_over_2ms_count": 0
+              }
+            }
+          },
+          "scheduler_max_lateness_s": 0.0010754549293778837,
+          "scheduler_wakeups": 40676,
+          "scheduler_wakeups_over_0p5ms": 34
+        },
+        "host_publish_hz": 492.6666666666667,
+        "kunwei_hz": 999.8000333276235,
+        "max_fresh_gap_s": 0.004195615998469293,
+        "max_interval_s": 0.004766795958857983,
+        "observed_intervals": 29551,
+        "p99_interval_s": 0.0042689039837569,
+        "provider_compute_summary": {
+          "calls": 34247,
+          "failed_calls": 0,
+          "force_rise_guard_calls": 1052,
+          "gate_projection_calls": 0,
+          "host_slew_limited_calls": 9,
+          "max_compute_s": 0.0013169960002414882,
+          "max_non_cpu_wall_s": 8.954976891573097e-06,
+          "max_thread_cpu_s": 0.0013136740000163627,
+          "over_2ms_calls": 0,
+          "path_calls": 29560,
+          "path_compute_bucket_upper_s": [
+            0.00025,
+            0.0005,
+            0.001,
+            0.0015,
+            0.002,
+            0.004
+          ],
+          "path_compute_histogram": [
+            0,
+            0,
+            28714,
+            846,
+            0,
+            0,
+            0
+          ],
+          "path_max_compute_s": 0.0013169960002414882,
+          "path_over_2ms_calls": 0,
+          "published_joint_bound_calls": 0,
+          "slow_call_examples": [],
+          "solver_active_bound_calls": 0,
+          "solver_backend_counts": {
+            "cupy": 0,
+            "fixed-normal-jacobian": 0,
+            "numpy": 29560,
+            "osqp-codegen-c": 0,
+            "other": 0,
+            "strict-rnn": 0
+          },
+          "solver_max_s": 0.0001078220084309578,
+          "solver_over_2ms_calls": 0,
+          "solver_timed_calls": 29560,
+          "solver_total_s": 2.0165445375605486,
+          "total_compute_s": 26.135036662686616
+        },
+        "rate_scope": "rtde_hz/tp_echo_hz above are unique identities in accepted synchronized PathSample rows; use raw_layer_measurements below for all raw interfaces",
+        "rtde_hz": 499.9999999999224,
+        "tp_echo_hz": 476.20396600559184
+      },
+      "candidate_id": "confirm-s02-b03-A",
+      "evidence_eligible": true,
+      "home_verified": true,
+      "path_complete": true,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "receipt_formal_bins": 550,
+      "receipt_official_formal_mae_n": 1.0242417404331408,
+      "seal_verified": true,
+      "windows": {
+        "window_0_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 600,
+          "required_bins": 600,
+          "sample_count": 29557,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 0.812117093547996,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 8.51453042242867,
+              "mean": 0.8123336402896398,
+              "median": 0.0,
+              "p95": 3.9871679930303086
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.4166666666666667,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.34722739114253814,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 1.9539925233402755e-14,
+            "mean_control_minus_filtered_n": 0.8123336402896398,
+            "measured_dominates_filtered_sample_fraction": 0.49440064959231317,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.34722739114253814
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 0.9715151292833085,
+              "bin_mean_rmse_n": 1.3418142130617674,
+              "sample_bias_measured_minus_target_n": -0.18764524663579965,
+              "sample_mae_n": 1.1094458322752239,
+              "sample_rmse_n": 1.5074662860512567
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 1.0242077325796153,
+              "bin_mean_rmse_n": 1.3909924054689256,
+              "sample_bias_measured_minus_target_n": -0.9999788869254396,
+              "sample_mae_n": 1.0296119397366383,
+              "sample_rmse_n": 1.4036604141534466
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 1.7362185584952776,
+              "bin_mean_rmse_n": 2.3787236653667,
+              "sample_bias_measured_minus_target_n": -1.007472358993217,
+              "sample_mae_n": 1.9168946279269927,
+              "sample_rmse_n": 2.543829977191559
+            }
+          },
+          "window_s": [
+            0.0,
+            60.0
+          ]
+        },
+        "window_5_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 550,
+          "required_bins": 550,
+          "sample_count": 27139,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 0.8023259209455161,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 8.51453042242867,
+              "mean": 0.799996298403948,
+              "median": 0.0,
+              "p95": 4.0242803069601445
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.41818181818181815,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.34481742142304433,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 1.9539925233402755e-14,
+            "mean_control_minus_filtered_n": 0.799996298403948,
+            "measured_dominates_filtered_sample_fraction": 0.49393861232912045,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.34481742142304433
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 0.9644430945485409,
+              "bin_mean_rmse_n": 1.3483161571110942,
+              "sample_bias_measured_minus_target_n": -0.1983136868922233,
+              "sample_mae_n": 1.1050215068623275,
+              "sample_rmse_n": 1.5154172964890815
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 1.0243532901399928,
+              "bin_mean_rmse_n": 1.4026873079358446,
+              "sample_bias_measured_minus_target_n": -0.9983099852961713,
+              "sample_mae_n": 1.03018542324614,
+              "sample_rmse_n": 1.415087508782575
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 1.7119156694581799,
+              "bin_mean_rmse_n": 2.365495322681175,
+              "sample_bias_measured_minus_target_n": -1.0041466766891183,
+              "sample_mae_n": 1.8975616615618547,
+              "sample_rmse_n": 2.534675815936453
+            }
+          },
+          "window_s": [
+            5.0,
+            60.0
+          ]
+        }
+      }
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0005",
+      "cadence": {
+        "classification": "observed_layers_at_least_460",
+        "feedback_age_p99_s": 0.008949980023317039,
+        "host_interpublish_summary": {
+          "hot_path_stage_timing": {
+            "clock": "monotonic_ns+thread_time_ns",
+            "duplicate_stage_starts": 0,
+            "schema": "tase.r013.hot-path-stage-timing-v1",
+            "stages": {
+              "control_step_state_21": {
+                "count": 4431,
+                "thread_ns_max": 1157762,
+                "thread_ns_total": 2830429958,
+                "thread_over_0p5ms_count": 4299,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1161044,
+                "wall_ns_total": 2831932603,
+                "wall_over_0p5ms_count": 4299,
+                "wall_over_2ms_count": 0
+              },
+              "control_step_state_25": {
+                "count": 30504,
+                "thread_ns_max": 1894323,
+                "thread_ns_total": 35332220197,
+                "thread_over_0p5ms_count": 30504,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1893980,
+                "wall_ns_total": 35367571840,
+                "wall_over_0p5ms_count": 30504,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_11": {
+                "count": 1,
+                "thread_ns_max": 33724,
+                "thread_ns_total": 33724,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 33542,
+                "wall_ns_total": 33542,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_20": {
+                "count": 4716,
+                "thread_ns_max": 36268,
+                "thread_ns_total": 76870186,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 34955,
+                "wall_ns_total": 76232312,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_21": {
+                "count": 4431,
+                "thread_ns_max": 31610,
+                "thread_ns_total": 79981160,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 31398,
+                "wall_ns_total": 79920074,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_25": {
+                "count": 30507,
+                "thread_ns_max": 356679,
+                "thread_ns_total": 1799739242,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 356335,
+                "wall_ns_total": 1793656794,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_40": {
+                "count": 1780,
+                "thread_ns_max": 24313331,
+                "thread_ns_total": 1232575600,
+                "thread_over_0p5ms_count": 934,
+                "thread_over_2ms_count": 1,
+                "wall_ns_max": 24319692,
+                "wall_ns_total": 1233170756,
+                "wall_over_0p5ms_count": 934,
+                "wall_over_2ms_count": 1
+              },
+              "packet_evidence_state_78": {
+                "count": 1,
+                "thread_ns_max": 12354,
+                "thread_ns_total": 12354,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 12232,
+                "wall_ns_total": 12232,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_11": {
+                "count": 2,
+                "thread_ns_max": 4669,
+                "thread_ns_total": 6913,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 4468,
+                "wall_ns_total": 6622,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_20": {
+                "count": 4716,
+                "thread_ns_max": 8516,
+                "thread_ns_total": 12049718,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 8315,
+                "wall_ns_total": 11512850,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_21": {
+                "count": 4431,
+                "thread_ns_max": 5371,
+                "thread_ns_total": 11593350,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 7023,
+                "wall_ns_total": 11123034,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_25": {
+                "count": 30507,
+                "thread_ns_max": 4578,
+                "thread_ns_total": 81026538,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 4728,
+                "wall_ns_total": 77356026,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_40": {
+                "count": 1780,
+                "thread_ns_max": 5761,
+                "thread_ns_total": 5159849,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 5490,
+                "wall_ns_total": 4929054,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_78": {
+                "count": 760,
+                "thread_ns_max": 8195,
+                "thread_ns_total": 2589425,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 12212,
+                "wall_ns_total": 2463694,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_11": {
+                "count": 2,
+                "thread_ns_max": 12434,
+                "thread_ns_total": 24516,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 12172,
+                "wall_ns_total": 24034,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_20": {
+                "count": 4716,
+                "thread_ns_max": 15339,
+                "thread_ns_total": 27654375,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 15138,
+                "wall_ns_total": 27071119,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_21": {
+                "count": 4431,
+                "thread_ns_max": 12414,
+                "thread_ns_total": 24387148,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 11992,
+                "wall_ns_total": 23817172,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_25": {
+                "count": 30507,
+                "thread_ns_max": 12002,
+                "thread_ns_total": 172998237,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 11943,
+                "wall_ns_total": 169213038,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_40": {
+                "count": 1780,
+                "thread_ns_max": 29264,
+                "thread_ns_total": 11336909,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 29065,
+                "wall_ns_total": 11053545,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_78": {
+                "count": 760,
+                "thread_ns_max": 32491,
+                "thread_ns_total": 6360353,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 32340,
+                "wall_ns_total": 6224530,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_11": {
+                "count": 1,
+                "planned_sleep_ns_max": 1427716,
+                "planned_sleep_ns_total": 1427716,
+                "thread_ns_max": 17461,
+                "thread_ns_total": 17461,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1455793,
+                "wall_ns_total": 1455793,
+                "wall_over_0p5ms_count": 1,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_20": {
+                "count": 4716,
+                "planned_sleep_ns_max": 1762673,
+                "planned_sleep_ns_total": 7866450728,
+                "thread_ns_max": 21700,
+                "thread_ns_total": 28831735,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1776030,
+                "wall_ns_total": 7905677297,
+                "wall_over_0p5ms_count": 4716,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_21": {
+                "count": 4431,
+                "planned_sleep_ns_max": 1599315,
+                "planned_sleep_ns_total": 4102974455,
+                "thread_ns_max": 24745,
+                "thread_ns_total": 46124123,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1606654,
+                "wall_ns_total": 4172136179,
+                "wall_over_0p5ms_count": 4372,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_25": {
+                "count": 30507,
+                "planned_sleep_ns_max": 1602728,
+                "planned_sleep_ns_total": 8287241349,
+                "thread_ns_max": 22010,
+                "thread_ns_total": 295862450,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1632624,
+                "wall_ns_total": 8756487897,
+                "wall_over_0p5ms_count": 185,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_40": {
+                "count": 1780,
+                "planned_sleep_ns_max": 1749106,
+                "planned_sleep_ns_total": 1664527866,
+                "thread_ns_max": 22192,
+                "thread_ns_total": 16445931,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1761254,
+                "wall_ns_total": 1689354541,
+                "wall_over_0p5ms_count": 1002,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_11": {
+                "count": 1,
+                "thread_ns_max": 105988,
+                "thread_ns_total": 105988,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 105957,
+                "wall_ns_total": 105957,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_20": {
+                "count": 4716,
+                "thread_ns_max": 169829,
+                "thread_ns_total": 376363255,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 169686,
+                "wall_ns_total": 375882598,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_21": {
+                "count": 4431,
+                "thread_ns_max": 186089,
+                "thread_ns_total": 369776475,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 185806,
+                "wall_ns_total": 370043631,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_25": {
+                "count": 30507,
+                "thread_ns_max": 271109,
+                "thread_ns_total": 5915096816,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 270915,
+                "wall_ns_total": 5923186676,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_40": {
+                "count": 1780,
+                "thread_ns_max": 261370,
+                "thread_ns_total": 161868403,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 261317,
+                "wall_ns_total": 161650828,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_11": {
+                "count": 2,
+                "thread_ns_max": 31910,
+                "thread_ns_total": 62928,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 31489,
+                "wall_ns_total": 62307,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_20": {
+                "count": 4716,
+                "thread_ns_max": 92253,
+                "thread_ns_total": 158595809,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 92182,
+                "wall_ns_total": 157936874,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_21": {
+                "count": 4431,
+                "thread_ns_max": 77114,
+                "thread_ns_total": 192408487,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 76723,
+                "wall_ns_total": 191503402,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_25": {
+                "count": 30507,
+                "thread_ns_max": 94738,
+                "thread_ns_total": 1145316561,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 94436,
+                "wall_ns_total": 1139923558,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_40": {
+                "count": 1780,
+                "thread_ns_max": 107843,
+                "thread_ns_total": 70229540,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 107641,
+                "wall_ns_total": 69916671,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_78": {
+                "count": 761,
+                "thread_ns_max": 113723,
+                "thread_ns_total": 40691417,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 113642,
+                "wall_ns_total": 40649281,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              }
+            },
+            "unmatched_stage_ends": 0
+          },
+          "interpublish_intervals": 30003,
+          "last_publish_s": 343300.102571048,
+          "max_interpublish_s": 0.005793880030978471,
+          "missed_2ms_slots_proxy": 1,
+          "over_2ms_intervals": 13995,
+          "path_publishes": 30004,
+          "publish_send_timing": {
+            "diagnostic_threshold_ns": 2000000,
+            "missing_transport_timing_count": 0,
+            "schema": "tase.r013.publish-send-timing-summary-v1",
+            "stages": {
+              "input_encode": {
+                "count": 30004,
+                "slow_examples": [],
+                "thread_ns_max": 17964,
+                "thread_ns_total": 280656907,
+                "wall_ns_max": 17964,
+                "wall_ns_total": 281541704,
+                "wall_over_2ms_count": 0
+              },
+              "input_send_total": {
+                "count": 30004,
+                "slow_examples": [],
+                "thread_ns_max": 39574,
+                "thread_ns_total": 750784882,
+                "wall_ns_max": 39634,
+                "wall_ns_total": 765188298,
+                "wall_over_2ms_count": 0
+              },
+              "provider_return_to_writer_entry": {
+                "count": 30004,
+                "slow_examples": [],
+                "thread_ns_max": 111038,
+                "thread_ns_total": 2386847590,
+                "wall_ns_max": 110976,
+                "wall_ns_total": 2385312569,
+                "wall_over_2ms_count": 0
+              },
+              "rtde_frame_build": {
+                "count": 30004,
+                "slow_examples": [],
+                "thread_ns_max": 11031,
+                "thread_ns_total": 33990797,
+                "wall_ns_max": 11021,
+                "wall_ns_total": 33822400,
+                "wall_over_2ms_count": 0
+              },
+              "socket_sendall": {
+                "count": 30004,
+                "slow_examples": [],
+                "thread_ns_max": 23995,
+                "thread_ns_total": 383924810,
+                "wall_ns_max": 24726,
+                "wall_ns_total": 395596652,
+                "wall_over_2ms_count": 0
+              },
+              "writer_send_method": {
+                "count": 30004,
+                "slow_examples": [],
+                "thread_ns_max": 238989,
+                "thread_ns_total": 5103698759,
+                "wall_ns_max": 238785,
+                "wall_ns_total": 5112554942,
+                "wall_over_2ms_count": 0
+              }
+            }
+          },
+          "scheduler_max_lateness_s": 0.0014499565004371107,
+          "scheduler_wakeups": 41435,
+          "scheduler_wakeups_over_0p5ms": 11
+        },
+        "host_publish_hz": 500.06666666666666,
+        "kunwei_hz": 999.8166972169753,
+        "max_fresh_gap_s": 0.005743775982409716,
+        "max_interval_s": 0.005796463985461742,
+        "observed_intervals": 29997,
+        "p99_interval_s": 0.0026034240145236254,
+        "provider_compute_summary": {
+          "calls": 34803,
+          "failed_calls": 0,
+          "force_rise_guard_calls": 980,
+          "gate_projection_calls": 0,
+          "host_slew_limited_calls": 10,
+          "max_compute_s": 0.0013223050045780838,
+          "max_non_cpu_wall_s": 1.0669025016341038e-05,
+          "max_thread_cpu_s": 0.0013224300000160838,
+          "over_2ms_calls": 0,
+          "path_calls": 30004,
+          "path_compute_bucket_upper_s": [
+            0.00025,
+            0.0005,
+            0.001,
+            0.0015,
+            0.002,
+            0.004
+          ],
+          "path_compute_histogram": [
+            0,
+            0,
+            28859,
+            1145,
+            0,
+            0,
+            0
+          ],
+          "path_max_compute_s": 0.0013223050045780838,
+          "path_over_2ms_calls": 0,
+          "published_joint_bound_calls": 0,
+          "slow_call_examples": [],
+          "solver_active_bound_calls": 0,
+          "solver_backend_counts": {
+            "cupy": 0,
+            "fixed-normal-jacobian": 0,
+            "numpy": 30004,
+            "osqp-codegen-c": 0,
+            "other": 0,
+            "strict-rnn": 0
+          },
+          "solver_max_s": 9.880401194095612e-05,
+          "solver_over_2ms_calls": 0,
+          "solver_timed_calls": 30004,
+          "solver_total_s": 2.0695929529028945,
+          "total_compute_s": 26.748825461778324
+        },
+        "rate_scope": "rtde_hz/tp_echo_hz above are unique identities in accepted synchronized PathSample rows; use raw_layer_measurements below for all raw interfaces",
+        "rtde_hz": 499.9999999999224,
+        "tp_echo_hz": 481.13647725371635
+      },
+      "candidate_id": "confirm-s02-b04-A",
+      "evidence_eligible": true,
+      "home_verified": true,
+      "path_complete": true,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "receipt_formal_bins": 550,
+      "receipt_official_formal_mae_n": 1.1958953801632153,
+      "seal_verified": true,
+      "windows": {
+        "window_0_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 600,
+          "required_bins": 600,
+          "sample_count": 30002,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 0.9571483859377656,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 8.162817463181165,
+              "mean": 0.9571104716380195,
+              "median": 0.0,
+              "p95": 4.339162522387732
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.415,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.3575094993667089,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 1.5987211554602254e-14,
+            "mean_control_minus_filtered_n": 0.9571104716380195,
+            "measured_dominates_filtered_sample_fraction": 0.47910139324045065,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.3575094993667089
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 1.1457080154035448,
+              "bin_mean_rmse_n": 1.4529167178782083,
+              "sample_bias_measured_minus_target_n": -0.23692263045271406,
+              "sample_mae_n": 1.2793310341876727,
+              "sample_rmse_n": 1.6189369961545665
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 1.203608779816785,
+              "bin_mean_rmse_n": 1.51370547566791,
+              "sample_bias_measured_minus_target_n": -1.1940331020907338,
+              "sample_mae_n": 1.2043443441860855,
+              "sample_rmse_n": 1.5250144042245988
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 2.061046212448461,
+              "bin_mean_rmse_n": 2.6522950736537143,
+              "sample_bias_measured_minus_target_n": -1.199629580261506,
+              "sample_mae_n": 2.2373502321166683,
+              "sample_rmse_n": 2.8240912737725594
+            }
+          },
+          "window_s": [
+            0.0,
+            60.0
+          ]
+        },
+        "window_5_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 550,
+          "required_bins": 550,
+          "sample_count": 27498,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 0.9314226139871521,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 8.162817463181165,
+              "mean": 0.9312852468702869,
+              "median": 0.0,
+              "p95": 4.325444422789083
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.41454545454545455,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.3548258055131282,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 1.5987211554602254e-14,
+            "mean_control_minus_filtered_n": 0.9312852468702869,
+            "measured_dominates_filtered_sample_fraction": 0.47839842897665286,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.3548258055131282
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 1.1241553985262784,
+              "bin_mean_rmse_n": 1.4405628120207932,
+              "sample_bias_measured_minus_target_n": -0.25457957103203055,
+              "sample_mae_n": 1.2583469852202314,
+              "sample_rmse_n": 1.6054021078497445
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 1.195746450887288,
+              "bin_mean_rmse_n": 1.5160414076342026,
+              "sample_bias_measured_minus_target_n": -1.1858648179023177,
+              "sample_mae_n": 1.1964857710038639,
+              "sample_rmse_n": 1.5269634252239432
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 2.019287592398986,
+              "bin_mean_rmse_n": 2.622711190752149,
+              "sample_bias_measured_minus_target_n": -1.196865962336209,
+              "sample_mae_n": 2.1958363504183236,
+              "sample_rmse_n": 2.7930861463877505
+            }
+          },
+          "window_s": [
+            5.0,
+            60.0
+          ]
+        }
+      }
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-rate460-20260925T1600HKT/live/attempts/0001",
+      "cadence": {
+        "classification": "observed_layers_at_least_460",
+        "feedback_age_p99_s": 0.00886325299507007,
+        "host_interpublish_summary": {
+          "interpublish_intervals": 29996,
+          "last_publish_s": 219210.840657615,
+          "max_interpublish_s": 0.004976527008693665,
+          "missed_2ms_slots_proxy": 6,
+          "over_2ms_intervals": 14169,
+          "path_publishes": 29997,
+          "scheduler_max_lateness_s": 0.002009945659665391,
+          "scheduler_wakeups": 41406,
+          "scheduler_wakeups_over_0p5ms": 68
+        },
+        "host_publish_hz": 499.95,
+        "kunwei_hz": 1000.3333333333334,
+        "max_fresh_gap_s": 0.004653832002077252,
+        "max_interval_s": 0.004995681985747069,
+        "observed_intervals": 29989,
+        "p99_interval_s": 0.002652375987963751,
+        "provider_compute_summary": {
+          "calls": 34795,
+          "failed_calls": 0,
+          "force_rise_guard_calls": 2406,
+          "gate_projection_calls": 1304,
+          "host_slew_limited_calls": 648,
+          "max_compute_s": 0.001269757020054385,
+          "over_2ms_calls": 0,
+          "path_calls": 29997,
+          "path_compute_bucket_upper_s": [
+            0.00025,
+            0.0005,
+            0.001,
+            0.0015,
+            0.002,
+            0.004
+          ],
+          "path_compute_histogram": [
+            0,
+            0,
+            27385,
+            2612,
+            0,
+            0,
+            0
+          ],
+          "path_max_compute_s": 0.001269757020054385,
+          "path_over_2ms_calls": 0,
+          "published_joint_bound_calls": 0,
+          "solver_active_bound_calls": 0,
+          "solver_backend_counts": {
+            "cupy": 0,
+            "fixed-normal-jacobian": 0,
+            "numpy": 0,
+            "osqp-codegen-c": 29997,
+            "other": 0,
+            "strict-rnn": 0
+          },
+          "solver_max_s": 9.261301602236927e-05,
+          "solver_over_2ms_calls": 0,
+          "solver_timed_calls": 29997,
+          "solver_total_s": 1.5541694551357068,
+          "total_compute_s": 27.359186219779076
+        },
+        "rate_scope": "rtde_hz/tp_echo_hz above are unique identities in accepted synchronized PathSample rows; use raw_layer_measurements below for all raw interfaces",
+        "rtde_hz": 481.1,
+        "tp_echo_hz": 481.1
+      },
+      "candidate_id": "bo-10",
+      "evidence_eligible": false,
+      "home_verified": true,
+      "path_complete": true,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "receipt_formal_bins": 550,
+      "receipt_official_formal_mae_n": 0.9147095610250513,
+      "seal_verified": true,
+      "windows": {
+        "window_0_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 600,
+          "required_bins": 600,
+          "sample_count": 29995,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 0.9827013246716857,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 16.229356249903304,
+              "mean": 0.982974545145058,
+              "median": 0.0,
+              "p95": 8.746672332907707
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.45166666666666666,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.3072845474245708,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 3.197442310920451e-14,
+            "mean_control_minus_filtered_n": 0.982974545145058,
+            "measured_dominates_filtered_sample_fraction": 0.42017002833805633,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.3072845474245708
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 0.2728063908064289,
+              "bin_mean_rmse_n": 0.4591737364823402,
+              "sample_bias_measured_minus_target_n": 0.10383019011500931,
+              "sample_mae_n": 1.3619486822454114,
+              "sample_rmse_n": 2.5948655194936734
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 0.8790557494602745,
+              "bin_mean_rmse_n": 1.1641814240392756,
+              "sample_bias_measured_minus_target_n": -0.8791443550300488,
+              "sample_mae_n": 0.8796544482282075,
+              "sample_rmse_n": 1.1677210853478546
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 0.893184630574307,
+              "bin_mean_rmse_n": 1.3081617295955938,
+              "sample_bias_measured_minus_target_n": -0.8820845160297847,
+              "sample_mae_n": 2.3476689321692867,
+              "sample_rmse_n": 3.537398743378382
+            }
+          },
+          "window_s": [
+            0.0,
+            60.0
+          ]
+        },
+        "window_5_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 550,
+          "required_bins": 550,
+          "sample_count": 27491,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 1.0264409605880878,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 16.229356249903304,
+              "mean": 1.0266367439783306,
+              "median": 0.0,
+              "p95": 9.43561305595033
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.4509090909090909,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.299334327598123,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 3.197442310920451e-14,
+            "mean_control_minus_filtered_n": 1.0266367439783306,
+            "measured_dominates_filtered_sample_fraction": 0.40824269761012694,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.299334327598123
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 0.2797203334361784,
+              "bin_mean_rmse_n": 0.46970358609915236,
+              "sample_bias_measured_minus_target_n": 0.1118815534413942,
+              "sample_mae_n": 1.4369148195460681,
+              "sample_rmse_n": 2.7017509344796324
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 0.9146588486815451,
+              "bin_mean_rmse_n": 1.2046536221447302,
+              "sample_bias_measured_minus_target_n": -0.9147551905369363,
+              "sample_mae_n": 0.9153117452449779,
+              "sample_rmse_n": 1.208289562938864
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 0.9336163997364586,
+              "bin_mean_rmse_n": 1.3516410537276116,
+              "sample_bias_measured_minus_target_n": -0.9236652366803104,
+              "sample_mae_n": 2.4722494415274188,
+              "sample_rmse_n": 3.6717594217471543
+            }
+          },
+          "window_s": [
+            5.0,
+            60.0
+          ]
+        }
+      }
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001",
+      "cadence": {
+        "classification": "observed_layers_at_least_460",
+        "feedback_age_p99_s": 0.008992634015157819,
+        "host_interpublish_summary": {
+          "interpublish_intervals": 29956,
+          "last_publish_s": 219841.7987729,
+          "max_interpublish_s": 0.012386017013341188,
+          "missed_2ms_slots_proxy": 23,
+          "over_2ms_intervals": 14000,
+          "path_publishes": 29957,
+          "scheduler_max_lateness_s": 0.0019398688455112278,
+          "scheduler_wakeups": 41431,
+          "scheduler_wakeups_over_0p5ms": 96
+        },
+        "host_publish_hz": 499.28333333333336,
+        "kunwei_hz": 1000.45,
+        "max_fresh_gap_s": 0.012300898000830784,
+        "max_interval_s": 0.012390676012728363,
+        "observed_intervals": 29950,
+        "p99_interval_s": 0.002659679012140259,
+        "provider_compute_summary": {
+          "calls": 34753,
+          "failed_calls": 0,
+          "force_rise_guard_calls": 2247,
+          "gate_projection_calls": 1344,
+          "host_slew_limited_calls": 513,
+          "max_compute_s": 0.0012849150225520134,
+          "over_2ms_calls": 0,
+          "path_calls": 29957,
+          "path_compute_bucket_upper_s": [
+            0.00025,
+            0.0005,
+            0.001,
+            0.0015,
+            0.002,
+            0.004
+          ],
+          "path_compute_histogram": [
+            0,
+            0,
+            27050,
+            2907,
+            0,
+            0,
+            0
+          ],
+          "path_max_compute_s": 0.0012849150225520134,
+          "path_over_2ms_calls": 0,
+          "published_joint_bound_calls": 0,
+          "solver_active_bound_calls": 0,
+          "solver_backend_counts": {
+            "cupy": 0,
+            "fixed-normal-jacobian": 0,
+            "numpy": 0,
+            "osqp-codegen-c": 29957,
+            "other": 0,
+            "strict-rnn": 0
+          },
+          "solver_max_s": 0.00010007698438130319,
+          "solver_over_2ms_calls": 0,
+          "solver_timed_calls": 29957,
+          "solver_total_s": 1.5479474057501648,
+          "total_compute_s": 27.419803287048126
+        },
+        "rate_scope": "rtde_hz/tp_echo_hz above are unique identities in accepted synchronized PathSample rows; use raw_layer_measurements below for all raw interfaces",
+        "rtde_hz": 480.05,
+        "tp_echo_hz": 480.05
+      },
+      "candidate_id": "figure8-rate460-integral-1p0-A-baseline",
+      "evidence_eligible": false,
+      "home_verified": true,
+      "path_complete": true,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "receipt_formal_bins": 550,
+      "receipt_official_formal_mae_n": 0.9501390239556037,
+      "seal_verified": true,
+      "windows": {
+        "window_0_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 600,
+          "required_bins": 600,
+          "sample_count": 29956,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 0.964347519759596,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 14.9584249113619,
+              "mean": 0.9652988441450681,
+              "median": 0.0,
+              "p95": 7.5481085350792885
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.4033333333333333,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.3080518093203365,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 2.6645352591003757e-14,
+            "mean_control_minus_filtered_n": 0.9652988441450681,
+            "measured_dominates_filtered_sample_fraction": 0.42732674589397784,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.3080518093203365
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 0.25967627376797536,
+              "bin_mean_rmse_n": 0.39475793501942613,
+              "sample_bias_measured_minus_target_n": 0.007194857771753695,
+              "sample_mae_n": 1.3530285401500015,
+              "sample_rmse_n": 2.3792903613057574
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 0.9575884865047103,
+              "bin_mean_rmse_n": 1.2468163967834496,
+              "sample_bias_measured_minus_target_n": -0.9581039863733143,
+              "sample_mae_n": 0.9581778351078541,
+              "sample_rmse_n": 1.2509590401800748
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 0.9936254117437283,
+              "bin_mean_rmse_n": 1.4152555695284286,
+              "sample_bias_measured_minus_target_n": -0.964341625824678,
+              "sample_mae_n": 2.3245181286645744,
+              "sample_rmse_n": 3.377157578490853
+            }
+          },
+          "window_s": [
+            0.0,
+            60.0
+          ]
+        },
+        "window_5_60_s": {
+          "bin_width_s": 0.1,
+          "complete_bin_coverage": true,
+          "nonempty_bins": 550,
+          "required_bins": 550,
+          "sample_count": 27453,
+          "signal_selection": {
+            "bin_mean_control_minus_filtered_n": 0.9544020316998475,
+            "control_minus_filtered_sample_quantiles_n": {
+              "max": 14.9584249113619,
+              "mean": 0.9553995148340698,
+              "median": 0.0,
+              "p95": 8.158403791705341
+            },
+            "control_rule_violation_samples": 0,
+            "declared_live_rule": "control_normal=max(filtered_normal, measured_normal)",
+            "filtered_and_control_bin_error_sign_disagreement_fraction": 0.39454545454545453,
+            "filtered_and_control_error_sign_disagreement_fraction": 0.3055039522092303,
+            "force_error_vs_target_minus_control_max_abs_difference_n": 2.6645352591003757e-14,
+            "mean_control_minus_filtered_n": 0.9553995148340698,
+            "measured_dominates_filtered_sample_fraction": 0.420209084617346,
+            "official_filtered_under_target_but_control_over_target_fraction": 0.3055039522092303
+          },
+          "signals": {
+            "control_normal_force_n": {
+              "bin_mean_mae_n": 0.25968382738879225,
+              "bin_mean_rmse_n": 0.3992162776259277,
+              "sample_bias_measured_minus_target_n": 0.004690637926587681,
+              "sample_mae_n": 1.35803606553506,
+              "sample_rmse_n": 2.433913474567227
+            },
+            "filtered_normal_force_n": {
+              "bin_mean_mae_n": 0.9502371515761433,
+              "bin_mean_rmse_n": 1.2614124818811314,
+              "sample_bias_measured_minus_target_n": -0.9507088769074822,
+              "sample_mae_n": 0.9507894587270237,
+              "sample_rmse_n": 1.264974548683079
+            },
+            "measured_normal_force_n": {
+              "bin_mean_mae_n": 0.9724023037336207,
+              "bin_mean_rmse_n": 1.3949329631681764,
+              "sample_bias_measured_minus_target_n": -0.9556071050878647,
+              "sample_mae_n": 2.3182826378551566,
+              "sample_rmse_n": 3.417220589109752
+            }
+          },
+          "window_s": [
+            5.0,
+            60.0
+          ]
+        }
+      }
+    }
+  ],
+  "evidence_class": "sealed_attempt_sensor_signal_selection_diagnostic",
+  "force_source": "Kunwei KWR75 measured and filtered normal-load channels",
+  "independent_force_truth": false,
+  "interpretation_limit": "Signal disagreement quantifies a feedback/score mismatch only. It does not establish that signal selection caused force tracking error or predict an alternative controller's force score.",
+  "schema": "tase.kwr75-force-control-signal-selection-audit-v1",
+  "selection_rule_source": "tools/tase_contact_provider.py:_installation_force_binding and path command; control_normal=max(filtered, measured)"
+}

@@ -105,6 +105,19 @@ raw KWR75 的逐样本误差显著高于先做 100 ms 分箱的结果，反映 b
 
 只作量级参照，A–E screening 中合格 RNN A 的正式 MAE 均值为 **0.977 N**（4 个合格单元）；matched-A QP 的单圈 receipt 数值比它低 **0.027 N**，BO-10 QP 低 **0.062 N**。这两个都是跨批次、非配对、且 QP motion gate 失败的 attempt；差值未达到 **0.10 N**，没有 CI，不能用作精度改善证据。
 
+### KWR75 控制信号与正式评分信号的分歧
+
+live provider 源码规定 `control_normal=max(filtered_normal, measured_normal)`，outer loop 用该值算 `force_error_n`；正式 R013 force score 则用 `normal_force_filtered_n`。我对五条合格 RNN A 与两条失败 QP trace 的每个 sealed controller frame 复核了这一公式：七条 trace 的 control-rule violation 都为 **0**，`force_error_n` 与 `5-control_normal` 的最大差不超过 **3.2e-14 N**。
+
+| source group | `[5,60)` measured 比 filtered 大 | mean `(control-filtered)` | filtered mean / control mean | filtered / control sample MAE | filtered 欠力但 control 显示过力 |
+|---|---:|---:|---:|---:|---:|
+| 5 条合格 RNN A，按 attempt 平均 | 48.91% | 0.845 N | 3.974 / 4.819 N | 1.043 / 1.123 N | 35.44% |
+| 2 条 QP 诊断 attempt，按 attempt 平均 | 41.42% | 0.991 N | 4.067 / 5.058 N | 0.933 / 1.397 N | 30.24% |
+
+也就是说，约三分之一正式 PATH 帧上，outer loop 看到的融合 control 信号高于 5 N，而正式 filtered score 同时低于 5 N；QP 两圈的 control mean 约 5.06 N，filtered mean 约 4.07 N。这个差异可能减少 inward correction，但目前只是反馈/评分信号错位的观察，不能断言它造成了真实欠力。`max` 融合也可能是在防滤波滞后导致过力；raw KWR75 不是独立真值。七条 trace 的两个窗口、sample/bin 指标、coverage 与逐 attempt rule verification 见 [force signal-selection audit](tase_r31_force_control_signal_selection_20260927.json)。下一步只先做离线 command replay：保持 full-force/raw safety guards 不变，仅考察 filtered-only outer-loop feedback 会怎样改变命令；没有闭环数据前不报告力改善，不切换 live。
+
+**这条 TASE RTDE 配方没有读取 UR 内置 `actual_TCP_force`。** 当前 `OUTPUT_FIELDS` 只请求 TCP pose/speed、关节、payload、Safety/Runtime 状态和控制器 echo；`R004OutputSnapshot` 也只解析这些字段。`contact_yield_supervisor.fresh_stop_sample()` 再显式排除该字段，replay 输入若出现该字段则拒绝混源。力反馈与上述 MAE 都来自同步 Kunwei KWR75 通道；代码里出现字段名的两处是“排除/拒绝”检查，不是读取或使用。相关边界由 `test_tase_rtde_force_source_boundary.py` 固定。
+
 motion gate 是同一被消费 packet 的 published qdot 与 RTDE `actual_qd` 六关节合并 Pearson，门槛 0.900。对封存序号重新连接后，两次重算分别为 0.84010 和 0.84863；单 packet 偏移最多只将后者提高到约 0.849，因此不是简单的 host/RTDE 错位。两次任务空间位置误差和 qdot lag 都在现有限值内，相关性失败主要集中在关节 2、4、5；关节 5 的命令标准差约 0.00021 rad/s，低于实测速度噪声尺度，但关节 2 的 command-to-actual 误差也明显高于 RNN A。
 
 同一 frozen trace 的输出诊断发现：matched-A QP 有 513 次 host slew 限制、1,857 次最终 realization 限制和 2,916 次 task-space saturation；RNN A 两个对照 trace 的 host slew / realization 限制分别只有 7/7 与 3/3 次。固定输入重放准确复现 QP 及 host slew 输出，但只是 open-loop command replay。把原有 slew bound 直接并入硬等式 QP 的离线反事实在 packet 9676 即不可行；原 attempt 与 solver 状态保留为失败，没有修改 gate 或放宽边界。详情见 [QP motion-gate 分析](tase_r31_qp_motion_gate_analysis_20260925.json)、[指令变化分析](tase_r31_qdot_output_transition_20260925.json)、[事件分组](tase_r31_qdot_event_condition_20260925.json)、[固定输入重放与 embedded-slew 反事实](tase_r31_cartesian_velocity_diagnostic_20260925.json)。
