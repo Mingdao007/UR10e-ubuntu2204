@@ -104,6 +104,27 @@ motion gate 是同一被消费 packet 的 published qdot 与 RTDE `actual_qd` �
 
 同一 sealed 输入下另行计时了 native law 本身的 `YieldLaw.step`（包含 DSFC 原生迭代，不包含 provider、RTDE、录制或 final RNN realization）：SFC 29,998 次调用 median **12.3 μs**、p99 **21.6 μs**、max **54.8 μs**；DSFC 29,998 次调用 median **12.9 μs**、p99 **22.7 μs**、max **61.6 μs**，都没有单次超过 1 ms。该结果只说明 law step 本身不是明显的 1 ms 单次计算瓶颈，不能代替完整 live loop 的 460 Hz timing gate。
 
+### 切向反馈与实际运动方向核对
+
+我又对五条合格 A trace 的同步 KWR75 与 RTDE 数据做了留一尝试验证。每条按正式 `[5,60)` 聚成 550 个 100 ms bin；`actual_TCP_speed` 的切向方向与同一批 RTDE `actual_TCP_pose` 位姿差分在所有 bin 都同向，平均 cosine 为 **0.9978–0.9984**。因此前面的反向现象不是由 RTDE 速度符号或简单的速度/位姿方向错配造成。
+
+用同一 pose 将 baseline-corrected Kunwei 切向力转到 base 后，它与实际 TCP 切向速度方向相反的比例为 **92.0%–95.8%**，mean cosine 为 **−0.807 至 −0.760**，沿实际运动方向的投影均值约 **−0.50 至 −0.47 N**。每条 trace 上，`F_t = c + B v_t` 的分轴速度项也稳定为负：x 约 **−182 至 −171 N·s/m**，y 约 **−147 至 −134 N·s/m**；速度模型单条内 R² 为 **0.50–0.65**。加上由 100 ms RTDE 速度差分得到的加速度后，R² 只小幅增加（约 **0.001–0.007**）。
+
+更严格地，每次留出一整圈、用另外四圈拟合 `force_xy = intercept + B·actual_TCP_velocity_xy`，在留出圈的力残差 RMSE 比仅用训练圈常量力均值低 **33.1%–37.2%**，平均 **35.0%**。这确认了可重复的**运动相关 KWR75 切向分量**，但没有分离出它究竟是表面摩擦/接触反力、残留零偏、EOAT/传感器坐标误差还是闭环耦合；速度与控制器命令来自同一闭环，也不能据此把回归斜率当成真实摩擦系数。
+
+因此，现有原始力驱动的 SFC+TASE 候选会在无外部推扰 baseline 上持续生成与路径相反的切向补偿，保留为**离线可行、live 不准入**。不直接翻转符号、不删掉偏置，也不把该相关模型当成已验证的 friction compensation；在线扣除可能同时抹去真实外力。可复算的 5-trace 结果及 source timeline hash 在 [tangent-velocity relation audit JSON](tase_r32a_kunwei_tangent_velocity_relation_20260927.json)，重算代码与 focused tests 分别在 [audit tool](../tools/audit_tase_kunwei_tangent_velocity_relation.py) 和 [tests](../tests/test_audit_tase_kunwei_tangent_velocity_relation.py)。
+
 ## 下一步
 
-保留 A（`Md=9.5653, Bd=693.6559, integral=1.0 N·s`）为同条件参照。TASE-QP 原 profile 仍因 qdot motion gate 不合格；native SFC/DSFC fixed-Home replay 已消除姿态错配和关节限幅，但尚无闭环 force score。下一步沿修正后的 R31 live posture，检查 tangent law 输出、TASE 法向命令及最终 `Jqdot` 对逐帧 KWR75 反馈的关系；随后评估受保护的同条件单圈对照。任何新增 live 权重、slack、阈值或路径刚度先单独列明和讨论，不动已冻结保护。每个 live candidate 继续报告正式 filtered 550-bin、filtered 600-bin、raw KWR75 逐样本指标及完整率；KWR75 仍只代表 feedback source。当前没有新的 live motion；任何实机实验都要重新通过 fresh owner、安全、rate460、完整 60 s 和同一 joint Home recovery gate。
+保留 A（`Md=9.5653, Bd=693.6559, integral=1.0 N·s`）为同条件参照。TASE-QP 原 profile 仍因 qdot motion gate 不合格；native SFC/DSFC fixed-Home replay 已消除姿态错配和关节限幅，但新增实际速度对照显示原始 SFC 切向输入会抵消路径运动，故该版不得 live。下一候选前先确认 KWR75 切向力符号/轴向标定，并在不触碰已冻结保护的情况下分离可重复运动相关分量与外部扰动；若无法辨识，就保留此分支为未准入，不凭符号翻转试跑。任何新增 live 权重、slack、阈值或路径刚度先单独列明和讨论。每个 live candidate 继续报告正式 filtered 550-bin、filtered 600-bin、raw KWR75 逐样本指标及完整率；KWR75 仍只代表 feedback source。当前没有新的 live motion；任何实机实验都要重新通过 fresh owner、安全、rate460、完整 60 s 和同一 joint Home recovery gate。
+
+## 原始 campaign 再执行核验
+
+我从两个原始 campaign 目录重新运行 canonical reducer `tools/analyze_tase_resident_evidence.py`，并将输出与已封存的 reducer JSON 做逐字段比较。积分筛选 **25/25** 次尝试、调参确认 **11/11** 次尝试的完整 JSON 均完全相同；attempt 身份一致，所有字段的最大数值差为 **0**，两边 `seal_field_mismatches` 均为 0。简短机器可读凭证见 [metric-alignment reverification JSON](tase_r013_metric_alignment_reverification_20260927.json)。
+
+| Reducer | 原始 campaign | 尝试 / 完整 PATH / 合格 | 已封存 reducer SHA-256 |
+|---|---|---:|---|
+| A–E 筛选 | `tase-r31-integral-screening-20260925T1825HKT` | 25 / 24 / 20 | `1d70eec299e67067bea9191d07e7b6ea0a8fe9dc7baa6a5f5a6f846cf5b9fbf0` |
+| 参数确认 | `tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1` | 11 / 10 / 10 | `4bfd7533d97634920c6879c6de7b7800c05e43cb607e7c3e62135f114910d634` |
+
+这是一遍对原始封存记录的确定性重算，用来确认数据来源、reducer 输出与已封存 receipt 一致；它不是第二种独立算法。两类 A/B 结果仍严格分开：五对是 **Md/Bd 调参候选**比较，A−B 均值 −0.1339 N、95% CI `[−0.3050, 0.0372] N`；另十对是**积分上限 1.0 对 0.5 N·s**，A−B 均值 +0.1796 N、95% CI `[0.0289, 0.3303] N`。后者支持保留 1.0 N·s incumbent，不代表调参候选胜出。两项力指标均来自 KWR75 反馈，不能解释为独立测力真值。

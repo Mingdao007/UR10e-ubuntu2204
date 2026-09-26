@@ -1,0 +1,305 @@
+{
+  "A_to_E_screening": {
+    "A": {
+      "attempts": 5,
+      "complete_paths": 5,
+      "eligible": 4,
+      "eligible_coverage_bins": {
+        "diagnostic_600": 600,
+        "formal": [
+          550
+        ]
+      },
+      "mean_metrics_over_eligible_attempts": {
+        "filtered_600_bin_mae_n": 0.9830974321633377,
+        "official_filtered_550_bin_mae_n": 0.9771419354408907,
+        "raw_kunwei_bin_0_60_mae_n": 1.720410463650293,
+        "raw_kunwei_bin_5_60_mae_n": 1.7016677791446222,
+        "raw_kunwei_sample_0_60_mae_n": 1.9102363592068365,
+        "raw_kunwei_sample_5_60_mae_n": 1.8887938891403253
+      }
+    },
+    "B": {
+      "attempts": 5,
+      "complete_paths": 4,
+      "eligible": 3,
+      "eligible_coverage_bins": {
+        "diagnostic_600": 600,
+        "formal": [
+          550
+        ]
+      },
+      "mean_metrics_over_eligible_attempts": {
+        "filtered_600_bin_mae_n": 1.1354119276402186,
+        "official_filtered_550_bin_mae_n": 1.139859548914716,
+        "raw_kunwei_bin_0_60_mae_n": 1.6914047098324143,
+        "raw_kunwei_bin_5_60_mae_n": 1.6728367813981366,
+        "raw_kunwei_sample_0_60_mae_n": 1.885110327977433,
+        "raw_kunwei_sample_5_60_mae_n": 1.8684321689336771
+      }
+    },
+    "C": {
+      "attempts": 5,
+      "complete_paths": 5,
+      "eligible": 4,
+      "eligible_coverage_bins": {
+        "diagnostic_600": 600,
+        "formal": [
+          550
+        ]
+      },
+      "mean_metrics_over_eligible_attempts": {
+        "filtered_600_bin_mae_n": 1.7419397821917508,
+        "official_filtered_550_bin_mae_n": 1.7564288978349365,
+        "raw_kunwei_bin_0_60_mae_n": 2.1085049491737293,
+        "raw_kunwei_bin_5_60_mae_n": 2.101411796061532,
+        "raw_kunwei_sample_0_60_mae_n": 2.2966110491998193,
+        "raw_kunwei_sample_5_60_mae_n": 2.2869373546305756
+      }
+    },
+    "D": {
+      "attempts": 5,
+      "complete_paths": 5,
+      "eligible": 4,
+      "eligible_coverage_bins": {
+        "diagnostic_600": 600,
+        "formal": [
+          550
+        ]
+      },
+      "mean_metrics_over_eligible_attempts": {
+        "filtered_600_bin_mae_n": 1.2533739634939147,
+        "official_filtered_550_bin_mae_n": 1.2350170372820404,
+        "raw_kunwei_bin_0_60_mae_n": 1.7942104351331993,
+        "raw_kunwei_bin_5_60_mae_n": 1.7522652973393509,
+        "raw_kunwei_sample_0_60_mae_n": 1.9792019459344108,
+        "raw_kunwei_sample_5_60_mae_n": 1.934516933234921
+      }
+    },
+    "E": {
+      "attempts": 5,
+      "complete_paths": 5,
+      "eligible": 5,
+      "eligible_coverage_bins": {
+        "diagnostic_600": 600,
+        "formal": [
+          550
+        ]
+      },
+      "mean_metrics_over_eligible_attempts": {
+        "filtered_600_bin_mae_n": 1.8966041732894574,
+        "official_filtered_550_bin_mae_n": 1.9291483704255867,
+        "raw_kunwei_bin_0_60_mae_n": 2.2612032917218206,
+        "raw_kunwei_bin_5_60_mae_n": 2.284658654425197,
+        "raw_kunwei_sample_0_60_mae_n": 2.4577725629683593,
+        "raw_kunwei_sample_5_60_mae_n": 2.478344190291834
+      }
+    }
+  },
+  "analysis_entrypoint": "tools/analyze_tase_resident_evidence.py",
+  "exact_comparison": {
+    "integral_screening": {
+      "attempt_count_existing": 25,
+      "attempt_count_recomputed": 25,
+      "attempt_identities_equal": true,
+      "exact_json_equal": true,
+      "max_numeric_difference": 0.0,
+      "seal_field_mismatches_existing": 0,
+      "seal_field_mismatches_recomputed": 0,
+      "summary_existing": {
+        "attempts": 25,
+        "below_400_rtde": 1,
+        "below_460_rtde": 4,
+        "complete_paths": 24,
+        "eligible": 20,
+        "host_publish_below_460": 3,
+        "median_physical_return_s": 3.6159532890014816,
+        "median_pre_path_s": 19.332046390496544,
+        "median_ready_home_to_receipt_s": 2.0558383505122038,
+        "rtde_or_echo_below_460_with_host_at_least_460": 1,
+        "seal_field_mismatches": 0,
+        "tp_echo_below_460_with_host_and_rtde_at_least_460": 0
+      },
+      "summary_recomputed": {
+        "attempts": 25,
+        "below_400_rtde": 1,
+        "below_460_rtde": 4,
+        "complete_paths": 24,
+        "eligible": 20,
+        "host_publish_below_460": 3,
+        "median_physical_return_s": 3.6159532890014816,
+        "median_pre_path_s": 19.332046390496544,
+        "median_ready_home_to_receipt_s": 2.0558383505122038,
+        "rtde_or_echo_below_460_with_host_at_least_460": 1,
+        "seal_field_mismatches": 0,
+        "tp_echo_below_460_with_host_and_rtde_at_least_460": 0
+      }
+    },
+    "parameter_confirmation": {
+      "attempt_count_existing": 11,
+      "attempt_count_recomputed": 11,
+      "attempt_identities_equal": true,
+      "exact_json_equal": true,
+      "max_numeric_difference": 0.0,
+      "seal_field_mismatches_existing": 0,
+      "seal_field_mismatches_recomputed": 0,
+      "summary_existing": {
+        "attempts": 11,
+        "below_400_rtde": 0,
+        "below_460_rtde": 0,
+        "complete_paths": 10,
+        "eligible": 10,
+        "host_publish_below_460": 0,
+        "median_physical_return_s": 3.5800559840281494,
+        "median_pre_path_s": 19.360681870981352,
+        "median_ready_home_to_receipt_s": 2.049021979502868,
+        "rtde_or_echo_below_460_with_host_at_least_460": 0,
+        "seal_field_mismatches": 0,
+        "tp_echo_below_460_with_host_and_rtde_at_least_460": 0
+      },
+      "summary_recomputed": {
+        "attempts": 11,
+        "below_400_rtde": 0,
+        "below_460_rtde": 0,
+        "complete_paths": 10,
+        "eligible": 10,
+        "host_publish_below_460": 0,
+        "median_physical_return_s": 3.5800559840281494,
+        "median_pre_path_s": 19.360681870981352,
+        "median_ready_home_to_receipt_s": 2.049021979502868,
+        "rtde_or_echo_below_460_with_host_at_least_460": 0,
+        "seal_field_mismatches": 0,
+        "tp_echo_below_460_with_host_and_rtde_at_least_460": 0
+      }
+    }
+  },
+  "five_parameter_confirmation_pairs": {
+    "mean_A_minus_B_n": -0.13390075286045192,
+    "n_complete_pairs": 5,
+    "paired_t_95_ci_n": [
+      -0.30496028885584303,
+      0.0371587831349392
+    ],
+    "pairs": [
+      {
+        "A_bins": 550,
+        "A_complete": true,
+        "A_eligible": true,
+        "A_hz": 499.9999999999224,
+        "A_incumbent_mae_n": 1.0061050570848329,
+        "A_minus_B_improvement_n": -0.2980793841189917,
+        "B_bins": 550,
+        "B_complete": true,
+        "B_eligible": true,
+        "B_hz": 499.9999999999864,
+        "B_tuned_mae_n": 1.3041844412038246,
+        "pair_id": "confirm-s01-b00"
+      },
+      {
+        "A_bins": 550,
+        "A_complete": true,
+        "A_eligible": true,
+        "A_hz": 499.9999999999224,
+        "A_incumbent_mae_n": 0.9419680748585729,
+        "A_minus_B_improvement_n": -0.18868077983325493,
+        "B_bins": 550,
+        "B_complete": true,
+        "B_eligible": true,
+        "B_hz": 499.9999999999864,
+        "B_tuned_mae_n": 1.1306488546918279,
+        "pair_id": "confirm-s01-b01"
+      },
+      {
+        "A_bins": 550,
+        "A_complete": true,
+        "A_eligible": true,
+        "A_hz": 499.9999999999864,
+        "A_incumbent_mae_n": 1.0364228577061043,
+        "A_minus_B_improvement_n": -0.17313555907775102,
+        "B_bins": 550,
+        "B_complete": true,
+        "B_eligible": true,
+        "B_hz": 499.9999999999224,
+        "B_tuned_mae_n": 1.2095584167838553,
+        "pair_id": "confirm-s02-b02"
+      },
+      {
+        "A_bins": 550,
+        "A_complete": true,
+        "A_eligible": true,
+        "A_hz": 499.9999999999224,
+        "A_incumbent_mae_n": 1.0242417404331408,
+        "A_minus_B_improvement_n": -0.07927384267341386,
+        "B_bins": 550,
+        "B_complete": true,
+        "B_eligible": true,
+        "B_hz": 499.9999999999224,
+        "B_tuned_mae_n": 1.1035155831065546,
+        "pair_id": "confirm-s02-b03"
+      },
+      {
+        "A_bins": 550,
+        "A_complete": true,
+        "A_eligible": true,
+        "A_hz": 499.9999999999224,
+        "A_incumbent_mae_n": 1.1958953801632153,
+        "A_minus_B_improvement_n": 0.06966580140115197,
+        "B_bins": 550,
+        "B_complete": true,
+        "B_eligible": true,
+        "B_hz": 499.9999999999864,
+        "B_tuned_mae_n": 1.1262295787620633,
+        "pair_id": "confirm-s02-b04"
+      }
+    ],
+    "phase_identity": "parameter tuning candidate A/B; both use legacy integral 1.0 N*s; B is tuned Md/Bd, not integral arm B",
+    "sample_sd_n": 0.1377663653314034
+  },
+  "force_truth_boundary": "All listed force metrics use Kunwei KWR75 feedback. They are not independent task-force ground truth.",
+  "generated_on": "2026-09-27",
+  "method_note": "The sealed raw campaign roots were reprocessed with the canonical reducer and compared against the persisted reducer receipts. This is a second deterministic execution and artifact-integrity check, not an independently implemented reduction algorithm.",
+  "persisted_reducer_artifacts": {
+    "integral_screening": {
+      "path": "reports/tase-r31-integral-screening-r013-diagnostic-20260927.json",
+      "sha256": "1d70eec299e67067bea9191d07e7b6ea0a8fe9dc7baa6a5f5a6f846cf5b9fbf0"
+    },
+    "parameter_confirmation": {
+      "path": "reports/tase-resident-confirmation-r013-diagnostic-20260927.json",
+      "sha256": "4bfd7533d97634920c6879c6de7b7800c05e43cb607e7c3e62135f114910d634"
+    }
+  },
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "reducer_source_sha256": "0946cc2d4e4ed33760a7d27fc77d96aecaa81cf5e0318e85f9e5af658e4ebbb7",
+  "reduction_commands": [
+    "python3 tools/analyze_tase_resident_evidence.py --runs-root runs/tase-r31-integral-screening-20260925T1825HKT --out /tmp/tase-r31-integral-screening-recomputed-20260927.json",
+    "python3 tools/analyze_tase_resident_evidence.py --runs-root runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1 --out /tmp/tase-resident-confirmation-recomputed-20260927.json"
+  ],
+  "reexecution_receipts": {
+    "integral_screening": {
+      "path": "/tmp/tase-r31-integral-screening-recomputed-20260927.json",
+      "sha256": "1d70eec299e67067bea9191d07e7b6ea0a8fe9dc7baa6a5f5a6f846cf5b9fbf0"
+    },
+    "parameter_confirmation": {
+      "path": "/tmp/tase-resident-confirmation-recomputed-20260927.json",
+      "sha256": "4bfd7533d97634920c6879c6de7b7800c05e43cb607e7c3e62135f114910d634"
+    }
+  },
+  "schema": "tase.r013.metric-alignment-reverification-v1",
+  "separate_integral_policy_10_pair_result": {
+    "A_improvement_vs_B_mean_n": 0.1796335768645624,
+    "complete_pair_count": 10,
+    "failure_denominator_policy": "Original failed/ineligible attempts, including the incomplete pair01/pair02 blocks and superseded whole-pair replacements, remain in their source ledgers; this analysis uses only 10 complete pair blocks and does not delete or relabel those attempts.",
+    "force_truth_limit": "Kunwei signed normal-force feedback only; not independent task-force ground truth",
+    "improvement_supported": true,
+    "paired_sample_sd_n": 0.21064119508655008,
+    "paired_t_ci95_n": [
+      0.028949943281295798,
+      0.330317210447829
+    ]
+  },
+  "source_campaigns": {
+    "integral_policy_10_pair": "reports/tase_r31_integral_ab_rate460_10pair_evidence_reconciliation_20260926.json",
+    "integral_screening": "runs/tase-r31-integral-screening-20260925T1825HKT",
+    "parameter_confirmation": "runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1"
+  }
+}

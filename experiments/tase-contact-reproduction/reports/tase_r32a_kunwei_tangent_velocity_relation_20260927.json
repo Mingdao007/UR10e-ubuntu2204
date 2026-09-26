@@ -1,0 +1,550 @@
+{
+  "attempt_count": 5,
+  "attempts": [
+    {
+      "actual_tcp_speed_vs_pose_difference_check": {
+        "mean_cosine": 0.9984402163044057,
+        "median_speed_ratio": 1.055255194901902,
+        "positive_direction_fraction": 1.0,
+        "rms_component_difference_m_s": 0.00020447119266914086,
+        "valid_bins": 550
+      },
+      "actual_tcp_velocity_alignment": {
+        "mean_cosine": -0.8067010814471608,
+        "mean_force_projection_on_velocity_n": -0.5041603670178492,
+        "median_velocity_m_s": 0.002673227497152147,
+        "negative_cosine_fraction": 0.9581818181818181,
+        "p90_velocity_m_s": 0.004505212877441947,
+        "valid_bins": 550
+      },
+      "actual_velocity_source": "RTDE actual_TCP_speed captured in synchronized replay inputs",
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0002",
+      "binned_force_regression": {
+        "response": "base-frame tangent KWR75 force x/y, equal-weight 100 ms bins in [5,60)",
+        "velocity_and_finite_difference_acceleration": {
+          "acceleration_method": "finite difference of 100 ms-bin mean RTDE TCP velocity",
+          "coefficients_by_force_axis_n_xy": [
+            [
+              -182.35557098052,
+              0.24165992433302833,
+              15.000967864594093,
+              -5.09123752105766
+            ],
+            [
+              9.14936915343634,
+              -143.4435284437268,
+              4.102577909387181,
+              4.972233444631183
+            ]
+          ],
+          "intercept_n_xy": [
+            -0.23805618556234728,
+            -0.232168394411846
+          ],
+          "r_squared_xy": [
+            0.5775806031301325,
+            0.6271528808489061
+          ]
+        },
+        "velocity_only": {
+          "intercept_n_xy": [
+            -0.23859829673289776,
+            -0.23238552253688824
+          ],
+          "r_squared_xy": [
+            0.5702945801816841,
+            0.6247757868146657
+          ],
+          "slope_n_s_per_m_xy": [
+            [
+              -181.98103789183182,
+              -0.07576779195148865
+            ],
+            [
+              9.445950303956124,
+              -143.56412094984165
+            ]
+          ]
+        }
+      },
+      "force_source": "baseline-corrected Kunwei KWR75 control_wrench_tcp_n_nm",
+      "formal_bins": 550,
+      "path_rows_formal": 27480,
+      "reference_velocity_alignment": {
+        "mean_cosine": -0.8119973499648283,
+        "mean_force_projection_on_velocity_n": -0.5049157514315697,
+        "median_velocity_m_s": 0.0025660803593819644,
+        "negative_cosine_fraction": 0.96,
+        "p90_velocity_m_s": 0.004207864813713262,
+        "valid_bins": 550
+      },
+      "source_timeline_sha256": "89ba3e2024eac35299ac90115a35d9aec5161879e1aec7d6dbd965ad9190f8a7"
+    },
+    {
+      "actual_tcp_speed_vs_pose_difference_check": {
+        "mean_cosine": 0.9981485721138253,
+        "median_speed_ratio": 1.0511228262679242,
+        "positive_direction_fraction": 1.0,
+        "rms_component_difference_m_s": 0.00019692906823676502,
+        "valid_bins": 550
+      },
+      "actual_tcp_velocity_alignment": {
+        "mean_cosine": -0.7925654946445339,
+        "mean_force_projection_on_velocity_n": -0.5014237453036753,
+        "median_velocity_m_s": 0.002735691336119013,
+        "negative_cosine_fraction": 0.9527272727272728,
+        "p90_velocity_m_s": 0.004450004893353751,
+        "valid_bins": 550
+      },
+      "actual_velocity_source": "RTDE actual_TCP_speed captured in synchronized replay inputs",
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0004",
+      "binned_force_regression": {
+        "response": "base-frame tangent KWR75 force x/y, equal-weight 100 ms bins in [5,60)",
+        "velocity_and_finite_difference_acceleration": {
+          "acceleration_method": "finite difference of 100 ms-bin mean RTDE TCP velocity",
+          "coefficients_by_force_axis_n_xy": [
+            [
+              -174.33591775536422,
+              1.553863997989286,
+              11.19794751859426,
+              -0.7873010129963993
+            ],
+            [
+              4.952659033177355,
+              -141.0433854860842,
+              7.362138499828557,
+              5.883092207472908
+            ]
+          ],
+          "intercept_n_xy": [
+            -0.23616765731074818,
+            -0.20231287557718874
+          ],
+          "r_squared_xy": [
+            0.5094052955675915,
+            0.6057673333599546
+          ]
+        },
+        "velocity_only": {
+          "intercept_n_xy": [
+            -0.23642099352354176,
+            -0.20225876711829643
+          ],
+          "r_squared_xy": [
+            0.5033093059810438,
+            0.6015895014139674
+          ],
+          "slope_n_s_per_m_xy": [
+            [
+              -174.14856773186042,
+              1.4382540731043205
+            ],
+            [
+              4.915400146331166,
+              -141.018641698468
+            ]
+          ]
+        }
+      },
+      "force_source": "baseline-corrected Kunwei KWR75 control_wrench_tcp_n_nm",
+      "formal_bins": 550,
+      "path_rows_formal": 27499,
+      "reference_velocity_alignment": {
+        "mean_cosine": -0.7898238223888576,
+        "mean_force_projection_on_velocity_n": -0.5014671301578445,
+        "median_velocity_m_s": 0.0025660803593815355,
+        "negative_cosine_fraction": 0.9454545454545454,
+        "p90_velocity_m_s": 0.004207864813713435,
+        "valid_bins": 550
+      },
+      "source_timeline_sha256": "bebf6a408a8bb2d7bb0ac72217669b77e140b216a18546813ce84cb1e64caedf"
+    },
+    {
+      "actual_tcp_speed_vs_pose_difference_check": {
+        "mean_cosine": 0.9977655912740457,
+        "median_speed_ratio": 1.0531316984036498,
+        "positive_direction_fraction": 1.0,
+        "rms_component_difference_m_s": 0.00021319652049691504,
+        "valid_bins": 550
+      },
+      "actual_tcp_velocity_alignment": {
+        "mean_cosine": -0.7659604906016468,
+        "mean_force_projection_on_velocity_n": -0.4834442906822823,
+        "median_velocity_m_s": 0.0027061156612680705,
+        "negative_cosine_fraction": 0.9381818181818182,
+        "p90_velocity_m_s": 0.00449914512834602,
+        "valid_bins": 550
+      },
+      "actual_velocity_source": "RTDE actual_TCP_speed captured in synchronized replay inputs",
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0002",
+      "binned_force_regression": {
+        "response": "base-frame tangent KWR75 force x/y, equal-weight 100 ms bins in [5,60)",
+        "velocity_and_finite_difference_acceleration": {
+          "acceleration_method": "finite difference of 100 ms-bin mean RTDE TCP velocity",
+          "coefficients_by_force_axis_n_xy": [
+            [
+              -174.22603479724586,
+              3.4350264266446326,
+              16.67196885149379,
+              -11.120229414942541
+            ],
+            [
+              4.6520182632774265,
+              -135.31358899851196,
+              10.068459241468002,
+              -4.3785569856923585
+            ]
+          ],
+          "intercept_n_xy": [
+            -0.23794193456784418,
+            -0.21150700502034372
+          ],
+          "r_squared_xy": [
+            0.5178445027352445,
+            0.590130120349741
+          ]
+        },
+        "velocity_only": {
+          "intercept_n_xy": [
+            -0.2384662522959584,
+            -0.2118541399623974
+          ],
+          "r_squared_xy": [
+            0.5114381831798265,
+            0.5886305107045025
+          ],
+          "slope_n_s_per_m_xy": [
+            [
+              -173.9539589750857,
+              3.1661253340802835
+            ],
+            [
+              4.849737197735152,
+              -135.49019874863106
+            ]
+          ]
+        }
+      },
+      "force_source": "baseline-corrected Kunwei KWR75 control_wrench_tcp_n_nm",
+      "formal_bins": 550,
+      "path_rows_formal": 27493,
+      "reference_velocity_alignment": {
+        "mean_cosine": -0.7684858293725694,
+        "mean_force_projection_on_velocity_n": -0.48522415742105945,
+        "median_velocity_m_s": 0.002566080359382966,
+        "negative_cosine_fraction": 0.9363636363636364,
+        "p90_velocity_m_s": 0.004207864813712572,
+        "valid_bins": 550
+      },
+      "source_timeline_sha256": "9c62e807f869da886dcb211e6884fb87d818002a9f88ccb3bd66186e20e4d573"
+    },
+    {
+      "actual_tcp_speed_vs_pose_difference_check": {
+        "mean_cosine": 0.9981011263758044,
+        "median_speed_ratio": 1.052110059819472,
+        "positive_direction_fraction": 1.0,
+        "rms_component_difference_m_s": 0.0002183356779696406,
+        "valid_bins": 550
+      },
+      "actual_tcp_velocity_alignment": {
+        "mean_cosine": -0.7704583812685061,
+        "mean_force_projection_on_velocity_n": -0.49749367246333825,
+        "median_velocity_m_s": 0.0026775546040756757,
+        "negative_cosine_fraction": 0.9290909090909091,
+        "p90_velocity_m_s": 0.004428004739641061,
+        "valid_bins": 550
+      },
+      "actual_velocity_source": "RTDE actual_TCP_speed captured in synchronized replay inputs",
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0003",
+      "binned_force_regression": {
+        "response": "base-frame tangent KWR75 force x/y, equal-weight 100 ms bins in [5,60)",
+        "velocity_and_finite_difference_acceleration": {
+          "acceleration_method": "finite difference of 100 ms-bin mean RTDE TCP velocity",
+          "coefficients_by_force_axis_n_xy": [
+            [
+              -171.33199022531315,
+              -1.284252358742901,
+              12.508914063595181,
+              -4.174625680350328
+            ],
+            [
+              13.990346739643257,
+              -146.72471091014316,
+              7.456787837441887,
+              -0.8249366861639797
+            ]
+          ],
+          "intercept_n_xy": [
+            -0.23149401184444876,
+            -0.24286100759545437
+          ],
+          "r_squared_xy": [
+            0.5137848380353353,
+            0.6502805703270919
+          ]
+        },
+        "velocity_only": {
+          "intercept_n_xy": [
+            -0.23175918549242222,
+            -0.24305302896920183
+          ],
+          "r_squared_xy": [
+            0.5076687786756637,
+            0.6487685788863938
+          ],
+          "slope_n_s_per_m_xy": [
+            [
+              -171.16247742291108,
+              -1.4076493258949134
+            ],
+            [
+              14.116821683708793,
+              -146.81350284005921
+            ]
+          ]
+        }
+      },
+      "force_source": "baseline-corrected Kunwei KWR75 control_wrench_tcp_n_nm",
+      "formal_bins": 550,
+      "path_rows_formal": 27139,
+      "reference_velocity_alignment": {
+        "mean_cosine": -0.7742377410583385,
+        "mean_force_projection_on_velocity_n": -0.499374954859053,
+        "median_velocity_m_s": 0.0025660803593820355,
+        "negative_cosine_fraction": 0.9345454545454546,
+        "p90_velocity_m_s": 0.004207864813713262,
+        "valid_bins": 550
+      },
+      "source_timeline_sha256": "1e10313919f5080bdb9276ac209f0da4df83416025a7a6006c8243aa7b986a2e"
+    },
+    {
+      "actual_tcp_speed_vs_pose_difference_check": {
+        "mean_cosine": 0.9980777038244971,
+        "median_speed_ratio": 1.0570536342418526,
+        "positive_direction_fraction": 1.0,
+        "rms_component_difference_m_s": 0.00021415691708987882,
+        "valid_bins": 550
+      },
+      "actual_tcp_velocity_alignment": {
+        "mean_cosine": -0.7600964511070502,
+        "mean_force_projection_on_velocity_n": -0.4728067536464478,
+        "median_velocity_m_s": 0.002699678696837237,
+        "negative_cosine_fraction": 0.92,
+        "p90_velocity_m_s": 0.0043939448031013704,
+        "valid_bins": 550
+      },
+      "actual_velocity_source": "RTDE actual_TCP_speed captured in synchronized replay inputs",
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0005",
+      "binned_force_regression": {
+        "response": "base-frame tangent KWR75 force x/y, equal-weight 100 ms bins in [5,60)",
+        "velocity_and_finite_difference_acceleration": {
+          "acceleration_method": "finite difference of 100 ms-bin mean RTDE TCP velocity",
+          "coefficients_by_force_axis_n_xy": [
+            [
+              -176.23313620056734,
+              1.7348863941222628,
+              3.719907290580996,
+              3.179099176879788
+            ],
+            [
+              9.356541954516686,
+              -134.49752011824924,
+              -9.296926925167261,
+              13.446550089178164
+            ]
+          ],
+          "intercept_n_xy": [
+            -0.20873999414627914,
+            -0.23818871846486725
+          ],
+          "r_squared_xy": [
+            0.5204177659051555,
+            0.5797229211897792
+          ]
+        },
+        "velocity_only": {
+          "intercept_n_xy": [
+            -0.20883607668019089,
+            -0.2377252632344888
+          ],
+          "r_squared_xy": [
+            0.5172059407594677,
+            0.5765411336334926
+          ],
+          "slope_n_s_per_m_xy": [
+            [
+              -176.0876966764817,
+              1.668893803391307
+            ],
+            [
+              9.309414506418918,
+              -134.23218632512297
+            ]
+          ]
+        }
+      },
+      "force_source": "baseline-corrected Kunwei KWR75 control_wrench_tcp_n_nm",
+      "formal_bins": 550,
+      "path_rows_formal": 27498,
+      "reference_velocity_alignment": {
+        "mean_cosine": -0.7707970835081619,
+        "mean_force_projection_on_velocity_n": -0.4735966402904393,
+        "median_velocity_m_s": 0.0025660803593793905,
+        "negative_cosine_fraction": 0.9290909090909091,
+        "p90_velocity_m_s": 0.004207864813714643,
+        "valid_bins": 550
+      },
+      "source_timeline_sha256": "c4bdabf7d913e1457af045c5dd28ca2d0afee72233a5b2a63e73ee7e219afd5f"
+    }
+  ],
+  "causal_interpretation": "not identified; velocity-correlated KWR75 feedback can include contact friction/reaction, residual baseline, sensor/frame effects, and closed-loop coupling",
+  "evidence_class": "offline_descriptive_same_trace_association",
+  "independent_task_force_ground_truth": false,
+  "leave_one_attempt_out_velocity_model": {
+    "cross_validation_unit": "hold out one whole Figure-eight attempt; train on the other four attempts",
+    "fit": "force_xy = intercept_xy + B_xy @ actual_tcp_velocity_xy",
+    "folds": [
+      {
+        "constant_force_model_rmse_n": 0.4244973081750891,
+        "held_out_attempt_index": 0,
+        "held_out_bins": 550,
+        "training_intercept_n_xy": [
+          -0.22887031170748742,
+          -0.22372529531064078
+        ],
+        "training_velocity_coefficients_by_force_axis": [
+          [
+            -173.83661109373693,
+            1.2156782164245723
+          ],
+          [
+            8.326487621369978,
+            -139.3814122995756
+          ]
+        ],
+        "velocity_model_reduction_vs_constant_fraction": 0.3719703070627062,
+        "velocity_model_rmse_n": 0.266596914105909,
+        "zero_force_rmse_n": 0.48202192806543426
+      },
+      {
+        "constant_force_model_rmse_n": 0.42819534865533615,
+        "held_out_attempt_index": 1,
+        "held_out_bins": 550,
+        "training_intercept_n_xy": [
+          -0.22941110578095983,
+          -0.23125554037911664
+        ],
+        "training_velocity_coefficients_by_force_axis": [
+          [
+            -175.7907087899011,
+            0.8408000932479793
+          ],
+          [
+            9.456709541963676,
+            -140.01928626937504
+          ]
+        ],
+        "velocity_model_reduction_vs_constant_fraction": 0.34213482942337314,
+        "velocity_model_rmse_n": 0.2816948060832609,
+        "zero_force_rmse_n": 0.48028385451153227
+      },
+      {
+        "constant_force_model_rmse_n": 0.41809911724478777,
+        "held_out_attempt_index": 2,
+        "held_out_bins": 550,
+        "training_intercept_n_xy": [
+          -0.2289008435914744,
+          -0.2288545757047394
+        ],
+        "training_velocity_coefficients_by_force_axis": [
+          [
+            -175.84123698844644,
+            0.4067493242259798
+          ],
+          [
+            9.470471212570033,
+            -141.39786479051935
+          ]
+        ],
+        "velocity_model_reduction_vs_constant_fraction": 0.3374765772242243,
+        "velocity_model_rmse_n": 0.2770004582165471,
+        "zero_force_rmse_n": 0.47421850382641023
+      },
+      {
+        "constant_force_model_rmse_n": 0.4246439127595614,
+        "held_out_attempt_index": 3,
+        "held_out_bins": 550,
+        "training_intercept_n_xy": [
+          -0.2305751489469679,
+          -0.22105860361189086
+        ],
+        "training_velocity_coefficients_by_force_axis": [
+          [
+            -176.54443290448896,
+            1.5522617735166593
+          ],
+          [
+            7.154353040345143,
+            -138.56843878092505
+          ]
+        ],
+        "velocity_model_reduction_vs_constant_fraction": 0.3673630318201956,
+        "velocity_model_rmse_n": 0.2686454375242183,
+        "zero_force_rmse_n": 0.48022888607617104
+      },
+      {
+        "constant_force_model_rmse_n": 0.41995905904346387,
+        "held_out_attempt_index": 4,
+        "held_out_bins": 550,
+        "training_intercept_n_xy": [
+          -0.23630705180594502,
+          -0.2223896810406742
+        ],
+        "training_velocity_coefficients_by_force_axis": [
+          [
+            -175.3087627056103,
+            0.781655408367263
+          ],
+          [
+            8.349796227716382,
+            -141.71933383111678
+          ]
+        ],
+        "velocity_model_reduction_vs_constant_fraction": 0.33132404315764263,
+        "velocity_model_rmse_n": 0.28081652564050424,
+        "zero_force_rmse_n": 0.47060243399496265
+      }
+    ],
+    "interpretation_limit": "descriptive predictive repeatability only; no causal or external-force identification"
+  },
+  "schema": "tase.kunwei-tangent-velocity-relation-audit-v1",
+  "source_audit": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/reports/tase_r32a_kunwei_tangent_path_direction_audit_20260927.json",
+  "source_audit_sha256": "754d0d093e65c6b5417ee5fca2a5a1bf1bd6d7f8cb7a264072db41648df363a4",
+  "summary": {
+    "actual_velocity_mean_cosine_mean": -0.7791563798137796,
+    "actual_velocity_negative_alignment_fraction_max": 0.9581818181818181,
+    "actual_velocity_negative_alignment_fraction_mean": 0.9396363636363636,
+    "actual_velocity_negative_alignment_fraction_min": 0.92,
+    "leave_one_attempt_out_velocity_model_reduction_vs_constant_fraction_mean": 0.35005375773762837,
+    "leave_one_attempt_out_velocity_model_reduction_vs_constant_fraction_range": [
+      0.33132404315764263,
+      0.3719703070627062
+    ],
+    "tcp_speed_vs_pose_difference_mean_cosine_range": [
+      0.9977655912740457,
+      0.9984402163044057
+    ],
+    "tcp_speed_vs_pose_difference_positive_direction_fraction_range": [
+      1.0,
+      1.0
+    ],
+    "velocity_only_r_squared_xy_range": [
+      0.5033093059810438,
+      0.6487685788863938
+    ],
+    "velocity_plus_acceleration_r_squared_xy_range": [
+      0.5094052955675915,
+      0.6502805703270919
+    ]
+  }
+}
