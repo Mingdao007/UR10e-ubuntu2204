@@ -16,6 +16,8 @@ import tase_sfc_dsfc_comparison as comparison  # noqa: E402
 import tase_sfc_dsfc_replay as command_replay  # noqa: E402
 from contact_method_registry import RegistryError, default_registry  # noqa: E402
 from contact_yield_method_registry import load_frozen_native_tangent_composition_records  # noqa: E402
+from contact_yield_math import so3_log  # noqa: E402
+from step5d_paper_outer_loop import Step5dOuterLoopInputs, rotvec_to_matrix  # noqa: E402
 from tase_sfc_fusion import NATIVE_DSFC_COMPOSITION_ID, NATIVE_SFC_COMPOSITION_ID, FusionError, TaseSfcFusion  # noqa: E402
 
 
@@ -43,6 +45,10 @@ def test_frozen_native_profiles_use_a_incumbent_and_distinct_law_identities():
     assert profile["path_duration_s"] == 60.0
     assert profile["outer_profile_id"] == f"{normal_a['protocol_id']}:{normal_a['candidate_id']}"
     assert outer["force_integral_limit_n_s"] == normal_a["frozen"]["force_integral_limit_n_s"]
+    home = json.loads((ROOT / "config/figure8_home_v1.json").read_text(encoding="utf-8"))
+    assert profile["orientation_target_policy"] == "fixed_approved_home_rotvec"
+    assert tuple(profile["orientation_target_rotvec_rad"]) == tuple(home["orientation_rotvec_rad"])
+    assert profile["orientation_target_source"] == "config/figure8_home_v1.json#orientation_rotvec_rad"
     assert comparison.METHODS == (
         "TASE_RNN_MATURE+SFC_YIELD_V1",
         "TASE_RNN_MATURE+DSFC_YIELD_V1",
@@ -133,6 +139,70 @@ def test_registry_rejects_unfrozen_native_parameter_values():
     candidate = comparison._candidate(profile, "DSFC")
     candidate["tangential_parameters"]["g"] += 0.01
     with pytest.raises(RegistryError, match="frozen profile"):
+        default_registry().initialize(
+            comparison.METHODS[1],
+            config=candidate,
+            outer_config=profile["normal_outer_config"],
+        )
+
+
+def test_native_composition_uses_live_fixed_home_orientation_feedback():
+    profile = comparison._load_frozen_profiles()
+    candidate = comparison._candidate(profile, "SFC")
+    handle = default_registry().initialize(
+        comparison.METHODS[0],
+        config=candidate,
+        outer_config=profile["normal_outer_config"],
+    )
+    try:
+        home_orientation = np.asarray(profile["orientation_target_rotvec_rad"], dtype=float)
+        actual_orientation = home_orientation + np.asarray([0.0002, -0.0003, 0.0004])
+        pose = np.asarray([0.462, 0.178, 0.034, *actual_orientation], dtype=float)
+        rotation = rotvec_to_matrix(actual_orientation)
+        force_tcp = np.zeros(3, dtype=float)
+        inputs = Step5dOuterLoopInputs(
+            tcp_pose_base=tuple(float(value) for value in pose),
+            tcp_speed_base=(0.0,) * 6,
+            force_tcp_n=tuple(float(value) for value in force_tcp),
+            x_pd_base=tuple(float(value) for value in pose[:3]),
+            xdot_pd_base=(0.0, 0.0, 0.0),
+            dt_s=0.002,
+            control_reaction_normal_base=(0.0, 0.0, 1.0),
+        )
+        measured = {
+            "tcp_pose_base": tuple(float(value) for value in pose),
+            "wrench_tcp": (0.0,) * 6,
+        }
+        target = {
+            "x_pd_base": tuple(float(value) for value in pose[:3]),
+            "xdot_pd_base": (0.0, 0.0, 0.0),
+            "phase": "path",
+        }
+        _twist, diagnostics = handle.backend._transform_twist(
+            np.zeros(6), inputs, measured, target, 0.002
+        )
+        expected = (
+            profile["normal_outer_config"]["ko"]
+            * profile["normal_outer_config"].get("orientation_gain_scale", 1.0)
+            * so3_log(
+                rotvec_to_matrix(home_orientation) @ rotation.T
+            )
+        )
+        actual = np.asarray(
+            diagnostics["tase_normal_and_orientation_m_s_rad_s"][3:],
+            dtype=float,
+        )
+        np.testing.assert_allclose(actual, expected, atol=1e-12, rtol=0.0)
+        assert diagnostics["orientation_target_policy"] == "fixed_approved_home_rotvec"
+    finally:
+        handle.close()
+
+
+def test_native_composition_rejects_posture_target_other_than_approved_home():
+    profile = comparison._load_frozen_profiles()
+    candidate = comparison._candidate(profile, "DSFC")
+    candidate["orientation_target_rotvec_rad"][0] += 0.01
+    with pytest.raises(RegistryError, match="approved Figure-eight Home"):
         default_registry().initialize(
             comparison.METHODS[1],
             config=candidate,

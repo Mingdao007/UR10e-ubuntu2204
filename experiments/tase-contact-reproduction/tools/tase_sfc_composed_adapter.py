@@ -16,6 +16,7 @@ from typing import Any, Mapping
 import numpy as np
 
 from contact_laws import ContactLawSnapshot
+from contact_yield_math import so3_log
 from contact_yield_laws import YieldLaw
 from step5d_paper_outer_loop import Step5dOuterLoopInputs, rotvec_to_matrix
 from tase_method_adapters import TaseOfflineMethodAdapter, _finite_vector
@@ -40,6 +41,8 @@ NATIVE_COMPOSITION_IDS = {
     "SFC": NATIVE_SFC_COMPOSITION_ID,
     "DSFC": NATIVE_DSFC_COMPOSITION_ID,
 }
+PAPER_NORMAL_ORIENTATION_POLICY = "paper_normal_aligning"
+FIXED_HOME_ORIENTATION_POLICY = "fixed_approved_home_rotvec"
 
 
 def _elapsed_substep_count(dt_s: float) -> int:
@@ -75,6 +78,8 @@ class TaseSfcComposedOfflineAdapter:
         path_stiffness_n_per_m: float = DEFAULT_PATH_STIFFNESS_N_PER_M,
         initial_normal: Any = (0.0, 0.0, 1.0),
         dt_s: float = 0.002,
+        orientation_target_policy: str = PAPER_NORMAL_ORIENTATION_POLICY,
+        orientation_target_rotvec_rad: Any | None = None,
         law_build_root: str | None = None,
     ) -> None:
         if tase_adapter.method_name not in SUPPORTED_NORMAL_METHODS:
@@ -109,6 +114,24 @@ class TaseSfcComposedOfflineAdapter:
             self._initial_normal = tuple(float(value) for value in normal_tangent_projectors(initial_normal).normal)
         except (FusionError, TypeError, ValueError) as exc:
             raise TaseSfcCompositionError(f"invalid initial normal: {exc}") from exc
+        orientation_policy = str(orientation_target_policy)
+        if orientation_policy == PAPER_NORMAL_ORIENTATION_POLICY:
+            if orientation_target_rotvec_rad is not None:
+                raise TaseSfcCompositionError(
+                    "paper normal-aligning orientation must not carry a Home target"
+                )
+            orientation_target = None
+        elif orientation_policy == FIXED_HOME_ORIENTATION_POLICY:
+            try:
+                orientation_target = tuple(float(value) for value in _finite_vector(
+                    orientation_target_rotvec_rad, 3, "orientation_target_rotvec_rad"
+                ))
+            except (TypeError, ValueError) as exc:
+                raise TaseSfcCompositionError(
+                    "fixed Home orientation requires a finite rotation vector"
+                ) from exc
+        else:
+            raise TaseSfcCompositionError("unknown TASE orientation target policy")
         self.method_name = method_name
         self.tangential_method = law
         self.identity_mode = mode
@@ -117,6 +140,8 @@ class TaseSfcComposedOfflineAdapter:
         self.tase = tase_adapter
         self.path_stiffness_n_per_m = stiffness
         self.dt_s = elapsed
+        self.orientation_target_policy = orientation_policy
+        self.orientation_target_rotvec_rad = orientation_target
         self.tangent_law = YieldLaw(law, parameters, dt_s=elapsed, build_root=law_build_root)
         self.sfc_law = self.tangent_law if law == "SFC" else None
         self.fusion = TaseSfcFusion(self._initial_normal, composition_id=composition_id)
@@ -145,6 +170,11 @@ class TaseSfcComposedOfflineAdapter:
             "dt_s": self.dt_s,
             "initial_normal": list(self._initial_normal),
             "path_stiffness_n_per_m": self.path_stiffness_n_per_m,
+            "orientation_target_policy": self.orientation_target_policy,
+            "orientation_target_rotvec_rad": (
+                None if self.orientation_target_rotvec_rad is None
+                else list(self.orientation_target_rotvec_rad)
+            ),
             "tase": self.tase.snapshot(),
             "tangential_law": law_state,
             "fusion": self.fusion.snapshot(),
@@ -171,6 +201,11 @@ class TaseSfcComposedOfflineAdapter:
                 self.path_stiffness_n_per_m,
                 rel_tol=0.0,
                 abs_tol=1e-12,
+            )
+            or state.get("orientation_target_policy") != self.orientation_target_policy
+            or state.get("orientation_target_rotvec_rad") != (
+                None if self.orientation_target_rotvec_rad is None
+                else list(self.orientation_target_rotvec_rad)
             )
         ):
             raise TaseSfcCompositionError("composition snapshot identity differs")
@@ -277,6 +312,16 @@ class TaseSfcComposedOfflineAdapter:
             tangent_feedforward = np.zeros(3)
             sfc_task = np.zeros(6)
 
+        tase_twist = np.asarray(tase_twist, dtype=float).copy()
+        if self.orientation_target_rotvec_rad is not None:
+            target_rotation = rotvec_to_matrix(self.orientation_target_rotvec_rad)
+            orientation_error_base = so3_log(target_rotation @ rotation.T)
+            orientation_gain = (
+                float(self.tase.outer_config.ko)
+                * float(self.tase.outer_config.orientation_gain_scale)
+            )
+            tase_twist[3:] = orientation_gain * orientation_error_base
+
         fused = self.fusion.fuse(tase_twist, sfc_task, normal, phase=phase)
         if fused.diagnostics["normal_jump"]:
             self.tangent_law.reset()
@@ -301,6 +346,13 @@ class TaseSfcComposedOfflineAdapter:
             "tangential_law_identity": self.tangent_law.identity,
             "tangential_build_fingerprint": self.tangent_law.build_fingerprint,
             "path_stiffness_n_per_m": self.path_stiffness_n_per_m,
+            "orientation_target_policy": self.orientation_target_policy,
+            "orientation_target_rotvec_rad": (
+                None if self.orientation_target_rotvec_rad is None
+                else list(self.orientation_target_rotvec_rad)
+            ),
+            "orientation_gain_scale": float(self.tase.outer_config.orientation_gain_scale),
+            "orientation_gain_rad_s_per_rad": float(self.tase.outer_config.ko),
             "observed_dt_s": float(dt_s),
             "tangential_integration_substeps": integration_substeps,
             "tangential_substep_dt_s": integration_substep_dt_s,

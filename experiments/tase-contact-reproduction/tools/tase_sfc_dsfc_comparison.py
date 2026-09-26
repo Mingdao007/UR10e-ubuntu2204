@@ -109,6 +109,17 @@ def _load_frozen_profiles() -> dict[str, Any]:
 
     incumbent, incumbent_sha = _load_normal_a_profile(root)
     frozen = incumbent["frozen"]
+    home_path = root / "config" / "figure8_home_v1.json"
+    home = json.loads(home_path.read_text(encoding="utf-8"))
+    if (
+        home.get("schema") != "tase.figure8/canonical-home-v1"
+        or home.get("status") != "canonical_for_figure8_and_autotuner"
+        or home.get("reuse_policy", {}).get("orientation_is_fixed") is not True
+    ):
+        raise ValueError("native TASE/SFC posture source is not the approved fixed Figure-eight Home")
+    home_orientation = tuple(float(value) for value in home.get("orientation_rotvec_rad", ()))
+    if len(home_orientation) != 3 or not np.isfinite(home_orientation).all():
+        raise ValueError("approved Figure-eight Home orientation is invalid")
     normal_identity_path = root / "config" / "yield_live_entry_v1.json"
     normal_identity = json.loads(normal_identity_path.read_text(encoding="utf-8"))
     if normal_identity["methods"]["TASE_RNN_MATURE"].get("implementation") != R31_NORMAL_IDENTITY:
@@ -145,6 +156,9 @@ def _load_frozen_profiles() -> dict[str, Any]:
         "route_config_sha256": hashlib.sha256(route_path.read_bytes()).hexdigest(),
         "observer_profile_id": "yield_normal_observer_v3",
         "observer_parameters": research._normal_observer_profile()[1],
+        "orientation_target_policy": "fixed_approved_home_rotvec",
+        "orientation_target_rotvec_rad": home_orientation,
+        "orientation_target_source": "config/figure8_home_v1.json#orientation_rotvec_rad",
         "path_stiffness_n_per_m": 120.0,
         "path_stiffness_source": "existing TaseSfcComposedOfflineAdapter default",
         "dt_s": research.DT_S,
@@ -164,6 +178,8 @@ def _candidate(profile: dict[str, Any], law: str) -> dict[str, Any]:
         "tangential_parameter_source": f"config/yield_native_route_v1.json#law_parameters.{law}",
         "path_stiffness_n_per_m": profile["path_stiffness_n_per_m"],
         "initial_normal": [0.0, 0.0, 1.0],
+        "orientation_target_policy": profile["orientation_target_policy"],
+        "orientation_target_rotvec_rad": list(profile["orientation_target_rotvec_rad"]),
         "dt_s": profile["dt_s"],
     }
 
@@ -267,6 +283,7 @@ def _render_report(summary: dict[str, Any]) -> str:
         f"Frozen normal controller: `{summary['profile']['normal_controller']}`, A outer profile `{summary['profile']['outer_profile_id']}` with Md={summary['profile']['normal_outer_config']['Md_scalar']}, Bd={summary['profile']['normal_outer_config']['Bd_scalar']}, integral cap={summary['profile']['normal_outer_config']['force_integral_limit_n_s']} N·s.",
         f"R31 normal-law profile: epsilon={summary['profile']['normal_config']['epsilon']}, r={summary['profile']['normal_config']['sigr_exponent_r']}, sign=`{summary['profile']['normal_config']['lambda_update_sign']}` from `{summary['profile']['normal_config_source']}` (identity SHA-256 `{summary['profile']['normal_config_identity_sha256']}`).",
         f"A profile source: `{summary['profile']['normal_outer_profile_source']}` (SHA-256 `{summary['profile']['normal_outer_profile_sha256']}`), protocol `{summary['profile']['protocol_id']}`, duration `{summary['profile']['duration_token']}` / {summary['profile']['path_duration_s']} s.",
+        f"Posture adaptation: `{summary['profile']['orientation_target_policy']}` from `{summary['profile']['orientation_target_source']}`; the approved Home rotvec is held with the live `ko` feedback law instead of aligning tool Z to the reaction normal.",
         "",
         "Both laws use the same normal observer, reference trajectory, 120 N/m path-restoring term, 0.002 s simulation step, 5 N target, and ±0.05 rad/s joint-velocity bounds. Each tangent output is projected and composed before exactly one TASE final realization. No surface geometry is provided to the controller.",
         "",
@@ -404,6 +421,9 @@ def run_comparison(
         "route_config_sha256": profile["route_config_sha256"],
         "observer_profile_id": profile["observer_profile_id"],
         "observer_parameters": profile["observer_parameters"],
+        "orientation_target_policy": profile["orientation_target_policy"],
+        "orientation_target_rotvec_rad": profile["orientation_target_rotvec_rad"],
+        "orientation_target_source": profile["orientation_target_source"],
         "path_stiffness_n_per_m": profile["path_stiffness_n_per_m"],
         "path_stiffness_source": profile["path_stiffness_source"],
         "dt_s": profile["dt_s"],

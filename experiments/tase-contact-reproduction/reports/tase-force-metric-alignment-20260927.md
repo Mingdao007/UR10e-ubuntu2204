@@ -94,6 +94,16 @@ motion gate 是同一被消费 packet 的 published qdot 与 RTDE `actual_qd` �
 
 该 replay 证明切向投影在所记录轴上没有数值泄漏，且每个 tick 只调用一次 final realization；但两候选几乎每个 tick 都碰到一个 joint velocity bound，最大残差约 0.121。Native profile 的路径 restoring term `120 N/m` 以及离线 final-QP 权重不是本轮 live 批准值。此迹线不能用于声称 SFC/DSFC 改善 5 N 力跟踪，也不能通过只看零法向泄漏就升级为 live 候选。接入 live 前须先让相同受保护的最终实现能在完整 sealed input 上保留法向/姿态任务，并显著减少持续 bound hits；之后才可计算逐样本及 550/600-bin 指标。详见 [sealed TASE+SFC/DSFC replay receipt](../runs/tase-r32-sfc-dsfc-live-trace-replay-final-20260926T173500HKT/summary.json)。
 
+### Fixed-Home replay correction
+
+上述旧 replay 的法向/姿态计算没有复用 R31 live 的姿态策略。它把 TCP Z 轴对齐到 base-Z reaction normal；live A 则用 `ko` 反馈到批准的 Figure-eight Home rotvec。由于当前 Home 的 TCP Z 相对严格 `-base-Z` 倾斜约 **0.04824 rad**，旧 replay 人为引入约 **0.121 rad/s** 角速度。逐帧比较 29,989 个 sealed 输入，旧输出角速度与 live `requested_outer_twist` 的 RMS 差为 **0.12089 rad/s**，因此上述高限幅数值不能用于判断 SFC/DSFC。
+
+我已将 native SFC/DSFC 离线候选绑定到 [canonical Home](../config/figure8_home_v1.json) 姿态，并复用 live 的 SO(3) 误差公式与已冻结 `ko=5`。新 replay 对全部 29,989 行的 TASE 角速度与 live 源 command 的 RMS 差降至 **1.15e-11 rad/s**、最大差 **3.98e-11 rad/s**。SFC 和 DSFC 都是 **0/29,989** 次 joint-bound hit、0 次越界；最大关节速度分别为 0.02188 和 0.02185 rad/s，`Jqdot` 残差 RMS 分别为 0.00356 和 0.00357（混合 twist 单位）。修正后的 [fixed-Home replay receipt](../runs/tase-r32-sfc-dsfc-fixedhome-replay-20260927/summary.json) 已验证 source seal hash、相同输入 digest 和每 tick 一次 final realization。
+
+该结果只证明 posture 与命令可行性 replay 对齐；它仍是开环 counterfactual，候选命令没有反馈进下一帧，且 `primary_force_metric_recomputed=false`。它没有产生 SFC/DSFC 候选力 MAE，也没有证明真实力改善；过去的模拟力 MAE仍是原 proxy 下的历史结果，不能替代新姿态身份的真实比较。
+
+同一 sealed 输入下另行计时了 native law 本身的 `YieldLaw.step`（包含 DSFC 原生迭代，不包含 provider、RTDE、录制或 final RNN realization）：SFC 29,998 次调用 median **12.3 μs**、p99 **21.6 μs**、max **54.8 μs**；DSFC 29,998 次调用 median **12.9 μs**、p99 **22.7 μs**、max **61.6 μs**，都没有单次超过 1 ms。该结果只说明 law step 本身不是明显的 1 ms 单次计算瓶颈，不能代替完整 live loop 的 460 Hz timing gate。
+
 ## 下一步
 
-保留 A（`Md=9.5653, Bd=693.6559, integral=1.0 N·s`）为同条件参照。TASE-QP 原 profile 因 qdot motion gate 不合格；SFC/DSFC sealed-trace replay 尚无 force-score，且现有 final realization 在 99.45% ticks 碰到至少一个 joint bound。两者都不构成可配对的改进候选。下一步沿当前证据先检查 tangent law 输出、TASE orientation/normal 请求及最终实现残差的逐周期关系，使用已有 traces 做离线修正验证；任何新增 live 权重、slack、阈值或路径刚度先单独列明和讨论，不动已冻结保护。随后再评估是否能回到同条件单圈配对。每个新 live 候选继续同时输出正式 filtered 550-bin、filtered 600-bin、raw KWR75 逐样本指标及 coverage；KWR75 仍只代表 feedback source。当前没有新的 live motion；任何实机实验都要重新通过 fresh owner、安全、rate460、完整 60 s 和同一 joint Home recovery gate。
+保留 A（`Md=9.5653, Bd=693.6559, integral=1.0 N·s`）为同条件参照。TASE-QP 原 profile 仍因 qdot motion gate 不合格；native SFC/DSFC fixed-Home replay 已消除姿态错配和关节限幅，但尚无闭环 force score。下一步沿修正后的 R31 live posture，检查 tangent law 输出、TASE 法向命令及最终 `Jqdot` 对逐帧 KWR75 反馈的关系；随后评估受保护的同条件单圈对照。任何新增 live 权重、slack、阈值或路径刚度先单独列明和讨论，不动已冻结保护。每个 live candidate 继续报告正式 filtered 550-bin、filtered 600-bin、raw KWR75 逐样本指标及完整率；KWR75 仍只代表 feedback source。当前没有新的 live motion；任何实机实验都要重新通过 fresh owner、安全、rate460、完整 60 s 和同一 joint Home recovery gate。

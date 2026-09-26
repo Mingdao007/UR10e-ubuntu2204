@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 import numpy as np
+from step5d_autotune_v4_r004.timing import MAX_FRESH_GAP_S
 
 
 class RegistryError(ValueError):
@@ -90,7 +91,7 @@ class ControllerHandle:
         elapsed, stamp = float(dt), float(observation['time_s'])
         age = float(observation['state_age_s'])
         if (not all(math.isfinite(x) for x in (elapsed,stamp,age))
-            or not 0 < elapsed <= .004 or stamp < 0 or not 0 <= age < .08):
+            or not 0 < elapsed <= MAX_FRESH_GAP_S or stamp < 0 or not 0 <= age < .08):
             raise RegistryError('invalid observation time, dt, or age')
         if self.last_time_s is not None and not math.isclose(stamp-self.last_time_s,elapsed,abs_tol=1e-10,rel_tol=0):
             raise RegistryError('observation clock must advance by actual dt')
@@ -248,6 +249,12 @@ def _tase_sfc_composition_factory(expected_normal_method):
                 path_stiffness_n_per_m=options.get('path_stiffness_n_per_m', 120.0),
                 initial_normal=options.get('initial_normal', (0.0, 0.0, 1.0)),
                 dt_s=options.get('dt_s', 0.002),
+                orientation_target_policy=options.get(
+                    'orientation_target_policy', 'paper_normal_aligning'
+                ),
+                orientation_target_rotvec_rad=options.get(
+                    'orientation_target_rotvec_rad'
+                ),
             )
             return adapter, 'tase_composed'
         except Exception:
@@ -290,6 +297,28 @@ def _tase_native_tangent_factory(expected_normal_method, expected_law):
         frozen_parameters = _frozen_native_tangent_parameters(expected_law)
         if options.get('tangential_parameters') != frozen_parameters:
             raise RegistryError(f'{expected_law} parameters differ from the source-bound frozen profile')
+        root = Path(__file__).resolve().parents[1]
+        home = json.loads((root / 'config' / 'figure8_home_v1.json').read_text(encoding='utf-8'))
+        if (
+            home.get('schema') != 'tase.figure8/canonical-home-v1'
+            or home.get('status') != 'canonical_for_figure8_and_autotuner'
+            or home.get('reuse_policy', {}).get('orientation_is_fixed') is not True
+        ):
+            raise RegistryError('native composition Home orientation source is not canonical')
+        approved_orientation = tuple(float(value) for value in home.get('orientation_rotvec_rad', ()))
+        if len(approved_orientation) != 3 or not all(math.isfinite(value) for value in approved_orientation):
+            raise RegistryError('canonical Figure-eight Home orientation is invalid')
+        try:
+            candidate_orientation = tuple(
+                float(value) for value in options.get('orientation_target_rotvec_rad', ())
+            )
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise RegistryError('native composition Home orientation is missing or invalid') from exc
+        if (
+            options.get('orientation_target_policy') != 'fixed_approved_home_rotvec'
+            or candidate_orientation != approved_orientation
+        ):
+            raise RegistryError('native composition posture differs from the approved Figure-eight Home')
         solver_name, variant = ('rnn', 'mature_minus')
         base = create_tase_offline_adapter(
             method_name=expected_normal_method,
@@ -310,6 +339,8 @@ def _tase_native_tangent_factory(expected_normal_method, expected_law):
                 path_stiffness_n_per_m=options.get('path_stiffness_n_per_m', 120.0),
                 initial_normal=options.get('initial_normal', (0.0, 0.0, 1.0)),
                 dt_s=options.get('dt_s', 0.002),
+                orientation_target_policy=options['orientation_target_policy'],
+                orientation_target_rotvec_rad=options['orientation_target_rotvec_rad'],
             )
             return adapter, 'tase_composed'
         except Exception:
