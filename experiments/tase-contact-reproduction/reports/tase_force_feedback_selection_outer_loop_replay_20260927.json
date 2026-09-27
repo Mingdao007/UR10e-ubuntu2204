@@ -1,4 +1,5 @@
 {
+  "additional_candidate_control_signal": "max(one-pole filtered KWR75 normal at the existing lower tau lattice point, measured KWR75 normal)",
   "attempts": [
     {
       "Bd_scalar": 693.6559295653944,
@@ -17,6 +18,183 @@
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
+      "lower_tau_control_candidate": {
+        "control_rule": "max(one-pole filtered KWR75 normal at candidate tau, measured KWR75 normal)",
+        "counterfactual_filter_initial_state_n": 3.7804498584071276,
+        "counterfactual_integral_initial_state_n_s": 0.26333353628872214,
+        "force_mae_recomputed": false,
+        "normal_filter_tau_s": 0.24748737341529164,
+        "official_score_filter_tau_s": 0.35,
+        "pre_path_filter_and_integral_history_replayed": false,
+        "rnn_qdot_command_replay": {
+          "baseline_published_qdot_formal_max_abs_error_rad_s": 8.673617379884035e-19,
+          "baseline_reproduces_sealed_formal_qdot": true,
+          "candidate_direction_retry_rows": 1059,
+          "candidate_force_preempt_warm_start_rows": 331,
+          "candidate_profile_caps": {
+            "angular_rad_s": 0.05,
+            "normal_linear_m_s": 0.003,
+            "qdot_abs_rad_s": 0.05,
+            "tangential_m_s": 0.01,
+            "total_linear_m_s": 0.01044030650891055
+          },
+          "candidate_vs_source_retry_decision_disagreements": 117,
+          "source_direction_retry_rows": 1016,
+          "windows": {
+            "diagnostic_0_60": {
+              "candidate_final_gate_projection_rows": 0,
+              "candidate_host_slew_limited_rows": 9,
+              "candidate_joint_bound_violation_rows": 0,
+              "candidate_max_achieved_speeds_after_final_gate": {
+                "angular_rad_s": 0.0018840246299405528,
+                "normal_m_s": 0.002999999526653133,
+                "tangential_m_s": 0.005724918440284845,
+                "total_linear_m_s": 0.005726011924135077
+              },
+              "candidate_max_achieved_speeds_before_final_gate": {
+                "angular_rad_s": 0.0018840246299405528,
+                "normal_m_s": 0.002999999526653133,
+                "tangential_m_s": 0.005724918440284845,
+                "total_linear_m_s": 0.005726011924135077
+              },
+              "candidate_minus_fused_achieved_task_twist_delta": {
+                "max_vector_norm": 0.0021448968364349797,
+                "mean_vector_norm": 0.0001252612377805614,
+                "p95_vector_norm": 0.0003189975297396796
+              },
+              "candidate_minus_fused_qdot_delta_rad_s": {
+                "max_vector_norm": 0.009965328117033835,
+                "mean_vector_norm": 0.0004656544189102828,
+                "p95_vector_norm": 0.001153390291389945
+              },
+              "candidate_post_gate_slew_violation_rows": 0,
+              "candidate_post_gate_task_cap_violation_rows": 0,
+              "candidate_qdot_max_abs_rad_s": 0.013217607283462144,
+              "candidate_task_cap_pre_gate_rows": 0,
+              "candidate_task_cap_pre_gate_violations_by_axis": {
+                "angular": 0,
+                "normal": 0,
+                "tangential": 0,
+                "total_linear": 0
+              },
+              "not_force_metric": true,
+              "sample_count": 29982,
+              "window_s": [
+                0.0,
+                60.0
+              ]
+            },
+            "formal_5_60": {
+              "candidate_final_gate_projection_rows": 0,
+              "candidate_host_slew_limited_rows": 8,
+              "candidate_joint_bound_violation_rows": 0,
+              "candidate_max_achieved_speeds_after_final_gate": {
+                "angular_rad_s": 0.0018840246299405528,
+                "normal_m_s": 0.002999999526653133,
+                "tangential_m_s": 0.004834458710334423,
+                "total_linear_m_s": 0.004911929660538405
+              },
+              "candidate_max_achieved_speeds_before_final_gate": {
+                "angular_rad_s": 0.0018840246299405528,
+                "normal_m_s": 0.002999999526653133,
+                "tangential_m_s": 0.004834458710334423,
+                "total_linear_m_s": 0.004911929660538405
+              },
+              "candidate_minus_fused_achieved_task_twist_delta": {
+                "max_vector_norm": 0.0021448968364349797,
+                "mean_vector_norm": 0.00011459546269552164,
+                "p95_vector_norm": 0.0002934049389383816
+              },
+              "candidate_minus_fused_qdot_delta_rad_s": {
+                "max_vector_norm": 0.009965328117033835,
+                "mean_vector_norm": 0.00041582012735287804,
+                "p95_vector_norm": 0.0011053958455693787
+              },
+              "candidate_post_gate_slew_violation_rows": 0,
+              "candidate_post_gate_task_cap_violation_rows": 0,
+              "candidate_qdot_max_abs_rad_s": 0.011564958335726372,
+              "candidate_task_cap_pre_gate_rows": 0,
+              "candidate_task_cap_pre_gate_violations_by_axis": {
+                "angular": 0,
+                "normal": 0,
+                "tangential": 0,
+                "total_linear": 0
+              },
+              "not_force_metric": true,
+              "sample_count": 27480,
+              "window_s": [
+                5.0,
+                60.0
+              ]
+            }
+          }
+        },
+        "tau_is_existing_r005_domain_minimum": true,
+        "windows": {
+          "diagnostic_0_60": {
+            "complete_100ms_bin_coverage": true,
+            "integral_state_delta_n_s": {
+              "max_absolute": 0.40059371765476737,
+              "mean_absolute": 0.06558110524828714,
+              "mean_candidate_minus_fused": 0.050515165373569204,
+              "p95_absolute": 0.202493904154474
+            },
+            "nonempty_100ms_bins": 600,
+            "normal_base_z_command_delta_m_s": {
+              "100ms_bin_mean_absolute": 0.00011012480776201834,
+              "100ms_bin_p95_absolute": 0.00035664376222390505,
+              "fraction_more_negative": 0.52481488893336,
+              "fraction_sign_reversal": 0.02378093522780335,
+              "max_absolute": 0.00097736706325059,
+              "mean_absolute": 0.00011447860929172684,
+              "mean_candidate_minus_fused": -4.370032917256861e-05,
+              "p95_absolute": 0.00040069755154096827
+            },
+            "not_force_metric": true,
+            "required_100ms_bins": 600,
+            "sample_count": 29982,
+            "tangential_xy_command_delta_m_s": {
+              "max_vector_norm": 1.0842021724855044e-19,
+              "mean_vector_norm": 2.439780555903054e-22
+            },
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "formal_5_60": {
+            "complete_100ms_bin_coverage": true,
+            "integral_state_delta_n_s": {
+              "max_absolute": 0.40059371765476737,
+              "mean_absolute": 0.06344258672001064,
+              "mean_candidate_minus_fused": 0.0471998265523587,
+              "p95_absolute": 0.22260841815620808
+            },
+            "nonempty_100ms_bins": 550,
+            "normal_base_z_command_delta_m_s": {
+              "100ms_bin_mean_absolute": 0.00011244706739159105,
+              "100ms_bin_p95_absolute": 0.0003740166609655031,
+              "fraction_more_negative": 0.5294395924308588,
+              "fraction_sign_reversal": 0.024344978165938863,
+              "max_absolute": 0.00097736706325059,
+              "mean_absolute": 0.0001153618733710121,
+              "mean_candidate_minus_fused": -4.2527350817508196e-05,
+              "p95_absolute": 0.00041293027588558206
+            },
+            "not_force_metric": true,
+            "required_100ms_bins": 550,
+            "sample_count": 27480,
+            "tangential_xy_command_delta_m_s": {
+              "max_vector_norm": 1.0842021724855044e-19,
+              "mean_vector_norm": 2.622463553660839e-22
+            },
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        }
+      },
       "outer_loop_only_guard_decisions_recomputed": false,
       "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-01-02-A.json",
       "rnn_qdot_command_replay": {
@@ -220,6 +398,183 @@
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
+      "lower_tau_control_candidate": {
+        "control_rule": "max(one-pole filtered KWR75 normal at candidate tau, measured KWR75 normal)",
+        "counterfactual_filter_initial_state_n": 3.7328087978012445,
+        "counterfactual_integral_initial_state_n_s": 0.32754311753782933,
+        "force_mae_recomputed": false,
+        "normal_filter_tau_s": 0.24748737341529164,
+        "official_score_filter_tau_s": 0.35,
+        "pre_path_filter_and_integral_history_replayed": false,
+        "rnn_qdot_command_replay": {
+          "baseline_published_qdot_formal_max_abs_error_rad_s": 4.336808689942018e-19,
+          "baseline_reproduces_sealed_formal_qdot": true,
+          "candidate_direction_retry_rows": 1186,
+          "candidate_force_preempt_warm_start_rows": 375,
+          "candidate_profile_caps": {
+            "angular_rad_s": 0.05,
+            "normal_linear_m_s": 0.003,
+            "qdot_abs_rad_s": 0.05,
+            "tangential_m_s": 0.01,
+            "total_linear_m_s": 0.01044030650891055
+          },
+          "candidate_vs_source_retry_decision_disagreements": 255,
+          "source_direction_retry_rows": 1045,
+          "windows": {
+            "diagnostic_0_60": {
+              "candidate_final_gate_projection_rows": 0,
+              "candidate_host_slew_limited_rows": 7,
+              "candidate_joint_bound_violation_rows": 0,
+              "candidate_max_achieved_speeds_after_final_gate": {
+                "angular_rad_s": 0.001785104084768443,
+                "normal_m_s": 0.002688011730479303,
+                "tangential_m_s": 0.005642003914990865,
+                "total_linear_m_s": 0.005655944296213174
+              },
+              "candidate_max_achieved_speeds_before_final_gate": {
+                "angular_rad_s": 0.001785104084768443,
+                "normal_m_s": 0.002688011730479303,
+                "tangential_m_s": 0.005642003914990865,
+                "total_linear_m_s": 0.005655944296213174
+              },
+              "candidate_minus_fused_achieved_task_twist_delta": {
+                "max_vector_norm": 0.0015238601458788608,
+                "mean_vector_norm": 0.00013827369214575326,
+                "p95_vector_norm": 0.00042867222437312414
+              },
+              "candidate_minus_fused_qdot_delta_rad_s": {
+                "max_vector_norm": 0.005615367017736565,
+                "mean_vector_norm": 0.0004857832214790401,
+                "p95_vector_norm": 0.0014557949871866393
+              },
+              "candidate_post_gate_slew_violation_rows": 0,
+              "candidate_post_gate_task_cap_violation_rows": 0,
+              "candidate_qdot_max_abs_rad_s": 0.012672296896845979,
+              "candidate_task_cap_pre_gate_rows": 0,
+              "candidate_task_cap_pre_gate_violations_by_axis": {
+                "angular": 0,
+                "normal": 0,
+                "tangential": 0,
+                "total_linear": 0
+              },
+              "not_force_metric": true,
+              "sample_count": 30003,
+              "window_s": [
+                0.0,
+                60.0
+              ]
+            },
+            "formal_5_60": {
+              "candidate_final_gate_projection_rows": 0,
+              "candidate_host_slew_limited_rows": 7,
+              "candidate_joint_bound_violation_rows": 0,
+              "candidate_max_achieved_speeds_after_final_gate": {
+                "angular_rad_s": 0.001708906530546252,
+                "normal_m_s": 0.002688011730479303,
+                "tangential_m_s": 0.004874076920843493,
+                "total_linear_m_s": 0.005198128440840563
+              },
+              "candidate_max_achieved_speeds_before_final_gate": {
+                "angular_rad_s": 0.001708906530546252,
+                "normal_m_s": 0.002688011730479303,
+                "tangential_m_s": 0.004874076920843493,
+                "total_linear_m_s": 0.005198128440840563
+              },
+              "candidate_minus_fused_achieved_task_twist_delta": {
+                "max_vector_norm": 0.0015238601458788608,
+                "mean_vector_norm": 0.0001418657660308188,
+                "p95_vector_norm": 0.0004471827515629903
+              },
+              "candidate_minus_fused_qdot_delta_rad_s": {
+                "max_vector_norm": 0.005615367017736565,
+                "mean_vector_norm": 0.0004977821053729779,
+                "p95_vector_norm": 0.0014841467128080112
+              },
+              "candidate_post_gate_slew_violation_rows": 0,
+              "candidate_post_gate_task_cap_violation_rows": 0,
+              "candidate_qdot_max_abs_rad_s": 0.009326383001576632,
+              "candidate_task_cap_pre_gate_rows": 0,
+              "candidate_task_cap_pre_gate_violations_by_axis": {
+                "angular": 0,
+                "normal": 0,
+                "tangential": 0,
+                "total_linear": 0
+              },
+              "not_force_metric": true,
+              "sample_count": 27499,
+              "window_s": [
+                5.0,
+                60.0
+              ]
+            }
+          }
+        },
+        "tau_is_existing_r005_domain_minimum": true,
+        "windows": {
+          "diagnostic_0_60": {
+            "complete_100ms_bin_coverage": true,
+            "integral_state_delta_n_s": {
+              "max_absolute": 0.4961641220496922,
+              "mean_absolute": 0.08857813227078815,
+              "mean_candidate_minus_fused": 0.0716761037706814,
+              "p95_absolute": 0.2700635681233595
+            },
+            "nonempty_100ms_bins": 600,
+            "normal_base_z_command_delta_m_s": {
+              "100ms_bin_mean_absolute": 0.00013555803140478337,
+              "100ms_bin_p95_absolute": 0.0003976706997892551,
+              "fraction_more_negative": 0.5437456254374563,
+              "fraction_sign_reversal": 0.035929740359297406,
+              "max_absolute": 0.0011920246376097724,
+              "mean_absolute": 0.00014062440584641642,
+              "mean_candidate_minus_fused": -7.489947044854533e-05,
+              "p95_absolute": 0.00043169457768691777
+            },
+            "not_force_metric": true,
+            "required_100ms_bins": 600,
+            "sample_count": 30003,
+            "tangential_xy_command_delta_m_s": {
+              "max_vector_norm": 1.0842021724855044e-19,
+              "mean_vector_norm": 2.2519560018101985e-22
+            },
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "formal_5_60": {
+            "complete_100ms_bin_coverage": true,
+            "integral_state_delta_n_s": {
+              "max_absolute": 0.4961641220496922,
+              "mean_absolute": 0.08886996909927848,
+              "mean_candidate_minus_fused": 0.07052325126657549,
+              "p95_absolute": 0.2732569774205805
+            },
+            "nonempty_100ms_bins": 550,
+            "normal_base_z_command_delta_m_s": {
+              "100ms_bin_mean_absolute": 0.00013910494710074045,
+              "100ms_bin_p95_absolute": 0.0004097375244170046,
+              "fraction_more_negative": 0.5458380304738354,
+              "fraction_sign_reversal": 0.03778319211607695,
+              "max_absolute": 0.0011920246376097724,
+              "mean_absolute": 0.00014323480783131403,
+              "mean_candidate_minus_fused": -7.795992934061898e-05,
+              "p95_absolute": 0.0004353627605376765
+            },
+            "not_force_metric": true,
+            "required_100ms_bins": 550,
+            "sample_count": 27499,
+            "tangential_xy_command_delta_m_s": {
+              "max_vector_norm": 1.0842021724855044e-19,
+              "mean_vector_norm": 2.457014288603636e-22
+            },
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        }
+      },
       "outer_loop_only_guard_decisions_recomputed": false,
       "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-01-04-A.json",
       "rnn_qdot_command_replay": {
@@ -423,6 +778,183 @@
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
+      "lower_tau_control_candidate": {
+        "control_rule": "max(one-pole filtered KWR75 normal at candidate tau, measured KWR75 normal)",
+        "counterfactual_filter_initial_state_n": 4.323524714218259,
+        "counterfactual_integral_initial_state_n_s": 0.14174645999018315,
+        "force_mae_recomputed": false,
+        "normal_filter_tau_s": 0.24748737341529164,
+        "official_score_filter_tau_s": 0.35,
+        "pre_path_filter_and_integral_history_replayed": false,
+        "rnn_qdot_command_replay": {
+          "baseline_published_qdot_formal_max_abs_error_rad_s": 4.336808689942018e-19,
+          "baseline_reproduces_sealed_formal_qdot": true,
+          "candidate_direction_retry_rows": 1327,
+          "candidate_force_preempt_warm_start_rows": 393,
+          "candidate_profile_caps": {
+            "angular_rad_s": 0.05,
+            "normal_linear_m_s": 0.003,
+            "qdot_abs_rad_s": 0.05,
+            "tangential_m_s": 0.01,
+            "total_linear_m_s": 0.01044030650891055
+          },
+          "candidate_vs_source_retry_decision_disagreements": 214,
+          "source_direction_retry_rows": 1145,
+          "windows": {
+            "diagnostic_0_60": {
+              "candidate_final_gate_projection_rows": 0,
+              "candidate_host_slew_limited_rows": 11,
+              "candidate_joint_bound_violation_rows": 0,
+              "candidate_max_achieved_speeds_after_final_gate": {
+                "angular_rad_s": 0.002225316051525001,
+                "normal_m_s": 0.0026838801590758537,
+                "tangential_m_s": 0.006393639457630398,
+                "total_linear_m_s": 0.006395622058351862
+              },
+              "candidate_max_achieved_speeds_before_final_gate": {
+                "angular_rad_s": 0.002225316051525001,
+                "normal_m_s": 0.0026838801590758537,
+                "tangential_m_s": 0.006393639457630398,
+                "total_linear_m_s": 0.006395622058351862
+              },
+              "candidate_minus_fused_achieved_task_twist_delta": {
+                "max_vector_norm": 0.00168193820819799,
+                "mean_vector_norm": 0.00012574638303276448,
+                "p95_vector_norm": 0.0003482058673700933
+              },
+              "candidate_minus_fused_qdot_delta_rad_s": {
+                "max_vector_norm": 0.0070682445051015496,
+                "mean_vector_norm": 0.0004390458757445643,
+                "p95_vector_norm": 0.001200406884437402
+              },
+              "candidate_post_gate_slew_violation_rows": 0,
+              "candidate_post_gate_task_cap_violation_rows": 0,
+              "candidate_qdot_max_abs_rad_s": 0.01446629976148088,
+              "candidate_task_cap_pre_gate_rows": 0,
+              "candidate_task_cap_pre_gate_violations_by_axis": {
+                "angular": 0,
+                "normal": 0,
+                "tangential": 0,
+                "total_linear": 0
+              },
+              "not_force_metric": true,
+              "sample_count": 29997,
+              "window_s": [
+                0.0,
+                60.0
+              ]
+            },
+            "formal_5_60": {
+              "candidate_final_gate_projection_rows": 0,
+              "candidate_host_slew_limited_rows": 10,
+              "candidate_joint_bound_violation_rows": 0,
+              "candidate_max_achieved_speeds_after_final_gate": {
+                "angular_rad_s": 0.002225316051525001,
+                "normal_m_s": 0.0026838801590758537,
+                "tangential_m_s": 0.004906994299028392,
+                "total_linear_m_s": 0.004977883597745123
+              },
+              "candidate_max_achieved_speeds_before_final_gate": {
+                "angular_rad_s": 0.002225316051525001,
+                "normal_m_s": 0.0026838801590758537,
+                "tangential_m_s": 0.004906994299028392,
+                "total_linear_m_s": 0.004977883597745123
+              },
+              "candidate_minus_fused_achieved_task_twist_delta": {
+                "max_vector_norm": 0.00168193820819799,
+                "mean_vector_norm": 0.00012745459492256313,
+                "p95_vector_norm": 0.0003527378182678702
+              },
+              "candidate_minus_fused_qdot_delta_rad_s": {
+                "max_vector_norm": 0.0070682445051015496,
+                "mean_vector_norm": 0.00044417707084562475,
+                "p95_vector_norm": 0.0012044137183065031
+              },
+              "candidate_post_gate_slew_violation_rows": 0,
+              "candidate_post_gate_task_cap_violation_rows": 0,
+              "candidate_qdot_max_abs_rad_s": 0.011042806376372975,
+              "candidate_task_cap_pre_gate_rows": 0,
+              "candidate_task_cap_pre_gate_violations_by_axis": {
+                "angular": 0,
+                "normal": 0,
+                "tangential": 0,
+                "total_linear": 0
+              },
+              "not_force_metric": true,
+              "sample_count": 27493,
+              "window_s": [
+                5.0,
+                60.0
+              ]
+            }
+          }
+        },
+        "tau_is_existing_r005_domain_minimum": true,
+        "windows": {
+          "diagnostic_0_60": {
+            "complete_100ms_bin_coverage": true,
+            "integral_state_delta_n_s": {
+              "max_absolute": 0.3363999086887476,
+              "mean_absolute": 0.08737104012396757,
+              "mean_candidate_minus_fused": 0.07832251438127225,
+              "p95_absolute": 0.2825300138887501
+            },
+            "nonempty_100ms_bins": 600,
+            "normal_base_z_command_delta_m_s": {
+              "100ms_bin_mean_absolute": 0.0001356285888743832,
+              "100ms_bin_p95_absolute": 0.00041343272502269795,
+              "fraction_more_negative": 0.5746241290795746,
+              "fraction_sign_reversal": 0.03196986365303197,
+              "max_absolute": 0.0008765700881540306,
+              "mean_absolute": 0.00013914448708312178,
+              "mean_candidate_minus_fused": -7.841902140644404e-05,
+              "p95_absolute": 0.00045029523743667484
+            },
+            "not_force_metric": true,
+            "required_100ms_bins": 600,
+            "sample_count": 29997,
+            "tangential_xy_command_delta_m_s": {
+              "max_vector_norm": 1.0842021724855044e-19,
+              "mean_vector_norm": 2.621458540691705e-22
+            },
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "formal_5_60": {
+            "complete_100ms_bin_coverage": true,
+            "integral_state_delta_n_s": {
+              "max_absolute": 0.3363999086887476,
+              "mean_absolute": 0.08838944158302803,
+              "mean_candidate_minus_fused": 0.0785822004320793,
+              "p95_absolute": 0.2879741039843804
+            },
+            "nonempty_100ms_bins": 550,
+            "normal_base_z_command_delta_m_s": {
+              "100ms_bin_mean_absolute": 0.00013842846162794364,
+              "100ms_bin_p95_absolute": 0.0004199141572313008,
+              "fraction_more_negative": 0.5691266867930018,
+              "fraction_sign_reversal": 0.03244462226748627,
+              "max_absolute": 0.0008765700881540306,
+              "mean_absolute": 0.0001418515797627433,
+              "mean_candidate_minus_fused": -7.834048890220378e-05,
+              "p95_absolute": 0.00045184915387711937
+            },
+            "not_force_metric": true,
+            "required_100ms_bins": 550,
+            "sample_count": 27493,
+            "tangential_xy_command_delta_m_s": {
+              "max_vector_norm": 1.0842021724855044e-19,
+              "mean_vector_norm": 2.8602150309216554e-22
+            },
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        }
+      },
       "outer_loop_only_guard_decisions_recomputed": false,
       "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-02-02-A.json",
       "rnn_qdot_command_replay": {
@@ -626,6 +1158,183 @@
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
+      "lower_tau_control_candidate": {
+        "control_rule": "max(one-pole filtered KWR75 normal at candidate tau, measured KWR75 normal)",
+        "counterfactual_filter_initial_state_n": 4.0845513924274215,
+        "counterfactual_integral_initial_state_n_s": 0.2640091117202897,
+        "force_mae_recomputed": false,
+        "normal_filter_tau_s": 0.24748737341529164,
+        "official_score_filter_tau_s": 0.35,
+        "pre_path_filter_and_integral_history_replayed": false,
+        "rnn_qdot_command_replay": {
+          "baseline_published_qdot_formal_max_abs_error_rad_s": 8.673617379884035e-19,
+          "baseline_reproduces_sealed_formal_qdot": true,
+          "candidate_direction_retry_rows": 1193,
+          "candidate_force_preempt_warm_start_rows": 376,
+          "candidate_profile_caps": {
+            "angular_rad_s": 0.05,
+            "normal_linear_m_s": 0.003,
+            "qdot_abs_rad_s": 0.05,
+            "tangential_m_s": 0.01,
+            "total_linear_m_s": 0.01044030650891055
+          },
+          "candidate_vs_source_retry_decision_disagreements": 171,
+          "source_direction_retry_rows": 1130,
+          "windows": {
+            "diagnostic_0_60": {
+              "candidate_final_gate_projection_rows": 0,
+              "candidate_host_slew_limited_rows": 13,
+              "candidate_joint_bound_violation_rows": 0,
+              "candidate_max_achieved_speeds_after_final_gate": {
+                "angular_rad_s": 0.00186426038550847,
+                "normal_m_s": 0.0027861003809027426,
+                "tangential_m_s": 0.0052049452455027985,
+                "total_linear_m_s": 0.005205947724088738
+              },
+              "candidate_max_achieved_speeds_before_final_gate": {
+                "angular_rad_s": 0.00186426038550847,
+                "normal_m_s": 0.0027861003809027426,
+                "tangential_m_s": 0.0052049452455027985,
+                "total_linear_m_s": 0.005205947724088738
+              },
+              "candidate_minus_fused_achieved_task_twist_delta": {
+                "max_vector_norm": 0.0015862514480629118,
+                "mean_vector_norm": 0.00012078586531899448,
+                "p95_vector_norm": 0.0003208604106733949
+              },
+              "candidate_minus_fused_qdot_delta_rad_s": {
+                "max_vector_norm": 0.006644330227669542,
+                "mean_vector_norm": 0.00042847379062078457,
+                "p95_vector_norm": 0.0012219020507065275
+              },
+              "candidate_post_gate_slew_violation_rows": 0,
+              "candidate_post_gate_task_cap_violation_rows": 0,
+              "candidate_qdot_max_abs_rad_s": 0.01133309345298695,
+              "candidate_task_cap_pre_gate_rows": 0,
+              "candidate_task_cap_pre_gate_violations_by_axis": {
+                "angular": 0,
+                "normal": 0,
+                "tangential": 0,
+                "total_linear": 0
+              },
+              "not_force_metric": true,
+              "sample_count": 29557,
+              "window_s": [
+                0.0,
+                60.0
+              ]
+            },
+            "formal_5_60": {
+              "candidate_final_gate_projection_rows": 0,
+              "candidate_host_slew_limited_rows": 11,
+              "candidate_joint_bound_violation_rows": 0,
+              "candidate_max_achieved_speeds_after_final_gate": {
+                "angular_rad_s": 0.00186426038550847,
+                "normal_m_s": 0.0027861003809027426,
+                "tangential_m_s": 0.0048188121767915905,
+                "total_linear_m_s": 0.004883386897211258
+              },
+              "candidate_max_achieved_speeds_before_final_gate": {
+                "angular_rad_s": 0.00186426038550847,
+                "normal_m_s": 0.0027861003809027426,
+                "tangential_m_s": 0.0048188121767915905,
+                "total_linear_m_s": 0.004883386897211258
+              },
+              "candidate_minus_fused_achieved_task_twist_delta": {
+                "max_vector_norm": 0.0015862514480629118,
+                "mean_vector_norm": 0.00012154994702344328,
+                "p95_vector_norm": 0.00032914657882174536
+              },
+              "candidate_minus_fused_qdot_delta_rad_s": {
+                "max_vector_norm": 0.006644330227669542,
+                "mean_vector_norm": 0.00043108891602139295,
+                "p95_vector_norm": 0.0012228498266782038
+              },
+              "candidate_post_gate_slew_violation_rows": 0,
+              "candidate_post_gate_task_cap_violation_rows": 0,
+              "candidate_qdot_max_abs_rad_s": 0.00989702637418945,
+              "candidate_task_cap_pre_gate_rows": 0,
+              "candidate_task_cap_pre_gate_violations_by_axis": {
+                "angular": 0,
+                "normal": 0,
+                "tangential": 0,
+                "total_linear": 0
+              },
+              "not_force_metric": true,
+              "sample_count": 27139,
+              "window_s": [
+                5.0,
+                60.0
+              ]
+            }
+          }
+        },
+        "tau_is_existing_r005_domain_minimum": true,
+        "windows": {
+          "diagnostic_0_60": {
+            "complete_100ms_bin_coverage": true,
+            "integral_state_delta_n_s": {
+              "max_absolute": 0.3712416485114677,
+              "mean_absolute": 0.07708258952024016,
+              "mean_candidate_minus_fused": 0.06507896660773659,
+              "p95_absolute": 0.21599956189487882
+            },
+            "nonempty_100ms_bins": 600,
+            "normal_base_z_command_delta_m_s": {
+              "100ms_bin_mean_absolute": 0.00012433140234027295,
+              "100ms_bin_p95_absolute": 0.00035691604681631323,
+              "fraction_more_negative": 0.5515444733903982,
+              "fraction_sign_reversal": 0.029637649287816762,
+              "max_absolute": 0.0011451582892563323,
+              "mean_absolute": 0.00012861814432986126,
+              "mean_candidate_minus_fused": -7.160455331722436e-05,
+              "p95_absolute": 0.00040270910463676026
+            },
+            "not_force_metric": true,
+            "required_100ms_bins": 600,
+            "sample_count": 29557,
+            "tangential_xy_command_delta_m_s": {
+              "max_vector_norm": 1.0842021724855044e-19,
+              "mean_vector_norm": 2.3683543573114844e-22
+            },
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "formal_5_60": {
+            "complete_100ms_bin_coverage": true,
+            "integral_state_delta_n_s": {
+              "max_absolute": 0.3712416485114677,
+              "mean_absolute": 0.07455651200908252,
+              "mean_candidate_minus_fused": 0.061844922729138344,
+              "p95_absolute": 0.21866950980933103
+            },
+            "nonempty_100ms_bins": 550,
+            "normal_base_z_command_delta_m_s": {
+              "100ms_bin_mean_absolute": 0.0001243971790573729,
+              "100ms_bin_p95_absolute": 0.00036286919195004005,
+              "fraction_more_negative": 0.552083717159807,
+              "fraction_sign_reversal": 0.029772651903165186,
+              "max_absolute": 0.0011451582892563323,
+              "mean_absolute": 0.00012808864914339192,
+              "mean_candidate_minus_fused": -7.008635993072993e-05,
+              "p95_absolute": 0.00040514914976694005
+            },
+            "not_force_metric": true,
+            "required_100ms_bins": 550,
+            "sample_count": 27139,
+            "tangential_xy_command_delta_m_s": {
+              "max_vector_norm": 1.0842021724855044e-19,
+              "mean_vector_norm": 2.5793673215319486e-22
+            },
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        }
+      },
       "outer_loop_only_guard_decisions_recomputed": false,
       "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-02-03-A.json",
       "rnn_qdot_command_replay": {
@@ -829,6 +1538,183 @@
       "fused_replay_formal_max_abs_twist_error": 0.0,
       "integral_limit_n_s": 1.0,
       "integral_policy": "legacy-clamp-v1",
+      "lower_tau_control_candidate": {
+        "control_rule": "max(one-pole filtered KWR75 normal at candidate tau, measured KWR75 normal)",
+        "counterfactual_filter_initial_state_n": 3.835524675904364,
+        "counterfactual_integral_initial_state_n_s": 0.25234520786954384,
+        "force_mae_recomputed": false,
+        "normal_filter_tau_s": 0.24748737341529164,
+        "official_score_filter_tau_s": 0.35,
+        "pre_path_filter_and_integral_history_replayed": false,
+        "rnn_qdot_command_replay": {
+          "baseline_published_qdot_formal_max_abs_error_rad_s": 2.168404344971009e-19,
+          "baseline_reproduces_sealed_formal_qdot": true,
+          "candidate_direction_retry_rows": 1057,
+          "candidate_force_preempt_warm_start_rows": 308,
+          "candidate_profile_caps": {
+            "angular_rad_s": 0.05,
+            "normal_linear_m_s": 0.003,
+            "qdot_abs_rad_s": 0.05,
+            "tangential_m_s": 0.01,
+            "total_linear_m_s": 0.01044030650891055
+          },
+          "candidate_vs_source_retry_decision_disagreements": 129,
+          "source_direction_retry_rows": 964,
+          "windows": {
+            "diagnostic_0_60": {
+              "candidate_final_gate_projection_rows": 0,
+              "candidate_host_slew_limited_rows": 13,
+              "candidate_joint_bound_violation_rows": 0,
+              "candidate_max_achieved_speeds_after_final_gate": {
+                "angular_rad_s": 0.001995762327404624,
+                "normal_m_s": 0.002931118827161307,
+                "tangential_m_s": 0.006454076384529642,
+                "total_linear_m_s": 0.006477954702859232
+              },
+              "candidate_max_achieved_speeds_before_final_gate": {
+                "angular_rad_s": 0.001995762327404624,
+                "normal_m_s": 0.002931118827161307,
+                "tangential_m_s": 0.006454076384529642,
+                "total_linear_m_s": 0.006477954702859232
+              },
+              "candidate_minus_fused_achieved_task_twist_delta": {
+                "max_vector_norm": 0.0013720504831589925,
+                "mean_vector_norm": 0.00010079831837918342,
+                "p95_vector_norm": 0.0002834550254867957
+              },
+              "candidate_minus_fused_qdot_delta_rad_s": {
+                "max_vector_norm": 0.005607222034159958,
+                "mean_vector_norm": 0.000350375891288854,
+                "p95_vector_norm": 0.0010112050287183034
+              },
+              "candidate_post_gate_slew_violation_rows": 0,
+              "candidate_post_gate_task_cap_violation_rows": 0,
+              "candidate_qdot_max_abs_rad_s": 0.014462161750043131,
+              "candidate_task_cap_pre_gate_rows": 0,
+              "candidate_task_cap_pre_gate_violations_by_axis": {
+                "angular": 0,
+                "normal": 0,
+                "tangential": 0,
+                "total_linear": 0
+              },
+              "not_force_metric": true,
+              "sample_count": 30002,
+              "window_s": [
+                0.0,
+                60.0
+              ]
+            },
+            "formal_5_60": {
+              "candidate_final_gate_projection_rows": 0,
+              "candidate_host_slew_limited_rows": 11,
+              "candidate_joint_bound_violation_rows": 0,
+              "candidate_max_achieved_speeds_after_final_gate": {
+                "angular_rad_s": 0.001995762327404624,
+                "normal_m_s": 0.002931118827161307,
+                "tangential_m_s": 0.005024257025050778,
+                "total_linear_m_s": 0.005050968673786286
+              },
+              "candidate_max_achieved_speeds_before_final_gate": {
+                "angular_rad_s": 0.001995762327404624,
+                "normal_m_s": 0.002931118827161307,
+                "tangential_m_s": 0.005024257025050778,
+                "total_linear_m_s": 0.005050968673786286
+              },
+              "candidate_minus_fused_achieved_task_twist_delta": {
+                "max_vector_norm": 0.0013720504831589925,
+                "mean_vector_norm": 9.865856043470181e-05,
+                "p95_vector_norm": 0.00028220520664993474
+              },
+              "candidate_minus_fused_qdot_delta_rad_s": {
+                "max_vector_norm": 0.005607222034159958,
+                "mean_vector_norm": 0.000343578861725015,
+                "p95_vector_norm": 0.0010156999911546819
+              },
+              "candidate_post_gate_slew_violation_rows": 0,
+              "candidate_post_gate_task_cap_violation_rows": 0,
+              "candidate_qdot_max_abs_rad_s": 0.011228565330689624,
+              "candidate_task_cap_pre_gate_rows": 0,
+              "candidate_task_cap_pre_gate_violations_by_axis": {
+                "angular": 0,
+                "normal": 0,
+                "tangential": 0,
+                "total_linear": 0
+              },
+              "not_force_metric": true,
+              "sample_count": 27498,
+              "window_s": [
+                5.0,
+                60.0
+              ]
+            }
+          }
+        },
+        "tau_is_existing_r005_domain_minimum": true,
+        "windows": {
+          "diagnostic_0_60": {
+            "complete_100ms_bin_coverage": true,
+            "integral_state_delta_n_s": {
+              "max_absolute": 0.35063246530238135,
+              "mean_absolute": 0.06430106600633878,
+              "mean_candidate_minus_fused": 0.05445415076151113,
+              "p95_absolute": 0.205773593185416
+            },
+            "nonempty_100ms_bins": 600,
+            "normal_base_z_command_delta_m_s": {
+              "100ms_bin_mean_absolute": 0.00010594117069733365,
+              "100ms_bin_p95_absolute": 0.0003417753517128546,
+              "fraction_more_negative": 0.5333977734817679,
+              "fraction_sign_reversal": 0.01779881341243917,
+              "max_absolute": 0.000942327027065443,
+              "mean_absolute": 0.00011037511206866263,
+              "mean_candidate_minus_fused": -4.3084790543950244e-05,
+              "p95_absolute": 0.0004097628472982409
+            },
+            "not_force_metric": true,
+            "required_100ms_bins": 600,
+            "sample_count": 30002,
+            "tangential_xy_command_delta_m_s": {
+              "max_vector_norm": 1.0842021724855044e-19,
+              "mean_vector_norm": 2.078846428084671e-22
+            },
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "formal_5_60": {
+            "complete_100ms_bin_coverage": true,
+            "integral_state_delta_n_s": {
+              "max_absolute": 0.35063246530238135,
+              "mean_absolute": 0.06057948360670308,
+              "mean_candidate_minus_fused": 0.05033389788735194,
+              "p95_absolute": 0.22128107289179602
+            },
+            "nonempty_100ms_bins": 550,
+            "normal_base_z_command_delta_m_s": {
+              "100ms_bin_mean_absolute": 0.0001059834804630337,
+              "100ms_bin_p95_absolute": 0.00034637640018211956,
+              "fraction_more_negative": 0.5416030256745945,
+              "fraction_sign_reversal": 0.017964942904938542,
+              "max_absolute": 0.000942327027065443,
+              "mean_absolute": 0.00010954268379561859,
+              "mean_candidate_minus_fused": -4.247995337364665e-05,
+              "p95_absolute": 0.00042004603018281933
+            },
+            "not_force_metric": true,
+            "required_100ms_bins": 550,
+            "sample_count": 27498,
+            "tangential_xy_command_delta_m_s": {
+              "max_vector_norm": 1.0842021724855044e-19,
+              "mean_vector_norm": 2.2681486120952902e-22
+            },
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        }
+      },
       "outer_loop_only_guard_decisions_recomputed": false,
       "parameter_file": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/candidates/session-02-05-A.json",
       "rnn_qdot_command_replay": {
@@ -1030,7 +1916,7 @@
   "physical_candidate_executed": false,
   "protocol_id": "figure8_window60_r013_rate460_v1",
   "qdot_solver_replayed": true,
-  "schema": "tase.force-feedback-selection-rnn-command-replay-v2",
+  "schema": "tase.force-feedback-selection-rnn-command-replay-v3",
   "unchanged_inputs_and_guard_definitions": [
     "baseline-corrected Kunwei wrench vector",
     "native/raw Kunwei wrench and full-force measurements from the sealed source",

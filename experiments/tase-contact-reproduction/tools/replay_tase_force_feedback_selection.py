@@ -21,6 +21,7 @@ from contact_yield_live_writer import R006Candidate, _select_tase_solver_profile
 from step5d_autotune_v4_r004.motion_profile import same_direction_qdot_rescale
 from step5d_autotune_v4_r004.runtime import gate_qdot, project_qdot_to_gate
 from step5d_paper_outer_loop import Step5dOuterLoopState
+from step5d_autotune_v4_r005.contracts import DOMAIN_EXPONENTS, TAU_ANCHOR
 from tase_contact_provider import (
     R013_RATE460_PROTOCOL_ID,
     TaseContactProvider,
@@ -31,11 +32,12 @@ from tase_contact_provider import (
 )
 
 
-SCHEMA = "tase.force-feedback-selection-rnn-command-replay-v2"
+SCHEMA = "tase.force-feedback-selection-rnn-command-replay-v3"
 FORMAL_START_S = 5.0
 PATH_END_S = 60.0
 BIN_WIDTH_S = 0.1
 TARGET_FORCE_N = 5.0
+LOWER_ALLOWED_FILTER_TAU_S = TAU_ANCHOR * 2.0 ** min(DOMAIN_EXPONENTS["tau"])
 
 
 class ReplayError(RuntimeError):
@@ -206,6 +208,23 @@ def _filter_recurrence_summary(
         "max_abs_recurrence_residual_n": max_abs,
         "matches_one_pole_actual_dt_recurrence": max_abs <= 1e-12,
     }
+
+
+def _filter_measured_normal(
+    rows: Sequence[Mapping[str, Any]], *, tau_s: float, initial_state_n: float,
+) -> np.ndarray:
+    if not rows or not math.isfinite(tau_s) or tau_s <= 0.0 or not math.isfinite(initial_state_n):
+        raise ReplayError("counterfactual filter inputs are invalid")
+    filtered = np.empty(len(rows), dtype=float)
+    filtered[0] = float(initial_state_n)
+    for index in range(1, len(rows)):
+        dt_s = float(rows[index]["actual_dt_s"])
+        measured = float(rows[index]["normal_force_measured_n"])
+        if not math.isfinite(dt_s) or dt_s <= 0.0 or not math.isfinite(measured):
+            raise ReplayError("counterfactual filter row is invalid")
+        alpha = -math.expm1(-dt_s / tau_s)
+        filtered[index] = filtered[index - 1] + alpha * (measured - filtered[index - 1])
+    return filtered
 
 
 def _window_summary(
@@ -625,6 +644,34 @@ def replay_attempt(attempt_dir: Path, *, root: Path) -> dict[str, Any]:
             f"max abs error {baseline_qdot['source_published_qdot_formal_max_abs_error']} rad/s"
         )
 
+    lower_tau_filtered = _filter_measured_normal(
+        rows,
+        tau_s=LOWER_ALLOWED_FILTER_TAU_S,
+        initial_state_n=float(first["normal_force_filtered_n"]),
+    )
+    lower_tau_rows = [
+        {
+            **row,
+            "normal_force_control_n": max(
+                float(lower_tau_filtered[index]),
+                float(row["normal_force_measured_n"]),
+            ),
+        }
+        for index, row in enumerate(rows)
+    ]
+    lower_tau_provider = _new_provider(root, source["parameter_file"])
+    lower_tau_times, lower_tau_twists, lower_tau_integrals = _run_outer_loop(
+        lower_tau_provider,
+        lower_tau_rows,
+        signal_field="normal_force_control_n",
+        initial_integral_n_s=initial_integral,
+    )
+    lower_tau_qdot = _run_rnn_commands(
+        lower_tau_provider, rows, lower_tau_twists, source_transitions=False,
+    )
+    if not np.array_equal(lower_tau_times, baseline_times):
+        raise ReplayError("lower-tau candidate time base differs from the source")
+
     expected_full_bins = {
         int(math.floor(t / BIN_WIDTH_S + 1e-9))
         for t in baseline_times if 0.0 <= t < PATH_END_S
@@ -692,6 +739,51 @@ def replay_attempt(attempt_dir: Path, *, root: Path) -> dict[str, Any]:
                 ),
             },
         },
+        "lower_tau_control_candidate": {
+            "normal_filter_tau_s": float(LOWER_ALLOWED_FILTER_TAU_S),
+            "tau_is_existing_r005_domain_minimum": True,
+            "official_score_filter_tau_s": float(provider.lifecycle_observer.tau_s),
+            "control_rule": "max(one-pole filtered KWR75 normal at candidate tau, measured KWR75 normal)",
+            "counterfactual_filter_initial_state_n": float(first["normal_force_filtered_n"]),
+            "counterfactual_integral_initial_state_n_s": float(initial_integral),
+            "pre_path_filter_and_integral_history_replayed": False,
+            "force_mae_recomputed": False,
+            "windows": {
+                "diagnostic_0_60": _window_summary(
+                    baseline_times, baseline_twists, lower_tau_twists,
+                    baseline_integrals, lower_tau_integrals,
+                    start_s=0.0, end_s=PATH_END_S,
+                ),
+                "formal_5_60": _window_summary(
+                    baseline_times, baseline_twists, lower_tau_twists,
+                    baseline_integrals, lower_tau_integrals,
+                    start_s=FORMAL_START_S, end_s=PATH_END_S,
+                ),
+            },
+            "rnn_qdot_command_replay": {
+                "baseline_published_qdot_formal_max_abs_error_rad_s": baseline_qdot[
+                    "source_published_qdot_formal_max_abs_error"
+                ],
+                "baseline_reproduces_sealed_formal_qdot": baseline_qdot_exact,
+                "candidate_force_preempt_warm_start_rows": lower_tau_qdot["warm_start_rows"],
+                "candidate_direction_retry_rows": lower_tau_qdot["direction_retry_rows"],
+                "source_direction_retry_rows": lower_tau_qdot["source_direction_retry_rows"],
+                "candidate_vs_source_retry_decision_disagreements": lower_tau_qdot[
+                    "retry_decision_disagreements"
+                ],
+                "candidate_profile_caps": lower_tau_qdot["profile_caps"],
+                "windows": {
+                    "diagnostic_0_60": _qdot_window_summary(
+                        rows, baseline_qdot, lower_tau_qdot,
+                        start_s=0.0, end_s=PATH_END_S,
+                    ),
+                    "formal_5_60": _qdot_window_summary(
+                        rows, baseline_qdot, lower_tau_qdot,
+                        start_s=FORMAL_START_S, end_s=PATH_END_S,
+                    ),
+                },
+            },
+        },
         "windows": {
             "diagnostic_0_60": _window_summary(
                 baseline_times, baseline_twists, candidate_twists,
@@ -714,6 +806,9 @@ def run_replay(attempt_dirs: Sequence[Path], *, root: Path, output: Path) -> dic
         "evidence_class": "sealed_Kunwei_fixed_observation_TASE_RNN_command_replay",
         "protocol_id": R013_RATE460_PROTOCOL_ID,
         "control_signal_change": "max(filtered_normal_n, measured_normal_n) -> filtered_normal_n",
+        "additional_candidate_control_signal": (
+            "max(one-pole filtered KWR75 normal at the existing lower tau lattice point, measured KWR75 normal)"
+        ),
         "unchanged_inputs_and_guard_definitions": [
             "baseline-corrected Kunwei wrench vector",
             "native/raw Kunwei wrench and full-force measurements from the sealed source",

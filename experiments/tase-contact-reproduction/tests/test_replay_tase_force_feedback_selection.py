@@ -10,11 +10,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 from replay_tase_force_feedback_selection import (  # noqa: E402
+    LOWER_ALLOWED_FILTER_TAU_S,
     ReplayError,
+    _filter_measured_normal,
     _filter_recurrence_summary,
     _qdot_window_summary,
     _window_summary,
 )
+from step5d_autotune_v4_r005.contracts import DOMAIN_EXPONENTS, TAU_ANCHOR  # noqa: E402
 
 
 def test_outer_loop_command_summary_keeps_samples_bins_and_integral_separate() -> None:
@@ -71,6 +74,23 @@ def test_filter_recurrence_uses_measured_kunwei_and_actual_dt() -> None:
     assert result["updates_compared"] == 2
     assert result["matches_one_pole_actual_dt_recurrence"] is True
     assert result["max_abs_recurrence_residual_n"] < 1e-12
+
+
+def test_counterfactual_filter_uses_actual_dt_and_explicit_initial_state() -> None:
+    rows = [
+        {"actual_dt_s": 0.002, "normal_force_measured_n": 1.0},
+        {"actual_dt_s": 0.004, "normal_force_measured_n": 3.0},
+    ]
+    tau_s = 0.2
+    result = _filter_measured_normal(rows, tau_s=tau_s, initial_state_n=2.0)
+    expected = 2.0 + -np.expm1(-0.004 / tau_s) * (3.0 - 2.0)
+
+    assert result.tolist() == pytest.approx([2.0, expected])
+
+
+def test_lower_tau_candidate_is_existing_contract_lattice_boundary() -> None:
+    expected = TAU_ANCHOR * 2.0 ** min(DOMAIN_EXPONENTS["tau"])
+    assert LOWER_ALLOWED_FILTER_TAU_S == pytest.approx(expected)
 
 
 def test_rnn_qdot_window_summary_reports_limits_separately() -> None:
