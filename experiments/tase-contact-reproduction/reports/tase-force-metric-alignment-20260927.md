@@ -331,4 +331,21 @@ Raw sample 的 `[5,60)` 低于 1 N 比例为 **26.78%**、最长连续段 **0.54
 
 三组候选命令都比 A 原命令更偏离 A 的历史 `actual_qd`；SFC+TASE-QP 的偏离最大。该信号只说明固定输入下的命令变化程度，不能预测闭环路径误差、碰撞风险或候选实际关节速度，也不能代替 live motion gate。三个报告都明确将 candidate force MAE 保持为 null；因此不支持任何力跟踪改善结论。五条 source 的实际 TP-consumed echo 为 476.204–481.136 Hz。QP 两组沿用 `rho=0.1, scaling=0` 的离线 profile；`scaling=0` 仍不是 live 批准参数。
 
-可复核的五折明细、源 attempt 身份、trace SHA 与 KWR75 source-A 指标分别见 [RNN+SFC proxy](tase_r32a_sfc_rnn_actual_qd_proxy_20260927.json)、[TASE-QP proxy](tase_r32a_tase_qp_actual_qd_proxy_20260927.json) 和 [SFC+TASE-QP proxy](tase_r32a_sfc_tase_qp_actual_qd_proxy_20260927.json)。这些 source-A 力分数是 feedback diagnostics，不是候选分数或独立 task-force 真值。下一步按关节拆分命令/历史 `actual_qd` 代理差异，判断偏离集中在哪些关节；再据此决定哪些候选值得做不接触的 shadow 检查。任何候选要报告正式与诊断窗口 MAE，仍须取得候选真实运动及 KWR75 反馈；本次 fixed-observation replay 不具备这种证据。
+可复核的五折明细、源 attempt 身份、trace SHA 与 KWR75 source-A 指标分别见 [RNN+SFC proxy](tase_r32a_sfc_rnn_actual_qd_proxy_20260927.json)、[TASE-QP proxy](tase_r32a_tase_qp_actual_qd_proxy_20260927.json) 和 [SFC+TASE-QP proxy](tase_r32a_sfc_tase_qp_actual_qd_proxy_20260927.json)。这些 source-A 力分数是 feedback diagnostics，不是候选分数或独立 task-force 真值。逐关节拆分见下一节。任何候选要报告正式与诊断窗口 MAE，仍须取得候选真实运动及 KWR75 反馈；本次 fixed-observation replay 不具备这种证据。
+
+## 固定观测运动代理的逐关节分解 — 2026-09-27
+
+对同一五条 A source、同一 TP-consumed RTDE frame join，按 J1–J6 分别计算候选 `qdot` 对**历史 A 实测 `actual_qd`** 的 Pearson 中位数；同时列出候选命令与 A 原发布命令的逐关节绝对差中位数。单位分别为无量纲和 mrad/s。所有值仍是 fixed-observation proxy，不是候选实际关节响应。
+
+| 关节 | A 命令→历史 actual_qd | RNN+SFC proxy | TASE-QP proxy | SFC+TASE-QP proxy | 命令差 MAE（RNN+SFC / QP / SFC+QP, mrad/s） |
+|---|---:|---:|---:|---:|---:|
+| J1 | 0.997 | 0.907 | 0.992 | 0.902 | 3.047 / 0.169 / 3.094 |
+| J2 | 0.884 | 0.819 | 0.380 | 0.387 | 0.933 / 3.700 / 3.598 |
+| J3 | 0.983 | 0.891 | 0.968 | 0.888 | 1.935 / 0.376 / 2.053 |
+| J4 | 0.949 | 0.904 | 0.643 | 0.665 | 0.915 / 4.375 / 4.637 |
+| J5 | 0.236 | 0.219 | 0.078 | 0.076 | 0.070 / 0.130 / 0.147 |
+| J6 | 0.995 | 0.905 | 0.988 | 0.898 | 3.053 / 0.203 / 3.107 |
+
+QP 对 A 命令的变化主要集中在 J2/J4；加入 SFC tangent command 后，J2/J4 变化仍在，同时 J1/J3/J6 也出现约 2.1–3.1 mrad/s 的命令差。RNN+SFC phase-template residual 主要改变 J1/J3/J6。J5 在 A 自身与历史 `actual_qd` 的相关也只有 0.236，且三个候选的 J5 命令差均小于 0.15 mrad/s；仅凭该关节低 Pearson 不能判为候选造成了实质运动偏差。
+
+这组结果定位了**命令重新分配在哪些关节**，没有回答新命令执行后实际轨迹或法向力会如何变化。候选 force MAE 仍未计算，KWR75 source-A 指标仍是反馈诊断。因此不把 QP 或 SFC+QP 推升为 live 候选。五折逐关节数值与 source timeline identity 见[机器可读审计](tase_r32a_actual_qd_per_joint_proxy_20260927.json)，可复算入口为 [audit tool](../tools/audit_tase_actual_qd_proxy_per_joint.py)；测试覆盖逐关节汇总和历史响应与候选命令的区分，focused suite **6 passed**。

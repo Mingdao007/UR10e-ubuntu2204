@@ -1,0 +1,1431 @@
+{
+  "candidate_force_mae_computed": false,
+  "diagnostic_bins_per_source": 600,
+  "evidence_class": "offline_fixed_observation_actual_qd_per_joint_proxy",
+  "force_source": "Kunwei KWR75 feedback from historical A traces; not independent task-force truth",
+  "formal_bins_per_source": 550,
+  "interpretation": "Per-joint candidate commands are compared with historical source-A RTDE actual_qd on the same consumed packet joins. actual_qd belongs to the historical controller; this is not candidate motion, closed-loop force tracking, or a live gate.",
+  "live_eligible": false,
+  "methods": [
+    {
+      "analysis_method": "rnn_sfc",
+      "folds": [
+        {
+          "candidate_force_mae_n": null,
+          "fold": 1,
+          "matched_consumed_frames": 28846,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0029608616295967584,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9065852512441019,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0028731627546665912,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003145282039304776,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9968381821738117
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0011984003226114168,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.832317446001269,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0010048846425945042,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006013112577465613,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8845124415906971
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.002044289416298358,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.8894653010726594,
+              "candidate_vs_source_qdot_mae_rad_s": 0.001989328953455928,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00044314474625461184,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9834932338869627
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0011336376875756276,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.906076559414138,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0009151139210671207,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005811007346696033,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9506328146708184
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.00041328465415179315,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.20874668671457938,
+              "candidate_vs_source_qdot_mae_rad_s": 6.710785287678537e-05,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003996084174762439,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.22577944506571665
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.002985577453408054,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9046847019875989,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0028824252159167494,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00039164452228073295,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9951616736165189
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0002",
+          "source_timeline_sha256": "89ba3e2024eac35299ac90115a35d9aec5161879e1aec7d6dbd965ad9190f8a7",
+          "source_tp_consumed_echo_rate_hz": 481.019830028254
+        },
+        {
+          "candidate_force_mae_n": null,
+          "fold": 2,
+          "matched_consumed_frames": 28872,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0040600391748033485,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9466878958072631,
+              "candidate_vs_source_qdot_mae_rad_s": 0.003993041726116711,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003107931302977329,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9975258339458121
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0009102182148154332,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.814032014600438,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0006315465154095591,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005981215444070593,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8842033759649188
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.001422358282485617,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.8622664465891899,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0012520121924506956,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00044857955079951494,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9830698200461896
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0009297762203366832,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9009491681748938,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0006402478778098325,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005752170242312173,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9517211924633077
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.00047021396559482765,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.21858633704311675,
+              "candidate_vs_source_qdot_mae_rad_s": 8.684089320386463e-05,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00045627266335782475,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.2303204130954877
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004071331740148043,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9438015788110706,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004001081972986555,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00038696171291122144,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9958106872865068
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0004",
+          "source_timeline_sha256": "bebf6a408a8bb2d7bb0ac72217669b77e140b216a18546813ce84cb1e64caedf",
+          "source_tp_consumed_echo_rate_hz": 481.13647725371635
+        },
+        {
+          "candidate_force_mae_n": null,
+          "fold": 3,
+          "matched_consumed_frames": 28864,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0030693266774208445,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.798578584493199,
+              "candidate_vs_source_qdot_mae_rad_s": 0.003046819165315905,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00031523316859575806,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9971632579332264
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0010977014866507052,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.8151662498889508,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0009032291715494348,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006212597785190629,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8788771451014704
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.001832329855792605,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.8914537037616151,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0018082133950918726,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0004624640819097285,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9823764381507086
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.001064985852864185,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9041317888220698,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0008882762909359861,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006112514997951619,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9454486025364128
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.00047070711234770135,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.21518067318461284,
+              "candidate_vs_source_qdot_mae_rad_s": 7.029576496895971e-05,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00045104860846494104,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.24081015754251045
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0030794122516741755,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.7978237174233143,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0030529333328578757,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003961265621287575,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9953855246410016
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0002",
+          "source_timeline_sha256": "9c62e807f869da886dcb211e6884fb87d818002a9f88ccb3bd66186e20e4d573",
+          "source_tp_consumed_echo_rate_hz": 481.08585521929103
+        },
+        {
+          "candidate_force_mae_n": null,
+          "fold": 4,
+          "matched_consumed_frames": 28198,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0025721803432147547,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.845058668326308,
+              "candidate_vs_source_qdot_mae_rad_s": 0.002511662387373794,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00031700584606342795,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9966092029901624
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0011166291269182405,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.8192455895722586,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0009326486679010313,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006130473050298415,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8811208949580455
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0019426130200613414,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9020563007747914,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0019347382694156403,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0004366958699284382,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9837586701659605
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0011873165988217315,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9008900924682849,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0010250766930097557,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005941220803532985,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9489774565566041
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.000489586643597238,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.2281253958980127,
+              "candidate_vs_source_qdot_mae_rad_s": 5.963721465875442e-05,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00047732351661652005,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.24174908710601525
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0025856028688002915,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.8439962233759878,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0025120137090573506,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003890808778584248,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9954438334225696
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0003",
+          "source_timeline_sha256": "1e10313919f5080bdb9276ac209f0da4df83416025a7a6006c8243aa7b986a2e",
+          "source_tp_consumed_echo_rate_hz": 476.20396600559184
+        },
+        {
+          "candidate_force_mae_n": null,
+          "fold": 5,
+          "matched_consumed_frames": 28871,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004413314106145769,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.969595658834309,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004479992407819827,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003144257440931464,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9972585360606562
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0014601602317562549,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.8655805952422312,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0012698219070822307,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006148054669962368,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8929080985656564
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0025166914554085812,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9278389580193934,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0025089089742724785,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00047522517780601407,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9818793992783673
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0012504321315580326,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9213557292179316,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0010852140466768888,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006056571879101466,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9490814593136997
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005137786142136595,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.21886367983116073,
+              "candidate_vs_source_qdot_mae_rad_s": 9.579666350571126e-05,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0004745837755698193,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.2362459693367845
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004423754180088777,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9671883256765959,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004481550022068555,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003915344348509375,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9954688686457965
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0005",
+          "source_timeline_sha256": "c4bdabf7d913e1457af045c5dd28ca2d0afee72233a5b2a63e73ee7e219afd5f",
+          "source_tp_consumed_echo_rate_hz": 481.13647725371635
+        }
+      ],
+      "per_joint_summary_across_five_fixed_sources": [
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.004413314106145769,
+            "median": 0.0030693266774208445,
+            "min": 0.0025721803432147547
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.969595658834309,
+            "median": 0.9065852512441019,
+            "min": 0.798578584493199
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.004479992407819827,
+            "median": 0.003046819165315905,
+            "min": 0.002511662387373794
+          },
+          "joint_1_based": 1,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.00031700584606342795,
+            "median": 0.0003145282039304776,
+            "min": 0.0003107931302977329
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9975258339458121,
+            "median": 0.9971632579332264,
+            "min": 0.9966092029901624
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0014601602317562549,
+            "median": 0.0011166291269182405,
+            "min": 0.0009102182148154332
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.8655805952422312,
+            "median": 0.8192455895722586,
+            "min": 0.814032014600438
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.0012698219070822307,
+            "median": 0.0009326486679010313,
+            "min": 0.0006315465154095591
+          },
+          "joint_1_based": 2,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0006212597785190629,
+            "median": 0.0006130473050298415,
+            "min": 0.0005981215444070593
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.8929080985656564,
+            "median": 0.8842033759649188,
+            "min": 0.8788771451014704
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0025166914554085812,
+            "median": 0.0019426130200613414,
+            "min": 0.001422358282485617
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9278389580193934,
+            "median": 0.8914537037616151,
+            "min": 0.8622664465891899
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.0025089089742724785,
+            "median": 0.0019347382694156403,
+            "min": 0.0012520121924506956
+          },
+          "joint_1_based": 3,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.00047522517780601407,
+            "median": 0.00044857955079951494,
+            "min": 0.0004366958699284382
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9837586701659605,
+            "median": 0.9830698200461896,
+            "min": 0.9818793992783673
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0012504321315580326,
+            "median": 0.0011336376875756276,
+            "min": 0.0009297762203366832
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9213557292179316,
+            "median": 0.9041317888220698,
+            "min": 0.9008900924682849
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.0010852140466768888,
+            "median": 0.0009151139210671207,
+            "min": 0.0006402478778098325
+          },
+          "joint_1_based": 4,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0006112514997951619,
+            "median": 0.0005941220803532985,
+            "min": 0.0005752170242312173
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9517211924633077,
+            "median": 0.9490814593136997,
+            "min": 0.9454486025364128
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0005137786142136595,
+            "median": 0.00047070711234770135,
+            "min": 0.00041328465415179315
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.2281253958980127,
+            "median": 0.21858633704311675,
+            "min": 0.20874668671457938
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 9.579666350571126e-05,
+            "median": 7.029576496895971e-05,
+            "min": 5.963721465875442e-05
+          },
+          "joint_1_based": 5,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.00047732351661652005,
+            "median": 0.00045627266335782475,
+            "min": 0.0003996084174762439
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.24174908710601525,
+            "median": 0.2362459693367845,
+            "min": 0.22577944506571665
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.004423754180088777,
+            "median": 0.0030794122516741755,
+            "min": 0.0025856028688002915
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9671883256765959,
+            "median": 0.9046847019875989,
+            "min": 0.7978237174233143
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.004481550022068555,
+            "median": 0.0030529333328578757,
+            "min": 0.0025120137090573506
+          },
+          "joint_1_based": 6,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0003961265621287575,
+            "median": 0.0003915344348509375,
+            "min": 0.00038696171291122144
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9958106872865068,
+            "median": 0.9954438334225696,
+            "min": 0.9951616736165189
+          }
+        }
+      ],
+      "report_method_id": "TASE_RNN_MATURE+SFC_TANGENT_PHASE_TEMPLATE_RESIDUAL_V1",
+      "solver_profile": null
+    },
+    {
+      "analysis_method": "tase_qp",
+      "folds": [
+        {
+          "candidate_force_mae_n": null,
+          "fold": 1,
+          "matched_consumed_frames": 28846,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.00035124579146410934,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.993491086475136,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0001529437374047535,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003145282039304776,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9968381821738117
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004049814010559001,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.37091192547170526,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0037000918029066,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006013112577465613,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8845124415906971
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006683719189446182,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9690649411328165,
+              "candidate_vs_source_qdot_mae_rad_s": 0.000370767373905879,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00044314474625461184,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9834932338869627
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0043530282292835384,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.6432776388680104,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004374927012306232,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005811007346696033,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9506328146708184
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0004505780730781329,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.07704540494739213,
+              "candidate_vs_source_qdot_mae_rad_s": 0.00012419038129862455,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003996084174762439,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.22577944506571665
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.00044289779773559935,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.990075396352277,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0001847705422261508,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00039164452228073295,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9951616736165189
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0002",
+          "source_timeline_sha256": "89ba3e2024eac35299ac90115a35d9aec5161879e1aec7d6dbd965ad9190f8a7",
+          "source_tp_consumed_echo_rate_hz": 481.019830028254
+        },
+        {
+          "candidate_force_mae_n": null,
+          "fold": 2,
+          "matched_consumed_frames": 28872,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.000373736945490284,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9901453425701905,
+              "candidate_vs_source_qdot_mae_rad_s": 0.00018669189441008373,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003107931302977329,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9975258339458121
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.003936500619902465,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.39540920927593715,
+              "candidate_vs_source_qdot_mae_rad_s": 0.003584874334866665,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005981215444070593,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8842033759649188
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006707398491002961,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9680830482637215,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0003758800937764784,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00044857955079951494,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9830698200461896
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004223008449833241,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.6322786207004983,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004246611747590405,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005752170242312173,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9517211924633077
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005089350853040989,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.06619289126314759,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0001295110279416878,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00045627266335782475,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.2303204130954877
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.00046559743304527406,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9867906637202087,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0002216672078969918,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00038696171291122144,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9958106872865068
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0004",
+          "source_timeline_sha256": "bebf6a408a8bb2d7bb0ac72217669b77e140b216a18546813ce84cb1e64caedf",
+          "source_tp_consumed_echo_rate_hz": 481.13647725371635
+        },
+        {
+          "candidate_force_mae_n": null,
+          "fold": 3,
+          "matched_consumed_frames": 28864,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.00036550550082123785,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9916953616194626,
+              "candidate_vs_source_qdot_mae_rad_s": 0.00016897519769391883,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00031523316859575806,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9971632579332264
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004113034313811291,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.3804776510416302,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0037323514261764406,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006212597785190629,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8788771451014704
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0007059168751171331,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9666876074469236,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0003807178679566594,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0004624640819097285,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9823764381507086
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0044020343683169195,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.6445837621832112,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0044183890662646075,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006112514997951619,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9454486025364128
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005047671904329326,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.07832752987622275,
+              "candidate_vs_source_qdot_mae_rad_s": 0.00012898582593270542,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00045104860846494104,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.24081015754251045
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0004567843882521938,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9883042744860732,
+              "candidate_vs_source_qdot_mae_rad_s": 0.00020322451682010421,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003961265621287575,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9953855246410016
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0002",
+          "source_timeline_sha256": "9c62e807f869da886dcb211e6884fb87d818002a9f88ccb3bd66186e20e4d573",
+          "source_tp_consumed_echo_rate_hz": 481.08585521929103
+        },
+        {
+          "candidate_force_mae_n": null,
+          "fold": 4,
+          "matched_consumed_frames": 28198,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003426619781009249,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9944802259574336,
+              "candidate_vs_source_qdot_mae_rad_s": 0.00014148479542228957,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00031700584606342795,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9966092029901624
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.00393130531478006,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.3897336096980229,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0035842989172632346,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006130473050298415,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8811208949580455
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006649576706298852,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.969828146435629,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0003638846442881149,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0004366958699284382,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9837586701659605
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004239399381068556,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.6401543553679687,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004247321691337735,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005941220803532985,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9489774565566041
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005336214600198632,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.08587071418933036,
+              "candidate_vs_source_qdot_mae_rad_s": 0.00012990369559167354,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00047732351661652005,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.24174908710601525
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0004272908368373043,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9924729454308379,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0001739137774881964,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003890808778584248,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9954438334225696
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0003",
+          "source_timeline_sha256": "1e10313919f5080bdb9276ac209f0da4df83416025a7a6006c8243aa7b986a2e",
+          "source_tp_consumed_echo_rate_hz": 476.20396600559184
+        },
+        {
+          "candidate_force_mae_n": null,
+          "fold": 5,
+          "matched_consumed_frames": 28871,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003642311560155135,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9916243820449978,
+              "candidate_vs_source_qdot_mae_rad_s": 0.00017451392225003345,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003144257440931464,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9972585360606562
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004544514249635554,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.3607644122583929,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0041625355092941175,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006148054669962368,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8929080985656564
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0007356672529328225,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9653055269960215,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0004114121384181028,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00047522517780601407,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9818793992783673
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004853261608491841,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.6440445331257131,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004916229216471297,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006056571879101466,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9490814593136997
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005298682645330875,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.08317050935892081,
+              "candidate_vs_source_qdot_mae_rad_s": 0.000132124230494163,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0004745837755698193,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.2362459693367845
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0004545088785759826,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9884788021936168,
+              "candidate_vs_source_qdot_mae_rad_s": 0.00020915636794919802,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003915344348509375,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9954688686457965
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0005",
+          "source_timeline_sha256": "c4bdabf7d913e1457af045c5dd28ca2d0afee72233a5b2a63e73ee7e219afd5f",
+          "source_tp_consumed_echo_rate_hz": 481.13647725371635
+        }
+      ],
+      "per_joint_summary_across_five_fixed_sources": [
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.000373736945490284,
+            "median": 0.0003642311560155135,
+            "min": 0.0003426619781009249
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9944802259574336,
+            "median": 0.9916953616194626,
+            "min": 0.9901453425701905
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.00018669189441008373,
+            "median": 0.00016897519769391883,
+            "min": 0.00014148479542228957
+          },
+          "joint_1_based": 1,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.00031700584606342795,
+            "median": 0.0003145282039304776,
+            "min": 0.0003107931302977329
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9975258339458121,
+            "median": 0.9971632579332264,
+            "min": 0.9966092029901624
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.004544514249635554,
+            "median": 0.004049814010559001,
+            "min": 0.00393130531478006
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.39540920927593715,
+            "median": 0.3804776510416302,
+            "min": 0.3607644122583929
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.0041625355092941175,
+            "median": 0.0037000918029066,
+            "min": 0.0035842989172632346
+          },
+          "joint_1_based": 2,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0006212597785190629,
+            "median": 0.0006130473050298415,
+            "min": 0.0005981215444070593
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.8929080985656564,
+            "median": 0.8842033759649188,
+            "min": 0.8788771451014704
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0007356672529328225,
+            "median": 0.0006707398491002961,
+            "min": 0.0006649576706298852
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.969828146435629,
+            "median": 0.9680830482637215,
+            "min": 0.9653055269960215
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.0004114121384181028,
+            "median": 0.0003758800937764784,
+            "min": 0.0003638846442881149
+          },
+          "joint_1_based": 3,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.00047522517780601407,
+            "median": 0.00044857955079951494,
+            "min": 0.0004366958699284382
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9837586701659605,
+            "median": 0.9830698200461896,
+            "min": 0.9818793992783673
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.004853261608491841,
+            "median": 0.0043530282292835384,
+            "min": 0.004223008449833241
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.6445837621832112,
+            "median": 0.6432776388680104,
+            "min": 0.6322786207004983
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.004916229216471297,
+            "median": 0.004374927012306232,
+            "min": 0.004246611747590405
+          },
+          "joint_1_based": 4,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0006112514997951619,
+            "median": 0.0005941220803532985,
+            "min": 0.0005752170242312173
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9517211924633077,
+            "median": 0.9490814593136997,
+            "min": 0.9454486025364128
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0005336214600198632,
+            "median": 0.0005089350853040989,
+            "min": 0.0004505780730781329
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.08587071418933036,
+            "median": 0.07832752987622275,
+            "min": 0.06619289126314759
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.000132124230494163,
+            "median": 0.0001295110279416878,
+            "min": 0.00012419038129862455
+          },
+          "joint_1_based": 5,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.00047732351661652005,
+            "median": 0.00045627266335782475,
+            "min": 0.0003996084174762439
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.24174908710601525,
+            "median": 0.2362459693367845,
+            "min": 0.22577944506571665
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.00046559743304527406,
+            "median": 0.0004545088785759826,
+            "min": 0.0004272908368373043
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9924729454308379,
+            "median": 0.9884788021936168,
+            "min": 0.9867906637202087
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.0002216672078969918,
+            "median": 0.00020322451682010421,
+            "min": 0.0001739137774881964
+          },
+          "joint_1_based": 6,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0003961265621287575,
+            "median": 0.0003915344348509375,
+            "min": 0.00038696171291122144
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9958106872865068,
+            "median": 0.9954438334225696,
+            "min": 0.9951616736165189
+          }
+        }
+      ],
+      "report_method_id": "tase_qp",
+      "solver_profile": {
+        "eps_abs": 1e-08,
+        "eps_rel": 1e-08,
+        "max_iter_per_stage": 400,
+        "osqp_rho": 0.1,
+        "osqp_scaling": 0
+      }
+    },
+    {
+      "analysis_method": "sfc_tase_qp",
+      "folds": [
+        {
+          "candidate_force_mae_n": null,
+          "fold": 1,
+          "matched_consumed_frames": 28846,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0029539431331844124,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9015638348106652,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0028695738200089052,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003145282039304776,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9968381821738117
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0038131304055560485,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.3609769154331119,
+              "candidate_vs_source_qdot_mae_rad_s": 0.003481305179592771,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006013112577465613,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8845124415906971
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0022267526474106574,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.8824108566530547,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0021479847351325745,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00044314474625461184,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9834932338869627
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0047818981044458544,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.636570550419671,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004802366516823264,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005811007346696033,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9506328146708184
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.00045367930748926974,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.0751032910032975,
+              "candidate_vs_source_qdot_mae_rad_s": 0.00013748076638658515,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003996084174762439,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.22577944506571665
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0029746914872842895,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.8982935706258994,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0028721200165087706,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00039164452228073295,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9951616736165189
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0002",
+          "source_timeline_sha256": "89ba3e2024eac35299ac90115a35d9aec5161879e1aec7d6dbd965ad9190f8a7",
+          "source_tp_consumed_echo_rate_hz": 481.019830028254
+        },
+        {
+          "candidate_force_mae_n": null,
+          "fold": 2,
+          "matched_consumed_frames": 28872,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0040173307947260345,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9417700550463686,
+              "candidate_vs_source_qdot_mae_rad_s": 0.003951284963667681,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003107931302977329,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9975258339458121
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.003935176438655811,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.3720941863090426,
+              "candidate_vs_source_qdot_mae_rad_s": 0.003598046242961587,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005981215444070593,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8842033759649188
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0015275941226869406,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.8567897635335692,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0013462606288254565,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00044857955079951494,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9830698200461896
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0042443761339815,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.6036380999796157,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004285677605256323,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005752170242312173,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9517211924633077
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005144484131343775,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.06442296617122063,
+              "candidate_vs_source_qdot_mae_rad_s": 0.00015190741867819385,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00045627266335782475,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.2303204130954877
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004028609273916746,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9382962727128985,
+              "candidate_vs_source_qdot_mae_rad_s": 0.003958002291489793,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00038696171291122144,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9958106872865068
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0004",
+          "source_timeline_sha256": "bebf6a408a8bb2d7bb0ac72217669b77e140b216a18546813ce84cb1e64caedf",
+          "source_tp_consumed_echo_rate_hz": 481.13647725371635
+        },
+        {
+          "candidate_force_mae_n": null,
+          "fold": 3,
+          "matched_consumed_frames": 28864,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0031172060960180264,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.7888220872163271,
+              "candidate_vs_source_qdot_mae_rad_s": 0.003093527502176565,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00031523316859575806,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9971632579332264
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.003997587694952584,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.4067179070958006,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0036582645201873377,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006212597785190629,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8788771451014704
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0019538615778109687,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.8879349261826112,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0018945251873389874,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0004624640819097285,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9823764381507086
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004730143736895339,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.6678597947616082,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004757999707371294,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006112514997951619,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9454486025364128
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005116144714076295,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.07555913512014382,
+              "candidate_vs_source_qdot_mae_rad_s": 0.00014669263710144834,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00045104860846494104,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.24081015754251045
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0031300813242595865,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.7864368102532345,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0031067454013404944,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003961265621287575,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9953855246410016
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0002",
+          "source_timeline_sha256": "9c62e807f869da886dcb211e6884fb87d818002a9f88ccb3bd66186e20e4d573",
+          "source_tp_consumed_echo_rate_hz": 481.08585521929103
+        },
+        {
+          "candidate_force_mae_n": null,
+          "fold": 4,
+          "matched_consumed_frames": 28198,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0026254307185561414,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.8412334961634017,
+              "candidate_vs_source_qdot_mae_rad_s": 0.002571724798903749,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00031700584606342795,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9966092029901624
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.003799380875197114,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.42623341907819456,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0034913405306139754,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006130473050298415,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8811208949580455
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0020711097344800486,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.8964977554063969,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0020534613514502343,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0004366958699284382,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9837586701659605
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004616166723949955,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.6677559486177321,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004637165760099926,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005941220803532985,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9489774565566041
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005338574007788935,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.08223162623426594,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0001375169178853518,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00047732351661652005,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.24174908710601525
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0026460261159615144,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.839727279970008,
+              "candidate_vs_source_qdot_mae_rad_s": 0.0025776030870862253,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003890808778584248,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9954438334225696
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0003",
+          "source_timeline_sha256": "1e10313919f5080bdb9276ac209f0da4df83416025a7a6006c8243aa7b986a2e",
+          "source_tp_consumed_echo_rate_hz": 476.20396600559184
+        },
+        {
+          "candidate_force_mae_n": null,
+          "fold": 5,
+          "matched_consumed_frames": 28871,
+          "per_joint": [
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0045698783793835995,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9610822686912861,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004638309566608983,
+              "joint_1_based": 1,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003144257440931464,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9972585360606562
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0052437573693303536,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.3871877432192826,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004926269147363392,
+              "joint_1_based": 2,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006148054669962368,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.8929080985656564
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0024102017771241596,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9204811471843031,
+              "candidate_vs_source_qdot_mae_rad_s": 0.002379847420910857,
+              "joint_1_based": 3,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.00047522517780601407,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9818793992783673
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004463875507706182,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.6654592061141341,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004585589414661921,
+              "joint_1_based": 4,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0006056571879101466,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9490814593136997
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.0005468005626845942,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.08579292626244367,
+              "candidate_vs_source_qdot_mae_rad_s": 0.00014965127649068516,
+              "joint_1_based": 5,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0004745837755698193,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.2362459693367845
+            },
+            {
+              "candidate_qdot_vs_historical_actual_qd_mae_rad_s": 0.004585838934295326,
+              "candidate_qdot_vs_historical_actual_qd_pearson": 0.9574919822179506,
+              "candidate_vs_source_qdot_mae_rad_s": 0.004647530210253815,
+              "joint_1_based": 6,
+              "source_published_qdot_vs_historical_actual_qd_mae_rad_s": 0.0003915344348509375,
+              "source_published_qdot_vs_historical_actual_qd_pearson": 0.9954688686457965
+            }
+          ],
+          "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0005",
+          "source_timeline_sha256": "c4bdabf7d913e1457af045c5dd28ca2d0afee72233a5b2a63e73ee7e219afd5f",
+          "source_tp_consumed_echo_rate_hz": 481.13647725371635
+        }
+      ],
+      "per_joint_summary_across_five_fixed_sources": [
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0045698783793835995,
+            "median": 0.0031172060960180264,
+            "min": 0.0026254307185561414
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9610822686912861,
+            "median": 0.9015638348106652,
+            "min": 0.7888220872163271
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.004638309566608983,
+            "median": 0.003093527502176565,
+            "min": 0.002571724798903749
+          },
+          "joint_1_based": 1,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.00031700584606342795,
+            "median": 0.0003145282039304776,
+            "min": 0.0003107931302977329
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9975258339458121,
+            "median": 0.9971632579332264,
+            "min": 0.9966092029901624
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0052437573693303536,
+            "median": 0.003935176438655811,
+            "min": 0.003799380875197114
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.42623341907819456,
+            "median": 0.3871877432192826,
+            "min": 0.3609769154331119
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.004926269147363392,
+            "median": 0.003598046242961587,
+            "min": 0.003481305179592771
+          },
+          "joint_1_based": 2,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0006212597785190629,
+            "median": 0.0006130473050298415,
+            "min": 0.0005981215444070593
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.8929080985656564,
+            "median": 0.8842033759649188,
+            "min": 0.8788771451014704
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0024102017771241596,
+            "median": 0.0020711097344800486,
+            "min": 0.0015275941226869406
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9204811471843031,
+            "median": 0.8879349261826112,
+            "min": 0.8567897635335692
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.002379847420910857,
+            "median": 0.0020534613514502343,
+            "min": 0.0013462606288254565
+          },
+          "joint_1_based": 3,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.00047522517780601407,
+            "median": 0.00044857955079951494,
+            "min": 0.0004366958699284382
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9837586701659605,
+            "median": 0.9830698200461896,
+            "min": 0.9818793992783673
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0047818981044458544,
+            "median": 0.004616166723949955,
+            "min": 0.0042443761339815
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.6678597947616082,
+            "median": 0.6654592061141341,
+            "min": 0.6036380999796157
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.004802366516823264,
+            "median": 0.004637165760099926,
+            "min": 0.004285677605256323
+          },
+          "joint_1_based": 4,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0006112514997951619,
+            "median": 0.0005941220803532985,
+            "min": 0.0005752170242312173
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9517211924633077,
+            "median": 0.9490814593136997,
+            "min": 0.9454486025364128
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0005468005626845942,
+            "median": 0.0005144484131343775,
+            "min": 0.00045367930748926974
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.08579292626244367,
+            "median": 0.07555913512014382,
+            "min": 0.06442296617122063
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.00015190741867819385,
+            "median": 0.00014669263710144834,
+            "min": 0.00013748076638658515
+          },
+          "joint_1_based": 5,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.00047732351661652005,
+            "median": 0.00045627266335782475,
+            "min": 0.0003996084174762439
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.24174908710601525,
+            "median": 0.2362459693367845,
+            "min": 0.22577944506571665
+          }
+        },
+        {
+          "candidate_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.004585838934295326,
+            "median": 0.0031300813242595865,
+            "min": 0.0026460261159615144
+          },
+          "candidate_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9574919822179506,
+            "median": 0.8982935706258994,
+            "min": 0.7864368102532345
+          },
+          "candidate_vs_source_qdot_mae_rad_s": {
+            "max": 0.004647530210253815,
+            "median": 0.0031067454013404944,
+            "min": 0.0025776030870862253
+          },
+          "joint_1_based": 6,
+          "source_published_qdot_vs_historical_actual_qd_mae_rad_s": {
+            "max": 0.0003961265621287575,
+            "median": 0.0003915344348509375,
+            "min": 0.00038696171291122144
+          },
+          "source_published_qdot_vs_historical_actual_qd_pearson": {
+            "max": 0.9958106872865068,
+            "median": 0.9954438334225696,
+            "min": 0.9951616736165189
+          }
+        }
+      ],
+      "report_method_id": "sfc_tase_qp",
+      "solver_profile": {
+        "eps_abs": 1e-08,
+        "eps_rel": 1e-08,
+        "max_iter_per_stage": 400,
+        "osqp_rho": 0.1,
+        "osqp_scaling": 0
+      }
+    }
+  ],
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "schema": "tase.actual-qd-fixed-observation-per-joint-proxy.v1",
+  "source_count": 5,
+  "source_tp_consumed_echo_rate_hz": {
+    "max": 481.13647725371635,
+    "min": 476.20396600559184
+  }
+}

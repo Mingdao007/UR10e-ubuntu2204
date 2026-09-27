@@ -87,6 +87,34 @@ def _fixed_observation_actual_qd_proxy(
         for _, frame, _ in matched
         for value in frame["qd_rad_s"]
     ]
+    per_joint: list[dict[str, Any]] = []
+    for joint_index in range(6):
+        source_joint = [
+            float(command["published_packet_qdot_rad_s"][joint_index])
+            for _, _, command in matched
+        ]
+        candidate_joint = [
+            float(candidate_qdot_by_sequence[sequence][joint_index])
+            for sequence, _, _ in matched
+        ]
+        actual_joint = [float(frame["qd_rad_s"][joint_index]) for _, frame, _ in matched]
+        source_errors = [actual - command for command, actual in zip(source_joint, actual_joint, strict=True)]
+        candidate_errors = [actual - command for command, actual in zip(candidate_joint, actual_joint, strict=True)]
+        command_deltas = [candidate - source for source, candidate in zip(source_joint, candidate_joint, strict=True)]
+        per_joint.append({
+            "joint_1_based": joint_index + 1,
+            "source_published_qdot_vs_historical_actual_qd_pearson": pearson(source_joint, actual_joint),
+            "candidate_qdot_vs_historical_actual_qd_pearson": pearson(candidate_joint, actual_joint),
+            "source_published_qdot_vs_historical_actual_qd_mae_rad_s": (
+                sum(abs(value) for value in source_errors) / len(source_errors) if source_errors else None
+            ),
+            "candidate_qdot_vs_historical_actual_qd_mae_rad_s": (
+                sum(abs(value) for value in candidate_errors) / len(candidate_errors) if candidate_errors else None
+            ),
+            "candidate_vs_source_qdot_mae_rad_s": (
+                sum(abs(value) for value in command_deltas) / len(command_deltas) if command_deltas else None
+            ),
+        })
     return {
         "metric": "flattened_pearson_command_qdot_vs_historical_rtde_actual_qd_on_same_consumed_packet",
         "diagnostic_only": True,
@@ -104,6 +132,7 @@ def _fixed_observation_actual_qd_proxy(
         "candidate_qdot_vs_historical_actual_qd_pearson": pearson(
             candidate_qdot, actual_qd
         ),
+        "per_joint": per_joint,
         "interpretation": (
             "The source RTDE actual_qd belongs to the historical source controller; "
             "candidate commands were not applied to the robot. This correlation cannot "

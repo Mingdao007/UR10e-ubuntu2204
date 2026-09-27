@@ -108,6 +108,12 @@ def test_actual_qd_proxy_uses_full_consumed_path_and_never_claims_live_gate():
     assert result["source_join_counts"]["held_or_duplicate_rows_filtered"] == 1
     assert result["source_published_qdot_vs_historical_actual_qd_pearson"] == pytest.approx(1.0)
     assert result["candidate_qdot_vs_historical_actual_qd_pearson"] == pytest.approx(-1.0)
+    assert [row["joint_1_based"] for row in result["per_joint"]] == [1, 2, 3, 4, 5, 6]
+    assert result["per_joint"][0]["source_published_qdot_vs_historical_actual_qd_pearson"] == pytest.approx(1.0)
+    assert result["per_joint"][0]["candidate_qdot_vs_historical_actual_qd_pearson"] == pytest.approx(-1.0)
+    assert result["per_joint"][0]["source_published_qdot_vs_historical_actual_qd_mae_rad_s"] == pytest.approx(0.1)
+    assert result["per_joint"][0]["candidate_qdot_vs_historical_actual_qd_mae_rad_s"] == pytest.approx(1.9)
+    assert result["per_joint"][0]["candidate_vs_source_qdot_mae_rad_s"] == pytest.approx(2.0)
     assert result["not_candidate_actual_qd"] is True
     assert result["not_live_gate"] is True
     assert result["candidate_force_mae"] is None
