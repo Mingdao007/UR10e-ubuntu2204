@@ -318,3 +318,17 @@ Raw sample 的 `[5,60)` 低于 1 N 比例为 **26.78%**、最长连续段 **0.54
 状态 override 后出现的 14 个 late-path `solved inaccurate` 结果及 Python wrapper CPU 峰值见 [solver thread CPU/wall diagnostic](tase_qp_thread_cpu_wall_diagnostic_20260927.json)。该 timing 属 Python/SciPy 离线函数，不可冒充未来 native live solver 的执行时序；它仍说明仅靠提高 OSQP 的内部计算初值，没有让当前 profile 达到可晋升状态。
 
 当前阶段的结果是：指标 reducer 与报告通过 focused 验证；A 仍为积分基线；high/low filter、当前 D anti-windup、QP 与 SFC+TASE 还没有合格的 live 精度改善证据。`ζ=0.707` 不能从现有 Figure-eight 闭环数据换算法向 K/B；state20/21 的实测时长已与两段搜索及 8 s ramp + 0.5 s latch 相符，不是 unexplained fixed sleep。下一项保留同一 protocol 与 KWR75 force boundary，先解决可重复的离线 solver optimality/deadline 诊断，再讨论未批准的 QP 数值；在此之前不派 live QP 或重复无信号候选。
+
+## 固定观测下的 actual_qd 运动代理筛查 — 2026-09-27
+
+为了量化新命令与既有 A 实际运动的差别，对五条合格 A trace 使用同一组固定观测和 consumed-packet 时间戳，分别离线生成 RNN+切向 phase-template residual、normal-priority TASE-QP、SFC+TASE-QP 命令。五个 source attempt 都有完整 60 s PATH、550/550 正式 bin、600/600 诊断 bin、rate460 TP-consumed echo 与 joint Home。这里的 Pearson 是把候选六关节命令与 source A 的历史 RTDE `actual_qd` 展平后计算；source 自己的 published-qdot 对 actual_qd 相关中位数为 0.969388（范围 0.967014–0.972040）。
+
+| 固定观测命令候选 | 对历史 A `actual_qd` 的 Pearson 中位数（五折范围） | candidate 力 MAE |
+|---|---:|---:|
+| RNN+SFC tangent phase-template residual | 0.801598（0.760666–0.836332） | 未计算 |
+| Normal-priority TASE-QP | 0.745915（0.722727–0.754141） | 未计算 |
+| SFC+TASE-QP | 0.653552（0.620150–0.726294） | 未计算 |
+
+三组候选命令都比 A 原命令更偏离 A 的历史 `actual_qd`；SFC+TASE-QP 的偏离最大。该信号只说明固定输入下的命令变化程度，不能预测闭环路径误差、碰撞风险或候选实际关节速度，也不能代替 live motion gate。三个报告都明确将 candidate force MAE 保持为 null；因此不支持任何力跟踪改善结论。五条 source 的实际 TP-consumed echo 为 476.204–481.136 Hz。QP 两组沿用 `rho=0.1, scaling=0` 的离线 profile；`scaling=0` 仍不是 live 批准参数。
+
+可复核的五折明细、源 attempt 身份、trace SHA 与 KWR75 source-A 指标分别见 [RNN+SFC proxy](tase_r32a_sfc_rnn_actual_qd_proxy_20260927.json)、[TASE-QP proxy](tase_r32a_tase_qp_actual_qd_proxy_20260927.json) 和 [SFC+TASE-QP proxy](tase_r32a_sfc_tase_qp_actual_qd_proxy_20260927.json)。这些 source-A 力分数是 feedback diagnostics，不是候选分数或独立 task-force 真值。下一步按关节拆分命令/历史 `actual_qd` 代理差异，判断偏离集中在哪些关节；再据此决定哪些候选值得做不接触的 shadow 检查。任何候选要报告正式与诊断窗口 MAE，仍须取得候选真实运动及 KWR75 反馈；本次 fixed-observation replay 不具备这种证据。

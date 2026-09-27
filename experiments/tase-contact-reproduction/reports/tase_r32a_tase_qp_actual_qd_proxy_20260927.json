@@ -1,0 +1,607 @@
+{
+  "candidate_force_mae_computed": false,
+  "candidate_path_completion_count": 5,
+  "diagnostic_bins_per_fold": [
+    600
+  ],
+  "evidence_class": "offline_fixed_observation_actual_qd_proxy",
+  "folds": [
+    {
+      "attempt_id": "0002",
+      "candidate_diagnostic_force_mae_n": null,
+      "candidate_force_mae_computed": false,
+      "candidate_force_mae_recomputed": false,
+      "candidate_formal_force_mae_n": null,
+      "candidate_id": "confirm-s01-b00-A",
+      "candidate_solver_path_complete": true,
+      "diagnostic_bins": 600,
+      "fold": 1,
+      "fold_receipt": "runs/tase-r32a-tase-qp-actual-qd-proxy-20260927/fold-01.json",
+      "formal_bins": 550,
+      "formal_rows": 27480,
+      "historical_actual_qd_proxy": {
+        "candidate_force_mae": null,
+        "candidate_frame_coverage_of_joined_source": 1.0,
+        "candidate_matched_consumed_frames": 28846,
+        "candidate_qdot_vs_historical_actual_qd_pearson": 0.7459152334607956,
+        "diagnostic_only": true,
+        "interpretation": "The source RTDE actual_qd belongs to the historical source controller; candidate commands were not applied to the robot. This correlation cannot pass or replace the live motion gate.",
+        "metric": "flattened_pearson_command_qdot_vs_historical_rtde_actual_qd_on_same_consumed_packet",
+        "not_candidate_actual_qd": true,
+        "not_live_gate": true,
+        "source_join_counts": {
+          "formal_path_command_joins": 28846,
+          "held_or_duplicate_rows_filtered": 1137,
+          "state25_rows_without_formal_path_command": 506,
+          "state25_rtde_rows": 30489
+        },
+        "source_published_qdot_vs_historical_actual_qd_pearson": 0.9720398274222428
+      },
+      "path_rows": 29982,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "source_A_bin_coverage": {
+        "diagnostic_0_60": 600,
+        "formal_5_60": 550
+      },
+      "source_A_force_diagnostics_only": {
+        "filtered_Kunwei_normal": {
+          "formal_5_60": {
+            "bin_mean_abs_error_p95_n": 2.796879023480201,
+            "bin_mean_bias_n": -0.9892692061292893,
+            "bin_mean_mae_n": 1.005974435770171,
+            "bin_mean_rmse_n": 1.3448014818867706,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_filtered_n from synchronized PATH command trace",
+            "nonempty_bins": 550,
+            "required_bins": 550,
+            "sample_abs_error_p95_n": 2.862188281205549,
+            "sample_bias_n": -0.9888988124399184,
+            "sample_count": 27480,
+            "sample_mae_n": 1.0072468753781443,
+            "sample_rmse_n": 1.354951304807084
+          },
+          "full_0_60": {
+            "bin_mean_abs_error_p95_n": 2.817465841554086,
+            "bin_mean_bias_n": -1.0278927357572956,
+            "bin_mean_mae_n": 1.0432058629281038,
+            "bin_mean_rmse_n": 1.377026090954388,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_filtered_n from synchronized PATH command trace",
+            "nonempty_bins": 600,
+            "required_bins": 600,
+            "sample_abs_error_p95_n": 2.874650804795851,
+            "sample_bias_n": -1.0274905352753811,
+            "sample_count": 29982,
+            "sample_mae_n": 1.0446173924079882,
+            "sample_rmse_n": 1.3872903893002833
+          }
+        },
+        "measured_Kunwei_normal": {
+          "formal_5_60": {
+            "bin_mean_abs_error_p95_n": 4.985271786295462,
+            "bin_mean_bias_n": -0.977173844173816,
+            "bin_mean_mae_n": 1.7154905176136472,
+            "bin_mean_rmse_n": 2.361422889294379,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_measured_n from synchronized PATH command trace",
+            "nonempty_bins": 550,
+            "required_bins": 550,
+            "sample_abs_error_p95_n": 5.010014630034599,
+            "sample_bias_n": -0.978261161449207,
+            "sample_count": 27480,
+            "sample_mae_n": 1.898693447496019,
+            "sample_rmse_n": 2.526925073108668
+          },
+          "full_0_60": {
+            "bin_mean_abs_error_p95_n": 4.98513164132719,
+            "bin_mean_bias_n": -1.025666816778556,
+            "bin_mean_mae_n": 1.7732081598770317,
+            "bin_mean_rmse_n": 2.4205815500706684,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_measured_n from synchronized PATH command trace",
+            "nonempty_bins": 600,
+            "required_bins": 600,
+            "sample_abs_error_p95_n": 5.014092254737053,
+            "sample_bias_n": -1.026546687779493,
+            "sample_count": 29982,
+            "sample_mae_n": 1.9707121032977721,
+            "sample_rmse_n": 2.591002408014292
+          }
+        }
+      },
+      "source_A_official_formal_bin_mae_n": 1.0061050570848329,
+      "source_official_formal_bin_mae_n": 1.0061050570848329,
+      "source_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0002",
+      "source_timeline_sha256": "89ba3e2024eac35299ac90115a35d9aec5161879e1aec7d6dbd965ad9190f8a7",
+      "source_timing_duration_s": 60.01000000000931,
+      "source_tp_consumed_echo_count": 28866,
+      "source_tp_consumed_echo_rate_hz": 481.019830028254
+    },
+    {
+      "attempt_id": "0004",
+      "candidate_diagnostic_force_mae_n": null,
+      "candidate_force_mae_computed": false,
+      "candidate_force_mae_recomputed": false,
+      "candidate_formal_force_mae_n": null,
+      "candidate_id": "confirm-s01-b01-A",
+      "candidate_solver_path_complete": true,
+      "diagnostic_bins": 600,
+      "fold": 2,
+      "fold_receipt": "runs/tase-r32a-tase-qp-actual-qd-proxy-20260927/fold-02.json",
+      "formal_bins": 550,
+      "formal_rows": 27499,
+      "historical_actual_qd_proxy": {
+        "candidate_force_mae": null,
+        "candidate_frame_coverage_of_joined_source": 1.0,
+        "candidate_matched_consumed_frames": 28872,
+        "candidate_qdot_vs_historical_actual_qd_pearson": 0.7541410008775036,
+        "diagnostic_only": true,
+        "interpretation": "The source RTDE actual_qd belongs to the historical source controller; candidate commands were not applied to the robot. This correlation cannot pass or replace the live motion gate.",
+        "metric": "flattened_pearson_command_qdot_vs_historical_rtde_actual_qd_on_same_consumed_packet",
+        "not_candidate_actual_qd": true,
+        "not_live_gate": true,
+        "source_join_counts": {
+          "formal_path_command_joins": 28872,
+          "held_or_duplicate_rows_filtered": 1132,
+          "state25_rows_without_formal_path_command": 505,
+          "state25_rtde_rows": 30509
+        },
+        "source_published_qdot_vs_historical_actual_qd_pearson": 0.9715555041714043
+      },
+      "path_rows": 30003,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "source_A_bin_coverage": {
+        "diagnostic_0_60": 600,
+        "formal_5_60": 550
+      },
+      "source_A_force_diagnostics_only": {
+        "filtered_Kunwei_normal": {
+          "formal_5_60": {
+            "bin_mean_abs_error_p95_n": 2.785135513718424,
+            "bin_mean_bias_n": -0.9294058371836518,
+            "bin_mean_mae_n": 0.9420901442040128,
+            "bin_mean_rmse_n": 1.2795949202427466,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_filtered_n from synchronized PATH command trace",
+            "nonempty_bins": 550,
+            "required_bins": 550,
+            "sample_abs_error_p95_n": 2.813800342727914,
+            "sample_bias_n": -0.9293747553932913,
+            "sample_count": 27499,
+            "sample_mae_n": 0.9442209464778826,
+            "sample_rmse_n": 1.2898217503420488
+          },
+          "full_0_60": {
+            "bin_mean_abs_error_p95_n": 2.7992158675766974,
+            "bin_mean_bias_n": -0.9517427902487918,
+            "bin_mean_mae_n": 0.964242657112451,
+            "bin_mean_rmse_n": 1.2948145778333346,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_filtered_n from synchronized PATH command trace",
+            "nonempty_bins": 600,
+            "required_bins": 600,
+            "sample_abs_error_p95_n": 2.821686086254781,
+            "sample_bias_n": -0.9517123361470793,
+            "sample_count": 30003,
+            "sample_mae_n": 0.9662567370787944,
+            "sample_rmse_n": 1.3054722235449367
+          }
+        },
+        "measured_Kunwei_normal": {
+          "formal_5_60": {
+            "bin_mean_abs_error_p95_n": 4.988373914106655,
+            "bin_mean_bias_n": -0.9422437895010242,
+            "bin_mean_mae_n": 1.6585303152640412,
+            "bin_mean_rmse_n": 2.282106234676988,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_measured_n from synchronized PATH command trace",
+            "nonempty_bins": 550,
+            "required_bins": 550,
+            "sample_abs_error_p95_n": 5.007912250927868,
+            "sample_bias_n": -0.9420978699346223,
+            "sample_count": 27499,
+            "sample_mae_n": 1.825361953136564,
+            "sample_rmse_n": 2.447330208249428
+          },
+          "full_0_60": {
+            "bin_mean_abs_error_p95_n": 4.988373914106655,
+            "bin_mean_bias_n": -0.9545156716081692,
+            "bin_mean_mae_n": 1.7164542946372388,
+            "bin_mean_rmse_n": 2.334636145460306,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_measured_n from synchronized PATH command trace",
+            "nonempty_bins": 600,
+            "required_bins": 600,
+            "sample_abs_error_p95_n": 5.010882645040784,
+            "sample_bias_n": -0.9540824358285156,
+            "sample_count": 30003,
+            "sample_mae_n": 1.8889181641629784,
+            "sample_rmse_n": 2.504006511760153
+          }
+        }
+      },
+      "source_A_official_formal_bin_mae_n": 0.9419680748585729,
+      "source_official_formal_bin_mae_n": 0.9419680748585729,
+      "source_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0004",
+      "source_timeline_sha256": "bebf6a408a8bb2d7bb0ac72217669b77e140b216a18546813ce84cb1e64caedf",
+      "source_timing_duration_s": 60.01000000000931,
+      "source_tp_consumed_echo_count": 28873,
+      "source_tp_consumed_echo_rate_hz": 481.13647725371635
+    },
+    {
+      "attempt_id": "0002",
+      "candidate_diagnostic_force_mae_n": null,
+      "candidate_force_mae_computed": false,
+      "candidate_force_mae_recomputed": false,
+      "candidate_formal_force_mae_n": null,
+      "candidate_id": "confirm-s02-b02-A",
+      "candidate_solver_path_complete": true,
+      "diagnostic_bins": 600,
+      "fold": 3,
+      "fold_receipt": "runs/tase-r32a-tase-qp-actual-qd-proxy-20260927/fold-03.json",
+      "formal_bins": 550,
+      "formal_rows": 27493,
+      "historical_actual_qd_proxy": {
+        "candidate_force_mae": null,
+        "candidate_frame_coverage_of_joined_source": 1.0,
+        "candidate_matched_consumed_frames": 28864,
+        "candidate_qdot_vs_historical_actual_qd_pearson": 0.7446163306039122,
+        "diagnostic_only": true,
+        "interpretation": "The source RTDE actual_qd belongs to the historical source controller; candidate commands were not applied to the robot. This correlation cannot pass or replace the live motion gate.",
+        "metric": "flattened_pearson_command_qdot_vs_historical_rtde_actual_qd_on_same_consumed_packet",
+        "not_candidate_actual_qd": true,
+        "not_live_gate": true,
+        "source_join_counts": {
+          "formal_path_command_joins": 28864,
+          "held_or_duplicate_rows_filtered": 1133,
+          "state25_rows_without_formal_path_command": 505,
+          "state25_rtde_rows": 30502
+        },
+        "source_published_qdot_vs_historical_actual_qd_pearson": 0.9693875804784542
+      },
+      "path_rows": 29997,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "source_A_bin_coverage": {
+        "diagnostic_0_60": 600,
+        "formal_5_60": 550
+      },
+      "source_A_force_diagnostics_only": {
+        "filtered_Kunwei_normal": {
+          "formal_5_60": {
+            "bin_mean_abs_error_p95_n": 2.7021953760680533,
+            "bin_mean_bias_n": -1.028948372010977,
+            "bin_mean_mae_n": 1.036386123460533,
+            "bin_mean_rmse_n": 1.3387693990496996,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_filtered_n from synchronized PATH command trace",
+            "nonempty_bins": 550,
+            "required_bins": 550,
+            "sample_abs_error_p95_n": 2.786204380300179,
+            "sample_bias_n": -1.0290176511315559,
+            "sample_count": 27493,
+            "sample_mae_n": 1.037543827578799,
+            "sample_rmse_n": 1.350371508729304
+          },
+          "full_0_60": {
+            "bin_mean_abs_error_p95_n": 2.691774626361678,
+            "bin_mean_bias_n": -1.017822543877761,
+            "bin_mean_mae_n": 1.0275465800598462,
+            "bin_mean_rmse_n": 1.328767975574884,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_filtered_n from synchronized PATH command trace",
+            "nonempty_bins": 600,
+            "required_bins": 600,
+            "sample_abs_error_p95_n": 2.7713133919741653,
+            "sample_bias_n": -1.017818177868217,
+            "sample_count": 29997,
+            "sample_mae_n": 1.0288264023131057,
+            "sample_rmse_n": 1.3401604326941299
+          }
+        },
+        "measured_Kunwei_normal": {
+          "formal_5_60": {
+            "bin_mean_abs_error_p95_n": 4.981047120565554,
+            "bin_mean_bias_n": -1.0435418583988265,
+            "bin_mean_mae_n": 1.8052495665151251,
+            "bin_mean_rmse_n": 2.4457331749350164,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_measured_n from synchronized PATH command trace",
+            "nonempty_bins": 550,
+            "required_bins": 550,
+            "sample_abs_error_p95_n": 5.0118223178845405,
+            "sample_bias_n": -1.043466661221919,
+            "sample_count": 27493,
+            "sample_mae_n": 2.0195044213965625,
+            "sample_rmse_n": 2.6289632876124607
+          },
+          "full_0_60": {
+            "bin_mean_abs_error_p95_n": 4.980438399469635,
+            "bin_mean_bias_n": -1.0278819666127565,
+            "bin_mean_mae_n": 1.7918430988853258,
+            "bin_mean_rmse_n": 2.4250180223006557,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_measured_n from synchronized PATH command trace",
+            "nonempty_bins": 600,
+            "required_bins": 600,
+            "sample_abs_error_p95_n": 5.0090001000706605,
+            "sample_bias_n": -1.0276693673794102,
+            "sample_count": 29997,
+            "sample_mae_n": 2.000446176118682,
+            "sample_rmse_n": 2.6069660741600513
+          }
+        }
+      },
+      "source_A_official_formal_bin_mae_n": 1.0364228577061043,
+      "source_official_formal_bin_mae_n": 1.0364228577061043,
+      "source_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0002",
+      "source_timeline_sha256": "9c62e807f869da886dcb211e6884fb87d818002a9f88ccb3bd66186e20e4d573",
+      "source_timing_duration_s": 60.00800000000163,
+      "source_tp_consumed_echo_count": 28869,
+      "source_tp_consumed_echo_rate_hz": 481.08585521929103
+    },
+    {
+      "attempt_id": "0003",
+      "candidate_diagnostic_force_mae_n": null,
+      "candidate_force_mae_computed": false,
+      "candidate_force_mae_recomputed": false,
+      "candidate_formal_force_mae_n": null,
+      "candidate_id": "confirm-s02-b03-A",
+      "candidate_solver_path_complete": true,
+      "diagnostic_bins": 600,
+      "fold": 4,
+      "fold_receipt": "runs/tase-r32a-tase-qp-actual-qd-proxy-20260927/fold-04.json",
+      "formal_bins": 550,
+      "formal_rows": 27139,
+      "historical_actual_qd_proxy": {
+        "candidate_force_mae": null,
+        "candidate_frame_coverage_of_joined_source": 1.0,
+        "candidate_matched_consumed_frames": 28198,
+        "candidate_qdot_vs_historical_actual_qd_pearson": 0.747135574695361,
+        "diagnostic_only": true,
+        "interpretation": "The source RTDE actual_qd belongs to the historical source controller; candidate commands were not applied to the robot. This correlation cannot pass or replace the live motion gate.",
+        "metric": "flattened_pearson_command_qdot_vs_historical_rtde_actual_qd_on_same_consumed_packet",
+        "not_candidate_actual_qd": true,
+        "not_live_gate": true,
+        "source_join_counts": {
+          "formal_path_command_joins": 28198,
+          "held_or_duplicate_rows_filtered": 1359,
+          "state25_rows_without_formal_path_command": 493,
+          "state25_rtde_rows": 30050
+        },
+        "source_published_qdot_vs_historical_actual_qd_pearson": 0.9670142085299064
+      },
+      "path_rows": 29557,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "source_A_bin_coverage": {
+        "diagnostic_0_60": 600,
+        "formal_5_60": 550
+      },
+      "source_A_force_diagnostics_only": {
+        "filtered_Kunwei_normal": {
+          "formal_5_60": {
+            "bin_mean_abs_error_p95_n": 2.8875457988252244,
+            "bin_mean_bias_n": -0.99524190145909,
+            "bin_mean_mae_n": 1.024353290139994,
+            "bin_mean_rmse_n": 1.4026873079358444,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_filtered_n from synchronized PATH command trace",
+            "nonempty_bins": 550,
+            "required_bins": 550,
+            "sample_abs_error_p95_n": 2.92688904065278,
+            "sample_bias_n": -0.9983099852961629,
+            "sample_count": 27139,
+            "sample_mae_n": 1.03018542324614,
+            "sample_rmse_n": 1.4150875087825747
+          },
+          "full_0_60": {
+            "bin_mean_abs_error_p95_n": 2.8406443159324954,
+            "bin_mean_bias_n": -0.9974574006292937,
+            "bin_mean_mae_n": 1.0242077325796166,
+            "bin_mean_rmse_n": 1.390992405468925,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_filtered_n from synchronized PATH command trace",
+            "nonempty_bins": 600,
+            "required_bins": 600,
+            "sample_abs_error_p95_n": 2.8955705422687394,
+            "sample_bias_n": -0.99997888692543,
+            "sample_count": 29557,
+            "sample_mae_n": 1.0296119397366357,
+            "sample_rmse_n": 1.4036604141534468
+          }
+        },
+        "measured_Kunwei_normal": {
+          "formal_5_60": {
+            "bin_mean_abs_error_p95_n": 4.985198269353901,
+            "bin_mean_bias_n": -0.994972417521718,
+            "bin_mean_mae_n": 1.7119156694581792,
+            "bin_mean_rmse_n": 2.3654953226811752,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_measured_n from synchronized PATH command trace",
+            "nonempty_bins": 550,
+            "required_bins": 550,
+            "sample_abs_error_p95_n": 5.012553554768537,
+            "sample_bias_n": -1.0041466766891187,
+            "sample_count": 27139,
+            "sample_mae_n": 1.8975616615618562,
+            "sample_rmse_n": 2.5346758159364455
+          },
+          "full_0_60": {
+            "bin_mean_abs_error_p95_n": 4.983870695842055,
+            "bin_mean_bias_n": -1.0039626340492984,
+            "bin_mean_mae_n": 1.7362185584952776,
+            "bin_mean_rmse_n": 2.3787236653667008,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_measured_n from synchronized PATH command trace",
+            "nonempty_bins": 600,
+            "required_bins": 600,
+            "sample_abs_error_p95_n": 5.0118017134879285,
+            "sample_bias_n": -1.0074723589932164,
+            "sample_count": 29557,
+            "sample_mae_n": 1.9168946279269912,
+            "sample_rmse_n": 2.543829977191565
+          }
+        }
+      },
+      "source_A_official_formal_bin_mae_n": 1.0242417404331408,
+      "source_official_formal_bin_mae_n": 1.0242417404331408,
+      "source_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0003",
+      "source_timeline_sha256": "1e10313919f5080bdb9276ac209f0da4df83416025a7a6006c8243aa7b986a2e",
+      "source_timing_duration_s": 60.01000000000931,
+      "source_tp_consumed_echo_count": 28577,
+      "source_tp_consumed_echo_rate_hz": 476.20396600559184
+    },
+    {
+      "attempt_id": "0005",
+      "candidate_diagnostic_force_mae_n": null,
+      "candidate_force_mae_computed": false,
+      "candidate_force_mae_recomputed": false,
+      "candidate_formal_force_mae_n": null,
+      "candidate_id": "confirm-s02-b04-A",
+      "candidate_solver_path_complete": true,
+      "diagnostic_bins": 600,
+      "fold": 5,
+      "fold_receipt": "runs/tase-r32a-tase-qp-actual-qd-proxy-20260927/fold-05.json",
+      "formal_bins": 550,
+      "formal_rows": 27498,
+      "historical_actual_qd_proxy": {
+        "candidate_force_mae": null,
+        "candidate_frame_coverage_of_joined_source": 1.0,
+        "candidate_matched_consumed_frames": 28871,
+        "candidate_qdot_vs_historical_actual_qd_pearson": 0.7227265645180642,
+        "diagnostic_only": true,
+        "interpretation": "The source RTDE actual_qd belongs to the historical source controller; candidate commands were not applied to the robot. This correlation cannot pass or replace the live motion gate.",
+        "metric": "flattened_pearson_command_qdot_vs_historical_rtde_actual_qd_on_same_consumed_packet",
+        "not_candidate_actual_qd": true,
+        "not_live_gate": true,
+        "source_join_counts": {
+          "formal_path_command_joins": 28871,
+          "held_or_duplicate_rows_filtered": 1132,
+          "state25_rows_without_formal_path_command": 504,
+          "state25_rtde_rows": 30507
+        },
+        "source_published_qdot_vs_historical_actual_qd_pearson": 0.9686318955984835
+      },
+      "path_rows": 30002,
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "source_A_bin_coverage": {
+        "diagnostic_0_60": 600,
+        "formal_5_60": 550
+      },
+      "source_A_force_diagnostics_only": {
+        "filtered_Kunwei_normal": {
+          "formal_5_60": {
+            "bin_mean_abs_error_p95_n": 2.9523554173497555,
+            "bin_mean_bias_n": -1.1860201405858009,
+            "bin_mean_mae_n": 1.1957464508872886,
+            "bin_mean_rmse_n": 1.5160414076342021,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_filtered_n from synchronized PATH command trace",
+            "nonempty_bins": 550,
+            "required_bins": 550,
+            "sample_abs_error_p95_n": 2.9848903541517684,
+            "sample_bias_n": -1.1858648179023121,
+            "sample_count": 27498,
+            "sample_mae_n": 1.1964857710038581,
+            "sample_rmse_n": 1.5269634252239404
+          },
+          "full_0_60": {
+            "bin_mean_abs_error_p95_n": 2.9303557766579345,
+            "bin_mean_bias_n": -1.1942172143854288,
+            "bin_mean_mae_n": 1.2036087798167858,
+            "bin_mean_rmse_n": 1.51370547566791,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_filtered_n from synchronized PATH command trace",
+            "nonempty_bins": 600,
+            "required_bins": 600,
+            "sample_abs_error_p95_n": 2.9565608502218415,
+            "sample_bias_n": -1.1940331020907347,
+            "sample_count": 30002,
+            "sample_mae_n": 1.204344344186086,
+            "sample_rmse_n": 1.5250144042245986
+          }
+        },
+        "measured_Kunwei_normal": {
+          "formal_5_60": {
+            "bin_mean_abs_error_p95_n": 4.99091920850633,
+            "bin_mean_bias_n": -1.1968187969541115,
+            "bin_mean_mae_n": 2.019287592398989,
+            "bin_mean_rmse_n": 2.6227111907521494,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_measured_n from synchronized PATH command trace",
+            "nonempty_bins": 550,
+            "required_bins": 550,
+            "sample_abs_error_p95_n": 5.062553353929415,
+            "sample_bias_n": -1.1968659623362075,
+            "sample_count": 27498,
+            "sample_mae_n": 2.1958363504183067,
+            "sample_rmse_n": 2.7930861463877497
+          },
+          "full_0_60": {
+            "bin_mean_abs_error_p95_n": 4.99016769163537,
+            "bin_mean_bias_n": -1.1998430836095406,
+            "bin_mean_mae_n": 2.0610462124484625,
+            "bin_mean_rmse_n": 2.6522950736537156,
+            "bin_width_s": 0.1,
+            "complete_bin_coverage": true,
+            "metric_source": "Kunwei KWR75 normal_force_measured_n from synchronized PATH command trace",
+            "nonempty_bins": 600,
+            "required_bins": 600,
+            "sample_abs_error_p95_n": 5.062702991533175,
+            "sample_bias_n": -1.199629580261506,
+            "sample_count": 30002,
+            "sample_mae_n": 2.2373502321166594,
+            "sample_rmse_n": 2.82409127377256
+          }
+        }
+      },
+      "source_A_official_formal_bin_mae_n": 1.1958953801632153,
+      "source_official_formal_bin_mae_n": 1.1958953801632153,
+      "source_path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0005",
+      "source_timeline_sha256": "c4bdabf7d913e1457af045c5dd28ca2d0afee72233a5b2a63e73ee7e219afd5f",
+      "source_timing_duration_s": 60.01000000000931,
+      "source_tp_consumed_echo_count": 28873,
+      "source_tp_consumed_echo_rate_hz": 481.13647725371635
+    }
+  ],
+  "force_source": "Kunwei KWR75 feedback in source A trace; not independent task-force truth",
+  "formal_bins_per_fold": [
+    550
+  ],
+  "interpretation": "This is the TASE normal-priority QP command replay without SFC, compared to historical A actual_qd on identical consumed packets. It is not candidate actual_qd, cannot pass the live motion gate, and does not measure candidate force response.",
+  "live_eligible": false,
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "schema": "tase.r32a-tase-qp-actual-qd-proxy-cv-v1",
+  "solver_profile": {
+    "eps_abs": 1e-08,
+    "eps_rel": 1e-08,
+    "max_iter_per_stage": 400,
+    "osqp_rho": 0.1,
+    "osqp_scaling": 0
+  },
+  "source_A_force_metrics_are_diagnostics_not_candidate_scores": true,
+  "source_count": 5,
+  "source_rate_basis": "attempt-result.evidence.metrics.timing_evidence.layer_rates_hz.tp_consumed_packet_echoes",
+  "source_tp_consumed_echo_rate_hz": {
+    "max": 481.13647725371635,
+    "min": 476.20396600559184
+  }
+}
