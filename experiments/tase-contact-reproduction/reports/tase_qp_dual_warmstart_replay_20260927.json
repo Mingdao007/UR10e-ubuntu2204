@@ -1,0 +1,52 @@
+{
+  "algorithm_change": "Warm-start each fresh OSQP stage with the last dual vector from the same constraint shape; primal warm-start, objective, constraints, numerical settings, tolerances and acceptance status remain unchanged.",
+  "cache_counts": {
+    "other": 0,
+    "setup": 42378,
+    "solved": 42377,
+    "solved_inaccurate": 1,
+    "warmstart_reused": 42376
+  },
+  "evidence_class": "offline_fixed_input_solver_replay",
+  "force_mae_recomputed": false,
+  "formal_bins": 375,
+  "formal_rows": 18686,
+  "interpretation": "This isolates dual warm-start as an algorithmic change under the frozen OSQP values. A failed replay remains failed; command feasibility is not a force-MAE result.",
+  "live_eligible": false,
+  "output_receipt": "runs/tase_qp_matched_a_default_dual_warmstart_replay_20260927.json",
+  "output_receipt_sha256": "75773cdb74f90c7d252c75891be8e4e81e64e443387882fdcbe658e0156854d6",
+  "path_bins": 425,
+  "path_complete": false,
+  "path_rows": 21189,
+  "schema": "tase.qp.dual-warmstart-same-settings-diagnostic.v1",
+  "solved_inaccurate_solves": [
+    {
+      "constraint_shape": [
+        [
+          7,
+          6
+        ],
+        11
+      ],
+      "dual_residual": 7.821876265982334e-09,
+      "iterations": 400,
+      "primal_residual": 1.1223694711656605e-08,
+      "solve_time_s": 0.000112029,
+      "status": "solved inaccurate"
+    }
+  ],
+  "solver_profile": {
+    "eps_abs": 1e-08,
+    "eps_rel": 1e-08,
+    "max_iter": 400,
+    "rho": 0.1,
+    "scaling": 10
+  },
+  "solver_rows_completed": 21188,
+  "source_attempt": "runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001",
+  "source_command_timeline_sha256": "f9bfa7cfbdc3e910685ce8f92a15f18f25791b1ae9e2754afb670e862cac33d4",
+  "status_counts": {
+    "solved": 42377,
+    "solved inaccurate": 1
+  }
+}

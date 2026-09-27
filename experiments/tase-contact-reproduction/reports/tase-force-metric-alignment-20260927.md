@@ -238,3 +238,81 @@ solver 对 OSQP 数值配置敏感：同输入下 `rho=0.01` 的先前 formal-on
 - 法向 K/B：当前闭环自然激励拟合没有识别出可信物理 M，0.707 damping ratio 仍不能导出 live 增益。
 
 因此当前没有候选达到“同条件 A、完整路径、rate460、MAE 改善至少 0.10 N、配对 95% CI 下界大于 0”的准入证据。下一项 live 控制律仍须在开始前重新完成 fresh safety/owner 检查；不因本报告的旧 read-back 直接启动。
+
+## 高滤波时常候选与首个匹配 A — 2026-09-27
+
+我用现有 R005 滤波晶格上界 `tau=0.4949747468305833 s` 做了一圈单因子 live screening。控制律、Md/Bd、积分、力目标、score filter、轨迹、Home 和保护均保持 A；只把 PATH 控制滤波时常由 0.35 s 改为该上界。此候选 run 完成 60.01 s PATH、550/550 正式 bins，所有 host/RTDE/TP/Kunwei 层通过 rate460，并自动回批准 joint Home、Safety NORMAL、Dashboard STOPPED。
+
+| High-tau live 单圈信号 | `[5,60)` 正式窗口 | `[0,60)` 诊断窗口 |
+|---|---:|---:|
+| filtered KWR75 normal，官方/等权100 ms-bin MAE | **1.3160 N，550/550** | 1.3473 N，600/600 |
+| filtered KWR75 normal，逐样本 MAE / RMSE / bias | 1.3185 / 1.6677 / −1.2986 N，27,487 samples | 1.3505 / 1.6940 / −1.3279 N，29,987 samples |
+| raw corrected KWR75 normal，逐样本 MAE / RMSE | 2.4316 / 3.0371 N，27,487 samples | 2.5124 / 3.1135 N，29,982 samples |
+| raw corrected KWR75 normal，100 ms-bin MAE | 2.2214 N，550/550 | 2.2934 N，600/600 |
+
+Raw sample 的 `[5,60)` 低于 1 N 比例为 **26.78%**、最长连续段 **0.548 s**；这是接触低力 proxy，不是独立视觉判据。normal-force score 和所有诊断都来自 Kunwei KWR75。官方 receipt 与 command-timeline filtered-bin 重建相差 0.000249 N；表中正式分数使用 seal-verified canonical receipt，600-bin 和逐样本结果标为 trace 诊断。rate460 层值为 host 499.73、raw RTDE 499.70、TP-consumed 480.59、Kunwei 999.80 Hz。
+
+紧接的单圈 A 对照也完成 60.01 s、550/550 bins、rate460 与自动 joint Home；官方 MAE **1.3728 N**。它与 high-tau 圈组成一对筛选数据，`A−high_tau=+0.05683 N`。候选方向略有利，但未达到 0.10 N，且只有一对，不能宣称改善或形成有用置信区间。该 A 单圈 `[0,60)` filtered 600-bin trace MAE 为 1.3479 N，filtered sample MAE 为 1.3516 N；raw KWR75 sample MAE 为 2.5024 N、raw-sensor 600-bin MAE 为 2.2902 N。首个筛选对的顺序是 high-tau 后 A。
+
+随后一次 resident-manifest 试验的 A attempt 完成了路径并回 Home，但应保留为时序失败：host publish **430.34 Hz**、TP-consumed echo **417.85 Hz**，低于460 Hz；KWR75 feedback-age p99 为 **10.295 ms**，也高于10 ms gate。该单元 550 bins MAE 1.3260 N 仅作失败诊断，不进入匹配统计或 BO。RTDE 与 Kunwei 分别约500与1000 Hz；PATH 的 host interpublish p95 约4.09 ms。Safety NORMAL、关节静止、Home 误差 `5.72×10⁻⁵ rad`，Dashboard 已 STOPPED，resident owner 已退出。调度/通信的具体根因仍未分离；这个失败来自 A，不能归因于 high-tau 参数。
+
+因此这条 resident session 的低频 attempt 不会触发下一单元派发。之前独立单圈 A 和 high-tau attempt 都满足rate460，下一轮采用已经实测通过的独立单圈入口，按预先记录的另外四个平衡顺序匹配块继续；resident attempt 作为失败留在总账中。若单圈入口再次出现相同 cadence 失败，将先停止 live 比较并增加调度证据，不原样重试。
+
+## 配对块 #02 的 A attempt：不完整 PATH 与控制周期超限 — 2026-09-27
+
+预定的块 #02 顺序为 A→high-tau。A 已启动真实 PATH，但在 formal reference **6.600 s** 时因严格 20 ms observation bound 失败；异常文本中的 “readiness observation interval” 是通用校验名称，分阶段数据表明失败已在 state 25 正式 PATH 中发生。此前所说的 7.6 s 包含 1 s entry，现以 command timeline 的 PATH 时钟更正。自动 recovery 完成 joint Home；后续只读 RTDE 复核在 1.1 s 内看到 23 帧静止数据，距批准 Autotuner joint Home 最大误差 **0.000086 rad**；Dashboard 为 STOPPED、Safety NORMAL。原 attempt 保留为失败，块 #02 不形成配对。
+
+按现有 canonical force reducer 函数，对 sealed `normal_force_filtered_n` 和 `normal_force_measured_n` 做了不完整窗口诊断。过滤通道是正式 score filter；`measured` 通道是控制器每帧读到的 corrected KWR75 值。下面的部分 MAE 不替代 550/600 个完整 bin 的指标：
+
+| KWR75 通道 | `[5,60)` 部分 PATH | `[0,60)` 部分 PATH |
+|---|---:|---:|
+| filtered：等权非空 100 ms bin MAE | **1.8217 N，17/550 bins** | **2.0534 N，67/600 bins** |
+| filtered：逐控制观测 MAE / RMSE | 1.9028 / 2.2152 N，775 observations | 2.0819 / 2.3452 N，3,279 observations |
+| corrected measured：等权非空 100 ms bin MAE | 3.7079 N，17/550 bins | 3.7599 N，67/600 bins |
+| corrected measured：逐控制观测 MAE / RMSE | 4.0669 / 4.3297 N，775 observations | 4.1198 / 4.3818 N，3,279 observations |
+
+该 attempt 没有完整正式 MAE、600-bin full-course score 或配对结果，不能进入参数统计。attempt trace 中 KWR75 force-norm 峰值为 **12.35 N**，低于 TP 当前 **20 N** force-norm guard；这是保护/诊断信号，不是独立测力真值。逐项数值、窗口覆盖、尝试身份和 source path 见[机器可读 partial diagnostic](tase_r013_rate460_pair02_A_failure_diagnostic_20260927.json)。
+
+时序定位到 provider 调用内部的非 CPU 时间：最后一个成功 tick 的 provider wall time **36.802 ms**，调用线程 CPU **3.237 ms**，差值 **33.565 ms**；整个 writer control-step wall **37.269 ms**、线程 CPU **4.339 ms**。之后 RTDE poll 用 **0.202 ms** 取回 19 个积压帧，观测时间跨度 38 ms；Kunwei read stage 为 **0.041 ms**。同一 attempt 还出现过 state 21 的 11.4 ms 主循环间隔，以及 entry 期间 10.75 ms provider wall call。solver 每次约 0.1 ms，故这些观测不支持把停顿归因于优化器耗时；目前仍无法在 OS 抢占、线程等待或其他 provider 内部等待之间唯一归因。
+
+为区分后续重复事件，在既有慢调用诊断记录中加入调用线程 voluntary/involuntary context-switch 增量；每次调用读取两次线程计数的本机实测合计中位开销约 **0.43 μs**，focused provider suite **57 passed**。这个变化尚未通过下一次 live 数据验证，也不改变任何控制参数、保护门槛或 attempt 成败规则。下一次必须重跑完整块 #02 的 A→high-tau 两侧；两侧分别通过完整 60 s、rate460、sealed trace 和 joint Home 才能构成有效配对。
+
+## v3 accepted-sample 对齐与 high-tau 配对更新 — 2026-09-27
+
+上一版 reducer 的交叉核对把 `command_timeline` 中**所有 host writer tick**都放进 550 个 bin；正式 receipt 则只计入通过同步验收的唯一 RTDE/TP 消费对。两者样本集合不同，所以单看所有 writer tick 的滤波信号会与 receipt 有细小差值。现已在 read-only reducer 中按 RTDE `actual_q/qd` 与 host tick 精确关联，使用 controller timestamp 和 TP consumed sequence 去重，再按 `[5,60)` 与 `[0,60)` 分别分箱。没有插值、补值或删除失败 attempt。
+
+本次 5 个 sealed attempt 都没有 unmatched writer-to-RTDE 行；重建的 accepted sample 数与 mature receipt 的 PathSample 数相同，550-bin MAE 对正式 receipt 的差为 0 至 **2.2×10⁻¹⁶ N**。新聚合测试 **5 passed**。因此，正式分数仍使用 receipt 中由 KWR75 filtered normal-load 得到的 550-bin MAE；修正的是 reducer 的交叉核对样本集合。更正后结果见[accepted-sample reducer JSON](tase_rnn_filter_tau_reducer_alignment_20260927.json)；pair02 的独立复算见[本轮配对 reduction](tase_rnn_control_filter_tau_pair02_accepted_sample_reduction_20260927.json)。
+
+| 配对单元 | `[5,60)` 正式 filtered-bin MAE | `[5,60)` filtered / raw KWR75 逐样本 MAE | `[5,60)` raw 100 ms-bin MAE | `[0,60)` filtered sample / 600-bin MAE | `[0,60)` raw sample / 600-bin MAE | accepted samples `[5,60)` / `[0,60)`；TP Hz |
+|---|---:|---:|---:|---:|---:|---|
+| Pair 01 A，τ=0.35 s | 1.37285 N | 1.37733 / 2.52079 N | 2.31103 N | 1.35172 / 1.34840 N | 2.49741 / 2.28988 N | 25,581 / 27,987；474.52 |
+| Pair 01 high-τ，τ=0.494975 s | 1.31602 N | 1.31854 / 2.43037 N | 2.22233 N | 1.35055 / 1.34706 N | 2.51135 / 2.29408 N | 26,435 / 28,836；480.87 |
+| Pair 02 A，τ=0.35 s | 1.05286 N | 1.06020 / 1.98772 N | 1.80298 N | 1.08869 / 1.08269 N | 2.05421 / 1.87255 N | 26,137 / 28,349；476.94 |
+| Pair 02 high-τ，τ=0.494975 s | 1.17184 N | 1.16845 / 2.24673 N | 2.04993 N | 1.15890 / 1.16204 N | 2.24057 / 2.04054 N | 25,059 / 27,464；465.26 |
+| Low-τ 单圈，τ=0.247487 s（未配对） | 1.41426 N | 1.41680 / 2.67446 N | 2.46051 N | 1.42526 / 1.42261 N | 2.68815 / 2.47323 N | 26,432 / 28,837；480.75 |
+
+所有表内 attempt 均有 550/550 正式 bins、600/600 full-course bins、完整 60 s PATH、≥460 Hz TP echo 和 joint Home；这些分数仍只是 KWR75 feedback 指标。Pair 01 的 `A−high-τ=+0.05683 N`，Pair 02 为 `−0.11898 N`，方向相反；两对平均候选改善 `A−high-τ=−0.03108 N`，达不到 +0.10 N 门槛，且样本不足以支持 CI。high-τ 没有稳定改善信号，当前不扩成 10 对、不晋升。low-τ 是完整但未配对的一圈，单圈结果也不构成因果结论，暂不晋升。
+
+100 ms 分箱与逐样本的差异现在可按相同 accepted samples 解释：raw KWR75 正式窗中，逐样本 MAE 比先平均每个 100 ms bin 后的 MAE 高 **0.185 N（Pair 02 A）**和 **0.197 N（Pair 02 high-τ）**，因为 bin 内的正负误差在平均时会抵消。滤波通道两种统计量差很小，且会因“等权 bin”与“等权 sample”的样本密度不同而略有正负差。filtered 与 raw KWR75 的差别属于不同信号层，不能用 bin 算法解释，也不能据此把 filtered score 当作独立测力真值。
+
+接触阶段也用同一组 fresh RTDE 时钟核对：Pair 02 A 的 state20 搜索 **9.302 s**、state21 latch/ramp **8.868 s**、entry **1.014 s**；high-τ 分别 **9.414 s、8.860 s、1.010 s**。Pair 01 和 low-τ 记录也显示 state21 稳定在 **8.860–8.864 s**，与已冻结的 8 s 升力 ramp 加 0.5 s 连续放行一致；state20 约 **9.3–9.7 s**，是两段接触搜索和确认，不是固定的额外等待。积分上限与 task-space saturation 的重叠、D 的 freeze 语义以及法向二阶模型无法辨识仍按本报告前文处理：保持 A=1.0 N·s 基线，不用 `ζ=0.707` 推导 live K/B。
+
+此次 Pair 02 的前置软件失败也保留：启动器曾把**整个 supervisor**错误限制到 control CPU 2，导致其没有 control loop 之外的证据整理 CPU；motion command 数为 0，supervisor 已发 Stop，fresh RTDE/Dashboard 验证仍在 joint Home、静止、Safety NORMAL、程序 STOPPED。原因已定位为启动器 affinity 配置，修正后使用新 run directory 完成 pair02；该软件失败不作为机器人力控 attempt，也不替代完成的数据。
+
+下一项只推进对现有 conditional integral 的**离线语义复核**：用已封存 A/D trace 区分 task-space normal-velocity cap 与 final `Jqdot`/slew 限制，验证同向积累冻结及反向退积分；不重复 A–E 或已完成 A/B 圈。法向 K/B 仍受有效 M 不可辨识限制。此前 live QP 的 `scaling=0` 相对已冻结 OSQP profile 是新数值，本轮只保留离线 replay，不自动切换该 live 参数。
+
+## Conditional integral 的 downstream-only 回放更新 — 2026-09-27
+
+已按封存 D trace 重新执行 conditional integrator。四条可用 PATH 共 **119,901** 个控制 tick，现有 D policy 的积分状态逐行精确复现，normal command 最大浮点差小于 **9.2×10⁻¹⁸ m/s**。再只把外层发布反馈改成“最终 `Jqdot` 或 host slew 确实造成法向短缺时冻结同向积分”，四条 trace 合计输出反馈 freeze 从 **21,462** 降到 **3** 次；task-space 本地 `0.003 m/s` 限制仍由原有 conditional clamp 处理。固定 KWR75 输入回放中，正式窗口每条 attempt 的积分状态平均绝对差为 **0.0031–0.0074 N·s**，normal command 平均绝对差 **0.0031–0.0075 mm/s**，最大 **0.0572 mm/s**。这没有生成 candidate force MAE，也不是闭环数据；该差异太小，不支持再做同一 D live 重试。D 的有效积分 authority 为 0.5 N·s，而 A 为 1.0 N·s，筛选数据无法把 D 较差的分数归因到某一个单独机制。复算工具、测试和 receipt 见 [downstream-only replay](tase_r013_integral_final_feedback_replay_20260927.json)、[tool](../tools/audit_tase_integral_final_feedback_replay.py) 和 [tests](../tests/test_audit_tase_integral_final_feedback_replay.py)。
+
+## TASE-QP 默认 solver 状态诊断 — 2026-09-27
+
+原 frozen profile `rho=0.1 / scaling=10 / eps_abs=eps_rel=1e-8 / max_iter=400` 在 packet 30864、PATH 42.446 s 报 `solved inaccurate` 并拒绝。只作一次离线状态诊断：临时绕过这一 solver 状态标签，但不更改解、约束、容差或 solver 数值，让已有外部任务等式和速度界校验继续决定是否接受。固定输入回放因此完成 **600/600** PATH bin 和 **550/550** formal bin；最大 task equality residual **4.44×10⁻⁹**（门槛 `1e-6`），最大 bound violation **1.01×10⁻⁸ rad/s**（门槛 `1e-7`）。
+
+这只证明该解可通过外部可行性检查；不证明 orientation least-squares 在 400 iter 时已足够接近最优。诊断重放的全阶段 wall-time 峰值 **1.824 ms**，也高于此前冻结的 1 ms QP deadline（p99 为 0.206 ms），所以即使求解精度补足，当前代码仍不能作为 live 准入。原 `solved inaccurate` attempt 保留失败；本次强制 status 的诊断不是成功 attempt，没有候选力 MAE，也没有真实 `actual_qd` 闭环。未修改 solver 接受规则或 QP 数值。数据见 [status override diagnostic](tase_qp_solved_inaccurate_status_diagnostic_20260927.json) 和原 [default-profile rejection receipt](tase_r31_qpmatched_normal_priority_replay_20260927_v10_default_fullpath.json)。
+
+为区分能否只靠数值初值改善，我保持以上全部 OSQP 数值及拒绝规则不变，只给每个新建 solver 加上同一 stage 前一 tick 的 dual warm-start。实际复用 **42,376** 次，但在同一 packet **30864 / 42.446 s / orientation stage** 仍以相同 400 iter、相近 primal/dual residual 返回 `solved inaccurate`，回放仍止于 **21,188/29,956** PATH rows、**375/550** formal bins。duals 本身不是这个失败的修复。receipt 在 [dual warm-start replay](tase_qp_dual_warmstart_replay_20260927.json)。
+
+状态 override 后出现的 14 个 late-path `solved inaccurate` 结果及 Python wrapper CPU 峰值见 [solver thread CPU/wall diagnostic](tase_qp_thread_cpu_wall_diagnostic_20260927.json)。该 timing 属 Python/SciPy 离线函数，不可冒充未来 native live solver 的执行时序；它仍说明仅靠提高 OSQP 的内部计算初值，没有让当前 profile 达到可晋升状态。
+
+当前阶段的结果是：指标 reducer 与报告通过 focused 验证；A 仍为积分基线；high/low filter、当前 D anti-windup、QP 与 SFC+TASE 还没有合格的 live 精度改善证据。`ζ=0.707` 不能从现有 Figure-eight 闭环数据换算法向 K/B；state20/21 的实测时长已与两段搜索及 8 s ramp + 0.5 s latch 相符，不是 unexplained fixed sleep。下一项保留同一 protocol 与 KWR75 force boundary，先解决可重复的离线 solver optimality/deadline 诊断，再讨论未批准的 QP 数值；在此之前不派 live QP 或重复无信号候选。

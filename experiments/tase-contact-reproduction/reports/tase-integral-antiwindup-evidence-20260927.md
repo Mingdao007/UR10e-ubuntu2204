@@ -22,3 +22,39 @@ Across the five randomized screening blocks, every D-minus-A formal-window MAE d
 Interpretation: the present D policy successfully prevents further same-direction integration during normal task-space clipping, yet its smaller effective I authority did not improve this trajectory's force score. The existing data do not justify another live repeat of the same D profile. A different anti-windup candidate should first be motivated by a diagnosed error episode and checked against the recorded output/saturation traces offline.
 
 Sources: [A–E reducer](tase-r31-integral-screening-r013-diagnostic-20260927.json), [stage metric report](tase-force-metric-alignment-20260927.md), and `tools/step5d_autotune_v4_r004/calibrated_runtime.py`.
+
+## Downstream-only output-feedback replay
+
+I replayed the four available complete D traces (119,901 control rows; the
+screening denominator remains 5) through the existing conditional-integral
+primitive. The recorded D policy reproduces every stored integral state and
+normal velocity; the maximum numeric velocity difference is below
+`9.2e-18 m/s`. This checks the replay wiring against the actual controller
+trace.
+
+The counterfactual keeps D's existing effective `0.5 N·s` cap and its local
+`0.003 m/s` normal-velocity conditional clamp. It changes only the later
+published-output feedback: a same-direction freeze is allowed only when final
+`Jqdot` realization or host slew leaves a directional normal shortfall after
+the task-space command. The 21,462 recorded feedback-freeze events fall to
+3 across the four attempts, because nearly all original events were caused
+by the task-space normal cap; that cap is already handled by the local
+conditional integrator.
+
+With the same recorded KWR75 error sequence and realization events held fixed,
+the counterfactual's formal-window command change is very small: mean
+absolute normal-velocity change is 0.0031–0.0075 mm/s across attempts, with
+maximum change 0.0572 mm/s. Mean absolute integral-state change is
+0.0031–0.0074 N·s. Candidate force MAE was **not** computed: candidate
+commands were not fed into the robot or next KWR75 observation. Therefore
+this isolates a bookkeeping distinction but does not predict better tracking.
+
+This result does not justify another live D run. D's effective authority cap
+and its local velocity clamp remain different from A, and the existing
+screening cannot attribute D's higher unpaired MAE to one of those changes.
+Keep A as baseline; only revisit a new anti-windup design if a separate error
+episode provides a reason to alter the local clamp or integral authority.
+Reproduce with `tools/audit_tase_integral_final_feedback_replay.py`; the
+machine-readable receipt binds the four timeline hashes, source receipts and
+controller source hashes in
+`tase_r013_integral_final_feedback_replay_20260927.json`.

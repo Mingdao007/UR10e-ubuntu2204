@@ -1,0 +1,215 @@
+{
+  "analysis_script": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/tools/audit_tase_integral_final_feedback_replay.py",
+  "analysis_script_sha256": "a3c3b31261ef64cdc2fb9915935ef3a591ba6036db8741bfc7b2043d89a06cd7",
+  "candidate_feedback_rule": "freeze same-direction integration on the next tick only when published task-space normal velocity differs from final realized Jqdot normal velocity, a final realization or host-slew limit is recorded, and the residual would worsen under the current force-error sign; retain the existing local conditional clamp and allow reverse-error unwind",
+  "candidate_id": "conditional-double-clamp-final-realization-only-feedback-offline-v1",
+  "controller_source_hashes": {
+    "calibrated_runtime": {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r004/calibrated_runtime.py",
+      "sha256": "971b564ca5c8206a9965696cd3be18f92b83a9c7a885fd88095c8c08506852e7"
+    },
+    "outer_loop": {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/tools/step5d_paper_outer_loop.py",
+      "sha256": "6edb2c4da1da68274933d5ba379d9be9dbfb07f95d303814af2ce7c6e1bcc599"
+    },
+    "r013_live_runtime": {
+      "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/tools/step5d_autotune_v4_r013/live_runtime.py",
+      "sha256": "a01ee0244def237b6ee42c5f3a4234da8743c544f216fa965272bd7f8398c384"
+    }
+  },
+  "evidence_class": "sealed_D_arm_fixed_Kunwei_observation_command_replay",
+  "parameters": {
+    "Bd": 693.6559295653944,
+    "Md": 9.565272137974492,
+    "authority_error_n": 0.5,
+    "configured_state_limit_n_s": 1.0,
+    "downstream_feedback_tolerance_m_s": 1e-12,
+    "effective_integral_limit_n_s": 0.5,
+    "normal_velocity_limit_m_s": 0.003
+  },
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "replay_contract": {
+    "candidate_closed_loop": false,
+    "candidate_force_mae_computed": false,
+    "candidate_outputs_recomputed_from_fixed_source_force_error": true,
+    "interpretation": "This replay tests whether the published-output feedback adds a distinct downstream freeze beyond the controller's own normal velocity clamp. It cannot estimate candidate force tracking because candidate output is not fed back into robot or KWR75 observations.",
+    "realization_events_reused_from_source_trace": true,
+    "source_policy_exactly_reproduced": true,
+    "task_space_limit_remains_handled_by_local_conditional_clamp": true
+  },
+  "schema": "tase.integral.final-realization-only-fixed-observation-replay.v1",
+  "source_attempts": [
+    {
+      "candidate_final_realization_only_freeze_rows": 2,
+      "effective_integral_limit_n_s": 0.5,
+      "source_attempt_id": "3",
+      "source_attempt_result": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-integral-screening-20260925T1825HKT/session-01/attempts/0003/attempt-result.json",
+      "source_attempt_result_sha256": "c4bbeb39081ef0ca2e6b9107b3a9f4a27d256b2459300dca96a87b8783f83c3b",
+      "source_evidence_sha256": "e5d0a9e155f604b2fcfe7f6cb0c9c05564155a7ba662ae0116f73e54e3b2b3ad",
+      "source_feedback_freeze_rows": 4833,
+      "source_feedback_replay_max_state_error_n_s": 0.0,
+      "source_feedback_replay_max_velocity_error_m_s": 8.239936510889834e-18,
+      "source_feedback_replay_mismatch_rows": 0,
+      "source_force_metric_is_candidate_score": false,
+      "source_formal_bins": 550,
+      "source_formal_mae_n": 1.1692396082209298,
+      "source_path_complete": true,
+      "source_timeline": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-integral-screening-20260925T1825HKT/session-01/attempts/0003/command_timeline.jsonl",
+      "source_timeline_sha256": "22672b2f6c07f07aa52bab43a3e51c9e0d857db25dbad27659c65cb5ffcca9e1",
+      "source_tp_rate_hz": 481.1666666666667,
+      "timeline_rows": 29994,
+      "windows": {
+        "diagnostic_0_60": {
+          "candidate_force_mae_computed": false,
+          "integral_state_delta_abs_max_n_s": 0.019649634106629076,
+          "integral_state_delta_abs_mean_n_s": 0.005277573172339416,
+          "integral_state_delta_abs_p95_n_s": 0.01178107014582691,
+          "normal_velocity_delta_abs_max_mm_s": 0.02832763607139941,
+          "normal_velocity_delta_abs_mean_mm_s": 0.006094256373056795,
+          "normal_velocity_delta_abs_p95_mm_s": 0.015374641426281737,
+          "rows": 29994
+        },
+        "formal_5_60": {
+          "candidate_force_mae_computed": false,
+          "integral_state_delta_abs_max_n_s": 0.019649634106629076,
+          "integral_state_delta_abs_mean_n_s": 0.00545607229451857,
+          "integral_state_delta_abs_p95_n_s": 0.011866099233458827,
+          "normal_velocity_delta_abs_max_mm_s": 0.02832763607139941,
+          "normal_velocity_delta_abs_mean_mm_s": 0.00631572019486739,
+          "normal_velocity_delta_abs_p95_mm_s": 0.015584121622785538,
+          "rows": 27490
+        }
+      }
+    },
+    {
+      "candidate_final_realization_only_freeze_rows": 1,
+      "effective_integral_limit_n_s": 0.5,
+      "source_attempt_id": "10",
+      "source_attempt_result": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-integral-screening-20260925T1825HKT/session-01/attempts/0010/attempt-result.json",
+      "source_attempt_result_sha256": "d865bb7a64ec3159346bbf740ac394b685db422141a89f421e51977316dccc9c",
+      "source_evidence_sha256": "f4484584d88b2f1163e06942a6cd66f1d6c37c226dcbf213525acd17ef5996ad",
+      "source_feedback_freeze_rows": 6319,
+      "source_feedback_replay_max_state_error_n_s": 0.0,
+      "source_feedback_replay_max_velocity_error_m_s": 9.107298248878237e-18,
+      "source_feedback_replay_mismatch_rows": 0,
+      "source_force_metric_is_candidate_score": false,
+      "source_formal_bins": 550,
+      "source_formal_mae_n": 1.3443014448722619,
+      "source_path_complete": true,
+      "source_timeline": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-integral-screening-20260925T1825HKT/session-01/attempts/0010/command_timeline.jsonl",
+      "source_timeline_sha256": "9d6169172e4debfb8e8b250b29feb69ab4686e16fce604ff9b95d576bd56b5d8",
+      "source_tp_rate_hz": 481.05,
+      "timeline_rows": 29989,
+      "windows": {
+        "diagnostic_0_60": {
+          "candidate_force_mae_computed": false,
+          "integral_state_delta_abs_max_n_s": 0.02699844308511881,
+          "integral_state_delta_abs_mean_n_s": 0.004906284077011857,
+          "integral_state_delta_abs_p95_n_s": 0.016627897048753476,
+          "normal_velocity_delta_abs_max_mm_s": 0.038921950383915584,
+          "normal_velocity_delta_abs_mean_mm_s": 0.004574122506682886,
+          "normal_velocity_delta_abs_p95_mm_s": 0.02192118914551244,
+          "rows": 29989
+        },
+        "formal_5_60": {
+          "candidate_force_mae_computed": false,
+          "integral_state_delta_abs_max_n_s": 0.02699844308511881,
+          "integral_state_delta_abs_mean_n_s": 0.004740243642388964,
+          "integral_state_delta_abs_p95_n_s": 0.017085900874198715,
+          "normal_velocity_delta_abs_max_mm_s": 0.038921950383915584,
+          "normal_velocity_delta_abs_mean_mm_s": 0.004294239782610296,
+          "normal_velocity_delta_abs_p95_mm_s": 0.02192118923806819,
+          "rows": 27485
+        }
+      }
+    },
+    {
+      "candidate_final_realization_only_freeze_rows": 0,
+      "effective_integral_limit_n_s": 0.5,
+      "source_attempt_id": "3",
+      "source_attempt_result": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-integral-screening-20260925T1825HKT/session-02/attempts/0003/attempt-result.json",
+      "source_attempt_result_sha256": "e313b7a7475f01d3af220283f91266c470f520913651770dcd154f6e7b5129b0",
+      "source_evidence_sha256": "2f24949e65bbe6c1e67835979e53d6a9a43cfaa29bac8a71130c4182adc24abb",
+      "source_feedback_freeze_rows": 5683,
+      "source_feedback_replay_max_state_error_n_s": 0.0,
+      "source_feedback_replay_max_velocity_error_m_s": 8.673617379884035e-18,
+      "source_feedback_replay_mismatch_rows": 0,
+      "source_force_metric_is_candidate_score": false,
+      "source_formal_bins": 550,
+      "source_formal_mae_n": 1.2673892172492753,
+      "source_path_complete": true,
+      "source_timeline": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-integral-screening-20260925T1825HKT/session-02/attempts/0003/command_timeline.jsonl",
+      "source_timeline_sha256": "ef7c90ca02bee2423292e86b634e08083101619a22dd770332ac7e9eab1d98f6",
+      "source_tp_rate_hz": 480.71666666666664,
+      "timeline_rows": 29986,
+      "windows": {
+        "diagnostic_0_60": {
+          "candidate_force_mae_computed": false,
+          "integral_state_delta_abs_max_n_s": 0.04047780984150272,
+          "integral_state_delta_abs_mean_n_s": 0.007190138471848363,
+          "integral_state_delta_abs_p95_n_s": 0.024495442035575382,
+          "normal_velocity_delta_abs_max_mm_s": 0.057115675599641716,
+          "normal_velocity_delta_abs_mean_mm_s": 0.00728925730472168,
+          "normal_velocity_delta_abs_p95_mm_s": 0.029872003056423076,
+          "rows": 29986
+        },
+        "formal_5_60": {
+          "candidate_force_mae_computed": false,
+          "integral_state_delta_abs_max_n_s": 0.04047780984150272,
+          "integral_state_delta_abs_mean_n_s": 0.007322740086707602,
+          "integral_state_delta_abs_p95_n_s": 0.025227740349028305,
+          "normal_velocity_delta_abs_max_mm_s": 0.057115675599641716,
+          "normal_velocity_delta_abs_mean_mm_s": 0.007430723386287265,
+          "normal_velocity_delta_abs_p95_mm_s": 0.032669171914462086,
+          "rows": 27482
+        }
+      }
+    },
+    {
+      "candidate_final_realization_only_freeze_rows": 0,
+      "effective_integral_limit_n_s": 0.5,
+      "source_attempt_id": "7",
+      "source_attempt_result": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-integral-screening-20260925T1825HKT/session-02/attempts/0007/attempt-result.json",
+      "source_attempt_result_sha256": "0b1fa8c0d9a497a8cd57e8ee402a59c26e05c9cbc4d0efc63f1de28ee05b3c3f",
+      "source_evidence_sha256": "92d24aa825f10d69aa8a99ea1198779736ce4aebf7cbd1ee0f415d4eb16dd3c5",
+      "source_feedback_freeze_rows": 4627,
+      "source_feedback_replay_max_state_error_n_s": 0.0,
+      "source_feedback_replay_max_velocity_error_m_s": 9.107298248878237e-18,
+      "source_feedback_replay_mismatch_rows": 0,
+      "source_force_metric_is_candidate_score": false,
+      "source_formal_bins": 550,
+      "source_formal_mae_n": 1.1591378787856947,
+      "source_path_complete": true,
+      "source_timeline": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-integral-screening-20260925T1825HKT/session-02/attempts/0007/command_timeline.jsonl",
+      "source_timeline_sha256": "6436a09393b2349258cd4c788858f6fcd0c5208ca7085bcdc2247fe4eae7e9d6",
+      "source_tp_rate_hz": 479.81666666666666,
+      "timeline_rows": 29932,
+      "windows": {
+        "diagnostic_0_60": {
+          "candidate_force_mae_computed": false,
+          "integral_state_delta_abs_max_n_s": 0.02341864923591358,
+          "integral_state_delta_abs_mean_n_s": 0.00324325342987306,
+          "integral_state_delta_abs_p95_n_s": 0.0133278748597149,
+          "normal_velocity_delta_abs_max_mm_s": 0.03376118899725512,
+          "normal_velocity_delta_abs_mean_mm_s": 0.003330207550808136,
+          "normal_velocity_delta_abs_p95_mm_s": 0.014886888253774983,
+          "rows": 29932
+        },
+        "formal_5_60": {
+          "candidate_force_mae_computed": false,
+          "integral_state_delta_abs_max_n_s": 0.02341864923591358,
+          "integral_state_delta_abs_mean_n_s": 0.0031381350292854046,
+          "integral_state_delta_abs_p95_n_s": 0.015342946228956406,
+          "normal_velocity_delta_abs_max_mm_s": 0.03376118899725512,
+          "normal_velocity_delta_abs_mean_mm_s": 0.0031247601213359104,
+          "normal_velocity_delta_abs_p95_mm_s": 0.015022819984771008,
+          "rows": 27437
+        }
+      }
+    }
+  ],
+  "source_attempts_denominator": 5,
+  "source_full_path_attempts_replayed": 4,
+  "source_summary": "reports/tase_r013_integral_conditional_freeze_semantics_20260927.json",
+  "source_summary_sha256": "42ff9ff142520e318e899260c7a308f4661b41ec507a164270eef0e00182f46a"
+}

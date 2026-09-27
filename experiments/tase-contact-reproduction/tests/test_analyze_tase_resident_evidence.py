@@ -5,6 +5,7 @@ import pytest
 from analyze_tase_resident_evidence import (
     _controller_path_force_diagnostics,
     _controller_trace_diagnostics,
+    _synchronized_path_force_diagnostics,
     reduce_attempt,
     seal_session_diagnostic,
 )
@@ -223,3 +224,91 @@ def test_controller_force_diagnostics_separate_raw_filtered_sample_and_bin_error
     assert measured["window_5_60_s"]["equal_weight_100ms_bins"]["bin_mean_mae_n"] == pytest.approx(0.5)
     assert filtered["window_5_60_s"]["per_sample"]["sample_mae_n"] == pytest.approx(0.1)
     assert filtered["window_5_60_s"]["equal_weight_100ms_bins"]["bin_mean_mae_n"] == pytest.approx(0.1)
+
+
+def test_synchronized_path_force_reducer_uses_unique_rtde_tp_joins(tmp_path):
+    timeline_path = tmp_path / "command_timeline.jsonl"
+    robot_path = tmp_path / "robot_frames.jsonl"
+    timeline = []
+    robot = []
+    for index in range(600):
+        time_s = index / 10.0
+        received = 20.0 + time_s
+        identity = index + 1000
+        q = [index * 1e-6, 0.0, 0.0, 0.0, 0.0, 0.0]
+        qd = [index * 1e-7, 0.0, 0.0, 0.0, 0.0, 0.0]
+        timeline.append({
+            "host_monotonic_s": received,
+            "reference_phase": "path",
+            "reference_time_s": time_s,
+            "packet_sequence": identity + 1,
+            "actual_q_rad": q,
+            "actual_qd_rad_s": qd,
+            "normal_force_filtered_n": 5.1,
+            "normal_force_measured_n": 5.5,
+            "normal_force_control_n": 5.5,
+        })
+        robot.append({
+            "received_monotonic_s": received,
+            "timestamp": 1000.0 + time_s,
+            "consumed_packet_sequence": identity,
+            "integer_echoes": {"26": 25},
+            "q_rad": q,
+            "qd_rad_s": qd,
+        })
+
+    # A newer RTDE frame with a cached TP echo is present in the writer log,
+    # but the accepted PathSample contract excludes it from force scoring.
+    duplicate_time = 30.05
+    previous_index = 300
+    duplicate_q = [600 * 1e-6, 0.0, 0.0, 0.0, 0.0, 0.0]
+    duplicate_qd = [600 * 1e-7, 0.0, 0.0, 0.0, 0.0, 0.0]
+    timeline.insert(previous_index + 1, {
+        "host_monotonic_s": 20.0 + duplicate_time,
+        "reference_phase": "path",
+        "reference_time_s": duplicate_time,
+        "packet_sequence": 9000,
+        "actual_q_rad": duplicate_q,
+        "actual_qd_rad_s": duplicate_qd,
+        "normal_force_filtered_n": 25.0,
+        "normal_force_measured_n": 25.0,
+        "normal_force_control_n": 25.0,
+    })
+    robot.insert(previous_index + 1, {
+        "received_monotonic_s": 20.0 + duplicate_time,
+        "timestamp": 1000.0 + duplicate_time,
+        "consumed_packet_sequence": previous_index + 1000,
+        "integer_echoes": {"26": 25},
+        "q_rad": duplicate_q,
+        "qd_rad_s": duplicate_qd,
+    })
+    timeline_path.write_text("".join(json.dumps(row) + "\n" for row in timeline))
+    robot_path.write_text("".join(json.dumps(row) + "\n" for row in robot))
+
+    result = _synchronized_path_force_diagnostics(
+        timeline_path,
+        robot_path,
+        metrics={
+            "normal_force_mae_n": 0.1,
+            "raw_rtde_tp_echo_summary": {
+                "first_controller_timestamp_s": 1000.0,
+                "first_consumed_sequence": 1000,
+            },
+        },
+        receipt_path_sample_count=600,
+    )
+
+    assert result["available"] is True
+    assert result["reconstructed_accepted_path_sample_count"] == 600
+    assert result["duplicate_rtde_or_tp_clock_rows"] == 1
+    assert result["unmatched_timeline_rows"] == 0
+    assert result["windows"]["window_0_60_s"]["signals"][
+        "normal_force_filtered_n"]["equal_weight_100ms_bins"]["nonempty_bins"] == 600
+    assert result["windows"]["window_5_60_s"]["signals"][
+        "normal_force_filtered_n"]["equal_weight_100ms_bins"]["nonempty_bins"] == 550
+    assert result["official_score_crosscheck"][
+        "accepted_join_reconstructed_550_bin_mae_n"] == pytest.approx(0.1)
+    assert result["official_score_crosscheck"]["exact_match_within_1e-9_n"] is True
+    raw = result["windows"]["window_5_60_s"]["signals"]["normal_force_measured_n"]
+    assert raw["per_sample"]["sample_mae_n"] == pytest.approx(0.5)
+    assert raw["equal_weight_100ms_bins"]["bin_mean_mae_n"] == pytest.approx(0.5)

@@ -1,0 +1,722 @@
+{
+  "attempts": {
+    "pair01_A": {
+      "accepted_reconstruction": {
+        "duplicate_rtde_or_tp_clock_rows": 1384,
+        "receipt_path_sample_count": 27987,
+        "reconstructed_accepted_path_sample_count": 27987,
+        "unmatched_timeline_rows": 0
+      },
+      "accepted_samples_0_60": 27987,
+      "candidate_id": "figure8-rate460-integral-1p0-A-baseline",
+      "evidence_eligible": true,
+      "filtered_bin_formal": {
+        "bin_mean_bias_measured_minus_target_n": -1.3460650571150683,
+        "bin_mean_mae_n": 1.3728495321146381,
+        "bin_mean_rmse_n": 1.7683085617395264,
+        "bin_mean_tail_abs_error_p95_n": 3.5336399932334417,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.6539349428849315,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+        "nonempty_bins": 550,
+        "required_bins": 550,
+        "sample_count": 25581,
+        "window_s": [
+          5.0,
+          60.0
+        ]
+      },
+      "filtered_bin_full": {
+        "bin_mean_bias_measured_minus_target_n": -1.3238500838183802,
+        "bin_mean_mae_n": 1.3484025192346527,
+        "bin_mean_rmse_n": 1.7295522783390997,
+        "bin_mean_tail_abs_error_p95_n": 3.4161158553874706,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.6761499161816196,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+        "nonempty_bins": 600,
+        "required_bins": 600,
+        "sample_count": 27987,
+        "window_s": [
+          0.0,
+          60.0
+        ]
+      },
+      "filtered_sample_formal": {
+        "below_1n_fraction": 0.016262069504710527,
+        "below_1n_runs": 8,
+        "longest_below_1n_run_s": 0.27999999999883585,
+        "peak_normal_n": 7.619375512826573,
+        "sample_bias_measured_minus_target_n": -1.3469281153732238,
+        "sample_error_p95_n": 3.613706164035233,
+        "sample_mae_n": 1.3773338941656963,
+        "sample_rmse_n": 1.7871450440506864,
+        "samples": 25581
+      },
+      "filtered_sample_full": {
+        "below_1n_fraction": 0.01486404402043806,
+        "below_1n_runs": 8,
+        "longest_below_1n_run_s": 0.27999999999883585,
+        "peak_normal_n": 7.619375512826573,
+        "sample_bias_measured_minus_target_n": -1.3239273493762722,
+        "sample_error_p95_n": 3.5526518785825596,
+        "sample_mae_n": 1.3517191894195153,
+        "sample_rmse_n": 1.7467404167424676,
+        "samples": 27987
+      },
+      "formal_bins": 550,
+      "formal_receipt_mae_n": 1.3728495321146383,
+      "formal_samples_5_60": 25581,
+      "home_verified": true,
+      "host_publish_hz": 489.6166666666667,
+      "measured_bin_formal": {
+        "bin_mean_bias_measured_minus_target_n": -1.3455066061443033,
+        "bin_mean_mae_n": 2.3110265198336806,
+        "bin_mean_rmse_n": 2.969888112743839,
+        "bin_mean_tail_abs_error_p95_n": 5.0070495777262405,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.6544933938556965,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+        "nonempty_bins": 550,
+        "required_bins": 550,
+        "sample_count": 25581,
+        "window_s": [
+          5.0,
+          60.0
+        ]
+      },
+      "measured_bin_full": {
+        "bin_mean_bias_measured_minus_target_n": -1.3269802141765892,
+        "bin_mean_mae_n": 2.2898782907435575,
+        "bin_mean_rmse_n": 2.9323762263101285,
+        "bin_mean_tail_abs_error_p95_n": 5.004771702010902,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.673019785823411,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+        "nonempty_bins": 600,
+        "required_bins": 600,
+        "sample_count": 27987,
+        "window_s": [
+          0.0,
+          60.0
+        ]
+      },
+      "measured_sample_formal": {
+        "below_1n_fraction": 0.2862671514014308,
+        "below_1n_runs": 116,
+        "longest_below_1n_run_s": 0.9239999999990687,
+        "peak_normal_n": 18.544813560861627,
+        "sample_bias_measured_minus_target_n": -1.3382799899802937,
+        "sample_error_p95_n": 5.460630143354557,
+        "sample_mae_n": 2.520794857824592,
+        "sample_rmse_n": 3.1692238831203365,
+        "samples": 25581
+      },
+      "measured_sample_full": {
+        "below_1n_fraction": 0.27477042912780936,
+        "below_1n_runs": 144,
+        "longest_below_1n_run_s": 0.9239999999990687,
+        "peak_normal_n": 18.544813560861627,
+        "sample_bias_measured_minus_target_n": -1.3198191943039828,
+        "sample_error_p95_n": 5.4440250455123405,
+        "sample_mae_n": 2.497411686471025,
+        "sample_rmse_n": 3.128442952154872,
+        "samples": 27987
+      },
+      "path_complete": true,
+      "run": "runs/tase-rnn-high-filter-matched-A-rate460-20260927-02/attempts/0001",
+      "score_crosscheck": {
+        "accepted_join_reconstructed_550_bin_mae_n": 1.3728495321146381,
+        "exact_match_within_1e-9_n": true,
+        "metric_identity": "filtered KWR75 normal load, equal-weight 100 ms means, [5,60) bins",
+        "receipt_formal_550_bin_mae_n": 1.3728495321146383,
+        "reconstruction_minus_receipt_n": -2.220446049250313e-16
+      },
+      "tp_echo_hz": 474.5200639914549
+    },
+    "pair01_HIGH": {
+      "accepted_reconstruction": {
+        "duplicate_rtde_or_tp_clock_rows": 1146,
+        "receipt_path_sample_count": 28836,
+        "reconstructed_accepted_path_sample_count": 28836,
+        "unmatched_timeline_rows": 0
+      },
+      "accepted_samples_0_60": 28836,
+      "candidate_id": "figure8-rate460-rnn-control-filter-high-tau",
+      "evidence_eligible": true,
+      "filtered_bin_formal": {
+        "bin_mean_bias_measured_minus_target_n": -1.2986577963467651,
+        "bin_mean_mae_n": 1.3160235378389096,
+        "bin_mean_rmse_n": 1.6554904629803116,
+        "bin_mean_tail_abs_error_p95_n": 3.099062052957506,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.701342203653235,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+        "nonempty_bins": 550,
+        "required_bins": 550,
+        "sample_count": 26435,
+        "window_s": [
+          5.0,
+          60.0
+        ]
+      },
+      "filtered_bin_full": {
+        "bin_mean_bias_measured_minus_target_n": -1.3280381576916511,
+        "bin_mean_mae_n": 1.3470647465803247,
+        "bin_mean_rmse_n": 1.6813818152519437,
+        "bin_mean_tail_abs_error_p95_n": 3.1413894747752886,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.671961842308349,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+        "nonempty_bins": 600,
+        "required_bins": 600,
+        "sample_count": 28836,
+        "window_s": [
+          0.0,
+          60.0
+        ]
+      },
+      "filtered_sample_formal": {
+        "below_1n_fraction": 0.00431246453565349,
+        "below_1n_runs": 1,
+        "longest_below_1n_run_s": 0.23399999999674037,
+        "peak_normal_n": 5.756310350069183,
+        "sample_bias_measured_minus_target_n": -1.2986520649827524,
+        "sample_error_p95_n": 3.1391713193628794,
+        "sample_mae_n": 1.3185366887919625,
+        "sample_rmse_n": 1.6677341328395556,
+        "samples": 26435
+      },
+      "filtered_sample_full": {
+        "below_1n_fraction": 0.0039533915938410324,
+        "below_1n_runs": 1,
+        "longest_below_1n_run_s": 0.23399999999674037,
+        "peak_normal_n": 6.039327081680912,
+        "sample_bias_measured_minus_target_n": -1.3279740120102204,
+        "sample_error_p95_n": 3.1817859552197136,
+        "sample_mae_n": 1.350551195437138,
+        "sample_rmse_n": 1.694152018510862,
+        "samples": 28836
+      },
+      "formal_bins": 550,
+      "formal_receipt_mae_n": 1.3160235378389096,
+      "formal_samples_5_60": 26435,
+      "home_verified": true,
+      "host_publish_hz": 499.81666666666666,
+      "measured_bin_formal": {
+        "bin_mean_bias_measured_minus_target_n": -1.3004699459632927,
+        "bin_mean_mae_n": 2.2223246147325626,
+        "bin_mean_rmse_n": 2.8394517789783507,
+        "bin_mean_tail_abs_error_p95_n": 4.986414383755026,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.6995300540367073,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+        "nonempty_bins": 550,
+        "required_bins": 550,
+        "sample_count": 26435,
+        "window_s": [
+          5.0,
+          60.0
+        ]
+      },
+      "measured_bin_full": {
+        "bin_mean_bias_measured_minus_target_n": -1.3294012979531764,
+        "bin_mean_mae_n": 2.2940804342833405,
+        "bin_mean_rmse_n": 2.908953467240975,
+        "bin_mean_tail_abs_error_p95_n": 4.988349680932852,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.670598702046824,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+        "nonempty_bins": 600,
+        "required_bins": 600,
+        "sample_count": 28836,
+        "window_s": [
+          0.0,
+          60.0
+        ]
+      },
+      "measured_sample_formal": {
+        "below_1n_fraction": 0.26756194439190467,
+        "below_1n_runs": 140,
+        "longest_below_1n_run_s": 0.5480000000097789,
+        "peak_normal_n": 11.100763891753655,
+        "sample_bias_measured_minus_target_n": -1.3005796197207486,
+        "sample_error_p95_n": 5.135405701145428,
+        "sample_mae_n": 2.4303666908581185,
+        "sample_rmse_n": 3.035970871095652,
+        "samples": 26435
+      },
+      "measured_sample_full": {
+        "below_1n_fraction": 0.28030933555278126,
+        "below_1n_runs": 162,
+        "longest_below_1n_run_s": 0.5480000000097789,
+        "peak_normal_n": 12.196579937830668,
+        "sample_bias_measured_minus_target_n": -1.3302436139685745,
+        "sample_error_p95_n": 5.261972225919265,
+        "sample_mae_n": 2.5113483298896564,
+        "sample_rmse_n": 3.1124317735749045,
+        "samples": 28836
+      },
+      "path_complete": true,
+      "run": "runs/tase-rnn-high-control-filter-rate460-20260927-01/attempts/0001",
+      "score_crosscheck": {
+        "accepted_join_reconstructed_550_bin_mae_n": 1.3160235378389096,
+        "exact_match_within_1e-9_n": true,
+        "metric_identity": "filtered KWR75 normal load, equal-weight 100 ms means, [5,60) bins",
+        "receipt_formal_550_bin_mae_n": 1.3160235378389096,
+        "reconstruction_minus_receipt_n": 0.0
+      },
+      "tp_echo_hz": 480.8692174376619
+    },
+    "pair02_A": {
+      "accepted_reconstruction": {
+        "duplicate_rtde_or_tp_clock_rows": 1319,
+        "receipt_path_sample_count": 28349,
+        "reconstructed_accepted_path_sample_count": 28349,
+        "unmatched_timeline_rows": 0
+      },
+      "accepted_samples_0_60": 28349,
+      "candidate_id": "figure8-rate460-integral-1p0-A-baseline",
+      "evidence_eligible": true,
+      "filtered_bin_formal": {
+        "bin_mean_bias_measured_minus_target_n": -1.0391215975586103,
+        "bin_mean_mae_n": 1.0528560418923427,
+        "bin_mean_rmse_n": 1.369948255100126,
+        "bin_mean_tail_abs_error_p95_n": 2.849357069572028,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.9608784024413897,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+        "nonempty_bins": 550,
+        "required_bins": 550,
+        "sample_count": 26137,
+        "window_s": [
+          5.0,
+          60.0
+        ]
+      },
+      "filtered_bin_full": {
+        "bin_mean_bias_measured_minus_target_n": -1.0610563327120917,
+        "bin_mean_mae_n": 1.082688306912891,
+        "bin_mean_rmse_n": 1.4187682942586295,
+        "bin_mean_tail_abs_error_p95_n": 2.9031922980916165,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.938943667287908,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+        "nonempty_bins": 600,
+        "required_bins": 600,
+        "sample_count": 28349,
+        "window_s": [
+          0.0,
+          60.0
+        ]
+      },
+      "filtered_sample_formal": {
+        "below_1n_fraction": 0.0,
+        "below_1n_runs": 0,
+        "longest_below_1n_run_s": 0.0,
+        "peak_normal_n": 5.5089209563364605,
+        "sample_bias_measured_minus_target_n": -1.0444468953094934,
+        "sample_error_p95_n": 2.903133616925728,
+        "sample_mae_n": 1.060196166569702,
+        "sample_rmse_n": 1.3862902511884134,
+        "samples": 26137
+      },
+      "filtered_sample_full": {
+        "below_1n_fraction": 0.0015873575787505733,
+        "below_1n_runs": 2,
+        "longest_below_1n_run_s": 0.07000000000698492,
+        "peak_normal_n": 6.205620053357629,
+        "sample_bias_measured_minus_target_n": -1.0641121204704946,
+        "sample_error_p95_n": 3.0046473336236774,
+        "sample_mae_n": 1.0886925755062595,
+        "sample_rmse_n": 1.4330428295688002,
+        "samples": 28349
+      },
+      "formal_bins": 550,
+      "formal_receipt_mae_n": 1.0528560418923427,
+      "formal_samples_5_60": 26137,
+      "home_verified": true,
+      "host_publish_hz": 494.51666666666665,
+      "measured_bin_formal": {
+        "bin_mean_bias_measured_minus_target_n": -1.0494149797608343,
+        "bin_mean_mae_n": 1.8029831494488529,
+        "bin_mean_rmse_n": 2.4268374332823024,
+        "bin_mean_tail_abs_error_p95_n": 4.981311067948552,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.950585020239166,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+        "nonempty_bins": 550,
+        "required_bins": 550,
+        "sample_count": 26137,
+        "window_s": [
+          5.0,
+          60.0
+        ]
+      },
+      "measured_bin_full": {
+        "bin_mean_bias_measured_minus_target_n": -1.0600518574233684,
+        "bin_mean_mae_n": 1.8725534538625865,
+        "bin_mean_rmse_n": 2.510947512772557,
+        "bin_mean_tail_abs_error_p95_n": 4.9863572819548345,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.9399481425766316,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+        "nonempty_bins": 600,
+        "required_bins": 600,
+        "sample_count": 28349,
+        "window_s": [
+          0.0,
+          60.0
+        ]
+      },
+      "measured_sample_formal": {
+        "below_1n_fraction": 0.18188774534185254,
+        "below_1n_runs": 154,
+        "longest_below_1n_run_s": 0.4639999999781139,
+        "peak_normal_n": 11.497571963402272,
+        "sample_bias_measured_minus_target_n": -1.0517920411066126,
+        "sample_error_p95_n": 5.013679329871742,
+        "sample_mae_n": 1.987720946383155,
+        "sample_rmse_n": 2.604890222211573,
+        "samples": 26137
+      },
+      "measured_sample_full": {
+        "below_1n_fraction": 0.19281103389890297,
+        "below_1n_runs": 160,
+        "longest_below_1n_run_s": 0.6720000000204891,
+        "peak_normal_n": 14.276103780290127,
+        "sample_bias_measured_minus_target_n": -1.0693644044087012,
+        "sample_error_p95_n": 5.0800946066740735,
+        "sample_mae_n": 2.0542082594811513,
+        "sample_rmse_n": 2.6874401620810353,
+        "samples": 28349
+      },
+      "path_complete": true,
+      "run": "runs/tase-high-filter-pair02-A-replacement-rate460-20260927-01/attempts/0001",
+      "score_crosscheck": {
+        "accepted_join_reconstructed_550_bin_mae_n": 1.0528560418923427,
+        "exact_match_within_1e-9_n": true,
+        "metric_identity": "filtered KWR75 normal load, equal-weight 100 ms means, [5,60) bins",
+        "receipt_formal_550_bin_mae_n": 1.0528560418923427,
+        "reconstruction_minus_receipt_n": 0.0
+      },
+      "tp_echo_hz": 476.9371771370698
+    },
+    "pair02_HIGH": {
+      "accepted_reconstruction": {
+        "duplicate_rtde_or_tp_clock_rows": 1544,
+        "receipt_path_sample_count": 27464,
+        "reconstructed_accepted_path_sample_count": 27464,
+        "unmatched_timeline_rows": 0
+      },
+      "accepted_samples_0_60": 27464,
+      "candidate_id": "figure8-rate460-rnn-control-filter-high-tau",
+      "evidence_eligible": true,
+      "filtered_bin_formal": {
+        "bin_mean_bias_measured_minus_target_n": -1.1413752951594287,
+        "bin_mean_mae_n": 1.171835188282533,
+        "bin_mean_rmse_n": 1.513601336723709,
+        "bin_mean_tail_abs_error_p95_n": 2.9905429173132405,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.858624704840571,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+        "nonempty_bins": 550,
+        "required_bins": 550,
+        "sample_count": 25059,
+        "window_s": [
+          5.0,
+          60.0
+        ]
+      },
+      "filtered_bin_full": {
+        "bin_mean_bias_measured_minus_target_n": -1.13143788429282,
+        "bin_mean_mae_n": 1.1620387787326278,
+        "bin_mean_rmse_n": 1.4954076867788564,
+        "bin_mean_tail_abs_error_p95_n": 2.9607314104499824,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.8685621157071806,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+        "nonempty_bins": 600,
+        "required_bins": 600,
+        "sample_count": 27464,
+        "window_s": [
+          0.0,
+          60.0
+        ]
+      },
+      "filtered_sample_formal": {
+        "below_1n_fraction": 0.00885909254160182,
+        "below_1n_runs": 2,
+        "longest_below_1n_run_s": 0.35999999998603016,
+        "peak_normal_n": 7.652557442407354,
+        "sample_bias_measured_minus_target_n": -1.1343724699377773,
+        "sample_error_p95_n": 3.0349070386238877,
+        "sample_mae_n": 1.1684469174538286,
+        "sample_rmse_n": 1.521834029343345,
+        "samples": 25059
+      },
+      "filtered_sample_full": {
+        "below_1n_fraction": 0.008083309059131955,
+        "below_1n_runs": 2,
+        "longest_below_1n_run_s": 0.35999999998603016,
+        "peak_normal_n": 7.652557442407354,
+        "sample_bias_measured_minus_target_n": -1.1245650698542375,
+        "sample_error_p95_n": 2.9960917415043777,
+        "sample_mae_n": 1.1589044553701922,
+        "sample_rmse_n": 1.50317755962176,
+        "samples": 27464
+      },
+      "formal_bins": 550,
+      "formal_receipt_mae_n": 1.1718351882825329,
+      "formal_samples_5_60": 25059,
+      "home_verified": true,
+      "host_publish_hz": 483.56666666666666,
+      "measured_bin_formal": {
+        "bin_mean_bias_measured_minus_target_n": -1.1479623609704868,
+        "bin_mean_mae_n": 2.049934803511881,
+        "bin_mean_rmse_n": 2.6916448381191587,
+        "bin_mean_tail_abs_error_p95_n": 4.985652615817744,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.852037639029513,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+        "nonempty_bins": 550,
+        "required_bins": 550,
+        "sample_count": 25059,
+        "window_s": [
+          5.0,
+          60.0
+        ]
+      },
+      "measured_bin_full": {
+        "bin_mean_bias_measured_minus_target_n": -1.1335684114817897,
+        "bin_mean_mae_n": 2.0405395957558827,
+        "bin_mean_rmse_n": 2.6773056986152803,
+        "bin_mean_tail_abs_error_p95_n": 4.985181825538796,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.8664315885182106,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+        "nonempty_bins": 600,
+        "required_bins": 600,
+        "sample_count": 27464,
+        "window_s": [
+          0.0,
+          60.0
+        ]
+      },
+      "measured_sample_formal": {
+        "below_1n_fraction": 0.2151721936230496,
+        "below_1n_runs": 122,
+        "longest_below_1n_run_s": 0.9880000000121072,
+        "peak_normal_n": 18.079901011724445,
+        "sample_bias_measured_minus_target_n": -1.1498317714675583,
+        "sample_error_p95_n": 5.19870302053946,
+        "sample_mae_n": 2.2467277004463337,
+        "sample_rmse_n": 2.886428061054284,
+        "samples": 25059
+      },
+      "measured_sample_full": {
+        "below_1n_fraction": 0.2120958345470434,
+        "below_1n_runs": 136,
+        "longest_below_1n_run_s": 0.9880000000121072,
+        "peak_normal_n": 18.079901011724445,
+        "sample_bias_measured_minus_target_n": -1.1344525110569532,
+        "sample_error_p95_n": 5.169500160800245,
+        "sample_mae_n": 2.240570542012546,
+        "sample_rmse_n": 2.870452049977265,
+        "samples": 27464
+      },
+      "path_complete": true,
+      "run": "runs/tase-high-filter-pair02-HIGH-replacement-rate460-20260927-02/attempts/0001",
+      "score_crosscheck": {
+        "accepted_join_reconstructed_550_bin_mae_n": 1.171835188282533,
+        "exact_match_within_1e-9_n": true,
+        "metric_identity": "filtered KWR75 normal load, equal-weight 100 ms means, [5,60) bins",
+        "receipt_formal_550_bin_mae_n": 1.1718351882825329,
+        "reconstruction_minus_receipt_n": 2.220446049250313e-16
+      },
+      "tp_echo_hz": 465.2557907014775
+    },
+    "paired_summary": {
+      "interpretation": "two exploratory matched pairs only; mean is below the 0.10 N threshold and pair signs disagree; do not claim a stable improvement or CI-supported benefit",
+      "mean_A_minus_HIGH_n": -0.031076576057230687,
+      "n_complete_pairs": 2,
+      "pair01_A_minus_HIGH_n": 0.056825994275728764,
+      "pair02_A_minus_HIGH_n": -0.11897914639019014
+    },
+    "screening_LOW_unpaired": {
+      "accepted_reconstruction": {
+        "duplicate_rtde_or_tp_clock_rows": 1141,
+        "receipt_path_sample_count": 28837,
+        "reconstructed_accepted_path_sample_count": 28837,
+        "unmatched_timeline_rows": 0
+      },
+      "accepted_samples_0_60": 28837,
+      "candidate_id": "figure8-rate460-rnn-control-filter-low-tau",
+      "evidence_eligible": true,
+      "filtered_bin_formal": {
+        "bin_mean_bias_measured_minus_target_n": -1.396577209188571,
+        "bin_mean_mae_n": 1.4142616630835634,
+        "bin_mean_rmse_n": 1.7311829771865284,
+        "bin_mean_tail_abs_error_p95_n": 3.177569441931672,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.603422790811429,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+        "nonempty_bins": 550,
+        "required_bins": 550,
+        "sample_count": 26432,
+        "window_s": [
+          5.0,
+          60.0
+        ]
+      },
+      "filtered_bin_full": {
+        "bin_mean_bias_measured_minus_target_n": -1.4051615522219867,
+        "bin_mean_mae_n": 1.4226071799607654,
+        "bin_mean_rmse_n": 1.7318889896153669,
+        "bin_mean_tail_abs_error_p95_n": 3.175916765536556,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.594838447778013,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+        "nonempty_bins": 600,
+        "required_bins": 600,
+        "sample_count": 28837,
+        "window_s": [
+          0.0,
+          60.0
+        ]
+      },
+      "filtered_sample_formal": {
+        "below_1n_fraction": 0.004842615012106538,
+        "below_1n_runs": 2,
+        "longest_below_1n_run_s": 0.24199999999837019,
+        "peak_normal_n": 7.157810420487634,
+        "sample_bias_measured_minus_target_n": -1.3966280634485895,
+        "sample_error_p95_n": 3.2407850359769554,
+        "sample_mae_n": 1.4168016936235843,
+        "sample_rmse_n": 1.7446719751433175,
+        "samples": 26432
+      },
+      "filtered_sample_full": {
+        "below_1n_fraction": 0.004438741894094393,
+        "below_1n_runs": 2,
+        "longest_below_1n_run_s": 0.24199999999837019,
+        "peak_normal_n": 7.157810420487634,
+        "sample_bias_measured_minus_target_n": -1.4051830251185053,
+        "sample_error_p95_n": 3.236094021429258,
+        "sample_mae_n": 1.4252559905230273,
+        "sample_rmse_n": 1.7453541824975425,
+        "samples": 28837
+      },
+      "formal_bins": 550,
+      "formal_receipt_mae_n": 1.4142616630835634,
+      "formal_samples_5_60": 26432,
+      "home_verified": true,
+      "host_publish_hz": 499.76666666666665,
+      "measured_bin_formal": {
+        "bin_mean_bias_measured_minus_target_n": -1.3874766201169952,
+        "bin_mean_mae_n": 2.46050658494693,
+        "bin_mean_rmse_n": 3.034340502430038,
+        "bin_mean_tail_abs_error_p95_n": 4.992681057665444,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.612523379883005,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+        "nonempty_bins": 550,
+        "required_bins": 550,
+        "sample_count": 26432,
+        "window_s": [
+          5.0,
+          60.0
+        ]
+      },
+      "measured_bin_full": {
+        "bin_mean_bias_measured_minus_target_n": -1.4015254552316694,
+        "bin_mean_mae_n": 2.473227571123091,
+        "bin_mean_rmse_n": 3.0417910903227523,
+        "bin_mean_tail_abs_error_p95_n": 4.990281827653141,
+        "complete_coverage": true,
+        "coverage_fraction": 1.0,
+        "empty_bins": 0,
+        "mean_of_bin_means_n": 3.5984745447683304,
+        "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+        "nonempty_bins": 600,
+        "required_bins": 600,
+        "sample_count": 28837,
+        "window_s": [
+          0.0,
+          60.0
+        ]
+      },
+      "measured_sample_formal": {
+        "below_1n_fraction": 0.29244854721549635,
+        "below_1n_runs": 165,
+        "longest_below_1n_run_s": 0.8480000000272412,
+        "peak_normal_n": 15.395814511090304,
+        "sample_bias_measured_minus_target_n": -1.3886398112323308,
+        "sample_error_p95_n": 5.3808854650588955,
+        "sample_mae_n": 2.674464072144419,
+        "sample_rmse_n": 3.2435799318854883,
+        "samples": 26432
+      },
+      "measured_sample_full": {
+        "below_1n_fraction": 0.29534972431251516,
+        "below_1n_runs": 179,
+        "longest_below_1n_run_s": 0.8480000000272412,
+        "peak_normal_n": 15.395814511090304,
+        "sample_bias_measured_minus_target_n": -1.4025983993518623,
+        "sample_error_p95_n": 5.3650867151635016,
+        "sample_mae_n": 2.6881457508761444,
+        "sample_rmse_n": 3.250076035903094,
+        "samples": 28837
+      },
+      "path_complete": true,
+      "run": "runs/tase-rnn-low-control-filter-rate460-20260927-002902/attempts/0001",
+      "score_crosscheck": {
+        "accepted_join_reconstructed_550_bin_mae_n": 1.4142616630835634,
+        "exact_match_within_1e-9_n": true,
+        "metric_identity": "filtered KWR75 normal load, equal-weight 100 ms means, [5,60) bins",
+        "receipt_formal_550_bin_mae_n": 1.4142616630835634,
+        "reconstruction_minus_receipt_n": 0.0
+      },
+      "tp_echo_hz": 480.752566324477
+    }
+  },
+  "schema": "tase.rnn-filter-tau-reducer-alignment-v1"
+}

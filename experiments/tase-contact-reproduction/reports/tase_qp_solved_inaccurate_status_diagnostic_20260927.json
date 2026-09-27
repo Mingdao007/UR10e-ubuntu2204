@@ -1,0 +1,79 @@
+{
+  "diagnostic_receipt": "runs/tase_qp_matched_a_default_profile_inaccurate_status_diagnostic_20260927.json",
+  "diagnostic_receipt_sha256": "d80f928d13828af9e1cb993f1c70bc418afb74231c5c73fdc9b9cc3632e071ad",
+  "diagnostic_result": {
+    "candidate_force_mae_recomputed": false,
+    "closed_loop": false,
+    "formal_bins": 550,
+    "formal_rows": 27453,
+    "full_bins": 600,
+    "full_path_completed": true,
+    "max_all_stage_wall_time_s": 0.001823739013223201,
+    "max_box_violation_rad_s": 1.0041866969900948e-08,
+    "max_locked_equality_residual": 4.440145760613301e-09,
+    "max_orientation_residual_rad_s": 0.0037958061234112193,
+    "p99_all_stage_wall_time_s": 0.00020640598880638183,
+    "p99_orientation_residual_rad_s": 0.0002972461632452669,
+    "path_rows": 29956,
+    "remaining_solver_failures": [],
+    "solver_rows_completed": 29956
+  },
+  "evidence_class": "offline_fixed_input_solver_status_override_diagnostic",
+  "existing_postsolve_tolerances": {
+    "bound_tolerance_rad_s": 1e-07,
+    "equality_tolerance": 1e-06
+  },
+  "interpretation": "This shows the returned vector passes the existing external equality and box checks for this fixed-input replay when the solver status gate is bypassed. It does not establish that the orientation least-squares stage is sufficiently optimal, nor that the max wall time meets the live 1 ms deadline. The original solver refusal remains a failure; this diagnostic is not a live candidate or force-MAE observation.",
+  "live_eligible": false,
+  "offline_status_override": {
+    "not_applied_to_historical_receipt": true,
+    "only_change": "The diagnostic wrapper relabeled OSQP status \"solved inaccurate\" as \"solved\" for offline downstream validation; qdot, solver settings, source input, inequalities, and tolerances were unchanged.",
+    "original_dual_residual": 7.821876224294555e-09,
+    "original_failure_packet_sequence": 30864,
+    "original_failure_path_time_s": 42.446146166999824,
+    "original_iterations": 400,
+    "original_primal_residual": 1.122369465764813e-08,
+    "original_solve_time_s": 0.000114295,
+    "original_status": "solved inaccurate"
+  },
+  "original_receipt": "reports/tase_r31_qpmatched_normal_priority_replay_20260927_v10_default_fullpath.json",
+  "original_receipt_sha256": "daf9d70aa0572a23cec4b94b64fd55819df7ed8e458b93763aa696409ef3c1b1",
+  "original_result": {
+    "failures": [
+      {
+        "packet_sequence": 30864,
+        "reason": "LexicographicTaseQpError: stage=orientation status=solved inaccurate iterations=400 solve_time_s=0.000114295 primal_residual=1.122369465764813e-08 dual_residual=7.821876224294555e-09",
+        "reference_time_s": 42.446146166999824
+      }
+    ],
+    "formal_bins": 375,
+    "full_bins": 425,
+    "path_complete": true,
+    "path_rows": 21189,
+    "solver_rows": 21188
+  },
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "schema": "tase.qp.solved-inaccurate-status-forensic-diagnostic.v1",
+  "solver_profile": {
+    "bounds": "captured joint qdot bounds intersected with per-tick dynamic slew interval rebuilt from candidate's previous qdot and recorded delta",
+    "eps_abs": 1e-08,
+    "eps_rel": 1e-08,
+    "force_source_used_for_scoring": null,
+    "max_iter_per_stage": 400,
+    "new_physical_slack_or_weight": null,
+    "osqp_rho": 0.1,
+    "osqp_scaling": 10,
+    "stage_count": 4,
+    "stage_methods": [
+      "osqp_normal",
+      "osqp_orientation",
+      "two_dimensional_active_set",
+      "unique_task_realization_no_tiebreak_solve"
+    ]
+  },
+  "source_attempt": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001",
+  "source_code_hashes": {
+    "tools/replay_tase_qp_normal_priority.py": "19f66a558e270b87ed1137982b96d64e256feded2d98ee35cbeb5be3ec2b87d9",
+    "tools/tase_qp_normal_priority_offline.py": "16df5b172ed6614664b987fe4dfb8d90a1d4620db270b0b3e9fe685cfd5f33ec"
+  }
+}

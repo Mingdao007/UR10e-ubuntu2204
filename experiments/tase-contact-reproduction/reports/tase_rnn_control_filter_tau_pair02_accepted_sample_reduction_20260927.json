@@ -1,0 +1,3873 @@
+{
+  "attempts": [
+    {
+      "cadence": {
+        "classification": "observed_layers_at_least_460",
+        "feedback_age_p99_s": 0.009015616960823536,
+        "host_interpublish_summary": {
+          "hot_path_stage_timing": {
+            "clock": "monotonic_ns+thread_time_ns",
+            "duplicate_stage_starts": 0,
+            "schema": "tase.r013.hot-path-stage-timing-v1",
+            "stages": {
+              "control_step_state_21": {
+                "count": 4367,
+                "thread_ns_max": 1335975,
+                "thread_ns_total": 3393345562,
+                "thread_over_0p5ms_count": 4236,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 10863260,
+                "wall_ns_total": 3401960427,
+                "wall_over_0p5ms_count": 4236,
+                "wall_over_2ms_count": 1
+              },
+              "control_step_state_25": {
+                "count": 30165,
+                "thread_ns_max": 2109186,
+                "thread_ns_total": 35977264567,
+                "thread_over_0p5ms_count": 30165,
+                "thread_over_2ms_count": 1,
+                "wall_ns_max": 11680371,
+                "wall_ns_total": 35978006273,
+                "wall_over_0p5ms_count": 30165,
+                "wall_over_2ms_count": 1
+              },
+              "packet_evidence_state_11": {
+                "count": 1,
+                "thread_ns_max": 38262,
+                "thread_ns_total": 38262,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 38002,
+                "wall_ns_total": 38002,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_20": {
+                "count": 4363,
+                "thread_ns_max": 35667,
+                "thread_ns_total": 112796234,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 35386,
+                "wall_ns_total": 111935872,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_21": {
+                "count": 4367,
+                "thread_ns_max": 36298,
+                "thread_ns_total": 79164955,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 35997,
+                "wall_ns_total": 78520839,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_25": {
+                "count": 30168,
+                "thread_ns_max": 548639,
+                "thread_ns_total": 1817363881,
+                "thread_over_0p5ms_count": 1,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 548267,
+                "wall_ns_total": 1810883508,
+                "wall_over_0p5ms_count": 1,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_40": {
+                "count": 1795,
+                "thread_ns_max": 19086579,
+                "thread_ns_total": 1239634243,
+                "thread_over_0p5ms_count": 938,
+                "thread_over_2ms_count": 2,
+                "wall_ns_max": 19086070,
+                "wall_ns_total": 1239102860,
+                "wall_over_0p5ms_count": 938,
+                "wall_over_2ms_count": 2
+              },
+              "packet_evidence_state_78": {
+                "count": 1,
+                "thread_ns_max": 31319,
+                "thread_ns_total": 31319,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 31138,
+                "wall_ns_total": 31138,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_11": {
+                "count": 2,
+                "thread_ns_max": 4779,
+                "thread_ns_total": 9387,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 4448,
+                "wall_ns_total": 8726,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_20": {
+                "count": 4363,
+                "thread_ns_max": 10209,
+                "thread_ns_total": 17215169,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 9928,
+                "wall_ns_total": 16263263,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_21": {
+                "count": 4367,
+                "thread_ns_max": 5170,
+                "thread_ns_total": 10907608,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 4839,
+                "wall_ns_total": 10324424,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_25": {
+                "count": 30168,
+                "thread_ns_max": 5250,
+                "thread_ns_total": 75581541,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 5009,
+                "wall_ns_total": 71850013,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_40": {
+                "count": 1795,
+                "thread_ns_max": 8396,
+                "thread_ns_total": 5934599,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 8125,
+                "wall_ns_total": 5597803,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_78": {
+                "count": 722,
+                "thread_ns_max": 5941,
+                "thread_ns_total": 2697837,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 5601,
+                "wall_ns_total": 2492969,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_11": {
+                "count": 2,
+                "thread_ns_max": 13004,
+                "thread_ns_total": 25517,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 12794,
+                "wall_ns_total": 25137,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_20": {
+                "count": 4363,
+                "thread_ns_max": 19486,
+                "thread_ns_total": 47291350,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 19195,
+                "wall_ns_total": 46338559,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_21": {
+                "count": 4367,
+                "thread_ns_max": 12273,
+                "thread_ns_total": 27162535,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 11892,
+                "wall_ns_total": 26461930,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_25": {
+                "count": 30168,
+                "thread_ns_max": 12614,
+                "thread_ns_total": 186321644,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 12303,
+                "wall_ns_total": 182865359,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_40": {
+                "count": 1795,
+                "thread_ns_max": 27672,
+                "thread_ns_total": 14814614,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 27512,
+                "wall_ns_total": 14462693,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_78": {
+                "count": 722,
+                "thread_ns_max": 26780,
+                "thread_ns_total": 7434216,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 26660,
+                "wall_ns_total": 7263335,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_11": {
+                "count": 1,
+                "planned_sleep_ns_max": 1338501,
+                "planned_sleep_ns_total": 1338501,
+                "thread_ns_max": 20840,
+                "thread_ns_total": 20840,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1371660,
+                "wall_ns_total": 1371660,
+                "wall_over_0p5ms_count": 1,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_20": {
+                "count": 4363,
+                "planned_sleep_ns_max": 1739907,
+                "planned_sleep_ns_total": 5889719956,
+                "thread_ns_max": 42790,
+                "thread_ns_total": 117597105,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1759749,
+                "wall_ns_total": 6026996520,
+                "wall_over_0p5ms_count": 4363,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_21": {
+                "count": 4367,
+                "planned_sleep_ns_max": 1245566,
+                "planned_sleep_ns_total": 3034047401,
+                "thread_ns_max": 36610,
+                "thread_ns_total": 78465116,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1287083,
+                "wall_ns_total": 3150543083,
+                "wall_over_0p5ms_count": 4163,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_25": {
+                "count": 30168,
+                "planned_sleep_ns_max": 1521181,
+                "planned_sleep_ns_total": 6560922243,
+                "thread_ns_max": 35497,
+                "thread_ns_total": 374185803,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1563060,
+                "wall_ns_total": 7154466960,
+                "wall_over_0p5ms_count": 3,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_40": {
+                "count": 1795,
+                "planned_sleep_ns_max": 1628970,
+                "planned_sleep_ns_total": 1444535463,
+                "thread_ns_max": 36809,
+                "thread_ns_total": 34487407,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1658569,
+                "wall_ns_total": 1487637336,
+                "wall_over_0p5ms_count": 869,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_11": {
+                "count": 1,
+                "thread_ns_max": 174067,
+                "thread_ns_total": 174067,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 173856,
+                "wall_ns_total": 173856,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_20": {
+                "count": 4363,
+                "thread_ns_max": 179647,
+                "thread_ns_total": 598044328,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 179627,
+                "wall_ns_total": 597564200,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_21": {
+                "count": 4367,
+                "thread_ns_max": 226675,
+                "thread_ns_total": 410794891,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 226334,
+                "wall_ns_total": 410186150,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_25": {
+                "count": 30168,
+                "thread_ns_max": 394731,
+                "thread_ns_total": 5919359165,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 10112282,
+                "wall_ns_total": 5923813922,
+                "wall_over_0p5ms_count": 1,
+                "wall_over_2ms_count": 1
+              },
+              "send_wrapper_state_40": {
+                "count": 1795,
+                "thread_ns_max": 229070,
+                "thread_ns_total": 204243955,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 229069,
+                "wall_ns_total": 204018955,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_11": {
+                "count": 2,
+                "thread_ns_max": 34686,
+                "thread_ns_total": 66706,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 34385,
+                "wall_ns_total": 66045,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_20": {
+                "count": 4363,
+                "thread_ns_max": 134201,
+                "thread_ns_total": 262724824,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 133850,
+                "wall_ns_total": 261474513,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_21": {
+                "count": 4367,
+                "thread_ns_max": 170089,
+                "thread_ns_total": 138407800,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 169778,
+                "wall_ns_total": 137362939,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_25": {
+                "count": 30168,
+                "thread_ns_max": 189786,
+                "thread_ns_total": 1169263898,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 189375,
+                "wall_ns_total": 1163584829,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_40": {
+                "count": 1795,
+                "thread_ns_max": 91992,
+                "thread_ns_total": 91238809,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 91872,
+                "wall_ns_total": 90828765,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_78": {
+                "count": 723,
+                "thread_ns_max": 105047,
+                "thread_ns_total": 46599117,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 104816,
+                "wall_ns_total": 46491228,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              }
+            },
+            "unmatched_stage_ends": 0
+          },
+          "interpublish_intervals": 29670,
+          "last_publish_s": 369621.762638756,
+          "max_interpublish_s": 0.011790858989115804,
+          "missed_2ms_slots_proxy": 303,
+          "over_2ms_intervals": 13719,
+          "path_publishes": 29671,
+          "publish_send_timing": {
+            "diagnostic_threshold_ns": 2000000,
+            "missing_transport_timing_count": 0,
+            "schema": "tase.r013.publish-send-timing-summary-v1",
+            "stages": {
+              "input_encode": {
+                "count": 29671,
+                "slow_examples": [],
+                "thread_ns_max": 19547,
+                "thread_ns_total": 278718824,
+                "wall_ns_max": 19567,
+                "wall_ns_total": 279334369,
+                "wall_over_2ms_count": 0
+              },
+              "input_send_total": {
+                "count": 29671,
+                "slow_examples": [],
+                "thread_ns_max": 38512,
+                "thread_ns_total": 743955498,
+                "wall_ns_max": 38553,
+                "wall_ns_total": 745045282,
+                "wall_over_2ms_count": 0
+              },
+              "provider_return_to_writer_entry": {
+                "count": 29671,
+                "slow_examples": [],
+                "thread_ns_max": 97152,
+                "thread_ns_total": 2451776790,
+                "wall_ns_max": 97072,
+                "wall_ns_total": 2449939132,
+                "wall_over_2ms_count": 0
+              },
+              "rtde_frame_build": {
+                "count": 29671,
+                "slow_examples": [],
+                "thread_ns_max": 2685,
+                "thread_ns_total": 24420870,
+                "wall_ns_max": 2716,
+                "wall_ns_total": 24807904,
+                "wall_over_2ms_count": 0
+              },
+              "socket_sendall": {
+                "count": 29671,
+                "slow_examples": [],
+                "thread_ns_max": 21951,
+                "thread_ns_total": 385128156,
+                "wall_ns_max": 21931,
+                "wall_ns_total": 384501516,
+                "wall_over_2ms_count": 0
+              },
+              "writer_send_method": {
+                "count": 29671,
+                "slow_examples": [
+                  {
+                    "observed_monotonic_ns": 369561762697828,
+                    "packet_sequence": 9231,
+                    "reference_time_s": 0.0,
+                    "thread_ns": 329288,
+                    "wall_ns": 10046469
+                  }
+                ],
+                "thread_ns_max": 329288,
+                "thread_ns_total": 5098889684,
+                "wall_ns_max": 10046469,
+                "wall_ns_total": 5104246660,
+                "wall_over_2ms_count": 1
+              }
+            }
+          },
+          "scheduler_max_lateness_s": 0.0019445299985818565,
+          "scheduler_wakeups": 40694,
+          "scheduler_wakeups_over_0p5ms": 62
+        },
+        "host_publish_hz": 494.51666666666665,
+        "kunwei_hz": 1000.1666388933626,
+        "max_fresh_gap_s": 0.01032439002301544,
+        "max_interval_s": 0.0105546610429883,
+        "observed_intervals": 29669,
+        "p99_interval_s": 0.003930085978936404,
+        "provider_compute_summary": {
+          "calls": 34400,
+          "failed_calls": 0,
+          "force_rise_guard_calls": 989,
+          "gate_projection_calls": 0,
+          "host_slew_limited_calls": 7,
+          "max_compute_s": 0.011125180986709893,
+          "max_non_cpu_wall_s": 0.009571356986709745,
+          "max_thread_cpu_s": 0.001553824000000148,
+          "over_2ms_calls": 1,
+          "path_calls": 29671,
+          "path_compute_bucket_upper_s": [
+            0.00025,
+            0.0005,
+            0.001,
+            0.0015,
+            0.002,
+            0.004
+          ],
+          "path_compute_histogram": [
+            0,
+            0,
+            28373,
+            1298,
+            0,
+            0,
+            0
+          ],
+          "path_max_compute_s": 0.0013468440156430006,
+          "path_over_2ms_calls": 0,
+          "published_joint_bound_calls": 0,
+          "slow_call_examples": [
+            {
+              "involuntary_context_switches": 0,
+              "mode": "path",
+              "monotonic_s": 369560.749539906,
+              "non_cpu_wall_elapsed_s": 0.009571356986709745,
+              "path_time_s": 0.0,
+              "thread_cpu_elapsed_s": 0.001553824000000148,
+              "voluntary_context_switches": 1,
+              "wall_elapsed_s": 0.011125180986709893
+            }
+          ],
+          "solver_active_bound_calls": 0,
+          "solver_backend_counts": {
+            "cupy": 0,
+            "fixed-normal-jacobian": 0,
+            "numpy": 29671,
+            "osqp-codegen-c": 0,
+            "other": 0,
+            "strict-rnn": 0
+          },
+          "solver_max_s": 8.282501948997378e-05,
+          "solver_over_2ms_calls": 0,
+          "solver_timed_calls": 29671,
+          "solver_total_s": 2.055148816900328,
+          "total_compute_s": 27.17028693231987
+        },
+        "rate_scope": "rtde_hz/tp_echo_hz above are unique identities in accepted synchronized PathSample rows; use raw_layer_measurements below for all raw interfaces",
+        "rtde_hz": 499.9999999999224,
+        "tp_echo_hz": 476.9371771370698
+      },
+      "campaign": "runs",
+      "candidate_id": "figure8-rate460-integral-1p0-A-baseline",
+      "controller_trace": {
+        "actual_q_joint_range_rad": [
+          {
+            "max": 0.8128474950790405,
+            "min": 0.6730365753173828
+          },
+          {
+            "max": -1.8472134075560511,
+            "min": -1.8737384281554164
+          },
+          {
+            "max": -2.524247169494629,
+            "min": -2.6052420139312744
+          },
+          {
+            "max": -0.23743613184008794,
+            "min": -0.29729683816943364
+          },
+          {
+            "max": 1.529022455215454,
+            "min": 1.5260998010635376
+          },
+          {
+            "max": -0.7560070196734827,
+            "min": -0.8959029356585901
+          }
+        ],
+        "actual_qd_joint_range_rad_s": [
+          {
+            "max": 0.031781166791915894,
+            "min": -0.006901748012751341
+          },
+          {
+            "max": 0.015351168811321259,
+            "min": -0.019192706793546677
+          },
+          {
+            "max": 0.008802205324172974,
+            "min": -0.010808172635734081
+          },
+          {
+            "max": 0.02214348129928112,
+            "min": -0.010884308256208897
+          },
+          {
+            "max": 0.02326134406030178,
+            "min": -0.05580846965312958
+          },
+          {
+            "max": 0.03718365356326103,
+            "min": -0.008551614359021187
+          }
+        ],
+        "actual_qd_max_abs_rad_s": 0.05580846965312958,
+        "actual_qd_max_norm_rad_s": 0.057685314639801054,
+        "all_writer_tick_score_diagnostic": {
+          "all_tick_filtered_550_bin_mae_n": 1.0528460697650406,
+          "interpretation": "This diagnostic bins every command_timeline control tick. It includes repeated/cached RTDE or TP joins and is not the accepted PathSample score.",
+          "receipt_formal_550_bin_mae_n": 1.0528560418923427
+        },
+        "available": true,
+        "controller_force_error_n": {
+          "count": 29669,
+          "max": 4.1215726006039075,
+          "mean": 0.1826117401624285,
+          "min": -9.276103780290123,
+          "p95": 2.7829836978819578,
+          "rms": 1.587789676248953
+        },
+        "force_norm_n": {
+          "count": 29669,
+          "max": 14.509465426014211,
+          "mean": 4.012182514239981,
+          "min": 0.0027499212186304646,
+          "p95": 7.673960850351349,
+          "rms": 4.694772881209026
+        },
+        "integral_at_or_above_98pct_limit_ticks": 2727,
+        "integral_effective_limit_n_s": {
+          "count": 29669,
+          "max": 1.0,
+          "mean": 1.0,
+          "min": 1.0,
+          "p95": 1.0,
+          "rms": 1.0
+        },
+        "integral_i_term": {
+          "count": 29669,
+          "max": 0.10454485618134816,
+          "mean": 0.0548624333664454,
+          "min": -0.04681139323888408,
+          "p95": 0.10454485618134816,
+          "rms": 0.06336930222380101
+        },
+        "integral_raw_state_n_s": {
+          "count": 29669,
+          "max": 1.0084842038804436,
+          "mean": 0.5251271069385444,
+          "min": -0.4477637154876654,
+          "p95": 1.0043223828582302,
+          "rms": 0.6067283215448189
+        },
+        "integral_state_n_s": {
+          "count": 29669,
+          "max": 1.0,
+          "mean": 0.5247741053015422,
+          "min": -0.4477637154876654,
+          "p95": 1.0,
+          "rms": 0.6061446209642087
+        },
+        "inter_tick_timing_s": {
+          "host_observation_gap": {
+            "count": 29668,
+            "max": 0.011779046966694295,
+            "mean": 0.0020225817726498125,
+            "min": 0.0016055690357461572,
+            "p95": 0.0021750169689767063,
+            "rms": 0.002035649655122791
+          },
+          "largest_host_gaps": [
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present",
+                "published_task_space_saturated"
+              ],
+              "actual_dt_s": 0.011779046966694295,
+              "force_error_n": 2.8432755907013547,
+              "host_gap_s": 0.011779046966694295,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.5471725183965328,
+              "max_abs_actual_qd_rad_s": 0.0014979095431044698,
+              "max_abs_published_qdot_rad_s": 0.002181754900668421,
+              "normal_force_measured_n": -0.17112585381677636,
+              "packet_sequence": 9232,
+              "provider_elapsed_s": 0.0008327499963343143,
+              "publish_gap_s": 0.011790858989115804,
+              "publish_latency_s": 0.001320675015449524,
+              "reference_time_s": 0.0,
+              "solver_elapsed_s": 7.372797699645162e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.01032439002301544,
+              "force_error_n": -0.40797790846193127,
+              "host_gap_s": 0.01032439002301544,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.7404625326992416,
+              "max_abs_actual_qd_rad_s": 0.008144023828208447,
+              "max_abs_published_qdot_rad_s": 0.007946349164637753,
+              "normal_force_measured_n": 5.407977908461929,
+              "packet_sequence": 38160,
+              "provider_elapsed_s": 0.0008295350125990808,
+              "publish_gap_s": 0.010553539032116532,
+              "publish_latency_s": 0.0014960539992898703,
+              "reference_time_s": 58.52000000001863,
+              "solver_elapsed_s": 6.994104478508234e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.008205589023418725,
+              "force_error_n": -0.9507684423562281,
+              "host_gap_s": 0.008205589023418725,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.6212280493281616,
+              "max_abs_actual_qd_rad_s": 0.00495507288724184,
+              "max_abs_published_qdot_rad_s": 0.004512961767966947,
+              "normal_force_measured_n": 5.95076844235623,
+              "packet_sequence": 19755,
+              "provider_elapsed_s": 0.0008221209864132106,
+              "publish_gap_s": 0.008220447052735835,
+              "publish_latency_s": 0.0012960290187038481,
+              "reference_time_s": 21.662000000011176,
+              "solver_elapsed_s": 6.996101001277566e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.006144294980913401,
+              "force_error_n": 0.6951046479464882,
+              "host_gap_s": 0.006144294980913401,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.515884905294366,
+              "max_abs_actual_qd_rad_s": 0.005573579575866461,
+              "max_abs_published_qdot_rad_s": 0.005106763019334289,
+              "normal_force_measured_n": 1.8829115025380785,
+              "packet_sequence": 22101,
+              "provider_elapsed_s": 0.0008153580129146576,
+              "publish_gap_s": 0.0061553470441140234,
+              "publish_latency_s": 0.0012855000095441937,
+              "reference_time_s": 26.35800000000745,
+              "solver_elapsed_s": 6.84990081936121e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.004240326990839094,
+              "force_error_n": -1.3751260735716873,
+              "host_gap_s": 0.004240326990839094,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.6680005569832046,
+              "max_abs_actual_qd_rad_s": 0.00887373462319374,
+              "max_abs_published_qdot_rad_s": 0.0085540407783512,
+              "normal_force_measured_n": 6.375126073571683,
+              "packet_sequence": 10682,
+              "provider_elapsed_s": 0.0008114399970509112,
+              "publish_gap_s": 0.00441675801994279,
+              "publish_latency_s": 0.0014377250336110592,
+              "reference_time_s": 3.0520000000251457,
+              "solver_elapsed_s": 6.923900218680501e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.004175536043476313,
+              "force_error_n": -1.594534840432944,
+              "host_gap_s": 0.004175536043476313,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.336744860585342,
+              "max_abs_actual_qd_rad_s": 0.007196777034550905,
+              "max_abs_published_qdot_rad_s": 0.006853578231133378,
+              "normal_force_measured_n": 6.594534840432942,
+              "packet_sequence": 11648,
+              "provider_elapsed_s": 0.000821559049654752,
+              "publish_gap_s": 0.004286092997062951,
+              "publish_latency_s": 0.0013896540040150285,
+              "reference_time_s": 5.082000000023982,
+              "solver_elapsed_s": 6.98509975336492e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.00414479902246967,
+              "force_error_n": 1.1877071397444134,
+              "host_gap_s": 0.00414479902246967,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.49548408246151665,
+              "max_abs_actual_qd_rad_s": 0.005524246022105217,
+              "max_abs_published_qdot_rad_s": 0.0047417502269450195,
+              "normal_force_measured_n": 1.380502699925394,
+              "packet_sequence": 12802,
+              "provider_elapsed_s": 0.00095860700821504,
+              "publish_gap_s": 0.004612234013620764,
+              "publish_latency_s": 0.0016989039722830057,
+              "reference_time_s": 7.488000000012107,
+              "solver_elapsed_s": 7.004098733887076e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.0041192310163751245,
+              "force_error_n": 0.9443298499408961,
+              "host_gap_s": 0.0041192310163751245,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.7720968072541575,
+              "max_abs_actual_qd_rad_s": 0.010249133221805096,
+              "max_abs_published_qdot_rad_s": 0.008614317254235155,
+              "normal_force_measured_n": 4.055670150059105,
+              "packet_sequence": 10555,
+              "provider_elapsed_s": 0.0009578450117260218,
+              "publish_gap_s": 0.004590975004248321,
+              "publish_latency_s": 0.001697811996564269,
+              "reference_time_s": 2.7840000000142027,
+              "solver_elapsed_s": 6.976100848987699e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.004105033993255347,
+              "force_error_n": -0.3360504441093797,
+              "host_gap_s": 0.004105033993255347,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.7424568746717315,
+              "max_abs_actual_qd_rad_s": 0.008679616264998913,
+              "max_abs_published_qdot_rad_s": 0.008589423809625874,
+              "normal_force_measured_n": 5.336050444109381,
+              "packet_sequence": 10541,
+              "provider_elapsed_s": 0.0008517560199834406,
+              "publish_gap_s": 0.004471229971386492,
+              "publish_latency_s": 0.0015924950130283833,
+              "reference_time_s": 2.74199999999837,
+              "solver_elapsed_s": 7.052201544865966e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "force_rise_guard",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.004101277037989348,
+              "force_error_n": -0.5406833743821977,
+              "host_gap_s": 0.004101277037989348,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.46808890908369066,
+              "max_abs_actual_qd_rad_s": 0.008421462960541248,
+              "max_abs_published_qdot_rad_s": 0.008095844456048268,
+              "normal_force_measured_n": 5.540683374382199,
+              "packet_sequence": 11028,
+              "provider_elapsed_s": 0.000812662998214364,
+              "publish_gap_s": 0.0044092239695601165,
+              "publish_latency_s": 0.001535567978862673,
+              "reference_time_s": 3.790000000008149,
+              "solver_elapsed_s": 6.926996866241097e-05
+            }
+          ],
+          "successful_publish_gap": {
+            "count": 29668,
+            "max": 0.011790858989115804,
+            "mean": 0.0020225812752458477,
+            "min": 0.0016087449621409178,
+            "p95": 0.0025245019933208823,
+            "rms": 0.002046362876547628
+          }
+        },
+        "limitations": "KWR75 is feedback, not an independent task-force reference; joint position and velocity vectors remain in the sealed per-frame rows.",
+        "missing_or_invalid_field_count": 0,
+        "normal_force_target_minus_filtered_n": {
+          "count": 29669,
+          "max": 4.121572600603908,
+          "mean": 1.0633625346428421,
+          "min": -1.2056200533576291,
+          "p95": 3.0037350365856623,
+          "rms": 1.4322451863203953
+        },
+        "normal_force_target_minus_measured_n": {
+          "count": 29669,
+          "max": 5.5672886332917795,
+          "mean": 1.066101063443052,
+          "min": -9.276103780290127,
+          "p95": 5.027427576978116,
+          "rms": 2.686753007180895
+        },
+        "official_score_crosscheck": {
+          "accepted_join_reconstructed_550_bin_mae_n": 1.0528560418923427,
+          "exact_match_within_1e-9_n": true,
+          "metric_identity": "filtered KWR75 normal load, equal-weight 100 ms means, [5,60) bins",
+          "receipt_formal_550_bin_mae_n": 1.0528560418923427,
+          "reconstruction_minus_receipt_n": 0.0
+        },
+        "path_force_signal_diagnostics": {
+          "available": true,
+          "invalid_sample_or_channel_count": 0,
+          "signals": {
+            "normal_force_control_n": {
+              "path_time_source": "command_timeline.reference_time_s",
+              "source": "normal load supplied to the TASE outer loop",
+              "windows": {
+                "window_0_5_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -0.10560305782380386,
+                    "bin_mean_mae_n": 1.6824007460267132,
+                    "bin_mean_rmse_n": 2.298628467520636,
+                    "bin_mean_tail_abs_error_p95_n": 5.786744644242299,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 4.894396942176196,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from normal load supplied to the TASE outer loop",
+                    "nonempty_bins": 50,
+                    "required_bins": 50,
+                    "sample_count": 2377,
+                    "window_s": [
+                      0.0,
+                      5.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.014724442574673959,
+                    "below_1n_runs": 2,
+                    "longest_below_1n_run_s": 0.04800000000977889,
+                    "peak_normal_n": 14.276103780290127,
+                    "sample_bias_measured_minus_target_n": -0.13754380816811995,
+                    "sample_error_p95_n": 4.59064645518923,
+                    "sample_mae_n": 1.7927296681371157,
+                    "sample_rmse_n": 2.4752671223513727,
+                    "samples": 2377
+                  }
+                },
+                "window_0_60_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -0.1790578086079754,
+                    "bin_mean_mae_n": 1.0491601243001214,
+                    "bin_mean_rmse_n": 1.424063662841168,
+                    "bin_mean_tail_abs_error_p95_n": 2.9233129215108447,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 4.8209421913920245,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from normal load supplied to the TASE outer loop",
+                    "nonempty_bins": 600,
+                    "required_bins": 600,
+                    "sample_count": 29669,
+                    "window_s": [
+                      0.0,
+                      60.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.0011796824968822678,
+                    "below_1n_runs": 2,
+                    "longest_below_1n_run_s": 0.04800000000977889,
+                    "peak_normal_n": 14.276103780290127,
+                    "sample_bias_measured_minus_target_n": -0.1826117401624285,
+                    "sample_error_p95_n": 3.167377619045398,
+                    "sample_mae_n": 1.180729929489664,
+                    "sample_rmse_n": 1.587789676248953,
+                    "samples": 29669
+                  }
+                },
+                "window_5_60_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -0.18573551322471826,
+                    "bin_mean_mae_n": 0.9915927950522496,
+                    "bin_mean_rmse_n": 1.3160476282552507,
+                    "bin_mean_tail_abs_error_p95_n": 2.7320316577700554,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 4.814264486775282,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from normal load supplied to the TASE outer loop",
+                    "nonempty_bins": 550,
+                    "required_bins": 550,
+                    "sample_count": 27292,
+                    "window_s": [
+                      5.0,
+                      60.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.0,
+                    "below_1n_runs": 0,
+                    "longest_below_1n_run_s": 0.0,
+                    "peak_normal_n": 11.497571963402272,
+                    "sample_bias_measured_minus_target_n": -0.18653693708278876,
+                    "sample_error_p95_n": 3.041083402866626,
+                    "sample_mae_n": 1.1274277391494547,
+                    "sample_rmse_n": 1.4856050171355657,
+                    "samples": 27292
+                  }
+                }
+              }
+            },
+            "normal_force_filtered_n": {
+              "path_time_source": "command_timeline.reference_time_s",
+              "source": "controller low-pass filtered KWR75 normal load",
+              "windows": {
+                "window_0_5_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -1.3041159353280165,
+                    "bin_mean_mae_n": 1.4127317028370248,
+                    "bin_mean_rmse_n": 1.8745816130973316,
+                    "bin_mean_tail_abs_error_p95_n": 3.8356642706487882,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 3.6958840646719837,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from controller low-pass filtered KWR75 normal load",
+                    "nonempty_bins": 50,
+                    "required_bins": 50,
+                    "sample_count": 2377,
+                    "window_s": [
+                      0.0,
+                      5.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.019772822885990745,
+                    "below_1n_runs": 2,
+                    "longest_below_1n_run_s": 0.07000000000698492,
+                    "peak_normal_n": 6.205620053357629,
+                    "sample_bias_measured_minus_target_n": -1.302533029699247,
+                    "sample_error_p95_n": 3.8343862851080908,
+                    "sample_mae_n": 1.4278937563098473,
+                    "sample_rmse_n": 1.8986863860095682,
+                    "samples": 2377
+                  }
+                },
+                "window_0_60_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -1.0612139715150917,
+                    "bin_mean_mae_n": 1.082836539187706,
+                    "bin_mean_rmse_n": 1.418900428379391,
+                    "bin_mean_tail_abs_error_p95_n": 2.9247067133542917,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 3.938786028484908,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from controller low-pass filtered KWR75 normal load",
+                    "nonempty_bins": 600,
+                    "required_bins": 600,
+                    "sample_count": 29669,
+                    "window_s": [
+                      0.0,
+                      60.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.0015841450672419023,
+                    "below_1n_runs": 2,
+                    "longest_below_1n_run_s": 0.07000000000698492,
+                    "peak_normal_n": 6.205620053357629,
+                    "sample_bias_measured_minus_target_n": -1.0633625346428421,
+                    "sample_error_p95_n": 3.0037350365856623,
+                    "sample_mae_n": 1.0878039516940803,
+                    "sample_rmse_n": 1.4322451863203953,
+                    "samples": 29669
+                  }
+                },
+                "window_5_60_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -1.0391319748048258,
+                    "bin_mean_mae_n": 1.0528460697650406,
+                    "bin_mean_rmse_n": 1.3699795912116233,
+                    "bin_mean_tail_abs_error_p95_n": 2.849138422976465,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 3.960868025195174,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from controller low-pass filtered KWR75 normal load",
+                    "nonempty_bins": 550,
+                    "required_bins": 550,
+                    "sample_count": 27292,
+                    "window_s": [
+                      5.0,
+                      60.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.0,
+                    "below_1n_runs": 0,
+                    "longest_below_1n_run_s": 0.0,
+                    "peak_normal_n": 5.5089209563364605,
+                    "sample_bias_measured_minus_target_n": -1.0425319518072467,
+                    "sample_error_p95_n": 2.9011655125611444,
+                    "sample_mae_n": 1.0581837895377095,
+                    "sample_rmse_n": 1.3841994092881456,
+                    "samples": 27292
+                  }
+                }
+              }
+            },
+            "normal_force_measured_n": {
+              "path_time_source": "command_timeline.reference_time_s",
+              "source": "KWR75 corrected normal load at controller observation",
+              "windows": {
+                "window_0_5_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -1.1801838399576747,
+                    "bin_mean_mae_n": 2.6422593202105586,
+                    "bin_mean_rmse_n": 3.297241838557587,
+                    "bin_mean_tail_abs_error_p95_n": 5.786744644242299,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 3.8198161600423255,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from KWR75 corrected normal load at controller observation",
+                    "nonempty_bins": 50,
+                    "required_bins": 50,
+                    "sample_count": 2377,
+                    "window_s": [
+                      0.0,
+                      5.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.3176272612536811,
+                    "below_1n_runs": 6,
+                    "longest_below_1n_run_s": 0.6720000000204891,
+                    "peak_normal_n": 14.276103780290127,
+                    "sample_bias_measured_minus_target_n": -1.236462404349925,
+                    "sample_error_p95_n": 5.501500694607555,
+                    "sample_mae_n": 2.8356035237594313,
+                    "sample_rmse_n": 3.5168863632249456,
+                    "samples": 2377
+                  }
+                },
+                "window_0_60_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -1.0598409555929467,
+                    "bin_mean_mae_n": 1.871979727982951,
+                    "bin_mean_rmse_n": 2.510156831479056,
+                    "bin_mean_tail_abs_error_p95_n": 4.984602583652838,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 3.9401590444070536,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from KWR75 corrected normal load at controller observation",
+                    "nonempty_bins": 600,
+                    "required_bins": 600,
+                    "sample_count": 29669,
+                    "window_s": [
+                      0.0,
+                      60.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.1921534261350231,
+                    "below_1n_runs": 163,
+                    "longest_below_1n_run_s": 0.6720000000204891,
+                    "peak_normal_n": 14.276103780290127,
+                    "sample_bias_measured_minus_target_n": -1.066101063443052,
+                    "sample_error_p95_n": 5.083529403428345,
+                    "sample_mae_n": 2.0534474219223813,
+                    "sample_rmse_n": 2.686753007180895,
+                    "samples": 29669
+                  }
+                },
+                "window_5_60_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -1.0489006933779714,
+                    "bin_mean_mae_n": 1.8019543105077143,
+                    "bin_mean_rmse_n": 2.425973920295949,
+                    "bin_mean_tail_abs_error_p95_n": 4.981677282481103,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 3.951099306622029,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from KWR75 corrected normal load at controller observation",
+                    "nonempty_bins": 550,
+                    "required_bins": 550,
+                    "sample_count": 27292,
+                    "window_s": [
+                      5.0,
+                      60.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.18122526747764914,
+                    "below_1n_runs": 157,
+                    "longest_below_1n_run_s": 0.4639999999781139,
+                    "peak_normal_n": 11.497571963402272,
+                    "sample_bias_measured_minus_target_n": -1.0512634221072894,
+                    "sample_error_p95_n": 5.013003476436793,
+                    "sample_mae_n": 1.9853254428051796,
+                    "sample_rmse_n": 2.601944483935728,
+                    "samples": 27292
+                  }
+                }
+              }
+            }
+          }
+        },
+        "per_frame_diagnostics_complete": true,
+        "published_qdot_max_abs_rad_s": 0.013805529287619056,
+        "published_shortfall_m_s": {
+          "count": 29669,
+          "max": 0.0055386513543774765,
+          "mean": 0.0010133600505814724,
+          "min": -0.01059770253584351,
+          "p95": 0.004327662974232803,
+          "rms": 0.002159770990297168
+        },
+        "record_count": 29669,
+        "saturation_and_transition_ticks": {
+          "baseline_normal_projection_applied": 0,
+          "force_preempt_direction_retry": 999,
+          "force_preempt_warm_start": 355,
+          "force_rise_guard": 989,
+          "force_rise_inward_cap_applied": 0,
+          "host_slew_limited": 7,
+          "integral_authority_clamped": 0,
+          "integral_conditional_frozen": 0,
+          "integral_contact_gated": 0,
+          "integral_explicit_velocity_limit_active": 29669,
+          "integral_final_output_frozen": 0,
+          "integral_saturated": 2180,
+          "integral_state_clamped": 2180,
+          "integral_velocity_saturated": 0,
+          "published_explicit_realization_limit": 7,
+          "published_feedback_present": 29669,
+          "published_realization_saturated": 7,
+          "published_task_space_saturated": 6623
+        },
+        "schema": "tase.qp-replay-command-timeline-v3",
+        "timing_s": {
+          "actual_dt_s": {
+            "count": 29669,
+            "max": 0.011779046966694295,
+            "mean": 0.0020225832756405816,
+            "min": 0.0016055690357461572,
+            "p95": 0.0021750169689767063,
+            "rms": 0.0020356507258847824
+          },
+          "provider_elapsed_s": {
+            "count": 29669,
+            "max": 0.0013468440156430006,
+            "mean": 0.000836699791656294,
+            "min": 0.000780522997956723,
+            "p95": 0.0009951149695552886,
+            "rms": 0.0008387802909107316
+          },
+          "publish_latency_s": {
+            "count": 29669,
+            "max": 0.0020575059461407363,
+            "mean": 0.0013138036570792106,
+            "min": 0.0012044080067425966,
+            "p95": 0.0016930529964156449,
+            "rms": 0.0013197993260726864
+          },
+          "solver_elapsed_s": {
+            "count": 29669,
+            "max": 0.00013680598931387067,
+            "mean": 7.15755410197978e-05,
+            "min": 6.543303607031703e-05,
+            "p95": 7.371802348643541e-05,
+            "rms": 7.237454417118612e-05
+          }
+        }
+      },
+      "evidence_eligible": true,
+      "force": {
+        "interpretation": "raw corrected samples; below 1 N is a contact-loss proxy, not visual proof; independent of formal bin-mean MAE",
+        "raw_sensor_bin_mean_diagnostics": {
+          "official_window_s": [
+            5.0,
+            60.0
+          ],
+          "raw_formal_bin_mean_minus_receipt_mae_n": 0.7452282724869337,
+          "receipt_metric_eligible": true,
+          "receipt_normal_force_mae_n": 1.0528560418923427,
+          "window_0_5_s": {
+            "bin_mean_bias_measured_minus_target_n": -1.179019566298373,
+            "bin_mean_mae_n": 2.6326014924522734,
+            "bin_mean_rmse_n": 3.2907016262421456,
+            "bin_mean_tail_abs_error_p95_n": 5.836083920264345,
+            "complete_coverage": true,
+            "coverage_fraction": 1.0,
+            "empty_bins": 0,
+            "mean_of_bin_means_n": 3.820980433701627,
+            "metric_basis": "equal-weight mean of nonempty 100 ms bin means from sealed raw KWR75 corrected normal-load samples; diagnostic only, not the synchronized official score",
+            "nonempty_bins": 50,
+            "required_bins": 50,
+            "sample_count": 2377,
+            "window_s": [
+              0.0,
+              5.0
+            ]
+          },
+          "window_0_60_s": {
+            "bin_mean_bias_measured_minus_target_n": -1.0600274078773992,
+            "bin_mean_mae_n": 1.8676274125520262,
+            "bin_mean_rmse_n": 2.5086886717087906,
+            "bin_mean_tail_abs_error_p95_n": 4.985480927160813,
+            "complete_coverage": true,
+            "coverage_fraction": 1.0,
+            "empty_bins": 0,
+            "mean_of_bin_means_n": 3.9399725921226008,
+            "metric_basis": "equal-weight mean of nonempty 100 ms bin means from sealed raw KWR75 corrected normal-load samples; diagnostic only, not the synchronized official score",
+            "nonempty_bins": 600,
+            "required_bins": 600,
+            "sample_count": 29669,
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "window_5_60_s": {
+            "bin_mean_bias_measured_minus_target_n": -1.049209938930038,
+            "bin_mean_mae_n": 1.7980843143792764,
+            "bin_mean_rmse_n": 2.4251243459360166,
+            "bin_mean_tail_abs_error_p95_n": 4.981605058956413,
+            "complete_coverage": true,
+            "coverage_fraction": 1.0,
+            "empty_bins": 0,
+            "mean_of_bin_means_n": 3.950790061069962,
+            "metric_basis": "equal-weight mean of nonempty 100 ms bin means from sealed raw KWR75 corrected normal-load samples; diagnostic only, not the synchronized official score",
+            "nonempty_bins": 550,
+            "required_bins": 550,
+            "sample_count": 27292,
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        },
+        "window_0_5_s": {
+          "below_1n_fraction": 0.3167858645351283,
+          "below_1n_runs": 6,
+          "longest_below_1n_run_s": 0.671977829944808,
+          "peak_normal_n": 14.276103780290127,
+          "sample_bias_measured_minus_target_n": -1.231670120733795,
+          "sample_error_p95_n": 5.501500694607555,
+          "sample_mae_n": 2.831693870726312,
+          "sample_rmse_n": 3.5137307254864654,
+          "samples": 2377
+        },
+        "window_0_60_s": {
+          "below_1n_fraction": 0.1921534261350231,
+          "below_1n_runs": 163,
+          "longest_below_1n_run_s": 0.671977829944808,
+          "peak_normal_n": 14.276103780290127,
+          "sample_bias_measured_minus_target_n": -1.0660557505058914,
+          "sample_error_p95_n": 5.081494536599873,
+          "sample_mae_n": 2.0534021089852206,
+          "sample_rmse_n": 2.686671533544214,
+          "samples": 29669
+        },
+        "window_5_60_s": {
+          "below_1n_fraction": 0.18129854902535542,
+          "below_1n_runs": 157,
+          "longest_below_1n_run_s": 0.46399764000670984,
+          "peak_normal_n": 11.497571963402272,
+          "sample_bias_measured_minus_target_n": -1.0516315471484339,
+          "sample_error_p95_n": 5.013003476436793,
+          "sample_mae_n": 1.9856166950302678,
+          "sample_rmse_n": 2.6022243321437295,
+          "samples": 27292
+        }
+      },
+      "formal_bin_mean_mae_n": 1.0528560418923427,
+      "formal_bins": 550,
+      "home_verified": true,
+      "path_complete": true,
+      "path_start_source": "attempt_timing_receipt",
+      "physical_dispatched": true,
+      "pre_path_contact_diagnostics": {
+        "force_source": "Kunwei KWR75 corrected_wrench_n_nm",
+        "normal_load_definition": "-corrected_wrench_n_nm[2]",
+        "stages": {
+          "entry": {
+            "below_1n_fraction": 0.2217741935483871,
+            "force_norm_n": {
+              "count": 496,
+              "max": 5.988388514061204,
+              "mean": 3.330390212229721,
+              "min": 0.020417445433249675,
+              "p95": 5.988388514061204,
+              "rms": 3.8733198305057273
+            },
+            "interpretation": "KWR75 corrected feedback; stage may have a changing target, so no constant-5 N MAE is assigned",
+            "normal_load_n": {
+              "count": 496,
+              "max": 5.872765165221335,
+              "mean": 3.264337874197891,
+              "min": -0.17112585381677636,
+              "p95": 5.872765165221335,
+              "rms": 3.8411028745835076
+            },
+            "sensor_fresh_fraction": 1.0,
+            "sensor_observed_span_s": 1.0136531610041857,
+            "sensor_sample_count": 496,
+            "stage_duration_s": 1.0139535939670168,
+            "stage_interval_s": [
+              369560.749233652,
+              369561.763187246
+            ],
+            "tcp_z_change_m": 9.94739480826845e-05,
+            "tcp_z_end_m": 0.020651187669470203,
+            "tcp_z_start_m": 0.02055171372138752,
+            "torque_norm_nm": {
+              "count": 496,
+              "max": 0.052936464289994434,
+              "mean": 0.018748924031180093,
+              "min": 0.00035217030317791676,
+              "p95": 0.052936464289994434,
+              "rms": 0.022884135652885364
+            }
+          },
+          "state20_contact_search": {
+            "below_1n_fraction": 0.9594315837726335,
+            "force_norm_n": {
+              "count": 4363,
+              "max": 6.314353715682806,
+              "mean": 0.40193815584338427,
+              "min": 0.0028708991778189715,
+              "p95": 0.5765053009528323,
+              "rms": 1.022202902430597
+            },
+            "interpretation": "KWR75 corrected feedback; stage may have a changing target, so no constant-5 N MAE is assigned",
+            "normal_load_n": {
+              "count": 4363,
+              "max": 6.308979530708135,
+              "mean": 0.19154439783446744,
+              "min": -0.5600253642905342,
+              "p95": 0.5395753148917268,
+              "rms": 1.010285104520764
+            },
+            "sensor_fresh_fraction": 1.0,
+            "sensor_observed_span_s": 9.30013026803499,
+            "sensor_sample_count": 4363,
+            "stage_duration_s": 9.301987660001032,
+            "stage_interval_s": [
+              369542.579236076,
+              369551.881223736
+            ],
+            "tcp_z_change_m": -0.013525744086142572,
+            "tcp_z_end_m": 0.020566737144906186,
+            "tcp_z_start_m": 0.03409248123104876,
+            "torque_norm_nm": {
+              "count": 4363,
+              "max": 0.04544717908511638,
+              "mean": 0.007628171652975107,
+              "min": 5.9568040814573654e-05,
+              "p95": 0.01830068311604251,
+              "rms": 0.010825899919261082
+            }
+          },
+          "state21_latch_and_ramp": {
+            "below_1n_fraction": 0.12136478131440348,
+            "force_norm_n": {
+              "count": 4367,
+              "max": 6.171204786523602,
+              "mean": 3.1244555180978177,
+              "min": 0.009882926380329008,
+              "p95": 5.127336822293604,
+              "rms": 3.4734915655186613
+            },
+            "interpretation": "KWR75 corrected feedback; stage may have a changing target, so no constant-5 N MAE is assigned",
+            "normal_load_n": {
+              "count": 4367,
+              "max": 6.16852505809629,
+              "mean": 3.1187333003886253,
+              "min": -0.012372046665458658,
+              "p95": 5.126381857756913,
+              "rms": 3.470155105167672
+            },
+            "sensor_fresh_fraction": 1.0,
+            "sensor_observed_span_s": 8.865997363987844,
+            "sensor_sample_count": 4367,
+            "stage_duration_s": 8.868009916041046,
+            "stage_interval_s": [
+              369551.881223736,
+              369560.749233652
+            ],
+            "tcp_z_change_m": 5.245742411605359e-06,
+            "tcp_z_end_m": 0.020552959904880735,
+            "tcp_z_start_m": 0.02054771416246913,
+            "torque_norm_nm": {
+              "count": 4367,
+              "max": 0.03266507301487728,
+              "mean": 0.008452349019317025,
+              "min": 0.00016946308885096824,
+              "p95": 0.014894576120622312,
+              "rms": 0.009636470873885127
+            }
+          }
+        }
+      },
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "raw_layer_measurements": {
+        "available": true,
+        "consumed_sequence_skips": 1315,
+        "counts": {
+          "formal_host_path_reference_sequences": 29669,
+          "host_successful_path_publishes": 29671,
+          "kunwei_distinct_frames": 60020,
+          "raw_rtde_frames": 29673,
+          "tp_consumed_formal_echoes": 28354
+        },
+        "duration_s": 60.01000000000931,
+        "formal_host_sequences_not_echoed_in_window": 1315,
+        "formal_window_controller_timestamp_s": [
+          246544.074,
+          246604.084
+        ],
+        "interpretation": "Raw per-layer rates and synchronized accepted-sample rate are separate measurements; do not rename the latter as raw RTDE or host-send cadence.",
+        "minimum_layer_rate_hz": 460.0,
+        "passes_minimum_rate": {
+          "formal_host_path_reference_sequences": true,
+          "host_successful_path_publishes": true,
+          "kunwei_distinct_frames": true,
+          "raw_rtde_frames": true,
+          "tp_consumed_formal_echoes": true
+        },
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "rates_hz": {
+          "formal_host_path_reference_sequences": 494.400933177727,
+          "host_successful_path_publishes": 494.43426095643053,
+          "kunwei_distinct_frames": 1000.1666388933626,
+          "raw_rtde_frames": 494.4675887351341,
+          "tp_consumed_formal_echoes": 472.48791868014666
+        },
+        "raw_rtde_intervals": {
+          "interval_count": 29672,
+          "max_interval_s": 0.010000000009313226,
+          "p99_interval_s": 0.003999999986262992
+        },
+        "synchronized_timing_evidence": {
+          "kunwei_frames": 60020,
+          "layer_rates_hz": {
+            "kunwei_frames": 1000.1666388933626,
+            "rtde_frames": 499.9999999999224,
+            "tp_consumed_packet_echoes": 476.9371771370698,
+            "writer_publishes": 494.3842692883752
+          },
+          "rtde_frames": 30005,
+          "scope": "distinct identities represented in accepted, fully synchronized PathSample rows; not a raw callback count",
+          "tp_consumed_echoes": 28621,
+          "writer_sequences": 29668
+        },
+        "tp_echo_intervals": {
+          "interval_count": 28353,
+          "max_interval_s": 0.010000000009313226,
+          "p99_interval_s": 0.0040000000153668225
+        }
+      },
+      "schema": "tase.resident-evidence-diagnostic-v1",
+      "seal_verified": true,
+      "sequence": 1,
+      "session": "tase-high-filter-pair02-A-replacement-rate460-20260927-01",
+      "solver_timing_aggregate_available": true,
+      "synchronized_path_force_diagnostics": {
+        "accepted_sample_count_delta_from_receipt": 0,
+        "ambiguous_nearest_frame_matches": 0,
+        "available": true,
+        "duplicate_rtde_or_tp_clock_rows": 1319,
+        "force_source": "Kunwei KWR75; not an independent task-force reference",
+        "invalid_force_rows": 0,
+        "matched_timeline_rows": 29669,
+        "official_score_crosscheck": {
+          "accepted_join_reconstructed_550_bin_mae_n": 1.0528560418923427,
+          "exact_match_within_1e-9_n": true,
+          "metric_identity": "filtered KWR75 normal load, equal-weight 100 ms means, [5,60) bins",
+          "receipt_formal_550_bin_mae_n": 1.0528560418923427,
+          "reconstruction_minus_receipt_n": 0.0
+        },
+        "path_time_source": "matched RTDE controller timestamp minus first consumed PATH RTDE timestamp",
+        "receipt_path_sample_count": 28349,
+        "reconstructed_accepted_path_sample_count": 28349,
+        "rejected_before_or_outside_path_boundary_rows": 1,
+        "rejected_non_path_state_rows": 0,
+        "sample_identity": "unique ordered (RTDE controller timestamp, TP consumed packet sequence) pairs",
+        "unmatched_timeline_rows": 0,
+        "windows": {
+          "window_0_60_s": {
+            "required_bins": 600,
+            "sample_count": 28349,
+            "signals": {
+              "normal_force_control_n": {
+                "equal_weight_100ms_bins": {
+                  "bin_mean_bias_measured_minus_target_n": -0.17934624017120981,
+                  "bin_mean_mae_n": 1.0500542491768963,
+                  "bin_mean_rmse_n": 1.4251247726504006,
+                  "bin_mean_tail_abs_error_p95_n": 2.9031922980916165,
+                  "complete_coverage": true,
+                  "coverage_fraction": 1.0,
+                  "empty_bins": 0,
+                  "mean_of_bin_means_n": 4.82065375982879,
+                  "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined normal load supplied to TASE",
+                  "nonempty_bins": 600,
+                  "required_bins": 600,
+                  "sample_count": 28349,
+                  "window_s": [
+                    0.0,
+                    60.0
+                  ]
+                },
+                "per_sample": {
+                  "below_1n_fraction": 0.0011993368372782108,
+                  "below_1n_runs": 2,
+                  "longest_below_1n_run_s": 0.04800000000977889,
+                  "peak_normal_n": 14.276103780290127,
+                  "sample_bias_measured_minus_target_n": -0.1847073997355168,
+                  "sample_error_p95_n": 3.1649519735362546,
+                  "sample_mae_n": 1.180442343529502,
+                  "sample_rmse_n": 1.5853882459498403,
+                  "samples": 28349
+                }
+              },
+              "normal_force_filtered_n": {
+                "equal_weight_100ms_bins": {
+                  "bin_mean_bias_measured_minus_target_n": -1.0610563327120917,
+                  "bin_mean_mae_n": 1.082688306912891,
+                  "bin_mean_rmse_n": 1.4187682942586295,
+                  "bin_mean_tail_abs_error_p95_n": 2.9031922980916165,
+                  "complete_coverage": true,
+                  "coverage_fraction": 1.0,
+                  "empty_bins": 0,
+                  "mean_of_bin_means_n": 3.938943667287908,
+                  "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+                  "nonempty_bins": 600,
+                  "required_bins": 600,
+                  "sample_count": 28349,
+                  "window_s": [
+                    0.0,
+                    60.0
+                  ]
+                },
+                "per_sample": {
+                  "below_1n_fraction": 0.0015873575787505733,
+                  "below_1n_runs": 2,
+                  "longest_below_1n_run_s": 0.07000000000698492,
+                  "peak_normal_n": 6.205620053357629,
+                  "sample_bias_measured_minus_target_n": -1.0641121204704946,
+                  "sample_error_p95_n": 3.0046473336236774,
+                  "sample_mae_n": 1.0886925755062595,
+                  "sample_rmse_n": 1.4330428295688002,
+                  "samples": 28349
+                }
+              },
+              "normal_force_measured_n": {
+                "equal_weight_100ms_bins": {
+                  "bin_mean_bias_measured_minus_target_n": -1.0600518574233684,
+                  "bin_mean_mae_n": 1.8725534538625865,
+                  "bin_mean_rmse_n": 2.510947512772557,
+                  "bin_mean_tail_abs_error_p95_n": 4.9863572819548345,
+                  "complete_coverage": true,
+                  "coverage_fraction": 1.0,
+                  "empty_bins": 0,
+                  "mean_of_bin_means_n": 3.9399481425766316,
+                  "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+                  "nonempty_bins": 600,
+                  "required_bins": 600,
+                  "sample_count": 28349,
+                  "window_s": [
+                    0.0,
+                    60.0
+                  ]
+                },
+                "per_sample": {
+                  "below_1n_fraction": 0.19281103389890297,
+                  "below_1n_runs": 160,
+                  "longest_below_1n_run_s": 0.6720000000204891,
+                  "peak_normal_n": 14.276103780290127,
+                  "sample_bias_measured_minus_target_n": -1.0693644044087012,
+                  "sample_error_p95_n": 5.0800946066740735,
+                  "sample_mae_n": 2.0542082594811513,
+                  "sample_rmse_n": 2.6874401620810353,
+                  "samples": 28349
+                }
+              }
+            },
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "window_5_60_s": {
+            "required_bins": 550,
+            "sample_count": 26137,
+            "signals": {
+              "normal_force_control_n": {
+                "equal_weight_100ms_bins": {
+                  "bin_mean_bias_measured_minus_target_n": -0.18629050349534304,
+                  "bin_mean_mae_n": 0.9928340189469099,
+                  "bin_mean_rmse_n": 1.3168156354950034,
+                  "bin_mean_tail_abs_error_p95_n": 2.728053283919739,
+                  "complete_coverage": true,
+                  "coverage_fraction": 1.0,
+                  "empty_bins": 0,
+                  "mean_of_bin_means_n": 4.813709496504657,
+                  "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined normal load supplied to TASE",
+                  "nonempty_bins": 550,
+                  "required_bins": 550,
+                  "sample_count": 26137,
+                  "window_s": [
+                    5.0,
+                    60.0
+                  ]
+                },
+                "per_sample": {
+                  "below_1n_fraction": 0.0,
+                  "below_1n_runs": 0,
+                  "longest_below_1n_run_s": 0.0,
+                  "peak_normal_n": 11.497571963402272,
+                  "sample_bias_measured_minus_target_n": -0.18678645225149576,
+                  "sample_error_p95_n": 3.041694616492907,
+                  "sample_mae_n": 1.1295816563973957,
+                  "sample_rmse_n": 1.487602359649072,
+                  "samples": 26137
+                }
+              },
+              "normal_force_filtered_n": {
+                "equal_weight_100ms_bins": {
+                  "bin_mean_bias_measured_minus_target_n": -1.0391215975586103,
+                  "bin_mean_mae_n": 1.0528560418923427,
+                  "bin_mean_rmse_n": 1.369948255100126,
+                  "bin_mean_tail_abs_error_p95_n": 2.849357069572028,
+                  "complete_coverage": true,
+                  "coverage_fraction": 1.0,
+                  "empty_bins": 0,
+                  "mean_of_bin_means_n": 3.9608784024413897,
+                  "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+                  "nonempty_bins": 550,
+                  "required_bins": 550,
+                  "sample_count": 26137,
+                  "window_s": [
+                    5.0,
+                    60.0
+                  ]
+                },
+                "per_sample": {
+                  "below_1n_fraction": 0.0,
+                  "below_1n_runs": 0,
+                  "longest_below_1n_run_s": 0.0,
+                  "peak_normal_n": 5.5089209563364605,
+                  "sample_bias_measured_minus_target_n": -1.0444468953094934,
+                  "sample_error_p95_n": 2.903133616925728,
+                  "sample_mae_n": 1.060196166569702,
+                  "sample_rmse_n": 1.3862902511884134,
+                  "samples": 26137
+                }
+              },
+              "normal_force_measured_n": {
+                "equal_weight_100ms_bins": {
+                  "bin_mean_bias_measured_minus_target_n": -1.0494149797608343,
+                  "bin_mean_mae_n": 1.8029831494488529,
+                  "bin_mean_rmse_n": 2.4268374332823024,
+                  "bin_mean_tail_abs_error_p95_n": 4.981311067948552,
+                  "complete_coverage": true,
+                  "coverage_fraction": 1.0,
+                  "empty_bins": 0,
+                  "mean_of_bin_means_n": 3.950585020239166,
+                  "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+                  "nonempty_bins": 550,
+                  "required_bins": 550,
+                  "sample_count": 26137,
+                  "window_s": [
+                    5.0,
+                    60.0
+                  ]
+                },
+                "per_sample": {
+                  "below_1n_fraction": 0.18188774534185254,
+                  "below_1n_runs": 154,
+                  "longest_below_1n_run_s": 0.4639999999781139,
+                  "peak_normal_n": 11.497571963402272,
+                  "sample_bias_measured_minus_target_n": -1.0517920411066126,
+                  "sample_error_p95_n": 5.013679329871742,
+                  "sample_mae_n": 1.987720946383155,
+                  "sample_rmse_n": 2.604890222211573,
+                  "samples": 26137
+                }
+              }
+            },
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        }
+      },
+      "timing": {
+        "contact_latch_s": 369551.881223736,
+        "contact_search_s": 369542.579236076,
+        "entry_s": 369560.749233652,
+        "first_tp_ready_home_s": 369625.383230605,
+        "path_start_s": 369561.763187246,
+        "path_to_returning_s": 60.00605763099156,
+        "physical_return_s": 3.61398572800681,
+        "pre_path_s": 19.20918049500324,
+        "ready_home_to_receipt_s": 2.0702972459839657,
+        "receipt_home_verified_s": 369627.453527851,
+        "returning_s": 369621.769244877,
+        "seal_complete_s": 369627.875554887,
+        "start_to_home_receipt_s": 84.89952109998558,
+        "start_to_seal_s": 85.32154813600937,
+        "stationary_home_observed_s": 369625.884911087,
+        "stationary_home_verified_s": 369625.887737203,
+        "terminal_finalize_end_s": 369627.451320063,
+        "terminal_finalize_start_s": 369625.888085847
+      },
+      "timing_ledger": {
+        "attempt_id": "tase-high-filter-pair02-A-replacement-rate460-20260927-01/0001",
+        "durations_s": {
+          "clearance_to_home_s": 0.5045065979938954,
+          "contact_latch_to_qualification_s": 0.0,
+          "contact_search_to_contact_latch_s": 9.301987660001032,
+          "entry_to_path_s": 1.0139535939670168,
+          "formal_path_s": 60.00605763099156,
+          "home_check_to_contact_search_s": 0.0252293249941431,
+          "home_duration_s": 4.118492326000705,
+          "home_to_home_s": 83.3337304519955,
+          "path_to_stop_s": 60.00605763099156,
+          "qualification_to_readiness_hold_s": null,
+          "readiness_hold_s": null,
+          "readiness_hold_to_entry_s": null,
+          "stop_to_unload_relief_s": 0.0,
+          "unload_relief_to_clearance_s": 3.61398572800681
+        },
+        "events": [
+          {
+            "event": "verified_preflight",
+            "stage": "HOME_CHECK",
+            "timestamp_s": 369542.554006751
+          },
+          {
+            "event": "tp_state_20",
+            "stage": "CONTACT_SEARCH",
+            "timestamp_s": 369542.579236076
+          },
+          {
+            "event": "tp_state_21",
+            "stage": "CONTACT_LATCH",
+            "timestamp_s": 369551.881223736
+          },
+          {
+            "event": "tp_state_21",
+            "stage": "QUALIFICATION",
+            "timestamp_s": 369551.881223736
+          },
+          {
+            "event": "tp_state_25",
+            "stage": "ENTRY",
+            "timestamp_s": 369560.749233652
+          },
+          {
+            "event": "first_consumed_path_command",
+            "stage": "PATH",
+            "timestamp_s": 369561.763187246
+          },
+          {
+            "event": "tp_state_40",
+            "stage": "STOP",
+            "timestamp_s": 369621.769244877
+          },
+          {
+            "event": "tp_state_40",
+            "stage": "UNLOAD_RELIEF",
+            "timestamp_s": 369621.769244877
+          },
+          {
+            "event": "tp_state_78",
+            "stage": "CLEARANCE",
+            "timestamp_s": 369625.383230605
+          },
+          {
+            "event": "verified",
+            "stage": "HOME",
+            "timestamp_s": 369625.887737203
+          }
+        ],
+        "failure_condition": null,
+        "failure_stage": null,
+        "missing_events": [
+          {
+            "event": "start",
+            "source": "sealed_attempt",
+            "stage": "READINESS_HOLD",
+            "timestamp_s": null
+          }
+        ],
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "recovery": {
+          "blocked": false,
+          "failure_condition": null,
+          "home_verified": false,
+          "invoked": false,
+          "source_attempt_stays_failed": false,
+          "success": false
+        },
+        "schema": "tase.figure8-window60-timing-ledger-v1",
+        "source_success": true,
+        "supplemental_events": []
+      },
+      "top_sealed_matches_seal": true
+    },
+    {
+      "cadence": {
+        "classification": "observed_layers_at_least_460",
+        "feedback_age_p99_s": 0.00900461699347943,
+        "host_interpublish_summary": {
+          "hot_path_stage_timing": {
+            "clock": "monotonic_ns+thread_time_ns",
+            "duplicate_stage_starts": 0,
+            "schema": "tase.r013.hot-path-stage-timing-v1",
+            "stages": {
+              "control_step_state_21": {
+                "count": 4429,
+                "thread_ns_max": 1209108,
+                "thread_ns_total": 3387382248,
+                "thread_over_0p5ms_count": 4297,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1208989,
+                "wall_ns_total": 3386511366,
+                "wall_over_0p5ms_count": 4297,
+                "wall_over_2ms_count": 0
+              },
+              "control_step_state_25": {
+                "count": 29515,
+                "thread_ns_max": 1914691,
+                "thread_ns_total": 35183885399,
+                "thread_over_0p5ms_count": 29515,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1914362,
+                "wall_ns_total": 35175288028,
+                "wall_over_0p5ms_count": 29515,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_11": {
+                "count": 1,
+                "thread_ns_max": 37711,
+                "thread_ns_total": 37711,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 37449,
+                "wall_ns_total": 37449,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_20": {
+                "count": 4707,
+                "thread_ns_max": 36519,
+                "thread_ns_total": 126635985,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 36358,
+                "wall_ns_total": 125724036,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_21": {
+                "count": 4429,
+                "thread_ns_max": 40285,
+                "thread_ns_total": 84799898,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 40034,
+                "wall_ns_total": 84114630,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_25": {
+                "count": 29518,
+                "thread_ns_max": 508914,
+                "thread_ns_total": 1752955589,
+                "thread_over_0p5ms_count": 1,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 508566,
+                "wall_ns_total": 1747269520,
+                "wall_over_0p5ms_count": 1,
+                "wall_over_2ms_count": 0
+              },
+              "packet_evidence_state_40": {
+                "count": 1607,
+                "thread_ns_max": 17926052,
+                "thread_ns_total": 1324381624,
+                "thread_over_0p5ms_count": 989,
+                "thread_over_2ms_count": 2,
+                "wall_ns_max": 17925159,
+                "wall_ns_total": 1323833869,
+                "wall_over_0p5ms_count": 989,
+                "wall_over_2ms_count": 2
+              },
+              "packet_evidence_state_78": {
+                "count": 1,
+                "thread_ns_max": 33843,
+                "thread_ns_total": 33843,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 33512,
+                "wall_ns_total": 33512,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_11": {
+                "count": 2,
+                "thread_ns_max": 4799,
+                "thread_ns_total": 9497,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 4449,
+                "wall_ns_total": 8857,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_20": {
+                "count": 4707,
+                "thread_ns_max": 11061,
+                "thread_ns_total": 19954833,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 10851,
+                "wall_ns_total": 19063951,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_21": {
+                "count": 4429,
+                "thread_ns_max": 6001,
+                "thread_ns_total": 11672839,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 5730,
+                "wall_ns_total": 11121238,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_25": {
+                "count": 29518,
+                "thread_ns_max": 4618,
+                "thread_ns_total": 76507031,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 4629,
+                "wall_ns_total": 72941417,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_40": {
+                "count": 1607,
+                "thread_ns_max": 8476,
+                "thread_ns_total": 5630281,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 8185,
+                "wall_ns_total": 5367667,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "post_send_trace_state_78": {
+                "count": 685,
+                "thread_ns_max": 5390,
+                "thread_ns_total": 2701743,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 5109,
+                "wall_ns_total": 2530173,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_11": {
+                "count": 2,
+                "thread_ns_max": 12444,
+                "thread_ns_total": 24526,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 12162,
+                "wall_ns_total": 23914,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_20": {
+                "count": 4707,
+                "thread_ns_max": 19386,
+                "thread_ns_total": 48980172,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 19015,
+                "wall_ns_total": 48032425,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_21": {
+                "count": 4429,
+                "thread_ns_max": 15879,
+                "thread_ns_total": 26045267,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 13505,
+                "wall_ns_total": 25326292,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_25": {
+                "count": 29518,
+                "thread_ns_max": 12594,
+                "thread_ns_total": 174373379,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 12473,
+                "wall_ns_total": 170813001,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_40": {
+                "count": 1607,
+                "thread_ns_max": 27912,
+                "thread_ns_total": 12300561,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 27691,
+                "wall_ns_total": 11962031,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "pre_send_trace_state_78": {
+                "count": 685,
+                "thread_ns_max": 32952,
+                "thread_ns_total": 6875764,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 32851,
+                "wall_ns_total": 6730311,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_11": {
+                "count": 1,
+                "planned_sleep_ns_max": 1323821,
+                "planned_sleep_ns_total": 1323821,
+                "thread_ns_max": 33061,
+                "thread_ns_total": 33061,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1360932,
+                "wall_ns_total": 1360932,
+                "wall_over_0p5ms_count": 1,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_20": {
+                "count": 4707,
+                "planned_sleep_ns_max": 1704834,
+                "planned_sleep_ns_total": 6364737292,
+                "thread_ns_max": 38814,
+                "thread_ns_total": 127299328,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1737703,
+                "wall_ns_total": 6531558701,
+                "wall_over_0p5ms_count": 4707,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_21": {
+                "count": 4429,
+                "planned_sleep_ns_max": 1476675,
+                "planned_sleep_ns_total": 3030900062,
+                "thread_ns_max": 44863,
+                "thread_ns_total": 92494042,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1509578,
+                "wall_ns_total": 3160367079,
+                "wall_over_0p5ms_count": 4118,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_25": {
+                "count": 29518,
+                "planned_sleep_ns_max": 1591096,
+                "planned_sleep_ns_total": 6433440232,
+                "thread_ns_max": 32961,
+                "thread_ns_total": 363087389,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1623523,
+                "wall_ns_total": 7010423911,
+                "wall_over_0p5ms_count": 3,
+                "wall_over_2ms_count": 0
+              },
+              "scheduler_sleep_state_40": {
+                "count": 1607,
+                "planned_sleep_ns_max": 1631567,
+                "planned_sleep_ns_total": 1077492771,
+                "thread_ns_max": 36489,
+                "thread_ns_total": 28814237,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 1669988,
+                "wall_ns_total": 1117323834,
+                "wall_over_0p5ms_count": 619,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_11": {
+                "count": 1,
+                "thread_ns_max": 159058,
+                "thread_ns_total": 159058,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 158905,
+                "wall_ns_total": 158905,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_20": {
+                "count": 4707,
+                "thread_ns_max": 209163,
+                "thread_ns_total": 616998691,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 209059,
+                "wall_ns_total": 616471836,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_21": {
+                "count": 4429,
+                "thread_ns_max": 233218,
+                "thread_ns_total": 413705898,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 232854,
+                "wall_ns_total": 413096071,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_25": {
+                "count": 29518,
+                "thread_ns_max": 250610,
+                "thread_ns_total": 5798790406,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 250456,
+                "wall_ns_total": 5794065275,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "send_wrapper_state_40": {
+                "count": 1607,
+                "thread_ns_max": 262252,
+                "thread_ns_total": 187164918,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 262248,
+                "wall_ns_total": 186962997,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_11": {
+                "count": 2,
+                "thread_ns_max": 71213,
+                "thread_ns_total": 134382,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 70721,
+                "wall_ns_total": 133488,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_20": {
+                "count": 4707,
+                "thread_ns_max": 86523,
+                "thread_ns_total": 285556146,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 86010,
+                "wall_ns_total": 284294280,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_21": {
+                "count": 4429,
+                "thread_ns_max": 93035,
+                "thread_ns_total": 247975203,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 92642,
+                "wall_ns_total": 246761587,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_25": {
+                "count": 29518,
+                "thread_ns_max": 165831,
+                "thread_ns_total": 1055744701,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 165478,
+                "wall_ns_total": 1050718090,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_40": {
+                "count": 1607,
+                "thread_ns_max": 105128,
+                "thread_ns_total": 80749970,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 104926,
+                "wall_ns_total": 80359345,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              },
+              "sensor_read_state_78": {
+                "count": 686,
+                "thread_ns_max": 105748,
+                "thread_ns_total": 46001039,
+                "thread_over_0p5ms_count": 0,
+                "thread_over_2ms_count": 0,
+                "wall_ns_max": 105737,
+                "wall_ns_total": 45848445,
+                "wall_over_0p5ms_count": 0,
+                "wall_over_2ms_count": 0
+              }
+            },
+            "unmatched_stage_ends": 0
+          },
+          "interpublish_intervals": 29013,
+          "last_publish_s": 370189.6241935,
+          "max_interpublish_s": 0.004764068988151848,
+          "missed_2ms_slots_proxy": 933,
+          "over_2ms_intervals": 13665,
+          "path_publishes": 29014,
+          "publish_send_timing": {
+            "diagnostic_threshold_ns": 2000000,
+            "missing_transport_timing_count": 0,
+            "schema": "tase.r013.publish-send-timing-summary-v1",
+            "stages": {
+              "input_encode": {
+                "count": 29014,
+                "slow_examples": [],
+                "thread_ns_max": 23554,
+                "thread_ns_total": 281763855,
+                "wall_ns_max": 23523,
+                "wall_ns_total": 282267819,
+                "wall_over_2ms_count": 0
+              },
+              "input_send_total": {
+                "count": 29014,
+                "slow_examples": [],
+                "thread_ns_max": 38943,
+                "thread_ns_total": 737165852,
+                "wall_ns_max": 38962,
+                "wall_ns_total": 738462619,
+                "wall_over_2ms_count": 0
+              },
+              "provider_return_to_writer_entry": {
+                "count": 29014,
+                "slow_examples": [],
+                "thread_ns_max": 94106,
+                "thread_ns_total": 2364637287,
+                "wall_ns_max": 94105,
+                "wall_ns_total": 2362939615,
+                "wall_over_2ms_count": 0
+              },
+              "rtde_frame_build": {
+                "count": 29014,
+                "slow_examples": [],
+                "thread_ns_max": 2525,
+                "thread_ns_total": 26242412,
+                "wall_ns_max": 2624,
+                "wall_ns_total": 26401667,
+                "wall_over_2ms_count": 0
+              },
+              "socket_sendall": {
+                "count": 29014,
+                "slow_examples": [],
+                "thread_ns_max": 24877,
+                "thread_ns_total": 375323390,
+                "wall_ns_max": 24856,
+                "wall_ns_total": 374720851,
+                "wall_over_2ms_count": 0
+              },
+              "writer_send_method": {
+                "count": 29014,
+                "slow_examples": [],
+                "thread_ns_max": 224942,
+                "thread_ns_total": 4990836548,
+                "wall_ns_max": 224738,
+                "wall_ns_total": 4987201909,
+                "wall_over_2ms_count": 0
+              }
+            }
+          },
+          "scheduler_max_lateness_s": 0.0014481941470876336,
+          "scheduler_wakeups": 40262,
+          "scheduler_wakeups_over_0p5ms": 160
+        },
+        "host_publish_hz": 483.56666666666666,
+        "kunwei_hz": 999.8000333276235,
+        "max_fresh_gap_s": 0.004281521018128842,
+        "max_interval_s": 0.004766634025145322,
+        "observed_intervals": 29007,
+        "p99_interval_s": 0.0044307560310699046,
+        "provider_compute_summary": {
+          "calls": 33811,
+          "failed_calls": 0,
+          "force_rise_guard_calls": 946,
+          "gate_projection_calls": 0,
+          "host_slew_limited_calls": 11,
+          "max_compute_s": 0.0013204969582147896,
+          "max_non_cpu_wall_s": 5.054020091321831e-06,
+          "max_thread_cpu_s": 0.0013206970000005924,
+          "over_2ms_calls": 0,
+          "path_calls": 29014,
+          "path_compute_bucket_upper_s": [
+            0.00025,
+            0.0005,
+            0.001,
+            0.0015,
+            0.002,
+            0.004
+          ],
+          "path_compute_histogram": [
+            0,
+            0,
+            27883,
+            1131,
+            0,
+            0,
+            0
+          ],
+          "path_max_compute_s": 0.0013204969582147896,
+          "path_over_2ms_calls": 0,
+          "published_joint_bound_calls": 0,
+          "slow_call_examples": [],
+          "solver_active_bound_calls": 0,
+          "solver_backend_counts": {
+            "cupy": 0,
+            "fixed-normal-jacobian": 0,
+            "numpy": 29014,
+            "osqp-codegen-c": 0,
+            "other": 0,
+            "strict-rnn": 0
+          },
+          "solver_max_s": 8.427700959146023e-05,
+          "solver_over_2ms_calls": 0,
+          "solver_timed_calls": 29014,
+          "solver_total_s": 2.0151502079097554,
+          "total_compute_s": 26.54275997116929
+        },
+        "rate_scope": "rtde_hz/tp_echo_hz above are unique identities in accepted synchronized PathSample rows; use raw_layer_measurements below for all raw interfaces",
+        "rtde_hz": 499.9999999999224,
+        "tp_echo_hz": 465.2557907014775
+      },
+      "campaign": "runs",
+      "candidate_id": "figure8-rate460-rnn-control-filter-high-tau",
+      "controller_trace": {
+        "actual_q_joint_range_rad": [
+          {
+            "max": 0.8128283619880676,
+            "min": 0.6729883551597595
+          },
+          {
+            "max": -1.8472181759276332,
+            "min": -1.8738109074034632
+          },
+          {
+            "max": -2.5242342948913574,
+            "min": -2.605210781097412
+          },
+          {
+            "max": -0.23745675504718022,
+            "min": -0.29767532766375737
+          },
+          {
+            "max": 1.5290390253067017,
+            "min": 1.5262247323989868
+          },
+          {
+            "max": -0.7560275236712855,
+            "min": -0.8959468046771448
+          }
+        ],
+        "actual_qd_joint_range_rad_s": [
+          {
+            "max": 0.030121175572276115,
+            "min": -0.0071114106103777885
+          },
+          {
+            "max": 0.014760834164917469,
+            "min": -0.019359294325113297
+          },
+          {
+            "max": 0.009215452708303928,
+            "min": -0.00981917791068554
+          },
+          {
+            "max": 0.023128585889935493,
+            "min": -0.013403345830738544
+          },
+          {
+            "max": 0.02140997163951397,
+            "min": -0.04100397974252701
+          },
+          {
+            "max": 0.03838806226849556,
+            "min": -0.008572421967983246
+          }
+        ],
+        "actual_qd_max_abs_rad_s": 0.04100397974252701,
+        "actual_qd_max_norm_rad_s": 0.04757491450769004,
+        "all_writer_tick_score_diagnostic": {
+          "all_tick_filtered_550_bin_mae_n": 1.1724092580406347,
+          "interpretation": "This diagnostic bins every command_timeline control tick. It includes repeated/cached RTDE or TP joins and is not the accepted PathSample score.",
+          "receipt_formal_550_bin_mae_n": 1.1718351882825329
+        },
+        "available": true,
+        "controller_force_error_n": {
+          "count": 29012,
+          "max": 4.1584588556819275,
+          "mean": 0.1455847035613913,
+          "min": -13.079901011724463,
+          "p95": 2.5295460689491676,
+          "rms": 1.6785372932310532
+        },
+        "force_norm_n": {
+          "count": 29012,
+          "max": 18.241768655943794,
+          "mean": 3.953823798600015,
+          "min": 0.006567575032099634,
+          "p95": 7.764157556638362,
+          "rms": 4.728863386985445
+        },
+        "integral_at_or_above_98pct_limit_ticks": 2206,
+        "integral_effective_limit_n_s": {
+          "count": 29012,
+          "max": 1.0,
+          "mean": 1.0,
+          "min": 1.0,
+          "p95": 1.0,
+          "rms": 1.0
+        },
+        "integral_i_term": {
+          "count": 29012,
+          "max": 0.10454485618134816,
+          "mean": 0.052829641412258446,
+          "min": -0.10454485618134816,
+          "p95": 0.10454485618134816,
+          "rms": 0.06209928005829659
+        },
+        "integral_raw_state_n_s": {
+          "count": 29012,
+          "max": 1.0112160624256328,
+          "mean": 0.505615114462354,
+          "min": -1.01889803795421,
+          "p95": 1.0034823026351734,
+          "rms": 0.5945230131238868
+        },
+        "integral_state_n_s": {
+          "count": 29012,
+          "max": 1.0,
+          "mean": 0.5053298970598591,
+          "min": -1.0,
+          "p95": 1.0,
+          "rms": 0.5939965133298994
+        },
+        "inter_tick_timing_s": {
+          "host_observation_gap": {
+            "count": 29011,
+            "max": 0.004281521018128842,
+            "mean": 0.0020683876287262027,
+            "min": 0.0015994060086086392,
+            "p95": 0.0022158939973451197,
+            "rms": 0.002099237174512475
+          },
+          "largest_host_gaps": [
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.004281521018128842,
+              "force_error_n": -0.18001962369201063,
+              "host_gap_s": 0.004281521018128842,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.4705158567569922,
+              "max_abs_actual_qd_rad_s": 0.008907295763492584,
+              "max_abs_published_qdot_rad_s": 0.008572038937703414,
+              "normal_force_measured_n": 5.180019623692008,
+              "packet_sequence": 38609,
+              "provider_elapsed_s": 0.000948556000366807,
+              "publish_gap_s": 0.004764068988151848,
+              "publish_latency_s": 0.0017102439887821674,
+              "reference_time_s": 59.89999999999418,
+              "solver_elapsed_s": 6.949895760044456e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.00427335494896397,
+              "force_error_n": -2.2116563842010173,
+              "host_gap_s": 0.00427335494896397,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.5253474019428304,
+              "max_abs_actual_qd_rad_s": 0.009202632121741772,
+              "max_abs_published_qdot_rad_s": 0.008633422007539159,
+              "normal_force_measured_n": 7.211656384201022,
+              "packet_sequence": 38593,
+              "provider_elapsed_s": 0.0008372690062969923,
+              "publish_gap_s": 0.004644957021810114,
+              "publish_latency_s": 0.0015889680362306535,
+              "reference_time_s": 59.85599999999977,
+              "solver_elapsed_s": 7.060100324451923e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.004266269970685244,
+              "force_error_n": 0.8563114206012683,
+              "host_gap_s": 0.004266269970685244,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.5053825319511653,
+              "max_abs_actual_qd_rad_s": 0.004423806443810463,
+              "max_abs_published_qdot_rad_s": 0.004312051411185686,
+              "normal_force_measured_n": 3.1604620810986037,
+              "packet_sequence": 22728,
+              "provider_elapsed_s": 0.0008210280211642385,
+              "publish_gap_s": 0.004155724018346518,
+              "publish_latency_s": 0.0015725460252724588,
+              "reference_time_s": 26.179999999993015,
+              "solver_elapsed_s": 7.326598279178143e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.00426302501000464,
+              "force_error_n": -0.7679904847886858,
+              "host_gap_s": 0.00426302501000464,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.14747030946897224,
+              "max_abs_actual_qd_rad_s": 0.0037915739230811596,
+              "max_abs_published_qdot_rad_s": 0.0036028880765632777,
+              "normal_force_measured_n": 5.7679904847886885,
+              "packet_sequence": 33252,
+              "provider_elapsed_s": 0.0008105490123853087,
+              "publish_gap_s": 0.004551683028694242,
+              "publish_latency_s": 0.0015588719979859889,
+              "reference_time_s": 48.23999999999069,
+              "solver_elapsed_s": 6.780598778277636e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present",
+                "published_task_space_saturated"
+              ],
+              "actual_dt_s": 0.0042549410136416554,
+              "force_error_n": -2.8517768269908146,
+              "host_gap_s": 0.0042549410136416554,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.6351950355774848,
+              "max_abs_actual_qd_rad_s": 0.008479689247906208,
+              "max_abs_published_qdot_rad_s": 0.008106390312350624,
+              "normal_force_measured_n": 7.8517768269908155,
+              "packet_sequence": 38143,
+              "provider_elapsed_s": 0.0008501029806211591,
+              "publish_gap_s": 0.004632775031495839,
+              "publish_latency_s": 0.0016028039972297847,
+              "reference_time_s": 58.83999999999651,
+              "solver_elapsed_s": 6.886798655614257e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.004249516990967095,
+              "force_error_n": -0.30674046224472207,
+              "host_gap_s": 0.004249516990967095,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.24778860987081192,
+              "max_abs_actual_qd_rad_s": 0.003844143357127905,
+              "max_abs_published_qdot_rad_s": 0.003564068237034028,
+              "normal_force_measured_n": 5.306740462244722,
+              "packet_sequence": 15272,
+              "provider_elapsed_s": 0.0008172399830073118,
+              "publish_gap_s": 0.004383706022053957,
+              "publish_latency_s": 0.0014043429982848465,
+              "reference_time_s": 11.252000000007683,
+              "solver_elapsed_s": 6.987003143876791e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present",
+                "published_task_space_saturated"
+              ],
+              "actual_dt_s": 0.004236205015331507,
+              "force_error_n": 1.8102880475249865,
+              "host_gap_s": 0.004236205015331507,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.7967533595134412,
+              "max_abs_actual_qd_rad_s": 0.00607326440513134,
+              "max_abs_published_qdot_rad_s": 0.004824162340886042,
+              "normal_force_measured_n": 0.1420343704421545,
+              "packet_sequence": 27305,
+              "provider_elapsed_s": 0.0008225710480473936,
+              "publish_gap_s": 0.004535610962193459,
+              "publish_latency_s": 0.0015670859720557928,
+              "reference_time_s": 35.57399999999325,
+              "solver_elapsed_s": 6.797700189054012e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.00421938399085775,
+              "force_error_n": -2.371797846318457,
+              "host_gap_s": 0.00421938399085775,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.6212850213899178,
+              "max_abs_actual_qd_rad_s": 0.009119831956923008,
+              "max_abs_published_qdot_rad_s": 0.00856535238081148,
+              "normal_force_measured_n": 7.371797846318456,
+              "packet_sequence": 38579,
+              "provider_elapsed_s": 0.000851103977765888,
+              "publish_gap_s": 0.004600093001499772,
+              "publish_latency_s": 0.0016200660029426217,
+              "reference_time_s": 59.81599999999162,
+              "solver_elapsed_s": 6.995099829509854e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.004211378982290626,
+              "force_error_n": -0.7298399100926272,
+              "host_gap_s": 0.004211378982290626,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.06220086030288949,
+              "max_abs_actual_qd_rad_s": 0.0035341791808605194,
+              "max_abs_published_qdot_rad_s": 0.0036355030190698546,
+              "normal_force_measured_n": 5.7298399100926245,
+              "packet_sequence": 33505,
+              "provider_elapsed_s": 0.0009013180388137698,
+              "publish_gap_s": 0.004633704957086593,
+              "publish_latency_s": 0.0016589079750701785,
+              "reference_time_s": 48.79200000001583,
+              "solver_elapsed_s": 7.076194742694497e-05
+            },
+            {
+              "active_guards_and_saturation_flags": [
+                "integral_explicit_velocity_limit_active",
+                "published_feedback_present"
+              ],
+              "actual_dt_s": 0.004206930985674262,
+              "force_error_n": 1.8930419139980224,
+              "host_gap_s": 0.004206930985674262,
+              "host_slew_scale": 1.0,
+              "integral_effective_limit_n_s": 1.0,
+              "integral_state_n_s": 0.18140793559681279,
+              "max_abs_actual_qd_rad_s": 0.0036940081045031548,
+              "max_abs_published_qdot_rad_s": 0.0029687088497666655,
+              "normal_force_measured_n": 2.548443770264509,
+              "packet_sequence": 35453,
+              "provider_elapsed_s": 0.0008776530157774687,
+              "publish_gap_s": 0.004622574953828007,
+              "publish_latency_s": 0.0016491099959239364,
+              "reference_time_s": 52.99600000001374,
+              "solver_elapsed_s": 7.159297820180655e-05
+            }
+          ],
+          "successful_publish_gap": {
+            "count": 29011,
+            "max": 0.004764068988151848,
+            "mean": 0.0020683860098245047,
+            "min": 0.0016031929990276694,
+            "p95": 0.002579139021690935,
+            "rms": 0.0021180602254810285
+          }
+        },
+        "limitations": "KWR75 is feedback, not an independent task-force reference; joint position and velocity vectors remain in the sealed per-frame rows.",
+        "missing_or_invalid_field_count": 0,
+        "normal_force_target_minus_filtered_n": {
+          "count": 29012,
+          "max": 4.570866607727267,
+          "mean": 1.127393966015192,
+          "min": -2.652557442407354,
+          "p95": 2.9940367640087286,
+          "rms": 1.505452425604794
+        },
+        "normal_force_target_minus_measured_n": {
+          "count": 29012,
+          "max": 5.554502517704991,
+          "mean": 1.1362562526146955,
+          "min": -13.079901011724445,
+          "p95": 5.121303116125194,
+          "rms": 2.8698884709867047
+        },
+        "official_score_crosscheck": {
+          "accepted_join_reconstructed_550_bin_mae_n": 1.171835188282533,
+          "exact_match_within_1e-9_n": true,
+          "metric_identity": "filtered KWR75 normal load, equal-weight 100 ms means, [5,60) bins",
+          "receipt_formal_550_bin_mae_n": 1.1718351882825329,
+          "reconstruction_minus_receipt_n": 2.220446049250313e-16
+        },
+        "path_force_signal_diagnostics": {
+          "available": true,
+          "invalid_sample_or_channel_count": 0,
+          "signals": {
+            "normal_force_control_n": {
+              "path_time_source": "command_timeline.reference_time_s",
+              "source": "normal load supplied to the TASE outer loop",
+              "windows": {
+                "window_0_5_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": 0.028482889638516716,
+                    "bin_mean_mae_n": 0.9983819763760999,
+                    "bin_mean_rmse_n": 1.2008652361985672,
+                    "bin_mean_tail_abs_error_p95_n": 2.1844090899573803,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 5.028482889638516,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from normal load supplied to the TASE outer loop",
+                    "nonempty_bins": 50,
+                    "required_bins": 50,
+                    "sample_count": 2504,
+                    "window_s": [
+                      0.0,
+                      5.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.0,
+                    "below_1n_runs": 0,
+                    "longest_below_1n_run_s": 0.0,
+                    "peak_normal_n": 9.140098727695317,
+                    "sample_bias_measured_minus_target_n": 0.029118652473574008,
+                    "sample_error_p95_n": 2.4386501993638,
+                    "sample_mae_n": 1.1790551794724402,
+                    "sample_rmse_n": 1.3968050086040467,
+                    "samples": 2504
+                  }
+                },
+                "window_0_60_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -0.14387098557922678,
+                    "bin_mean_mae_n": 1.0939127143180714,
+                    "bin_mean_rmse_n": 1.4843360284515874,
+                    "bin_mean_tail_abs_error_p95_n": 2.7516278659857223,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 4.856129014420773,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from normal load supplied to the TASE outer loop",
+                    "nonempty_bins": 600,
+                    "required_bins": 600,
+                    "sample_count": 29012,
+                    "window_s": [
+                      0.0,
+                      60.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.0015166138149731146,
+                    "below_1n_runs": 1,
+                    "longest_below_1n_run_s": 0.08600000001024455,
+                    "peak_normal_n": 18.079901011724445,
+                    "sample_bias_measured_minus_target_n": -0.14558470356139125,
+                    "sample_error_p95_n": 3.1100373480008727,
+                    "sample_mae_n": 1.2562868709236175,
+                    "sample_rmse_n": 1.6785372932310532,
+                    "samples": 29012
+                  }
+                },
+                "window_5_60_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -0.15953951968993074,
+                    "bin_mean_mae_n": 1.1025973268582507,
+                    "bin_mean_rmse_n": 1.5074651821338103,
+                    "bin_mean_tail_abs_error_p95_n": 2.787266432319114,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 4.840460480310069,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from normal load supplied to the TASE outer loop",
+                    "nonempty_bins": 550,
+                    "required_bins": 550,
+                    "sample_count": 26508,
+                    "window_s": [
+                      5.0,
+                      60.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.0016598762637694282,
+                    "below_1n_runs": 1,
+                    "longest_below_1n_run_s": 0.08600000001024455,
+                    "peak_normal_n": 18.079901011724445,
+                    "sample_bias_measured_minus_target_n": -0.16208754057329533,
+                    "sample_error_p95_n": 3.185809890976783,
+                    "sample_mae_n": 1.2635823347607138,
+                    "sample_rmse_n": 1.7027423636321986,
+                    "samples": 26508
+                  }
+                }
+              }
+            },
+            "normal_force_filtered_n": {
+              "path_time_source": "command_timeline.reference_time_s",
+              "source": "controller low-pass filtered KWR75 normal load",
+              "windows": {
+                "window_0_5_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -1.0225081684328177,
+                    "bin_mean_mae_n": 1.054647092759302,
+                    "bin_mean_rmse_n": 1.2790646797251433,
+                    "bin_mean_tail_abs_error_p95_n": 2.4035854214158654,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 3.9774918315671823,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from controller low-pass filtered KWR75 normal load",
+                    "nonempty_bins": 50,
+                    "required_bins": 50,
+                    "sample_count": 2504,
+                    "window_s": [
+                      0.0,
+                      5.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.0,
+                    "below_1n_runs": 0,
+                    "longest_below_1n_run_s": 0.0,
+                    "peak_normal_n": 5.42584708993091,
+                    "sample_bias_measured_minus_target_n": -1.0224963769921867,
+                    "sample_error_p95_n": 2.4727473140363303,
+                    "sample_mae_n": 1.0595657047257785,
+                    "sample_rmse_n": 1.292529263793305,
+                    "samples": 2504
+                  }
+                },
+                "window_0_60_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -1.1320065677455469,
+                    "bin_mean_mae_n": 1.1625957442671901,
+                    "bin_mean_rmse_n": 1.4961960355358466,
+                    "bin_mean_tail_abs_error_p95_n": 2.962296337865805,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 3.867993432254453,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from controller low-pass filtered KWR75 normal load",
+                    "nonempty_bins": 600,
+                    "required_bins": 600,
+                    "sample_count": 29012,
+                    "window_s": [
+                      0.0,
+                      60.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.00796222252860885,
+                    "below_1n_runs": 2,
+                    "longest_below_1n_run_s": 0.35999999998603016,
+                    "peak_normal_n": 7.652557442407354,
+                    "sample_bias_measured_minus_target_n": -1.127393966015192,
+                    "sample_error_p95_n": 2.9940367640087286,
+                    "sample_mae_n": 1.1615314989605605,
+                    "sample_rmse_n": 1.505452425604794,
+                    "samples": 29012
+                  }
+                },
+                "window_5_60_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -1.1419609676830678,
+                    "bin_mean_mae_n": 1.1724092580406347,
+                    "bin_mean_rmse_n": 1.5143923013454432,
+                    "bin_mean_tail_abs_error_p95_n": 2.9851595472339643,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 3.858039032316933,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from controller low-pass filtered KWR75 normal load",
+                    "nonempty_bins": 550,
+                    "required_bins": 550,
+                    "sample_count": 26508,
+                    "window_s": [
+                      5.0,
+                      60.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.008714350384789498,
+                    "below_1n_runs": 2,
+                    "longest_below_1n_run_s": 0.35999999998603016,
+                    "peak_normal_n": 7.652557442407354,
+                    "sample_bias_measured_minus_target_n": -1.1373028072296782,
+                    "sample_error_p95_n": 3.03054452138509,
+                    "sample_mae_n": 1.171163396831539,
+                    "sample_rmse_n": 1.5240286263970895,
+                    "samples": 26508
+                  }
+                }
+              }
+            },
+            "normal_force_measured_n": {
+              "path_time_source": "command_timeline.reference_time_s",
+              "source": "KWR75 corrected normal load at controller observation",
+              "windows": {
+                "window_0_5_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -0.9736196673857788,
+                    "bin_mean_mae_n": 1.938111869865589,
+                    "bin_mean_rmse_n": 2.514188339041827,
+                    "bin_mean_tail_abs_error_p95_n": 4.962272686912192,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 4.026380332614221,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from KWR75 corrected normal load at controller observation",
+                    "nonempty_bins": 50,
+                    "required_bins": 50,
+                    "sample_count": 2504,
+                    "window_s": [
+                      0.0,
+                      5.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.17971246006389777,
+                    "below_1n_runs": 15,
+                    "longest_below_1n_run_s": 0.2580000000016298,
+                    "peak_normal_n": 9.140098727695317,
+                    "sample_bias_measured_minus_target_n": -0.971405776261718,
+                    "sample_error_p95_n": 5.0104875565822695,
+                    "sample_mae_n": 2.1762695571954103,
+                    "sample_rmse_n": 2.6963212910414023,
+                    "samples": 2504
+                  }
+                },
+                "window_0_60_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -1.1328417467008922,
+                    "bin_mean_mae_n": 2.039468021845845,
+                    "bin_mean_rmse_n": 2.6752939605687165,
+                    "bin_mean_tail_abs_error_p95_n": 4.987394271609751,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 3.867158253299108,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from KWR75 corrected normal load at controller observation",
+                    "nonempty_bins": 600,
+                    "required_bins": 600,
+                    "sample_count": 29012,
+                    "window_s": [
+                      0.0,
+                      60.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.21242933958362056,
+                    "below_1n_runs": 138,
+                    "longest_below_1n_run_s": 0.9880000000121072,
+                    "peak_normal_n": 18.079901011724445,
+                    "sample_bias_measured_minus_target_n": -1.1362562526146955,
+                    "sample_error_p95_n": 5.169022898677317,
+                    "sample_mae_n": 2.2417650928067077,
+                    "sample_rmse_n": 2.8698884709867047,
+                    "samples": 29012
+                  }
+                },
+                "window_5_60_s": {
+                  "equal_weight_100ms_bins": {
+                    "bin_mean_bias_measured_minus_target_n": -1.1473164811840844,
+                    "bin_mean_mae_n": 2.0486822174804136,
+                    "bin_mean_rmse_n": 2.6894614246467383,
+                    "bin_mean_tail_abs_error_p95_n": 4.987759089256761,
+                    "complete_coverage": true,
+                    "coverage_fraction": 1.0,
+                    "empty_bins": 0,
+                    "mean_of_bin_means_n": 3.8526835188159163,
+                    "metric_basis": "equal-weight mean of nonempty 100 ms bin means from KWR75 corrected normal load at controller observation",
+                    "nonempty_bins": 550,
+                    "required_bins": 550,
+                    "sample_count": 26508,
+                    "window_s": [
+                      5.0,
+                      60.0
+                    ]
+                  },
+                  "per_sample": {
+                    "below_1n_fraction": 0.21551984306624417,
+                    "below_1n_runs": 124,
+                    "longest_below_1n_run_s": 0.9880000000121072,
+                    "peak_normal_n": 18.079901011724445,
+                    "sample_bias_measured_minus_target_n": -1.1518283664213902,
+                    "sample_error_p95_n": 5.1950947669144245,
+                    "sample_mae_n": 2.247951935313524,
+                    "sample_rmse_n": 2.8857443913161767,
+                    "samples": 26508
+                  }
+                }
+              }
+            }
+          }
+        },
+        "per_frame_diagnostics_complete": true,
+        "published_qdot_max_abs_rad_s": 0.011558683933495805,
+        "published_shortfall_m_s": {
+          "count": 29012,
+          "max": 0.005139247532536213,
+          "mean": 0.0009333663094115176,
+          "min": -0.01777235704242777,
+          "p95": 0.0038841654675306854,
+          "rms": 0.002215693243554226
+        },
+        "record_count": 29012,
+        "saturation_and_transition_ticks": {
+          "baseline_normal_projection_applied": 0,
+          "force_preempt_direction_retry": 1086,
+          "force_preempt_warm_start": 323,
+          "force_rise_guard": 946,
+          "force_rise_inward_cap_applied": 0,
+          "host_slew_limited": 11,
+          "integral_authority_clamped": 0,
+          "integral_conditional_frozen": 0,
+          "integral_contact_gated": 0,
+          "integral_explicit_velocity_limit_active": 29012,
+          "integral_final_output_frozen": 0,
+          "integral_saturated": 1823,
+          "integral_state_clamped": 1823,
+          "integral_velocity_saturated": 0,
+          "published_explicit_realization_limit": 11,
+          "published_feedback_present": 29012,
+          "published_realization_saturated": 11,
+          "published_task_space_saturated": 6585
+        },
+        "schema": "tase.qp-replay-command-timeline-v3",
+        "timing_s": {
+          "actual_dt_s": {
+            "count": 29012,
+            "max": 0.004281521018128842,
+            "mean": 0.0020683831602431634,
+            "min": 0.0015994060086086392,
+            "p95": 0.0022158939973451197,
+            "rms": 0.002099231854142378
+          },
+          "provider_elapsed_s": {
+            "count": 29012,
+            "max": 0.0013204969582147896,
+            "mean": 0.0008342751126146734,
+            "min": 0.0007764939800836146,
+            "p95": 0.0009910649969242513,
+            "rms": 0.0008362899609181857
+          },
+          "publish_latency_s": {
+            "count": 29012,
+            "max": 0.0020308790262788534,
+            "mean": 0.0013138606498369512,
+            "min": 0.001200052967760712,
+            "p95": 0.0016764889587648213,
+            "rms": 0.0013198154846318134
+          },
+          "solver_elapsed_s": {
+            "count": 29012,
+            "max": 0.00013832800323143601,
+            "mean": 7.202760454146049e-05,
+            "min": 6.57319906167686e-05,
+            "p95": 7.399800233542919e-05,
+            "rms": 7.290047879373374e-05
+          }
+        }
+      },
+      "evidence_eligible": true,
+      "force": {
+        "interpretation": "raw corrected samples; below 1 N is a contact-loss proxy, not visual proof; independent of formal bin-mean MAE",
+        "raw_sensor_bin_mean_diagnostics": {
+          "official_window_s": [
+            5.0,
+            60.0
+          ],
+          "raw_formal_bin_mean_minus_receipt_mae_n": 0.8777119184332238,
+          "receipt_metric_eligible": true,
+          "receipt_normal_force_mae_n": 1.1718351882825329,
+          "window_0_5_s": {
+            "bin_mean_bias_measured_minus_target_n": -0.9704263003345355,
+            "bin_mean_mae_n": 1.9342946359595659,
+            "bin_mean_rmse_n": 2.5132216178475715,
+            "bin_mean_tail_abs_error_p95_n": 4.953682222966489,
+            "complete_coverage": true,
+            "coverage_fraction": 1.0,
+            "empty_bins": 0,
+            "mean_of_bin_means_n": 4.029573699665464,
+            "metric_basis": "equal-weight mean of nonempty 100 ms bin means from sealed raw KWR75 corrected normal-load samples; diagnostic only, not the synchronized official score",
+            "nonempty_bins": 50,
+            "required_bins": 50,
+            "sample_count": 2499,
+            "window_s": [
+              0.0,
+              5.0
+            ]
+          },
+          "window_0_60_s": {
+            "bin_mean_bias_measured_minus_target_n": -1.1340270285566725,
+            "bin_mean_mae_n": 2.0399427341527403,
+            "bin_mean_rmse_n": 2.677243313562434,
+            "bin_mean_tail_abs_error_p95_n": 4.98548969471049,
+            "complete_coverage": true,
+            "coverage_fraction": 1.0,
+            "empty_bins": 0,
+            "mean_of_bin_means_n": 3.8659729714433273,
+            "metric_basis": "equal-weight mean of nonempty 100 ms bin means from sealed raw KWR75 corrected normal-load samples; diagnostic only, not the synchronized official score",
+            "nonempty_bins": 600,
+            "required_bins": 600,
+            "sample_count": 29008,
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "window_5_60_s": {
+            "bin_mean_bias_measured_minus_target_n": -1.1488998220314122,
+            "bin_mean_mae_n": 2.0495471067157567,
+            "bin_mean_rmse_n": 2.6916588028365225,
+            "bin_mean_tail_abs_error_p95_n": 4.987232528557656,
+            "complete_coverage": true,
+            "coverage_fraction": 1.0,
+            "empty_bins": 0,
+            "mean_of_bin_means_n": 3.851100177968588,
+            "metric_basis": "equal-weight mean of nonempty 100 ms bin means from sealed raw KWR75 corrected normal-load samples; diagnostic only, not the synchronized official score",
+            "nonempty_bins": 550,
+            "required_bins": 550,
+            "sample_count": 26509,
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        },
+        "window_0_5_s": {
+          "below_1n_fraction": 0.18007202881152462,
+          "below_1n_runs": 15,
+          "longest_below_1n_run_s": 0.2581434159656055,
+          "peak_normal_n": 9.140098727695317,
+          "sample_bias_measured_minus_target_n": -0.9754819659476848,
+          "sample_error_p95_n": 5.011702631460455,
+          "sample_mae_n": 2.178491237324284,
+          "sample_rmse_n": 2.6985888834229597,
+          "samples": 2499
+        },
+        "window_0_60_s": {
+          "below_1n_fraction": 0.2124931053502482,
+          "below_1n_runs": 138,
+          "longest_below_1n_run_s": 0.9879455040208995,
+          "peak_normal_n": 18.079901011724445,
+          "sample_bias_measured_minus_target_n": -1.1367503998273056,
+          "sample_error_p95_n": 5.169022898677317,
+          "sample_mae_n": 2.2420442406078767,
+          "sample_rmse_n": 2.8701710752671943,
+          "samples": 29008
+        },
+        "window_5_60_s": {
+          "below_1n_fraction": 0.21554943604059,
+          "below_1n_runs": 124,
+          "longest_below_1n_run_s": 0.9879455040208995,
+          "peak_normal_n": 18.079901011724445,
+          "sample_bias_measured_minus_target_n": -1.151953154222612,
+          "sample_error_p95_n": 5.1950947669144245,
+          "sample_mae_n": 2.2480353740042966,
+          "sample_rmse_n": 2.885819964307927,
+          "samples": 26509
+        }
+      },
+      "formal_bin_mean_mae_n": 1.1718351882825329,
+      "formal_bins": 550,
+      "home_verified": true,
+      "path_complete": true,
+      "path_start_source": "attempt_timing_receipt",
+      "physical_dispatched": true,
+      "pre_path_contact_diagnostics": {
+        "force_source": "Kunwei KWR75 corrected_wrench_n_nm",
+        "normal_load_definition": "-corrected_wrench_n_nm[2]",
+        "stages": {
+          "entry": {
+            "below_1n_fraction": 0.15217391304347827,
+            "force_norm_n": {
+              "count": 506,
+              "max": 7.19217247806477,
+              "mean": 3.933340962267935,
+              "min": 0.08399441400413607,
+              "p95": 6.281299118969934,
+              "rms": 4.3673771429894925
+            },
+            "interpretation": "KWR75 corrected feedback; stage may have a changing target, so no constant-5 N MAE is assigned",
+            "normal_load_n": {
+              "count": 506,
+              "max": 7.10438492700574,
+              "mean": 3.867625976666124,
+              "min": -0.41037870893063877,
+              "p95": 6.234341337603005,
+              "rms": 4.306734750365494
+            },
+            "sensor_fresh_fraction": 1.0,
+            "sensor_observed_span_s": 1.0098013849928975,
+            "sensor_sample_count": 506,
+            "stage_duration_s": 1.0101309890160337,
+            "stage_interval_s": [
+              370128.610710403,
+              370129.620841392
+            ],
+            "tcp_z_change_m": -2.5201370640742793e-05,
+            "tcp_z_end_m": 0.02055972425220398,
+            "tcp_z_start_m": 0.020584925622844724,
+            "torque_norm_nm": {
+              "count": 506,
+              "max": 0.0569300452364348,
+              "mean": 0.029255479059476994,
+              "min": 0.0006938002601399639,
+              "p95": 0.049610888041502904,
+              "rms": 0.03244321628658106
+            }
+          },
+          "state20_contact_search": {
+            "below_1n_fraction": 0.9598470363288719,
+            "force_norm_n": {
+              "count": 4707,
+              "max": 6.114519858100332,
+              "mean": 0.3995572185886603,
+              "min": 0.003785062896625968,
+              "p95": 0.5818722108380086,
+              "rms": 1.0057726525265513
+            },
+            "interpretation": "KWR75 corrected feedback; stage may have a changing target, so no constant-5 N MAE is assigned",
+            "normal_load_n": {
+              "count": 4707,
+              "max": 6.052072507090541,
+              "mean": 0.18459143850426804,
+              "min": -0.5973956107530269,
+              "p95": 0.5455831685152377,
+              "rms": 0.9878077729630659
+            },
+            "sensor_fresh_fraction": 1.0,
+            "sensor_observed_span_s": 9.411984980048146,
+            "sensor_sample_count": 4707,
+            "stage_duration_s": 9.41398572199978,
+            "stage_interval_s": [
+              370110.336715348,
+              370119.75070107
+            ],
+            "tcp_z_change_m": -0.013555440844848748,
+            "tcp_z_end_m": 0.02054032494868338,
+            "tcp_z_start_m": 0.03409576579353213,
+            "torque_norm_nm": {
+              "count": 4707,
+              "max": 0.045628012827945805,
+              "mean": 0.00811494346612857,
+              "min": 5.079507409572147e-05,
+              "p95": 0.018635063313934965,
+              "rms": 0.011995163162120246
+            }
+          },
+          "state21_latch_and_ramp": {
+            "below_1n_fraction": 0.12056897719575525,
+            "force_norm_n": {
+              "count": 4429,
+              "max": 6.087663501158183,
+              "mean": 3.1195702708824293,
+              "min": 0.007946041976296345,
+              "p95": 5.133628084044404,
+              "rms": 3.4568102113120394
+            },
+            "interpretation": "KWR75 corrected feedback; stage may have a changing target, so no constant-5 N MAE is assigned",
+            "normal_load_n": {
+              "count": 4429,
+              "max": 6.033483541954729,
+              "mean": 3.046381941847985,
+              "min": -0.5512139975536141,
+              "p95": 5.05228113252935,
+              "rms": 3.4023357829163667
+            },
+            "sensor_fresh_fraction": 1.0,
+            "sensor_observed_span_s": 8.858040269988123,
+            "sensor_sample_count": 4429,
+            "stage_duration_s": 8.860009333002381,
+            "stage_interval_s": [
+              370119.75070107,
+              370128.610710403
+            ],
+            "tcp_z_change_m": 2.792583432761897e-06,
+            "tcp_z_end_m": 0.020567132339123106,
+            "tcp_z_start_m": 0.020564339755690345,
+            "torque_norm_nm": {
+              "count": 4429,
+              "max": 0.052021619457667645,
+              "mean": 0.026293318957767327,
+              "min": 0.00014061627141486325,
+              "p95": 0.04340461355830052,
+              "rms": 0.02886115792274347
+            }
+          }
+        }
+      },
+      "protocol_id": "figure8_window60_r013_rate460_v1",
+      "raw_layer_measurements": {
+        "available": true,
+        "consumed_sequence_skips": 1544,
+        "counts": {
+          "formal_host_path_reference_sequences": 29012,
+          "host_successful_path_publishes": 29014,
+          "kunwei_distinct_frames": 59998,
+          "raw_rtde_frames": 29013,
+          "tp_consumed_formal_echoes": 27468
+        },
+        "duration_s": 60.01000000000931,
+        "formal_host_sequences_not_echoed_in_window": 1544,
+        "formal_window_controller_timestamp_s": [
+          247111.936,
+          247171.946
+        ],
+        "interpretation": "Raw per-layer rates and synchronized accepted-sample rate are separate measurements; do not rename the latter as raw RTDE or host-send cadence.",
+        "minimum_layer_rate_hz": 460.0,
+        "passes_minimum_rate": {
+          "formal_host_path_reference_sequences": true,
+          "host_successful_path_publishes": true,
+          "kunwei_distinct_frames": true,
+          "raw_rtde_frames": true,
+          "tp_consumed_formal_echoes": false
+        },
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "rates_hz": {
+          "formal_host_path_reference_sequences": 483.4527578736127,
+          "host_successful_path_publishes": 483.4860856523162,
+          "kunwei_distinct_frames": 999.8000333276235,
+          "raw_rtde_frames": 483.4694217629645,
+          "tp_consumed_formal_echoes": 457.72371271447656
+        },
+        "raw_rtde_intervals": {
+          "interval_count": 29012,
+          "max_interval_s": 0.0040000000153668225,
+          "p99_interval_s": 0.0040000000153668225
+        },
+        "synchronized_timing_evidence": {
+          "kunwei_frames": 59998,
+          "layer_rates_hz": {
+            "kunwei_frames": 999.8000333276235,
+            "rtde_frames": 499.9999999999224,
+            "tp_consumed_packet_echoes": 465.2557907014775,
+            "writer_publishes": 483.3861023162056
+          },
+          "rtde_frames": 30005,
+          "scope": "distinct identities represented in accepted, fully synchronized PathSample rows; not a raw callback count",
+          "tp_consumed_echoes": 27920,
+          "writer_sequences": 29008
+        },
+        "tp_echo_intervals": {
+          "interval_count": 27467,
+          "max_interval_s": 0.008000000001629815,
+          "p99_interval_s": 0.005999999993946403
+        }
+      },
+      "schema": "tase.resident-evidence-diagnostic-v1",
+      "seal_verified": true,
+      "sequence": 1,
+      "session": "tase-high-filter-pair02-HIGH-replacement-rate460-20260927-02",
+      "solver_timing_aggregate_available": true,
+      "synchronized_path_force_diagnostics": {
+        "accepted_sample_count_delta_from_receipt": 0,
+        "ambiguous_nearest_frame_matches": 0,
+        "available": true,
+        "duplicate_rtde_or_tp_clock_rows": 1544,
+        "force_source": "Kunwei KWR75; not an independent task-force reference",
+        "invalid_force_rows": 0,
+        "matched_timeline_rows": 29012,
+        "official_score_crosscheck": {
+          "accepted_join_reconstructed_550_bin_mae_n": 1.171835188282533,
+          "exact_match_within_1e-9_n": true,
+          "metric_identity": "filtered KWR75 normal load, equal-weight 100 ms means, [5,60) bins",
+          "receipt_formal_550_bin_mae_n": 1.1718351882825329,
+          "reconstruction_minus_receipt_n": 2.220446049250313e-16
+        },
+        "path_time_source": "matched RTDE controller timestamp minus first consumed PATH RTDE timestamp",
+        "receipt_path_sample_count": 27464,
+        "reconstructed_accepted_path_sample_count": 27464,
+        "rejected_before_or_outside_path_boundary_rows": 4,
+        "rejected_non_path_state_rows": 0,
+        "sample_identity": "unique ordered (RTDE controller timestamp, TP consumed packet sequence) pairs",
+        "unmatched_timeline_rows": 0,
+        "windows": {
+          "window_0_60_s": {
+            "required_bins": 600,
+            "sample_count": 27464,
+            "signals": {
+              "normal_force_control_n": {
+                "equal_weight_100ms_bins": {
+                  "bin_mean_bias_measured_minus_target_n": -0.14392867388208547,
+                  "bin_mean_mae_n": 1.0940988251707175,
+                  "bin_mean_rmse_n": 1.4864358648029565,
+                  "bin_mean_tail_abs_error_p95_n": 2.7557764219898067,
+                  "complete_coverage": true,
+                  "coverage_fraction": 1.0,
+                  "empty_bins": 0,
+                  "mean_of_bin_means_n": 4.856071326117915,
+                  "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined normal load supplied to TASE",
+                  "nonempty_bins": 600,
+                  "required_bins": 600,
+                  "sample_count": 27464,
+                  "window_s": [
+                    0.0,
+                    60.0
+                  ]
+                },
+                "per_sample": {
+                  "below_1n_fraction": 0.0015292746868628023,
+                  "below_1n_runs": 1,
+                  "longest_below_1n_run_s": 0.08600000001024455,
+                  "peak_normal_n": 18.079901011724445,
+                  "sample_bias_measured_minus_target_n": -0.14412514098774637,
+                  "sample_error_p95_n": 3.1270030212869155,
+                  "sample_mae_n": 1.2554748804858047,
+                  "sample_rmse_n": 1.6815307008321188,
+                  "samples": 27464
+                }
+              },
+              "normal_force_filtered_n": {
+                "equal_weight_100ms_bins": {
+                  "bin_mean_bias_measured_minus_target_n": -1.13143788429282,
+                  "bin_mean_mae_n": 1.1620387787326278,
+                  "bin_mean_rmse_n": 1.4954076867788564,
+                  "bin_mean_tail_abs_error_p95_n": 2.9607314104499824,
+                  "complete_coverage": true,
+                  "coverage_fraction": 1.0,
+                  "empty_bins": 0,
+                  "mean_of_bin_means_n": 3.8685621157071806,
+                  "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+                  "nonempty_bins": 600,
+                  "required_bins": 600,
+                  "sample_count": 27464,
+                  "window_s": [
+                    0.0,
+                    60.0
+                  ]
+                },
+                "per_sample": {
+                  "below_1n_fraction": 0.008083309059131955,
+                  "below_1n_runs": 2,
+                  "longest_below_1n_run_s": 0.35999999998603016,
+                  "peak_normal_n": 7.652557442407354,
+                  "sample_bias_measured_minus_target_n": -1.1245650698542375,
+                  "sample_error_p95_n": 2.9960917415043777,
+                  "sample_mae_n": 1.1589044553701922,
+                  "sample_rmse_n": 1.50317755962176,
+                  "samples": 27464
+                }
+              },
+              "normal_force_measured_n": {
+                "equal_weight_100ms_bins": {
+                  "bin_mean_bias_measured_minus_target_n": -1.1335684114817897,
+                  "bin_mean_mae_n": 2.0405395957558827,
+                  "bin_mean_rmse_n": 2.6773056986152803,
+                  "bin_mean_tail_abs_error_p95_n": 4.985181825538796,
+                  "complete_coverage": true,
+                  "coverage_fraction": 1.0,
+                  "empty_bins": 0,
+                  "mean_of_bin_means_n": 3.8664315885182106,
+                  "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+                  "nonempty_bins": 600,
+                  "required_bins": 600,
+                  "sample_count": 27464,
+                  "window_s": [
+                    0.0,
+                    60.0
+                  ]
+                },
+                "per_sample": {
+                  "below_1n_fraction": 0.2120958345470434,
+                  "below_1n_runs": 136,
+                  "longest_below_1n_run_s": 0.9880000000121072,
+                  "peak_normal_n": 18.079901011724445,
+                  "sample_bias_measured_minus_target_n": -1.1344525110569532,
+                  "sample_error_p95_n": 5.169500160800245,
+                  "sample_mae_n": 2.240570542012546,
+                  "sample_rmse_n": 2.870452049977265,
+                  "samples": 27464
+                }
+              }
+            },
+            "window_s": [
+              0.0,
+              60.0
+            ]
+          },
+          "window_5_60_s": {
+            "required_bins": 550,
+            "sample_count": 25059,
+            "signals": {
+              "normal_force_control_n": {
+                "equal_weight_100ms_bins": {
+                  "bin_mean_bias_measured_minus_target_n": -0.15942823418159913,
+                  "bin_mean_mae_n": 1.1029599906690675,
+                  "bin_mean_rmse_n": 1.5097770199920162,
+                  "bin_mean_tail_abs_error_p95_n": 2.7711637613207585,
+                  "complete_coverage": true,
+                  "coverage_fraction": 1.0,
+                  "empty_bins": 0,
+                  "mean_of_bin_means_n": 4.8405717658184,
+                  "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined normal load supplied to TASE",
+                  "nonempty_bins": 550,
+                  "required_bins": 550,
+                  "sample_count": 25059,
+                  "window_s": [
+                    5.0,
+                    60.0
+                  ]
+                },
+                "per_sample": {
+                  "below_1n_fraction": 0.0016760445348976416,
+                  "below_1n_runs": 1,
+                  "longest_below_1n_run_s": 0.08600000001024455,
+                  "peak_normal_n": 18.079901011724445,
+                  "sample_bias_measured_minus_target_n": -0.16054495249725637,
+                  "sample_error_p95_n": 3.2043718136028585,
+                  "sample_mae_n": 1.2628622621062273,
+                  "sample_rmse_n": 1.7062695293419,
+                  "samples": 25059
+                }
+              },
+              "normal_force_filtered_n": {
+                "equal_weight_100ms_bins": {
+                  "bin_mean_bias_measured_minus_target_n": -1.1413752951594287,
+                  "bin_mean_mae_n": 1.171835188282533,
+                  "bin_mean_rmse_n": 1.513601336723709,
+                  "bin_mean_tail_abs_error_p95_n": 2.9905429173132405,
+                  "complete_coverage": true,
+                  "coverage_fraction": 1.0,
+                  "empty_bins": 0,
+                  "mean_of_bin_means_n": 3.858624704840571,
+                  "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined KWR75 filtered normal load",
+                  "nonempty_bins": 550,
+                  "required_bins": 550,
+                  "sample_count": 25059,
+                  "window_s": [
+                    5.0,
+                    60.0
+                  ]
+                },
+                "per_sample": {
+                  "below_1n_fraction": 0.00885909254160182,
+                  "below_1n_runs": 2,
+                  "longest_below_1n_run_s": 0.35999999998603016,
+                  "peak_normal_n": 7.652557442407354,
+                  "sample_bias_measured_minus_target_n": -1.1343724699377773,
+                  "sample_error_p95_n": 3.0349070386238877,
+                  "sample_mae_n": 1.1684469174538286,
+                  "sample_rmse_n": 1.521834029343345,
+                  "samples": 25059
+                }
+              },
+              "normal_force_measured_n": {
+                "equal_weight_100ms_bins": {
+                  "bin_mean_bias_measured_minus_target_n": -1.1479623609704868,
+                  "bin_mean_mae_n": 2.049934803511881,
+                  "bin_mean_rmse_n": 2.6916448381191587,
+                  "bin_mean_tail_abs_error_p95_n": 4.985652615817744,
+                  "complete_coverage": true,
+                  "coverage_fraction": 1.0,
+                  "empty_bins": 0,
+                  "mean_of_bin_means_n": 3.852037639029513,
+                  "metric_basis": "equal-weight mean of nonempty 100 ms bin means from accepted RTDE/TP-joined corrected KWR75 normal load",
+                  "nonempty_bins": 550,
+                  "required_bins": 550,
+                  "sample_count": 25059,
+                  "window_s": [
+                    5.0,
+                    60.0
+                  ]
+                },
+                "per_sample": {
+                  "below_1n_fraction": 0.2151721936230496,
+                  "below_1n_runs": 122,
+                  "longest_below_1n_run_s": 0.9880000000121072,
+                  "peak_normal_n": 18.079901011724445,
+                  "sample_bias_measured_minus_target_n": -1.1498317714675583,
+                  "sample_error_p95_n": 5.19870302053946,
+                  "sample_mae_n": 2.2467277004463337,
+                  "sample_rmse_n": 2.886428061054284,
+                  "samples": 25059
+                }
+              }
+            },
+            "window_s": [
+              5.0,
+              60.0
+            ]
+          }
+        }
+      },
+      "timing": {
+        "contact_latch_s": 370119.75070107,
+        "contact_search_s": 370110.336715348,
+        "entry_s": 370128.610710403,
+        "first_tp_ready_home_s": 370193.614748458,
+        "path_start_s": 370129.620841392,
+        "path_to_returning_s": 60.00986746698618,
+        "physical_return_s": 3.9840395990177058,
+        "pre_path_s": 19.308057170012034,
+        "ready_home_to_receipt_s": 1.978846050973516,
+        "receipt_home_verified_s": 370195.593594509,
+        "returning_s": 370189.630708859,
+        "seal_complete_s": 370196.012515561,
+        "start_to_home_receipt_s": 85.28081028698944,
+        "start_to_seal_s": 85.69973133900203,
+        "stationary_home_observed_s": 370194.116234994,
+        "stationary_home_verified_s": 370194.121913596,
+        "terminal_finalize_end_s": 370195.591187087,
+        "terminal_finalize_start_s": 370194.122229344
+      },
+      "timing_ledger": {
+        "attempt_id": "tase-high-filter-pair02-HIGH-replacement-rate460-20260927-02/0001",
+        "durations_s": {
+          "clearance_to_home_s": 0.5071651379694231,
+          "contact_latch_to_qualification_s": 0.0,
+          "contact_search_to_contact_latch_s": 9.41398572199978,
+          "entry_to_path_s": 1.0101309890160337,
+          "formal_path_s": 60.00986746698618,
+          "home_check_to_contact_search_s": 0.023931125993840396,
+          "home_duration_s": 4.491204736987129,
+          "home_to_home_s": 83.80912937398534,
+          "path_to_stop_s": 60.00986746698618,
+          "qualification_to_readiness_hold_s": null,
+          "readiness_hold_s": null,
+          "readiness_hold_to_entry_s": null,
+          "stop_to_unload_relief_s": 0.0,
+          "unload_relief_to_clearance_s": 3.9840395990177058
+        },
+        "events": [
+          {
+            "event": "verified_preflight",
+            "stage": "HOME_CHECK",
+            "timestamp_s": 370110.312784222
+          },
+          {
+            "event": "tp_state_20",
+            "stage": "CONTACT_SEARCH",
+            "timestamp_s": 370110.336715348
+          },
+          {
+            "event": "tp_state_21",
+            "stage": "CONTACT_LATCH",
+            "timestamp_s": 370119.75070107
+          },
+          {
+            "event": "tp_state_21",
+            "stage": "QUALIFICATION",
+            "timestamp_s": 370119.75070107
+          },
+          {
+            "event": "tp_state_25",
+            "stage": "ENTRY",
+            "timestamp_s": 370128.610710403
+          },
+          {
+            "event": "first_consumed_path_command",
+            "stage": "PATH",
+            "timestamp_s": 370129.620841392
+          },
+          {
+            "event": "tp_state_40",
+            "stage": "STOP",
+            "timestamp_s": 370189.630708859
+          },
+          {
+            "event": "tp_state_40",
+            "stage": "UNLOAD_RELIEF",
+            "timestamp_s": 370189.630708859
+          },
+          {
+            "event": "tp_state_78",
+            "stage": "CLEARANCE",
+            "timestamp_s": 370193.614748458
+          },
+          {
+            "event": "verified",
+            "stage": "HOME",
+            "timestamp_s": 370194.121913596
+          }
+        ],
+        "failure_condition": null,
+        "failure_stage": null,
+        "missing_events": [
+          {
+            "event": "start",
+            "source": "sealed_attempt",
+            "stage": "READINESS_HOLD",
+            "timestamp_s": null
+          }
+        ],
+        "protocol_id": "figure8_window60_r013_rate460_v1",
+        "recovery": {
+          "blocked": false,
+          "failure_condition": null,
+          "home_verified": false,
+          "invoked": false,
+          "source_attempt_stays_failed": false,
+          "success": false
+        },
+        "schema": "tase.figure8-window60-timing-ledger-v1",
+        "source_success": true,
+        "supplemental_events": []
+      },
+      "top_sealed_matches_seal": true
+    }
+  ],
+  "claim_scope": "one complete engineering pair; KWR75 feedback, not independent task-force truth",
+  "schema": "tase.rnn-filter-tau-pair-accepted-sample-reduction-v1"
+}

@@ -1,0 +1,579 @@
+{
+  "candidate_path_complete": true,
+  "evidence_class": "offline_fixed_input_qp_replay",
+  "force_mae_recomputed": false,
+  "formal_bins": 550,
+  "full_bins": 600,
+  "interpretation": "The wrapper changes only the OSQP status string for solved-inaccurate results so the fixed-input path can continue; external task equality/bound validation is unchanged. This does not establish objective optimality or live timing.",
+  "osqp_profile": {
+    "eps_abs": 1e-08,
+    "eps_rel": 1e-08,
+    "max_iter": 400,
+    "rho": 0.1,
+    "scaling": 10
+  },
+  "path_rows": 29956,
+  "replay_metrics": {
+    "four_qp_stage_total_s": {
+      "max": 0.0003546820037925541,
+      "median": 0.0001848660237941742,
+      "p95": 0.000228940235140562,
+      "p99": 0.00024781778224559426
+    },
+    "full_path_four_qp_stage_total_s": {
+      "max": 0.0017970199943532646,
+      "median": 0.00018567699951291082,
+      "p95": 0.0002350089827088192,
+      "p99": 0.0002485300828184068
+    },
+    "full_path_stage_iteration_count": [
+      {
+        "max": 30.0,
+        "median": 16.0,
+        "p95": 21.0,
+        "p99": 29.0
+      },
+      {
+        "max": 400.0,
+        "median": 21.0,
+        "p95": 24.0,
+        "p99": 73.0
+      },
+      {
+        "max": 13.0,
+        "median": 10.0,
+        "p95": 10.0,
+        "p99": 11.0
+      },
+      {
+        "max": 0.0,
+        "median": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      }
+    ],
+    "full_path_stage_solve_time_s": [
+      {
+        "max": 4.8711e-05,
+        "median": 6.221e-06,
+        "p95": 7.534e-06,
+        "p99": 9.588e-06
+      },
+      {
+        "max": 0.000113933,
+        "median": 7.745e-06,
+        "p95": 9.157e-06,
+        "p99": 2.1975500000000007e-05
+      },
+      {
+        "max": 0.0017805389943532646,
+        "median": 0.0001716509577818215,
+        "p95": 0.00021701277000829577,
+        "p99": 0.0002339974802453071
+      },
+      {
+        "max": 0.0,
+        "median": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      }
+    ],
+    "maximum_box_violation_rad_s": {
+      "max": 1.0041866969900948e-08,
+      "median": 0.0,
+      "p95": 0.0,
+      "p99": 0.0
+    },
+    "maximum_locked_task_equality_residual": {
+      "max": 4.440145760613301e-09,
+      "median": 1.318124128618127e-09,
+      "p95": 1.8166852466588653e-09,
+      "p99": 1.932446473448118e-09
+    },
+    "normal_task_residual_m_s": {
+      "max": 1.3031888157141736e-08,
+      "median": 5.022795789531853e-09,
+      "p95": 1.1028908627574821e-08,
+      "p99": 1.2069833815026541e-08
+    },
+    "orientation_task_residual_norm_rad_s": {
+      "max": 0.0037958061234112193,
+      "median": 3.843442224471845e-09,
+      "p95": 5.225802629600542e-09,
+      "p99": 0.0002972461632452669
+    },
+    "qdot_delta_vs_source_command_norm_rad_s": {
+      "max": 0.021776255097929124,
+      "median": 3.528839075380363e-08,
+      "p95": 1.485053912971517e-05,
+      "p99": 0.007173063655731595
+    },
+    "stage_iteration_count": [
+      {
+        "max": 30.0,
+        "median": 16.0,
+        "p95": 21.0,
+        "p99": 29.0
+      },
+      {
+        "max": 400.0,
+        "median": 21.0,
+        "p95": 24.0,
+        "p99": 73.0
+      },
+      {
+        "max": 13.0,
+        "median": 10.0,
+        "p95": 10.0,
+        "p99": 11.0
+      },
+      {
+        "max": 0.0,
+        "median": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      }
+    ],
+    "stage_solve_time_s": [
+      {
+        "max": 4.8711e-05,
+        "median": 6.212e-06,
+        "p95": 7.524e-06,
+        "p99": 9.607e-06
+      },
+      {
+        "max": 0.000113933,
+        "median": 7.744e-06,
+        "p95": 9.157e-06,
+        "p99": 2.2021e-05
+      },
+      {
+        "max": 0.0002661579637788236,
+        "median": 0.00017087894957512617,
+        "p95": 0.00020148099865764335,
+        "p99": 0.00023324080742895604
+      },
+      {
+        "max": 0.0,
+        "median": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      }
+    ],
+    "tangent_task_residual_norm_m_s": {
+      "max": 0.00720139882730268,
+      "median": 4.336808689942018e-19,
+      "p95": 9.69739903612216e-19,
+      "p99": 0.0023344930227859107
+    }
+  },
+  "schema": "tase.qp.replay.thread-time-diagnostic.v1",
+  "source_attempt": "runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001",
+  "source_command_timeline_sha256": "f9bfa7cfbdc3e910685ce8f92a15f18f25791b1ae9e2754afb670e862cac33d4",
+  "status_inaccurate_rows_relabelled_for_diagnostic_only": [
+    {
+      "dual_residual": 7.821876224294555e-09,
+      "iterations": 400,
+      "path_row_index": 21188,
+      "primal_residual": 1.122369465764813e-08,
+      "solve_time_s": 0.000113923,
+      "stage_qp_index": 0
+    },
+    {
+      "dual_residual": 1.0950954136570495e-08,
+      "iterations": 400,
+      "path_row_index": 23100,
+      "primal_residual": 1.5595147405803333e-08,
+      "solve_time_s": 0.000110166,
+      "stage_qp_index": 0
+    },
+    {
+      "dual_residual": 1.665180531842935e-08,
+      "iterations": 400,
+      "path_row_index": 24107,
+      "primal_residual": 2.359361934830497e-08,
+      "solve_time_s": 0.000110667,
+      "stage_qp_index": 0
+    },
+    {
+      "dual_residual": 1.3912124608453759e-08,
+      "iterations": 400,
+      "path_row_index": 24923,
+      "primal_residual": 1.9613072130112455e-08,
+      "solve_time_s": 0.000110847,
+      "stage_qp_index": 0
+    },
+    {
+      "dual_residual": 1.4097876885505219e-08,
+      "iterations": 400,
+      "path_row_index": 25257,
+      "primal_residual": 1.987889472400749e-08,
+      "solve_time_s": 0.000100418,
+      "stage_qp_index": 0
+    },
+    {
+      "dual_residual": 1.2386513954082916e-08,
+      "iterations": 400,
+      "path_row_index": 25367,
+      "primal_residual": 1.7443763409326562e-08,
+      "solve_time_s": 0.000110246,
+      "stage_qp_index": 0
+    },
+    {
+      "dual_residual": 1.5543264905137346e-08,
+      "iterations": 400,
+      "path_row_index": 25882,
+      "primal_residual": 2.1850370338470004e-08,
+      "solve_time_s": 0.000110667,
+      "stage_qp_index": 0
+    },
+    {
+      "dual_residual": 7.5489770040966e-09,
+      "iterations": 400,
+      "path_row_index": 26215,
+      "primal_residual": 1.0619127918898968e-08,
+      "solve_time_s": 0.000110988,
+      "stage_qp_index": 0
+    },
+    {
+      "dual_residual": 8.845915618819275e-09,
+      "iterations": 400,
+      "path_row_index": 26439,
+      "primal_residual": 1.242363949849719e-08,
+      "solve_time_s": 0.000101079,
+      "stage_qp_index": 0
+    },
+    {
+      "dual_residual": 1.5781567360378876e-08,
+      "iterations": 400,
+      "path_row_index": 27443,
+      "primal_residual": 2.2187653206260882e-08,
+      "solve_time_s": 0.000100257,
+      "stage_qp_index": 0
+    },
+    {
+      "dual_residual": 8.027640991553677e-09,
+      "iterations": 400,
+      "path_row_index": 28522,
+      "primal_residual": 1.1317640761512997e-08,
+      "solve_time_s": 0.000100699,
+      "stage_qp_index": 0
+    },
+    {
+      "dual_residual": 1.309945463970329e-08,
+      "iterations": 400,
+      "path_row_index": 28559,
+      "primal_residual": 1.8495785132160747e-08,
+      "solve_time_s": 0.000101109,
+      "stage_qp_index": 0
+    },
+    {
+      "dual_residual": 7.414756947169529e-09,
+      "iterations": 400,
+      "path_row_index": 28929,
+      "primal_residual": 1.0470997362619631e-08,
+      "solve_time_s": 0.000105527,
+      "stage_qp_index": 0
+    },
+    {
+      "dual_residual": 1.1011667840687242e-08,
+      "iterations": 400,
+      "path_row_index": 29671,
+      "primal_residual": 1.5622308600180178e-08,
+      "solve_time_s": 0.000113933,
+      "stage_qp_index": 0
+    }
+  ],
+  "thread_cpu_vs_wall": {
+    "max_thread_cpu_s": 0.0073172950000000014,
+    "max_wall_s": 0.007459687010850757,
+    "p99_thread_cpu_s": 0.0012635699999989924,
+    "p99_wall_s": 0.0012954419944435358,
+    "sum_thread_cpu_s": 35.73978173899947,
+    "sum_wall_s": 36.083355089242104
+  },
+  "top20_by_thread_cpu": [
+    {
+      "packet_sequence": 10323,
+      "path_row_index": 647,
+      "reference_time_s": 1.2879378280194942,
+      "thread_cpu_s": 0.0073172950000000014,
+      "wall_s": 0.007459687010850757
+    },
+    {
+      "packet_sequence": 9676,
+      "path_row_index": 0,
+      "reference_time_s": 0.0,
+      "thread_cpu_s": 0.002545165000000016,
+      "wall_s": 0.00470619898987934
+    },
+    {
+      "packet_sequence": 12037,
+      "path_row_index": 2361,
+      "reference_time_s": 4.717933587002335,
+      "thread_cpu_s": 0.0017885039999998575,
+      "wall_s": 0.0017943849670700729
+    },
+    {
+      "packet_sequence": 12038,
+      "path_row_index": 2362,
+      "reference_time_s": 4.720001088018762,
+      "thread_cpu_s": 0.0016827059999999783,
+      "wall_s": 0.001682294998317957
+    },
+    {
+      "packet_sequence": 31492,
+      "path_row_index": 21816,
+      "reference_time_s": 43.701958644000115,
+      "thread_cpu_s": 0.0016160009999985903,
+      "wall_s": 0.001621442032046616
+    },
+    {
+      "packet_sequence": 9764,
+      "path_row_index": 88,
+      "reference_time_s": 0.16817782502039336,
+      "thread_cpu_s": 0.0014932000000000278,
+      "wall_s": 0.0015550079988315701
+    },
+    {
+      "packet_sequence": 10187,
+      "path_row_index": 511,
+      "reference_time_s": 1.0159958520089276,
+      "thread_cpu_s": 0.0014286200000001026,
+      "wall_s": 0.0014282200136221945
+    },
+    {
+      "packet_sequence": 14603,
+      "path_row_index": 4927,
+      "reference_time_s": 9.85795899599907,
+      "thread_cpu_s": 0.0014129199999999287,
+      "wall_s": 0.001440813997760415
+    },
+    {
+      "packet_sequence": 14831,
+      "path_row_index": 5155,
+      "reference_time_s": 10.31398617499508,
+      "thread_cpu_s": 0.00137385599999984,
+      "wall_s": 0.0014147149631753564
+    },
+    {
+      "packet_sequence": 11006,
+      "path_row_index": 1330,
+      "reference_time_s": 2.6539361470204312,
+      "thread_cpu_s": 0.0013639889999996768,
+      "wall_s": 0.0013980540097691119
+    },
+    {
+      "packet_sequence": 12851,
+      "path_row_index": 3175,
+      "reference_time_s": 6.352108784019947,
+      "thread_cpu_s": 0.0013629770000003205,
+      "wall_s": 0.001386973017361015
+    },
+    {
+      "packet_sequence": 20266,
+      "path_row_index": 10590,
+      "reference_time_s": 21.1999569949985,
+      "thread_cpu_s": 0.001361446999998961,
+      "wall_s": 0.001448166964109987
+    },
+    {
+      "packet_sequence": 17244,
+      "path_row_index": 7568,
+      "reference_time_s": 15.151957016001688,
+      "thread_cpu_s": 0.0013563339999986823,
+      "wall_s": 0.0013596820062957704
+    },
+    {
+      "packet_sequence": 30864,
+      "path_row_index": 21188,
+      "reference_time_s": 42.446146166999824,
+      "thread_cpu_s": 0.001355842999998913,
+      "wall_s": 0.001392653037328273
+    },
+    {
+      "packet_sequence": 12002,
+      "path_row_index": 2326,
+      "reference_time_s": 4.647935148008401,
+      "thread_cpu_s": 0.001355542999999848,
+      "wall_s": 0.0013552140444517136
+    },
+    {
+      "packet_sequence": 30043,
+      "path_row_index": 20367,
+      "reference_time_s": 40.80195921001723,
+      "thread_cpu_s": 0.001353316999999521,
+      "wall_s": 0.0013902189675718546
+    },
+    {
+      "packet_sequence": 10514,
+      "path_row_index": 838,
+      "reference_time_s": 1.6702568430046085,
+      "thread_cpu_s": 0.0013522859999999248,
+      "wall_s": 0.0013817130238749087
+    },
+    {
+      "packet_sequence": 29595,
+      "path_row_index": 19919,
+      "reference_time_s": 39.90604942399659,
+      "thread_cpu_s": 0.0013498720000022502,
+      "wall_s": 0.0013820339809171855
+    },
+    {
+      "packet_sequence": 13687,
+      "path_row_index": 4011,
+      "reference_time_s": 8.02419184500468,
+      "thread_cpu_s": 0.0013445919999997002,
+      "wall_s": 0.0013747609918937087
+    },
+    {
+      "packet_sequence": 21830,
+      "path_row_index": 12154,
+      "reference_time_s": 24.343957428995054,
+      "thread_cpu_s": 0.0013385899999995843,
+      "wall_s": 0.0013777660205960274
+    }
+  ],
+  "top20_by_wall": [
+    {
+      "packet_sequence": 10323,
+      "path_row_index": 647,
+      "reference_time_s": 1.2879378280194942,
+      "thread_cpu_s": 0.0073172950000000014,
+      "wall_s": 0.007459687010850757
+    },
+    {
+      "packet_sequence": 9676,
+      "path_row_index": 0,
+      "reference_time_s": 0.0,
+      "thread_cpu_s": 0.002545165000000016,
+      "wall_s": 0.00470619898987934
+    },
+    {
+      "packet_sequence": 12037,
+      "path_row_index": 2361,
+      "reference_time_s": 4.717933587002335,
+      "thread_cpu_s": 0.0017885039999998575,
+      "wall_s": 0.0017943849670700729
+    },
+    {
+      "packet_sequence": 12038,
+      "path_row_index": 2362,
+      "reference_time_s": 4.720001088018762,
+      "thread_cpu_s": 0.0016827059999999783,
+      "wall_s": 0.001682294998317957
+    },
+    {
+      "packet_sequence": 31492,
+      "path_row_index": 21816,
+      "reference_time_s": 43.701958644000115,
+      "thread_cpu_s": 0.0016160009999985903,
+      "wall_s": 0.001621442032046616
+    },
+    {
+      "packet_sequence": 9764,
+      "path_row_index": 88,
+      "reference_time_s": 0.16817782502039336,
+      "thread_cpu_s": 0.0014932000000000278,
+      "wall_s": 0.0015550079988315701
+    },
+    {
+      "packet_sequence": 20266,
+      "path_row_index": 10590,
+      "reference_time_s": 21.1999569949985,
+      "thread_cpu_s": 0.001361446999998961,
+      "wall_s": 0.001448166964109987
+    },
+    {
+      "packet_sequence": 14603,
+      "path_row_index": 4927,
+      "reference_time_s": 9.85795899599907,
+      "thread_cpu_s": 0.0014129199999999287,
+      "wall_s": 0.001440813997760415
+    },
+    {
+      "packet_sequence": 10187,
+      "path_row_index": 511,
+      "reference_time_s": 1.0159958520089276,
+      "thread_cpu_s": 0.0014286200000001026,
+      "wall_s": 0.0014282200136221945
+    },
+    {
+      "packet_sequence": 14831,
+      "path_row_index": 5155,
+      "reference_time_s": 10.31398617499508,
+      "thread_cpu_s": 0.00137385599999984,
+      "wall_s": 0.0014147149631753564
+    },
+    {
+      "packet_sequence": 11006,
+      "path_row_index": 1330,
+      "reference_time_s": 2.6539361470204312,
+      "thread_cpu_s": 0.0013639889999996768,
+      "wall_s": 0.0013980540097691119
+    },
+    {
+      "packet_sequence": 30864,
+      "path_row_index": 21188,
+      "reference_time_s": 42.446146166999824,
+      "thread_cpu_s": 0.001355842999998913,
+      "wall_s": 0.001392653037328273
+    },
+    {
+      "packet_sequence": 30043,
+      "path_row_index": 20367,
+      "reference_time_s": 40.80195921001723,
+      "thread_cpu_s": 0.001353316999999521,
+      "wall_s": 0.0013902189675718546
+    },
+    {
+      "packet_sequence": 12851,
+      "path_row_index": 3175,
+      "reference_time_s": 6.352108784019947,
+      "thread_cpu_s": 0.0013629770000003205,
+      "wall_s": 0.001386973017361015
+    },
+    {
+      "packet_sequence": 34438,
+      "path_row_index": 24762,
+      "reference_time_s": 49.60395559700555,
+      "thread_cpu_s": 0.0013047650000004296,
+      "wall_s": 0.0013842579792253673
+    },
+    {
+      "packet_sequence": 29595,
+      "path_row_index": 19919,
+      "reference_time_s": 39.90604942399659,
+      "thread_cpu_s": 0.0013498720000022502,
+      "wall_s": 0.0013820339809171855
+    },
+    {
+      "packet_sequence": 10514,
+      "path_row_index": 838,
+      "reference_time_s": 1.6702568430046085,
+      "thread_cpu_s": 0.0013522859999999248,
+      "wall_s": 0.0013817130238749087
+    },
+    {
+      "packet_sequence": 21832,
+      "path_row_index": 12156,
+      "reference_time_s": 24.347959781996906,
+      "thread_cpu_s": 0.001305858999998577,
+      "wall_s": 0.0013780769659206271
+    },
+    {
+      "packet_sequence": 21830,
+      "path_row_index": 12154,
+      "reference_time_s": 24.343957428995054,
+      "thread_cpu_s": 0.0013385899999995843,
+      "wall_s": 0.0013777660205960274
+    },
+    {
+      "packet_sequence": 13687,
+      "path_row_index": 4011,
+      "reference_time_s": 8.02419184500468,
+      "thread_cpu_s": 0.0013445919999997002,
+      "wall_s": 0.0013747609918937087
+    }
+  ]
+}

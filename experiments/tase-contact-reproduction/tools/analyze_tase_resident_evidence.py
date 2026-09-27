@@ -6,6 +6,7 @@ The output is a derived diagnostic. It never changes an attempt, its formal
 from __future__ import annotations
 
 import argparse
+import bisect
 import hashlib
 import json
 import math
@@ -184,10 +185,12 @@ def _event_time(events: list[dict[str, Any]], stage: str, event: str,
 def _force_window(values: list[tuple[float, float]]) -> dict[str, float | int | None]:
     if not values:
         return {"samples": 0, "sample_mae_n": None, "sample_rmse_n": None,
-                "sample_error_p95_n": None, "peak_normal_n": None,
+                "sample_error_p95_n": None, "sample_bias_measured_minus_target_n": None,
+                "peak_normal_n": None,
                 "below_1n_fraction": None, "below_1n_runs": 0,
                 "longest_below_1n_run_s": None}
-    errors = [abs(value - 5.0) for _, value in values]
+    signed_errors = [value - TARGET_FORCE_N for _, value in values]
+    errors = [abs(error) for error in signed_errors]
     runs = 0
     longest = 0.0
     run_start = None
@@ -208,6 +211,7 @@ def _force_window(values: list[tuple[float, float]]) -> dict[str, float | int | 
         "sample_mae_n": statistics.fmean(errors),
         "sample_rmse_n": math.sqrt(statistics.fmean(error * error for error in errors)),
         "sample_error_p95_n": sorted(errors)[math.ceil(.95 * len(errors)) - 1],
+        "sample_bias_measured_minus_target_n": statistics.fmean(signed_errors),
         "peak_normal_n": max(value for _, value in values),
         "below_1n_fraction": sum(value < 1.0 for _, value in values) / len(values),
         "below_1n_runs": runs,
@@ -333,6 +337,214 @@ def _controller_path_force_diagnostics(rows: list[dict[str, Any]]) -> dict[str, 
         "available": any(values.values()),
         "invalid_sample_or_channel_count": invalid_rows,
         "signals": result,
+    }
+
+
+def _synchronized_path_force_diagnostics(
+    timeline_path: Path,
+    robot_frames_path: Path,
+    *,
+    metrics: dict[str, Any],
+    receipt_path_sample_count: int | None,
+) -> dict[str, Any]:
+    """Rebuild the accepted RTDE/TP-joined force samples used by the R013 score.
+
+    ``command_timeline`` contains every successful writer tick. The live
+    ``PathEvidenceCollector`` scores only fresh, unique RTDE timestamp / TP
+    consumed-sequence pairs. Reconstruct those pairs from the sealed robot
+    frames before computing the 550-bin score; using all writer ticks as a
+    cross-check can disagree slightly because it includes cached joins.
+    """
+    echo_summary = metrics.get("raw_rtde_tp_echo_summary") or {}
+    try:
+        boundary_timestamp = float(echo_summary["first_controller_timestamp_s"])
+        boundary_sequence = int(echo_summary["first_consumed_sequence"])
+    except (KeyError, TypeError, ValueError):
+        return {
+            "available": False,
+            "reason": "sealed metrics lack the RTDE/TP PATH boundary identity",
+            "force_source": "Kunwei KWR75 values from sealed command timeline",
+        }
+    if not math.isfinite(boundary_timestamp) or boundary_sequence < 0:
+        return {
+            "available": False,
+            "reason": "sealed RTDE/TP PATH boundary identity is invalid",
+            "force_source": "Kunwei KWR75 values from sealed command timeline",
+        }
+
+    frames = list(_rows(robot_frames_path))
+    frames.sort(key=lambda row: float(row["received_monotonic_s"]))
+    frame_times = [float(row["received_monotonic_s"]) for row in frames]
+    timeline_rows = [
+        row for row in _rows(timeline_path)
+        if row.get("reference_phase") == "path"
+    ]
+    matched: list[tuple[dict[str, Any], dict[str, Any], float]] = []
+    unmatched = 0
+    ambiguous = 0
+    for row in timeline_rows:
+        try:
+            host_time = float(row["host_monotonic_s"])
+            q = tuple(float(value) for value in row["actual_q_rad"])
+            qd = tuple(float(value) for value in row["actual_qd_rad_s"])
+        except (KeyError, TypeError, ValueError):
+            unmatched += 1
+            continue
+        if len(q) != 6 or len(qd) != 6 or not math.isfinite(host_time):
+            unmatched += 1
+            continue
+        insertion = bisect.bisect_right(frame_times, host_time)
+        candidate_indices = range(max(0, insertion - 4), min(len(frames), insertion + 2))
+        candidates = []
+        for index in candidate_indices:
+            frame = frames[index]
+            try:
+                frame_q = tuple(float(value) for value in frame.get("q_rad", ()))
+                frame_qd = tuple(float(value) for value in frame.get("qd_rad_s", ()))
+                received = float(frame["received_monotonic_s"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if frame_q == q and frame_qd == qd:
+                candidates.append((abs(received - host_time), frame))
+        if not candidates:
+            unmatched += 1
+            continue
+        if len(candidates) > 1:
+            ambiguous += 1
+        age, frame = min(candidates, key=lambda item: item[0])
+        matched.append((row, frame, age))
+
+    accepted: list[tuple[float, int, float, dict[str, Any]]] = []
+    seen: set[tuple[float, int]] = set()
+    previous: tuple[float, int] | None = None
+    rejected_state = 0
+    before_boundary = 0
+    duplicate_clock = 0
+    invalid_force = 0
+    for row, frame, _age in matched:
+        try:
+            echoes = frame.get("integer_echoes") or {}
+            state = int(echoes.get("26", echoes.get(26, -1)))
+            timestamp = float(frame["timestamp"])
+            sequence = int(frame["consumed_packet_sequence"])
+        except (KeyError, TypeError, ValueError):
+            unmatched += 1
+            continue
+        if state != 25:
+            rejected_state += 1
+            continue
+        if timestamp < boundary_timestamp or sequence < boundary_sequence:
+            before_boundary += 1
+            continue
+        path_time = timestamp - boundary_timestamp
+        if not math.isfinite(path_time) or not 0.0 <= path_time < DURATION_S:
+            before_boundary += 1
+            continue
+        identity = (timestamp, sequence)
+        if identity in seen:
+            duplicate_clock += 1
+            continue
+        if previous is not None:
+            if timestamp < previous[0] or sequence < previous[1]:
+                return {
+                    "available": False,
+                    "reason": "sealed RTDE/TP PATH identities regress in time",
+                    "matched_timeline_rows": len(matched),
+                    "unmatched_timeline_rows": unmatched,
+                }
+            if timestamp == previous[0] or sequence == previous[1]:
+                duplicate_clock += 1
+                continue
+        elif identity != (boundary_timestamp, boundary_sequence) and (
+            timestamp == boundary_timestamp or sequence == boundary_sequence
+        ):
+            duplicate_clock += 1
+            continue
+        try:
+            filtered = float(row["normal_force_filtered_n"])
+            measured = float(row["normal_force_measured_n"])
+            control = float(row["normal_force_control_n"])
+        except (KeyError, TypeError, ValueError):
+            invalid_force += 1
+            continue
+        if not all(math.isfinite(value) for value in (filtered, measured, control)):
+            invalid_force += 1
+            continue
+        accepted.append((timestamp, sequence, path_time, {
+            "normal_force_filtered_n": filtered,
+            "normal_force_measured_n": measured,
+            "normal_force_control_n": control,
+        }))
+        seen.add(identity)
+        previous = identity
+
+    windows: dict[str, Any] = {}
+    for window_name, start_s, end_s in (
+        ("window_0_60_s", 0.0, DURATION_S),
+        ("window_5_60_s", FORMAL_START_S, FORMAL_END_S),
+    ):
+        signal_results: dict[str, Any] = {}
+        for signal, source in (
+            ("normal_force_filtered_n", "accepted RTDE/TP-joined KWR75 filtered normal load"),
+            ("normal_force_measured_n", "accepted RTDE/TP-joined corrected KWR75 normal load"),
+            ("normal_force_control_n", "accepted RTDE/TP-joined normal load supplied to TASE"),
+        ):
+            samples = [
+                (path_time, values[signal])
+                for _timestamp, _sequence, path_time, values in accepted
+                if start_s <= path_time < end_s
+            ]
+            signal_results[signal] = {
+                "per_sample": _force_window(samples),
+                "equal_weight_100ms_bins": _bin_mean_force_window(
+                    samples, start_s=start_s, end_s=end_s, source_label=source,
+                ),
+            }
+        windows[window_name] = {
+            "window_s": [start_s, end_s],
+            "required_bins": int(round((end_s - start_s) / BIN_WIDTH_S)),
+            "sample_count": sum(start_s <= item[2] < end_s for item in accepted),
+            "signals": signal_results,
+        }
+
+    receipt_mae = metrics.get("normal_force_mae_n")
+    reconstructed = (
+        windows["window_5_60_s"]["signals"]["normal_force_filtered_n"]
+        ["equal_weight_100ms_bins"].get("bin_mean_mae_n")
+    )
+    delta = (
+        None if not isinstance(receipt_mae, (int, float))
+        or not isinstance(reconstructed, (int, float))
+        else float(reconstructed) - float(receipt_mae)
+    )
+    return {
+        "available": True,
+        "force_source": "Kunwei KWR75; not an independent task-force reference",
+        "path_time_source": "matched RTDE controller timestamp minus first consumed PATH RTDE timestamp",
+        "sample_identity": "unique ordered (RTDE controller timestamp, TP consumed packet sequence) pairs",
+        "matched_timeline_rows": len(matched),
+        "unmatched_timeline_rows": unmatched,
+        "ambiguous_nearest_frame_matches": ambiguous,
+        "rejected_non_path_state_rows": rejected_state,
+        "rejected_before_or_outside_path_boundary_rows": before_boundary,
+        "duplicate_rtde_or_tp_clock_rows": duplicate_clock,
+        "invalid_force_rows": invalid_force,
+        "reconstructed_accepted_path_sample_count": len(accepted),
+        "receipt_path_sample_count": receipt_path_sample_count,
+        "accepted_sample_count_delta_from_receipt": (
+            None if receipt_path_sample_count is None
+            else len(accepted) - int(receipt_path_sample_count)
+        ),
+        "windows": windows,
+        "official_score_crosscheck": {
+            "receipt_formal_550_bin_mae_n": receipt_mae,
+            "accepted_join_reconstructed_550_bin_mae_n": reconstructed,
+            "reconstruction_minus_receipt_n": delta,
+            "exact_match_within_1e-9_n": (
+                None if delta is None else abs(delta) <= 1e-9
+            ),
+            "metric_identity": "filtered KWR75 normal load, equal-weight 100 ms means, [5,60) bins",
+        },
     }
 
 
@@ -1010,20 +1222,31 @@ def reduce_attempt(attempt_dir: Path, *, verify_seal: bool = True,
         .get("window_5_60_s", {})
         .get("equal_weight_100ms_bins", {})
     )
-    filtered_reconstruction = filtered_formal.get("bin_mean_mae_n")
-    controller_trace["official_score_crosscheck"] = {
+    timeline_diagnostic = filtered_formal.get("bin_mean_mae_n")
+    accepted_path_force = _synchronized_path_force_diagnostics(
+        Path(segments["command_timeline"]["path"]),
+        Path(segments["robot_frames"]["path"]),
+        metrics=metrics,
+        receipt_path_sample_count=(item.get("evidence") or {}).get("path_samples"),
+    )
+    controller_trace["all_writer_tick_score_diagnostic"] = {
+        "all_tick_filtered_550_bin_mae_n": timeline_diagnostic,
         "receipt_formal_550_bin_mae_n": receipt_mae,
-        "filtered_timeline_reconstructed_550_bin_mae_n": filtered_reconstruction,
-        "reconstruction_minus_receipt_n": (
-            None if not isinstance(filtered_reconstruction, (int, float))
-            or not isinstance(receipt_mae, (int, float))
-            else float(filtered_reconstruction) - float(receipt_mae)
-        ),
-        "signal_identity": (
-            "official R013 score uses filtered_normal_n; this cross-check bins "
-            "normal_force_filtered_n from the sealed per-frame command timeline"
+        "interpretation": (
+            "This diagnostic bins every command_timeline control tick. It includes "
+            "repeated/cached RTDE or TP joins and is not the accepted PathSample score."
         ),
     }
+    controller_trace["official_score_crosscheck"] = (
+        accepted_path_force.get("official_score_crosscheck")
+        if accepted_path_force.get("available")
+        else {
+            "receipt_formal_550_bin_mae_n": receipt_mae,
+            "accepted_join_reconstruction_available": False,
+            "reason": accepted_path_force.get("reason"),
+            "receipt_remains_authoritative": True,
+        }
+    )
     return {
         "schema": SCHEMA,
         "campaign": attempt_dir.parent.parent.parent.name,
@@ -1071,6 +1294,7 @@ def reduce_attempt(attempt_dir: Path, *, verify_seal: bool = True,
             protocol_id=protocol,
             attempt=item,
         ),
+        "synchronized_path_force_diagnostics": accepted_path_force,
         "controller_trace": controller_trace,
         "force": force_diagnostics,
         "solver_timing_aggregate_available": bool(
