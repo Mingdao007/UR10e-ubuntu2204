@@ -349,3 +349,45 @@ Raw sample 的 `[5,60)` 低于 1 N 比例为 **26.78%**、最长连续段 **0.54
 QP 对 A 命令的变化主要集中在 J2/J4；加入 SFC tangent command 后，J2/J4 变化仍在，同时 J1/J3/J6 也出现约 2.1–3.1 mrad/s 的命令差。RNN+SFC phase-template residual 主要改变 J1/J3/J6。J5 在 A 自身与历史 `actual_qd` 的相关也只有 0.236，且三个候选的 J5 命令差均小于 0.15 mrad/s；仅凭该关节低 Pearson 不能判为候选造成了实质运动偏差。
 
 这组结果定位了**命令重新分配在哪些关节**，没有回答新命令执行后实际轨迹或法向力会如何变化。候选 force MAE 仍未计算，KWR75 source-A 指标仍是反馈诊断。因此不把 QP 或 SFC+QP 推升为 live 候选。五折逐关节数值与 source timeline identity 见[机器可读审计](tase_r32a_actual_qd_per_joint_proxy_20260927.json)，可复算入口为 [audit tool](../tools/audit_tase_actual_qd_proxy_per_joint.py)；测试覆盖逐关节汇总和历史响应与候选命令的区分，focused suite **6 passed**。
+
+## RNN 闭环因果模型复核 — 2026-09-27
+
+修订后的模型使用封存 profile `LEGACY_R1`：`r=1.0`、`epsilon=0.022`、单次 source-equation iteration，profile SHA-256 为 `eec81086740a3db789c9eed022a3f6422978dd4aca6f33c02bcc2cb1499748b0`。先前 S23 草稿把 `r` 设成 `0.2`，并把双状态实现约成单状态；该旧计算不能代表封存的实机控制器。修正后的连续传递形式为 `G(s)=A(ε²s²I+εsI+A)⁻¹`，其中 `A=JJᵀ`，并与逐帧离散源方程分开核对。
+
+在约 1.76 Hz 的实测循环频率上，对 288 个 Jacobian 的中位法向通道增益/相位为连续模型 **0.2268 / −70.2°**、精确 2 ms 离散模型 **0.2274 / −71.0°**。加入估计 9 ms 感测年龄后，简化线性环路的 −180° 相位穿越约为 **1.13 Hz**，没有复现实测 1.76 Hz；固定指令失接触场景预测正向法向实现中位延迟约 **86 ms**、245 ms 时约 **1.04 mm/s**，与事件中约 **56 ms、0.98 mm/s** 的中位量级部分相近，但仍不是闭环因果识别。封存 R32 trace 的 source-equation replay 对 **29,989** 行均重现发布 `qdot`；唯一差异位于 **11** 个已标记 host-slew 行，应用真实 delta-slew 后最大残差为 **8.7×10⁻¹⁹ rad/s**。复算依据：[修订问题定义与 S23 来源](</home/andy/Downloads/contact-task-formulation-opus-20260927/problem_formulation.md>)、[离线验证记录](</home/andy/Downloads/tase-restart-20260927/offline_validation.md>)、[source-equation replay receipt](</home/andy/Downloads/tase-restart-20260927/rnn_source_equation_replay_r32.json>)。
+
+按此模型做的简化闭环探针没有通过 A 基线复现门槛：当前 A 参数的模拟正式 filtered-bin MAE **4.92 N**、失接触比例 **68.7%**、峰值 **32.05 N**，而五条合格 A trace 的实测正式均值约 **1.04 N**。`Md/Bd ×8` 得到的 **0.68 N / 0% / 8.34 N** 是失配模型中的结果，明确作废为候选改善预测。该探针固定一个 Jacobian、未包括实测板面、moving Jacobian、力噪声、force-preempt、TP/host guards；在能复现基线循环、失接触比例和峰值之前，不能用它选任何 live 参数。
+
+## 当前分支决策与 fresh live gate — 2026-09-27 20:05 HKT
+
+v3 accepted-sample reducer 已通过 focused tests（本轮重跑 **4 passed**）：同一 sealed trace 使用 RTDE/TP consumed sequence 唯一关联，不插值、不补值；五条完整 attempt 的 550-bin MAE 与正式 receipt 差为 0 至 `2.2×10⁻¹⁶ N`。这解决的是样本集合对齐，未改变官方指标定义。raw 逐样本 MAE 与 raw 100 ms-bin MAE 的差主要来自先对 bin 内误差取均值再取绝对值，因此正负快速摆动会相互抵消；raw 与 0.35 s filtered 的差另属信号层差异。上述力值全部是 Kunwei KWR75 feedback，不是独立 task-force truth。
+
+| 决策节点 | 当前证据 | 处理 |
+|---|---|---|
+| sample identity / score 对齐？ | v3 join 与官方 receipt 精确一致；raw 与 filtered、sample 与 bin 的定义已分开 | 通过；保留现有 MAE 口径 |
+| A baseline model 能否复现？ | 修正 S23 后相位穿越仍为 1.13 Hz；简化闭环 A 为 4.92 N、峰值 32.05 N，与实测基线不符 | 不准用模型挑参；下一步先补齐真实闭环组件并达到 baseline reproduction gate |
+| 当前 D anti-windup 是否有 live 信号？ | downstream-only 反事实把最终实现/host-slew freeze 从 21,462 次降至 3 次，但命令变化极小且没有 candidate force MAE | 不重跑同一 D；保留 A=1.0 N·s |
+| normal-priority QP 是否已具备精度候选？ | `rho=0.1 / scaling=10 / eps=1e-8 / max_iter=800` 五条固定输入都完成 600/600 PATH bins；candidate force MAE 为 null，`live_eligible=false`。source-A `actual_qd` 固定观测代理为 0.723–0.754，不能当候选运动 gate 通过 | 只保留离线；没有进入 live 的力精度证据，详见 [five-source QP budget receipt](../runs/tase-r32a-qp-iterbudget-800-five-a-20260927/summary.json) |
+| SFC+TASE 是否具备 live 依据？ | closed-loop force score 缺失，切向 KWR75 分量与 baseline path 方向多数相反 | 不翻转符号或晋升；等待可辨识、同输入闭环证据 |
+
+本轮 fresh preflight receipt：[状态快照](</home/andy/Downloads/tase-restart-20260927/fresh-preflight-20260927T2004HKT/fresh-preflight-state.json>)。Dashboard 为 Remote true、Safety NORMAL、IDLE、程序 STOPPED（当前只读到已加载 `step5d_contact_six_qp_v1.urp`）；RTDE 连续 2 s、21 帧且 `actual_qd=0`。但相对批准 Autotuner `home_q` 的最大关节误差 **0.01158 rad > 0.010 rad**，TCP 位置差 **5.96 mm > 2 mm**，姿态差 **10.03 mrad > 5 mrad**，所以当前不是 verified Home。Payload/CoG/TCP fresh read-back 分别为 `0.413 kg`、`[0.0011,0.0031,0.0163] m`、`[0,0,0.0874,0,0,0]`，与短 EOAT profile 一致。Kunwei 被动采集 **1,991** 帧、**992.74 Hz**、0 parse errors、4 dropped sync bytes；raw manual-axis 均值保存在该目录，未 zero/tare。当前 writer/bridge 进程未见且 global writer lock 空闲。相机只能观察末端与工件，不能证明完整 joint-Home 扫掠净空；因此没有 brake release、Home、Load/Play、接触或运动指令。收到现场对短 EOAT、人员及全扫掠路径/线缆净空的确认后，仍需按同一 owner fresh gate 再评估；本段状态有时间戳，不构成后续运动授权。
+
+当前可执行分支因此是：先完成 baseline-faithful 的离线闭环重建；只有它复现 A 的误差/失接触/峰值，才对一个机制做离线单因子反事实。未识别稳定 `M/K/B` 前不按 `ζ=0.707` 换算参数；未证明 QP 的 live motion/timing gate 前不发 QP；未得到 SFC+TASE candidate 的闭环 KWR75 力指标前不做实机比较。真实候选进入比较时仍以同条件 A 为对照，完整 60 s、rate460、joint Home recovery 与配对 `ΔMAE≥0.10 N`、95% CI 下界 `>0` 为准。
+
+```mermaid
+flowchart TD
+    A{"Fresh joint Home + full swept-path clearance + single writer?"}
+    A -- No --> B["Hold all robot motion; continue offline work"]
+    A -- Yes --> C["Restore and freshly verify Autotuner joint Home"]
+    C --> D{"Complete 60 s PATH and each rate layer >=460 Hz?"}
+    D -- No --> E["Keep failed attempt; diagnose first timing or lifecycle fault"]
+    D -- Yes --> F{"Baseline-faithful closed-loop model reproduces A cycle, loss and peak?"}
+    F -- No --> G["Fix offline model; do not tune from its candidate scores"]
+    F -- Yes --> H{"QP passes full-path solver, motion and timing gates?"}
+    H -- No --> I["Reject QP live branch; preserve offline evidence"]
+    H -- Yes --> J{"Paired MAE gain >=0.10 N and 95% CI lower bound >0?"}
+    J -- No --> K["Retain A incumbent; stop or test next isolated candidate"]
+    J -- Yes --> L["Freeze QP; then compare SFC+TASE under the same contract"]
+```
+
+当前路径在首个节点即为 **No**；这不停止离线分析，但禁止据此尝试回 Home 或开始接触。
