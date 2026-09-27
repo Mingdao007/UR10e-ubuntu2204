@@ -1,0 +1,231 @@
+{
+  "candidate_desired_twist_trace": null,
+  "candidate_force_mae_recomputed": false,
+  "candidate_is_not_closed_loop": true,
+  "candidate_solver_failures": [],
+  "candidate_solver_path_complete": true,
+  "fixed_observation_actual_qd_proxy": {
+    "candidate_force_mae": null,
+    "candidate_frame_coverage_of_joined_source": 1.0,
+    "candidate_matched_consumed_frames": 28808,
+    "candidate_qdot_vs_historical_actual_qd_pearson": 0.8436016400128183,
+    "diagnostic_only": true,
+    "interpretation": "The source RTDE actual_qd belongs to the historical source controller; candidate commands were not applied to the robot. This correlation cannot pass or replace the live motion gate.",
+    "metric": "flattened_pearson_command_qdot_vs_historical_rtde_actual_qd_on_same_consumed_packet",
+    "not_candidate_actual_qd": true,
+    "not_live_gate": true,
+    "source_join_counts": {
+      "formal_path_command_joins": 28808,
+      "held_or_duplicate_rows_filtered": 1148,
+      "state25_rows_without_formal_path_command": 503,
+      "state25_rtde_rows": 30459
+    },
+    "source_published_qdot_vs_historical_actual_qd_pearson": 0.8486271490045678
+  },
+  "formal_bins": 550,
+  "formal_rows": 27453,
+  "formal_window_s": [
+    5.0,
+    60.0
+  ],
+  "hardware_or_endpoint_action": false,
+  "interpretation_limit": "The candidate qdot sequence is replayed against frozen source observations, Jacobians, joint limits, and recorded slew deltas. When an explicit desired-twist trace is supplied it is consumed row-by-row after timestamp checks. Force observations are not fed back through the new controller; the source MAE is not a candidate score and no real candidate actual_qd exists.",
+  "live_eligible": false,
+  "method_id": "TASE_QP_NORMAL_PRIORITY_LEXICOGRAPHIC_OFFLINE_V1",
+  "metrics": {
+    "four_qp_stage_total_s": {
+      "max": 0.000296802987744838,
+      "median": 0.00017157905365797877,
+      "p95": 0.00017928338378862143,
+      "p99": 0.00019230780915995477
+    },
+    "full_path_four_qp_stage_total_s": {
+      "max": 0.0003574659564062655,
+      "median": 0.00017163898437803985,
+      "p95": 0.00017942425922073423,
+      "p99": 0.00019219297107717992
+    },
+    "full_path_stage_iteration_count": [
+      {
+        "max": 13.0,
+        "median": 9.0,
+        "p95": 11.0,
+        "p99": 12.0
+      },
+      {
+        "max": 202.0,
+        "median": 21.0,
+        "p95": 24.0,
+        "p99": 90.0
+      },
+      {
+        "max": 13.0,
+        "median": 10.0,
+        "p95": 10.0,
+        "p99": 11.0
+      },
+      {
+        "max": 0.0,
+        "median": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      }
+    ],
+    "full_path_stage_solve_time_s": [
+      {
+        "max": 1.7953e-05,
+        "median": 4.188e-06,
+        "p95": 4.779e-06,
+        "p99": 5.079e-06
+      },
+      {
+        "max": 5.2278e-05,
+        "median": 7.223e-06,
+        "p95": 8.206e-06,
+        "p99": 2.4610500000000008e-05
+      },
+      {
+        "max": 0.0003430089564062655,
+        "median": 0.00016022799536585808,
+        "p95": 0.00016608998703304678,
+        "p99": 0.00017489049641881139
+      },
+      {
+        "max": 0.0,
+        "median": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      }
+    ],
+    "maximum_box_violation_rad_s": {
+      "max": 8.416783850613563e-08,
+      "median": 0.0,
+      "p95": 0.0,
+      "p99": 0.0
+    },
+    "maximum_locked_task_equality_residual": {
+      "max": 5.31366105955243e-09,
+      "median": 1.3739976177759745e-09,
+      "p95": 1.880298724756196e-09,
+      "p99": 1.9981855878400347e-09
+    },
+    "normal_task_residual_m_s": {
+      "max": 1.3296940320952494e-08,
+      "median": 3.6721324077749855e-09,
+      "p95": 1.0448430102378141e-08,
+      "p99": 1.1843113297540716e-08
+    },
+    "orientation_task_residual_norm_rad_s": {
+      "max": 0.0037957863172066912,
+      "median": 4.591900460052409e-09,
+      "p95": 6.075511651449462e-09,
+      "p99": 0.00029727966601254656
+    },
+    "qdot_delta_vs_source_command_norm_rad_s": {
+      "max": 0.021776300595889066,
+      "median": 2.9508247522555074e-08,
+      "p95": 1.4852689510682887e-05,
+      "p99": 0.007172948460406299
+    },
+    "stage_iteration_count": [
+      {
+        "max": 13.0,
+        "median": 9.0,
+        "p95": 11.0,
+        "p99": 13.0
+      },
+      {
+        "max": 202.0,
+        "median": 21.0,
+        "p95": 24.0,
+        "p99": 93.0
+      },
+      {
+        "max": 13.0,
+        "median": 10.0,
+        "p95": 10.0,
+        "p99": 11.0
+      },
+      {
+        "max": 0.0,
+        "median": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      }
+    ],
+    "stage_solve_time_s": [
+      {
+        "max": 1.7953e-05,
+        "median": 4.188e-06,
+        "p95": 4.779e-06,
+        "p99": 5.074319999999996e-06
+      },
+      {
+        "max": 5.2278e-05,
+        "median": 7.224e-06,
+        "p95": 8.225399999999998e-06,
+        "p99": 2.5111319999999996e-05
+      },
+      {
+        "max": 0.000281994987744838,
+        "median": 0.00016016897279769182,
+        "p95": 0.0001657690154388547,
+        "p99": 0.00017464979086071253
+      },
+      {
+        "max": 0.0,
+        "median": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      }
+    ],
+    "tangent_task_residual_norm_m_s": {
+      "max": 0.007201313000302284,
+      "median": 4.336808689942018e-19,
+      "p95": 9.69739903612216e-19,
+      "p99": 0.002334433343312826
+    }
+  },
+  "normal_basis_source": "fixed approved TASE base-Z reaction axis; no surface geometry",
+  "numerical_profile": {
+    "bounds": "captured joint qdot bounds intersected with per-tick dynamic slew interval rebuilt from candidate's previous qdot and recorded delta",
+    "eps_abs": 1e-08,
+    "eps_rel": 1e-08,
+    "force_source_used_for_scoring": null,
+    "max_iter_per_stage": 400,
+    "new_physical_slack_or_weight": null,
+    "osqp_rho": 0.1,
+    "osqp_scaling": 0,
+    "stage_count": 4,
+    "stage_methods": [
+      "osqp_normal",
+      "osqp_orientation",
+      "two_dimensional_active_set",
+      "unique_task_realization_no_tiebreak_solve"
+    ]
+  },
+  "path_bins": 600,
+  "path_first_time_s": 0.0,
+  "path_last_time_s": 59.999959470995236,
+  "path_rows": 29956,
+  "path_window_s": [
+    0.0,
+    60.0
+  ],
+  "schema": "tase.qp-normal-priority-fixed-input-replay-v1",
+  "solver_path_rows_completed": 29956,
+  "solver_rows_completed": 27453,
+  "solver_state_started_at_path_origin": true,
+  "source_attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001",
+  "source_candidate_id": "figure8-rate460-integral-1p0-A-baseline",
+  "source_command_timeline": {
+    "path": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-r31-qp-matched-a-rate460-20260925T1615HKT/attempts/0001/command_timeline.jsonl",
+    "sha256": "f9bfa7cfbdc3e910685ce8f92a15f18f25791b1ae9e2754afb670e862cac33d4"
+  },
+  "source_evidence_eligible": false,
+  "source_home_verified": true,
+  "source_official_mae_n_diagnostic_only": 0.9501390239556037,
+  "source_path_complete": true,
+  "source_protocol_id": "figure8_window60_r013_rate460_v1",
+  "status": "offline_fixed_input_command_replay_only"
+}

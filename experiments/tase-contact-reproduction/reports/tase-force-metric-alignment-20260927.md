@@ -192,6 +192,8 @@ solver 对 OSQP 数值配置敏感：同输入下 `rho=0.01` 的先前 formal-on
 
 在 `rho=0.1 / scaling=0` 下，matched-A formal window 最大锁定任务等式误差为 **5.31e-9**、最大 box 越界 **8.42e-8 rad/s**；SFC+TASE-QP 的对应数值为 **2.26e-9** 和 **0 rad/s**。SFC 组合从 PATH 0 秒开始对齐 source trace，正式窗口切向残差最大 **3.13e-18 m/s**；旧 formal-only 初始化造成的 **2.411 mm/s** 表观残差消失。这个命令可行性结果仍不是实际运动改善。
 
+为检查 normal-priority QP 是否可能解决先前的 `actual_qd` motion-gate 失败，我把其 matched-A fixed-input command 与同一 sealed attempt 的 RTDE consumed-sequence 帧做了**完整 `[0,60)` PATH**代理比较。源 published qdot 的同序列 Pearson 为 **0.848627**，复现原 gate **0.848607**；反事实 QP qdot 对这批**由旧 solver 产生的** actual_qd 为 **0.843602**。因此这组固定观测没有给 QP 带来 motion-gate 正向信号。它仍不是候选 actual_qd、不能判候选 live gate 成败，也不生成 force MAE。receipt 保存在 [actual-qdot proxy replay](tase_qp_normal_priority_actual_qd_proxy_20260927.json)；这个 replay 的数值 profile 使用 `rho=0.1 / scaling=0`，尚未批准 live。
+
 上述 timing 是本机固定输入离线 replay 的计算时间，不包括 live host/TP 通信、Kunwei、RTDE、writer 周期或 OS 调度，因此不证明 460 Hz。三种 stateful replay 都没有候选 force MAE；力、TCP/Jacobian 和下一帧观测固定来自 source trace，不生成候选闭环 `actual_qd`。复算代码为 [offline QP solver](../tools/tase_qp_normal_priority_offline.py) 与 [stateful fixed-input replay](../tools/replay_tase_qp_normal_priority.py)，5 项 focused tests 通过。逐 attempt receipts：[原 profile full-path 拒绝](tase_r31_qpmatched_normal_priority_replay_20260927_v10_default_fullpath.json)、[matched-A full-path](tase_r31_qpmatched_normal_priority_replay_20260927_v9_scale0_fullpath.json)、[BO-10 full-path 压力输入](tase_r31_qpbo10_normal_priority_replay_20260927_scale0_fullpath.json)、[SFC+TASE-QP full-path 组合](tase_r32a_sfc_plus_tase_qp_command_replay_20260927_scale0_fullpath.json)。
 
 ## 下一步

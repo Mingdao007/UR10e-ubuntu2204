@@ -13,6 +13,7 @@ from tase_qp_normal_priority_offline import (  # noqa: E402
     LexicographicTaseQpError,
     solve_normal_priority_qp,
 )
+from replay_tase_qp_normal_priority import _fixed_observation_actual_qd_proxy  # noqa: E402
 
 
 def _case():
@@ -78,3 +79,35 @@ def test_lexicographic_qp_rejects_nonpositive_rho():
 def test_lexicographic_qp_rejects_negative_osqp_scaling():
     with pytest.raises(LexicographicTaseQpError, match="osqp_scaling"):
         solve_normal_priority_qp(**_case(), osqp_scaling=-1)
+
+
+def test_actual_qd_proxy_uses_full_consumed_path_and_never_claims_live_gate():
+    first = [float(value) for value in range(1, 7)]
+    second = [-value for value in first]
+    commands = {
+        10: {"reference_phase": "path", "packet_sequence": 10,
+             "published_packet_qdot_rad_s": first},
+        11: {"reference_phase": "path", "packet_sequence": 11,
+             "published_packet_qdot_rad_s": second},
+    }
+    frames = [
+        {"integer_echoes": {"26": "25"}, "timestamp": 1.0,
+         "consumed_packet_sequence": 10, "qd_rad_s": [0.9 * value for value in first]},
+        {"integer_echoes": {"26": "25"}, "timestamp": 2.0,
+         "consumed_packet_sequence": 11, "qd_rad_s": [0.9 * value for value in second]},
+        {"integer_echoes": {"26": "25"}, "timestamp": 2.0,
+         "consumed_packet_sequence": 11, "qd_rad_s": [0.9 * value for value in second]},
+    ]
+    result = _fixed_observation_actual_qd_proxy(
+        frames=frames,
+        commands_by_sequence=commands,
+        candidate_qdot_by_sequence={10: second, 11: first},
+    )
+
+    assert result["candidate_matched_consumed_frames"] == 2
+    assert result["source_join_counts"]["held_or_duplicate_rows_filtered"] == 1
+    assert result["source_published_qdot_vs_historical_actual_qd_pearson"] == pytest.approx(1.0)
+    assert result["candidate_qdot_vs_historical_actual_qd_pearson"] == pytest.approx(-1.0)
+    assert result["not_candidate_actual_qd"] is True
+    assert result["not_live_gate"] is True
+    assert result["candidate_force_mae"] is None

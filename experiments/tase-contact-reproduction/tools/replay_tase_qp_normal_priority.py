@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from analyze_qp_motion_gate import common_clock_join, pearson
 
 from audit_tase_qp_hard_task_feasibility import validate_attempt_protocol
 from audit_tase_qp_replay_inputs import verify_seal
@@ -56,6 +57,59 @@ def _summary(values: list[float]) -> dict[str, float]:
         raise ReplayError("candidate summary has no finite samples")
     q = np.quantile(array, (0.5, 0.95, 0.99, 1.0))
     return {"median": float(q[0]), "p95": float(q[1]), "p99": float(q[2]), "max": float(q[3])}
+
+
+def _fixed_observation_actual_qd_proxy(
+    *,
+    frames: list[dict[str, Any]],
+    commands_by_sequence: dict[int, dict[str, Any]],
+    candidate_qdot_by_sequence: dict[int, list[float]],
+) -> dict[str, Any]:
+    """Compare candidate commands with historical RTDE response on identical consumed packets.
+
+    This is only a fixed-observation screening proxy: the actual_qd values were
+    produced by the source controller, not by this counterfactual candidate.
+    """
+    joined, join_counts = common_clock_join(frames, commands_by_sequence)
+    matched = [row for row in joined if row[0] in candidate_qdot_by_sequence]
+    source_qdot = [
+        float(value)
+        for _, _, command in matched
+        for value in command["published_packet_qdot_rad_s"]
+    ]
+    candidate_qdot = [
+        float(value)
+        for sequence, _, _ in matched
+        for value in candidate_qdot_by_sequence[sequence]
+    ]
+    actual_qd = [
+        float(value)
+        for _, frame, _ in matched
+        for value in frame["qd_rad_s"]
+    ]
+    return {
+        "metric": "flattened_pearson_command_qdot_vs_historical_rtde_actual_qd_on_same_consumed_packet",
+        "diagnostic_only": True,
+        "not_candidate_actual_qd": True,
+        "not_live_gate": True,
+        "candidate_force_mae": None,
+        "source_join_counts": join_counts,
+        "candidate_matched_consumed_frames": len(matched),
+        "candidate_frame_coverage_of_joined_source": (
+            len(matched) / len(joined) if joined else 0.0
+        ),
+        "source_published_qdot_vs_historical_actual_qd_pearson": pearson(
+            source_qdot, actual_qd
+        ),
+        "candidate_qdot_vs_historical_actual_qd_pearson": pearson(
+            candidate_qdot, actual_qd
+        ),
+        "interpretation": (
+            "The source RTDE actual_qd belongs to the historical source controller; "
+            "candidate commands were not applied to the robot. This correlation cannot "
+            "pass or replace the live motion gate."
+        ),
+    }
 
 
 def _tangent_basis(normal: np.ndarray) -> np.ndarray:
@@ -114,6 +168,8 @@ def replay_attempt(
     path_solve_total_s: list[float] = []
     path_solve_stage_s: list[list[float]] = [[], [], [], []]
     path_iterations: list[list[int]] = [[], [], [], []]
+    path_commands_by_sequence: dict[int, dict[str, Any]] = {}
+    candidate_qdot_by_sequence: dict[int, list[float]] = {}
     stage_methods: tuple[str, ...] | None = None
     row_failures: list[dict[str, Any]] = []
     path_rows = 0
@@ -155,6 +211,7 @@ def replay_attempt(
                 raise ReplayError("PATH packet sequence regressed")
             previous_sequence = sequence
             path_rows += 1
+            path_commands_by_sequence[sequence] = row
             path_bins.add(int(math.floor((time_s - PATH_START_S) / 0.1 + 1e-9)))
             is_formal = FORMAL_START_S <= time_s < FORMAL_END_S
             if is_formal:
@@ -216,6 +273,7 @@ def replay_attempt(
                 })
                 break
             qdot = np.asarray(solved.qdot_rad_s, dtype=float)
+            candidate_qdot_by_sequence[sequence] = [float(value) for value in qdot]
             previous_candidate_qdot = qdot
             if stage_methods is None:
                 stage_methods = tuple(solved.stage_methods)
@@ -263,6 +321,17 @@ def replay_attempt(
         qdot_change_norm = np.linalg.norm(delta, axis=1)
     else:
         qdot_change_norm = np.asarray([], dtype=float)
+    robot_frames_path = Path(verified["robot_frames"]["path"])
+    robot_frames = [
+        json.loads(line)
+        for line in robot_frames_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    actual_qd_proxy = _fixed_observation_actual_qd_proxy(
+        frames=robot_frames,
+        commands_by_sequence=path_commands_by_sequence,
+        candidate_qdot_by_sequence=candidate_qdot_by_sequence,
+    )
     return {
         "schema": SCHEMA,
         "status": "offline_fixed_input_command_replay_only",
@@ -309,6 +378,7 @@ def replay_attempt(
         "candidate_solver_failures": row_failures,
         "candidate_force_mae_recomputed": False,
         "candidate_is_not_closed_loop": True,
+        "fixed_observation_actual_qd_proxy": actual_qd_proxy,
         "metrics": {
             "normal_task_residual_m_s": _summary(normal_residuals) if normal_residuals else None,
             "orientation_task_residual_norm_rad_s": _summary(orientation_residual_norms) if orientation_residual_norms else None,
