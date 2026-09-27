@@ -26,6 +26,9 @@ from step5d_paper_outer_loop import rotvec_to_matrix
 
 SCHEMA = "tase-sfc-tangent-augmentation-runtime-v1"
 METHOD_ID = "TASE_RNN_MATURE+SFC_TANGENT_AUGMENT_V1"
+PHASE_TEMPLATE_METHOD_ID = "TASE_RNN_MATURE+SFC_TANGENT_PHASE_TEMPLATE_RESIDUAL_V1"
+PHASE_TEMPLATE_SCHEMA = "tase.sfc-path-phase-template-v1"
+PHASE_TEMPLATE_CONFIG_REL = "config/tase_sfc_phase_template_a_v1.json"
 LAW_CONFIG_REL = "config/yield_native_route_v1.json"
 MAX_NATIVE_STEP_S = 0.004
 _PARAMETER_NAMES = ("m", "mu", "n", "g")
@@ -55,6 +58,116 @@ def load_frozen_sfc_parameters(root: Path | None = None) -> dict[str, float]:
     return parameters
 
 
+def load_phase_force_template(
+    path: Path | None = None,
+    *,
+    allow_leave_one_out: bool = False,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    """Load the frozen 600-bin KWR75 tangent-force template for offline replay.
+
+    This template is an additional model input, not a force-truth signal or a
+    fallback sensor. Its source attempts and phase convention travel with the
+    values so replay receipts can identify the exact learned table.
+    """
+    template_path = (
+        Path(path)
+        if path is not None
+        else Path(__file__).resolve().parents[1] / PHASE_TEMPLATE_CONFIG_REL
+    )
+    try:
+        document = json.loads(template_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise TaseSfcTangentAugmentationError(
+            f"SFC phase-force template is unreadable: {exc}"
+        ) from exc
+    if (
+        not isinstance(document, Mapping)
+        or document.get("schema") != PHASE_TEMPLATE_SCHEMA
+        or document.get("protocol_id") != "figure8_window60_r013_rate460_v1"
+        or document.get("window_s") != [0.0, 60.0]
+        or document.get("bin_width_s") != 0.1
+        or document.get("bin_count") != 600
+        or document.get("frame") != "base"
+        or document.get("force_source") != "baseline-corrected Kunwei KWR75"
+    ):
+        raise TaseSfcTangentAugmentationError(
+            "SFC phase-force template identity or grid differs"
+        )
+    template_id = document.get("template_id")
+    sources = document.get("source_attempts")
+    physical_binding = document.get("physical_binding")
+    values = _finite_vector_table(
+        document.get("phase_mean_tangent_force_base_n"),
+        (600, 3),
+        "phase_mean_tangent_force_base_n",
+    )
+    if not isinstance(template_id, str) or not template_id:
+        raise TaseSfcTangentAugmentationError("SFC phase-force template id is missing")
+    if (
+        not isinstance(physical_binding, Mapping)
+        or not isinstance(physical_binding.get("home_profile_id"), str)
+        or not isinstance(physical_binding.get("eoat_identity_sha256"), str)
+        or len(physical_binding["eoat_identity_sha256"]) != 64
+        or not isinstance(physical_binding.get("controller_identity"), Mapping)
+        or not isinstance(physical_binding.get("controller_readback_triplet"), Mapping)
+    ):
+        raise TaseSfcTangentAugmentationError(
+            "SFC phase-force template physical binding is missing or invalid"
+        )
+    accepted_source_counts = {4, 5} if allow_leave_one_out else {5}
+    if not isinstance(sources, list) or len(sources) not in accepted_source_counts:
+        raise TaseSfcTangentAugmentationError(
+            "SFC phase-force template source count is invalid for this route"
+        )
+    expected_scope = (
+        "five-attempt-frozen-template"
+        if len(sources) == 5 else "four-attempt-leave-one-out-template"
+    )
+    if document.get("training_scope") != expected_scope:
+        raise TaseSfcTangentAugmentationError("SFC phase-force template training scope differs")
+    for source in sources:
+        if (
+            not isinstance(source, Mapping)
+            or not isinstance(source.get("attempt_id"), str)
+            or not source["attempt_id"]
+            or not isinstance(source.get("timeline_sha256"), str)
+            or len(source["timeline_sha256"]) != 64
+            or any(c not in "0123456789abcdef" for c in source["timeline_sha256"])
+        ):
+            raise TaseSfcTangentAugmentationError(
+                "SFC phase-force template source binding is invalid"
+            )
+    values.setflags(write=False)
+    binding = {
+        "schema": PHASE_TEMPLATE_SCHEMA,
+        "template_id": template_id,
+        "training_scope": expected_scope,
+        "source_file": str(template_path),
+        "protocol_id": document["protocol_id"],
+        "window_s": list(document["window_s"]),
+        "bin_width_s": float(document["bin_width_s"]),
+        "bin_count": int(document["bin_count"]),
+        "frame": document["frame"],
+        "force_source": document["force_source"],
+        "training_attempt_ids": [source["attempt_id"] for source in sources],
+        "training_timeline_sha256": [source["timeline_sha256"] for source in sources],
+        "physical_binding": copy.deepcopy(dict(physical_binding)),
+    }
+    return values, binding
+
+
+def _finite_vector_table(value: Any, shape: tuple[int, int], name: str) -> np.ndarray:
+    try:
+        table = np.asarray(value, dtype=float)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise TaseSfcTangentAugmentationError(f"{name} must be a finite matrix") from exc
+    if table.shape != shape or not np.isfinite(table).all():
+        raise TaseSfcTangentAugmentationError(
+            f"{name} must be a finite matrix with shape {shape}"
+        )
+    return table.copy()
+
+
 def _finite_vector(value: Any, width: int, name: str) -> np.ndarray:
     try:
         result = np.asarray(value, dtype=float)
@@ -75,7 +188,8 @@ class TaseSfcTangentAugmentationRuntime:
 
     _LOCAL = {
         "_runtime", "_provider", "_law", "_parameters", "_parameter_source",
-        "_active_path", "_last_diagnostics", "_closed",
+        "_active_path", "_last_diagnostics", "_closed", "_phase_force_template",
+        "_phase_template_binding",
     }
 
     def __init__(
@@ -86,6 +200,8 @@ class TaseSfcTangentAugmentationRuntime:
         parameters: Mapping[str, Any] | None = None,
         root: Path | None = None,
         law_factory: Callable[..., Any] = YieldLaw,
+        phase_force_template_base_n: Any | None = None,
+        phase_template_binding: Mapping[str, Any] | None = None,
     ) -> None:
         object.__setattr__(self, "_runtime", runtime)
         object.__setattr__(self, "_provider", provider)
@@ -98,12 +214,42 @@ class TaseSfcTangentAugmentationRuntime:
         frozen = load_frozen_sfc_parameters(root)
         if selected != frozen:
             raise TaseSfcTangentAugmentationError("SFC parameters differ from the frozen native route")
+        if phase_force_template_base_n is None:
+            if phase_template_binding is not None:
+                raise TaseSfcTangentAugmentationError(
+                    "phase-template binding was supplied without the template"
+                )
+            phase_template = None
+            phase_binding = None
+        else:
+            phase_template = _finite_vector_table(
+                phase_force_template_base_n,
+                (600, 3),
+                "phase_force_template_base_n",
+            )
+            if not isinstance(phase_template_binding, Mapping):
+                raise TaseSfcTangentAugmentationError(
+                    "phase-template binding is required with the template"
+                )
+            if (
+                phase_template_binding.get("schema") != PHASE_TEMPLATE_SCHEMA
+                or phase_template_binding.get("protocol_id") != "figure8_window60_r013_rate460_v1"
+                or not isinstance(phase_template_binding.get("template_id"), str)
+                or not phase_template_binding.get("template_id")
+            ):
+                raise TaseSfcTangentAugmentationError(
+                    "phase-template binding identity differs"
+                )
+            phase_template.setflags(write=False)
+            phase_binding = copy.deepcopy(dict(phase_template_binding))
         object.__setattr__(self, "_parameters", dict(selected))
         object.__setattr__(self, "_parameter_source", LAW_CONFIG_REL + "#law_parameters.SFC")
-        object.__setattr__(self, "_law", law_factory("SFC", selected, dt_s=MAX_NATIVE_STEP_S))
         object.__setattr__(self, "_active_path", False)
         object.__setattr__(self, "_last_diagnostics", None)
         object.__setattr__(self, "_closed", False)
+        object.__setattr__(self, "_phase_force_template", phase_template)
+        object.__setattr__(self, "_phase_template_binding", phase_binding)
+        object.__setattr__(self, "_law", law_factory("SFC", selected, dt_s=MAX_NATIVE_STEP_S))
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._runtime, name)
@@ -116,19 +262,31 @@ class TaseSfcTangentAugmentationRuntime:
 
     @property
     def composition_binding(self) -> dict[str, Any]:
-        return {
+        phase_template = self._phase_template_binding
+        binding = {
             "schema": SCHEMA,
-            "method_id": METHOD_ID,
+            "method_id": METHOD_ID if phase_template is None else PHASE_TEMPLATE_METHOD_ID,
             "tangential_law": "SFC",
             "tangential_parameters": dict(self._parameters),
             "parameter_source": self._parameter_source,
             "normal_controller": "TASE_RNN_MATURE",
             "normal_axis_source": "TaseContactProvider.command_normal_base",
-            "force_source": "baseline-corrected Kunwei KWR75 sensor.wrench",
-            "path_semantics": "retain TASE twist and add only its projected tangent SFC velocity",
+            "force_source": (
+                "baseline-corrected Kunwei KWR75 sensor.wrench"
+                if phase_template is None
+                else "baseline-corrected Kunwei KWR75 tangent residual after path-phase template subtraction"
+            ),
+            "path_semantics": (
+                "retain TASE twist and add only its projected tangent SFC velocity"
+                if phase_template is None
+                else "retain TASE twist and add projected tangent SFC velocity driven by the frozen phase-template residual"
+            ),
             "path_spring": None,
             "final_joint_realizer": "existing TASE runtime command, one call per provider command",
         }
+        if phase_template is not None:
+            binding["phase_force_template"] = copy.deepcopy(phase_template)
+        return binding
 
     def _path_projection(self, normal_value: Any) -> tuple[np.ndarray, np.ndarray]:
         normal = _finite_vector(normal_value, 3, "TASE command normal")
@@ -170,6 +328,7 @@ class TaseSfcTangentAugmentationRuntime:
             actual_tcp_pose=kwargs.get("actual_tcp_pose"),
             force_tcp_n=kwargs.get("force_tcp_n"),
             actual_dt_s=kwargs.get("actual_dt_s"),
+            path_time_s=kwargs.get("path_time_s"),
             update_outer_feedback=True,
         )
 
@@ -182,6 +341,7 @@ class TaseSfcTangentAugmentationRuntime:
         actual_tcp_pose: Any,
         force_tcp_n: Any,
         actual_dt_s: Any,
+        path_time_s: Any | None = None,
         update_outer_feedback: bool = False,
     ) -> tuple[float, ...]:
         """Apply the same production SFC projection to a recorded TASE twist.
@@ -203,7 +363,7 @@ class TaseSfcTangentAugmentationRuntime:
                 "schema": SCHEMA,
                 "phase": phase,
                 "active": False,
-                "method_id": METHOD_ID,
+                "method_id": self.composition_binding["method_id"],
             }
             return tuple(float(value) for value in base_twist)
 
@@ -222,7 +382,27 @@ class TaseSfcTangentAugmentationRuntime:
         if rotation.shape != (3, 3) or not np.isfinite(rotation).all():
             raise TaseSfcTangentAugmentationError("actual TCP rotation is invalid")
         force_base = rotation @ force_tcp
-        tangent_force = tangent_projector @ force_base
+        raw_tangent_force = tangent_projector @ force_base
+        phase_template_force = np.zeros(3, dtype=float)
+        tangent_force = raw_tangent_force.copy()
+        if self._phase_force_template is not None:
+            try:
+                phase_time = finite_scalar(path_time_s, "SFC phase-template path_time_s")
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise TaseSfcTangentAugmentationError(
+                    "SFC phase-template path_time_s must be finite"
+                ) from exc
+            if not 0.0 <= phase_time < 60.0:
+                raise TaseSfcTangentAugmentationError(
+                    "SFC phase-template time must lie inside [0,60) seconds"
+                )
+            phase_bin = int(math.floor(phase_time / 0.1 + 1e-9))
+            if not 0 <= phase_bin < 600:
+                raise TaseSfcTangentAugmentationError(
+                    "SFC phase-template bin is outside its frozen 600-bin table"
+                )
+            phase_template_force = tangent_projector @ self._phase_force_template[phase_bin]
+            tangent_force -= phase_template_force
         step_count = max(1, int(math.ceil(elapsed / MAX_NATIVE_STEP_S)))
         step_dt_s = elapsed / step_count
         tangent_velocity = np.zeros(3, dtype=float)
@@ -278,6 +458,8 @@ class TaseSfcTangentAugmentationRuntime:
             "native_substep_dt_s": step_dt_s,
             "kunwei_force_tcp_n": force_tcp.tolist(),
             "kunwei_force_base_n": force_base.tolist(),
+            "raw_tangent_force_base_n": raw_tangent_force.tolist(),
+            "phase_template_force_base_n": phase_template_force.tolist(),
             "tangent_force_base_n": tangent_force.tolist(),
             "requested_sfc_velocity_base_m_s": requested_tangent_velocity.tolist(),
             "sfc_velocity_base_m_s": tangent_velocity.tolist(),
@@ -312,7 +494,7 @@ class TaseSfcTangentAugmentationRuntime:
         law_state = self._law.snapshot()
         return {
             "schema": SCHEMA,
-            "method_id": METHOD_ID,
+            "method_id": self.composition_binding["method_id"],
             "composition_binding": self.composition_binding,
             "runtime": self._runtime.dynamic_state_snapshot(),
             "law_state": {
@@ -329,7 +511,7 @@ class TaseSfcTangentAugmentationRuntime:
         try:
             if (
                 state.get("schema") != SCHEMA
-                or state.get("method_id") != METHOD_ID
+                or state.get("method_id") != self.composition_binding["method_id"]
                 or state.get("composition_binding") != self.composition_binding
                 or type(state.get("active_path")) is not bool
                 or type(state.get("closed")) is not bool
@@ -393,7 +575,8 @@ def install_tase_sfc_tangent_augmentation(provider: Any) -> TaseSfcTangentAugmen
 
 
 __all__ = [
-    "SCHEMA", "METHOD_ID", "LAW_CONFIG_REL", "TaseSfcTangentAugmentationError",
+    "SCHEMA", "METHOD_ID", "PHASE_TEMPLATE_METHOD_ID", "PHASE_TEMPLATE_SCHEMA",
+    "PHASE_TEMPLATE_CONFIG_REL", "LAW_CONFIG_REL", "TaseSfcTangentAugmentationError",
     "TaseSfcTangentAugmentationRuntime", "install_tase_sfc_tangent_augmentation",
-    "load_frozen_sfc_parameters",
+    "load_frozen_sfc_parameters", "load_phase_force_template",
 ]

@@ -27,6 +27,8 @@ The same leave-one-out templates drove the existing additive `TASE_RNN_MATURE+SF
 
 The SFC component itself is not consistently aligned with the path. The favorable total-command direction comes from retaining TASE's path command and adding a weaker, template-residual SFC component. All five baseline RNN qdot/Jacobian replays match their sealed sources. Candidate SFC caps were not hit; recorded host slew limiting affected 4–9 rows per attempt. This remains an offline feasibility observation, not live timing or physical motion evidence.
 
+The leave-one-out transform is now available in the existing sealed-command replay entry through `--phase-template-file`. All five held-out A traces reproduce their sealed RNN qdot/Jacobian baselines; candidate joint-bound violations remain zero, with 550/550 formal and 600/600 diagnostic bins. Their sealed trace rates are 469.81–481.02 Hz and each has 29,557–30,003 PATH rows. The replay configuration is bound to the shared short-EOAT identity, controller read-back/program/runtime identity, and canonical Autotuner Home profile. All five output reports explicitly say the source trace contains no UR `actual_TCP_force`; force input is Kunwei KWR75 only. The first held-out replay reproduces the earlier exploratory command summary within `2e-15`. This verifies the reusable offline replay path, not live registry availability.
+
 ## Decision and evidence boundary
 
 This is a promising **offline path-command** candidate for a later TASE+SFC study. It is not a force-accuracy result: the robot observations were fixed to A, candidate force MAE is unavailable, KWR75 is not independent task-force truth, and no live candidate ran. Do not promote the template or SFC method to live based on this replay alone. A live attempt would need an integrated, source-bound template runtime, fresh package/read-back, a current live gate, one writer, and a full 60 s / 460 Hz / joint-Home attempt; any claim of force improvement requires a paired A comparison.
@@ -34,6 +36,7 @@ This is a promising **offline path-command** candidate for a later TASE+SFC stud
 ## Reproducible artifacts
 
 - Five-fold template fit: `runs/tase-r32a-tangent-force-phase-template-cv-20260927.json`
-- Five held-out SFC+TASE command replays: `runs/tase-r32a-sfc-phase-template-residual-replay-20260927/summary.json` and per-attempt `report.json` / `candidate_command_trace.jsonl.gz`
+- Five held-out SFC+TASE command replays: `runs/tase-r32a-sfc-phase-template-runtime-replay-bound-20260927/summary.json` and per-fold `report.json` / `candidate_command_trace.jsonl.gz`
+- Reusable five-A phase template: `config/tase_sfc_phase_template_a_v1.json`; builder: `tools/build_tase_sfc_phase_template.py`; sealed command replay accepts it with `--phase-template-file`.
 
 The source attempt paths and timeline digests remain in the JSON receipts. The original A receipts and traces were not modified.

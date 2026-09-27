@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import sys
 from pathlib import Path
 
@@ -19,10 +20,13 @@ from contact_yield_method_registry import (  # noqa: E402
 )
 from tase_sfc_tangent_augmentation import (  # noqa: E402
     METHOD_ID,
+    PHASE_TEMPLATE_METHOD_ID,
+    PHASE_TEMPLATE_SCHEMA,
     SCHEMA,
     TaseSfcTangentAugmentationError,
     TaseSfcTangentAugmentationRuntime,
     load_frozen_sfc_parameters,
+    load_phase_force_template,
 )
 
 
@@ -94,7 +98,7 @@ class _FakeProvider:
     command_normal_base = (0.0, 0.0, 1.0)
 
 
-def _overlay(*, phase="path"):
+def _overlay(*, phase="path", phase_force_template_base_n=None, phase_template_binding=None):
     provider = _FakeProvider()
     provider.reference_phase = phase
     runtime = _FakeRuntime()
@@ -109,6 +113,8 @@ def _overlay(*, phase="path"):
         provider,
         parameters=load_frozen_sfc_parameters(),
         law_factory=factory,
+        phase_force_template_base_n=phase_force_template_base_n,
+        phase_template_binding=phase_template_binding,
     )
     return overlay, runtime, provider, law_holder["law"]
 
@@ -150,6 +156,120 @@ def test_path_overlay_adds_only_tangent_velocity_and_preserves_tase_normal_postu
     assert diagnostics["normal_leak_m_s"] <= 1e-12
     assert diagnostics["extra_final_realizer_calls"] == 0
     assert diagnostics["force_source"].startswith("baseline-corrected Kunwei")
+
+
+def test_phase_template_file_binds_exact_rate460_grid_and_five_a_sources():
+    table, binding = load_phase_force_template()
+
+    assert table.shape == (600, 3)
+    assert not table.flags.writeable
+    assert binding["schema"] == PHASE_TEMPLATE_SCHEMA
+    assert binding["protocol_id"] == "figure8_window60_r013_rate460_v1"
+    assert len(binding["training_attempt_ids"]) == 5
+    assert len(binding["training_timeline_sha256"]) == 5
+    assert binding["physical_binding"]["home_profile_id"] == "step6.autotune/figure8-contact-derived-home-v1"
+    assert len(binding["physical_binding"]["eoat_identity_sha256"]) == 64
+
+
+def test_phase_template_loader_allows_four_run_only_for_explicit_leave_one_out(tmp_path):
+    source = ROOT / "config/tase_sfc_phase_template_a_v1.json"
+    document = json.loads(source.read_text())
+    document["template_id"] = "test-four-run-loo"
+    document["training_scope"] = "four-attempt-leave-one-out-template"
+    document["source_attempts"] = document["source_attempts"][:4]
+    path = tmp_path / "four-run-template.json"
+    path.write_text(json.dumps(document))
+
+    with pytest.raises(TaseSfcTangentAugmentationError, match="source count"):
+        load_phase_force_template(path)
+    table, binding = load_phase_force_template(path, allow_leave_one_out=True)
+    assert table.shape == (600, 3)
+    assert binding["training_scope"] == "four-attempt-leave-one-out-template"
+    assert len(binding["training_attempt_ids"]) == 4
+
+
+def test_phase_template_subtracts_the_phase_bin_in_base_tangent_frame():
+    table, binding = load_phase_force_template()
+    table = table.copy()
+    table[123] = (0.1, 0.2, 0.5)
+    overlay, _base, _provider, law = _overlay(
+        phase_force_template_base_n=table,
+        phase_template_binding=binding,
+    )
+
+    overlay.augment_twist(
+        (0.0001, 0.0002, -0.0003, 0.01, 0.02, 0.03),
+        phase="path",
+        mode="path",
+        actual_tcp_pose=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        force_tcp_n=(1.0, 2.0, 3.0),
+        actual_dt_s=0.002,
+        path_time_s=12.345,
+    )
+
+    assert law.calls[0][0] == pytest.approx((0.9, 1.8, 0.0))
+    assert overlay.composition_binding["method_id"] == PHASE_TEMPLATE_METHOD_ID
+    assert overlay._last_diagnostics["raw_tangent_force_base_n"] == pytest.approx([1.0, 2.0, 0.0])
+    assert overlay._last_diagnostics["phase_template_force_base_n"] == pytest.approx([0.1, 0.2, 0.0])
+    assert overlay._last_diagnostics["tangent_force_base_n"] == pytest.approx([0.9, 1.8, 0.0])
+
+
+def test_phase_template_requires_a_path_time_inside_the_frozen_table():
+    table, binding = load_phase_force_template()
+    overlay, _base, _provider, _law = _overlay(
+        phase_force_template_base_n=table,
+        phase_template_binding=binding,
+    )
+
+    with pytest.raises(TaseSfcTangentAugmentationError, match="path_time_s"):
+        overlay.augment_twist(
+            (0.0,) * 6,
+            phase="path",
+            mode="path",
+            actual_tcp_pose=(0.0,) * 6,
+            force_tcp_n=(1.0, 0.0, 0.0),
+            actual_dt_s=0.002,
+        )
+    with pytest.raises(TaseSfcTangentAugmentationError, match=r"inside \[0,60\)"):
+        overlay.augment_twist(
+            (0.0,) * 6,
+            phase="path",
+            mode="path",
+            actual_tcp_pose=(0.0,) * 6,
+            force_tcp_n=(1.0, 0.0, 0.0),
+            actual_dt_s=0.002,
+            path_time_s=60.0,
+        )
+
+
+def test_phase_template_snapshot_binds_composition_and_restores_all_state():
+    table, binding = load_phase_force_template()
+    overlay, runtime, _provider, law = _overlay(
+        phase_force_template_base_n=table,
+        phase_template_binding=binding,
+    )
+    checkpoint = overlay.dynamic_state_snapshot()
+    assert checkpoint["method_id"] == PHASE_TEMPLATE_METHOD_ID
+    overlay.augment_twist(
+        (0.0,) * 6,
+        phase="path",
+        mode="path",
+        actual_tcp_pose=(0.0,) * 6,
+        force_tcp_n=(1.0, 0.0, 0.0),
+        actual_dt_s=0.002,
+        path_time_s=10.0,
+    )
+    assert runtime.state == 0
+    assert law.state > 0.0
+    overlay.restore_dynamic_state(checkpoint)
+    assert runtime.state == 0
+    assert law.state == 0.0
+    bad = copy.deepcopy(checkpoint)
+    bad["method_id"] = METHOD_ID
+    with pytest.raises(TaseSfcTangentAugmentationError, match="identity"):
+        overlay.restore_dynamic_state(bad)
+    assert runtime.state == 0
+    assert law.state == 0.0
 
 
 def test_recorded_twist_entrypoint_uses_the_same_frozen_sfc_augmentation():

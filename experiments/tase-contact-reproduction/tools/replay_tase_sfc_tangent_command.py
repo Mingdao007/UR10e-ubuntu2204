@@ -26,8 +26,8 @@ from tase_contact_provider import (
     load_tase_outer_config,
 )
 from tase_sfc_tangent_augmentation import (
-    METHOD_ID,
     TaseSfcTangentAugmentationRuntime,
+    load_phase_force_template,
 )
 
 
@@ -235,6 +235,7 @@ def run_replay(
     out_dir: Path,
     max_rows: int | None = None,
     composition: str = "additive",
+    phase_template_file: Path | None = None,
 ) -> dict[str, Any]:
     timeline_path = source_attempt / "command_timeline.jsonl"
     if not timeline_path.is_file():
@@ -276,8 +277,21 @@ def run_replay(
     candidate_provider = _new_provider(root, parameter_file)
     baseline_runtime = baseline_provider.runtime
     candidate_base_runtime = candidate_provider.runtime
+    phase_force_template = None
+    phase_template_binding = None
+    if phase_template_file is not None:
+        if composition != "additive":
+            raise ReplayError("phase-template replay currently supports additive composition only")
+        phase_force_template, phase_template_binding = load_phase_force_template(
+            Path(phase_template_file).resolve(strict=True),
+            allow_leave_one_out=True,
+        )
     candidate_overlay = TaseSfcTangentAugmentationRuntime(
-        candidate_base_runtime, _ReplayProvider(), root=root,
+        candidate_base_runtime,
+        _ReplayProvider(),
+        root=root,
+        phase_force_template_base_n=phase_force_template,
+        phase_template_binding=phase_template_binding,
     )
     # Bind the actual TASE command normal from the source row at each call.
     replay_provider = candidate_overlay._provider
@@ -431,6 +445,7 @@ def run_replay(
                     actual_tcp_pose=pose,
                     force_tcp_n=wrench[:3],
                     actual_dt_s=dt_s,
+                    path_time_s=path_time_s,
                 )
                 sfc_diagnostics = candidate_overlay._last_diagnostics
                 candidate_twist, used_sfc_velocity, used_sfc_scale = _compose_replay_twist(
@@ -644,7 +659,10 @@ def run_replay(
     )
     report = {
         "schema": SCHEMA,
-        "method_id": METHOD_ID if composition == "additive" else REPLACEMENT_METHOD_ID,
+        "method_id": (
+            candidate_overlay.composition_binding["method_id"]
+            if composition == "additive" else REPLACEMENT_METHOD_ID
+        ),
         "composition": composition,
         "source_attempt": str(source_attempt.resolve()),
         "source_timeline_sha256": source_digest,
@@ -674,7 +692,10 @@ def run_replay(
         "source_has_ur_actual_tcp_force": False,
         "candidate_parameters": {
             **candidate_overlay.composition_binding,
-            "method_id": METHOD_ID if composition == "additive" else REPLACEMENT_METHOD_ID,
+            "method_id": (
+                candidate_overlay.composition_binding["method_id"]
+                if composition == "additive" else REPLACEMENT_METHOD_ID
+            ),
             "path_semantics": (
                 "retain TASE tangent path command and add projected SFC tangent velocity"
                 if composition == "additive"
@@ -752,6 +773,7 @@ def main() -> int:
     parser.add_argument("--parameter-file", type=Path, default=DEFAULT_PARAMETER_FILE)
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--max-rows", type=int)
+    parser.add_argument("--phase-template-file", type=Path)
     parser.add_argument(
         "--composition",
         choices=("additive", "replace_tase_tangent"),
@@ -769,6 +791,7 @@ def main() -> int:
         out_dir=args.out_dir.resolve(),
         max_rows=args.max_rows,
         composition=args.composition,
+        phase_template_file=args.phase_template_file,
     )
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0
