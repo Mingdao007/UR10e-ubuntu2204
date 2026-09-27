@@ -214,3 +214,27 @@ solver 对 OSQP 数值配置敏感：同输入下 `rho=0.01` 的先前 formal-on
 | 参数确认 | `tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1` | 11 / 10 / 10 | `4bfd7533d97634920c6879c6de7b7800c05e43cb607e7c3e62135f114910d634` |
 
 这是一遍对原始封存记录的确定性重算，用来确认数据来源、reducer 输出与已封存 receipt 一致；它不是第二种独立算法。两类 A/B 结果仍严格分开：五对是 **Md/Bd 调参候选**比较，A−B 均值 −0.1339 N、95% CI `[−0.3050, 0.0372] N`；另十对是**积分上限 1.0 对 0.5 N·s**，A−B 均值 +0.1796 N、95% CI `[0.0289, 0.3303] N`。后者支持保留 1.0 N·s incumbent，不代表调参候选胜出。两项力指标均来自 KWR75 反馈，不能解释为独立测力真值。
+
+## 后续单因子筛选更新 — 2026-09-27
+
+此前将控制滤波时常从 `0.35 s` 降到既有候选下界 `0.24748737341529164 s` 的固定观测回放，仅支持做一次筛选圈，并未预测 candidate MAE。该单圈现已完成：`TASE_RNN_MATURE`、R013 60 s/rate460、5 N、Md/Bd 和 1.0 N·s 积分均与 A 相同，仅 PATH 控制滤波时常改变；正式评分与资格滤波仍为 `0.35 s`。
+
+| 指标 | `[5,60)` 正式窗口 | `[0,60)` 诊断窗口 |
+|---|---:|---:|
+| 滤波 KWR75 normal，100 ms-bin MAE | **1.4143 N，550/550** | **1.4226 N，600/600** |
+| 滤波 KWR75 normal，逐样本 MAE | 1.4170 N，27,478 samples | 1.4255 N，29,983 samples |
+| Raw corrected KWR75 normal，100 ms-bin MAE | 2.4589 N，550/550 | 2.4712 N，600/600 |
+| Raw corrected KWR75 normal，逐样本 MAE | 2.6737 N，27,478 samples | 2.6876 N，29,978 samples |
+
+完整 PATH 为 60.012 s；host、RTDE、TP-consumed echoes、Kunwei 四层均通过 460 Hz 门槛，自动回批准 joint Home，Safety NORMAL，Dashboard STOPPED，视频可用。这是一个完整单圈筛选结果，不是配对结果。其正式 MAE 比 A–E 合格 A 均值高 0.437 N、比已有 parameter-confirmation A 均值高 0.373 N；两组是不同历史批次，仅作筛选参照，不能推成该滤波改动的因果效应或置信区间。当前证据不支持将此候选推进到配对确认。raw 样本 MAE 比 raw 分箱 MAE 高 0.215 N，来自 bin 内波动在平均时部分抵消；raw 与 filtered 的差别仍是信号定义不同。全部结果和尝试身份见[单圈筛选报告](tase_rnn_low_filter_tau_live_attempt_20260927.md)及其 reducer JSON。
+
+本次常规 payload/TCP/CoG read-back 已移除无关的 UR `actual_TCP_force` 请求；该 field 从未成为这条 TASE trace 的反馈或评分来源。该代码修复不改变历史 attempt 数据，也不改变 Kunwei KWR75 唯一力反馈来源的边界。
+
+## 当前分支准入状态
+
+- `TASE_RNN_MATURE` + control-filter tau `0.247487 s`：一圈已完成，未见改善信号，暂不配对。
+- TASE-QP normal-priority `rho=0.1 / scaling=0`：matched-A 完整固定输入离线求解通过，仍无 candidate force MAE。OSQP scaling 是相对冻结 profile 的更改；在得到用户对该数值的明确答复前不进入 live。
+- SFC+TASE/QP：保持离线。当前 KWR75 切向信号与基线实际路径方向多半相反，且固定观测 replay 不能给 candidate 力分数；不得凭符号翻转或模型相关性升级。
+- 法向 K/B：当前闭环自然激励拟合没有识别出可信物理 M，0.707 damping ratio 仍不能导出 live 增益。
+
+因此当前没有候选达到“同条件 A、完整路径、rate460、MAE 改善至少 0.10 N、配对 95% CI 下界大于 0”的准入证据。下一项 live 控制律仍须在开始前重新完成 fresh safety/owner 检查；不因本报告的旧 read-back 直接启动。
