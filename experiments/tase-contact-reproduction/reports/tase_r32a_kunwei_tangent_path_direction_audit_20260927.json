@@ -1,0 +1,118 @@
+{
+  "attempts": [
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0002",
+      "candidate_id": "confirm-s01-b00-A",
+      "effective_rate_hz": 480.58721589025225,
+      "force_source": "baseline-corrected Kunwei KWR75 control_wrench_tcp_n_nm",
+      "formal_bins": 550,
+      "formal_mae_n": 1.0061050570848329,
+      "mean_reference_tangent_speed_m_s": 0.0029629079808103967,
+      "mean_tangent_force_n": 0.5867186148527849,
+      "mean_tangent_force_path_cosine": -0.737000714675991,
+      "negative_direction_fraction": 0.9181508905343206,
+      "path_rows": 29982,
+      "positive_direction_fraction": 0.0818491094656794,
+      "receipt_sha256": "8ba4fdc5168770aab017d65965f89761a24b672d822f4fee814bd24a106bf0e8",
+      "reference_time_range_s": [
+        0.0,
+        59.99799999999232
+      ],
+      "source_timeline_sha256": "89ba3e2024eac35299ac90115a35d9aec5161879e1aec7d6dbd965ad9190f8a7"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-01/attempts/0004",
+      "candidate_id": "confirm-s01-b01-A",
+      "effective_rate_hz": 481.0204625742489,
+      "force_source": "baseline-corrected Kunwei KWR75 control_wrench_tcp_n_nm",
+      "formal_bins": 550,
+      "formal_mae_n": 0.9419680748585729,
+      "mean_reference_tangent_speed_m_s": 0.0029627405287412033,
+      "mean_tangent_force_n": 0.5905739174270205,
+      "mean_tangent_force_path_cosine": -0.7413959984003997,
+      "negative_direction_fraction": 0.9196080391960804,
+      "path_rows": 30003,
+      "positive_direction_fraction": 0.08039196080391961,
+      "receipt_sha256": "4cf84175c4ba97f34ef8bf5e3abd290d480a2d69c0c89f2880683d32cb144e05",
+      "reference_time_range_s": [
+        0.0,
+        59.99799999999232
+      ],
+      "source_timeline_sha256": "bebf6a408a8bb2d7bb0ac72217669b77e140b216a18546813ce84cb1e64caedf"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0002",
+      "candidate_id": "confirm-s02-b02-A",
+      "effective_rate_hz": 480.92048257024965,
+      "force_source": "baseline-corrected Kunwei KWR75 control_wrench_tcp_n_nm",
+      "formal_bins": 550,
+      "formal_mae_n": 1.0364228577061043,
+      "mean_reference_tangent_speed_m_s": 0.0029626163707405554,
+      "mean_tangent_force_n": 0.5836480054381121,
+      "mean_tangent_force_path_cosine": -0.7171642495940311,
+      "negative_direction_fraction": 0.9112911291129113,
+      "path_rows": 29997,
+      "positive_direction_fraction": 0.0887088708870887,
+      "receipt_sha256": "74bb27977781c2105cb4da94f0c42e32a5cacd455c36421843c3dfd0323b889f",
+      "reference_time_range_s": [
+        0.0,
+        59.99799999999232
+      ],
+      "source_timeline_sha256": "9c62e807f869da886dcb211e6884fb87d818002a9f88ccb3bd66186e20e4d573"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0003",
+      "candidate_id": "confirm-s02-b03-A",
+      "effective_rate_hz": 469.8060387923363,
+      "force_source": "baseline-corrected Kunwei KWR75 control_wrench_tcp_n_nm",
+      "formal_bins": 550,
+      "formal_mae_n": 1.0242417404331408,
+      "mean_reference_tangent_speed_m_s": 0.002962667261221984,
+      "mean_tangent_force_n": 0.5920962312318636,
+      "mean_tangent_force_path_cosine": -0.7276717926227074,
+      "negative_direction_fraction": 0.9106472240078493,
+      "path_rows": 29557,
+      "positive_direction_fraction": 0.08935277599215076,
+      "receipt_sha256": "fc8bf940c11142cb6330c89e802fabfdb6ad040e84ab71b21494e2a42956d539",
+      "reference_time_range_s": [
+        0.0,
+        59.99799999999232
+      ],
+      "source_timeline_sha256": "1e10313919f5080bdb9276ac209f0da4df83416025a7a6006c8243aa7b986a2e"
+    },
+    {
+      "attempt_dir": "/home/andy/.codex-worktrees/contact-yield-recovery-20260920/experiments/tase-contact-reproduction/runs/tase-resident-autotune-A-rate460-20260926T1413Z/confirmation-rate460-e-v1/session-02/attempts/0005",
+      "candidate_id": "confirm-s02-b04-A",
+      "effective_rate_hz": 481.019830028254,
+      "force_source": "baseline-corrected Kunwei KWR75 control_wrench_tcp_n_nm",
+      "formal_bins": 550,
+      "formal_mae_n": 1.1958953801632153,
+      "mean_reference_tangent_speed_m_s": 0.0029626892191343614,
+      "mean_tangent_force_n": 0.5692007273892611,
+      "mean_tangent_force_path_cosine": -0.7000639681092522,
+      "negative_direction_fraction": 0.894540363975735,
+      "path_rows": 30002,
+      "positive_direction_fraction": 0.10545963602426504,
+      "receipt_sha256": "2cb674f7ca1452a3a9b3cffd969b8bbb54e7daaaa5352f22090f831d50fef8ab",
+      "reference_time_range_s": [
+        0.0,
+        59.99800000002142
+      ],
+      "source_timeline_sha256": "c4bdabf7d913e1457af045c5dd28ca2d0afee72233a5b2a63e73ee7e219afd5f"
+    }
+  ],
+  "causal_interpretation": "not identified: recorded tangent force may combine path/friction reaction, residual bias, and external disturbance",
+  "eligible_attempts": 5,
+  "evidence_class": "offline_completed_A_trace_analysis",
+  "fixed_runtime_parameters": {
+    "Bd_scalar": 693.6559295653944,
+    "Md_scalar": 9.565272137974492,
+    "force_integral_limit_n_s": 1.0,
+    "force_integral_policy": "legacy-clamp-v1"
+  },
+  "independent_task_force_ground_truth": false,
+  "mean_attempt_cosine": -0.7246593446804763,
+  "mean_attempt_negative_direction_fraction": 0.9108475293653793,
+  "protocol_id": "figure8_window60_r013_rate460_v1",
+  "schema": "tase.kunwei-tangent-path-direction-audit-v1"
+}
