@@ -67,9 +67,12 @@ def resident_admission_max_age(*, method: str, duration: str | None) -> float:
     return CONTROLLER_READBACK_MAX_AGE_S
 
 
-def _select_tase_solver_profile(*, family: str, library: Path | str):
+def _select_tase_solver_profile(*, family: str, library: Path | str,
+                                declared_profile=None):
     """Keep the historical RNN profile and the standalone QP profile distinct."""
     if family == "tase_qp":
+        if declared_profile is not None:
+            raise YieldLiveWriterError('RNN512 declaration cannot select QP')
         from contact_qp import QpSolverProfile
 
         return QpSolverProfile(
@@ -78,7 +81,19 @@ def _select_tase_solver_profile(*, family: str, library: Path | str):
             deadline_s=0.001,
         )
     if family == "tase_mature":
-        from step5d_autotune_v4_r014.solver_profile import LEGACY_R1
+        from step5d_autotune_v4_r014.solver_profile import (
+            LEGACY_R1, MatureRnn512NativeProfile,
+        )
+
+        if declared_profile is not None:
+            if (not isinstance(declared_profile, dict)
+                or set(declared_profile) != {'id', 'library', 'library_sha256'}
+                or declared_profile.get('id') != 'mature-r1-512-cpp'):
+                raise YieldLiveWriterError('TASE solver profile declaration differs')
+            profile = MatureRnn512NativeProfile(Path(declared_profile['library']))
+            if profile.library_sha256 != declared_profile['library_sha256']:
+                raise YieldLiveWriterError('TASE RNN512 binary differs from declared profile')
+            return profile
 
         return LEGACY_R1
     raise YieldLiveWriterError(f"unsupported live TASE family: {family}")
@@ -676,11 +691,12 @@ def build_native_yield_owner(
             current_model_binding,
             load_tase_outer_config,
         )
+        outer_config, parameter_binding = load_tase_outer_config(parameter_file)
         solver_profile = _select_tase_solver_profile(
             family=record.family,
             library=library,
+            declared_profile=parameter_binding.get('solver_profile'),
         )
-        outer_config, parameter_binding = load_tase_outer_config(parameter_file)
         if record.family == "tase_qp":
             _validate_tase_qp_starting_profile(
                 parameter_file=parameter_file,

@@ -42,6 +42,7 @@ from step5d_autotune_v4_r014.solver_profile import (
     LEGACY_R1,
     SolverProfile,
     strict_rnn_config,
+    MatureRnn512NativeProfile,
 )
 
 if TYPE_CHECKING:
@@ -173,7 +174,7 @@ class V4CalibratedRuntime:
         force_integral_policy: str = LEGACY_FORCE_INTEGRAL_POLICY,
         force_integral_authority_error_n: float = 0.5,
         force_normal_velocity_limit_m_s: float | None = None,
-        solver_profile: SolverProfile | QpSolverProfile = LEGACY_R1,
+        solver_profile: SolverProfile | MatureRnn512NativeProfile | QpSolverProfile = LEGACY_R1,
         path_reference=None,
         target_rotvec: Sequence[float] = TARGET_ROTVEC,
         outer_loop_config: Step5dOuterLoopConfig | None = None,
@@ -251,7 +252,7 @@ class V4CalibratedRuntime:
         self.force_integral_policy = force_integral_policy
         self.force_integral_authority_error_n = authority_error
         self.force_normal_velocity_limit_m_s = velocity_limit
-        if not isinstance(solver_profile, (SolverProfile, QpSolverProfile)):
+        if not isinstance(solver_profile, (SolverProfile, MatureRnn512NativeProfile, QpSolverProfile)):
             raise CalibratedRuntimeError("solver_profile must be a typed motion solver profile")
         self.solver_profile = solver_profile
         self.model_hashes = observed_model_hashes(contract)
@@ -260,6 +261,10 @@ class V4CalibratedRuntime:
         qdot_limit = min(motion_qdot_limit, solver_profile.qdot_limit_rad_s)
         if isinstance(solver_profile, QpSolverProfile):
             self.solver = NativeContactQp(solver_profile.library, deadline_s=solver_profile.deadline_s)
+        elif isinstance(solver_profile, MatureRnn512NativeProfile):
+            from step5c_mature_rnn512_native import NativeMatureRnn512
+
+            self.solver = NativeMatureRnn512(solver_profile.library)
         else:
             self.solver = StrictTaseRnnSolver(
                 strict_rnn_config(
@@ -297,10 +302,7 @@ class V4CalibratedRuntime:
                 "last_published": copy.deepcopy(self._last_published_outer_feedback),
                 "pending": copy.deepcopy(self._pending_outer_feedback),
             },
-            "solver_state": self.solver.snapshot() if isinstance(self.solver_profile, QpSolverProfile) else {
-                "theta_dot_state": [float(value) for value in self.solver.theta_dot_state],
-                "lambda_state": [float(value) for value in self.solver.lambda_state],
-            },
+            "solver_state": self.solver.snapshot(),
             "solver_profile_sha256": self.solver_profile.sha256,
             "active_mode": self._active_mode,
         }
@@ -358,9 +360,7 @@ class V4CalibratedRuntime:
         if isinstance(self.solver_profile, QpSolverProfile):
             self.solver.restore({"x": theta, "y": lambd})
         else:
-            self.solver.theta_dot_state = np.asarray(theta, dtype=float)
-            self.solver.lambda_state = np.asarray(lambd, dtype=float)
-            self.solver._sync_cupy_state_from_numpy()
+            self.solver.restore({"theta_dot_state": theta, "lambda_state": lambd})
         self._active_mode = None if active_mode is None else str(active_mode)
 
     def actual_runtime_config(self) -> dict[str, Any]:

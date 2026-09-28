@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import math
+from pathlib import Path
 from typing import Any, Mapping
 
 from .common import R014Error, sha256_value
@@ -99,6 +101,57 @@ LEGACY_R1 = SolverProfile(
     qdot_limit_rad_s=0.15,
     preconstruct_outside_tick=False,
 )
+
+
+@dataclass(frozen=True)
+class MatureRnn512NativeProfile:
+    """Explicit, versioned candidate; never a fallback for LEGACY_R1."""
+
+    library: Path
+
+    def __post_init__(self) -> None:
+        try:
+            path = Path(self.library).resolve(strict=True)
+        except OSError as exc:
+            raise R014Error("mature RNN512 library is unavailable") from exc
+        if not path.is_file():
+            raise R014Error("mature RNN512 library is not a regular file")
+        object.__setattr__(self, "library", path)
+        object.__setattr__(self, "library_sha256", hashlib.sha256(path.read_bytes()).hexdigest())
+
+    @property
+    def profile_id(self) -> str:
+        return "mature-r1-512-cpp"
+
+    @property
+    def r(self) -> float:
+        return 1.0
+
+    @property
+    def epsilon(self) -> float:
+        return 0.022
+
+    @property
+    def iterations(self) -> int:
+        return 512
+
+    @property
+    def qdot_limit_rad_s(self) -> float:
+        return 0.15
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema": SOLVER_PROFILE_SCHEMA, "version": 1,
+            "id": "mature-r1-512-cpp", "r": self.r,
+            "epsilon": self.epsilon, "iterations": self.iterations,
+            "backend": "cpp-double", "qdot_limit_rad_s": self.qdot_limit_rad_s,
+            "dt_policy": "repeat_actual_full_dt_per_inner_iteration",
+            "library": str(self.library), "library_sha256": self.library_sha256,
+        }
+
+    @property
+    def sha256(self) -> str:
+        return sha256_value(self.as_dict())
 
 
 def strict_rnn_config(profile: SolverProfile, *, paper_truth_path: Any, motion_qdot_limit_rad_s: float) -> Any:

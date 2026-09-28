@@ -597,9 +597,21 @@ def load_tase_outer_config(path=None):
     unknown = set(payload) - {
         'schema', 'candidate_id', 'stage', 'index', 'Md_scalar', 'Bd_scalar',
         'frozen', 'protocol_id', 'duration_token', 'path_duration_s',
+        'solver_profile',
     }
     if unknown:
         raise ValueError(f'TASE parameter file has unknown fields: {sorted(unknown)}')
+    selected_solver = payload.get('solver_profile')
+    if selected_solver is not None:
+        if (not isinstance(selected_solver, dict)
+            or set(selected_solver) != {'id', 'library', 'library_sha256'}
+            or selected_solver.get('id') != 'mature-r1-512-cpp'
+            or not isinstance(selected_solver.get('library'), str)
+            or not Path(selected_solver['library']).is_absolute()
+            or not isinstance(selected_solver.get('library_sha256'), str)
+            or len(selected_solver['library_sha256']) != 64
+            or any(c not in '0123456789abcdef' for c in selected_solver['library_sha256'])):
+            raise ValueError('TASE RNN512 solver profile declaration is invalid')
     try:
         md = float(payload['Md_scalar'])
         bd = float(payload['Bd_scalar'])
@@ -729,7 +741,7 @@ class TaseContactProvider(ContactCommandProvider):
         self.command_history = None
         self.force_preempt_warm_started = False
         self._uses_recurrent_solver_state = (
-            solver_profile.as_dict().get('backend') in {'numpy', 'cupy'}
+            solver_profile.as_dict().get('backend') in {'numpy', 'cupy', 'cpp-double'}
         )
         self.force_preempt_armed = self._uses_recurrent_solver_state
         self.force_preempt_episode = 0
@@ -869,6 +881,12 @@ class TaseContactProvider(ContactCommandProvider):
         if self.phase is not None or self.reference_phase != 'baseline':
             raise ValueError('TASE candidate can only be applied after the Home state reset')
         config, binding = load_tase_outer_config(parameter_file)
+        if binding.get('solver_profile') != self.parameter_binding.get('solver_profile'):
+            raise ValueError('TASE candidate cannot change the frozen solver profile')
+        if self.solver_profile.as_dict().get('backend') == 'cpp-double':
+            binary = self.solver_profile.library
+            if hashlib.sha256(binary.read_bytes()).hexdigest() != self.solver_profile.library_sha256:
+                raise ValueError('TASE RNN512 library changed during the resident session')
         declared_protocol = binding.get('protocol_id')
         if declared_protocol is not None and declared_protocol != self.protocol_id:
             raise ValueError('TASE candidate protocol differs from resident PATH')
