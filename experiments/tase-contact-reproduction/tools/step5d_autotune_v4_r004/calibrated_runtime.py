@@ -8,6 +8,7 @@ publication.
 
 from __future__ import annotations
 
+import contact_runtime_bootstrap  # noqa: F401  (select the canonical runtime before any dependency import)
 import hashlib
 import math
 import copy

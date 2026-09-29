@@ -8,6 +8,7 @@ Dashboard unlock, followed by a fresh Safety NORMAL check. The only terminal
 alternative is ``BLOCKED`` when a Home command cannot safely be established or
 the Home owner itself fails; there is no revoke-only terminal disposition.
 """
+import contact_runtime_bootstrap  # noqa: F401  (select the canonical runtime before any dependency import)
 import argparse,copy,datetime,json,subprocess,time
 from pathlib import Path
 from types import SimpleNamespace
