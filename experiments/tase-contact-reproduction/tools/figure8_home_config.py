@@ -17,7 +17,7 @@ EXPECTED_POSE = (
     0.0,
     0.068626833,
 )
-EXPECTED_HOME_Q = (
+HISTORICAL_HOME_Q = (
     0.7451654076576233,
     -1.8181091747679652,
     -2.5626940727233887,
@@ -25,6 +25,20 @@ EXPECTED_HOME_Q = (
     1.5276236534118652,
     -0.8238123098956507,
 )
+
+
+# USER explicitly selected the current nearest winding: avoid a full J5 turn.
+# Same physical geometry; NOT the old unwrapped joint Home identity.
+EXPECTED_HOME_Q = tuple(q - (2.0 * math.pi if i == 4 else 0.0)
+                        for i, q in enumerate(HISTORICAL_HOME_Q))
+
+def bind_current_home_literals(text: str) -> str:
+    """Rebind complete historical Home vectors, never arbitrary joint values."""
+    for digits in (12, 9):
+        old = "[" + ", ".join(f"{q:.{digits}f}" for q in HISTORICAL_HOME_Q) + "]"
+        new = "[" + ", ".join(f"{q:.{digits}f}" for q in EXPECTED_HOME_Q) + "]"
+        text = text.replace(old, new)
+    return text
 
 
 def load_canonical_figure8_home(path: Path = CONFIG_PATH) -> tuple[float, ...]:
