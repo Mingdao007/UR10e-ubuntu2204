@@ -147,7 +147,7 @@ def admit_sample(sample,home, *, initial):
         if position_delta > .002:
             raise _home_admission_error('initial Home observation changed/not stationary',
                 'initial_position_delta', position_delta, .002, 'm')
-        tcp_full6_norm = float(np.linalg.norm(sample['actual_TCP_speed']))
+        tcp_full6_norm = np.linalg.norm(sample['actual_TCP_speed'])
         if tcp_full6_norm > .0005:
             raise _home_admission_error('initial Home observation changed/not stationary',
                 'initial_TCP_full6_norm', tcp_full6_norm, .0005, 'existing full6 mixed linear/angular numerical norm')
