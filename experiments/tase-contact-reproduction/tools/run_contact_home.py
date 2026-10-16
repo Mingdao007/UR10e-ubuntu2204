@@ -68,11 +68,11 @@ def validate_robot_sample(sample, *, allow_protective=False):
     if np.linalg.norm(sample['actual_TCP_speed'][:3])>HOME_TCP_SPEED_GUARD_M_S or max(abs(x) for x in sample['actual_qd'])>HOME_JOINT_SPEED_GUARD_RAD_S:raise ValueError('Home speed envelope violated')
 
 
-def _initial_admission_error(message, predicate, value, threshold, units):
+def _home_admission_error(message, predicate, value, threshold, units, comparison=">"):
     # Same ValueError/message and short-circuit order as the original guard.
     error = ValueError(message)
     error.home_admission_predicate = dict(name=predicate, value=value,
-        threshold=threshold, comparison=">", units=units)
+        threshold=threshold, comparison=comparison, units=units)
     return error
 
 
@@ -107,8 +107,12 @@ def admit_sample(sample,home, *, initial):
     if withdrawal is None:
         if current[2]<target[2]-.001:raise ValueError('TCP below Home floor')
     else:
-        if current[2]<start[2]-.0001 or sample['actual_TCP_speed'][2]<-.0005:
-            raise ValueError('withdrawal moved farther into the surface')
+        if current[2] < start[2]-.0001:
+            raise _home_admission_error('withdrawal moved farther into the surface',
+                'withdrawal_z_position', float(current[2]), float(start[2]-.0001), 'm', '<')
+        if sample['actual_TCP_speed'][2] < -.0005:
+            raise _home_admission_error('withdrawal moved farther into the surface',
+                'withdrawal_z_speed', float(sample['actual_TCP_speed'][2]), -.0005, 'm/s', '<')
         if current[2]<target[2]-.0002 and np.linalg.norm(current[:2]-start[:2])>.0005:
             raise ValueError('withdrawal left the observed vertical approach')
     angle=np.linalg.norm(pin.log3(rotvec_to_matrix(current[3:])@rotvec_to_matrix(target[3:]).T))
@@ -130,20 +134,20 @@ def admit_sample(sample,home, *, initial):
         if initial:
             position_delta = float(np.linalg.norm(current[:3]-start[:3]))
             if position_delta > .0005:
-                raise _initial_admission_error('bounded recovery initial observation changed',
+                raise _home_admission_error('bounded recovery initial observation changed',
                     'bounded_initial_position_delta', position_delta, .0005, 'm')
             rotation_delta = float(np.linalg.norm(travelled))
             if rotation_delta > .003:
-                raise _initial_admission_error('bounded recovery initial observation changed',
+                raise _home_admission_error('bounded recovery initial observation changed',
                     'bounded_initial_rotation_delta', rotation_delta, .003, 'rad')
     if initial:
         position_delta = float(np.linalg.norm(current[:3]-start[:3]))
         if position_delta > .002:
-            raise _initial_admission_error('initial Home observation changed/not stationary',
+            raise _home_admission_error('initial Home observation changed/not stationary',
                 'initial_position_delta', position_delta, .002, 'm')
         tcp_full6_norm = float(np.linalg.norm(sample['actual_TCP_speed']))
         if tcp_full6_norm > .0005:
-            raise _initial_admission_error('initial Home observation changed/not stationary',
+            raise _home_admission_error('initial Home observation changed/not stationary',
                 'initial_TCP_full6_norm', tcp_full6_norm, .0005, 'existing full6 mixed linear/angular numerical norm')
 
 
