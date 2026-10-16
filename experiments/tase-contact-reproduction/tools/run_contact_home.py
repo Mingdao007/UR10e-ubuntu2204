@@ -5,7 +5,7 @@ Default is read-only. --execute requires the UR live owner to have accepted
 attendance/clearance and the freshly read-back package. No force task starts.
 """
 from pathlib import Path
-import argparse,datetime,json,threading,time,subprocess,os
+import argparse,datetime,json,threading,time,subprocess,os,copy
 import numpy as np
 import pinocchio as pin
 from step5d_remote_startup import RemoteDashboardWriter,_ExactLoadAdapter,dashboard_exchange,RTDEClient
@@ -68,6 +68,36 @@ def validate_robot_sample(sample, *, allow_protective=False):
     if np.linalg.norm(sample['actual_TCP_speed'][:3])>HOME_TCP_SPEED_GUARD_M_S or max(abs(x) for x in sample['actual_qd'])>HOME_JOINT_SPEED_GUARD_RAD_S:raise ValueError('Home speed envelope violated')
 
 
+def _initial_admission_error(message, predicate, value, threshold, units):
+    # Same ValueError/message and short-circuit order as the original guard.
+    error = ValueError(message)
+    error.home_admission_predicate = dict(name=predicate, value=value,
+        threshold=threshold, comparison=">", units=units)
+    return error
+
+
+def _admit_initial_samples(rows, home, result, *, stage, observer_start_index):
+    # Caller freezes the actual slice/index BEFORE invoking this function.
+    # Persist in the original result, not a second journal or admission gate.
+    witness = dict(stage=stage, observer_start_index=observer_start_index,
+        observer_end_index_exclusive=observer_start_index+len(rows),
+        sampled_window=copy.deepcopy(rows), checked_count=0, first_failure=None)
+    result.setdefault("initial_admission_checks", []).append(witness)
+    for index, row in enumerate(rows):
+        witness["checked_count"] = index+1
+        try:
+            admit_sample(row, home, initial=True)
+        except BaseException as error:
+            witness["first_failure"] = dict(window_index=index,
+                observer_index=observer_start_index+index,
+                robot_timestamp=row.get("timestamp"),
+                host_monotonic_s=row.get("monotonic_s"),
+                original_exception_type=type(error).__name__, original_error=str(error),
+                predicate=getattr(error, "home_admission_predicate", None),
+                sample=copy.deepcopy(row))
+            raise
+
+
 def admit_sample(sample,home, *, initial):
     validate_robot_sample(sample)
     current=np.asarray(sample['actual_TCP_pose']);start=np.asarray(home['rtde']['actual_TCP_pose']);target=np.asarray(home['home_pose'])
@@ -97,10 +127,24 @@ def admit_sample(sample,home, *, initial):
             raise ValueError('Home rotation began before vertical clearance')
         if np.linalg.norm(sample['actual_TCP_speed'][3:])>HOME_ANGULAR_SPEED_GUARD_RAD_S or max(abs(x) for x in sample['actual_qd'])>HOME_JOINT_SPEED_GUARD_RAD_S:
             raise ValueError('bounded recovery angular/joint speed exceeded')
-        if initial and (np.linalg.norm(current[:3]-start[:3])>.0005 or np.linalg.norm(travelled)>.003):
-            raise ValueError('bounded recovery initial observation changed')
+        if initial:
+            position_delta = float(np.linalg.norm(current[:3]-start[:3]))
+            if position_delta > .0005:
+                raise _initial_admission_error('bounded recovery initial observation changed',
+                    'bounded_initial_position_delta', position_delta, .0005, 'm')
+            rotation_delta = float(np.linalg.norm(travelled))
+            if rotation_delta > .003:
+                raise _initial_admission_error('bounded recovery initial observation changed',
+                    'bounded_initial_rotation_delta', rotation_delta, .003, 'rad')
     if initial:
-        if np.linalg.norm(current[:3]-start[:3])>.002 or np.linalg.norm(sample['actual_TCP_speed'])>.0005:raise ValueError('initial Home observation changed/not stationary')
+        position_delta = float(np.linalg.norm(current[:3]-start[:3]))
+        if position_delta > .002:
+            raise _initial_admission_error('initial Home observation changed/not stationary',
+                'initial_position_delta', position_delta, .002, 'm')
+        tcp_full6_norm = float(np.linalg.norm(sample['actual_TCP_speed']))
+        if tcp_full6_norm > .0005:
+            raise _initial_admission_error('initial Home observation changed/not stationary',
+                'initial_TCP_full6_norm', tcp_full6_norm, .0005, 'existing full6 mixed linear/angular numerical norm')
 
 
 class Observer:
@@ -175,7 +219,10 @@ def run(args):
                 if len(obs.rows)>=10 and camera_ready:break
                 time.sleep(.05)
             else:raise ValueError('RTDE/camera observer barrier did not complete')
-            for row in obs.rows[-10:]:admit_sample(row,home,initial=True)
+            window_end = len(obs.rows)
+            window_start = max(0, window_end-10)
+            _admit_initial_samples(obs.rows[window_start:window_end], home, result,
+                stage="pre_load_camera_barrier", observer_start_index=window_start)
             if home.get('bounded_withdrawal'):
                 from step5d_autotune_v4_r004.transport import LiveR004KunweiTransport
                 sensor=LiveR004KunweiTransport('192.168.50.25',port=5152);sensor.open()
@@ -186,7 +233,11 @@ def run(args):
                     obs.latest();time.sleep(.002)
                 check_wrench()
             result['load']=adapter.load()
-            admit_sample(obs.latest(),home,initial=True)
+            initial_row = obs.latest()
+            initial_index = next(index for index in range(len(obs.rows)-1, -1, -1)
+                if obs.rows[index] is initial_row)
+            _admit_initial_samples([initial_row], home, result,
+                stage="post_load_pre_play", observer_start_index=initial_index)
             result['play']=adapter.play()
             motion_timeout=home_motion_timeout_s(home)
             result['motion_timeout_s']=motion_timeout
