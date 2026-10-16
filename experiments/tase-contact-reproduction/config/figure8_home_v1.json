@@ -21,7 +21,7 @@
     -1.8181091747679652,
     -2.5626940727233887,
     -0.3122711938670655,
-    -4.755561653767721,
+    1.5276236534118652,
     -0.8238123098956507
   ],
   "source": {
@@ -41,21 +41,5 @@
     "fixed_home_lineage_z_m": 0.033,
     "canonical_contact_derived_z_m": 0.03408876139925415,
     "do_not_silently_substitute": true
-  },
-  "historical_unwrapped_joint_positions_rad": [
-    0.7451654076576233,
-    -1.8181091747679652,
-    -2.5626940727233887,
-    -0.3122711938670655,
-    1.5276236534118652,
-    -0.8238123098956507
-  ],
-  "current_unwrapped_winding": {
-    "revision": "USER-nearest-J5-minus-one-turn-20261016",
-    "authority": "USER return working joints, do not turn a full circle",
-    "actual_motion_receipt": "/home/andy/codex_handoffs/tase-classical-control-loop-20260929/force-accuracy-005n-main-20261011/evidence/user-working-joints-20261016/motion-binding.json",
-    "independent_readback": "/home/andy/codex_handoffs/tase-classical-control-loop-20260929/force-accuracy-005n-main-20261011/evidence/user-working-joints-20261016/final-independent.json",
-    "physical_TCP_geometry_unchanged": true,
-    "old_joint_identity_is_history_not_current_target": true
   }
 }
