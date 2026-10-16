@@ -71,8 +71,10 @@ def validate_robot_sample(sample, *, allow_protective=False):
 def _home_admission_error(message, predicate, value, threshold, units, comparison=">"):
     # Same ValueError/message and short-circuit order as the original guard.
     error = ValueError(message)
-    error.home_admission_predicate = dict(name=predicate, value=value,
+    error.home_admission_predicate = dict(name=predicate, value=float(value),
         threshold=threshold, comparison=comparison, units=units)
+    if float(value) != value:
+        error.home_admission_predicate["value_before_float_serialization"] = str(value)
     return error
 
 
@@ -132,16 +134,16 @@ def admit_sample(sample,home, *, initial):
         if np.linalg.norm(sample['actual_TCP_speed'][3:])>HOME_ANGULAR_SPEED_GUARD_RAD_S or max(abs(x) for x in sample['actual_qd'])>HOME_JOINT_SPEED_GUARD_RAD_S:
             raise ValueError('bounded recovery angular/joint speed exceeded')
         if initial:
-            position_delta = float(np.linalg.norm(current[:3]-start[:3]))
+            position_delta = np.linalg.norm(current[:3]-start[:3])
             if position_delta > .0005:
                 raise _home_admission_error('bounded recovery initial observation changed',
                     'bounded_initial_position_delta', position_delta, .0005, 'm')
-            rotation_delta = float(np.linalg.norm(travelled))
+            rotation_delta = np.linalg.norm(travelled)
             if rotation_delta > .003:
                 raise _home_admission_error('bounded recovery initial observation changed',
                     'bounded_initial_rotation_delta', rotation_delta, .003, 'rad')
     if initial:
-        position_delta = float(np.linalg.norm(current[:3]-start[:3]))
+        position_delta = np.linalg.norm(current[:3]-start[:3])
         if position_delta > .002:
             raise _home_admission_error('initial Home observation changed/not stationary',
                 'initial_position_delta', position_delta, .002, 'm')
