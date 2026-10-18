@@ -1008,7 +1008,7 @@ def run(args):
                 if video_policy == 'evidence-only'
                 else video.path.exists() and video.path.stat().st_size > 512
             )
-            if len(obs.rows)>=10 and raw is not None and video_ready:break
+            if len(obs.rows)>=10 and raw is not None and video_ready and stationary(row):break
             time.sleep(.01)
         else:raise ValueError('recovery observer/sensor barrier failed')
         if not stationary(row):raise ValueError('robot is not stationary before recovery')
