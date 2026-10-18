@@ -255,8 +255,8 @@ def run(args):
     sensor=None;wrench_rows=[]
     def check_wrench():
         raw,received=sensor.poll();now=time.monotonic()
-        if raw is None or received is None or not 0<=now-received<(.020 if home.get('composed_recovery') else .08):raise ValueError('withdrawal Kunwei frame missing/stale')
-        if home.get('composed_recovery') and (np.asarray(raw).shape!=(6,) or not np.isfinite(raw).all()):raise ValueError('composed Home external wrench invalid')
+        if raw is None or received is None or not 0<=now-received<(.020 if home_first_active() else .08):raise ValueError('withdrawal Kunwei frame missing/stale')
+        if home_first_active() and (np.asarray(raw).shape!=(6,) or not np.isfinite(raw).all()):raise ValueError('composed Home external wrench invalid')
         if np.linalg.norm(raw[:3])>=20 or np.linalg.norm(raw[3:])>=2:raise ValueError('withdrawal raw wrench guard exceeded')
         wrench_rows.append({'wrench_n_nm':raw,'received_monotonic_s':received,'checked_monotonic_s':now})
     obs=Observer(args.host);video=None;writer=RemoteDashboardWriter(args.host,load_target=TARGET)
@@ -286,7 +286,7 @@ def run(args):
             window_start = max(0, window_end-10)
             _admit_initial_samples(obs.rows[window_start:window_end], home, result,
                 stage="pre_load_camera_barrier", observer_start_index=window_start)
-            if home.get('bounded_withdrawal') or home.get('composed_recovery'):
+            if home.get('bounded_withdrawal') or home_first_active():
                 from step5d_autotune_v4_r004.transport import LiveR004KunweiTransport
                 sensor=LiveR004KunweiTransport('192.168.50.25',port=5152);sensor.open()
                 until=time.monotonic()+1.
@@ -301,7 +301,7 @@ def run(args):
                 if obs.rows[index] is initial_row)
             _admit_initial_samples([initial_row], home, result,
                 stage="post_load_pre_play", observer_start_index=initial_index)
-            if home.get('composed_recovery') and sensor is not None:check_wrench()
+            if home_first_active() and sensor is not None:check_wrench()
             result['play']=adapter.play()
             motion_timeout=home_motion_timeout_s(home)
             result['motion_timeout_s']=motion_timeout
