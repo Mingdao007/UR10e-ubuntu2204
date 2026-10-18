@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import math
 from pathlib import Path
 
 from build_step4e_p0p1_programs import build_urp
@@ -114,8 +115,10 @@ codex_joint_home()
 
 
 def build(output: Path, initial_q: list[float]) -> dict:
-    if len(initial_q) != 6:
-        raise ValueError("initial_q must have six values")
+    if len(initial_q) != 6 or any(
+        isinstance(value, bool) or not math.isfinite(float(value)) for value in initial_q
+    ):
+        raise ValueError("initial_q must have six finite numeric values")
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H%MZ_JOINT_FIGURE8_HOME_V1")
     output.mkdir(parents=True, exist_ok=False)
     script = _script(initial_q, stamp)
@@ -126,6 +129,7 @@ def build(output: Path, initial_q: list[float]) -> dict:
     )
     (output / f"{PROGRAM}.urp").write_bytes(build_urp(script, PROGRAM, CONTROLLER_DIR))
     binding = {
+        "stamp": stamp,
         "program": PROGRAM,
         "controller_target": f"{CONTROLLER_DIR}/{PROGRAM}.urp",
         "home_q": HOME_Q,
@@ -133,7 +137,7 @@ def build(output: Path, initial_q: list[float]) -> dict:
         "initial_q": initial_q,
         "initial_q_tolerance_rad": INITIAL_Q_TOL,
         "final_q_tolerance_rad": FINAL_Q_TOL,
-        "motion": {"type": "stopj_then_movej", "stopj_acceleration_rad_s2": 2.0,
+        "motion": {"type": "stopj_then_movej", "stopj_acceleration_rad_s2": 20.0,
                    "acceleration_rad_s2": 0.1, "speed_rad_s": 0.1,
                    "initial_qd_prestop_tolerance_rad_s": INITIAL_QD_PRESTOP_TOL,
                    "final_qd_tolerance_rad_s": FINAL_QD_TOL},
