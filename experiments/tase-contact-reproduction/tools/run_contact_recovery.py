@@ -1125,6 +1125,21 @@ def run(args):
             else:force=wrench_rows[-1]['force_check'] if wrench_rows else None
             return current,force
         before,_=check()
+        # Geometry preparation is not a stationary-motion guarantee. Before
+        # any LOAD/PLAY, wait only for the ORIGINAL predicate, within the
+        # already-running observer barrier deadline; do not retry stale data
+        # or a changed geometric start, and never extend this into motion.
+        quiescence_rejected = 0
+        while not stationary(before) and time.monotonic() < deadline:
+            if np.linalg.norm(np.asarray(before['actual_TCP_pose'])[:3]-np.asarray(plan['start_pose'])[:3])>.0005:
+                raise ValueError('start changed during geometry check')
+            quiescence_rejected += 1
+            time.sleep(.01)
+            before,_=check()
+        if quiescence_rejected:
+            result['pre_load_quiescence_wait'] = {'rejected_current_samples': quiescence_rejected,
+                'original_barrier_deadline': deadline, 'last_sample': dict(before),
+                'no_motion_dispatched': True, 'thresholds_unchanged': True}
         if np.linalg.norm(np.asarray(before['actual_TCP_pose'])[:3]-np.asarray(plan['start_pose'])[:3])>.0005 or not stationary(before):
             raise ValueError('start changed during geometry check')
         if plan['needs_lift']:
