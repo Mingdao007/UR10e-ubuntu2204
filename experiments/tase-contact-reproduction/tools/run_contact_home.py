@@ -65,6 +65,9 @@ def intermediate_waypoint(home):
         and not np.allclose(home['home_pose'], home['final_home_pose'], rtol=0., atol=1e-9))
 
 def home_motion_timeout_s(home):
+    if home.get('composed_recovery'):
+        from build_contact_home import composed_geometry
+        return sum(home_motion_timeout_s(stage)for stage in composed_geometry(home))
     """Budget the existing three-segment motion from distance and package speed."""
     start=np.asarray(home['rtde']['actual_TCP_pose'],dtype=float)
     target=np.asarray(home['home_pose'],dtype=float)
@@ -129,7 +132,29 @@ def _admit_initial_samples(rows, home, result, *, stage, observer_start_index):
             raise
 
 
+def _admit_composed(sample,home,*,initial):
+    from build_contact_home import composed_geometry
+    stages=composed_geometry(home)
+    if initial:
+        if np.max(np.abs(np.asarray(sample['actual_q'])-np.asarray(home['rtde']['actual_q'])))>.020:
+            raise ValueError('composed Home initial joint branch changed')
+        return admit_sample(sample,stages[0],initial=True)
+    validate_robot_sample(sample);recovery_ready(sample)
+    current=np.asarray(sample['actual_TCP_pose'],dtype=float)
+    if current[2]>=.0329:home['_composed_clearance_seen']=True
+    if home.get('_composed_clearance_seen') and current[2]<.0328:
+        raise ValueError('composed Home moved below attained original clearance')
+    reasons=[]
+    for stage in stages:
+        try:
+            admit_sample(sample,stage,initial=False)
+            return
+        except ValueError as error:reasons.append(str(error))
+    raise ValueError('composed Home outside all original local corridors: '+repr(reasons))
+
+
 def admit_sample(sample,home, *, initial):
+    if home.get('composed_recovery') is True:return _admit_composed(sample,home,initial=initial)
     validate_robot_sample(sample)
     if home_first_active():recovery_ready(sample)
     current=np.asarray(sample['actual_TCP_pose']);start=np.asarray(home['rtde']['actual_TCP_pose']);target=np.asarray(home['home_pose'])
@@ -226,10 +251,12 @@ def run(args):
     if not args.execute:return {'action':'read_only_preflight','dashboard':observed,'motion':False,'video_policy':video_policy}
     args.output.mkdir(parents=True,exist_ok=False)
     result={'requested_action':'bounded contact withdrawal to Home' if home.get('bounded_withdrawal') else 'noncontact Home only','started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'load':None,'play':None,'success':False,'video_policy':video_policy,'normal_fault_home_first_policy':home_first_active()}
+    if home.get('composed_recovery'):result['requested_action']='composed original withdrawal/clearance/Cartesian recovery to approved joint/TCP Home'
     sensor=None;wrench_rows=[]
     def check_wrench():
         raw,received=sensor.poll();now=time.monotonic()
-        if raw is None or received is None or not 0<=now-received<.08:raise ValueError('withdrawal Kunwei frame missing/stale')
+        if raw is None or received is None or not 0<=now-received<(.020 if home.get('composed_recovery') else .08):raise ValueError('withdrawal Kunwei frame missing/stale')
+        if home.get('composed_recovery') and (np.asarray(raw).shape!=(6,) or not np.isfinite(raw).all()):raise ValueError('composed Home external wrench invalid')
         if np.linalg.norm(raw[:3])>=20 or np.linalg.norm(raw[3:])>=2:raise ValueError('withdrawal raw wrench guard exceeded')
         wrench_rows.append({'wrench_n_nm':raw,'received_monotonic_s':received,'checked_monotonic_s':now})
     obs=Observer(args.host);video=None;writer=RemoteDashboardWriter(args.host,load_target=TARGET)
@@ -259,7 +286,7 @@ def run(args):
             window_start = max(0, window_end-10)
             _admit_initial_samples(obs.rows[window_start:window_end], home, result,
                 stage="pre_load_camera_barrier", observer_start_index=window_start)
-            if home.get('bounded_withdrawal'):
+            if home.get('bounded_withdrawal') or home.get('composed_recovery'):
                 from step5d_autotune_v4_r004.transport import LiveR004KunweiTransport
                 sensor=LiveR004KunweiTransport('192.168.50.25',port=5152);sensor.open()
                 until=time.monotonic()+1.
@@ -274,12 +301,17 @@ def run(args):
                 if obs.rows[index] is initial_row)
             _admit_initial_samples([initial_row], home, result,
                 stage="post_load_pre_play", observer_start_index=initial_index)
+            if home.get('composed_recovery') and sensor is not None:check_wrench()
             result['play']=adapter.play()
             motion_timeout=home_motion_timeout_s(home)
             result['motion_timeout_s']=motion_timeout
             deadline=time.monotonic()+motion_timeout;stationary_since=None
             while time.monotonic()<deadline:
-                row=obs.latest();admit_sample(row,home,initial=False)
+                row=obs.latest()
+                try:admit_sample(row,home,initial=False)
+                except BaseException as exc:
+                    if home.get('composed_recovery'):result['failed_composed_admission']={'sample':copy.deepcopy(row),'error':str(exc),'geometry_scope':'original local path union, not independent body collision proof'}
+                    raise
                 if sensor is not None:check_wrench()
                 state=dashboard_exchange(args.host,['safetymode','running','programState','is in remote control','get loaded program'])
                 if state['get loaded program']!=f'Loaded program: {TARGET}':raise ValueError('loaded Home program changed')
@@ -288,6 +320,8 @@ def run(args):
                 target=np.asarray(home['home_pose']);actual=np.asarray(row['actual_TCP_pose']);pe=np.linalg.norm(actual[:3]-target[:3]);ae=np.linalg.norm(pin.log3(rotvec_to_matrix(actual[3:])@rotvec_to_matrix(target[3:]).T))
                 stopped=state['running']=='Program running: false' and state['programState'].startswith('STOPPED')
                 q_error = float(np.max(np.abs(np.asarray(row['actual_q'], dtype=float) - home_q)))
+                if home.get('composed_recovery') and stopped and (pe>=.001 or ae>=.005):
+                    raise ValueError('composed Home stopped at intermediate waypoint, not final Home')
                 if stopped and pe<.001 and ae<.005 and (intermediate_waypoint(home) or (np.linalg.norm(row['actual_TCP_speed'])<.0005 and max(abs(x) for x in row['actual_qd'])<.001)):
                     if stationary_since is None:stationary_since=time.monotonic()
                     if time.monotonic()-stationary_since>=.5:

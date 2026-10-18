@@ -61,8 +61,120 @@ def withdrawal_geometry(home):
     return start,target
 
 
+def composed_geometry(home):
+    """Ordered existing local routes, not a new whole-joint collision proof."""
+    if home.get('composed_recovery') is not True:
+        return None
+    from run_contact_home import home_first_active
+    if not home_first_active():
+        raise ValueError('composed recovery is scoped to AIM3 normal-fault Home-first')
+    from contact_yield_live_contract import load_identity_contract
+    identity=load_identity_contract()
+    if not np.allclose(home.get('home_q'),identity.home_q,rtol=0,atol=1e-12) or not np.allclose(home.get('home_pose'),identity.home_pose,rtol=0,atol=1e-12):
+        raise ValueError('composed canonical Home identity changed')
+    stages=home.get('route_stages')
+    if not isinstance(stages,list) or not 1<=len(stages)<=40:
+        raise ValueError('composed recovery requires 1..40 approved stages')
+    previous=np.asarray(home['rtde']['actual_TCP_pose'],dtype=float)
+    final=np.asarray(home['home_pose'],dtype=float)
+    if previous.shape!=(6,) or final.shape!=(6,) or not np.isfinite(previous).all() or not np.isfinite(final).all():
+        raise ValueError('invalid composed endpoints')
+    if np.linalg.norm(previous[:3]-final[:3])>.08:
+        raise ValueError('Home transfer exceeds 80mm bound')
+    for stage in stages:
+        if stage.get('composed_recovery') or stage.get('geometry_proof',{}).get('pass') is not True:
+            raise ValueError('composed stage lacks original calibrated geometry check')
+        start=np.asarray(stage['rtde']['actual_TCP_pose'],dtype=float)
+        target=np.asarray(stage['home_pose'],dtype=float)
+        if not np.allclose(start,previous,rtol=0,atol=1e-10):
+            raise ValueError('composed route has a discontinuous nominal start')
+        if not np.allclose(stage.get('final_home_pose'),final,rtol=0,atol=1e-10):
+            raise ValueError('composed stage changed final Home')
+        if (recovery_geometry(stage) is None)==(withdrawal_geometry(stage) is None):
+            raise ValueError('composed stage must be one original recovery or withdrawal')
+        previous=target
+    if not np.allclose(previous,final,rtol=0,atol=1e-10):
+        raise ValueError('composed path does not end at canonical Home')
+    return stages
+
+
+def _build_composed(home,output):
+    from contact_eoat_installation_binding import bind_urp,load_binding
+    stages=composed_geometry(home)
+    stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H%MZ_CONTACT_HOME_COMPOSED_V1')
+    transform(SOURCE.read_text(),stages[0],stamp)
+    output.mkdir(parents=True,exist_ok=True)
+    definitions=[];calls=[]
+    for index,stage in enumerate(stages,1):
+        stage_dir=output/f'local-stage-{index:02d}'
+        stage_dir.mkdir()
+        receipt=stage_dir/'planned-stage.json'
+        receipt.write_text(json.dumps(stage,indent=2)+'\n')
+        build(receipt,stage_dir)
+        text=(stage_dir/f'{BASENAME}.script').read_text()
+        tail='  textmsg("start_hover_r001: final target stationary and verified")\n  halt\nend\n\n'+BASENAME+'()'
+        if text.count(tail)!=1:
+            raise ValueError('original Home success exit changed; cannot compose')
+        text=text.replace(tail,'  textmsg("composed Home stage '+str(index)+' complete")\nend\n',1)
+        if index<len(stages):
+            # Not fourteen independent Homes: no fine stillness veto between
+            # approved submoves. Keep finite poses and the original TRUE speed
+            # envelopes. Final native/host/independent fine checks remain.
+            from contact_home_motion_profile import HOME_TCP_SPEED_GUARD_M_S,HOME_ANGULAR_SPEED_GUARD_RAD_S,HOME_JOINT_SPEED_GUARD_RAD_S
+            old='linear_speed_m_s <= 0.001000000 and angular_speed_rad_s <= 0.010000000 and joint_speed_max_rad_s <= 0.010000000'
+            new=f'linear_speed_m_s <= {HOME_TCP_SPEED_GUARD_M_S:.9f} and angular_speed_rad_s <= {HOME_ANGULAR_SPEED_GUARD_RAD_S:.9f} and joint_speed_max_rad_s <= {HOME_JOINT_SPEED_GUARD_RAD_S:.9f}'
+            if text.count(old)!=1:raise ValueError('original intermediate speed predicate changed')
+            text=text.replace(old,new,1)
+        # Preserve each original movel/stopl/r=0 and all failure halts.
+        names=re.findall(r'^def ([A-Za-z_][A-Za-z_0-9]*)\(',text,re.M)
+        mapping={name:f'composed_{index:02d}_{name}'for name in names}
+        for name in sorted(names,key=len,reverse=True):
+            text=re.sub(r'\b'+name+r'\b',mapping[name],text)
+        start=stage['rtde']['actual_TCP_pose']
+        expected='p['+', '.join(f'{x:.12f}'for x in start)+']'
+        q_expected='['+', '.join(f'{x:.12f}'for x in stage['rtde']['actual_q'])+']'
+        guard=f"""  local expected_stage_start = {expected}
+  local expected_stage_q = {q_expected}
+  local actual_stage_q = get_actual_joint_positions()
+  local joint_index = 0
+  while joint_index < 6:
+    local joint_difference = actual_stage_q[joint_index]-expected_stage_q[joint_index]
+    if joint_difference > 0.020 or joint_difference < -0.020 or joint_difference != joint_difference:
+      textmsg("composed Home: initial joint branch changed")
+      halt
+    end
+    joint_index = joint_index+1
+  end
+  local stage_delta = pose_trans(pose_inv(expected_stage_start), current_pose)
+  local stage_position_error = sqrt(stage_delta[0]*stage_delta[0]+stage_delta[1]*stage_delta[1]+stage_delta[2]*stage_delta[2])
+  local stage_angle_error = sqrt(stage_delta[3]*stage_delta[3]+stage_delta[4]*stage_delta[4]+stage_delta[5]*stage_delta[5])
+  if stage_position_error > 0.0005 or stage_angle_error > 0.003:
+    textmsg("composed Home: actual stage start left original admission envelope")
+    halt
+  end
+"""
+        marker='  local current_pose = get_actual_tcp_pose()\n'
+        # Several utility functions also read current pose: insert only into the stage entry.
+        entry='def '+mapping[BASENAME]+'():\n'+marker
+        if text.count(entry)!=1:raise ValueError('original Home stage entry changed')
+        text=text.replace(entry,entry+guard,1)
+        definitions.append(text)
+        calls.append('  '+mapping[BASENAME]+'()')
+    text='# VERSION: '+stamp+'\n# ROLE: composed original approved Cartesian recovery; not arbitrary joint Home\n'+'\n'.join(definitions)+'\ndef '+BASENAME+'():\n'+'\n'.join(calls)+'\n  textmsg("composed Home: all original stages completed")\n  halt\nend\n\n'+BASENAME+'()\n'
+    validate_urscript_block_balance(text)
+    for forbidden in ('zero_ftsensor(', 'set_tcp(', 'set_payload(', 'speedj(', 'read_input_'):
+        if forbidden in text:raise ValueError('forbidden composed Home side effect')
+    for ext,data in [('script',text.encode()),('txt',('Composed approved Home\n'+stamp+'\n'+BASENAME+'\n').encode()),('urp',bind_urp(build_urp(text,BASENAME,CONTROLLER_DIR),basename=BASENAME,controller_directory=CONTROLLER_DIR))]:
+        (output/f'{BASENAME}.{ext}').write_bytes(data)
+    info={'basename':BASENAME,'stamp':stamp,'controller_directory':CONTROLLER_DIR,'installation_binding':load_binding(),'composed_recovery':True,'stage_count':len(stages),'home_pose':home['home_pose'],'home_q':home['home_q'],'live_executed':False,'geometry_scope':'ordered original local Cartesian envelopes, not whole robot/scene collision certificate'}
+    (output/f'{BASENAME}.binding.json').write_text(json.dumps(info,indent=2)+'\n')
+    return info
+
+
 def build(receipt,output):
-    home=json.loads(receipt.read_text());stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H%MZ_CONTACT_HOME_V1')
+    home=json.loads(receipt.read_text())
+    if home.get('composed_recovery') is True:return _build_composed(home,output)
+    stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H%MZ_CONTACT_HOME_V1')
     # Reuse the same tool/Home validation as the paired resident.
     transform(SOURCE.read_text(),home,stamp)
     target=np.asarray(home['home_pose']);observed=np.asarray(home['rtde']['actual_TCP_pose'])
