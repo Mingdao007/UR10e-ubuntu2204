@@ -75,6 +75,18 @@ def _dashboard(host: str) -> dict:
 
 
 def _fresh_stationary(host: str) -> tuple[Observer, dict]:
+    from run_contact_home import home_first_active, recovery_ready
+    if home_first_active():
+        _dashboard(host)
+        observer = Observer(host)
+        try:
+            observer.start()
+            row = observer.latest()
+            recovery_ready(row)
+            return observer, row
+        except BaseException:
+            observer.close()
+            raise
     observer = Observer(host)
     observer.start()
     deadline = time.monotonic() + 5.0
@@ -434,6 +446,20 @@ def run(args: argparse.Namespace) -> dict:
                 result["final_q"] = list(current_q)
                 result["joint_max_error_rad"] = joint_error
                 result["final_pose"] = current.tolist()
+            # Fine stationarity is FINAL Home verification, never a pre-Home veto.
+            from run_contact_home import home_first_active, normal_fault_home_first
+            if home_first_active():
+                with normal_fault_home_first(False):
+                    final_observer, settled = _fresh_stationary(args.host)
+                    final_observer.close()
+                if (np.max(np.abs(np.asarray(settled['actual_q'])-np.asarray(contract.home_q)))>.020
+                    or np.linalg.norm(np.asarray(settled['actual_TCP_pose'])[:3]-final_target[:3])>.001
+                    or np.linalg.norm(so3_log(so3_exp(settled['actual_TCP_pose'][3:])@so3_exp(final_target[3:]).T))>.005):
+                    raise RuntimeError('final approved joint Home changed during stationary verification')
+                result['final_sample'] = settled
+                result['final_q'] = list(settled['actual_q'])
+                result['final_pose'] = list(settled['actual_TCP_pose'])
+                result['final_stationary_verified_after_return'] = True
             result["success"] = True
             result["final_position_error_m"] = position_error
             result["final_orientation_error_rad"] = angle

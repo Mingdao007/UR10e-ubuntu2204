@@ -226,12 +226,15 @@ def transform(source,home,stamp):
             raise ValueError('measured joints are not at approved Figure-eight Home')
     if obs.get('safety_mode')!=1 or obs.get('robot_mode')!=7 or obs.get('runtime_state')!=1:
         raise ValueError('Home receipt does not show NORMAL, powered, stopped robot state')
-    if np.linalg.norm(obs['actual_TCP_speed'])>(.0005 if segmented else .00001):raise ValueError('Home not stationary')
+    from run_contact_home import home_first_active, recovery_ready
+    home_recovery = home_first_active() and (segmented or staged_recovery or home.get('clearance_entry') or home.get('bounded_withdrawal'))
+    if home_recovery:recovery_ready(obs)
+    if not home_recovery and np.linalg.norm(obs['actual_TCP_speed'])>(.0005 if segmented else .00001):raise ValueError('Home not stationary')
     if segmented or staged_recovery:
         actual_qd=np.asarray(obs.get('actual_qd',()),dtype=float)
         if actual_qd.shape!=(6,) or not np.isfinite(actual_qd).all():
             raise ValueError('clearance Home receipt lacks finite measured joint speed')
-        if np.max(np.abs(actual_qd))>.001:
+        if not home_recovery and np.max(np.abs(actual_qd))>.001:
             raise ValueError('clearance Home start joint speed exceeds the recovery stationary bound')
     if not np.allclose(obs['tcp_offset'],[0,0,.0874,0,0,0],atol=1e-9):raise ValueError('TCP differs')
     if not np.isclose(obs['payload'],.413,atol=1e-6) or not np.allclose(obs['payload_cog'],[.0011,.0031,.0163],atol=1e-6):raise ValueError('tool mass/CoG differs')

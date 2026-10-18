@@ -35,6 +35,35 @@ PROTECTIVE_STOP_SAFETY_BITS = frozenset((4, 2052))
 
 
 
+
+# Explicit AIM3 normal-fault recovery policy; defaults retain AIM2 semantics.
+from contextvars import ContextVar
+from contextlib import contextmanager
+_NORMAL_HOME_FIRST = ContextVar("aim3_normal_fault_home_first", default=False)
+
+def home_first_active():
+    return _NORMAL_HOME_FIRST.get()
+
+@contextmanager
+def normal_fault_home_first(enabled=True):
+    if type(enabled) is not bool:raise TypeError("explicit Home policy bool required")
+    token = _NORMAL_HOME_FIRST.set(enabled)
+    try:yield
+    finally:_NORMAL_HOME_FIRST.reset(token)
+
+def recovery_ready(row, *, protective=False):
+    if home_first_active() and not protective:
+        validate_robot_sample(row)
+        if np.linalg.norm(row['actual_TCP_speed'][3:]) > HOME_ANGULAR_SPEED_GUARD_RAD_S:
+            raise ValueError('Home angular speed envelope violated')
+        return True
+    return np.linalg.norm(row['actual_TCP_speed'])<.0005 and max(map(abs,row['actual_qd']))<.001
+
+def intermediate_waypoint(home):
+    return (home_first_active() and bool(home.get('segmented_recovery') or home.get('bounded_withdrawal'))
+        and 'final_home_pose' in home
+        and not np.allclose(home['home_pose'], home['final_home_pose'], rtol=0., atol=1e-9))
+
 def home_motion_timeout_s(home):
     """Budget the existing three-segment motion from distance and package speed."""
     start=np.asarray(home['rtde']['actual_TCP_pose'],dtype=float)
@@ -102,6 +131,7 @@ def _admit_initial_samples(rows, home, result, *, stage, observer_start_index):
 
 def admit_sample(sample,home, *, initial):
     validate_robot_sample(sample)
+    if home_first_active():recovery_ready(sample)
     current=np.asarray(sample['actual_TCP_pose']);start=np.asarray(home['rtde']['actual_TCP_pose']);target=np.asarray(home['home_pose'])
     low=np.minimum(start[:3],target[:3])-.003;high=np.maximum(start[:3],target[:3])+.003
     if np.any(current[:3]<low) or np.any(current[:3]>high):raise ValueError('Home transfer envelope violated')
@@ -112,7 +142,7 @@ def admit_sample(sample,home, *, initial):
         if current[2] < start[2]-.0001:
             raise _home_admission_error('withdrawal moved farther into the surface',
                 'withdrawal_z_position', float(current[2]), float(start[2]-.0001), 'm', '<')
-        if sample['actual_TCP_speed'][2] < -.0005:
+        if not home_first_active() and sample['actual_TCP_speed'][2] < -.0005:
             raise _home_admission_error('withdrawal moved farther into the surface',
                 'withdrawal_z_speed', float(sample['actual_TCP_speed'][2]), -.0005, 'm/s', '<')
         if current[2]<target[2]-.0002 and np.linalg.norm(current[:2]-start[:2])>.0005:
@@ -148,7 +178,7 @@ def admit_sample(sample,home, *, initial):
             raise _home_admission_error('initial Home observation changed/not stationary',
                 'initial_position_delta', position_delta, .002, 'm')
         tcp_full6_norm = np.linalg.norm(sample['actual_TCP_speed'])
-        if tcp_full6_norm > .0005:
+        if not home_first_active() and tcp_full6_norm > .0005:
             raise _home_admission_error('initial Home observation changed/not stationary',
                 'initial_TCP_full6_norm', tcp_full6_norm, .0005, 'existing full6 mixed linear/angular numerical norm')
 
@@ -195,7 +225,7 @@ def run(args):
         raise ValueError(f'unknown video policy: {video_policy}')
     if not args.execute:return {'action':'read_only_preflight','dashboard':observed,'motion':False,'video_policy':video_policy}
     args.output.mkdir(parents=True,exist_ok=False)
-    result={'requested_action':'bounded contact withdrawal to Home' if home.get('bounded_withdrawal') else 'noncontact Home only','started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'load':None,'play':None,'success':False,'video_policy':video_policy}
+    result={'requested_action':'bounded contact withdrawal to Home' if home.get('bounded_withdrawal') else 'noncontact Home only','started_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'load':None,'play':None,'success':False,'video_policy':video_policy,'normal_fault_home_first_policy':home_first_active()}
     sensor=None;wrench_rows=[]
     def check_wrench():
         raw,received=sensor.poll();now=time.monotonic()
@@ -258,7 +288,7 @@ def run(args):
                 target=np.asarray(home['home_pose']);actual=np.asarray(row['actual_TCP_pose']);pe=np.linalg.norm(actual[:3]-target[:3]);ae=np.linalg.norm(pin.log3(rotvec_to_matrix(actual[3:])@rotvec_to_matrix(target[3:]).T))
                 stopped=state['running']=='Program running: false' and state['programState'].startswith('STOPPED')
                 q_error = float(np.max(np.abs(np.asarray(row['actual_q'], dtype=float) - home_q)))
-                if stopped and pe<.001 and ae<.005 and np.linalg.norm(row['actual_TCP_speed'])<.0005 and max(abs(x) for x in row['actual_qd'])<.001:
+                if stopped and pe<.001 and ae<.005 and (intermediate_waypoint(home) or (np.linalg.norm(row['actual_TCP_speed'])<.0005 and max(abs(x) for x in row['actual_qd'])<.001)):
                     if stationary_since is None:stationary_since=time.monotonic()
                     if time.monotonic()-stationary_since>=.5:
                         result.update(
@@ -277,6 +307,7 @@ def run(args):
                             result['success'] = False
                         else:
                             result['success'] = True
+                            result['completion_scope'] = 'stopped_intermediate_waypoint_NOT_final_Home' if intermediate_waypoint(home) else 'final_Home_joint_TCP_stationary'
                         break
                 else:stationary_since=None
                 time.sleep(.04)
@@ -295,8 +326,8 @@ def run(args):
                         stopped=dashboard_exchange(args.host,['running','programState','safetymode'])
                         row=obs.latest()
                         if (stopped['running']=='Program running: false' and stopped['programState'].startswith('STOPPED')
-                            and row['monotonic_s']>=before and np.linalg.norm(row['actual_TCP_speed'])<.0005
-                            and max(map(abs,row['actual_qd']))<.001):
+                            and row['monotonic_s']>=before and (home_first_active() or (np.linalg.norm(row['actual_TCP_speed'])<.0005
+                            and max(map(abs,row['actual_qd']))<.001))):
                             result['observed_stop']={'dashboard':stopped,'sample':row};break
                         time.sleep(.02)
                     else:raise ValueError('Home physical stop was not observed')

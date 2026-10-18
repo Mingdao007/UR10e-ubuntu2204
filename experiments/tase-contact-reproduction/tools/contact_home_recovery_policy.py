@@ -135,7 +135,7 @@ def plan_staged_home_recovery(start_pose, home_pose):
     }
 
 
-def validate_lift_sample(plan, pose, twist, *, speed_limit_m_s=LIFT_SPEED_M_S):
+def validate_lift_sample(plan, pose, twist, *, speed_limit_m_s=LIFT_SPEED_M_S, normal_fault_home_first=False):
     """Reject descent, sideways, or rotation while still below clearance.
 
     The default limit is the historical 40 mm/s vertical command. The live
@@ -152,7 +152,7 @@ def validate_lift_sample(plan, pose, twist, *, speed_limit_m_s=LIFT_SPEED_M_S):
     speed = _copy6(twist, "twist")
     if current[2] < start[2] - Z_BELOW_START_M:
         raise ValueError("lift moved below start Z")
-    if speed[2] < DOWNWARD_VZ_M_S:
+    if not normal_fault_home_first and speed[2] < DOWNWARD_VZ_M_S:
         raise ValueError("lift downward velocity")
     at_clearance = bool(current[2] >= lift[2])
     if current[2] > lift[2] + 0.001:

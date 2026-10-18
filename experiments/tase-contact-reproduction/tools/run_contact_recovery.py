@@ -228,8 +228,8 @@ def _run_joint_home_correction(*, home_result, output, host):
         so3_log(so3_exp(actual_pose[3:]) @ so3_exp(JOINT_HOME_POSE[3:]).T)
     ))
     if (current_position_error > .001 or current_orientation_error > .005
-        or np.max(np.abs(actual_qd)) > .001
-        or np.linalg.norm(actual_tcp_speed[:3]) > .0005):
+        or (not __import__('run_contact_home').home_first_active() and (np.max(np.abs(actual_qd)) > .001
+        or np.linalg.norm(actual_tcp_speed[:3]) > .0005))):
         raise ValueError('joint-Home correction requires stationary canonical TCP pose')
     if current_joint_error <= .020:
         raise ValueError('joint-Home correction was requested without a joint mismatch')
@@ -363,7 +363,7 @@ def _emergency_home_when_commandable(source, output, host, packages, *, reason,
         deadline = time.monotonic() + 8.0
         while time.monotonic() < deadline:
             row = obs.latest()
-            if stationary(row):
+            if _normal_recovery_ready(row, protective=_protective_safety(dashboard)):
                 if _protective_safety(dashboard):
                     validate_robot_sample(row, allow_protective=True)
                 break
@@ -679,6 +679,10 @@ def _plan_recovery_with_staged_fallback(start_pose, home_pose):
         return plan
 
 
+def _normal_recovery_ready(row, *, protective=False):
+    from run_contact_home import recovery_ready
+    return recovery_ready(row, protective=protective)
+
 def stationary(row):
     return np.linalg.norm(row['actual_TCP_speed'])<.0005 and max(map(abs,row['actual_qd']))<.001
 
@@ -693,7 +697,7 @@ def _wait_relief_stop_and_stationary(adapter, observer, host, *, timeout_s=5.0):
     while time.monotonic() < deadline:
         last = observer.latest()
         validate_robot_sample(last)
-        if stationary(last):
+        if _normal_recovery_ready(last):
             if stable_since is None:
                 stable_since = time.monotonic()
             if time.monotonic() - stable_since >= RELIEF_STARTUP_SETTLE_S:
@@ -847,7 +851,7 @@ def run(args):
             return result.get('home')
         if plan is None or geometry is None:
             raise ValueError('Home is not commandable: relief geometry proof is missing')
-        if not stationary(current):
+        if not _normal_recovery_ready(current):
             raise ValueError('Home is not commandable: robot is not stationary')
         if float(current['actual_TCP_pose'][2]) < float(plan['lift_pose'][2]) - .0001:
             raise ValueError('Home is not commandable: vertical clearance is incomplete')
@@ -1008,10 +1012,10 @@ def run(args):
                 if video_policy == 'evidence-only'
                 else video.path.exists() and video.path.stat().st_size > 512
             )
-            if len(obs.rows)>=10 and raw is not None and video_ready and stationary(row):break
+            if len(obs.rows)>=10 and raw is not None and video_ready and _normal_recovery_ready(row, protective=live_protective):break
             time.sleep(.01)
         else:raise ValueError('recovery observer/sensor barrier failed')
-        if not stationary(row):raise ValueError('robot is not stationary before recovery')
+        if not _normal_recovery_ready(row, protective=live_protective):raise ValueError('robot is not stationary before recovery')
         if live_protective:
             healthy = getattr(video, 'healthy', None)
             video_healthy = healthy() if callable(healthy) else getattr(video, 'available', True)
@@ -1130,7 +1134,7 @@ def run(args):
         # already-running observer barrier deadline; do not retry stale data
         # or a changed geometric start, and never extend this into motion.
         quiescence_rejected = 0
-        while not stationary(before) and time.monotonic() < deadline:
+        while not _normal_recovery_ready(before) and time.monotonic() < deadline:
             if np.linalg.norm(np.asarray(before['actual_TCP_pose'])[:3]-np.asarray(plan['start_pose'])[:3])>.0005:
                 raise ValueError('start changed during geometry check')
             quiescence_rejected += 1
@@ -1140,7 +1144,7 @@ def run(args):
             result['pre_load_quiescence_wait'] = {'rejected_current_samples': quiescence_rejected,
                 'original_barrier_deadline': deadline, 'last_sample': dict(before),
                 'no_motion_dispatched': True, 'thresholds_unchanged': True}
-        if np.linalg.norm(np.asarray(before['actual_TCP_pose'])[:3]-np.asarray(plan['start_pose'])[:3])>.0005 or not stationary(before):
+        if np.linalg.norm(np.asarray(before['actual_TCP_pose'])[:3]-np.asarray(plan['start_pose'])[:3])>.0005 or not _normal_recovery_ready(before):
             raise ValueError('start changed during geometry check')
         if plan['needs_lift']:
             target=f'{DIRECTORY}/{RELIEF_PROGRAM}.urp';writer=RemoteDashboardWriter(args.host,load_target=target)
@@ -1165,6 +1169,7 @@ def run(args):
                             validate_lift_sample(
                                 plan, row['actual_TCP_pose'], row['actual_TCP_speed'],
                                 speed_limit_m_s=RECOVERY_LIFT_SPEED_LIMIT_M_S,
+                                normal_fault_home_first=__import__('run_contact_home').home_first_active(),
                             )
                         except ValueError as lift_error:
                             if (
@@ -1181,7 +1186,7 @@ def run(args):
                                 should_retry=True
                                 break
                             raise
-                        if row['actual_TCP_pose'][2]>=plan['lift_pose'][2]-.0001 and stationary(row):
+                        if row['actual_TCP_pose'][2]>=plan['lift_pose'][2]-.0001 and _normal_recovery_ready(row):
                             if stopped_since is None:stopped_since=time.monotonic()
                             if time.monotonic()-stopped_since>=.3:
                                 # TP can still be completing its terminal bookkeeping
@@ -1216,14 +1221,14 @@ def run(args):
                 until=stopped_after+3.
                 while time.monotonic()<until:
                     stopped=obs.latest()
-                    if stopped['monotonic_s']>=stopped_after and stationary(stopped):
+                    if stopped['monotonic_s']>=stopped_after and _normal_recovery_ready(stopped):
                         result['confirmed_stop']=stopped;break
                     time.sleep(.02)
                 else:raise ValueError('recovery physical stop not confirmed')
             except BaseException as stop:result['stop_error']=str(stop)
         try:
             row=obs.latest();result['stopped_sample']=row
-            if not stationary(row):result['stop_unconfirmed']=True
+            if not _normal_recovery_ready(row):result['stop_unconfirmed']=True
             # A relief fault is still routed to Home whenever the already
             # observed clearance and force release make that command safe.
             # If those facts are unavailable, BLOCKED records the exact
